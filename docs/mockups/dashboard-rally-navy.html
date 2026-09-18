@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rally — navy chrome, orange CTA</title>
+<style>
+  :root {
+    --navy: #0E2A47;
+    --navy-soft: #1B4FA0;
+    --tangerine: #FF8C1A;
+    --tangerine-hover: #F07E0C;
+    --tangerine-tint: #FFF3E4;
+    --on-tangerine: #3D1F00;
+    --blue: #9FD5F0;
+    --blue-tint: #DFF0FA;
+    --blue-wash: #F5FAFD;
+    --blue-deep: #2C7FA8;
+    --link: #1B6A93;
+    --ink: #14222C;
+    --muted: #5C6B76;
+    --faint: #7C8A94;
+    --border: #DCE5EB;
+    --border-strong: #C4D5DF;
+    --row-line: #EAF1F5;
+    --radius: 0;
+  }
+  * { box-sizing: border-box; }
+  svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  body {
+    margin: 0;
+    background: var(--blue-wash);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
+  a:hover { color: var(--tangerine-hover); }
+  .shell { max-width: 1440px; margin: 0 auto; background: var(--blue-wash); min-height: 100vh; display: flex; flex-direction: column; }
+
+  .topbar { background: #fff; border-bottom: 1px solid var(--border); }
+  .topbar-inner { display: flex; align-items: center; gap: 14px; padding: 12px 28px; }
+  .logo { width: 34px; height: 34px; background: var(--navy); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+  .org { font-size: 14px; font-weight: 600; }
+  .caret { color: var(--muted); font-size: 11px; }
+  .site-pill { font-size: 12px; border: 1px solid var(--blue); background: var(--blue-tint); color: var(--link); padding: 4px 12px; }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 18px; font-size: 13px; color: #3E4E58; }
+  .icon-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 1px solid transparent; color: var(--muted); }
+  .icon-btn:hover { border-color: var(--border-strong); background: #fff; }
+
+  .mainnav { background: #fff; border-bottom: 1px solid var(--border); }
+  .mainnav-inner { display: flex; justify-content: center; gap: 38px; padding: 0 28px; }
+  .navitem { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px 9px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); border-bottom: 3px solid transparent; cursor: default; }
+  .navitem svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+  .navitem:hover { color: var(--ink); }
+  .navitem.active { color: var(--ink); border-bottom-color: var(--navy); }
+
+  .titlebar { background: var(--navy); color: #fff; padding: 22px 28px; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+
+  .page { padding: 20px 28px 40px; flex: 1; }
+  .controls { display: flex; gap: 10px; margin-bottom: 18px; }
+  .btn { font-size: 13px; background: #fff; border: 1px solid var(--border-strong); color: var(--ink); padding: 8px 14px; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; font-family: inherit; }
+  .btn:hover { border-color: var(--faint); }
+  .btn-primary { background: var(--tangerine); border-color: var(--tangerine); color: var(--on-tangerine); font-weight: 600; }
+  .btn-primary:hover { background: var(--tangerine-hover); border-color: var(--tangerine-hover); }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .stat { background: #fff; border: 1px solid var(--border); border-top: 4px solid var(--navy); padding: 16px 18px; }
+  .stat-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .stat-label svg { width: 17px; height: 17px; stroke: var(--blue-deep); fill: none; stroke-width: 1.6; }
+  .stat-value { font-size: 27px; font-weight: 700; letter-spacing: -0.02em; margin-top: 6px; }
+
+  .section-head { display: flex; align-items: baseline; gap: 14px; margin: 30px 0 14px; }
+  .section-head h2 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .section-head a { font-size: 13px; }
+
+  .filters { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .search { flex: 0 0 300px; display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--border-strong); padding: 8px 12px; font-size: 13px; color: var(--faint); }
+  .search svg { width: 15px; height: 15px; stroke: var(--faint); fill: none; stroke-width: 1.8; }
+  .filters-right { margin-left: auto; display: flex; gap: 10px; }
+
+  .tabs { display: flex; gap: 28px; border-bottom: 1px solid var(--border-strong); }
+  .tab { font-size: 14px; padding: 0 2px 10px; color: var(--faint); border-bottom: 3px solid transparent; cursor: default; }
+  .tab:hover { color: var(--ink); }
+  .tab.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--navy); }
+
+  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--border); border-top: none; font-size: 13px; }
+  thead th { background: var(--blue-tint); color: #134E6D; text-align: left; font-weight: 600; padding: 11px 14px; white-space: nowrap; }
+  thead th .sort { color: #5C93AE; margin-left: 5px; font-size: 11px; }
+  tbody td { padding: 12px 14px; border-top: 1px solid var(--row-line); }
+  tbody tr:hover { background: #FBFDFE; }
+  td.name { width: 30%; }
+  td.sport { color: var(--muted); }
+  .chev { color: var(--faint); font-size: 11px; margin-right: 6px; }
+
+  .split { display: grid; grid-template-columns: 1.7fr 1fr; gap: 20px; margin-top: 28px; }
+  .promo { background: #fff; border: 1px solid var(--border); padding: 22px; display: flex; gap: 22px; align-items: center; }
+  .promo-art { width: 132px; height: 132px; flex: none; background: var(--blue-tint); display: flex; align-items: center; justify-content: center; }
+  .promo-art svg { width: 62px; height: 62px; stroke: var(--navy-soft); fill: none; stroke-width: 1.4; }
+  .promo-kicker { font-size: 13px; color: var(--muted); }
+  .promo h3 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin: 6px 0 8px; }
+  .promo p { font-size: 14px; color: var(--muted); margin: 0 0 14px; }
+  .suggest h3 { font-size: 17px; font-weight: 700; margin: 0 0 12px; }
+  .suggest-row { background: #fff; border: 1px solid var(--border); border-left: 4px solid var(--blue); padding: 13px 14px; display: flex; align-items: center; gap: 10px; font-size: 13px; margin-bottom: 10px; }
+  .suggest-row:hover { border-color: var(--border-strong); border-left-color: var(--tangerine); }
+  .suggest-row svg { width: 17px; height: 17px; stroke: var(--blue-deep); fill: none; stroke-width: 1.6; }
+  .suggest-row .go { margin-left: auto; color: var(--faint); }
+
+  .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 30px; }
+  .trio h3 { font-size: 17px; font-weight: 700; margin: 0 0 12px; }
+  .trio-card { background: #fff; border: 1px solid var(--border); padding: 18px; font-size: 13px; color: var(--muted); }
+  .trio-card a { display: inline-block; margin-top: 12px; font-size: 13px; }
+
+  .footer { background: #fff; border-top: 4px solid var(--navy); padding: 18px 28px; display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); }
+  .footer .logo { width: 26px; height: 26px; font-size: 14px; }
+  .footer-brand { font-weight: 700; color: var(--ink); letter-spacing: 0.04em; }
+  .footer-right { margin-left: auto; color: var(--faint); }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo">R</div>
+      <span class="org">Northstar Youth Sports</span>
+      <span class="caret">▼</span>
+      <span class="site-pill">Site</span>
+      <div class="topbar-right">
+        <span class="icon-btn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
+        <span>Hi, Alex! <span class="caret">▼</span></span>
+      </div>
+    </div>
+  </header>
+
+  <nav class="mainnav">
+    <div class="mainnav-inner">
+      <div class="navitem active"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>Manage</div>
+      <div class="navitem"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Messaging</div>
+      <div class="navitem"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Calendar</div>
+      <div class="navitem"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Reporting</div>
+      <div class="navitem"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13"/><path d="M8 21h8M12 17v4"/></svg>Website</div>
+      <div class="navitem"><svg viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v5a6 6 0 01-12 0z"/><path d="M12 19v3"/></svg>Integrations</div>
+      <div class="navitem"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>Settings</div>
+    </div>
+  </nav>
+
+  <div class="titlebar">Dashboard</div>
+
+  <main class="page">
+
+    <div class="controls">
+      <button class="btn">All time <span class="caret">▼</span></button>
+      <button class="btn">Hide data</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13"/><path d="M3 10h18M16 14h2"/></svg>Collected</div>
+        <div class="stat-value">$1,340.00</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14"/><path d="M3 9h18"/></svg>Payments due</div>
+        <div class="stat-value">$1,185.00</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17"/><path d="M9 3h6v3H9zM9 12l2 2 4-4"/></svg>Registrations</div>
+        <div class="stat-value">34</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Games + events</div>
+        <div class="stat-value">12</div>
+      </div>
+    </div>
+
+    <div class="section-head">
+      <h2>Program summary</h2>
+      <a href="#">View all programs</a>
+    </div>
+
+    <div class="filters">
+      <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Search by name</div>
+      <a href="#">Clear filter</a>
+      <div class="filters-right">
+        <button class="btn"><svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" fill="none" stroke-width="1.7"><path d="M12 3v12M7 11l5 5 5-5M4 21h16"/></svg>Export to CSV</button>
+        <button class="btn"><svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" fill="none" stroke-width="1.7"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="17" r="2"/></svg>Customize view</button>
+        <button class="btn btn-primary">+ Create program</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active">Live and upcoming</div>
+      <div class="tab">Unpublished</div>
+      <div class="tab">Completed</div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Program <span class="sort">⇅</span></th>
+          <th>Paid <span class="sort">⇅</span></th>
+          <th>Outstanding <span class="sort">⇅</span></th>
+          <th>Players <span class="sort">⇅</span></th>
+          <th>Free agents <span class="sort">⇅</span></th>
+          <th>Staff <span class="sort">⇅</span></th>
+          <th>Teams <span class="sort">⇅</span></th>
+          <th>Sport <span class="sort">⇅</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="name"><a href="#">Community Soccer League</a></td>
+          <td><a href="#">$1,361.25</a></td>
+          <td><a href="#">$325.00</a></td>
+          <td><a href="#">18</a></td>
+          <td><a href="#">0</a></td>
+          <td><a href="#">1</a></td>
+          <td><a href="#">5</a></td>
+          <td class="sport">Soccer</td>
+        </tr>
+        <tr>
+          <td class="name"><a href="#">Fall Coach Registration</a></td>
+          <td><a href="#">$0.00</a></td>
+          <td><a href="#">$0.00</a></td>
+          <td><a href="#">0</a></td>
+          <td><a href="#">0</a></td>
+          <td><a href="#">0</a></td>
+          <td><a href="#">0</a></td>
+          <td class="sport">Soccer</td>
+        </tr>
+        <tr>
+          <td class="name"><span class="chev">▶</span><a href="#">Fall Recreational Soccer</a></td>
+          <td><a href="#">$0.00</a></td>
+          <td><a href="#">$760.00</a></td>
+          <td><a href="#">8</a></td>
+          <td><a href="#">8</a></td>
+          <td><a href="#">0</a></td>
+          <td><a href="#">6</a></td>
+          <td class="sport">Soccer</td>
+        </tr>
+        <tr>
+          <td class="name"><a href="#">Fictional enrollment plan verification</a></td>
+          <td><a href="#">$0.00</a></td>
+          <td><a href="#">$100.00</a></td>
+          <td><a href="#">1</a></td>
+          <td><a href="#">1</a></td>
+          <td><a href="#">1</a></td>
+          <td><a href="#">2</a></td>
+          <td class="sport">Soccer</td>
+        </tr>
+        <tr>
+          <td class="name"><a href="#">Team Report Verification</a></td>
+          <td><a href="#">$0.00</a></td>
+          <td><a href="#">$0.00</a></td>
+          <td><a href="#">3</a></td>
+          <td><a href="#">0</a></td>
+          <td><a href="#">0</a></td>
+          <td><a href="#">1</a></td>
+          <td class="sport">Soccer</td>
+        </tr>
+        <tr>
+          <td class="name"><a href="#">Terminology verification event</a></td>
+          <td><a href="#">$0.00</a></td>
+          <td><a href="#">$0.00</a></td>
+          <td><a href="#">0</a></td>
+          <td><a href="#">0</a></td>
+          <td><a href="#">0</a></td>
+          <td><a href="#">0</a></td>
+          <td class="sport">Soccer</td>
+        </tr>
+        <tr>
+          <td class="name"><a href="#">Verification League</a></td>
+          <td><a href="#">$0.00</a></td>
+          <td><a href="#">$0.00</a></td>
+          <td><a href="#">3</a></td>
+          <td><a href="#">3</a></td>
+          <td><a href="#">1</a></td>
+          <td><a href="#">1</a></td>
+          <td class="sport">Soccer</td>
+        </tr>
+        <tr>
+          <td class="name"><a href="#">Verification Volleyball</a></td>
+          <td><a href="#">$0.00</a></td>
+          <td><a href="#">$0.00</a></td>
+          <td><a href="#">0</a></td>
+          <td><a href="#">0</a></td>
+          <td><a href="#">0</a></td>
+          <td><a href="#">2</a></td>
+          <td class="sport">Volleyball</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="split">
+      <div class="promo">
+        <div class="promo-art"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div>
+        <div>
+          <div class="promo-kicker">Built for your next season</div>
+          <h3>From the first tryout.<br>To the final whistle.</h3>
+          <p>Keep your programs, teams, and families connected.</p>
+          <button class="btn btn-primary">Set up your program &nbsp;›</button>
+        </div>
+      </div>
+      <div class="suggest">
+        <h3>Suggested for you</h3>
+        <div class="suggest-row"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>You have 6 live programs<span class="go">›</span></div>
+        <div class="suggest-row"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>You have 1 unpublished program<span class="go">›</span></div>
+        <div class="suggest-row"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>View your global schedule<span class="go">›</span></div>
+      </div>
+    </div>
+
+    <div class="trio">
+      <div>
+        <h3>Your organization</h3>
+        <div class="trio-card">Everything you need for the season in one place.<br><a href="#">Manage your programs</a></div>
+      </div>
+      <div>
+        <h3>Teams and families</h3>
+        <div class="trio-card">Find your members and manage registrations.<br><a href="#">View member directory</a></div>
+      </div>
+      <div>
+        <h3>Season planning</h3>
+        <div class="trio-card">See upcoming games and activities across your club.<br><a href="#">Open the schedule</a></div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="logo">R</div>
+    <span class="footer-brand">RALLY</span>
+    <span class="footer-right">Northstar Youth Sports · Local workspace</span>
+  </footer>
+
+</div>
+</body>
+</html>

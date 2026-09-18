@@ -1,0 +1,148 @@
+/* Athlentry administration system. Public organization themes remain separate. */
+.admin-platform { min-height:100dvh; background:var(--canvas); }
+.admin-platform :is(h1,h2,h3,h4) { font-family:"Open Sans",Arial,sans-serif; }
+.admin-platform :is(h2,h3) { letter-spacing:-.35px; }
+.admin-platform h2 { font-size:20px; }
+.admin-platform h3 { font-size:16px; }
+.admin-platform .button { min-height:38px; border-radius:6px; padding:8px 14px; gap:7px; }
+.admin-platform .button.secondary { border-color:var(--border); }
+.admin-platform :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),select,textarea) { border-radius:6px; border-color:var(--border); box-shadow:none; color:var(--ink-2); }
+.admin-platform :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),select) { min-height:38px; }
+.admin-platform .field > span { font-size:12px; color:var(--ink-2); font-weight:600; }
+.admin-platform .form-grid { column-gap:20px; }
+.admin-platform .form-actions { border-top:1px solid var(--line); padding-top:20px; }
+.admin-platform :is(.form-layout,.help-form-layout) { gap:28px; }
+.admin-platform .form-layout { padding:28px 32px; background:var(--canvas); grid-template-columns:minmax(0,1fr) 280px; align-items:start; }
+.admin-platform .form-layout > form { padding:24px; background:white; border:1px solid var(--line); border-radius:10px; min-width:0; }
+.admin-platform :is(.help-sidebar,.website-help,.message-actions) { padding:22px; border:1px solid var(--line); border-radius:10px; background:var(--head); color:var(--muted); align-self:start; }
+.admin-platform :is(.help-sidebar,.website-help,.message-actions) p { font-size:12px; line-height:1.75; color:var(--muted); }
+.admin-platform :is(.form-section,.divided) { border-color:var(--line); }
+.admin-platform :is(.filter-bar,.registration-filters,.registration-filter-panel,.location-picker) { border:1px solid var(--line); background:var(--head); border-radius:8px; padding:18px; }
+.admin-platform :is(.page-tools,.toolbar,.split-toolbar,.filter-row) { gap:12px; flex-wrap:wrap; }
+.admin-platform .settings-section-tabs { padding:0 32px; gap:24px; flex-wrap:wrap; }
+.admin-platform .settings-section-tabs a { font-size:12px; padding:16px 2px; }
+.admin-platform .settings-section-tabs a.active { color:var(--accent-600); }
+.admin-platform .square-action { width:34px; height:34px; border:1px solid var(--line); border-radius:6px; background:white; color:var(--muted); }
+.admin-platform .square-action:hover { color:var(--accent-600); background:var(--accent-050); border-color:var(--accent-line); }
+.admin-platform :is(a,button,input,select,textarea,summary):focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.admin-platform :is(.error-box,.notice,.success-box,.warning-box) { border-radius:7px; line-height:1.6; }
+.admin-platform .pagination { padding:18px 0 0; gap:10px; flex-wrap:wrap; color:var(--muted); }
+.admin-platform .empty { padding:32px 20px; color:var(--muted); }
+/* Scheduling keeps the calendar and its operational controls together. */
+.admin-platform .schedule-page { margin:24px 32px; padding:24px; background:white; border:1px solid var(--line); border-radius:10px; }
+.admin-platform .schedule-page > .split-toolbar:first-of-type { padding-bottom:18px; border-bottom:1px solid var(--line); }
+.admin-platform .schedule-page .table-scroll { border:1px solid var(--line); border-radius:8px; box-shadow:none; }
+.admin-platform .schedule-page th { padding:14px 12px; background:var(--head); }
+.admin-platform .schedule-page td { padding:16px 12px; }
+.admin-platform .calendar-heading { padding:18px 0; margin:0; gap:16px; flex-wrap:wrap; }
+.admin-platform .calendar-heading h2 { font-size:22px; }
+.admin-platform .calendar-scroll { border:1px solid var(--line); border-radius:8px; }
+.admin-platform .calendar-grid { border:0; }
+.admin-platform .calendar-weekday { background:var(--head); padding:14px; color:var(--muted); font-weight:600; }
+.admin-platform .calendar-cell { min-height:140px; border-color:var(--line); padding:8px; }
+.admin-platform .calendar-event { border-left:3px solid var(--accent); border-radius:4px; background:var(--accent-050); color:var(--accent-600); padding:7px; }
+.admin-platform .calendar-cell.outside { color:var(--muted); background:var(--head); }
+/* People and team detail surfaces. */
+.admin-platform .profile-actions { padding:16px 32px; background:white; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:20px; }
+.admin-platform .member-profile { margin:24px 32px; padding:0; gap:24px; grid-template-columns:260px minmax(0,1fr); background:transparent; }
+.admin-platform .profile-sidebar { border:1px solid var(--line); border-radius:10px; background:white; padding:24px; align-self:start; }
+.admin-platform .profile-avatar { width:72px; height:72px; border-radius:16px; background:var(--accent-050); color:var(--accent-600); margin-bottom:20px; }
+.admin-platform .profile-avatar svg { width:36px; height:36px; }
+.admin-platform .profile-main { background:white; border:1px solid var(--line); border-radius:10px; padding:24px; }
+.admin-platform .profile-sidebar :is(p,ul) { font-size:12px; line-height:1.65; }
+.admin-platform .team-overview { padding:22px; border:1px solid var(--line); border-radius:8px; background:var(--head); gap:24px; }
+.admin-platform .team-avatar { background:var(--accent-050); color:var(--accent-600); border-radius:14px; }
+.admin-platform .team-finance { flex-wrap:wrap; }
+.admin-platform .team-finance strong { color:var(--ink); font-weight:700; font-variant-numeric:tabular-nums; }
+.admin-platform .team-builder { background:var(--canvas); }
+.admin-platform .builder-header { background:white; color:var(--ink); padding:24px 32px; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:16px; }
+.admin-platform .builder-header h1 { font-size:28px; }
+.admin-platform .builder-header a { color:var(--accent-600); }
+.admin-platform .builder-tools { background:white; padding:18px 32px; border-color:var(--line); }
+.admin-platform .available-players { background:var(--head); border-color:var(--line); padding:24px 18px; }
+.admin-platform .builder-team-column { border-color:var(--line); border-radius:10px; padding:18px; }
+.admin-platform .player-card { background:white; border-color:var(--line); padding:10px; border-radius:6px; }
+/* Composition, website management, billing, and shared dialogs. */
+.admin-platform .message-layout { grid-template-columns:minmax(0,1fr) 260px; gap:28px; align-items:start; }
+.admin-platform .message-main { padding:0; }
+.admin-platform .message-main > h2 { border-color:var(--line); font-size:20px; margin-top:0; }
+.admin-platform .message-actions h3 { margin-bottom:18px; }
+.admin-platform .message-actions a { padding:8px 0; margin:0; text-decoration:none; }
+.admin-platform .message-actions a:hover { text-decoration:underline; }
+.admin-platform .message-divider { border-color:var(--line); margin-block:24px; }
+.admin-platform :is(.message-editor-form,.rich-editor) { border-color:var(--line); border-radius:8px; overflow:hidden; }
+.admin-platform :is(.website-theme-panel,.website-template,.access-list,.member-account-access,.waiver-document) { border-color:var(--line); border-radius:8px; }
+.admin-platform .website-theme-panel h3 { background:var(--head); border-color:var(--line); padding:16px; }
+.admin-platform .invoice-sheet { border-color:var(--line); border-radius:10px; width:calc(100% - 64px); box-sizing:border-box; }
+.admin-platform .modal { border:1px solid var(--line); border-radius:12px; box-shadow:0 20px 70px #15181c33; color:var(--ink-2); }
+.admin-platform .modal-title, .admin-platform .modal.drawer .modal-title { background:white; color:var(--ink); padding:18px 24px; border-bottom:1px solid var(--line); }
+.admin-platform .modal-title h2 { font-size:20px; }
+.admin-platform .modal-title > button, .admin-platform .modal.drawer .modal-title button { color:var(--muted); width:32px; height:32px; align-items:center; justify-content:center; border-radius:6px; }
+.admin-platform .modal-title > button:hover { background:var(--head); }
+.admin-platform .modal-body { padding:24px; }
+.admin-platform .modal.drawer { border-radius:12px 0 0 12px; }
+.admin-platform .footer { border-top:1px solid var(--line); padding:24px 32px; margin-top:28px; }
+@media(max-width:1000px) {
+  .admin-platform .form-layout { grid-template-columns:minmax(0,1fr) 230px; gap:20px; }
+  .admin-platform .website-columns { grid-template-columns:minmax(0,1fr); }
+  .admin-platform .message-layout { grid-template-columns:minmax(0,1fr) 210px; gap:20px; }
+}
+@media(max-width:760px) {
+  .admin-platform .button { min-height:42px; }
+  .admin-platform .form-layout { display:grid; grid-template-columns:1fr; padding:16px 14px; }
+  .admin-platform .form-layout > form { padding:18px; }
+  .admin-platform :is(.form-grid,.form-grid.three,.form-grid.four,.website-form-grid,.website-theme-grid) { grid-template-columns:1fr; }
+  .admin-platform .settings-section-tabs { padding:0 16px; gap:16px; }
+  .admin-platform .schedule-page { margin:16px 14px; padding:16px; }
+  .admin-platform .schedule-page .table-scroll table { min-width:800px; }
+  .admin-platform .schedule-range-controls { width:100%; }
+  .admin-platform .profile-actions { padding:16px; }
+  .admin-platform .member-profile { display:grid; grid-template-columns:1fr; margin:16px 14px; gap:18px; }
+  .admin-platform .profile-main { padding:18px; }
+  .admin-platform .message-layout { display:grid; grid-template-columns:1fr; }
+  .admin-platform .recipient-section { margin-left:0; }
+  .admin-platform .builder-header, .admin-platform .builder-tools { padding:18px 14px; }
+  .admin-platform .builder-workspace { grid-template-columns:1fr; }
+  .admin-platform .available-players { border-bottom:1px solid var(--line); }
+  .admin-platform .available-players .player-stack { max-height:260px; }
+  .admin-platform .invoice-sheet { width:calc(100% - 28px); padding:18px; }
+  .admin-platform .modal-body { padding:18px; }
+  .admin-platform .footer { padding:20px 16px; flex-wrap:wrap; gap:12px; }
+}
+@media print {
+  .admin-platform { background:white; }
+  .admin-platform .invoice-sheet { width:100%; border:0; margin:0; padding:0; }
+}
+
+/* Display typography is reserved for page titles, not body or section text. */
+.admin-platform :is(.page-title,.workspace-heading,.builder-header) h1 {
+  font-family:"Barlow Semi Condensed", "Arial Narrow", sans-serif;
+  font-weight:700;
+  font-size:clamp(32px,3vw,40px);
+  letter-spacing:-.5px;
+  line-height:1.15;
+}
+/* Labeled controls align by their input edge, not the label-plus-input box. */
+.admin-platform .schedule-action-toolbar,
+.admin-platform .schedule-action-toolbar > .inline { align-items:flex-end; }
+.admin-platform .schedule-action-toolbar :is(.button,select,input) { height:40px; min-height:40px !important; box-sizing:border-box; }
+.admin-platform .schedule-action-toolbar .subtle { min-height:40px; display:flex; align-items:center; }
+.admin-platform .searchbox input { min-height:38px !important; }
+@media(max-width:760px) {
+  .admin-platform .schedule-action-toolbar :is(.button,select,input) { height:44px; min-height:44px !important; }
+  .admin-platform .schedule-action-toolbar .subtle { min-height:44px; }
+  .admin-platform .searchbox input { min-height:42px !important; }
+}
+
+/* All primary menus share one anchor below the navigation bar. */
+.admin-platform .topbar .mega-menu { top:100%; }
+.admin-platform .topbar .menu-settings { left:50%; right:auto; transform:translateX(-50%); }
+@media(max-width:760px) {
+  .admin-platform .topbar .menu-settings { left:0; right:auto; transform:none; }
+}
+
+/* Each desktop menu opens from its own navigation tab. */
+@media(min-width:761px) {
+  .admin-platform .topbar .nav-group { position:relative; display:flex; align-items:stretch; }
+  .admin-platform .topbar .nav-group .mega-menu { top:100%; left:50%; right:auto; transform:translateX(-50%); max-width:calc(100vw - 32px); }
+}

@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fieldhouse dashboard — Athlonic colors</title>
+<!--
+  Mockup only. Nothing here is wired to the app.
+
+  Palette is lifted verbatim from Athlonic Sports
+  (/Users/sammooney/Athlonic Sports/src/styles/base.css :root).
+  Layout, type and copy are the current Fieldhouse dashboard, unchanged.
+
+  Colour mapping applied:
+    top chrome (was white)        -> --chrome  #242528 charcoal bar, Athlonic gradient
+    active nav item               -> amber-tinted pane over charcoal
+    page title band  #20692e      -> transparent on --canvas, --ink title (Athlonic .band)
+    primary button   #20692e      -> --amber #f59e0b, ink label
+    active tab rule  #087b26      -> --amber
+    table links      #20692e      -> --ink, amber underline on hover (Athlonic .link)
+    row hover                     -> --amber-050
+    promo panel (dark green)      -> --chrome with amber CTA
+    footer band      #20692e      -> --chrome
+  Purple metric icons (#98249c) are not green, so they are left alone.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* brand — Athlonic */
+    --amber: #f59e0b;
+    --amber-600: #d97f06;
+    --amber-700: #7a4f04;
+    --amber-050: #fef6e7;
+
+    /* neutrals */
+    --ink: #15181c;
+    --ink-2: #3d454e;
+    --muted: #656d77;
+    --faint: #98a1ab;
+    --line: #dde2e7;
+    --line-2: #eceff2;
+    --surface: #ffffff;
+    --canvas: #fcfcfb;
+    --hover: #f8f8f7;
+    --band: #eef1f4;
+    --head: #f6f6f4;
+    --zebra: #fafaf8;
+
+    /* chrome */
+    --chrome: #242528;
+    --chrome-2: rgba(255, 255, 255, .08);
+    --chrome-3: rgba(255, 255, 255, .12);
+    --chrome-line: rgba(255, 255, 255, .18);
+    --chrome-text: rgba(255, 255, 255, .70);
+
+    /* semantic */
+    --ok: #157347;   --ok-bg: #e8f4ed;
+    --warn: #9a6206; --warn-bg: #fdf3e2;
+    --bad: #b02a2a;  --bad-bg: #fbeceb;
+    --info: #1f5f8b; --info-bg: #eaf1f7;
+
+    /* carried over from Fieldhouse, not green */
+    --plum: #98249c;
+
+    --r: 6px;
+    --r-lg: 8px;
+    --row-h: 40px;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--canvas);
+    color: var(--ink-2);
+    font-family: "Open Sans", Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { font-family: "Barlow Semi Condensed", Arial, sans-serif; margin: 0; color: var(--ink); }
+  a { color: inherit; text-decoration: none; }
+  svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- top chrome: Athlonic charcoal bar ---------- */
+  .topbar {
+    height: 66px;
+    background: linear-gradient(180deg, #2b2c30 0%, var(--chrome) 62%, #202124 100%);
+    color: var(--chrome-text);
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 18px;
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .06), 0 1px 0 rgba(36, 37, 40, .18);
+  }
+  .logo {
+    width: 34px; height: 34px; flex: none;
+    display: grid; place-items: center;
+    background: rgba(255, 255, 255, .10);
+    border: 1px solid var(--chrome-line);
+    border-radius: var(--r);
+    color: #fff;
+    font-family: "Barlow Semi Condensed", Arial, sans-serif;
+    font-size: 21px; font-weight: 700; font-style: italic;
+  }
+  .org {
+    display: flex; align-items: center; gap: 8px;
+    height: 34px; padding: 0 10px; margin-left: 10px;
+    border-radius: var(--r);
+    color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap;
+  }
+  .org:hover { background: var(--chrome-3); }
+  .org .caret { color: rgba(255, 255, 255, .5); font-size: 9px; }
+  .site-pill {
+    font-size: 11.5px; font-weight: 500;
+    padding: 3px 10px; border-radius: 5px;
+    background: rgba(255, 255, 255, .10);
+    border: 1px solid var(--chrome-line);
+    color: var(--chrome-text);
+  }
+
+  .topnav { display: flex; align-items: center; gap: 2px; flex: 1 1 auto; justify-content: center; }
+  .nav-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; height: 52px; padding: 0 15px; border-radius: 10px;
+    color: var(--chrome-text);
+    background: transparent; border: 1px solid transparent;
+    font-family: inherit; white-space: nowrap;
+  }
+  .nav-btn svg { width: 19px; height: 19px; opacity: .85; }
+  .nav-lbl { font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .nav-btn:hover { color: #fff; background: rgba(255, 255, 255, .07); }
+  .nav-btn:hover svg { opacity: 1; }
+  /* current section: amber pane lit from inside — Athlonic .nav-btn.on */
+  .nav-btn.on {
+    color: #ffd89a;
+    background: linear-gradient(180deg, rgba(245,158,11,.26) 0%, rgba(245,158,11,.13) 55%, rgba(245,158,11,.17) 100%);
+    border-color: rgba(245, 158, 11, .34);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 226, 176, .30),
+      inset 0 -6px 12px -8px rgba(245, 158, 11, .55),
+      0 2px 10px -4px rgba(245, 158, 11, .35);
+  }
+  .nav-btn.on svg { opacity: 1; color: var(--amber); }
+
+  .top-right { display: flex; align-items: center; gap: 14px; margin-left: auto; white-space: nowrap; }
+  .icon-btn {
+    width: 32px; height: 32px; display: grid; place-items: center;
+    border-radius: var(--r); color: var(--chrome-text);
+    border: 1px solid transparent;
+  }
+  .icon-btn:hover { background: var(--chrome-3); color: #fff; }
+  .icon-btn svg { width: 16px; height: 16px; }
+  .whoami { display: flex; align-items: center; gap: 6px; color: #fff; font-size: 13px; font-weight: 500; }
+  .whoami .caret { color: rgba(255, 255, 255, .5); font-size: 9px; }
+
+  /* ---------- page ---------- */
+  .wrap { padding: 0 28px 44px; max-width: 1440px; margin: 0 auto; }
+  .band { padding: 22px 0 0; }
+  .band h1 { font-size: 25px; font-weight: 680; letter-spacing: -0.025em; }
+
+  .filters { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+  .sel, .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 32px; padding: 0 12px;
+    border: 1px solid var(--line); border-radius: var(--r);
+    background: var(--surface); color: var(--ink-2);
+    font-size: 13px; font-weight: 500; font-family: inherit; cursor: default; white-space: nowrap;
+  }
+  .btn:hover, .sel:hover { background: var(--hover); border-color: #cfd5dc; color: var(--ink); }
+  .btn svg, .sel svg { width: 14px; height: 14px; opacity: .7; }
+  .btn.primary {
+    background: var(--amber); border-color: var(--amber-600); color: #2a2f36; font-weight: 600;
+    box-shadow: 0 1px 2px rgba(122, 79, 4, .16);
+  }
+  .btn.primary:hover { background: var(--amber-600); border-color: var(--amber-600); color: #2a2f36; }
+  .btn.primary svg { opacity: 1; }
+
+  /* ---------- metric strip ---------- */
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 16px; }
+  .metric {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r-lg); padding: 13px 15px 15px;
+    box-shadow: 0 1px 2px rgba(36, 37, 40, .04);
+  }
+  .m-label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12.5px; font-weight: 500; }
+  .m-label svg { width: 15px; height: 15px; }
+  .m-label .info { color: var(--faint); font-size: 11px; }
+  .m-value { font-family: "Barlow Semi Condensed", Arial, sans-serif; font-size: 26px; font-weight: 650; color: var(--ink); letter-spacing: -0.02em; margin-top: 5px; }
+  .ic-plum { color: var(--plum); }
+  .ic-amber { color: var(--amber-600); }
+
+  /* ---------- program summary ---------- */
+  .sec-head { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 12px; }
+  .sec-head h2 { font-size: 20px; font-weight: 650; letter-spacing: -0.02em; }
+  .link { color: var(--ink); font-weight: 500; border-bottom: 1px solid transparent; }
+  .link:hover { color: var(--amber-700); border-bottom-color: var(--amber); }
+  .link-sm { font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); }
+  .link-sm:hover { color: var(--amber-700); border-bottom-color: var(--amber); }
+
+  .searchrow { display: flex; align-items: center; gap: 14px; }
+  .search {
+    display: flex; align-items: center; gap: 7px;
+    height: 32px; width: 250px; padding: 0 10px;
+    border: 1px solid var(--line); border-radius: var(--r);
+    background: var(--surface); color: var(--faint); font-size: 12.5px;
+  }
+  .search svg { width: 14px; height: 14px; }
+
+  .tabsrow { display: flex; align-items: flex-end; gap: 16px; margin-top: 16px; border-bottom: 1px solid var(--line); }
+  .tabs { display: flex; gap: 4px; }
+  .tab {
+    padding: 0 2px 10px; margin: 0 10px;
+    font-size: 13px; font-weight: 500; color: var(--muted);
+    border-bottom: 2px solid transparent;
+  }
+  .tab:first-child { margin-left: 0; }
+  .tab:hover { color: var(--ink); }
+  .tab.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--amber); }
+  .tab-actions { margin-left: auto; display: flex; gap: 8px; padding-bottom: 8px; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--surface); }
+  .table-card {
+    margin-top: 14px; border: 1px solid var(--line);
+    border-radius: var(--r-lg); overflow: hidden;
+    box-shadow: 0 1px 2px rgba(36, 37, 40, .04);
+  }
+  thead th {
+    text-align: left; height: 36px; padding: 0 12px;
+    background: var(--head); border-bottom: 1px solid var(--line);
+    font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap;
+  }
+  thead th .sort { margin-left: 4px; font-size: 9px; color: var(--faint); }
+  thead th.sorted { color: var(--ink); }
+  thead th.sorted .sort { color: var(--amber-600); }
+  tbody td {
+    padding: 0 12px; height: var(--row-h);
+    border-bottom: 1px solid var(--line-2);
+    color: var(--ink-2); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: var(--amber-050); }
+  td.caret-cell { width: 26px; padding-left: 14px; color: var(--faint); }
+  td .amt { color: var(--ink); border-bottom: 1px solid transparent; }
+  td .amt:hover { color: var(--amber-700); border-bottom-color: var(--amber); }
+  td .amt.due { color: var(--ink); }
+  td .zero { color: var(--muted); }
+
+  /* ---------- promo + suggestions ---------- */
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) 328px; gap: 16px; align-items: start; margin-top: 22px; }
+  .promo {
+    display: grid; grid-template-columns: 148px 1fr; gap: 24px;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r-lg); padding: 20px;
+    box-shadow: 0 1px 2px rgba(36, 37, 40, .04);
+  }
+  .pitch {
+    height: 168px; border-radius: var(--r);
+    background: var(--chrome);
+    border: 6px solid rgba(255, 255, 255, .14);
+    display: grid; place-items: center;
+    position: relative; overflow: hidden;
+  }
+  .pitch::before {
+    content: ""; position: absolute; inset: 14px;
+    border: 1px solid rgba(255, 255, 255, .16);
+  }
+  .pitch::after {
+    content: ""; position: absolute; left: 14px; right: 14px; top: 50%;
+    height: 1px; background: rgba(255, 255, 255, .16);
+  }
+  .pitch .ring {
+    width: 62px; height: 62px; border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, .22);
+    display: grid; place-items: center; color: rgba(255, 255, 255, .82);
+    position: relative; z-index: 1;
+  }
+  .pitch .ring svg { width: 28px; height: 28px; }
+  .eyebrow { color: var(--amber-700); font-size: 12px; font-weight: 700; letter-spacing: .01em; }
+  .promo h2 { font-size: 27px; font-weight: 680; letter-spacing: -0.03em; line-height: 1.18; margin-top: 8px; }
+  .promo p { color: var(--muted); margin: 10px 0 16px; font-size: 13px; }
+
+  .side h3 { font-size: 17px; font-weight: 650; letter-spacing: -0.02em; margin-bottom: 12px; }
+  .sugg {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+    padding: 12px 13px; margin-bottom: 10px;
+    font-size: 12.5px; color: var(--ink-2);
+  }
+  .sugg:hover { border-color: #f0d9a8; background: var(--amber-050); }
+  .sugg svg { width: 15px; height: 15px; color: var(--muted); }
+  .sugg .chev { margin-left: auto; color: var(--faint); }
+
+  .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 26px; }
+  .trio h3 { font-size: 17px; font-weight: 650; letter-spacing: -0.02em; margin-bottom: 12px; }
+  .tile {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r-lg); padding: 16px;
+    box-shadow: 0 1px 2px rgba(36, 37, 40, .04);
+  }
+  .tile p { margin: 0 0 12px; color: var(--muted); font-size: 12.5px; }
+
+  /* ---------- footer ---------- */
+  .foot {
+    margin-top: 34px;
+    background: var(--chrome);
+    color: var(--chrome-text);
+    padding: 18px 28px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12.5px;
+  }
+  .foot .mark {
+    font-family: "Barlow Semi Condensed", Arial, sans-serif;
+    font-size: 19px; font-style: italic; font-weight: 700; color: #fff;
+  }
+  .foot .word { letter-spacing: .16em; font-size: 12px; font-weight: 600; color: #fff; }
+  .foot .right { margin-left: auto; }
+
+  /* ---------- swatch strip (mockup annotation, not part of the UI) ---------- */
+  .swatches { padding: 22px 28px 40px; border-top: 1px solid var(--line); background: var(--surface); }
+  .swatches h4 { margin: 0 0 12px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-family: "Open Sans", Arial, sans-serif; }
+  .sw-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .sw { width: 132px; }
+  .sw i { display: block; height: 40px; border-radius: var(--r); border: 1px solid var(--line); }
+  .sw b { display: block; font-size: 11.5px; font-weight: 600; color: var(--ink); margin-top: 6px; }
+  .sw span { display: block; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo">F</div>
+  <a class="org">Northstar Youth Sports <span class="caret">▾</span></a>
+  <span class="site-pill">Site</span>
+
+  <nav class="topnav">
+    <a class="nav-btn on">
+      <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/></svg>
+      <span class="nav-lbl">Manage</span>
+    </a>
+    <a class="nav-btn">
+      <svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4L3 21l1.1-3.3A8.4 8.4 0 1 1 21 11.5z"/></svg>
+      <span class="nav-lbl">Messaging</span>
+    </a>
+    <a class="nav-btn">
+      <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+      <span class="nav-lbl">Calendar</span>
+    </a>
+    <a class="nav-btn">
+      <svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>
+      <span class="nav-lbl">Reporting</span>
+    </a>
+    <a class="nav-btn">
+      <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>
+      <span class="nav-lbl">Website</span>
+    </a>
+    <a class="nav-btn">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/></svg>
+      <span class="nav-lbl">Settings</span>
+    </a>
+  </nav>
+
+  <div class="top-right">
+    <a class="icon-btn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></a>
+    <a class="whoami">Hi, Alex! <span class="caret">▾</span></a>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="band">
+    <h1>Dashboard</h1>
+  </div>
+
+  <div class="filters">
+    <span class="sel">All time <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>
+    <span class="btn">Hide data</span>
+  </div>
+
+  <section class="metrics">
+    <div class="metric">
+      <div class="m-label ic-plum"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M2.5 10h19"/></svg><span style="color:var(--muted)">Collected</span> <span class="info">ⓘ</span></div>
+      <div class="m-value">$1,340.00</div>
+    </div>
+    <div class="metric">
+      <div class="m-label ic-plum"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M2.5 10h19"/></svg><span style="color:var(--muted)">Payments Due</span> <span class="info">ⓘ</span></div>
+      <div class="m-value">$1,185.00</div>
+    </div>
+    <div class="metric">
+      <div class="m-label ic-amber"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h5"/></svg><span style="color:var(--muted)">Registrations</span> <span class="info">ⓘ</span></div>
+      <div class="m-value">36</div>
+    </div>
+    <div class="metric">
+      <div class="m-label ic-amber"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span style="color:var(--muted)">Games + Events</span> <span class="info">ⓘ</span></div>
+      <div class="m-value">13</div>
+    </div>
+  </section>
+
+  <div class="sec-head">
+    <h2>Program Summary</h2>
+    <a class="link-sm">View all programs</a>
+  </div>
+
+  <div class="searchrow">
+    <span class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg> Search by name</span>
+    <a class="link-sm">Clear filter</a>
+  </div>
+
+  <div class="tabsrow">
+    <div class="tabs">
+      <a class="tab on">Live and Upcoming</a>
+      <a class="tab">Unpublished</a>
+      <a class="tab">Completed</a>
+    </div>
+    <div class="tab-actions">
+      <span class="btn"><svg viewBox="0 0 24 24"><path d="M12 3v11M7.5 10.5L12 15l4.5-4.5M4 20h16"/></svg> Export to CSV</span>
+      <span class="btn"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg> Customize view</span>
+      <span class="btn primary"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Create program</span>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:26px"></th>
+          <th class="sorted">Program <span class="sort">▲▼</span></th>
+          <th>Paid <span class="sort">▲▼</span></th>
+          <th>Outstanding <span class="sort">▲▼</span></th>
+          <th>Players <span class="sort">▲▼</span></th>
+          <th>Free Agents <span class="sort">▲▼</span></th>
+          <th>Staff <span class="sort">▲▼</span></th>
+          <th>Teams <span class="sort">▲▼</span></th>
+          <th>Sport <span class="sort">▲▼</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="caret-cell"></td>
+          <td><a class="link">Community Soccer League</a></td>
+          <td><a class="amt">$1,361.25</a></td>
+          <td><a class="amt due">$325.00</a></td>
+          <td><a class="amt">18</a></td>
+          <td><a class="amt zero">0</a></td>
+          <td><a class="amt">2</a></td>
+          <td><a class="amt">5</a></td>
+          <td>Soccer</td>
+        </tr>
+        <tr>
+          <td class="caret-cell"></td>
+          <td><a class="link">Fall Coach Registration</a></td>
+          <td><a class="amt zero">$0.00</a></td>
+          <td><a class="amt zero">$0.00</a></td>
+          <td><a class="amt zero">0</a></td>
+          <td><a class="amt zero">0</a></td>
+          <td><a class="amt zero">0</a></td>
+          <td><a class="amt zero">0</a></td>
+          <td>Soccer</td>
+        </tr>
+        <tr>
+          <td class="caret-cell">›</td>
+          <td><a class="link">Fall Recreational Soccer</a></td>
+          <td><a class="amt zero">$0.00</a></td>
+          <td><a class="amt due">$760.00</a></td>
+          <td><a class="amt">8</a></td>
+          <td><a class="amt">8</a></td>
+          <td><a class="amt zero">0</a></td>
+          <td><a class="amt">6</a></td>
+          <td>Soccer</td>
+        </tr>
+        <tr>
+          <td class="caret-cell"></td>
+          <td><a class="link">Fictional enrollment plan verification</a></td>
+          <td><a class="amt zero">$0.00</a></td>
+          <td><a class="amt due">$100.00</a></td>
+          <td><a class="amt">1</a></td>
+          <td><a class="amt">1</a></td>
+          <td><a class="amt">1</a></td>
+          <td><a class="amt">2</a></td>
+          <td>Soccer</td>
+        </tr>
+        <tr>
+          <td class="caret-cell"></td>
+          <td><a class="link">Team Report Verification</a></td>
+          <td><a class="amt zero">$0.00</a></td>
+          <td><a class="amt zero">$0.00</a></td>
+          <td><a class="amt">3</a></td>
+          <td><a class="amt zero">0</a></td>
+          <td><a class="amt zero">0</a></td>
+          <td><a class="amt">1</a></td>
+          <td>Soccer</td>
+        </tr>
+        <tr>
+          <td class="caret-cell"></td>
+          <td><a class="link">Terminology verification event</a></td>
+          <td><a class="amt zero">$0.00</a></td>
+          <td><a class="amt zero">$0.00</a></td>
+          <td><a class="amt zero">0</a></td>
+          <td><a class="amt zero">0</a></td>
+          <td><a class="amt zero">0</a></td>
+          <td><a class="amt zero">0</a></td>
+          <td>Soccer</td>
+        </tr>
+        <tr>
+          <td class="caret-cell"></td>
+          <td><a class="link">Verification League</a></td>
+          <td><a class="amt zero">$0.00</a></td>
+          <td><a class="amt zero">$0.00</a></td>
+          <td><a class="amt">3</a></td>
+          <td><a class="amt">3</a></td>
+          <td><a class="amt">1</a></td>
+          <td><a class="amt">1</a></td>
+          <td>Soccer</td>
+        </tr>
+        <tr>
+          <td class="caret-cell"></td>
+          <td><a class="link">Verification Volleyball</a></td>
+          <td><a class="amt zero">$0.00</a></td>
+          <td><a class="amt zero">$0.00</a></td>
+          <td><a class="amt">1</a></td>
+          <td><a class="amt">1</a></td>
+          <td><a class="amt zero">0</a></td>
+          <td><a class="amt">2</a></td>
+          <td>Volleyball</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="split">
+    <section class="promo">
+      <div class="pitch">
+        <div class="ring"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-5.6 7-5.6s7 2 7 5.6"/></svg></div>
+      </div>
+      <div>
+        <div class="eyebrow">Built for your next season</div>
+        <h2>From the first tryout.<br>To the final whistle.</h2>
+        <p>Keep your programs, teams, and families connected.</p>
+        <span class="btn primary">Set up your program <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span>
+      </div>
+    </section>
+
+    <aside class="side">
+      <h3>Suggested for you</h3>
+      <a class="sugg"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg> You have 6 live programs <span class="chev">›</span></a>
+      <a class="sugg"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg> You have 1 unpublished programs <span class="chev">›</span></a>
+      <a class="sugg"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg> View your global schedule <span class="chev">›</span></a>
+    </aside>
+  </div>
+
+  <div class="trio">
+    <div>
+      <h3>Your organization</h3>
+      <div class="tile">
+        <p>Everything you need for the season in one place.</p>
+        <a class="link-sm">Manage your programs</a>
+      </div>
+    </div>
+    <div>
+      <h3>Teams &amp; families</h3>
+      <div class="tile">
+        <p>Find your members and manage registrations.</p>
+        <a class="link-sm">View member directory</a>
+      </div>
+    </div>
+    <div>
+      <h3>Season planning</h3>
+      <div class="tile">
+        <p>See upcoming games and activities across your club.</p>
+        <a class="link-sm">Open the schedule</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="foot">
+  <span class="mark">F</span>
+  <span class="word">FIELDHOUSE</span>
+  <span class="right">Northstar Youth Sports · Local workspace</span>
+</footer>
+
+<section class="swatches">
+  <h4>Palette — Athlonic Sports tokens</h4>
+  <div class="sw-row">
+    <div class="sw"><i style="background:#f59e0b"></i><b>--amber</b><span>#f59e0b</span></div>
+    <div class="sw"><i style="background:#d97f06"></i><b>--amber-600</b><span>#d97f06</span></div>
+    <div class="sw"><i style="background:#7a4f04"></i><b>--amber-700</b><span>#7a4f04</span></div>
+    <div class="sw"><i style="background:#fef6e7"></i><b>--amber-050</b><span>#fef6e7</span></div>
+    <div class="sw"><i style="background:#242528"></i><b>--chrome</b><span>#242528</span></div>
+    <div class="sw"><i style="background:#15181c"></i><b>--ink</b><span>#15181c</span></div>
+    <div class="sw"><i style="background:#3d454e"></i><b>--ink-2</b><span>#3d454e</span></div>
+    <div class="sw"><i style="background:#656d77"></i><b>--muted</b><span>#656d77</span></div>
+    <div class="sw"><i style="background:#dde2e7"></i><b>--line</b><span>#dde2e7</span></div>
+    <div class="sw"><i style="background:#fcfcfb"></i><b>--canvas</b><span>#fcfcfb</span></div>
+    <div class="sw"><i style="background:#b02a2a"></i><b>--bad</b><span>#b02a2a</span></div>
+    <div class="sw"><i style="background:#98249c"></i><b>plum (kept)</b><span>#98249c</span></div>
+  </div>
+</section>
+
+</body>
+</html>
