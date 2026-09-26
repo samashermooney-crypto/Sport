@@ -3,14 +3,14 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- Phase 0 is complete on `rebuild/phase-0`. Create `rebuild/phase-1` from this branch and copy Phase 1 tasks from `10-PHASES-FOUNDATION.md` here before implementation. Keep phases in order and meet the Phase 1 gate before checking it complete.
+- Phase 1 is in progress on `rebuild/phase-1`, based on Phase 0 commit `d0f59a1` ([CI run 36279319810](https://github.com/samashermooney-crypto/Sport/actions/runs/36279319810), all 9 jobs passed). Start with the database layer: migration, roles/RLS helpers, `withOrg`, Kysely, codegen, counters, idempotency, audit, update trigger and RLS coverage test. Keep the phase runnable and record each completed task in the same commit.
 
 ## Phase status
 
 | Phase | Name | Status | Evidence |
 |---|---|---|---|
 | 0 | Repository reset and tooling | complete | Local gate green; [GitHub Actions run 36279198481](https://github.com/samashermooney-crypto/Sport/actions/runs/36279198481) passed all 9 jobs on `rebuild/phase-0`. |
-| 1 | Platform core | not started | |
+| 1 | Platform core | in progress | Branch `rebuild/phase-1` created from green Phase 0. |
 | 2 | People, households, forms, imports | not started | |
 | 3 | Sport engine, programs, teams, facilities | not started | |
 | 4 | Payments and finance | not started | |
@@ -27,7 +27,7 @@
 | 15 | Onboarding, imports, demo, AI assist | not started | |
 | 16 | Production hardening and launch gate | not started | |
 
-## Current phase checklist
+## Phase checklists
 
 ### Phase 0 — Repository reset and tooling
 
@@ -48,3 +48,43 @@
 - [x] CI passes on the branch: [GitHub Actions run 36279198481](https://github.com/samashermooney-crypto/Sport/actions/runs/36279198481), commit `34997b5`.
 - [x] Legacy code is preserved untouched in `legacy/`; nothing outside `legacy/` imports it. Byte comparison with pre-rebuild HEAD found 0 differences across 170 old source/config files and 13 archived docs.
 - [x] Local phase gate passes: `npm run typecheck`, `npm run lint`, `npm test` (3 passed), `npm run test:e2e` (2 passed), `npm run build`. `npm test -- --coverage`, `npm run size`, `npm run knip`, `npm run openapi`, `npm audit --omit=dev --audit-level=high` and `docker build -t athlentry-phase0 .` also passed.
+
+### Phase 1 — Platform core: database, identity, orgs, jobs, files, API, app shell
+
+#### Tasks
+
+**Database layer**
+- [ ] 1. Migration runner, roles, RLS helpers, `withOrg`, Kysely instance, codegen, org counters, idempotency table, audit table, updated_at trigger function, the RLS coverage test (`01 §3`).
+- [ ] 2. Money utilities in `shared/src/money.ts` (`20 §1`), date/time utilities with Temporal polyfill (`@js-temporal/polyfill`) for org-timezone math, UUIDv7 ids.
+
+**Identity (all of `02 §B`, `01 §4`)**
+- [ ] 3. Sign-up (email, password, name, DOB with 13+ check, ToS/Privacy consent), email verification, sign-in, magic link, sign-out, password reset, change password, change email (verify new address, notify old), MFA enrollment (TOTP QR + manual key + verify), recovery codes (view once, regenerate), MFA challenge at sign-in, step-up re-auth endpoint, session list and revoke, account deletion request (routes to privacy flow).
+- [ ] 4. Bearer token issuance for native clients and device-token registration endpoints (web push subscription implemented; apns/fcm accepted and stored but not sent).
+- [ ] 5. Rate limiting and Turnstile on public auth endpoints.
+
+**Organizations**
+- [ ] 6. Self-serve org creation at `/start`: account (or sign in) → org name, slug (live availability check), kind, timezone, address, primary sport(s) → creates org, owner membership + owner role assignment, default settings, default sport profiles cloned from chosen templates, default season, default credential types (Background check, SafeSport training, Concussion training, Coaching license — all editable/disable-able), default forms (athlete profile with emergency contact & medical sections, guardian contact), default waiver template draft marked "Draft — replace with your own reviewed text" and not publishable until edited, starter plan.
+- [ ] 7. Users & roles screen: invite by email with one or more roles and scope, resend, revoke, change roles, suspend/remove membership, last-owner protection, MFA-pending indicator, ownership transfer (owner only, step-up, recipient must accept).
+- [ ] 8. Org profile/branding settings with version checks; logo upload through files module.
+- [ ] 9. Platform console `/platform`: org list/search, org detail (plan, fees, status, Stripe status), suspend/reactivate org, plan management, feature flags, platform staff management, audited impersonation (reason required, read-only by default, banner in UI, auto-expire 60 minutes), system health (queues, webhooks, worker heartbeat), bootstrap script `scripts/create-platform-admin.ts` with hidden password prompt.
+
+**Infrastructure modules**
+- [ ] 10. pg-boss setup, job registry, worker heartbeat, failed-job visibility.
+- [ ] 11. Files module (`01 §7`) with S3, local-disk and memory adapters; image processing with EXIF stripping; permission-checked download links.
+- [ ] 12. Email module: React Email layout with org branding, `EmailSender` adapters (Resend, Mailpit SMTP via `nodemailer`, Fake), preview mode; send auth emails (verification, magic link, reset, invitations, security alerts) in en/es.
+- [ ] 13. Notifications core: `notification_types` catalog in code, `notifications` table, in-app inbox API + SSE stream (`01 §5`), preferences API. (Channels other than in-app/email wired in Phase 10.)
+- [ ] 14. Audit module with redaction; audit viewer component.
+- [ ] 15. OpenAPI generation, error code enum, pagination helpers, idempotency middleware, version-check helpers.
+
+**Web app shell**
+- [ ] 16. Design system per `01 §11a`: capture the legacy visual reference screenshots and `tokens.json` first, extract tokens verbatim from the legacy CSS, port legacy components with identical appearance, then build the remaining components in `01 §11` from those tokens (Storybook-free visual test pages under `/__ui` in development only; light theme only). Then i18n setup (en/es), TanStack Query client, API client with typed endpoints generated from shared schemas, error boundary (port legacy behavior), toast system, layout shells for console/portal/platform/public, org switcher, global search stub wired to `people` once Phase 2 lands (hidden until then), command palette.
+- [ ] 17. Auth screens (all flows in task 3), onboarding `/start`, console Home placeholder that shows only real cards available so far (e.g. "Connect payments", "Create your first season") — no fake data.
+
+#### Acceptance criteria
+- [ ] Tenancy: an automated test creates two orgs and proves for every Phase 1 tenant route that org A's actor receives 404 for org B's ids, and a direct SQL query under `withOrg(A)` cannot read B's rows (RLS).
+- [ ] Identity: tests cover every flow including expiry, reuse, rotation, rate limits, MFA replay protection, step-up expiry, session revocation on password/MFA/role change, last-owner protection under concurrent demotion (two parallel transactions), and under-13 rejection.
+- [ ] Playwright: new owner signs up → verifies email via Mailpit API → creates org → enrolls MFA → invites an admin → admin accepts invitation in a second browser context, enrolls MFA, signs in → owner changes admin to registrar → admin's session is revoked. All pages pass axe.
+- [ ] Platform admin can impersonate read-only with banner; every impersonated request is audited with the impersonation id.
+- [ ] Images uploaded have no EXIF (test with a GPS-tagged fixture).
+- [ ] Design parity (`01 §11a`): `e2e/visual-reference/` exists; the new shell (header/chrome, navigation, page header) and ported components match the legacy screenshots within tolerance at 1440px and 390px; a unit test proves `tokens.css` values equal `e2e/visual-reference/tokens.json`; no dark theme, CSS framework or styled component library is installed.
+- [ ] OpenAPI document generated and committed.
