@@ -55,3 +55,19 @@
 - **Decision:** A local date and time that maps to zero or two instants is rejected, so the caller must choose an unambiguous time. For age calculations, a February 29 birthday occurs on March 1 in nonleap years.
 - **Why:** Prevents scheduling at an unintended instant and avoids approving a child account a day early.
 - **Consequences / follow-ups:** Scheduling UI must explain invalid or ambiguous local times and request a different time or explicit offset.
+
+### DEC-006 — Scope organization invitation tokens with RLS
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 identity schema
+- **Context:** `02 §B` calls `auth_tokens` global but also gives it a nullable `org_id`; `01 §3` requires forced RLS coverage for every table containing `org_id`.
+- **Decision:** Enable forced RLS on `auth_tokens`. The app role may access rows with no organization, and organization-linked rows only inside `withOrg`. The privileged admin role may access all rows for narrowly authorized token operations.
+- **Why:** A leaked app-role query cannot enumerate invitations for other organizations.
+- **Consequences / follow-ups:** Invitation issuance and redemption must use explicit organization context or a narrow audited admin operation; never query invitation tokens through a general unscoped app connection.
+
+### DEC-007 — Bundled common-password blocklist
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 password policy
+- **Context:** `01 §4` requires blocking the 10,000 most common passwords but does not name a source.
+- **Decision:** Bundle SecLists' MIT-licensed `10k-most-common.txt` with its license in `docs/third-party/`. Password checks use the bundled list without a network dependency.
+- **Why:** Authentication remains reliable in local, test and production environments, and rejected passwords are not sent to an external service.
+- **Consequences / follow-ups:** Review and refresh the list during the Phase 16 security gate.

@@ -71,15 +71,18 @@ describe('tenant database isolation', () => {
       expect(result.rows.map((row) => row.table_name)).toEqual(
         expect.arrayContaining([
           'audit_log',
+          'auth_tokens',
           'idempotency_keys',
           'org_counters',
+          'org_memberships',
+          'role_assignments',
         ]),
       );
       for (const row of result.rows) {
         expect(row.relrowsecurity, row.table_name).toBe(true);
         expect(row.relforcerowsecurity, row.table_name).toBe(true);
         expect(Number(row.policy_count), row.table_name).toBeGreaterThan(0);
-        if (row.table_name !== 'audit_log') {
+        if (!['audit_log', 'auth_tokens'].includes(row.table_name)) {
           expect(row.nullable, row.table_name).toBe('1');
         }
       }

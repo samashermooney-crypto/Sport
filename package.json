@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
+    "@node-rs/argon2": "^2.2.1",
     "express": "^5.2.1",
     "kysely": "^0.29.6",
     "pg": "^8.16.3",

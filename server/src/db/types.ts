@@ -24,6 +24,36 @@ export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export interface AccountConsents {
+  accepted_at: Generated<Timestamp>;
+  account_id: string;
+  document_text: string;
+  document_version: string;
+  id: string;
+  ip: string | null;
+  kind: string;
+  user_agent: string | null;
+}
+
+export interface Accounts {
+  created_at: Generated<Timestamp>;
+  date_of_birth: Timestamp;
+  email: string;
+  email_verified_at: Timestamp | null;
+  first_name: string;
+  id: string;
+  last_name: string;
+  last_sign_in_at: Timestamp | null;
+  locale: Generated<string>;
+  password_hash: string | null;
+  phone_e164: string | null;
+  phone_verified_at: Timestamp | null;
+  status: Generated<string>;
+  timezone: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface AuditLog {
   action: string;
   actor_account_id: string | null;
@@ -39,6 +69,33 @@ export interface AuditLog {
   user_agent: string | null;
 }
 
+export interface AuthTokens {
+  account_id: string | null;
+  consumed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  email: string;
+  expires_at: Timestamp;
+  id: string;
+  org_id: string | null;
+  payload: Generated<Json>;
+  purpose: string;
+  revoked_at: Timestamp | null;
+  subject_key: Generated<string>;
+  token_hash: Buffer;
+}
+
+export interface DeviceTokens {
+  account_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  last_seen_at: Generated<Timestamp>;
+  platform: string;
+  revoked_at: Timestamp | null;
+  token_or_subscription: Json;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface IdempotencyKeys {
   actor_id: string;
   created_at: Generated<Timestamp>;
@@ -49,6 +106,25 @@ export interface IdempotencyKeys {
   response_body: Json | null;
   response_status: number | null;
   updated_at: Generated<Timestamp>;
+}
+
+export interface MfaFactors {
+  account_id: string;
+  confirmed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  id: string;
+  last_used_step: number | null;
+  secret_enc: Buffer;
+  type: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface MfaRecoveryCodes {
+  account_id: string;
+  code_hash: Buffer;
+  created_at: Generated<Timestamp>;
+  id: string;
+  used_at: Timestamp | null;
 }
 
 export interface Organizations {
@@ -87,6 +163,18 @@ export interface OrgCounters {
   updated_at: Generated<Timestamp>;
 }
 
+export interface OrgMemberships {
+  account_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  invited_by: string | null;
+  joined_at: Timestamp | null;
+  org_id: string;
+  status: string;
+  title: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface Plans {
   active: Generated<boolean>;
   application_fee_bps: number;
@@ -101,6 +189,21 @@ export interface Plans {
   updated_at: Generated<Timestamp>;
 }
 
+export interface RoleAssignments {
+  account_id: string;
+  created_at: Generated<Timestamp>;
+  granted_at: Generated<Timestamp>;
+  granted_by: string | null;
+  id: string;
+  org_id: string;
+  pending_mfa: Generated<boolean>;
+  revoked_at: Timestamp | null;
+  role: string;
+  scope_id: string | null;
+  scope_type: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface SchemaMigrations {
   applied_at: Generated<Timestamp>;
   checksum: string;
@@ -108,11 +211,49 @@ export interface SchemaMigrations {
   version: number;
 }
 
+export interface SecurityEvents {
+  account_id: string | null;
+  action: string;
+  created_at: Generated<Timestamp>;
+  details: Generated<Json>;
+  id: string;
+  ip: string | null;
+  user_agent: string | null;
+}
+
+export interface Sessions {
+  absolute_expires_at: Timestamp;
+  account_id: string;
+  client: string;
+  created_at: Generated<Timestamp>;
+  elevated_until: Timestamp | null;
+  id: string;
+  idle_expires_at: Timestamp;
+  impersonation_id: string | null;
+  ip: string | null;
+  kind: string;
+  mfa_verified_at: Timestamp | null;
+  revoked_at: Timestamp | null;
+  token_hash: Buffer;
+  updated_at: Generated<Timestamp>;
+  user_agent: string | null;
+}
+
 export interface DB {
+  account_consents: AccountConsents;
+  accounts: Accounts;
   audit_log: AuditLog;
+  auth_tokens: AuthTokens;
+  device_tokens: DeviceTokens;
   idempotency_keys: IdempotencyKeys;
+  mfa_factors: MfaFactors;
+  mfa_recovery_codes: MfaRecoveryCodes;
   org_counters: OrgCounters;
+  org_memberships: OrgMemberships;
   organizations: Organizations;
   plans: Plans;
+  role_assignments: RoleAssignments;
   schema_migrations: SchemaMigrations;
+  security_events: SecurityEvents;
+  sessions: Sessions;
 }
