@@ -1,0 +1,33 @@
+# DECISIONS
+
+> Codex: record every decision where the specification was silent, ambiguous or wrong. Format below. Never delete entries; supersede them.
+
+## Template
+
+### DEC-000 — Title
+- **Date:**
+- **Phase / area:**
+- **Context:** what the spec said or did not say
+- **Decision:**
+- **Why:** (child safety → financial correctness → privacy → simplicity)
+- **Consequences / follow-ups:**
+
+---
+
+(Decisions D1–D18 in `00-START-HERE.md §5` are pre-made by the owner's delegate and are not repeated here.)
+
+### DEC-001 — Phase 0 shell has no inactive controls
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 0 web
+- **Context:** Phase 0 requires a sign-in page skeleton, while the project forbids dead buttons and links. Authentication arrives in Phase 1.
+- **Decision:** Render the sign-in heading and an honest access status without form controls or navigation links until sign-in works end to end.
+- **Why:** Simplicity and privacy; visitors cannot submit credentials into an unfinished flow.
+- **Consequences / follow-ups:** Replace the shell with the fully functional sign-in flow in Phase 1 and capture legacy design references first.
+
+### DEC-002 — Local database authentication
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 0 tooling
+- **Context:** The spec requires distinct app and admin roles but does not prescribe local credentials.
+- **Decision:** Bind PostgreSQL to localhost and use trust authentication in Docker Compose only. CI uses its own ephemeral PostgreSQL password supplied by the CI service; production must use managed credentials.
+- **Why:** Keeps local secrets out of the repository while retaining separate database privileges.
+- **Consequences / follow-ups:** Phase 16 deployment must not use this Compose authentication model.
