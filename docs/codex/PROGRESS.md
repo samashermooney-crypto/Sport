@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- Push `rebuild/phase-0`, inspect the GitHub Actions run, fix any remote-only failures, and check Phase 0 complete only after CI passes. Then create `rebuild/phase-1` and copy Phase 1 tasks from `10-PHASES-FOUNDATION.md` into this file.
+- Remote CI is pending. Automatic approval review rejected `git push -u origin rebuild/phase-0` twice because the full repository would be exported to GitHub without separate explicit authorization; an authorization request is pending. If approved, push to the configured `samashermooney-crypto/Sport` origin, inspect GitHub Actions, fix any remote-only failures, then check Phase 0 complete. Only then create `rebuild/phase-1` and copy Phase 1 tasks from `10-PHASES-FOUNDATION.md` here.
 
 ## Phase status
 
@@ -43,7 +43,7 @@
 
 ### Phase 0 acceptance criteria
 
-- [x] Fresh install: `npm ci && npm run db:up && npm run dev` served the Athlentry sign-in skeleton at `http://127.0.0.1:5173`, with no links/buttons; `GET /healthz` returned 200 in `e2e/sign-in.spec.ts` on both browsers.
+- [x] Fresh local clone of commit `1326e0e`: `npm ci && npm run db:up && npm run dev` served the Athlentry sign-in shell at `http://127.0.0.1:5173`; direct `GET /healthz` returned 200. `e2e/sign-in.spec.ts` confirmed no dead links/buttons and passed axe on both browsers. Ctrl-C stopped all processes and containers.
 - [x] `npm test` runs a server example against an isolated PostgreSQL database and a web component example. `server/src/app.test.ts` asserted the template-cloned database and migration ledger; `web/src/auth/SignIn.test.tsx` passed.
 - [ ] CI passes on the branch.
 - [x] Legacy code is preserved untouched in `legacy/`; nothing outside `legacy/` imports it. Byte comparison with pre-rebuild HEAD found 0 differences across 170 old source/config files and 13 archived docs.
