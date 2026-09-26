@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 
+import prettier from 'prettier';
 import { z } from 'zod';
 
 import { healthResponseSchema } from '../shared/src/schemas/health';
@@ -29,5 +30,5 @@ const document = {
 await mkdir('docs/api', { recursive: true });
 await writeFile(
   'docs/api/openapi.json',
-  `${JSON.stringify(document, null, 2)}\n`,
+  await prettier.format(JSON.stringify(document, null, 2), { parser: 'json' }),
 );
