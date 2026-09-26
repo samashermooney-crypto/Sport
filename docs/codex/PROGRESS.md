@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- Phase 1 is in progress on `rebuild/phase-1`, based on Phase 0 commit `d0f59a1` ([CI run 36279319810](https://github.com/samashermooney-crypto/Sport/actions/runs/36279319810), all 9 jobs passed). Database layer task 1 is complete locally. Continue with task 2: shared money, date/time, and UUIDv7 utilities, then identity. Keep the phase runnable and record each completed task in the same commit.
+- Phase 1 is in progress on `rebuild/phase-1`, based on Phase 0 commit `d0f59a1` ([CI run 36279319810](https://github.com/samashermooney-crypto/Sport/actions/runs/36279319810), all 9 jobs passed). Database layer and shared utility tasks 1–2 are complete locally. Continue with identity task 3. Keep the phase runnable and record each completed task in the same commit.
 
 ## Phase status
 
@@ -55,7 +55,7 @@
 
 **Database layer**
 - [x] 1. Migration runner, roles, RLS helpers, `withOrg`, Kysely instance, codegen, org counters, idempotency table, audit table, updated_at trigger function, the RLS coverage test (`01 §3`). Migrations 0002–0004 applied; generated Kysely types committed; app-role integration tests prove forced RLS, cross-org denial, pooled-connection reset, concurrent counters, updated_at and append-only audit. Local typecheck, lint, tests (7), and knip passed.
-- [ ] 2. Money utilities in `shared/src/money.ts` (`20 §1`), date/time utilities with Temporal polyfill (`@js-temporal/polyfill`) for org-timezone math, UUIDv7 ids.
+- [x] 2. Money utilities in `shared/src/money.ts` (`20 §1`), date/time utilities with Temporal polyfill (`@js-temporal/polyfill`) for org-timezone math, UUIDv7 ids. Unit and property tests verify integer-cent rounding, exact allocation, DST boundaries, leap-day age rules and UUIDv7 generation. Shared tests run without database setup; local typecheck, lint and tests passed.
 
 **Identity (all of `02 §B`, `01 §4`)**
 - [ ] 3. Sign-up (email, password, name, DOB with 13+ check, ToS/Privacy consent), email verification, sign-in, magic link, sign-out, password reset, change password, change email (verify new address, notify old), MFA enrollment (TOTP QR + manual key + verify), recovery codes (view once, regenerate), MFA challenge at sign-in, step-up re-auth endpoint, session list and revoke, account deletion request (routes to privacy flow).

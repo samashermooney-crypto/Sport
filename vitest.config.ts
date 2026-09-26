@@ -12,6 +12,14 @@ export default defineConfig({
       {
         resolve: { alias },
         test: {
+          name: 'shared',
+          include: ['shared/src/**/*.test.ts'],
+          environment: 'node',
+        },
+      },
+      {
+        resolve: { alias },
+        test: {
           name: 'server',
           include: ['server/src/**/*.test.ts'],
           environment: 'node',

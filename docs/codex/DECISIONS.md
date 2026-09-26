@@ -47,3 +47,11 @@
 - **Decision:** The app role can read plans and cannot write them. It can create and update organizations through the org module but cannot delete them. Platform staff writes to plans use the admin role.
 - **Why:** Protects financial settings and prevents accidental deletion of organization records.
 - **Consequences / follow-ups:** Platform plan management must use a narrow admin connection with explicit authorization and audit.
+
+### DEC-005 — Reject ambiguous local times and protect leap-day birthdays
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 date utilities
+- **Context:** The specification requires organization-timezone math but does not define how a local time in a DST gap or overlap is resolved, or when a February 29 birthday occurs in a nonleap year for age checks.
+- **Decision:** A local date and time that maps to zero or two instants is rejected, so the caller must choose an unambiguous time. For age calculations, a February 29 birthday occurs on March 1 in nonleap years.
+- **Why:** Prevents scheduling at an unintended instant and avoids approving a child account a day early.
+- **Consequences / follow-ups:** Scheduling UI must explain invalid or ambiguous local times and request a different time or explicit offset.
