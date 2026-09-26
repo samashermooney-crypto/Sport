@@ -71,3 +71,11 @@
 - **Decision:** Bundle SecLists' MIT-licensed `10k-most-common.txt` with its license in `docs/third-party/`. Password checks use the bundled list without a network dependency.
 - **Why:** Authentication remains reliable in local, test and production environments, and rejected passwords are not sent to an external service.
 - **Consequences / follow-ups:** Review and refresh the list during the Phase 16 security gate.
+
+### DEC-008 — Auth token lifetimes beyond magic links
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 identity tokens
+- **Context:** `01 §4` sets magic links to 15 minutes and one use, but does not set lifetimes for verification, reset, email-change or invitation tokens.
+- **Decision:** Verification links expire after 24 hours; password-reset and email-change links after 1 hour; invitations and person-claim links after 7 days. Every token is one use and a resend revokes the previous live token for the same subject.
+- **Why:** Limits the useful lifetime of a leaked link while allowing families enough time to accept invitations.
+- **Consequences / follow-ups:** Email templates and UI must show the relevant expiry and offer a working resend path.

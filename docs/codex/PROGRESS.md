@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- Phase 1 is in progress on `rebuild/phase-1`, based on Phase 0 commit `d0f59a1` ([CI run 36279319810](https://github.com/samashermooney-crypto/Sport/actions/runs/36279319810), all 9 jobs passed). Tasks 1–2 are complete locally. Identity task 3 has its schema, RLS and password policy, but remains unchecked; next implement token issuance/rotation, sessions, MFA, recovery, auth routes and tests. Keep the phase runnable and record each completed task in the same commit.
+- Phase 1 is in progress on `rebuild/phase-1`, based on Phase 0 commit `d0f59a1` ([CI run 36279319810](https://github.com/samashermooney-crypto/Sport/actions/runs/36279319810), all 9 jobs passed). Tasks 1–2 are complete locally. Identity task 3 has schema and tested password, token, session, encrypted TOTP and recovery-code primitives, but remains unchecked. Next implement complete auth routes with consent capture, delivery adapters, rate limits, MFA challenges and the web flows; then the Phase 1 acceptance tests. Keep the phase runnable and record each completed task in the same commit.
 
 ## Phase status
 
@@ -58,7 +58,7 @@
 - [x] 2. Money utilities in `shared/src/money.ts` (`20 §1`), date/time utilities with Temporal polyfill (`@js-temporal/polyfill`) for org-timezone math, UUIDv7 ids. Unit and property tests verify integer-cent rounding, exact allocation, DST boundaries, leap-day age rules and UUIDv7 generation. Shared tests run without database setup; local typecheck, lint and tests passed.
 
 **Identity (all of `02 §B`, `01 §4`)**
-- [ ] 3. Sign-up (email, password, name, DOB with 13+ check, ToS/Privacy consent), email verification, sign-in, magic link, sign-out, password reset, change password, change email (verify new address, notify old), MFA enrollment (TOTP QR + manual key + verify), recovery codes (view once, regenerate), MFA challenge at sign-in, step-up re-auth endpoint, session list and revoke, account deletion request (routes to privacy flow). In progress: migration 0005 adds account, consent, session, MFA, token, membership, role, device and security-event tables with RLS where applicable; Argon2id password policy and common-password blocklist are tested. No auth routes are exposed yet.
+- [ ] 3. Sign-up (email, password, name, DOB with 13+ check, ToS/Privacy consent), email verification, sign-in, magic link, sign-out, password reset, change password, change email (verify new address, notify old), MFA enrollment (TOTP QR + manual key + verify), recovery codes (view once, regenerate), MFA challenge at sign-in, step-up re-auth endpoint, session list and revoke, account deletion request (routes to privacy flow). In progress: migration 0005 adds identity tables; Argon2id with the bundled common-password blocklist, one-use tokens, session expiry/revocation/step-up, AES-256-GCM encrypted TOTP with concurrent replay protection, and single-use recovery codes all have tests (27 passing). No auth routes are exposed yet.
 - [ ] 4. Bearer token issuance for native clients and device-token registration endpoints (web push subscription implemented; apns/fcm accepted and stored but not sent).
 - [ ] 5. Rate limiting and Turnstile on public auth endpoints.
 
