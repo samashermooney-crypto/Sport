@@ -1,0 +1,63 @@
+@import './tokens.css';
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: 'Open Sans', Arial, sans-serif;
+}
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(230px, 34%) 1fr;
+}
+.auth-chrome {
+  background: var(--chrome);
+  color: var(--chrome-text);
+  padding: 28px;
+}
+.auth-brand {
+  color: #fff;
+  font-family: Georgia, serif;
+  font-size: 24px;
+}
+.auth-main {
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+}
+.auth-panel {
+  width: min(100%, 420px);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  padding: 38px;
+}
+.auth-panel h1 {
+  margin: 0 0 10px;
+  font-size: 30px;
+  letter-spacing: -1px;
+}
+.auth-panel p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+@media (max-width: 640px) {
+  .auth-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: 68px 1fr;
+  }
+  .auth-chrome {
+    padding: 16px 20px;
+  }
+  .auth-main {
+    align-items: start;
+    padding-top: 48px;
+  }
+  .auth-panel {
+    padding: 28px;
+  }
+}

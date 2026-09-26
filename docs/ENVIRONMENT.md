@@ -1,0 +1,11 @@
+# Environment
+
+Use Node 24. `npm ci`, `npm run db:up`, then `npm run dev` start the Phase 0 stack. Docker Compose binds PostgreSQL, stripe-mock and Mailpit to localhost only. PostgreSQL uses trust authentication **only for this local Compose environment**. The app and migration roles are `athlentry_app` and `athlentry_admin`; never copy this database configuration to a deployed environment.
+
+The Phase 0 shell uses `DATABASE_URL` and `DATABASE_ADMIN_URL` from the developer command and has no sign-in or outbound delivery. The e2e command uses the separate `athlentry_e2e` database. `npm test` creates one migrated template database and clones a fresh database per server test file. `npm run db:down` stops local services. Docker data persists in a named volume.
+
+`.env.example` lists the variables needed by later phases; empty values are deliberate and are not working credentials. Phase 1 will validate required production values at startup. `STRIPE_SECRET_KEY` must always be a test key in development and tests. `DELIVERY_MODE=preview` keeps email, SMS and push inside test or preview adapters. Never use live keys or real recipient delivery while developing.
+
+`APP_URL` is the browser origin, and `APP_DOMAIN` is the public domain used for organization subdomains. The server listens on port 3001; Vite serves port 5173 and proxies `/api` and `/healthz`. Mailpit UI is at port 8025, SMTP at 1025, stripe-mock at 12111, and PostgreSQL at 5432.
+
+`SESSION_SECRET` must be at least 32 bytes in a deployed environment. `DATA_ENCRYPTION_KEYS` is a JSON object mapping key IDs to 32-byte base64 keys, with `DATA_ENCRYPTION_ACTIVE_KID` choosing the active key. S3, Resend, Twilio, VAPID, Turnstile, Checkr and Sentry variables are unused until their integrations land. `LEGAL_DOCS_APPROVED` remains false until legally reviewed documents are installed. See `docs/codex/01-ARCHITECTURE.md §2` for production validation rules.

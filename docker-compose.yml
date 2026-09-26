@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: postgres
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - athlentry-postgres:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d athlentry_dev']
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  stripe-mock:
+    image: stripe/stripe-mock:latest
+    ports:
+      - '127.0.0.1:12111:12111'
+    healthcheck:
+      test: ['CMD', 'stripe-mock', '-version']
+      interval: 5s
+      timeout: 2s
+      retries: 20
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - '127.0.0.1:8025:8025'
+      - '127.0.0.1:1025:1025'
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 5s
+      timeout: 2s
+      retries: 20
+
+volumes:
+  athlentry-postgres:

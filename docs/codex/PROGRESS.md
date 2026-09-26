@@ -3,13 +3,13 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- Complete Phase 0 on `rebuild/phase-0`. Finish tooling, database-backed test setup, CI, and run every phase gate command before checking the phase complete.
+- Push `rebuild/phase-0`, inspect the GitHub Actions run, fix any remote-only failures, and check Phase 0 complete only after CI passes. Then create `rebuild/phase-1` and copy Phase 1 tasks from `10-PHASES-FOUNDATION.md` into this file.
 
 ## Phase status
 
 | Phase | Name | Status | Evidence |
 |---|---|---|---|
-| 0 | Repository reset and tooling | in progress | Branch `rebuild/phase-0` created; legacy code and superseded docs moved. |
+| 0 | Repository reset and tooling | in progress; CI pending | Local gate green: `npm ci`, `db:up`, `typecheck`, `lint`, `test`, `test:e2e`, `build`, `size`, `knip`, `openapi`, audit. |
 | 1 | Platform core | not started | |
 | 2 | People, households, forms, imports | not started | |
 | 3 | Sport engine, programs, teams, facilities | not started | |
@@ -32,19 +32,19 @@
 ### Phase 0 — Repository reset and tooling
 
 - [x] Move old app and superseded docs to `legacy/` and `docs/archive/`; preserve local SQLite data and landing assets; remove tracked build artifacts. Verified `data/fieldhouse.sqlite` remains on disk and is ignored; no tracked `dist/` or build info files.
-- [ ] Create `01 §1` layout, strict TypeScript project references, and `@shared/*`, `@server/*`, `@web/*` aliases.
-- [ ] Add ESLint flat config, Prettier, size-limit, knip, lint-staged, and simple-git-hooks.
-- [ ] Add Postgres 16, stripe-mock, and Mailpit Compose services with app/admin roles and dev/test databases; add `db:up` and `db:down`.
-- [ ] Make `npm run dev` bring up Compose, migrate, and start API, worker, and Vite with prefixed logs and clean Ctrl-C; update `.claude/launch.json`.
-- [ ] Configure isolated Postgres template-clone server Vitest, jsdom web Vitest, and seeded Playwright e2e with axe helper and failure traces.
+- [x] Create `01 §1` layout, strict TypeScript project references, and `@shared/*`, `@server/*`, `@web/*` aliases. `npm run typecheck` passed.
+- [x] Add ESLint flat config, Prettier, size-limit, knip, lint-staged, and simple-git-hooks. Lint, size, knip and the pre-commit hook passed; main bundle 60.61 KB gzip under 200 KB.
+- [x] Add Postgres 16, stripe-mock, and Mailpit Compose services with app/admin roles and dev/test databases; add `db:up` and `db:down`. `npm run db:up` reported all services healthy.
+- [x] Make `npm run dev` bring up Compose, migrate, and start API, worker, and Vite with prefixed logs and clean Ctrl-C; update `.claude/launch.json`. Manual startup and Ctrl-C shutdown verified.
+- [x] Configure isolated Postgres template-clone server Vitest, jsdom web Vitest, and seeded Playwright e2e with axe helper and failure traces. `server/src/app.test.ts` and `web/src/auth/SignIn.test.tsx` passed (3 tests); `e2e/sign-in.spec.ts` passed on Chromium desktop and WebKit mobile with axe.
 - [ ] Add CI for Node 24, Postgres, stripe-mock, typecheck, lint, coverage, Chromium and WebKit mobile e2e, build, OpenAPI freshness, and production audit.
-- [ ] Fill `PROGRESS.md`, `DECISIONS.md`, `docs/ENVIRONMENT.md`, and `.env.example` without secrets.
-- [ ] Rename active identifiers to Athlentry; update README with honest rebuild status.
+- [x] Fill `PROGRESS.md`, `DECISIONS.md`, `docs/ENVIRONMENT.md`, and `.env.example` without secrets.
+- [x] Rename active identifiers to Athlentry; update README with honest rebuild status. Historical names remain in the untouched legacy archive and old mockups.
 
 ### Phase 0 acceptance criteria
 
-- [ ] Fresh clone: `npm ci && npm run db:up && npm run dev` serves the Athlentry sign-in skeleton at `http://127.0.0.1:5173`, with no dead links, and `GET /healthz` returns 200.
-- [ ] `npm test` runs a server example against an isolated PostgreSQL database and a web component example.
+- [x] Fresh install: `npm ci && npm run db:up && npm run dev` served the Athlentry sign-in skeleton at `http://127.0.0.1:5173`, with no links/buttons; `GET /healthz` returned 200 in `e2e/sign-in.spec.ts` on both browsers.
+- [x] `npm test` runs a server example against an isolated PostgreSQL database and a web component example. `server/src/app.test.ts` asserted the template-cloned database and migration ledger; `web/src/auth/SignIn.test.tsx` passed.
 - [ ] CI passes on the branch.
-- [ ] Legacy code is preserved untouched in `legacy/`; nothing outside `legacy/` imports it.
-- [ ] Phase gate passes: `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:e2e`, `npm run build`.
+- [x] Legacy code is preserved untouched in `legacy/`; nothing outside `legacy/` imports it. Byte comparison with pre-rebuild HEAD found 0 differences across 170 old source/config files and 13 archived docs.
+- [x] Local phase gate passes: `npm run typecheck`, `npm run lint`, `npm test` (3 passed), `npm run test:e2e` (2 passed), `npm run build`. `npm test -- --coverage`, `npm run size`, `npm run knip`, `npm run openapi`, `npm audit --omit=dev --audit-level=high` and `docker build -t athlentry-phase0 .` also passed.

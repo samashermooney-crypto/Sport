@@ -1,0 +1,31 @@
+:root {
+  --accent-bright: #4f7cc9;
+  --accent: #3a67b2;
+  --accent-600: #2f5590;
+  --accent-700: #33599e;
+  --accent-050: #eef2fa;
+  --accent-line: #d3ddee;
+  --on-accent: #ffffff;
+  --ok: #157347;
+  --ok-bg: #e8f4ed;
+  --warn: #9a6206;
+  --warn-bg: #fdf3e2;
+  --bad: #b02a2a;
+  --bad-bg: #fbeceb;
+  --chrome: #2e3034;
+  --chrome-hi: #35373c;
+  --chrome-lo: #2a2b2f;
+  --chrome-line: rgba(255, 255, 255, 0.18);
+  --chrome-text: rgba(255, 255, 255, 0.72);
+  --ink: #15181c;
+  --ink-2: #3d454e;
+  --line: #dbe0e6;
+  --line-2: #eaedf1;
+  --canvas: #f1f3f6;
+  --band: #e6e9ee;
+  --head: #f4f6f8;
+  --link-ink: #2f3a44;
+  --border: #c7d0d5;
+  --muted: #535e6b;
+  --panel: #fff;
+}

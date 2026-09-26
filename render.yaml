@@ -1,0 +1,24 @@
+# Phase 0 reference shape. Production readiness is gated by docs/codex/13-PHASE-PRODUCTION.md.
+services:
+  - type: web
+    name: athlentry-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_ADMIN_URL
+        sync: false
+  - type: worker
+    name: athlentry-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerCommand: npm run worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
