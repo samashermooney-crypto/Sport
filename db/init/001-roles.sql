@@ -1,4 +1,4 @@
-CREATE ROLE athlentry_admin LOGIN CREATEDB NOINHERIT;
+CREATE ROLE athlentry_admin LOGIN CREATEDB BYPASSRLS NOINHERIT;
 CREATE ROLE athlentry_app LOGIN NOINHERIT NOBYPASSRLS;
 CREATE DATABASE athlentry_dev OWNER athlentry_admin;
 CREATE DATABASE athlentry_test OWNER athlentry_admin;

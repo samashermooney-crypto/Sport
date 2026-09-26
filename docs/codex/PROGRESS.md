@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- Phase 1 is in progress on `rebuild/phase-1`, based on Phase 0 commit `d0f59a1` ([CI run 36279319810](https://github.com/samashermooney-crypto/Sport/actions/runs/36279319810), all 9 jobs passed). Start with the database layer: migration, roles/RLS helpers, `withOrg`, Kysely, codegen, counters, idempotency, audit, update trigger and RLS coverage test. Keep the phase runnable and record each completed task in the same commit.
+- Phase 1 is in progress on `rebuild/phase-1`, based on Phase 0 commit `d0f59a1` ([CI run 36279319810](https://github.com/samashermooney-crypto/Sport/actions/runs/36279319810), all 9 jobs passed). Database layer task 1 is complete locally. Continue with task 2: shared money, date/time, and UUIDv7 utilities, then identity. Keep the phase runnable and record each completed task in the same commit.
 
 ## Phase status
 
@@ -54,7 +54,7 @@
 #### Tasks
 
 **Database layer**
-- [ ] 1. Migration runner, roles, RLS helpers, `withOrg`, Kysely instance, codegen, org counters, idempotency table, audit table, updated_at trigger function, the RLS coverage test (`01 §3`).
+- [x] 1. Migration runner, roles, RLS helpers, `withOrg`, Kysely instance, codegen, org counters, idempotency table, audit table, updated_at trigger function, the RLS coverage test (`01 §3`). Migrations 0002–0004 applied; generated Kysely types committed; app-role integration tests prove forced RLS, cross-org denial, pooled-connection reset, concurrent counters, updated_at and append-only audit. Local typecheck, lint, tests (7), and knip passed.
 - [ ] 2. Money utilities in `shared/src/money.ts` (`20 §1`), date/time utilities with Temporal polyfill (`@js-temporal/polyfill`) for org-timezone math, UUIDv7 ids.
 
 **Identity (all of `02 §B`, `01 §4`)**

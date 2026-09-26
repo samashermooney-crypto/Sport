@@ -9,6 +9,11 @@ const adminUrl =
 const dbName = `t_${randomUUID().replaceAll('-', '')}`;
 const databaseUrl = new URL(adminUrl);
 databaseUrl.pathname = `/${dbName}`;
+const appUrl = new URL(
+  process.env.DATABASE_APP_URL ??
+    'postgres://athlentry_app@127.0.0.1:5432/athlentry_test',
+);
+appUrl.pathname = `/${dbName}`;
 
 beforeAll(async () => {
   const admin = new pg.Client({ connectionString: adminUrl });
@@ -21,6 +26,7 @@ beforeAll(async () => {
     await admin.end();
   }
   process.env.TEST_DATABASE_URL = databaseUrl.toString();
+  process.env.TEST_DATABASE_APP_URL = appUrl.toString();
 });
 
 afterAll(async () => {

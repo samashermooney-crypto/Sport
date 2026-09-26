@@ -31,3 +31,19 @@
 - **Decision:** Bind PostgreSQL to localhost and use trust authentication in Docker Compose only. CI uses its own ephemeral PostgreSQL password supplied by the CI service; production must use managed credentials.
 - **Why:** Keeps local secrets out of the repository while retaining separate database privileges.
 - **Consequences / follow-ups:** Phase 16 deployment must not use this Compose authentication model.
+
+### DEC-003 — Empty tenant context fails closed
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 database isolation
+- **Context:** PostgreSQL can retain an empty string for a transaction-local setting after commit. Casting that empty string directly to UUID makes a later query fail with a cast error.
+- **Decision:** RLS policies use `NULLIF(current_setting('app.org_id', true), '')::uuid`. With no active tenant context, the comparison yields no rows and tenant writes fail. The fix is a forward-only migration.
+- **Why:** Protects tenant privacy while making pooled connections safe to reuse.
+- **Consequences / follow-ups:** Every future tenant policy must use the same expression, and the RLS coverage test must continue to run against the app role.
+
+### DEC-004 — Restrict global table writes by database role
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 database permissions
+- **Context:** Global plans and organizations have no tenant RLS; the specification assigns plan management to platform staff and requires records to be archived rather than hard-deleted.
+- **Decision:** The app role can read plans and cannot write them. It can create and update organizations through the org module but cannot delete them. Platform staff writes to plans use the admin role.
+- **Why:** Protects financial settings and prevents accidental deletion of organization records.
+- **Consequences / follow-ups:** Platform plan management must use a narrow admin connection with explicit authorization and audit.
