@@ -484,10 +484,25 @@ export interface CheckoutCapacityRefundClaims {
   updated_at: Generated<Timestamp>;
 }
 
+export interface CheckoutPolicyAcceptances {
+  accepted_at: Generated<Timestamp>;
+  account_id: string;
+  checkout_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  org_id: string;
+  terms_hash: string;
+  terms_snapshot: Json;
+  updated_at: Generated<Timestamp>;
+  user_agent: string | null;
+}
+
 export interface Checkouts {
   account_id: string;
   completed_at: Timestamp | null;
   created_at: Generated<Timestamp>;
+  creation_hash: string | null;
+  creation_key: string | null;
   expires_at: Timestamp;
   first_payment_failed_at: Timestamp | null;
   id: string;
@@ -1238,12 +1253,14 @@ export interface InstallmentStaffActions {
 
 export interface InvoiceLines {
   amount_cents: number;
+  checkout_line_index: number | null;
   created_at: Generated<Timestamp>;
   description: string;
   gl_code: string | null;
   id: string;
   invoice_id: string;
   kind: string;
+  late_fee_installment_id: string | null;
   org_id: string;
   parent_line_id: string | null;
   person_id: string | null;
@@ -2772,6 +2789,7 @@ export interface DB {
   chat_notification_batches: ChatNotificationBatches;
   chat_reports: ChatReports;
   checkout_capacity_refund_claims: CheckoutCapacityRefundClaims;
+  checkout_policy_acceptances: CheckoutPolicyAcceptances;
   checkouts: Checkouts;
   closures: Closures;
   coach_player_ratings: CoachPlayerRatings;

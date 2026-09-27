@@ -20,6 +20,7 @@ import { moduleDefinition as officialsModule } from '../modules/officials/module
 import { moduleDefinition as orgsModule } from '../modules/orgs/module';
 import { moduleDefinition as peopleModule } from '../modules/people/module';
 import { moduleDefinition as platformModule } from '../modules/platform/module';
+import { moduleDefinition as registrationModule } from '../modules/registration/module';
 import { moduleDefinition as safetyModule } from '../modules/safety/module';
 import { moduleDefinition as schedulingModule } from '../modules/scheduling/module';
 import { moduleDefinition as standingsModule } from '../modules/standings/module';
@@ -41,6 +42,7 @@ export const serverModules: readonly ServerModule[] = [
   orgsModule,
   peopleModule,
   platformModule,
+  registrationModule,
   safetyModule,
   schedulingModule,
   standingsModule,
