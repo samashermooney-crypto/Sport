@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Stored Stripe events now have a scheduled replay scan for crashed enqueue/worker paths; the A-owned app still must mount raw webhooks and enqueue `stripe.event`.
+Current: Card 3DS action, failure, recovery and duplicate success are now covered against the real invoice ledger; the A-owned app still must mount raw webhooks and enqueue `stripe.event`.
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
@@ -54,6 +54,9 @@ Ready for integration: local `fac0518..HEAD` — registered `stripe.event` worke
 Ready for integration: local `be0bf4d..HEAD` — scheduled `installments.charge` job scans active orgs with bounded work and durable pre-Stripe claims; full gate green (712 tests, 40 browser tests).
 Ready for integration: local `b79700b..HEAD` — finance invoice and payment emails freeze a payer-owned PDF and verified recipient before first send; full gate green (714 tests, 40 browser tests).
 Ready for integration: local `9001eeb..HEAD` — scheduled `stripe.replay` recovers unprocessed events after lost enqueue or expired leases without waiting for Stripe redelivery; full gate green (716 tests, 40 browser tests).
+Ready for integration: local `ffe0362..HEAD` — real-Postgres card PaymentIntent test covers 3DS action, failed method, recovery and duplicate success with exactly one invoice settlement; full gate green (719 tests, 40 browser tests).
+Review: The card lifecycle uses recorded webhook shapes and a fresh Stripe-state gateway read at each step; invoice paid cents remain zero through challenge and failure.
+Review: Duplicate success leaves paid cents unchanged; typecheck, lint, 719 tests, 40 browser tests and build passed with fake Stripe state.
 Review: Replay selects only unprocessed, currently unleased event IDs, uses the same dispatcher and tenant handlers, and caps each minute at 100 events.
 Review: A poison event cannot starve later items in the selected batch; errors are surfaced after the batch while claimed events retain their normal failure and lease rules.
 Review: Typecheck, lint, 716 tests, 40 browser tests and build passed with test-mode gateway wiring; no live event or charge was used.
