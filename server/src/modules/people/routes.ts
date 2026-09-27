@@ -7,6 +7,7 @@ import {
   householdsQuerySchema,
 } from '@shared/schemas/households';
 import {
+  peopleFilterOptionsQuerySchema,
   peopleQuerySchema,
   personCreateSchema,
   personUpdateSchema,
@@ -90,6 +91,23 @@ export function createPeopleRouter(
           orgId,
           session.accountId,
           query,
+          Boolean(requestImpersonation(request)),
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/orgs/:orgId/filter-options', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      response.json(
+        await people.filterOptions(
+          orgId,
+          session.accountId,
+          peopleFilterOptionsQuerySchema.parse(request.query),
           Boolean(requestImpersonation(request)),
         ),
       );

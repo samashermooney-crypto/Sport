@@ -510,3 +510,11 @@
 - **Decision:** Count a person as having a balance only when an outstanding, non-draft, non-void invoice contains a line assigned to that person. Household filtering uses active membership only; a removed membership does not appear in results.
 - **Why:** This avoids attributing a sibling's or guardian's debt to a child and prevents a removed relationship from keeping someone in a household result.
 - **Consequences / follow-ups:** Unassigned invoice lines do not make every member appear indebted. The People directory can still show household-wide balances separately in the household view.
+
+### DEC-073 — Use current participation for People program and team filters
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People directory
+- **Context:** Registration and roster history is retained after withdrawal and release, but the directory's program and team filters do not specify whether former participants should remain in results.
+- **Decision:** A program filter matches a registration that has not been canceled, withdrawn or transferred out. A team filter matches a current roster entry with active, injured or suspended status and no departure date. Staff search organization programs and team seasons by name, with team labels including their program.
+- **Why:** This makes the directory useful for current operations while keeping historical participation available in the underlying records.
+- **Consequences / follow-ups:** Historical participation needs a separate history view rather than broadening these current-participant filters.

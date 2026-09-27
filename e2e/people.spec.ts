@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { newId } from '@shared/ids';
 
 import { createDatabase } from '../server/src/db/kysely';
 import { createWithOrg } from '../server/src/db/withOrg';
@@ -16,7 +17,8 @@ test('owner creates, edits and archives a person from the console', async ({
     `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
   );
   try {
-    const actor = await createTestFactories(database).actor();
+    const factories = createTestFactories(database);
+    const actor = await factories.actor();
     await createWithOrg(database)(actor, async (trx) => {
       await trx
         .updateTable('role_assignments')
@@ -70,6 +72,7 @@ test('owner creates, edits and archives a person from the console', async ({
     await expect(
       page.getByRole('textbox', { name: 'Preferred name' }),
     ).toHaveValue('Lex');
+    const personId = page.url().split('/').at(-1) ?? '';
     expect(await accessibilityViolations(page)).toEqual([]);
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Archive person' }).click();
@@ -100,6 +103,21 @@ test('owner creates, edits and archives a person from the console', async ({
     await page.getByRole('button', { name: 'Add member' }).click();
     await expect(page.getByRole('link', { name: 'Alex Rivera' })).toBeVisible();
     const householdUrl = page.url();
+    const fixture = await factories.program(actor);
+    const team = await factories.team(actor, fixture);
+    const registrationId = await factories.registration(
+      actor,
+      fixture,
+      personId,
+      householdUrl.split('/').at(-1) ?? '',
+    );
+    await factories.row(actor, 'roster_entries', {
+      id: newId(),
+      org_id: actor.orgId,
+      team_season_id: team.teamSeasonId,
+      person_id: personId,
+      registration_id: registrationId,
+    });
     await page.goto(`/console/orgs/${actor.orgId}/people`);
     await page
       .getByRole('searchbox', { name: 'Find household' })
@@ -112,6 +130,16 @@ test('owner creates, edits and archives a person from the console', async ({
     await expect(
       page.getByText('No active people match this search.'),
     ).toBeVisible();
+    await page.getByRole('combobox', { name: 'Balance' }).selectOption('');
+    await page.getByRole('searchbox', { name: 'Find program' }).fill('Fixture');
+    await page
+      .getByRole('combobox', { name: 'Program' })
+      .selectOption({ label: 'Fixture League' });
+    await page.getByRole('searchbox', { name: 'Find team' }).fill('Fixture');
+    await page
+      .getByRole('combobox', { name: 'Team' })
+      .selectOption({ label: 'Fixture Team — Fixture League' });
+    await expect(page.getByRole('link', { name: 'Alex Rivera' })).toBeVisible();
     await page.goto(householdUrl);
     await expect(
       page.getByRole('heading', { name: 'Rivera household' }),

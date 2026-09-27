@@ -35,6 +35,9 @@ type Update = z.output<
 type Query = z.output<
   typeof import('@shared/schemas/people').peopleQuerySchema
 >;
+type FilterOptionsQuery = z.output<
+  typeof import('@shared/schemas/people').peopleFilterOptionsQuerySchema
+>;
 
 const selection = [
   'id',
@@ -186,6 +189,67 @@ async function audit(
 export function createPeopleRepository(database: Kysely<DB>) {
   const withOrg = createWithOrg(database);
   return {
+    async filterOptions(
+      orgId: string,
+      actorId: string,
+      query: FilterOptionsQuery,
+      impersonating = false,
+    ) {
+      return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
+        await requireStaff(trx, orgId, actorId, impersonating);
+        const term = query.q
+          ? `%${query.q.replaceAll('%', '\\%').replaceAll('_', '\\_')}%`
+          : null;
+        if (query.kind === 'program') {
+          let statement = trx
+            .selectFrom('programs')
+            .select(['id', 'name'])
+            .where('org_id', '=', orgId);
+          if (term) statement = statement.where('name', 'ilike', term);
+          return {
+            items: await statement
+              .orderBy('name')
+              .orderBy('id')
+              .limit(30)
+              .execute(),
+          };
+        }
+        let statement = trx
+          .selectFrom('team_seasons as season')
+          .innerJoin('teams as team', (join) =>
+            join
+              .onRef('team.org_id', '=', 'season.org_id')
+              .onRef('team.id', '=', 'season.team_id'),
+          )
+          .innerJoin('programs as program', (join) =>
+            join
+              .onRef('program.org_id', '=', 'season.org_id')
+              .onRef('program.id', '=', 'season.program_id'),
+          )
+          .select([
+            'season.id',
+            sql<string>`coalesce(season.display_name, team.name) || ' — ' || program.name`.as(
+              'name',
+            ),
+          ])
+          .where('season.org_id', '=', orgId);
+        if (term)
+          statement = statement.where((eb) =>
+            eb.or([
+              eb('team.name', 'ilike', term),
+              eb('season.display_name', 'ilike', term),
+              eb('program.name', 'ilike', term),
+            ]),
+          );
+        return {
+          items: await statement
+            .orderBy('name')
+            .orderBy('season.id')
+            .limit(30)
+            .execute(),
+        };
+      });
+    },
     async list(
       orgId: string,
       actorId: string,
@@ -218,6 +282,21 @@ export function createPeopleRepository(database: Kysely<DB>) {
             WHERE hm.org_id = people.org_id AND hm.person_id = people.id
               AND hm.household_id = ${query.householdId}::uuid
               AND hm.removed_at IS NULL
+          )`);
+        if (query.programId)
+          statement = statement.where(sql<boolean>`EXISTS (
+            SELECT 1 FROM registrations registration
+            WHERE registration.org_id = people.org_id AND registration.person_id = people.id
+              AND registration.program_id = ${query.programId}::uuid
+              AND registration.status NOT IN ('canceled', 'withdrawn', 'transferred_out')
+          )`);
+        if (query.teamSeasonId)
+          statement = statement.where(sql<boolean>`EXISTS (
+            SELECT 1 FROM roster_entries roster
+            WHERE roster.org_id = people.org_id AND roster.person_id = people.id
+              AND roster.team_season_id = ${query.teamSeasonId}::uuid
+              AND roster.status IN ('active', 'injured', 'suspended')
+              AND roster.left_on IS NULL
           )`);
         if (query.hasBalance !== undefined) {
           const outstanding = sql<boolean>`EXISTS (
