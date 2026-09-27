@@ -83,3 +83,5 @@ Known failing tests: none. The full `npm test`, Phase 3 Playwright journey, buil
 Other open requests recorded in this track: E to consume the weekly-installment and separate lost-dispute fields; F to merge the compliance declaration and wire credentials-expiry delivery/SSE; H to use `preferencesCenterPath(orgId)` after tokenized unsubscribe; A/C to move file-route and B module contracts to shared Zod schemas and align the files error envelope.
 
 Environment: `COMPOSE_PROJECT_NAME=athlentry_b`, `PORT_OFFSET=2500`, Postgres `127.0.0.1:7932`.
+
+HANDED OFF 13:38
