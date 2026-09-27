@@ -32,6 +32,7 @@ import {
   manualInstallmentIntentSchema,
   manualInstallmentListSchema,
 } from './manual-installment-pay.js';
+import { runFinanceNoticeJob } from './money-notice-job.js';
 import { payerReceiptListSchema } from './payer-receipts.js';
 import { payoutReconciliationSchema } from './reconciliation.js';
 import {
@@ -80,7 +81,13 @@ export const moduleDefinition = {
   name: 'finance',
   path: '/api/v1/finance',
   router: createFinanceRouter,
-  jobs: [],
+  jobs: [
+    {
+      name: 'finance.deliver-notices',
+      cron: '* * * * *',
+      run: runFinanceNoticeJob,
+    },
+  ],
   permissions: ['finance.manage'],
   notificationTypes: [],
   errorCodes: [],

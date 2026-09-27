@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Finance staff can read a payout's reconciliation and export its Stripe movements as CSV; weekly templates and payer installment pay-now are committed. Finance notice worker delivery waits for A's system actor contract.
+Current: Finance invoice/payment notices now drain through a registered per-org worker using A's system actor, preview email locally and transactional provider idempotency keys; payout report and weekly templates are committed.
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
@@ -43,6 +43,7 @@ Ready for integration: local `62e3448..HEAD` — finance-only installment schedu
 Ready for integration: local `2c234b2..HEAD` — payer-owned manual installment PaymentIntent claims and mounted portal pay-now screen with pre-Stripe allocation, concurrent-key fencing and failure-safe retry; full gate green (682 tests, 36 browser tests).
 Ready for integration: local `b5285d4..HEAD` — weekly installment template create/replace support using Track B's shared algorithm; full gate green (684 tests, 36 browser tests).
 Ready for integration: local `444da14..HEAD` — finance-only payout reconciliation JSON and CSV API with authenticated, tenant-scoped reads; full gate green (684 tests, 36 browser tests).
+Ready for integration: local `2402782..HEAD` — registered finance notice worker with system actor, per-org leases and preview/live email selection; full gate green (685 tests, 36 browser tests).
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
@@ -54,7 +55,7 @@ Requests to other tracks: A: include the new `/api/v1/finance/orgs/{orgId}/check
 Requests to other tracks: A: regenerate registry/OpenAPI for `/api/v1/finance/orgs/{orgId}/me/statements/{year}` and mount `YearEndStatementScreen` in the portal money route after merging E; the screen and finance route are E-owned (2026-09-27).
 Requests to other tracks: A: regenerate registry/OpenAPI for `/api/v1/finance/orgs/{orgId}/me/autopay` and its revoke route, and mount `AutopayScreen` in the portal money route after merging E (2026-09-27).
 Requests to other tracks: A: regenerate registry/OpenAPI for E's payer receipts feed and invoice/receipt binary PDF routes, and mount `ReceiptsScreen` beside `InvoiceBalanceScreen` in portal money; OpenAPI binary responses currently advertise octet-stream although the routes return application/pdf (2026-09-27).
-Requests to other tracks: A: supply a tenant-scoped system actor and a per-org finance notice job dispatch contract so E can schedule `PostgresFinanceNoticeDelivery.deliverOne()` from the committed outbox; register it only after portal invoice/receipt routes are mounted so notice links resolve (2026-09-27).
+Resolved request to A: the system worker actor and mounted portal invoice/receipt routes are on trunk; E registered finance notice dispatch (2026-09-27).
 Requests to other tracks: A: regenerate finance OpenAPI/registry for `POST /api/v1/finance/orgs/{orgId}/installments/{installmentId}/actions` after E merge; the action requires finance staff, an exact installment version and an Idempotency-Key UUID (2026-09-27).
 Requests to other tracks: A: regenerate finance OpenAPI for `GET /api/v1/finance/orgs/{orgId}/invoices/{invoiceId}/installments` and mount E's `InstallmentStaffScreen` on the finance invoice detail route with `orgId` and `invoiceId`; the component uses the four action APIs (2026-09-27).
 Requests to other tracks: A: regenerate finance OpenAPI for `GET /api/v1/finance/stripe-client-config`, `GET /api/v1/finance/orgs/{orgId}/me/installments` and `POST /api/v1/finance/orgs/{orgId}/me/installments/{installmentId}/payment-intents`; the portal route is E-owned and mounted in `web/src/portal/money/routes.tsx` (2026-09-27).
