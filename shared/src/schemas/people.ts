@@ -79,6 +79,31 @@ export const guardianInvitationResponseSchema = z.strictObject({
   expiresAt: z.iso.datetime(),
 });
 
+export const athleteInvitationSchema = z.strictObject({
+  email: z.email().max(254),
+});
+
+export const athleteInvitationResponseSchema = z.strictObject({
+  id: z.uuid(),
+  email: z.email(),
+  expiresAt: z.iso.datetime(),
+});
+
+export const athleteInvitationAcceptSchema = z.strictObject({
+  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+});
+
+export const athleteLinkResponseSchema = z.strictObject({
+  accountId: z.uuid().nullable(),
+  email: z.email().nullable(),
+  verifiedAt: z.iso.datetime().nullable(),
+});
+
+export const athleteInvitationAcceptedResponseSchema = z.strictObject({
+  personId: z.uuid(),
+  linkId: z.uuid(),
+});
+
 export const guardianInvitationAcceptSchema = z.strictObject({
   token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 });

@@ -18,6 +18,11 @@ import {
   medicalUpdateSchema,
 } from '@shared/schemas/medical';
 import {
+  athleteInvitationAcceptSchema,
+  athleteInvitationAcceptedResponseSchema,
+  athleteInvitationResponseSchema,
+  athleteInvitationSchema,
+  athleteLinkResponseSchema,
   familyResponseSchema,
   guardianInvitationAcceptedResponseSchema,
   guardianInvitationAcceptSchema,
@@ -50,6 +55,32 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/athlete-link',
+      summary: 'Read a child athlete account link as a verified guardian',
+      response: athleteLinkResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/athlete-invitations',
+      summary: 'Invite a 13–17-year-old athlete account as a guardian',
+      body: athleteInvitationSchema,
+      response: athleteInvitationResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/athlete-invitations/accept',
+      summary: 'Accept a guardian-issued athlete account invitation',
+      body: athleteInvitationAcceptSchema,
+      response: athleteInvitationAcceptedResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/athlete-link/revoke',
+      summary: 'Revoke a minor athlete account as a guardian',
+      response: athleteLinkResponseSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/people/orgs/{orgId}/{personId}/emergency-contacts',

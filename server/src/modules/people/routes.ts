@@ -13,6 +13,8 @@ import {
 } from '@shared/schemas/households';
 import { medicalUpdateSchema } from '@shared/schemas/medical';
 import {
+  athleteInvitationAcceptSchema,
+  athleteInvitationSchema,
   guardianInvitationAcceptSchema,
   guardianLinkCreateSchema,
   peopleFilterOptionsQuerySchema,
@@ -30,6 +32,7 @@ import { requestImpersonation } from '../../lib/tenant-guard';
 import type { AuthDependencies } from '../auth/routes';
 import { requireSession } from '../auth/routes';
 
+import { createAthleteLinksRepository } from './athleteLinks';
 import { createEmergencyContactsRepository } from './emergencyContacts';
 import { listFamily } from './family';
 import { createGuardianLinksRepository } from './guardianLinks';
@@ -99,6 +102,7 @@ export function createPeopleRouter(
   const emergencyContacts = createEmergencyContactsRepository(
     dependencies.database,
   );
+  const athleteLinks = createAthleteLinksRepository(dependencies.database);
   router.use(express.json({ limit: '32kb' }));
   router.use((_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
@@ -423,6 +427,99 @@ export function createPeopleRouter(
             session.accountId,
             z.uuid().parse(request.params.personId),
             z.uuid().parse(request.params.linkId),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.get(
+    '/orgs/:orgId/:personId/athlete-link',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(404, 'NOT_FOUND', 'Athlete link not found');
+        response.json(
+          await athleteLinks.get(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            z.uuid().parse(request.params.personId),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/:personId/athlete-invitations',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        const { email } = athleteInvitationSchema.parse(request.body);
+        response
+          .status(201)
+          .json(
+            await athleteLinks.invite(
+              z.uuid().parse(request.params.orgId),
+              session.accountId,
+              z.uuid().parse(request.params.personId),
+              email,
+              dependencies.email,
+              dependencies.appUrl,
+            ),
+          );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/athlete-invitations/accept',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        const { token } = athleteInvitationAcceptSchema.parse(request.body);
+        response.json(
+          await athleteLinks.accept(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            token,
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/:personId/athlete-link/revoke',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        response.json(
+          await athleteLinks.revoke(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            z.uuid().parse(request.params.personId),
           ),
         );
       } catch (error) {
