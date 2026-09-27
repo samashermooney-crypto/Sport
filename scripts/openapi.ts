@@ -36,6 +36,7 @@ const authRoutes: OpenApiRoute[] = [
     path: `${authBase}/legal`,
     summary: 'Get legal documents',
     response: auth.authLegalResponseSchema,
+    query: { locale: z.enum(['en', 'es']).optional() },
     public: true,
   },
   {

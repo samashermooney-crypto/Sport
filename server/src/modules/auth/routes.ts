@@ -47,7 +47,7 @@ import {
 import type { CredentialsDependencies } from './credentials';
 import { listDevices, registerDevice, revokeDevice } from './devices';
 import { AuthDomainError } from './domain-error';
-import { localLegalDocuments } from './legal';
+import { legalDocumentsForLocale } from './legal';
 import { RateLimitExceededError } from './rate-limits';
 import type { AuthRateLimits } from './rate-limits';
 import {
@@ -224,8 +224,11 @@ export function createAuthRouter(
     next();
   });
 
-  router.get('/legal', (_request, response) => {
-    response.json(authLegalResponseSchema.parse(localLegalDocuments));
+  router.get('/legal', (request, response) => {
+    const locale = request.query.locale === 'es' ? 'es' : 'en';
+    response.json(
+      authLegalResponseSchema.parse(legalDocumentsForLocale(locale)),
+    );
   });
   router.get('/captcha-config', (_request, response) => {
     response.json(
