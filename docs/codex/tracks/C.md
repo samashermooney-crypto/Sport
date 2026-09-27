@@ -2,7 +2,7 @@
 Status: working
 Model: GPT-6 Luna
 Branch: `track/c-adapters`
-Current: Queue items 1–2 and 4–7 implemented locally; committing focused changes, then merging `rebuild/trunk` before database verification.
+Current: Files/storage committed as `75db839`; email adapter is next; merge `rebuild/trunk` before database verification.
 Ready for integration: none yet
 Requests to other tracks: A — merge `sharp` and `web-push` package dependencies; mount `filesModule`, compose its authorization/storage dependencies, and regenerate DB types after migration 0500; add a DECISIONS.md note that Resend campaign tracking uses a separate tracked sender domain while security mail uses an untracked domain (2026-09-26).
 Blocked on: merge `rebuild/trunk` before starting the isolated database stack; then run files tenancy/RLS tests with escalated Docker/Postgres access.
