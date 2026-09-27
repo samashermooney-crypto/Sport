@@ -1,0 +1,10 @@
+import type { CreateAttendanceInput } from '../../../../shared/src/schemas/attendance.js';
+import type { AttendanceRepository } from './repo.js';
+
+export function createAttendanceService(repository: AttendanceRepository) {
+  return {
+    list: () => repository.list(),
+    get: (id: string) => repository.get(id),
+    create: (input: CreateAttendanceInput) => repository.create(input),
+  };
+}
