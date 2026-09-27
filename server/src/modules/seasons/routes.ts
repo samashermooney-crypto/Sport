@@ -135,7 +135,10 @@ export function createSeasonsRouter(
           z.uuid().parse(request.params.seasonId),
           rolloverSchema.parse(request.body),
         );
-        return { status: 201, body: result };
+        return {
+          status: 201,
+          body: JSON.parse(JSON.stringify(result)) as unknown,
+        };
       },
     }),
   );

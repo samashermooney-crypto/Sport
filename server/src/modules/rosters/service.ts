@@ -180,6 +180,15 @@ export class RostersService {
         this.context.actor.accountId,
         false,
       );
+      const teamSeason = await trx
+        .selectFrom('team_seasons')
+        .select(['id', 'roster_locked_at'])
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', teamSeasonId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!teamSeason)
+        throw new RosterError(404, 'NOT_FOUND', 'Team season not found');
       const config = await this.config(trx, teamSeasonId);
       if (config.rosterLockedAt)
         throw new RosterError(409, 'ROSTER_LOCKED', 'Roster is locked');

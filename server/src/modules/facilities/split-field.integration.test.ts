@@ -9,7 +9,7 @@ import type { DB } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 
-import { FacilitiesService } from './service';
+import { FacilitiesService, FacilityError } from './service';
 
 let database: Kysely<DB>;
 let context: OrgContext;
@@ -64,6 +64,169 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await database.destroy();
+});
+
+it('updates availability windows with version checks', async () => {
+  const service = new FacilitiesService(database, context);
+  const facility = await service.createFacility({
+    name: 'Availability Park',
+    ownership: 'owned',
+    timezone: 'UTC',
+  });
+  const space = await service.createSpace({
+    facilityId: facility.id,
+    name: 'Court 1',
+    kind: 'court',
+  });
+  const window = await service.addAvailability({
+    spaceId: space.id,
+    recurrence: {
+      kind: 'weekly',
+      interval: 1,
+      byDay: ['MO'],
+      startsOn: '2026-10-01',
+      endsOn: '2026-12-31',
+      exceptions: [],
+      additions: [],
+    },
+    startTime: '17:00',
+    endTime: '21:00',
+    source: 'owned',
+  });
+  const updated = await service.updateAvailability(window.id, {
+    expectedVersion: window.version,
+    startTime: '18:00',
+    endTime: '22:00',
+  });
+  expect(updated.start_time.slice(0, 5)).toBe('18:00');
+  expect(updated.end_time.slice(0, 5)).toBe('22:00');
+  await expect(
+    service.updateAvailability(window.id, {
+      expectedVersion: window.version,
+      startTime: '19:00',
+    }),
+  ).rejects.toBeInstanceOf(FacilityError);
+});
+
+it('archives every descendant when a space is archived', async () => {
+  const service = new FacilitiesService(database, context);
+  const facility = await service.createFacility({
+    name: 'Nested Space Park',
+    ownership: 'owned',
+    timezone: 'UTC',
+  });
+  const field = await service.createSpace({
+    facilityId: facility.id,
+    name: 'Field',
+    kind: 'field',
+  });
+  const half = await service.createSpace({
+    facilityId: facility.id,
+    parentSpaceId: field.id,
+    name: 'North half',
+    kind: 'field',
+  });
+  const quarter = await service.createSpace({
+    facilityId: facility.id,
+    parentSpaceId: half.id,
+    name: 'North east quarter',
+    kind: 'field',
+  });
+
+  await service.archiveSpace(field.id, field.version);
+  const listing = await service.list();
+  expect(
+    listing.spaces.filter((space) =>
+      [field.id, half.id, quarter.id].includes(space.id),
+    ),
+  ).toHaveLength(0);
+});
+
+it('protects the space hierarchy when creating parents with future bookings', async () => {
+  const service = new FacilitiesService(database, context);
+  const facility = await service.createFacility({
+    name: 'Booked Field Park',
+    ownership: 'owned',
+    timezone: 'UTC',
+  });
+  const parent = await service.createSpace({
+    facilityId: facility.id,
+    name: 'Booked Field',
+    kind: 'field',
+  });
+  const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const end = new Date(start.getTime() + 60 * 60 * 1000);
+  await createWithOrg(database)(context, async (trx) => {
+    const eventId = newId();
+    await trx
+      .insertInto('events')
+      .values({
+        id: eventId,
+        org_id: context.orgId,
+        kind: 'practice',
+        title: 'Future field booking',
+        starts_at: start,
+        ends_at: end,
+        timezone: 'UTC',
+        space_id: parent.id,
+      })
+      .execute();
+    await trx
+      .insertInto('space_bookings')
+      .values({
+        id: newId(),
+        org_id: context.orgId,
+        booking_group_id: newId(),
+        leaf_space_id: parent.id,
+        during: `["${start.toISOString()}","${end.toISOString()}")`,
+        event_id: eventId,
+      })
+      .execute();
+  });
+
+  await expect(
+    service.createSpace({
+      facilityId: facility.id,
+      parentSpaceId: parent.id,
+      name: 'New half field',
+      kind: 'field',
+    }),
+  ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+});
+
+it('rejects space hierarchy cycles and unsafe facility map URLs', async () => {
+  const service = new FacilitiesService(database, context);
+  const facility = await service.createFacility({
+    name: 'Hierarchy Park',
+    ownership: 'owned',
+    timezone: 'UTC',
+  });
+  const parent = await service.createSpace({
+    facilityId: facility.id,
+    name: 'Whole field',
+    kind: 'field',
+  });
+  const child = await service.createSpace({
+    facilityId: facility.id,
+    parentSpaceId: parent.id,
+    name: 'North half',
+    kind: 'field',
+  });
+
+  await expect(
+    service.updateSpace(parent.id, {
+      parentSpaceId: child.id,
+      expectedVersion: parent.version,
+    }),
+  ).rejects.toMatchObject({ status: 400, code: 'VALIDATION_ERROR' });
+  expect(() =>
+    service.createFacility({
+      name: 'Unsafe map',
+      ownership: 'owned',
+      timezone: 'UTC',
+      mapUrl: 'javascript:alert(1)',
+    }),
+  ).toThrow();
 });
 
 it('blocks a full-field booking over a booked half', async () => {

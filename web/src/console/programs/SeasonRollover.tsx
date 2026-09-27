@@ -67,9 +67,7 @@ export function SeasonRollover({
   const [preview, setPreview] = useState<z.output<typeof previewSchema> | null>(
     null,
   );
-  const [overrides, setOverrides] = useState<
-    Record<string, { start: string; end: string }>
-  >({});
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [teams, setTeams] = useState<string[]>([]);
   const [staff, setStaff] = useState<string[]>([]);
   const [key, setKey] = useState('');
@@ -79,12 +77,13 @@ export function SeasonRollover({
   const dateMap = () =>
     Object.fromEntries(
       (preview?.programs ?? []).flatMap((program) => {
-        const override = overrides[program.id];
         const entries: [string, string][] = [];
-        if (override?.start && override.start !== program.copiedStartsOn)
-          entries.push([program.startsOn, override.start]);
-        if (override?.end && override.end !== program.copiedEndsOn)
-          entries.push([program.endsOn, override.end]);
+        const start = overrides[program.startsOn];
+        const end = overrides[program.endsOn];
+        if (start && start !== program.copiedStartsOn)
+          entries.push([program.startsOn, start]);
+        if (end && end !== program.copiedEndsOn)
+          entries.push([program.endsOn, end]);
         return entries;
       }),
     );
@@ -112,9 +111,9 @@ export function SeasonRollover({
       setStaff(result.staff.map((member) => member.id));
       setOverrides(
         Object.fromEntries(
-          result.programs.map((program) => [
-            program.id,
-            { start: program.copiedStartsOn, end: program.copiedEndsOn },
+          result.programs.flatMap((program) => [
+            [program.startsOn, program.copiedStartsOn],
+            [program.endsOn, program.copiedEndsOn],
           ]),
         ),
       );
@@ -257,18 +256,11 @@ export function SeasonRollover({
               <Field label="Program starts">
                 <Input
                   type="date"
-                  value={overrides[program.id]?.start ?? program.copiedStartsOn}
+                  value={overrides[program.startsOn] ?? program.copiedStartsOn}
                   onChange={(event) => {
-                    const current = overrides[program.id] ?? {
-                      start: program.copiedStartsOn,
-                      end: program.copiedEndsOn,
-                    };
                     setOverrides({
                       ...overrides,
-                      [program.id]: {
-                        ...current,
-                        start: event.target.value,
-                      },
+                      [program.startsOn]: event.target.value,
                     });
                   }}
                 />
@@ -276,18 +268,11 @@ export function SeasonRollover({
               <Field label="Program ends">
                 <Input
                   type="date"
-                  value={overrides[program.id]?.end ?? program.copiedEndsOn}
+                  value={overrides[program.endsOn] ?? program.copiedEndsOn}
                   onChange={(event) => {
-                    const current = overrides[program.id] ?? {
-                      start: program.copiedStartsOn,
-                      end: program.copiedEndsOn,
-                    };
                     setOverrides({
                       ...overrides,
-                      [program.id]: {
-                        ...current,
-                        end: event.target.value,
-                      },
+                      [program.endsOn]: event.target.value,
                     });
                   }}
                 />

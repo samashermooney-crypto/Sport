@@ -1,10 +1,14 @@
 import { newId } from '@shared/ids';
 import { recurrenceSchema } from '@shared/recurrence';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import { z } from 'zod';
 
 import type { DB, Json } from '../../db/types';
-import { createWithOrg, type OrgContext } from '../../db/withOrg';
+import {
+  createWithOrg,
+  type OrgContext,
+  type OrgTransaction,
+} from '../../db/withOrg';
 import { requireStaff } from '../people/repo';
 
 export const facilityInputSchema = z.strictObject({
@@ -13,7 +17,11 @@ export const facilityInputSchema = z.strictObject({
   address: z.record(z.string(), z.string()).nullable().default(null),
   timezone: z.string().nullable().default(null),
   parkingNotes: z.string().max(4000).nullable().default(null),
-  mapUrl: z.url().nullable().default(null),
+  mapUrl: z
+    .url()
+    .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol))
+    .nullable()
+    .default(null),
   public: z.boolean().default(false),
 });
 export const spaceInputSchema = z.strictObject({
@@ -46,6 +54,21 @@ export const availabilityInputSchema = z.strictObject({
   permitReference: z.string().max(200).nullable().default(null),
   costPerHourCents: z.number().int().nonnegative().nullable().default(null),
 });
+export const availabilityUpdateSchema = z.strictObject({
+  recurrence: recurrenceSchema.optional(),
+  startTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .optional(),
+  endTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .optional(),
+  source: z.enum(['owned', 'permit']).optional(),
+  permitReference: z.string().max(200).nullable().optional(),
+  costPerHourCents: z.number().int().nonnegative().nullable().optional(),
+  expectedVersion: z.number().int().positive(),
+});
 export const blackoutInputSchema = z.strictObject({
   spaceId: z.uuid().nullable().default(null),
   facilityId: z.uuid().nullable().default(null),
@@ -75,6 +98,52 @@ export class FacilitiesService {
     private readonly context: OrgContext,
   ) {
     this.withOrg = createWithOrg(database);
+  }
+  private async assertNoFutureBooking(trx: OrgTransaction, spaceId: string) {
+    const booking = await trx
+      .selectFrom('space_bookings')
+      .select('id')
+      .where('org_id', '=', this.context.orgId)
+      .where('leaf_space_id', '=', spaceId)
+      .where(
+        sql<boolean>`during && tstzrange(now(), 'infinity'::timestamptz, '[)')`,
+      )
+      .executeTakeFirst();
+    if (booking)
+      throw new FacilityError(
+        409,
+        'CONFLICT',
+        'Move or cancel future bookings before adding child spaces',
+      );
+  }
+  private async assertAcyclicParent(
+    trx: OrgTransaction,
+    spaceId: string,
+    parentSpaceId: string,
+    facilityId: string,
+  ) {
+    const spaces = await trx
+      .selectFrom('spaces')
+      .select(['id', 'parent_space_id'])
+      .where('org_id', '=', this.context.orgId)
+      .where('facility_id', '=', facilityId)
+      .where('archived_at', 'is', null)
+      .execute();
+    const parents = new Map(
+      spaces.map((space) => [space.id, space.parent_space_id]),
+    );
+    const visited = new Set<string>();
+    let ancestor: string | null | undefined = parentSpaceId;
+    while (ancestor) {
+      if (ancestor === spaceId || visited.has(ancestor))
+        throw new FacilityError(
+          400,
+          'VALIDATION_ERROR',
+          'Space hierarchy cannot contain a cycle',
+        );
+      visited.add(ancestor);
+      ancestor = parents.get(ancestor);
+    }
   }
   list() {
     return this.withOrg(this.context, async (trx) => {
@@ -199,6 +268,7 @@ export class FacilitiesService {
           .where('facility_id', '=', value.facilityId)
           .where('id', '=', value.parentSpaceId)
           .where('archived_at', 'is', null)
+          .forUpdate()
           .executeTakeFirst();
         if (!parent)
           throw new FacilityError(
@@ -206,6 +276,7 @@ export class FacilitiesService {
             'VALIDATION_ERROR',
             'Parent space must be in the same facility',
           );
+        await this.assertNoFutureBooking(trx, parent.id);
       }
       return trx
         .insertInto('spaces')
@@ -267,6 +338,7 @@ export class FacilitiesService {
           .where('facility_id', '=', current.facility_id)
           .where('id', '=', value.parentSpaceId)
           .where('archived_at', 'is', null)
+          .forUpdate()
           .executeTakeFirst();
         if (!parent)
           throw new FacilityError(
@@ -274,6 +346,8 @@ export class FacilitiesService {
             'VALIDATION_ERROR',
             'Parent space must be in the same facility',
           );
+        await this.assertAcyclicParent(trx, id, parent.id, current.facility_id);
+        await this.assertNoFutureBooking(trx, parent.id);
       }
       return trx
         .updateTable('spaces')
@@ -350,7 +424,7 @@ export class FacilitiesService {
       );
       const current = await trx
         .selectFrom('spaces')
-        .select('version')
+        .select(['version', 'facility_id'])
         .where('org_id', '=', this.context.orgId)
         .where('id', '=', id)
         .where('archived_at', 'is', null)
@@ -365,13 +439,38 @@ export class FacilitiesService {
           'Space changed; reload before saving',
         );
       const now = new Date();
-      await trx
-        .updateTable('spaces')
-        .set({ archived_at: now })
+      const spaces = await trx
+        .selectFrom('spaces')
+        .select(['id', 'parent_space_id'])
         .where('org_id', '=', this.context.orgId)
-        .where('parent_space_id', '=', id)
+        .where('facility_id', '=', current.facility_id)
         .where('archived_at', 'is', null)
         .execute();
+      const children = new Map<string, string[]>();
+      for (const space of spaces) {
+        if (!space.parent_space_id) continue;
+        const siblings = children.get(space.parent_space_id) ?? [];
+        siblings.push(space.id);
+        children.set(space.parent_space_id, siblings);
+      }
+      const descendants: string[] = [];
+      const pending = [id];
+      while (pending.length) {
+        const parentId = pending.pop();
+        if (!parentId) continue;
+        for (const childId of children.get(parentId) ?? []) {
+          descendants.push(childId);
+          pending.push(childId);
+        }
+      }
+      if (descendants.length)
+        await trx
+          .updateTable('spaces')
+          .set({ archived_at: now, version: sql<number>`version + 1` })
+          .where('org_id', '=', this.context.orgId)
+          .where('id', 'in', descendants)
+          .where('archived_at', 'is', null)
+          .execute();
       return trx
         .updateTable('spaces')
         .set({ archived_at: now, version: current.version + 1 })
@@ -413,6 +512,75 @@ export class FacilitiesService {
         .where('id', '=', id)
         .execute();
       return { id };
+    });
+  }
+  updateAvailability(
+    id: string,
+    input: z.input<typeof availabilityUpdateSchema>,
+  ) {
+    const value = availabilityUpdateSchema.parse(input);
+    return this.withOrg(this.context, async (trx) => {
+      await requireStaff(
+        trx,
+        this.context.orgId,
+        this.context.actor.accountId,
+        false,
+      );
+      const current = await trx
+        .selectFrom('space_availability')
+        .selectAll()
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!current)
+        throw new FacilityError(
+          404,
+          'NOT_FOUND',
+          'Availability window not found',
+        );
+      if (current.version !== value.expectedVersion)
+        throw new FacilityError(
+          409,
+          'VERSION_CONFLICT',
+          'Availability window changed; reload before saving',
+        );
+      const recurrence =
+        value.recurrence ?? recurrenceSchema.parse(current.recurrence);
+      const startTime = value.startTime ?? current.start_time.slice(0, 5);
+      const endTime = value.endTime ?? current.end_time.slice(0, 5);
+      if (
+        recurrence.kind === 'once' ||
+        startTime >= endTime ||
+        recurrence.startsOn > (recurrence.endsOn ?? '2099-12-31')
+      )
+        throw new FacilityError(
+          400,
+          'VALIDATION_ERROR',
+          'Choose a recurring window with a valid date and time range',
+        );
+      return trx
+        .updateTable('space_availability')
+        .set({
+          rrule: '',
+          recurrence: recurrence as Json,
+          starts_on: day(recurrence.startsOn),
+          ends_on: day(recurrence.endsOn ?? '2099-12-31'),
+          start_time: startTime,
+          end_time: endTime,
+          ...(value.source === undefined ? {} : { source: value.source }),
+          ...(value.permitReference === undefined
+            ? {}
+            : { permit_reference: value.permitReference }),
+          ...(value.costPerHourCents === undefined
+            ? {}
+            : { cost_per_hour_cents: value.costPerHourCents }),
+          version: current.version + 1,
+        })
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
     });
   }
   deleteBlackout(id: string) {

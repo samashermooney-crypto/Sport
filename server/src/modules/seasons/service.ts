@@ -47,9 +47,6 @@ const shiftDate = (value: Date, offset: number) =>
   dateOnly(
     new Date(value.getFullYear(), value.getMonth(), value.getDate() + offset),
   );
-const shiftInstant = (value: Date | null, offset: number) =>
-  value ? new Date(value.getTime() + offset * 86_400_000) : null;
-
 type DateMap = Readonly<Record<string, string>>;
 const resolveDate = (value: Date, offset: number, map: DateMap) =>
   map[dateOnly(value)] ?? shiftDate(value, offset);
@@ -64,7 +61,8 @@ const resolveInstant = (
     value.getTime(),
   ).toZonedDateTimeISO(timeZone);
   const mapped = map[zoned.toPlainDate().toString()];
-  if (!mapped) return shiftInstant(value, offset);
+  if (!mapped)
+    return new Date(zoned.add({ days: offset }).toInstant().epochMilliseconds);
   const target = Temporal.PlainDateTime.from(
     `${mapped}T${zoned.toPlainTime().toString()}`,
   ).toZonedDateTime(timeZone, { disambiguation: 'compatible' });
@@ -218,7 +216,7 @@ export class SeasonsService {
         .select(['ts.id', 'ts.team_id', 'ts.program_id', 't.name'])
         .where('ts.org_id', '=', this.context.orgId)
         .where('p.season_id', '=', id)
-        .where('ts.status', '!=', 'withdrawn')
+        .where('ts.status', 'in', ['forming', 'active'])
         .execute();
       const staff = await trx
         .selectFrom('team_staff as s')
@@ -235,6 +233,7 @@ export class SeasonsService {
         ])
         .where('s.org_id', '=', this.context.orgId)
         .where('p.season_id', '=', id)
+        .where('ts.status', 'in', ['forming', 'active'])
         .where('s.status', '!=', 'removed')
         .execute();
       const selectedTeams = new Set(value.returningTeamSeasonIds);
@@ -486,8 +485,24 @@ export class SeasonsService {
           ? oldPrograms.map((p) => p.id)
           : [sourceId],
       )
+      .where('status', 'in', ['forming', 'active'])
       .execute();
     const returning = new Set(value.returningTeamSeasonIds);
+    if (value.returningTeamSeasonIds.some((id) => !returning.has(id)))
+      throw new SeasonError(
+        400,
+        'VALIDATION_ERROR',
+        'Selected returning team is not in the source season',
+      );
+    const eligibleTeamSeasonIds = new Set(
+      oldTeamSeasons.map((team) => team.id),
+    );
+    if ([...returning].some((id) => !eligibleTeamSeasonIds.has(id)))
+      throw new SeasonError(
+        400,
+        'VALIDATION_ERROR',
+        'Selected returning team must be forming or active in the source season',
+      );
     for (const old of oldTeamSeasons) {
       if (!returning.has(old.id)) continue;
       const programId = programIds.get(old.program_id);
@@ -530,6 +545,13 @@ export class SeasonsService {
       .where('status', '!=', 'removed')
       .execute();
     const carry = new Set(value.carryStaffIds);
+    const eligibleStaffIds = new Set(oldStaff.map((member) => member.id));
+    if ([...carry].some((id) => !eligibleStaffIds.has(id)))
+      throw new SeasonError(
+        400,
+        'VALIDATION_ERROR',
+        'Selected staff member is not active in the source season',
+      );
     const staffIds = new Map<string, string>();
     for (const member of oldStaff) {
       if (!carry.has(member.id)) continue;

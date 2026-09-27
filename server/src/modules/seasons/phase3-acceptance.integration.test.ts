@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { newId } from '@shared/ids';
 import { builtInSportTemplatesByKey } from '@shared/sport/templates';
+import type { NextFunction, Request, Response } from 'express';
 import type { Kysely } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -9,6 +10,8 @@ import { createDatabase } from '../../db/kysely';
 import type { DB, Json } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
+import { idempotentRoute } from '../../lib/idempotency';
+import { OfferingsService } from '../offerings/service';
 import { ProgramsService } from '../programs/service';
 import { RostersService, RosterError } from '../rosters/service';
 import { TeamsService } from '../teams/service';
@@ -140,6 +143,61 @@ const addPerson = async (firstName: string, dateOfBirth = '2014-05-01') => {
 };
 
 describe('season rollover acceptance', () => {
+  it('preserves registration wall time when an offset crosses daylight saving time', async () => {
+    await database
+      .updateTable('organizations')
+      .set({ timezone: 'America/Chicago' })
+      .where('id', '=', context.orgId)
+      .execute();
+    const seasons = new SeasonsService(database, context);
+    const programs = new ProgramsService(database, context);
+    const spring = await seasons.create({
+      name: 'Spring 2027',
+      startsOn: '2027-03-01',
+      endsOn: '2027-03-20',
+    });
+    const source = await programs.create({
+      seasonId: spring.id,
+      sportProfileId: profileId,
+      mode: 'league',
+      name: 'Spring Soccer',
+      slug: `dst-${randomUUID().slice(0, 8)}`,
+      startsOn: '2027-03-01',
+      endsOn: '2027-03-20',
+    });
+    await withOrg()(context, (trx) =>
+      trx
+        .updateTable('programs')
+        .set({ registration_opens_at: new Date('2027-03-13T15:00:00.000Z') })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', source.id)
+        .execute(),
+    );
+
+    const copy = await withOrg()(context, (trx) =>
+      seasons.rolloverInTransaction(trx, spring.id, {
+        name: 'Spring 2028',
+        startsOn: '2028-03-01',
+        endsOn: '2028-03-20',
+        offsetDays: 1,
+        returningTeamSeasonIds: [],
+        carryStaffIds: [],
+      }),
+    );
+    const copied = await withOrg()(context, (trx) =>
+      trx
+        .selectFrom('programs')
+        .select('registration_opens_at')
+        .where('org_id', '=', context.orgId)
+        .where('season_id', '=', copy.season.id)
+        .where('copied_from_program_id', '=', source.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(copied.registration_opens_at?.toISOString()).toBe(
+      '2027-03-14T14:00:00.000Z',
+    );
+  });
+
   it('maps program dates through an explicit date map and invokes extras', async () => {
     const captured: RolloverIdMap[] = [];
     const seasons = new SeasonsService(database, context, [
@@ -149,6 +207,23 @@ describe('season rollover acceptance', () => {
       },
     ]);
     const programs = new ProgramsService(database, context);
+    const offerings = new OfferingsService(database, context);
+    const sourceOffering = await offerings.create({
+      programId,
+      divisionId,
+      name: 'Season registration',
+      registrantRole: 'athlete',
+      priceCents: 12500,
+      pricing: {
+        earlyPriceCents: 11000,
+        installmentTemplateIds: [],
+        siblingDiscountEligible: true,
+        glCode: 'REG',
+      },
+      formDefinitionIds: [],
+      waiverDocumentIds: [],
+      active: true,
+    });
     const copy = await withOrg()(context, (trx) =>
       seasons.rolloverInTransaction(trx, sourceSeason, {
         name: 'Fall 2027',
@@ -170,6 +245,105 @@ describe('season rollover acceptance', () => {
     expect(captured[0]?.seasonId).toBe(copy.season.id);
     expect(captured[0]?.programIds.size).toBe(1);
     expect(captured[0]?.teamSeasonIds.size).toBe(1);
+    const copiedDetail = await programs.get(copied.id);
+    expect(copiedDetail.offerings).toHaveLength(1);
+    expect(copiedDetail.offerings[0]).toMatchObject({
+      name: sourceOffering.name,
+      price_cents: sourceOffering.price_cents,
+      pricing: sourceOffering.pricing,
+      form_definition_ids: [],
+      waiver_document_ids: [],
+      active: false,
+    });
+    const copiedRegistrations = await withOrg()(context, (trx) =>
+      trx
+        .selectFrom('registrations')
+        .select('id')
+        .where('org_id', '=', context.orgId)
+        .where('program_id', '=', copied.id)
+        .execute(),
+    );
+    expect(copiedRegistrations).toHaveLength(0);
+  });
+
+  it('creates one copy when the same rollover idempotency key is replayed', async () => {
+    const name = `Idempotent ${randomUUID().slice(0, 8)}`;
+    const input = {
+      name,
+      startsOn: '2029-09-01',
+      endsOn: '2029-12-15',
+      offsetDays: 365,
+      returningTeamSeasonIds: [],
+      carryStaffIds: [],
+    };
+    const idempotencyKey = randomUUID();
+    const handler = idempotentRoute({
+      context: () => context,
+      runWithOrg: createWithOrg(database),
+      execute: async (_request, trx) => {
+        const result = await new SeasonsService(
+          database,
+          context,
+        ).rolloverInTransaction(trx, sourceSeason, input);
+        return {
+          status: 201,
+          body: JSON.parse(JSON.stringify(result)) as unknown,
+        };
+      },
+    });
+    const call = () =>
+      new Promise<{
+        status: number;
+        body: unknown;
+        headers: Record<string, string>;
+      }>((resolve, reject) => {
+        let status = 200;
+        const headers: Record<string, string> = {};
+        const request = {
+          method: 'POST',
+          originalUrl: `/api/v1/seasons/orgs/${context.orgId}/${sourceSeason}/rollover`,
+          path: `/orgs/${context.orgId}/${sourceSeason}/rollover`,
+          body: input,
+          get: (header: string) =>
+            header === 'Idempotency-Key' ? idempotencyKey : undefined,
+        } as unknown as Request;
+        const response = {
+          status(code: number) {
+            status = code;
+            return this;
+          },
+          setHeader(header: string, value: string) {
+            headers[header] = value;
+            return this;
+          },
+          json(body: unknown) {
+            resolve({ status, body, headers });
+            return this;
+          },
+        } as unknown as Response;
+        handler(request, response, reject as NextFunction);
+      });
+    const first = await call();
+    const replay = await call();
+    expect(first.status).toBe(201);
+    expect(replay).toMatchObject({
+      status: first.status,
+      body: first.body,
+      headers: { 'Idempotent-Replayed': 'true' },
+    });
+    expect(
+      (first.body as { season: { starts_on: unknown } }).season.starts_on,
+    ).toBeTypeOf('string');
+    const copies = await withOrg()(context, (trx) =>
+      trx
+        .selectFrom('seasons')
+        .select('id')
+        .where('org_id', '=', context.orgId)
+        .where('copied_from_season_id', '=', sourceSeason)
+        .where('name', '=', name)
+        .execute(),
+    );
+    expect(copies).toHaveLength(1);
   });
 
   it('carries selected staff into the new season as pending compliance', async () => {
@@ -209,6 +383,41 @@ describe('season rollover acceptance', () => {
 });
 
 describe('roster invariants', () => {
+  it('serializes concurrent adds against the roster limit', async () => {
+    const teams = new TeamsService(database, context);
+    const generated = await teams.generate({
+      programId,
+      divisionId,
+      count: 1,
+      pattern: `Limited ${randomUUID().slice(0, 6)} {n}`,
+    });
+    const limitedTeam = generated[0]?.season;
+    if (!limitedTeam) throw new Error('Limited team season unavailable');
+    await teams.updateTeamSeason(limitedTeam.id, {
+      expectedVersion: limitedTeam.version,
+      rosterLimit: 1,
+    });
+    const rosters = new RostersService(database, context);
+    const [first, second] = await Promise.all([
+      addPerson('At capacity one'),
+      addPerson('At capacity two'),
+    ]);
+    const results = await Promise.allSettled([
+      rosters.add(limitedTeam.id, { personId: first }),
+      rosters.add(limitedTeam.id, { personId: second }),
+    ]);
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    const rejected = results.find((result) => result.status === 'rejected');
+    expect(rejected?.status).toBe('rejected');
+    if (rejected?.status === 'rejected')
+      expect(rejected.reason).toMatchObject({
+        status: 409,
+        code: 'CAPACITY_FULL',
+      });
+  });
+
   it('rejects duplicate jersey numbers under concurrent writes', async () => {
     const rosters = new RostersService(database, context);
     const [first, second] = await Promise.all([

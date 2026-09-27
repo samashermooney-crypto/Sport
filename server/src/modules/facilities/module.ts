@@ -5,6 +5,7 @@ import type { ServerModule } from '../../lib/module-contract';
 import { createFacilitiesRouter } from './routes';
 import {
   availabilityInputSchema,
+  availabilityUpdateSchema,
   blackoutInputSchema,
   facilityInputSchema,
   spaceInputSchema,
@@ -60,6 +61,13 @@ export const moduleDefinition = {
       path: '/api/v1/facilities/orgs/{orgId}/availability',
       summary: 'Create structured recurrence availability',
       body: availabilityInputSchema,
+      response: row,
+    },
+    {
+      method: 'patch',
+      path: '/api/v1/facilities/orgs/{orgId}/availability/{availabilityId}',
+      summary: 'Update structured recurrence availability',
+      body: availabilityUpdateSchema,
       response: row,
     },
     {

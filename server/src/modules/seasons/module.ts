@@ -72,6 +72,8 @@ export const moduleDefinition = {
       method: 'post',
       path: '/api/v1/seasons/orgs/{orgId}/{seasonId}/rollover',
       summary: 'Copy a season once with Idempotency-Key',
+      idempotencyKey: true,
+      status: 201,
       body: rolloverSchema,
       response: z.object({
         season: row,

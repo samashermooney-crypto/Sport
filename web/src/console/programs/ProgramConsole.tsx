@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { z } from 'zod';
 
-import { apiGet, apiPost } from '../../api/client';
+import { apiGet, apiPatch, apiPost } from '../../api/client';
 import { Button, Card, Field, Input, Select } from '../../ui/primitives';
 
 import { SeasonRollover } from './SeasonRollover';
@@ -101,6 +101,7 @@ export function ProgramConsole({
   orgId: string;
 }): React.JSX.Element {
   const [seasons, setSeasons] = useState<Season[]>([]);
+  const [editSeason, setEditSeason] = useState<Season | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [plans, setPlans] = useState<
@@ -202,6 +203,23 @@ export function ProgramConsole({
       setSeasonId(created.id);
       setSeasonName('');
       setNotice(`Created ${created.name}`);
+    });
+  const saveSeason = () =>
+    mutate(async () => {
+      if (!editSeason) return;
+      await apiPatch(
+        `/seasons/orgs/${orgId}/${editSeason.id}`,
+        {
+          expectedVersion: editSeason.version,
+          name: editSeason.name,
+          startsOn: editSeason.starts_on.slice(0, 10),
+          endsOn: editSeason.ends_on.slice(0, 10),
+          status: editSeason.status,
+        },
+        seasonSchema,
+      );
+      setEditSeason(null);
+      setNotice('Season updated');
     });
   const cloneSport = () =>
     mutate(async () => {
@@ -345,10 +363,90 @@ export function ProgramConsole({
           {seasons.map((season) => (
             <li key={season.id}>
               <strong>{season.name}</strong> · {season.status} ·{' '}
-              {season.starts_on.slice(0, 10)}–{season.ends_on.slice(0, 10)}
+              {season.starts_on.slice(0, 10)}–{season.ends_on.slice(0, 10)}{' '}
+              <Button
+                type="button"
+                secondary
+                disabled={busy}
+                onClick={() => {
+                  setEditSeason(season);
+                }}
+              >
+                Edit season
+              </Button>
             </li>
           ))}
         </ul>
+        {editSeason && (
+          <form
+            className="phase3-form-grid"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveSeason();
+            }}
+          >
+            <Field label="Season name">
+              <Input
+                value={editSeason.name}
+                onChange={(event) => {
+                  setEditSeason({ ...editSeason, name: event.target.value });
+                }}
+                required
+              />
+            </Field>
+            <Field label="Starts">
+              <Input
+                type="date"
+                value={editSeason.starts_on.slice(0, 10)}
+                onChange={(event) => {
+                  setEditSeason({
+                    ...editSeason,
+                    starts_on: event.target.value,
+                  });
+                }}
+                required
+              />
+            </Field>
+            <Field label="Ends">
+              <Input
+                type="date"
+                value={editSeason.ends_on.slice(0, 10)}
+                onChange={(event) => {
+                  setEditSeason({ ...editSeason, ends_on: event.target.value });
+                }}
+                required
+              />
+            </Field>
+            <Field label="Status">
+              <Select
+                value={editSeason.status}
+                onChange={(event) => {
+                  setEditSeason({ ...editSeason, status: event.target.value });
+                }}
+                options={[
+                  editSeason.status,
+                  ...(editSeason.status === 'planning'
+                    ? ['active', 'archived']
+                    : editSeason.status === 'active'
+                      ? ['completed']
+                      : editSeason.status === 'completed'
+                        ? ['archived']
+                        : []),
+                ]}
+              />
+            </Field>
+            <Button disabled={busy}>Save season</Button>{' '}
+            <Button
+              type="button"
+              secondary
+              onClick={() => {
+                setEditSeason(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </form>
+        )}
         <form
           onSubmit={(event) => {
             event.preventDefault();

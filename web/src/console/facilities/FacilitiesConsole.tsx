@@ -1,8 +1,16 @@
+import { recurrenceSchema } from '@shared/recurrence';
 import { useCallback, useEffect, useState } from 'react';
 import { z } from 'zod';
 
 import { apiDelete, apiGet, apiPatch, apiPost } from '../../api/client';
-import { Button, Card, Field, Input, Select } from '../../ui/primitives';
+import {
+  Button,
+  Card,
+  Field,
+  Input,
+  Select,
+  Textarea,
+} from '../../ui/primitives';
 
 import '../programs/programs.css';
 
@@ -23,6 +31,10 @@ const spaceRow = z.looseObject({
   parent_space_id: z.uuid().nullable(),
   name: z.string(),
   kind: z.string(),
+  surface: z.string().nullable(),
+  has_lights: z.boolean(),
+  suitability: z.record(z.string(), z.unknown()),
+  capacity_people: z.number().nullable(),
   version: z.number().int().positive(),
 });
 const listSchema = z.object({
@@ -36,6 +48,9 @@ const availabilityRow = z.looseObject({
   start_time: z.string(),
   end_time: z.string(),
   version: z.number().int().positive(),
+  source: z.enum(['owned', 'permit']).optional(),
+  permit_reference: z.string().nullable().optional(),
+  cost_per_hour_cents: z.number().nullable().optional(),
 });
 const blackoutRow = z.looseObject({
   id: z.uuid(),
@@ -43,6 +58,20 @@ const blackoutRow = z.looseObject({
   ends_at: z.string(),
   reason: z.string(),
 });
+const textList = (value: unknown) =>
+  Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === 'string')
+        .join(', ')
+    : '';
+const numberText = (value: unknown) =>
+  typeof value === 'number' ? String(value) : '';
+const splitList = (value: string) =>
+  value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+const optionalNumber = (value: string) => (value.trim() ? Number(value) : null);
 
 export function FacilitiesConsole({
   orgId,
@@ -65,8 +94,25 @@ export function FacilitiesConsole({
   const [parentSpaceId, setParentSpaceId] = useState('');
   const [spaceName, setSpaceName] = useState('');
   const [kind, setKind] = useState('field');
+  const [surface, setSurface] = useState('');
+  const [hasLights, setHasLights] = useState(false);
+  const [capacityPeople, setCapacityPeople] = useState('');
+  const [sportProfileIds, setSportProfileIds] = useState('');
+  const [ageLabels, setAgeLabels] = useState('');
+  const [minimumFieldSize, setMinimumFieldSize] = useState('');
+  const [maximumFieldSize, setMaximumFieldSize] = useState('');
   const [spaceId, setSpaceId] = useState('');
   const [preset, setPreset] = useState('weekdays');
+  const [editAvailabilityId, setEditAvailabilityId] = useState('');
+  const [editAvailabilityVersion, setEditAvailabilityVersion] = useState(0);
+  const [editRecurrence, setEditRecurrence] = useState<z.output<
+    typeof recurrenceSchema
+  > | null>(null);
+  const [availabilitySource, setAvailabilitySource] = useState<
+    'owned' | 'permit'
+  >('owned');
+  const [permitReference, setPermitReference] = useState('');
+  const [costPerHourCents, setCostPerHourCents] = useState('');
   const [startsOn, setStartsOn] = useState('');
   const [endsOn, setEndsOn] = useState('');
   const [startTime, setStartTime] = useState('17:00');
@@ -158,6 +204,11 @@ export function FacilitiesConsole({
             <li key={facility.id}>
               <strong>{facility.name}</strong> · {facility.ownership} ·{' '}
               {facility.public ? 'Public' : 'Private'}{' '}
+              {facility.map_url && (
+                <a href={facility.map_url} target="_blank" rel="noreferrer">
+                  Map
+                </a>
+              )}{' '}
               <Button
                 type="button"
                 secondary
@@ -219,7 +270,10 @@ export function FacilitiesConsole({
               <Input
                 value={editFacility.name}
                 onChange={(event) => {
-                  setEditFacility({ ...editFacility, name: event.target.value });
+                  setEditFacility({
+                    ...editFacility,
+                    name: event.target.value,
+                  });
                 }}
                 required
               />
@@ -234,6 +288,77 @@ export function FacilitiesConsole({
                   });
                 }}
                 options={['owned', 'permitted', 'partner']}
+              />
+            </Field>
+            <fieldset>
+              <legend>Address</legend>
+              {(
+                [
+                  'line1',
+                  'line2',
+                  'city',
+                  'region',
+                  'postalCode',
+                  'country',
+                ] as const
+              ).map((key) => (
+                <Field
+                  key={key}
+                  label={key.replace(
+                    /[A-Z]/g,
+                    (letter) => ` ${letter.toLowerCase()}`,
+                  )}
+                >
+                  <Input
+                    value={editFacility.address?.[key] ?? ''}
+                    onChange={(event) => {
+                      setEditFacility({
+                        ...editFacility,
+                        address: {
+                          ...editFacility.address,
+                          [key]: event.target.value,
+                        },
+                      });
+                    }}
+                  />
+                </Field>
+              ))}
+            </fieldset>
+            <Field
+              label="Timezone"
+              hint="IANA time zone, such as America/Chicago"
+            >
+              <Input
+                value={editFacility.timezone ?? ''}
+                onChange={(event) => {
+                  setEditFacility({
+                    ...editFacility,
+                    timezone: event.target.value || null,
+                  });
+                }}
+              />
+            </Field>
+            <Field label="Parking notes">
+              <Textarea
+                value={editFacility.parking_notes ?? ''}
+                onChange={(event) => {
+                  setEditFacility({
+                    ...editFacility,
+                    parking_notes: event.target.value || null,
+                  });
+                }}
+              />
+            </Field>
+            <Field label="Map link" hint="Use an https:// or http:// URL">
+              <Input
+                type="url"
+                value={editFacility.map_url ?? ''}
+                onChange={(event) => {
+                  setEditFacility({
+                    ...editFacility,
+                    map_url: event.target.value || null,
+                  });
+                }}
               />
             </Field>
             <label>
@@ -303,7 +428,11 @@ export function FacilitiesConsole({
         <ul>
           {spaces.map((space) => (
             <li key={space.id}>
-              {space.name} · {space.kind}
+              {space.name} · {space.kind} · {space.surface ?? 'Surface not set'}
+              {space.has_lights ? ' · Lights' : ''}
+              {space.capacity_people === null
+                ? ''
+                : ` · capacity ${String(space.capacity_people)}`}
               {space.parent_space_id ? ' · half/child' : ''}{' '}
               <Button
                 type="button"
@@ -348,6 +477,10 @@ export function FacilitiesConsole({
                     name: editSpace.name,
                     kind: editSpace.kind,
                     parentSpaceId: editSpace.parent_space_id,
+                    surface: editSpace.surface,
+                    hasLights: editSpace.has_lights,
+                    capacityPeople: editSpace.capacity_people,
+                    suitability: editSpace.suitability,
                   },
                   spaceRow,
                 );
@@ -383,6 +516,109 @@ export function FacilitiesConsole({
                   'room',
                   'other',
                 ]}
+              />
+            </Field>
+            <Field label="Surface">
+              <Input
+                value={editSpace.surface ?? ''}
+                onChange={(event) => {
+                  setEditSpace({
+                    ...editSpace,
+                    surface: event.target.value || null,
+                  });
+                }}
+              />
+            </Field>
+            <Field label="Capacity">
+              <Input
+                type="number"
+                min="0"
+                value={editSpace.capacity_people ?? ''}
+                onChange={(event) => {
+                  setEditSpace({
+                    ...editSpace,
+                    capacity_people: optionalNumber(event.target.value),
+                  });
+                }}
+              />
+            </Field>
+            <label>
+              <input
+                type="checkbox"
+                checked={editSpace.has_lights}
+                onChange={(event) => {
+                  setEditSpace({
+                    ...editSpace,
+                    has_lights: event.target.checked,
+                  });
+                }}
+              />{' '}
+              Lighting available
+            </label>
+            <Field
+              label="Suitable sports"
+              hint="Comma-separated sport profile IDs"
+            >
+              <Input
+                value={textList(editSpace.suitability.sportProfileIds)}
+                onChange={(event) => {
+                  setEditSpace({
+                    ...editSpace,
+                    suitability: {
+                      ...editSpace.suitability,
+                      sportProfileIds: splitList(event.target.value),
+                    },
+                  });
+                }}
+              />
+            </Field>
+            <Field
+              label="Suitable age groups"
+              hint="Comma-separated labels, such as U10, U12"
+            >
+              <Input
+                value={textList(editSpace.suitability.ageLabels)}
+                onChange={(event) => {
+                  setEditSpace({
+                    ...editSpace,
+                    suitability: {
+                      ...editSpace.suitability,
+                      ageLabels: splitList(event.target.value),
+                    },
+                  });
+                }}
+              />
+            </Field>
+            <Field label="Minimum field size">
+              <Input
+                type="number"
+                min="0"
+                value={numberText(editSpace.suitability.minimumFieldSize)}
+                onChange={(event) => {
+                  setEditSpace({
+                    ...editSpace,
+                    suitability: {
+                      ...editSpace.suitability,
+                      minimumFieldSize: optionalNumber(event.target.value),
+                    },
+                  });
+                }}
+              />
+            </Field>
+            <Field label="Maximum field size">
+              <Input
+                type="number"
+                min="0"
+                value={numberText(editSpace.suitability.maximumFieldSize)}
+                onChange={(event) => {
+                  setEditSpace({
+                    ...editSpace,
+                    suitability: {
+                      ...editSpace.suitability,
+                      maximumFieldSize: optionalNumber(event.target.value),
+                    },
+                  });
+                }}
               />
             </Field>
             <Field label="Parent space">
@@ -433,12 +669,27 @@ export function FacilitiesConsole({
                   parentSpaceId: parentSpaceId || null,
                   name: spaceName,
                   kind,
-                  suitability: {},
+                  surface: surface || null,
+                  hasLights,
+                  capacityPeople: optionalNumber(capacityPeople),
+                  suitability: {
+                    sportProfileIds: splitList(sportProfileIds),
+                    ageLabels: splitList(ageLabels),
+                    minimumFieldSize: optionalNumber(minimumFieldSize),
+                    maximumFieldSize: optionalNumber(maximumFieldSize),
+                  },
                 },
                 spaceRow,
               );
               setSpaceId(created.id);
               setSpaceName('');
+              setSurface('');
+              setHasLights(false);
+              setCapacityPeople('');
+              setSportProfileIds('');
+              setAgeLabels('');
+              setMinimumFieldSize('');
+              setMaximumFieldSize('');
               setNotice('Space created');
             });
           }}
@@ -503,6 +754,76 @@ export function FacilitiesConsole({
               ]}
             />
           </Field>
+          <Field label="Surface">
+            <Input
+              value={surface}
+              onChange={(event) => {
+                setSurface(event.target.value);
+              }}
+            />
+          </Field>
+          <Field label="Capacity">
+            <Input
+              type="number"
+              min="0"
+              value={capacityPeople}
+              onChange={(event) => {
+                setCapacityPeople(event.target.value);
+              }}
+            />
+          </Field>
+          <label>
+            <input
+              type="checkbox"
+              checked={hasLights}
+              onChange={(event) => {
+                setHasLights(event.target.checked);
+              }}
+            />{' '}
+            Lighting available
+          </label>
+          <Field
+            label="Suitable sports"
+            hint="Comma-separated sport profile IDs"
+          >
+            <Input
+              value={sportProfileIds}
+              onChange={(event) => {
+                setSportProfileIds(event.target.value);
+              }}
+            />
+          </Field>
+          <Field
+            label="Suitable age groups"
+            hint="Comma-separated labels, such as U10, U12"
+          >
+            <Input
+              value={ageLabels}
+              onChange={(event) => {
+                setAgeLabels(event.target.value);
+              }}
+            />
+          </Field>
+          <Field label="Minimum field size">
+            <Input
+              type="number"
+              min="0"
+              value={minimumFieldSize}
+              onChange={(event) => {
+                setMinimumFieldSize(event.target.value);
+              }}
+            />
+          </Field>
+          <Field label="Maximum field size">
+            <Input
+              type="number"
+              min="0"
+              value={maximumFieldSize}
+              onChange={(event) => {
+                setMaximumFieldSize(event.target.value);
+              }}
+            />
+          </Field>
           <Button disabled={busy || !facilityId}>Create space</Button>
         </form>
       </Card>
@@ -534,6 +855,46 @@ export function FacilitiesConsole({
               >
                 Remove
               </Button>
+              <Button
+                type="button"
+                secondary
+                disabled={busy}
+                onClick={() => {
+                  const recurrence = recurrenceSchema.parse(window.recurrence);
+                  setSpaceId(window.space_id);
+                  setEditAvailabilityId(window.id);
+                  setEditAvailabilityVersion(window.version);
+                  setEditRecurrence(recurrence);
+                  if (recurrence.kind !== 'once') {
+                    setStartsOn(recurrence.startsOn);
+                    setEndsOn(recurrence.endsOn ?? '');
+                  }
+                  if (recurrence.kind === 'weekly') {
+                    const byDay = recurrence.byDay.join(',');
+                    setPreset(
+                      byDay === 'MO,TU,WE,TH,FR'
+                        ? 'weekdays'
+                        : byDay === 'SA'
+                          ? 'saturdays'
+                          : 'custom',
+                    );
+                  } else {
+                    setPreset('custom');
+                  }
+                  setStartTime(window.start_time.slice(0, 5));
+                  setEndTime(window.end_time.slice(0, 5));
+                  setAvailabilitySource(window.source ?? 'owned');
+                  setPermitReference(window.permit_reference ?? '');
+                  setCostPerHourCents(
+                    window.cost_per_hour_cents === null ||
+                      window.cost_per_hour_cents === undefined
+                      ? ''
+                      : String(window.cost_per_hour_cents),
+                  );
+                }}
+              >
+                Edit
+              </Button>
             </li>
           ))}
         </ul>
@@ -543,33 +904,73 @@ export function FacilitiesConsole({
             event.preventDefault();
             void mutate(async () => {
               const byDay =
-                preset === 'weekdays' ? ['MO', 'TU', 'WE', 'TH', 'FR'] : ['SA'];
-              await apiPost(
-                `/facilities/orgs/${orgId}/availability`,
-                {
-                  spaceId,
-                  recurrence: {
-                    kind: 'weekly',
-                    interval: 1,
-                    byDay,
-                    startsOn,
-                    endsOn: endsOn || null,
-                    exceptions: [],
-                    additions: [],
+                preset === 'weekdays'
+                  ? ['MO', 'TU', 'WE', 'TH', 'FR']
+                  : preset === 'saturdays'
+                    ? ['SA']
+                    : null;
+              const recurrence =
+                editRecurrence?.kind === 'monthly_nth_weekday'
+                  ? editRecurrence
+                  : editRecurrence?.kind === 'weekly'
+                    ? {
+                        ...editRecurrence,
+                        ...(byDay ? { byDay } : {}),
+                        startsOn,
+                        endsOn: endsOn || null,
+                      }
+                    : {
+                        kind: 'weekly' as const,
+                        interval: 1 as const,
+                        byDay: byDay ?? ['MO', 'TU', 'WE', 'TH', 'FR'],
+                        startsOn,
+                        endsOn: endsOn || null,
+                        exceptions: [],
+                        additions: [],
+                      };
+              if (editAvailabilityId) {
+                await apiPatch(
+                  `/facilities/orgs/${orgId}/availability/${editAvailabilityId}`,
+                  {
+                    expectedVersion: editAvailabilityVersion,
+                    recurrence,
+                    startTime,
+                    endTime,
+                    source: availabilitySource,
+                    permitReference: permitReference || null,
+                    costPerHourCents: optionalNumber(costPerHourCents),
                   },
-                  startTime,
-                  endTime,
-                  source: 'owned',
-                },
-                availabilityRow,
+                  availabilityRow,
+                );
+              } else {
+                await apiPost(
+                  `/facilities/orgs/${orgId}/availability`,
+                  {
+                    spaceId,
+                    recurrence,
+                    startTime,
+                    endTime,
+                    source: availabilitySource,
+                    permitReference: permitReference || null,
+                    costPerHourCents: optionalNumber(costPerHourCents),
+                  },
+                  availabilityRow,
+                );
+              }
+              setEditAvailabilityId('');
+              setEditRecurrence(null);
+              setNotice(
+                editAvailabilityId
+                  ? 'Availability updated'
+                  : 'Availability saved',
               );
-              setNotice('Availability saved');
             });
           }}
         >
           <Field label="Space">
             <Select
               value={spaceId}
+              disabled={Boolean(editAvailabilityId)}
               onChange={(event) => {
                 setSpaceId(event.target.value);
               }}
@@ -585,12 +986,13 @@ export function FacilitiesConsole({
           <Field label="Preset">
             <Select
               value={preset}
+              disabled={editRecurrence?.kind === 'monthly_nth_weekday'}
               onChange={(event) => {
                 setPreset(event.target.value);
                 if (event.target.value === 'saturdays') {
                   setStartTime('08:00');
                   setEndTime('18:00');
-                } else {
+                } else if (event.target.value === 'weekdays') {
                   setStartTime('17:00');
                   setEndTime('21:00');
                 }
@@ -599,11 +1001,16 @@ export function FacilitiesConsole({
                 { value: 'weekdays', label: 'Weekdays 5–9pm' },
                 { value: 'saturdays', label: 'Saturdays 8am–6pm' },
               ]}
-            />
+            >
+              {editRecurrence && (
+                <option value="custom">Custom recurrence</option>
+              )}
+            </Select>
           </Field>
           <Field label="From date">
             <Input
               type="date"
+              disabled={editRecurrence?.kind === 'monthly_nth_weekday'}
               value={startsOn}
               onChange={(event) => {
                 setStartsOn(event.target.value);
@@ -614,6 +1021,7 @@ export function FacilitiesConsole({
           <Field label="Through date">
             <Input
               type="date"
+              disabled={editRecurrence?.kind === 'monthly_nth_weekday'}
               value={endsOn}
               onChange={(event) => {
                 setEndsOn(event.target.value);
@@ -640,7 +1048,57 @@ export function FacilitiesConsole({
               required
             />
           </Field>
-          <Button disabled={busy || !spaceId}>Save availability</Button>
+          <Field label="Availability source">
+            <Select
+              value={availabilitySource}
+              onChange={(event) => {
+                setAvailabilitySource(event.target.value as 'owned' | 'permit');
+              }}
+              options={[
+                { value: 'owned', label: 'Owned' },
+                { value: 'permit', label: 'Permitted' },
+              ]}
+            />
+          </Field>
+          {availabilitySource === 'permit' && (
+            <>
+              <Field label="Permit reference">
+                <Input
+                  value={permitReference}
+                  onChange={(event) => {
+                    setPermitReference(event.target.value);
+                  }}
+                />
+              </Field>
+              <Field label="Cost per hour in cents">
+                <Input
+                  type="number"
+                  min="0"
+                  value={costPerHourCents}
+                  onChange={(event) => {
+                    setCostPerHourCents(event.target.value);
+                  }}
+                />
+              </Field>
+            </>
+          )}
+          <Button disabled={busy || !spaceId}>
+            {editAvailabilityId
+              ? 'Save availability changes'
+              : 'Save availability'}
+          </Button>
+          {editAvailabilityId && (
+            <Button
+              type="button"
+              secondary
+              onClick={() => {
+                setEditAvailabilityId('');
+                setEditRecurrence(null);
+              }}
+            >
+              Cancel edit
+            </Button>
+          )}
         </form>
       </Card>
       <Card>

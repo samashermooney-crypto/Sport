@@ -9,6 +9,7 @@ import {
   FacilitiesService,
   FacilityError,
   availabilityInputSchema,
+  availabilityUpdateSchema,
   blackoutInputSchema,
   facilityInputSchema,
   spaceInputSchema,
@@ -166,6 +167,15 @@ export function createFacilitiesRouter(
           availabilityInputSchema.parse(request.body),
         ),
       201,
+    ),
+  );
+  router.patch(
+    '/orgs/:orgId/availability/:availabilityId',
+    run(async (request) =>
+      (await service(request, true)).updateAvailability(
+        z.uuid().parse(request.params.availabilityId),
+        availabilityUpdateSchema.parse(request.body),
+      ),
     ),
   );
   router.delete(

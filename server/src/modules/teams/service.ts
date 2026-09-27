@@ -5,8 +5,10 @@ import { z } from 'zod';
 import type { DB, Json } from '../../db/types';
 import { createWithOrg, type OrgContext } from '../../db/withOrg';
 import {
+  assertEligibleForRole,
   complianceRoleSchema,
   evaluateRoleEligibility,
+  RoleEligibilityError,
 } from '../compliance/policy';
 import { requireStaff } from '../people/repo';
 
@@ -81,7 +83,7 @@ export class TeamError extends Error {
 export class TeamsService {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
   constructor(
-    database: Kysely<DB>,
+    private readonly database: Kysely<DB>,
     private readonly context: OrgContext,
   ) {
     this.withOrg = createWithOrg(database);
@@ -105,9 +107,11 @@ export class TeamsService {
           'ts.display_name',
           'ts.status',
           'ts.roster_limit',
+          'ts.home_facility_id',
           'ts.roster_locked_at',
           'ts.version',
           't.name',
+          't.version as team_version',
           't.sport_profile_id',
         ])
         .where('ts.org_id', '=', this.context.orgId);
@@ -290,8 +294,53 @@ export class TeamsService {
       throw error;
     }
   }
-  assignStaff(teamSeasonId: string, input: z.input<typeof staffInputSchema>) {
+  async assignStaff(
+    teamSeasonId: string,
+    input: z.input<typeof staffInputSchema>,
+  ) {
     const value = staffInputSchema.parse(input);
+    const teamSeason = await this.withOrg(this.context, async (trx) => {
+      await requireStaff(
+        trx,
+        this.context.orgId,
+        this.context.actor.accountId,
+        false,
+      );
+      const row = await trx
+        .selectFrom('team_seasons')
+        .select(['id', 'program_id'])
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', teamSeasonId)
+        .executeTakeFirst();
+      const person = await trx
+        .selectFrom('people')
+        .select('id')
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', value.personId)
+        .where('status', '=', 'active')
+        .executeTakeFirst();
+      if (!row || !person)
+        throw new TeamError(
+          404,
+          'NOT_FOUND',
+          'Team season or person not found',
+        );
+      return row;
+    });
+    const parsedRole = complianceRoleSchema.safeParse(value.role);
+    let assertedEligible = true;
+    if (parsedRole.success) {
+      try {
+        await assertEligibleForRole(this.database, this.context, {
+          personId: value.personId,
+          role: parsedRole.data,
+          programId: teamSeason.program_id,
+        });
+      } catch (error) {
+        if (error instanceof RoleEligibilityError) assertedEligible = false;
+        else throw error;
+      }
+    }
     return this.withOrg(this.context, async (trx) => {
       await requireStaff(
         trx,
@@ -333,7 +382,8 @@ export class TeamsService {
             team_season_id: teamSeasonId,
             person_id: value.personId,
             role: value.role,
-            status: eligible ? 'active' : 'pending_compliance',
+            status:
+              eligible && assertedEligible ? 'active' : 'pending_compliance',
             added_by: this.context.actor.accountId,
           })
           .returningAll()
