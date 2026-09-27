@@ -1134,6 +1134,115 @@ export interface Facilities {
   version: Generated<number>;
 }
 
+export interface FederationDisciplineRecords {
+  contest_id: string | null;
+  created_at: Generated<Timestamp>;
+  description: string;
+  external_team_id: string | null;
+  games_served: Generated<number>;
+  id: string;
+  issued_by: string;
+  member_org_id: string;
+  org_id: string;
+  person_label: string | null;
+  person_ref: string | null;
+  status: Generated<string>;
+  subject_type: string;
+  suspension_games: number | null;
+  suspension_until: Timestamp | null;
+  type: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface FederationEventLinks {
+  booking_group_id: string;
+  club_event_id: string;
+  club_org_id: string;
+  created_at: Generated<Timestamp>;
+  during: string;
+  id: string;
+  leaf_space_ids: Generated<string[]>;
+  league_event_id: string;
+  league_org_id: string;
+  relationship_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface FederationFeeAssessments {
+  amount_cents: number;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  creation_key: string;
+  description: string;
+  due_on: Timestamp | null;
+  id: string;
+  invoice_id: string | null;
+  member_org_id: string;
+  org_id: string;
+  program_id: string | null;
+  status: Generated<string>;
+  team_entry_id: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface FederationMemberPayers {
+  billing_account_id: string;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  id: string;
+  member_org_id: string;
+  org_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface FederationRosterSnapshots {
+  created_at: Generated<Timestamp>;
+  frozen_at: Timestamp | null;
+  id: string;
+  member_org_id: string;
+  org_id: string;
+  roster: Json;
+  source_team_season_id: string;
+  status: Generated<string>;
+  submitted_at: Generated<Timestamp>;
+  submitted_by: string;
+  team_entry_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface FederationRosterWindows {
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  freeze_at: Timestamp | null;
+  id: string;
+  org_id: string;
+  program_id: string;
+  submit_by: Timestamp;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface FederationSpaceContributions {
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  ends_at: Timestamp;
+  id: string;
+  notes: string | null;
+  org_id: string;
+  relationship_id: string;
+  space_id: string;
+  starts_at: Timestamp;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Files {
   bytes: number;
   created_at: Generated<Timestamp>;
@@ -1837,6 +1946,30 @@ export interface OrgMemberships {
   org_id: string;
   status: string;
   title: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface OrgRelationships {
+  child_org_id: string;
+  created_at: Generated<Timestamp>;
+  data_sharing: Generated<Json>;
+  end_reason: string | null;
+  ended_at: Timestamp | null;
+  ended_by_account_id: string | null;
+  id: string;
+  initiated_by_account_id: string;
+  initiator: string;
+  note: string | null;
+  parent_org_id: string;
+  pending_data_sharing: Json | null;
+  pending_sharing_by: string | null;
+  responded_at: Timestamp | null;
+  status: Generated<string>;
+  suspend_reason: string | null;
+  suspended_at: Timestamp | null;
+  suspended_by_account_id: string | null;
+  type: string;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -3204,6 +3337,13 @@ export interface DB {
   events: Events;
   external_teams: ExternalTeams;
   facilities: Facilities;
+  federation_discipline_records: FederationDisciplineRecords;
+  federation_event_links: FederationEventLinks;
+  federation_fee_assessments: FederationFeeAssessments;
+  federation_member_payers: FederationMemberPayers;
+  federation_roster_snapshots: FederationRosterSnapshots;
+  federation_roster_windows: FederationRosterWindows;
+  federation_space_contributions: FederationSpaceContributions;
   files: Files;
   finance_notice_outbox: FinanceNoticeOutbox;
   financial_aid_programs: FinancialAidPrograms;
@@ -3246,6 +3386,7 @@ export interface DB {
   org_billing_invoices: OrgBillingInvoices;
   org_counters: OrgCounters;
   org_memberships: OrgMemberships;
+  org_relationships: OrgRelationships;
   org_subscriptions: OrgSubscriptions;
   organizations: Organizations;
   payer_profiles: PayerProfiles;
