@@ -2,6 +2,66 @@
 
 ## Open
 
+### QA-ACC-033 — Federation has no console navigation entry
+
+- **Owner:** Track C (wiring; coordinate with Track J)
+- **Phase:** 13, required journey 25
+- **Evidence:** `/console/federation/:orgId` is registered and `web/src/console/federation/nav.ts` declares a Federation item, but the generated feature registry does not include that nav module, `web/src/console/nav.ts` is empty, and `ConsoleHome` does not render a Federation link. The main browser journey opens the feature by URL; a separate navigation regression is now marked `test.fixme` in `e2e/federation.spec.ts`.
+- **Reproduce:** sign in as an organization with federation access, open its console home and navigation, and search for a Federation destination; it is absent. The component can only be reached by manually opening `/console/federation/<orgId>`.
+- **Expected:** eligible league/association and member-club users can reach Federation through the normal console navigation, with visibility scoped to the `federation.read` permission.
+- **Request:** register the federation navigation item through the feature registry or add an equivalent permission-gated Console Home link; add a browser assertion that reaches the feature from navigation.
+- **Status:** open discoverability and route-crawler coverage gap; the direct-link journey does not establish a service authorization defect.
+
+### QA-ACC-034 — Ending a relationship has no read-revocation regression
+
+- **Owner:** Track J
+- **Phase:** 13 acceptance criterion 3
+- **Evidence:** `server/test/federation.test.ts` verifies an invite/accept/share/suspend/resume/end lifecycle and the ended status/audit row, but does not attempt a privileged cross-org read after ending. A separate test verifies denial only for a suspended relationship.
+- **Reproduce:** inspect the lifecycle test and search the federation test suite for `endRelationship` followed by a cross-org roster/team/compliance read; no such assertion exists.
+- **Expected:** after one side ends an active relationship, previously permitted reads from either side fail immediately with 404 and return no other-org data.
+- **Request:** add a real-Postgres regression that ends an active relationship and asserts previously shared cross-org reads are denied immediately.
+- **Status:** open acceptance evidence gap; the current implementation has active-relationship checks, but end-state revocation is not directly tested.
+
+### QA-SEC-007 — Two-party federation RLS policies lack outsider-denial coverage
+
+- **Owner:** Track J
+- **Phase:** 13 acceptance criterion 1
+- **Evidence:** `org_relationships` and `federation_event_links` use explicit RLS policies because they have no single `org_id`; the generic `server/src/db/withOrg.test.ts` inventory covers tables with `org_id` and its cross-org row test exercises `idempotency_keys`, not an unrelated third organization against these two-party tables. Federation tests do not include a third-party RLS denial assertion.
+- **Reproduce:** inspect `db/migrations/6000_federation.sql`, `server/src/db/withOrg.test.ts`, and `server/test/federation.test.ts`; no test attempts to read or mutate a league/club relationship or event link while scoped to an unrelated organization.
+- **Expected:** a third organization cannot read or write either two-party row, while the two participating organizations retain only their policy-authorized visibility.
+- **Request:** add a real-Postgres RLS regression for both explicit two-party policies using an unrelated third organization.
+- **Status:** open security acceptance evidence gap; the migration defines explicit RLS policies, but outsider denial is not directly tested.
+
+### QA-SEC-008 — Federation compliance sharing has no status-only privacy regression
+
+- **Owner:** Track J
+- **Phase:** 13 task 3 and acceptance criterion 1
+- **Evidence:** `server/src/modules/federation/directory.ts` exposes `readMemberCompliance`; `associationDashboard` can reach it indirectly through the member summary, but no federation test directly asserts its fields, denial behavior, or audit rows. Existing tests cover allow-listed roster fields and dual-org audit for other cross-org reads, not the compliance status-only response.
+- **Reproduce:** search the federation integration suite for a direct `readMemberCompliance` assertion; none checks its response keys, denied state when `compliance_status` is false, or dual-org audit when it is true.
+- **Expected:** with `compliance_status` shared, a league receives only permitted staff identity/role/team labels and derived credential states—never document IDs/content, notes, or medical data—and the read is audited in both orgs; without the sharing key, it receives 422 `FEDERATION_SHARING_DENIED` with no data.
+- **Request:** add a real-Postgres test for the allowed response fields, denied-sharing case, and audit rows in both organizations.
+- **Status:** open security acceptance evidence gap; indirect dashboard coverage does not establish the service's privacy or audit contract.
+
+### QA-ACC-035 — Federation sharing trigger rejects the API's snake_case keys
+
+- **Owner:** Track J
+- **Phase:** 13 tasks 1–3 and acceptance
+- **Evidence:** `shared/src/schemas/federation.ts` and the service store `compliance_status` and `team_entries`, but `federation_sharing_guard()` in `db/migrations/6000_federation.sql` allows `complianceStatus` and `teamEntries`. Accepting a relationship copies the stored proposal into `data_sharing`, where the trigger validates it and should reject those keys.
+- **Reproduce:** create or accept a federation relationship with `{ team_entries: true }` or `{ compliance_status: true }`; the database trigger's allow-list does not contain those persisted JSON keys. Existing federation tests use these values, but the QA stack could not run them because Track I occupies port 6932.
+- **Expected:** all four schema-approved keys (`rosters`, `compliance_status`, `team_entries`, `discipline`) can be proposed, accepted, persisted, and read back without a trigger error; other keys remain rejected.
+- **Request:** add an additive migration that corrects the trigger allow-list to the shared schema's persisted key names, preserving the already-applied `6000_federation.sql`, and add a real-Postgres regression covering all allowed keys.
+- **Status:** high-confidence static runtime blocker; database execution remains unverified until the QA stack can start.
+
+### QA-ACC-036 — Federation journey does not prove both clubs' field windows affect the schedule
+
+- **Owner:** Track J
+- **Phase:** 13 acceptance criterion 2, required journey 25
+- **Evidence:** `e2e/federation.spec.ts` contributes one field window from each club, but seeds one team per club and only asserts one generated game with zero unscheduled. `FederationConsole` hardcodes `rounds: 1`, so the observed game can use at most one club's field and the assertion does not detect if the other club's contribution is ignored.
+- **Reproduce:** inspect the fixture and the `Generate schedule draft` handler; no assertion identifies scheduled events by both member-club spaces.
+- **Expected:** the acceptance test demonstrates that both member clubs' availability is included in generation and that generated games can be placed on each club's contributed field.
+- **Request:** extend the deterministic schedule fixture to produce enough games and assert output references field windows from both clubs, or add an equivalent test that directly verifies the merged generator input.
+- **Status:** open acceptance coverage gap; the existing one-game journey has not been executed on the QA stack.
+
 ### QA-OPS-001 — Render health probes have no `/readyz` handler and public status is missing
 
 - **Owner:** Track C
@@ -207,20 +267,20 @@
 
 - **Owner:** Track C
 - **Phase:** 16 §2.5
-- **Evidence:** `npm run build` succeeds, but the configured `package.json` size limit is 200 KB gzipped and the built `dist/web/assets/app-*.js` measures 395.62 KB gzipped.
-- **Reproduce:** run `npm run build && npm run size`; size-limit exits 1 with “Package size limit has exceeded by 195.62 kB”.
+- **Evidence:** `npm run build` succeeds, but the configured `package.json` size limit is 200 KB gzipped and the current `npm run size` measurement is 404.93 KB gzipped.
+- **Reproduce:** run `npm run build && npm run size`; size-limit exits 1 with “Package size limit has exceeded by 204.93 kB”.
 - **Expected:** the production entry bundle meets the configured 200 KB gzip budget through appropriate code splitting and deferred feature imports.
 - **Request:** reduce the entry bundle to the enforced budget and add `npm run size` to the final launch gate.
 - **Status:** open; `npm run build` itself is green, but the separate bundle-budget check fails.
 
 ### QA-QUAL-001 — Knip launch gate fails on unused files and exports
 
-- **Owner:** Tracks A, C, G, and I; Track C owns the launch gate.
+- **Owner:** Tracks A, C, G, I, and J; Track C owns the launch gate. The federation demo helper is pending integration by Track K.
 - **Phase:** 16 §1.3
-- **Evidence:** `npm run knip` exits 1 with 6 unused files, 43 unused exports, 28 unused exported types, and 1 duplicate export across A/C/G/I-owned code.
-- **Reproduce:** run `npm run knip`; the output names the unused exports and `eventSeriesCreateSchema|eventSeriesSchema` duplicate.
+- **Evidence:** the post-Phase 13 `npm run knip` exits 1 with 8 unused files, 44 unused exports, 28 unused exported types, and 1 duplicate export. New federation findings include unused `server/src/modules/federation/demo.ts`, `federationConsoleNav`, `expandAvailabilityWindows`, and `withFederationAccess`; the duplicate is `eventSeriesCreateSchema|eventSeriesSchema`.
+- **Reproduce:** run `npm run knip`; the output names the unused files, exports, and duplicate.
 - **Expected:** `npm run knip` exits 0 after owners remove dead exports/files or wire intended public contracts into their generated registries.
-- **Request:** clear the findings listed in `docs/codex/tracks/SEC.md` and make the required Knip gate green. QA removed its own unused `OrganizationRole` crawler type; no other QA-owned Knip finding remains.
+- **Request:** have C coordinate the current findings across A/C/G/I/J and the federation demo contract with K; wire intended APIs or remove genuinely dead files/exports, then make the required Knip gate green. QA removed its own unused `OrganizationRole` crawler type; no other QA-owned Knip finding remains.
 - **Status:** open cross-track quality gate.
 
 ### QA-ACC-030 — Manual keyboard-only acceptance script is missing

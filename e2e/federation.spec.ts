@@ -294,6 +294,33 @@ test('two member clubs complete a U12 inter-club season', async ({
   }
 });
 
+test.fixme('QA-ACC-033 / Track C: federation is reachable from console navigation', async ({
+  page,
+}, testInfo) => {
+  const offset = Number(process.env.PORT_OFFSET ?? '0');
+  const database = createDatabase(
+    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+  );
+  const withOrg = createWithOrg(database);
+  const factories = createTestFactories(database);
+  try {
+    const league = await factories.actor();
+    await loginAs(
+      page,
+      testInfo.project.use.baseURL,
+      database,
+      withOrg,
+      league,
+    );
+    await page.goto(`/console/orgs/${league.orgId}`);
+    await expect(
+      page.getByRole('link', { name: 'Federation', exact: true }),
+    ).toBeVisible();
+  } finally {
+    await database.destroy();
+  }
+});
+
 async function seedClubTeam(
   club: ActorFixture,
   teamName: string,

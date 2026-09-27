@@ -1,6 +1,6 @@
 # Required Playwright journey audit
 
-Audit snapshot: `track/qa` synced through `rebuild/trunk` at `d038556`. This is a coverage inventory, not a claim that local Playwright runs passed. Browser verification is blocked by the required QA stack's port collision with Track I; see `docs/codex/tracks/QA.md`.
+Audit snapshot: `track/qa` synced through `rebuild/trunk` at `cd5b638`. This is a coverage inventory, not a claim that local Playwright runs passed. Browser verification is blocked by the required QA stack's port collision with Track I; see `docs/codex/tracks/QA.md`.
 
 | # | Journey | Status on the audit snapshot | Browser evidence / remaining acceptance |
 |---:|---|---|---|
@@ -28,12 +28,12 @@ Audit snapshot: `track/qa` synced through `rebuild/trunk` at `d038556`. This is 
 | 22 | Team chat with SafeSport guardian inclusion | Added; execution pending | `e2e/journeys/chat-safesport.spec.ts` opens a minor's team chat as staff, asserts the guardian-included label, then checks the guardian can read and reply at phone width. Local run pending. |
 | 23 | Volunteer shift signup, check-in and buyout | Not available | Phase 11 work is not integrated; no journey exists. |
 | 24 | Academy tuition, proration, make-up class and promotion | Partial | `e2e/classes.spec.ts` covers attendance-issued make-up credit and booking; monthly tuition/proration and level promotion are not covered in a browser. |
-| 25 | Federation entries, shared-field schedule, results and standings | Not available | Phase 13 work is not integrated; no journey exists. |
+| 25 | Federation entries, shared-field schedule, results and standings | Partial; execution pending | `e2e/federation.spec.ts` runs two clubs through relationship acceptance, team entries, a hosted result, and standings visible to both clubs. It contributes a field window from each club, but seeds one team per club and asserts only one scheduled game; QA-ACC-036 tracks the missing proof that both clubs' windows affect generated output. The journey deep-links to the federation page; the missing console navigation is QA-ACC-033. |
 | 26 | Report builder, schedule and privacy deletion | Not available | Phase 14 work is not integrated; no journey exists. |
 | 27 | New organization onboarding checklist | Not available | Phase 15 work is not integrated; no journey exists. |
 
 ## Execution status
 
 - `e2e/crawler/routes.spec.ts` discovers destinations from rendered navigation for anonymous, organization, family and platform roles. It checks route responses, settled same-origin API responses, page/console errors and axe, and fails rather than silently truncating the crawl.
-- Crawler and journey specs type-check and lint. Required browser verification remains pending until the QA stack can bind Postgres port `6932` without stopping another track's services.
+- Crawler and journey specs type-check and lint. Required browser verification remains pending until the QA stack can bind Postgres port `6932` without stopping another track's services. The new Phase 13 journey has not been executed on this QA stack.
 - “Not covered” means no browser flow for that required acceptance path was found; service or integration tests do not count as the required Playwright journey. Browser tests are still unverified on this snapshot.
