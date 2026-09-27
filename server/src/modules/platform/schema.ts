@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const orgSummarySchema = z.strictObject({
+const orgSummarySchema = z.strictObject({
   id: z.uuid(),
   slug: z.string(),
   name: z.string(),
@@ -46,7 +46,7 @@ export const planAssignmentResultSchema = z.strictObject({
   planId: z.uuid(),
   version: z.number().int().positive(),
 });
-export const planSchema = z.strictObject({
+const planSchema = z.strictObject({
   id: z.uuid(),
   key: z.string(),
   name: z.string(),
@@ -62,7 +62,7 @@ export const saveResultSchema = z.strictObject({
   id: z.uuid(),
   version: z.number().int(),
 });
-export const featureFlagSchema = z.strictObject({
+const featureFlagSchema = z.strictObject({
   key: z.string(),
   description: z.string(),
   enabled: z.boolean(),
@@ -76,7 +76,7 @@ export const featureFlagResultSchema = z.strictObject({
   key: z.string(),
   version: z.number().int(),
 });
-export const staffSchema = z.strictObject({
+const staffSchema = z.strictObject({
   accountId: z.uuid(),
   email: z.email(),
   name: z.string(),

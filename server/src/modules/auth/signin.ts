@@ -67,6 +67,13 @@ async function hasPrivilegedRole(
   database: Kysely<DB>,
   accountId: string,
 ): Promise<boolean> {
+  const platformStaff = await database
+    .selectFrom('platform_staff')
+    .select('account_id')
+    .where('account_id', '=', accountId)
+    .where('active', '=', true)
+    .executeTakeFirst();
+  if (platformStaff) return true;
   const account = await database
     .selectFrom('accounts')
     .select('linked_org_ids')
