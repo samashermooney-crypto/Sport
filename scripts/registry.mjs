@@ -15,6 +15,22 @@ async function namesWithFile(directory, filename) {
   return names.sort();
 }
 
+async function nestedRouteDirectories(directory, parts = []) {
+  const entries = await readdir(resolve(directory), { withFileTypes: true });
+  const found = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const nextParts = [...parts, entry.name];
+    const nextDirectory = resolve(directory, entry.name);
+    const files = await readdir(nextDirectory);
+    if (nextParts.length > 1 && files.includes('routes.tsx')) {
+      found.push(nextParts.join('/'));
+    }
+    found.push(...(await nestedRouteDirectories(nextDirectory, nextParts)));
+  }
+  return found.sort();
+}
+
 async function writeGenerated(path, source) {
   const formatted = await prettier.format(source, {
     parser: 'typescript',
@@ -70,6 +86,7 @@ const integrationNames = await namesWithFile(
 );
 const webRouteNames = await namesWithFile('web/src', 'routes.tsx');
 const webNavNames = await namesWithFile('web/src', 'nav.ts');
+const nestedWebRouteNames = await nestedRouteDirectories('web/src');
 if (webRouteNames.join(',') !== webNavNames.join(',')) {
   throw new Error('Every web feature must have both routes.tsx and nav.ts');
 }
@@ -102,6 +119,19 @@ const webImports = [
     `import { ${identifier(name)}Routes } from '../${name}/routes';`,
   ]),
 ];
+const nestedWebImports = [
+  "import type { RouteObject } from 'react-router';",
+  '',
+  ...nestedWebRouteNames.map((path) => {
+    const routeName = path
+      .split('/')
+      .map((part, index) =>
+        index === 0 ? part : part[0].toUpperCase() + part.slice(1),
+      )
+      .join('');
+    return `import { ${routeName}Routes } from '../${path}/routes';`;
+  }),
+];
 
 await writeGenerated(
   'server/src/generated/registry.ts',
@@ -117,6 +147,24 @@ await writeGenerated(
   `${webImports.join('\n')}
 
 export const webFeatures: readonly WebFeature[] = [${webRouteNames.map((name) => `{ name: '${name}', routes: ${identifier(name)}Routes, nav: ${identifier(name)}Nav }`).join(', ')}];
+`,
+);
+
+await writeGenerated(
+  'web/src/generated/nested-routes.ts',
+  `${nestedWebImports.join('\n')}
+
+export const webNestedRoutes: readonly RouteObject[] = [${nestedWebRouteNames
+    .map(
+      (path) =>
+        `${path
+          .split('/')
+          .map((part, index) =>
+            index === 0 ? part : part[0].toUpperCase() + part.slice(1),
+          )
+          .join('')}Routes`,
+    )
+    .join(', ')}].flat();
 `,
 );
 

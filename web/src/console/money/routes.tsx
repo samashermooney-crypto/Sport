@@ -18,6 +18,127 @@ const Billing = lazy(() =>
     default: component,
   })),
 );
+const Connect = lazy(() =>
+  import('./ConnectScreen').then(({ ConnectScreen: component }) => ({
+    default: component,
+  })),
+);
+const ConnectReturnScreen = lazy(() =>
+  import('./ConnectScreen').then(({ ConnectReturn }) => ({
+    default: ConnectReturn,
+  })),
+);
+const ConnectRefreshScreen = lazy(() =>
+  import('./ConnectScreen').then(({ ConnectRefresh }) => ({
+    default: ConnectRefresh,
+  })),
+);
+
+function ConnectReturnRoute(): React.JSX.Element {
+  const { orgId } = useParams<{ orgId: string }>();
+  const workspace = useQuery({
+    queryKey: ['orgs', orgId, 'workspace'],
+    queryFn: () =>
+      apiGet(`/orgs/${String(orgId)}/workspace`, orgWorkspaceSchema),
+    enabled: Boolean(orgId),
+  });
+  if (!orgId) return <main>Organization not found.</main>;
+  return (
+    <AppShell
+      orgName={workspace.data?.name ?? 'Athlentry'}
+      navigation={[
+        {
+          label: 'Manage',
+          items: [
+            { label: 'Home', to: `/console/orgs/${orgId}` },
+            {
+              label: 'Payment processing',
+              to: `/console/orgs/${orgId}/money/connect`,
+            },
+            {
+              label: 'Platform billing',
+              to: `/console/orgs/${orgId}/money/billing`,
+            },
+            { label: 'Account', to: '/me' },
+          ],
+        },
+      ]}
+      mobileTabs={[
+        { label: 'Home', to: `/console/orgs/${orgId}` },
+        { label: 'Account', to: '/me' },
+      ]}
+    >
+      <main className="console-home">
+        <PageHeader
+          kicker="FINANCE"
+          title="Payment processing"
+          description="Connect and manage your organization’s Stripe Express account."
+        />
+        <Suspense fallback={<p role="status">Loading Stripe connection…</p>}>
+          <ConnectReturnScreen orgId={orgId} />
+        </Suspense>
+      </main>
+    </AppShell>
+  );
+}
+
+function ConnectRefreshRoute(): React.JSX.Element {
+  const { orgId } = useParams<{ orgId: string }>();
+  if (!orgId) return <main>Organization not found.</main>;
+  return (
+    <Suspense fallback={<p role="status">Resuming Stripe setup…</p>}>
+      <ConnectRefreshScreen orgId={orgId} />
+    </Suspense>
+  );
+}
+
+function ConnectSetupRoute(): React.JSX.Element {
+  const { orgId } = useParams<{ orgId: string }>();
+  const workspace = useQuery({
+    queryKey: ['orgs', orgId, 'workspace'],
+    queryFn: () =>
+      apiGet(`/orgs/${String(orgId)}/workspace`, orgWorkspaceSchema),
+    enabled: Boolean(orgId),
+  });
+  if (!orgId) return <main>Organization not found.</main>;
+  return (
+    <AppShell
+      orgName={workspace.data?.name ?? 'Athlentry'}
+      navigation={[
+        {
+          label: 'Manage',
+          items: [
+            { label: 'Home', to: `/console/orgs/${orgId}` },
+            {
+              label: 'Payment processing',
+              to: `/console/orgs/${orgId}/money/connect`,
+            },
+            {
+              label: 'Platform billing',
+              to: `/console/orgs/${orgId}/money/billing`,
+            },
+            { label: 'Account', to: '/me' },
+          ],
+        },
+      ]}
+      mobileTabs={[
+        { label: 'Home', to: `/console/orgs/${orgId}` },
+        { label: 'Account', to: '/me' },
+      ]}
+    >
+      <main className="console-home">
+        <PageHeader
+          kicker="FINANCE"
+          title="Payment processing"
+          description="Connect and manage your organization’s Stripe Express account."
+        />
+        <Suspense fallback={<p role="status">Loading Stripe connection…</p>}>
+          <Connect orgId={orgId} />
+        </Suspense>
+      </main>
+    </AppShell>
+  );
+}
 
 function BillingRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
@@ -102,7 +223,19 @@ function StaffInstallmentsRoute(): React.JSX.Element {
   );
 }
 
-export const moneyConsoleRoutes: readonly RouteObject[] = [
+export const consoleMoneyRoutes: readonly RouteObject[] = [
+  {
+    path: '/console/orgs/:orgId/money/connect',
+    element: <ConnectSetupRoute />,
+  },
+  {
+    path: '/console/orgs/:orgId/money/connect/return',
+    element: <ConnectReturnRoute />,
+  },
+  {
+    path: '/console/orgs/:orgId/money/connect/refresh',
+    element: <ConnectRefreshRoute />,
+  },
   {
     path: '/console/orgs/:orgId/money/billing',
     element: <BillingRoute />,
