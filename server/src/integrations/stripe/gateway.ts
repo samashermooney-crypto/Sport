@@ -111,6 +111,8 @@ export interface GatewayPaymentIntent {
   status: string;
   amountCents: number;
   latestChargeId: string | null;
+  method?:
+    'card' | 'us_bank_account' | 'link' | 'apple_pay' | 'google_pay' | null;
 }
 
 export interface GatewayPaymentMethod {

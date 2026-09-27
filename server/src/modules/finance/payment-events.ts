@@ -17,9 +17,9 @@ export type PaymentEventResult = 'applied' | 'unchanged';
 
 /**
  * applyLatest runs inside withOrg and matches the stored intent ID and amount.
- * It atomically updates payment, allocations, invoice, installment, checkout,
- * capacity and audit state. Duplicate and older statuses do not double-apply
- * money. ACH failure after processing reverses any provisional allocation.
+ * It atomically updates payment, invoice, installment and audit state.
+ * Duplicate and older statuses do not double-apply money. Processing ACH
+ * payments remain reserved but unpaid until Stripe reports success.
  * An unknown intent throws so the event remains retryable and visible.
  */
 export interface PaymentEventRepository {

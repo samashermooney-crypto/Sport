@@ -13,6 +13,21 @@ import {
 import { parseStripeWebhookEvent } from './webhooks.js';
 
 function paymentIntentView(intent: Stripe.PaymentIntent): GatewayPaymentIntent {
+  const charge =
+    typeof intent.latest_charge === 'string' ? null : intent.latest_charge;
+  const details = charge?.payment_method_details;
+  const wallet = details?.type === 'card' ? details.card?.wallet?.type : null;
+  const paymentMethod =
+    typeof intent.payment_method === 'string' ? null : intent.payment_method;
+  const type = details?.type ?? paymentMethod?.type ?? null;
+  const method =
+    wallet === 'apple_pay'
+      ? ('apple_pay' as const)
+      : wallet === 'google_pay'
+        ? ('google_pay' as const)
+        : type === 'card' || type === 'us_bank_account' || type === 'link'
+          ? type
+          : null;
   return {
     id: intent.id,
     clientSecret: intent.client_secret,
@@ -22,6 +37,7 @@ function paymentIntentView(intent: Stripe.PaymentIntent): GatewayPaymentIntent {
       typeof intent.latest_charge === 'string'
         ? intent.latest_charge
         : (intent.latest_charge?.id ?? null),
+    method,
   };
 }
 
@@ -220,7 +236,9 @@ export class StripeSdkGateway implements PaymentsGateway {
 
   async retrievePaymentIntent(paymentIntentId: string) {
     return paymentIntentView(
-      await this.stripe.paymentIntents.retrieve(paymentIntentId),
+      await this.stripe.paymentIntents.retrieve(paymentIntentId, {
+        expand: ['payment_method', 'latest_charge'],
+      }),
     );
   }
 
