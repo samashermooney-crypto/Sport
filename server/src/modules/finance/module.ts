@@ -47,6 +47,12 @@ import {
   voidInvoiceResponseSchema,
   payerInvoiceListSchema,
 } from './routes.js';
+import {
+  taxRateBodySchema,
+  taxRateListSchema,
+  taxRateReplaceSchema,
+  taxRateSchema,
+} from './tax-rates.js';
 
 export const moduleDefinition = {
   name: 'finance',
@@ -57,6 +63,26 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/tax-rates',
+      summary: 'List product-only tax rates for finance staff',
+      response: taxRateListSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/tax-rates',
+      summary: 'Create an idempotent product-only tax rate',
+      body: taxRateBodySchema,
+      response: taxRateSchema,
+    },
+    {
+      method: 'put',
+      path: '/api/v1/finance/orgs/{orgId}/tax-rates/{rateId}',
+      summary: 'Replace a product-only tax rate at an exact version',
+      body: taxRateReplaceSchema,
+      response: taxRateSchema,
+    },
     {
       method: 'post',
       path: '/api/v1/finance/orgs/{orgId}/credits',

@@ -26,6 +26,7 @@ import {
   refundResponseSchema,
   staffCreditIssueResponseSchema,
 } from './routes.js';
+import { taxRateSchema } from './tax-rates.js';
 
 const origin = 'http://127.0.0.1:5173';
 const now = new Date('2026-09-27T12:00:00Z');
@@ -352,6 +353,70 @@ describe('staff invoice HTTP', () => {
     expect(await voided.json()).toMatchObject({
       status: 'void',
       voidReason: 'Canceled',
+    });
+  });
+});
+
+describe('product tax rate HTTP', () => {
+  it('creates a product-only rate and replaces it at an exact version', async () => {
+    const path = `${baseUrl}/orgs/${context.orgId}/tax-rates`;
+    const key = randomUUID();
+    const create = (requestOrigin: string) =>
+      fetch(path, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: requestOrigin,
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': key,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'Merchandise tax',
+          rateBps: 700,
+          active: true,
+        }),
+      });
+    expect((await create('https://attacker.example')).status).toBe(403);
+    const created = await create(origin);
+    expect(created.status).toBe(201);
+    const rate = taxRateSchema.parse((await created.json()) as unknown);
+    expect(rate.appliesTo).toBe('products');
+    expect(
+      taxRateSchema.parse((await (await create(origin)).json()) as unknown),
+    ).toEqual(rate);
+    const replace = await fetch(`${path}/${rate.id}`, {
+      method: 'PUT',
+      headers: {
+        Cookie: `__Host-athlentry_session=${token}`,
+        Origin: origin,
+        'X-Athlentry-Request': '1',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: rate.name,
+        rateBps: 750,
+        active: true,
+        expectedVersion: rate.version,
+      }),
+    });
+    expect(replace.status).toBe(200);
+    expect(taxRateSchema.parse((await replace.json()) as unknown).rateBps).toBe(
+      750,
+    );
+    const list = await fetch(path, {
+      headers: {
+        Cookie: `__Host-athlentry_session=${token}`,
+      },
+    });
+    expect(list.status).toBe(200);
+    expect(await list.json()).toEqual({
+      taxRates: [
+        expect.objectContaining({
+          id: rate.id,
+          rateBps: 750,
+        }),
+      ],
     });
   });
 });

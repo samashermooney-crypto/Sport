@@ -88,6 +88,14 @@ import {
   requireAidStaff,
   requireFinanceStaff,
 } from './staff-access.js';
+import {
+  PostgresProductTaxRates,
+  taxRateBodySchema,
+  taxRateListSchema,
+  taxRateReplaceSchema,
+  taxRateSchema,
+  TaxRateConflictError,
+} from './tax-rates.js';
 
 export const offlinePaymentBodySchema = z.strictObject({
   invoiceId: z.uuid(),
@@ -400,7 +408,8 @@ function sendError(response: Response, error: unknown): void {
           error instanceof AidAwardConflictError ||
           error instanceof AidProgramConflictError ||
           error instanceof AidReviewConflictError ||
-          error instanceof CreditLedgerConflictError
+          error instanceof CreditLedgerConflictError ||
+          error instanceof TaxRateConflictError
         ? 409
         : error instanceof InvoiceNotFoundError
           ? 404
@@ -471,6 +480,66 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.get('/orgs/:orgId/tax-rates', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const taxRates = await new PostgresProductTaxRates(
+        dependencies.database,
+        context,
+      ).list();
+      response.json(taxRateListSchema.parse({ taxRates }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/tax-rates', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = taxRateBodySchema.parse(request.body as unknown);
+      const key = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const rate = await new PostgresProductTaxRates(
+        dependencies.database,
+        context,
+      ).create(body, key);
+      response.status(201).json(taxRateSchema.parse(rate));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.put('/orgs/:orgId/tax-rates/:rateId', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const rateId = z.uuid().parse(request.params.rateId);
+      const body = taxRateReplaceSchema.parse(request.body as unknown);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const rate = await new PostgresProductTaxRates(
+        dependencies.database,
+        context,
+      ).replace(rateId, body);
+      response.json(taxRateSchema.parse(rate));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
   router.post('/orgs/:orgId/credits', async (request, response) => {
     try {
       if (

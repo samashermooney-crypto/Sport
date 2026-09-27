@@ -82,6 +82,38 @@ function input(key = randomUUID()): IssueInvoiceInput {
 }
 
 describe('invoice issuance', () => {
+  it('accepts only exact discounted-product tax on an order', () => {
+    const order = input();
+    expect(invoiceTotals(order).taxCents).toBe(45);
+    expect(() =>
+      invoiceTotals({
+        ...order,
+        lines: order.lines.map((line) =>
+          line.kind === 'tax' ? { ...line, amountCents: 50 } : line,
+        ),
+      }),
+    ).toThrow('does not match');
+    expect(() =>
+      invoiceTotals({
+        ...order,
+        lines: [
+          {
+            kind: 'registration',
+            description: 'Registration',
+            amountCents: 1000,
+            refundable: true,
+          },
+          {
+            kind: 'tax',
+            description: 'Sales tax',
+            amountCents: 50,
+            refundable: true,
+            taxRateBps: 500,
+          },
+        ],
+      }),
+    ).toThrow('requires a positive rate and product');
+  });
   it('assigns one number and reconciles header and lines at commit', async () => {
     const request = input();
     expect(invoiceTotals(request)).toEqual({
