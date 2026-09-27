@@ -182,6 +182,26 @@
 - **Request:** enforce current person-link and account ownership in the portal list, booking-cancel and punch-redemption paths (retaining separate authorized staff actions); add a real-Postgres regression asserting 404/no data and no mutation for a revoked guardian and unrelated active member.
 - **Status:** high-confidence authorization/privacy defect from endpoint and service predicates; regression is marked `test.fixme` in `e2e/security/class-booking-guardian-idor.spec.ts`, with execution pending the isolated QA stack.
 
+### QA-SEC-012 — League entry reads ignore revoked roster-sharing permission
+
+- **Owner:** Track J
+- **Phase:** 13; federation roster privacy and immediate sharing revocation
+- **Evidence:** `GET /organizations/:orgId/entries` calls `listLeagueEntries()`, which loads the stored `federation_roster_snapshots` row without checking the current relationship or `rosters` sharing key; `GET /organizations/:orgId/entries/:entryId` calls `getLeagueEntry()` and returns every allow-listed player field from the same snapshot without either check. The child side can immediately revoke `rosters` while retaining `team_entries`, but these league-side endpoints continue returning the cached roster and its player count. `e2e/security/federation-sharing-revocation.spec.ts` records the expected redaction as `test.fixme`.
+- **Reproduce:** accept a relationship with `{ rosters: true, team_entries: true }`, submit a team entry, then have the member club revoke `rosters` while leaving `team_entries` enabled. As a league user, GET `/api/v1/federation/organizations/:leagueOrgId/entries` and `/entries/:entryId`; the current implementation still returns `snapshot.playerCount` and the full roster including player names and person references.
+- **Expected:** each response re-evaluates the current active relationship and sharing keys. Keep team-entry metadata when `team_entries` remains enabled, but omit roster-derived counts and return no roster players after `rosters` is revoked. Suspension or ending the relationship must stop the league from reading the stored roster immediately.
+- **Request:** update `listLeagueEntries()` and `getLeagueEntry()` to gate cached snapshot fields on the current relationship status and `rosters` grant; add real-Postgres/API coverage for child-side immediate revocation and relationship suspension/end.
+- **Status:** confirmed authorization/privacy defect by source inspection; runtime reproduction awaits the isolated QA stack.
+
+### QA-SEC-013 — Class browse infers an unlinked child's age band
+
+- **Owner:** Track I
+- **Phase:** 12; academy portal privacy
+- **Evidence:** `GET /orgs/:orgId/me/browse` accepts an optional `personId`, requires only active organization membership, and passes the ID to `PostgresClassEnrollments.browse()`. The service reads that person's date of birth and returns only class offerings whose age bounds match, without verifying a current verified self/guardian link. Because `BrowseClass` exposes the age bounds, an unrelated member can infer which age band the child falls into. `e2e/security/class-browse-person-link.spec.ts` records the expected authorization denial as `test.fixme`.
+- **Reproduce:** create several published age-banded classes and a child with a known ID but no active `person_account_links` row for the caller. As a different active organization member, request `/api/v1/classes/orgs/:orgId/me/browse?personId=:childId`; the current route returns offerings filtered using the child's DOB.
+- **Expected:** a supplied `personId` is accepted only when the signed-in account has a current verified self/guardian link; otherwise return the standard authorization denial without age-filtered results.
+- **Request:** call `requireLinkedPerson()` before passing `personId` from `/me/browse` into the service and add the real-Postgres/API regression in the new security spec.
+- **Status:** confirmed personal-data inference path by source inspection; runtime reproduction awaits the isolated QA stack.
+
 ### QA-OPS-001 — Render health probes have no `/readyz` handler and public status is missing
 
 - **Owner:** Track C
