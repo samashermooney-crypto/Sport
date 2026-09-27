@@ -1,11 +1,12 @@
-import { Temporal } from '@js-temporal/polyfill';
+import { createHash } from 'node:crypto';
+
+import { newId } from '@shared/ids';
 import { allocate } from '@shared/money';
+import { quietHoursDecision } from '@shared/policies/quiet-hours';
 import {
   proposeRefund,
   type RefundableLine,
 } from '@shared/policies/refund-policy';
-import { quietHoursDecision } from '@shared/policies/quiet-hours';
-import { newId } from '@shared/ids';
 import { sql, type Kysely } from 'kysely';
 import { z } from 'zod';
 
@@ -24,11 +25,31 @@ import { enqueueRegistrationNotice } from './notices.js';
 
 const programPolicySchema = z.looseObject({
   waitlistMode: z.enum(['auto', 'manual', 'off']).optional(),
-  offerExpiryHours: z.number().int().min(4).max(24 * 30).optional(),
-  approvalDecisionHours: z.number().int().min(1).max(24 * 90).optional(),
-  paymentDueHours: z.number().int().min(1).max(24 * 30).optional(),
+  offerExpiryHours: z
+    .number()
+    .int()
+    .min(4)
+    .max(24 * 30)
+    .optional(),
+  approvalDecisionHours: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 90)
+    .optional(),
+  paymentDueHours: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 30)
+    .optional(),
   chargeAtSubmission: z.boolean().optional(),
-  selfCancelBeforeHours: z.number().int().min(0).max(24 * 365).optional(),
+  selfCancelBeforeHours: z
+    .number()
+    .int()
+    .min(0)
+    .max(24 * 365)
+    .optional(),
   collectWaitlistRequirements: z.boolean().optional(),
 });
 
@@ -73,6 +94,11 @@ export const registrationRefundPreviewSchema = z.strictObject({
   requiresApproval: z.boolean(),
   approvalThresholdCents: z.number().int().nonnegative(),
   paidCents: z.number().int().nonnegative(),
+});
+
+export const registrationCancelResponseSchema = z.strictObject({
+  status: z.enum(['canceled', 'withdrawn']),
+  refundProposal: registrationRefundPreviewSchema.nullable(),
 });
 
 export const cancelBodySchema = z.strictObject({
@@ -120,6 +146,10 @@ interface RegistrationRow {
   status: string;
   checkout_id: string | null;
   invoice_line_id: string | null;
+  cancel_idempotency_key: string | null;
+  cancel_request_hash: Buffer | null;
+  cancel_result: Json | null;
+  approval_payment_due_at: Date | null;
 }
 
 async function loadRegistration(
@@ -139,6 +169,10 @@ async function loadRegistration(
       'status',
       'checkout_id',
       'invoice_line_id',
+      'cancel_idempotency_key',
+      'cancel_request_hash',
+      'cancel_result',
+      'approval_payment_due_at',
     ])
     .where('org_id', '=', orgId)
     .where('id', '=', registrationId)
@@ -254,7 +288,12 @@ async function scopedRefundLines(
     .where(
       'invoice_line_id',
       'in',
-      sql`(SELECT id FROM invoice_lines WHERE org_id = ${orgId}::uuid AND invoice_id = ${invoice.id}::uuid AND kind = 'registration')`,
+      trx
+        .selectFrom('invoice_lines')
+        .select('id')
+        .where('org_id', '=', orgId)
+        .where('invoice_id', '=', invoice.id)
+        .where('kind', '=', 'registration'),
     )
     .execute();
   const activeSiblings = siblings.filter(
@@ -268,7 +307,7 @@ async function scopedRefundLines(
     allocated: number;
     refunded: number;
   }>`
-    WITH subtree AS (
+    WITH RECURSIVE subtree AS (
       SELECT id FROM invoice_lines
       WHERE org_id = ${orgId}::uuid AND id = ${invoiceLine.id}::uuid
       UNION
@@ -281,7 +320,7 @@ async function scopedRefundLines(
         JOIN payments pay ON pay.org_id = a.org_id AND pay.id = a.payment_id
         WHERE a.org_id = l.org_id AND a.invoice_line_id = l.id
           AND pay.status IN ('succeeded', 'processing')), 0)::bigint AS allocated,
-      coalesce((SELECT sum(ra.amount_cents) FROM refund_line_allocations ra
+      coalesce((SELECT sum(ra.amount_cents) FROM refund_allocations ra
         JOIN refunds r ON r.org_id = ra.org_id AND r.id = ra.refund_id
         WHERE ra.org_id = l.org_id AND ra.invoice_line_id = l.id
           AND r.status = 'succeeded'), 0)::bigint AS refunded
@@ -297,7 +336,7 @@ async function scopedRefundLines(
     ORDER BY pay.created_at DESC LIMIT 1
   `.execute(trx);
   const feeShare = await sql<{ share: number }>`
-    WITH subtree AS (
+    WITH RECURSIVE subtree AS (
       SELECT id FROM invoice_lines
       WHERE org_id = ${orgId}::uuid AND id = ${invoiceLine.id}::uuid
       UNION
@@ -333,7 +372,10 @@ async function scopedRefundLines(
     positiveTotal.rows[0]?.total && feePaid > 0
       ? (allocate(feePaid, [
           feeShare.rows[0]?.share ?? 0,
-          Math.max(0, positiveTotal.rows[0].total - (feeShare.rows[0]?.share ?? 0)),
+          Math.max(
+            0,
+            positiveTotal.rows[0].total - (feeShare.rows[0]?.share ?? 0),
+          ),
         ])[0] ?? 0)
       : 0;
   return {
@@ -344,7 +386,10 @@ async function scopedRefundLines(
     terms: invoice.refund_terms
       ? refundTermsSchema.parse(invoice.refund_terms)
       : null,
-    paidCents: Math.max(0, scoped.rows.reduce((t, r) => t + r.allocated, 0)),
+    paidCents: Math.max(
+      0,
+      scoped.rows.reduce((t, r) => t + r.allocated, 0),
+    ),
     fullCart: activeSiblings.length === 0,
   };
 }
@@ -353,7 +398,7 @@ export class PostgresRegistrationLifecycle {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
 
   constructor(
-    private readonly database: Kysely<DB>,
+    database: Kysely<DB>,
     private readonly context: OrgContext,
     private readonly now: () => Date = () => new Date(),
   ) {
@@ -432,16 +477,48 @@ export class PostgresRegistrationLifecycle {
     registrationId: string;
     reason: string;
     staff: boolean;
+    idempotencyKey: string;
   }): Promise<{
     status: 'canceled' | 'withdrawn';
     refundProposal: z.output<typeof registrationRefundPreviewSchema> | null;
   }> {
+    const idempotencyKey = z.uuid().parse(input.idempotencyKey);
+    const reason = cancelBodySchema.shape.reason.parse(input.reason);
+    const requestHash = createHash('sha256')
+      .update(
+        JSON.stringify({
+          registrationId: input.registrationId,
+          reason,
+          staff: input.staff,
+          actorAccountId: this.context.actor.accountId,
+        }),
+      )
+      .digest();
     return this.withOrg(this.context, async (trx) => {
       const registration = await loadRegistration(
         trx,
         input.orgId,
         input.registrationId,
       );
+      if (
+        registration.cancel_idempotency_key ||
+        registration.cancel_request_hash ||
+        registration.cancel_result
+      ) {
+        if (
+          registration.cancel_idempotency_key === idempotencyKey &&
+          registration.cancel_request_hash?.equals(requestHash) &&
+          registration.cancel_result
+        )
+          return registrationCancelResponseSchema.parse(
+            registration.cancel_result,
+          );
+        throw new RegistrationCheckoutError(
+          409,
+          'CANCELLATION_ALREADY_RECORDED',
+          'This registration already has a cancellation request',
+        );
+      }
       if (!input.staff) {
         const owned = await sql<{ ok: boolean }>`
           SELECT EXISTS (
@@ -460,9 +537,11 @@ export class PostgresRegistrationLifecycle {
             'Registration is unavailable',
           );
       }
-      if (!['confirmed', 'pending_payment', 'pending_approval'].includes(
-        registration.status,
-      ))
+      if (
+        !['confirmed', 'pending_payment', 'pending_approval'].includes(
+          registration.status,
+        )
+      )
         throw new RegistrationCheckoutError(
           409,
           'NOT_CANCELABLE',
@@ -498,9 +577,15 @@ export class PostgresRegistrationLifecycle {
         .updateTable('registrations')
         .set({
           status: toStatus,
-          status_reason: input.reason,
+          status_reason: reason,
           canceled_at: this.now(),
           canceled_by: this.context.actor.accountId,
+          cancel_idempotency_key: idempotencyKey,
+          cancel_request_hash: requestHash,
+          cancel_result: {
+            status: toStatus,
+            refundProposal: proposal,
+          } as unknown as Json,
           version: sql`version + 1`,
         })
         .where('org_id', '=', input.orgId)
@@ -512,7 +597,7 @@ export class PostgresRegistrationLifecycle {
         registration.id,
         previous,
         toStatus,
-        input.reason,
+        reason,
       );
       // Unpaid checkout carts collapse: void the checkout invoice and release
       // the held seats so the family owes nothing.
@@ -561,7 +646,7 @@ export class PostgresRegistrationLifecycle {
           kind: 'registration_canceled',
           sourceId: registration.id,
           accountId,
-          payload: { reason: input.reason, refundCents: proposal?.refundCents },
+          payload: { reason, refundCents: proposal?.refundCents },
         });
       await appendAuditEvent(trx, this.context, {
         action: 'registration.canceled',
@@ -569,7 +654,7 @@ export class PostgresRegistrationLifecycle {
         entityId: registration.id,
         changes: {
           status: { tier: 'internal', before: previous, after: toStatus },
-          reason: { tier: 'internal', after: input.reason },
+          reason: { tier: 'internal', after: reason },
           refundCents: { tier: 'internal', after: proposal?.refundCents ?? 0 },
         },
       });
@@ -640,12 +725,47 @@ export class PostgresRegistrationLifecycle {
     note?: string;
     idempotencyKey: string;
   }): Promise<{ status: string; paymentDueAt: string | null }> {
+    const idempotencyKey = z.uuid().parse(input.idempotencyKey);
+    const note = input.note?.trim() || null;
+    const requestHash = createHash('sha256')
+      .update(
+        JSON.stringify({
+          registrationId: input.registrationId,
+          decision: input.decision,
+          note,
+          actorAccountId: this.context.actor.accountId,
+        }),
+      )
+      .digest();
     return this.withOrg(this.context, async (trx) => {
       const registration = await loadRegistration(
         trx,
         input.orgId,
         input.registrationId,
       );
+      const prior = await trx
+        .selectFrom('registration_approvals')
+        .select(['decided_by', 'idempotency_key', 'request_hash'])
+        .where('org_id', '=', input.orgId)
+        .where('registration_id', '=', registration.id)
+        .executeTakeFirst();
+      if (prior) {
+        if (
+          prior.decided_by === this.context.actor.accountId &&
+          prior.idempotency_key === idempotencyKey &&
+          prior.request_hash?.equals(requestHash)
+        )
+          return {
+            status: registration.status,
+            paymentDueAt:
+              registration.approval_payment_due_at?.toISOString() ?? null,
+          };
+        throw new RegistrationCheckoutError(
+          409,
+          'DECISION_ALREADY_RECORDED',
+          'This registration already has an approval decision',
+        );
+      }
       if (registration.status !== 'pending_approval')
         throw new RegistrationCheckoutError(
           409,
@@ -667,21 +787,23 @@ export class PostgresRegistrationLifecycle {
           registration_id: registration.id,
           decision: input.decision,
           decided_by: this.context.actor.accountId,
-          note: input.note ?? null,
+          note,
+          idempotency_key: idempotencyKey,
+          request_hash: requestHash,
         })
         .execute();
       const accountId = await this.payerAccount(trx, registration);
       if (input.decision === 'declined') {
-        const scope = await scopedRefundLines(
-          trx,
-          input.orgId,
-          registration,
-        );
+        const scope = await scopedRefundLines(trx, input.orgId, registration);
         const invoicePaid = await trx
           .selectFrom('invoices')
           .select(['paid_cents'])
           .where('org_id', '=', input.orgId)
-          .where('id', '=', scope.invoiceId || '00000000-0000-0000-0000-000000000000')
+          .where(
+            'id',
+            '=',
+            scope.invoiceId || '00000000-0000-0000-0000-000000000000',
+          )
           .executeTakeFirst();
         const paid = (invoicePaid?.paid_cents ?? 0) > 0;
         if (paid) {
@@ -725,7 +847,7 @@ export class PostgresRegistrationLifecycle {
           .updateTable('registrations')
           .set({
             status: 'canceled',
-            status_reason: input.note ?? 'declined',
+            status_reason: note ?? 'declined',
             canceled_at: this.now(),
             canceled_by: this.context.actor.accountId,
             version: sql`version + 1`,
@@ -739,7 +861,7 @@ export class PostgresRegistrationLifecycle {
           registration.id,
           'pending_approval',
           'canceled',
-          input.note ?? 'declined',
+          note ?? 'declined',
         );
         await this.advanceWaitlist(trx, input.orgId, registration.offering_id);
         if (accountId)
@@ -748,7 +870,7 @@ export class PostgresRegistrationLifecycle {
             sourceId: registration.id,
             accountId,
             payload: {
-              note: input.note ?? null,
+              note,
               refundDueCents: paid ? scope.paidCents : 0,
             },
           });
@@ -815,7 +937,11 @@ export class PostgresRegistrationLifecycle {
             .execute();
           await trx
             .updateTable('checkouts')
-            .set({ status: 'completed', completed_at: this.now(), version: sql`version + 1` })
+            .set({
+              status: 'completed',
+              completed_at: this.now(),
+              version: sql`version + 1`,
+            })
             .where('org_id', '=', input.orgId)
             .where('id', '=', registration.checkout_id)
             .execute();
@@ -904,6 +1030,7 @@ export class PostgresRegistrationLifecycle {
           'id',
           'program_id',
           'division_id',
+          'capacity',
           'name',
           'waitlist_enabled',
           'active',
@@ -913,7 +1040,11 @@ export class PostgresRegistrationLifecycle {
         .where('id', '=', input.offeringId)
         .forUpdate()
         .executeTakeFirst();
-      if (!offering?.division_id || !offering.active || offering.visibility !== 'public')
+      if (
+        !offering?.division_id ||
+        !offering.active ||
+        offering.visibility !== 'public'
+      )
         throw new RegistrationCheckoutError(
           404,
           'NOT_FOUND',
@@ -966,17 +1097,75 @@ export class PostgresRegistrationLifecycle {
         );
       const existing = await trx
         .selectFrom('waitlist_entries')
-        .select('id')
+        .select([
+          'id',
+          'household_id',
+          'position',
+          'status',
+          'checkout_id',
+          'offered_at',
+          'offer_expires_at',
+        ])
         .where('org_id', '=', input.orgId)
         .where('offering_id', '=', input.offeringId)
         .where('person_id', '=', input.personId)
         .where('status', 'in', ['waiting', 'offered'])
         .executeTakeFirst();
-      if (existing)
+      if (existing) {
+        if (existing.household_id !== input.householdId)
+          throw new RegistrationCheckoutError(
+            409,
+            'ALREADY_WAITLISTED',
+            'Participant is already on this waitlist',
+          );
+        const person = await trx
+          .selectFrom('people')
+          .select(['first_name', 'last_name'])
+          .where('org_id', '=', input.orgId)
+          .where('id', '=', input.personId)
+          .executeTakeFirstOrThrow();
+        return waitlistEntrySchema.parse({
+          id: existing.id,
+          offeringId: offering.id,
+          offeringName: offering.name,
+          programName: program.name,
+          personId: input.personId,
+          personName: `${person.first_name} ${person.last_name}`,
+          position: existing.position,
+          status: existing.status,
+          checkoutId: existing.checkout_id,
+          offeredAt: existing.offered_at?.toISOString() ?? null,
+          offerExpiresAt: existing.offer_expires_at?.toISOString() ?? null,
+        });
+      }
+      let isFull = false;
+      for (const [subject, subjectId] of [
+        ['program', offering.program_id],
+        ['division', offering.division_id],
+        ['offering', offering.id],
+      ] as const) {
+        const counter = await trx
+          .selectFrom('capacity_counters')
+          .select(['capacity', 'confirmed', 'held'])
+          .where('org_id', '=', input.orgId)
+          .where('subject_type', '=', subject)
+          .where('subject_id', '=', subjectId)
+          .forUpdate()
+          .executeTakeFirst();
+        const capacity =
+          counter?.capacity ??
+          (subject === 'offering' ? offering.capacity : null);
+        if (
+          capacity !== null &&
+          (counter?.confirmed ?? 0) + (counter?.held ?? 0) >= capacity
+        )
+          isFull = true;
+      }
+      if (!isFull)
         throw new RegistrationCheckoutError(
           409,
-          'ALREADY_WAITLISTED',
-          'Participant is already on this waitlist',
+          'WAITLIST_NOT_FULL',
+          'A waitlist is available after all reserved seats are full',
         );
       const registered = await trx
         .selectFrom('registrations')
@@ -996,7 +1185,6 @@ export class PostgresRegistrationLifecycle {
         SELECT max(position) AS max_position FROM waitlist_entries
         WHERE org_id = ${input.orgId}::uuid
           AND offering_id = ${input.offeringId}::uuid
-        FOR UPDATE
       `.execute(trx);
       const position = (last.rows[0]?.max_position ?? 0) + 1;
       const id = newId();
@@ -1219,13 +1407,51 @@ export class PostgresRegistrationLifecycle {
     entryId?: string;
     idempotencyKey: string;
   }): Promise<{ entryId: string; expiresAt: string } | 'full' | 'empty'> {
+    const reservationKey = z.uuid().parse(input.idempotencyKey);
+    const requestHash = createHash('sha256')
+      .update(
+        JSON.stringify({
+          offeringId: input.offeringId,
+          entryId: input.entryId ?? null,
+          actorAccountId: this.context.actor.accountId,
+        }),
+      )
+      .digest('hex');
     return this.withOrg(this.context, async (trx) => {
+      const replay = await trx
+        .selectFrom('checkouts')
+        .select(['id', 'creation_hash'])
+        .where('org_id', '=', input.orgId)
+        .where('account_id', '=', this.context.actor.accountId)
+        .where('creation_key', '=', reservationKey)
+        .executeTakeFirst();
+      if (replay) {
+        if (replay.creation_hash !== requestHash)
+          throw new RegistrationCheckoutError(
+            409,
+            'IDEMPOTENCY_CONFLICT',
+            'Waitlist offer key was used for a different request',
+          );
+        const priorEntry = await trx
+          .selectFrom('waitlist_entries')
+          .select(['id', 'offer_expires_at'])
+          .where('org_id', '=', input.orgId)
+          .where('checkout_id', '=', replay.id)
+          .executeTakeFirst();
+        if (!priorEntry?.offer_expires_at)
+          throw new Error('Waitlist offer replay has no expiry');
+        return {
+          entryId: priorEntry.id,
+          expiresAt: priorEntry.offer_expires_at.toISOString(),
+        };
+      }
       const offering = await trx
         .selectFrom('registration_offerings')
         .select([
           'id',
           'program_id',
           'division_id',
+          'capacity',
           'name',
           'waitlist_enabled',
           'active',
@@ -1329,16 +1555,12 @@ export class PostgresRegistrationLifecycle {
           status: 'open',
           expires_at: expiresAt,
           items: cart as unknown as Json,
-          creation_key: z.uuid().parse(input.idempotencyKey),
-          creation_hash: z.uuid().parse(input.idempotencyKey),
+          creation_key: reservationKey,
+          creation_hash: requestHash,
           source: 'waitlist_offer',
         })
         .execute();
-      for (const subject of [
-        'program',
-        'division',
-        'offering',
-      ] as const) {
+      for (const subject of ['program', 'division', 'offering'] as const) {
         const subjectId =
           subject === 'program'
             ? offering.program_id
@@ -1372,7 +1594,7 @@ export class PostgresRegistrationLifecycle {
             subject_id: subjectId,
             quantity: 1,
             expires_at: expiresAt,
-            idempotency_key: `${input.idempotencyKey}:${subject}`,
+            reservation_key: reservationKey,
           })
           .execute();
       }
@@ -1417,7 +1639,15 @@ export class PostgresRegistrationLifecycle {
     const entryId = await this.withOrg(this.context, async (trx) => {
       const entry = await trx
         .selectFrom('waitlist_entries')
-        .select(['id', 'status', 'checkout_id', 'person_id', 'offer_expires_at'])
+        .select([
+          'id',
+          'status',
+          'checkout_id',
+          'person_id',
+          'household_id',
+          'offer_expires_at',
+          'accepted_at',
+        ])
         .where('org_id', '=', input.orgId)
         .where('id', '=', input.entryId)
         .forUpdate()
@@ -1436,9 +1666,16 @@ export class PostgresRegistrationLifecycle {
       const access = await sql<{ ok: boolean }>`
         SELECT EXISTS (
           SELECT 1 FROM person_account_links link
+          JOIN household_members member ON member.org_id = link.org_id
+            AND member.person_id = link.person_id
+            AND member.household_id = ${entry.household_id}::uuid
+            AND member.removed_at IS NULL
+          JOIN households h ON h.org_id = member.org_id
+            AND h.id = member.household_id AND h.status = 'active'
           WHERE link.org_id = ${input.orgId}::uuid
             AND link.person_id = ${entry.person_id}::uuid
             AND link.account_id = ${this.context.actor.accountId}::uuid
+            AND link.relationship IN ('self', 'guardian')
             AND link.revoked_at IS NULL AND link.verified_at IS NOT NULL
         ) AS ok
       `.execute(trx);
@@ -1465,6 +1702,22 @@ export class PostgresRegistrationLifecycle {
           'OFFER_UNAVAILABLE',
           'This waitlist offer is no longer available',
         );
+      if (!entry.accepted_at) {
+        await trx
+          .updateTable('waitlist_entries')
+          .set({ accepted_at: this.now(), version: sql`version + 1` })
+          .where('org_id', '=', input.orgId)
+          .where('id', '=', entry.id)
+          .execute();
+        await appendAuditEvent(trx, this.context, {
+          action: 'waitlist.offer_accepted',
+          entityType: 'waitlist_entry',
+          entityId: entry.id,
+          changes: {
+            checkoutId: { tier: 'internal', after: entry.checkout_id },
+          },
+        });
+      }
       return entry.checkout_id;
     });
     return { checkoutId: entryId };
@@ -1496,17 +1749,6 @@ export class PostgresRegistrationLifecycle {
         .where('id', '=', entry.id)
         .execute();
       if (entry.checkout_id) {
-        const checkout = await trx
-          .selectFrom('checkouts')
-          .select('items')
-          .where('org_id', '=', orgId)
-          .where('id', '=', entry.checkout_id)
-          .executeTakeFirst();
-        const items = z
-          .looseObject({
-            offerings: z.array(z.looseObject({ offeringId: z.string() })),
-          })
-          .safeParse(checkout?.items);
         const holds = await trx
           .selectFrom('capacity_holds')
           .select(['subject_type', 'subject_id', 'released_at', 'converted_at'])
@@ -1524,7 +1766,6 @@ export class PostgresRegistrationLifecycle {
             .where('held', '>', 0)
             .execute();
         }
-        void items;
         await trx
           .updateTable('capacity_holds')
           .set({ released_at: this.now() })
@@ -1596,21 +1837,33 @@ export class PostgresRegistrationLifecycle {
     registrationId: string;
     toOfferingId: string;
     financialTreatment:
-      | 'carry_payment'
-      | 'refund_difference'
-      | 'charge_difference'
-      | 'no_change';
+      'carry_payment' | 'refund_difference' | 'charge_difference' | 'no_change';
     note?: string;
     idempotencyKey: string;
   }): Promise<{ toRegistrationId: string; differenceCents: number }> {
     return this.withOrg(this.context, async (trx) => {
       const key = z.uuid().parse(input.idempotencyKey);
+      const requestHash = createHash('sha256')
+        .update(
+          JSON.stringify({
+            registrationId: input.registrationId,
+            toOfferingId: input.toOfferingId,
+            financialTreatment: input.financialTreatment,
+            note: input.note?.trim() || null,
+            actorAccountId: this.context.actor.accountId,
+          }),
+        )
+        .digest();
       const source = await loadRegistration(
         trx,
         input.orgId,
         input.registrationId,
       );
-      if (!['confirmed', 'pending_payment', 'pending_approval'].includes(source.status))
+      if (
+        !['confirmed', 'pending_payment', 'pending_approval'].includes(
+          source.status,
+        )
+      )
         throw new RegistrationCheckoutError(
           409,
           'NOT_TRANSFERABLE',
@@ -1618,15 +1871,33 @@ export class PostgresRegistrationLifecycle {
         );
       const prior = await trx
         .selectFrom('transfers')
-        .select(['to_registration_id', 'result'])
+        .select([
+          'from_registration_id',
+          'to_registration_id',
+          'request_hash',
+          'result',
+        ])
         .where('org_id', '=', input.orgId)
         .where('idempotency_key', '=', key)
         .executeTakeFirst();
       if (prior) {
+        if (
+          prior.from_registration_id !== source.id ||
+          !prior.request_hash?.equals(requestHash)
+        )
+          throw new RegistrationCheckoutError(
+            409,
+            'IDEMPOTENCY_CONFLICT',
+            'Transfer key was used for a different request',
+          );
+        const priorResult = z
+          .looseObject({
+            differenceCents: z.number().int().nonnegative().optional(),
+          })
+          .parse(prior.result);
         return {
           toRegistrationId: prior.to_registration_id,
-          differenceCents: (prior.result as { differenceCents?: number })
-            ?.differenceCents ?? 0,
+          differenceCents: priorResult.differenceCents ?? 0,
         };
       }
       const destination = await trx
@@ -1659,11 +1930,7 @@ export class PostgresRegistrationLifecycle {
         .where('org_id', '=', input.orgId)
         .where('program_id', '=', destination.program_id)
         .where('person_id', '=', source.person_id)
-        .where('status', 'not in', [
-          'canceled',
-          'withdrawn',
-          'transferred_out',
-        ])
+        .where('status', 'not in', ['canceled', 'withdrawn', 'transferred_out'])
         .executeTakeFirst();
       if (duplicate && destination.program_id !== source.program_id)
         throw new RegistrationCheckoutError(
@@ -1697,7 +1964,8 @@ export class PostgresRegistrationLifecycle {
             .where('id', '=', source.invoice_line_id)
             .executeTakeFirst()
         : null;
-      const difference = destination.price_cents - (sourceLine?.amount_cents ?? 0);
+      const difference =
+        destination.price_cents - (sourceLine?.amount_cents ?? 0);
       const toId = newId();
       const sameStatus =
         source.status === 'pending_approval' && !destination.requires_approval
@@ -1875,6 +2143,7 @@ export class PostgresRegistrationLifecycle {
           financial_treatment: input.financialTreatment,
           performed_by: this.context.actor.accountId,
           idempotency_key: key,
+          request_hash: requestHash,
           result: {
             differenceCents: difference,
             invoiceId,

@@ -114,7 +114,7 @@ function noticePath(kind: RegistrationNoticeKind, orgId: string): string {
 export class PostgresRegistrationNoticeDelivery {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
   constructor(
-    private readonly database: Kysely<DB>,
+    database: Kysely<DB>,
     private readonly context: OrgContext,
     private readonly sender: EmailSender,
     private readonly appUrl: string,

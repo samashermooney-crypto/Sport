@@ -16,7 +16,7 @@ import { refundTermsSchema } from '../finance/refund-terms.js';
 
 import {
   addOnListSchema,
-  checkoutRequirementsSchema,
+  parseCheckoutRequirements,
   volunteerRequirementSchema,
 } from './requirements.js';
 
@@ -130,9 +130,7 @@ export class PostgresRegistrationPricingSource implements CheckoutPricingSourceL
     paymentTerms: z.output<typeof frozenPaymentTermsSchema>;
   }> {
     const cart = cartSchema.parse(checkout.items);
-    const requirements = checkoutRequirementsSchema
-      .nullable()
-      .parse(checkout.requirements ?? null);
+    const requirements = parseCheckoutRequirements(checkout.requirements);
     if (
       new Set(cart.offerings.map((item) => item.lineId)).size !==
         cart.offerings.length ||
@@ -141,8 +139,13 @@ export class PostgresRegistrationPricingSource implements CheckoutPricingSourceL
       ).size !== cart.offerings.length
     )
       throw new Error('Duplicate registration cart line');
+    const defaultLines = cart.offerings.map((item) => ({
+      lineId: item.lineId,
+      addOns: [],
+      volunteer: 'none' as const,
+    }));
     const lineById = new Map(
-      (requirements?.lines ?? []).map((line) => [line.lineId, line]),
+      (requirements?.lines ?? defaultLines).map((line) => [line.lineId, line]),
     );
     for (const item of cart.offerings) {
       if (!lineById.has(item.lineId))
@@ -521,7 +524,7 @@ export class PostgresRegistrationPricingSource implements CheckoutPricingSourceL
         }),
       );
     }
-    const addOns: PricingInput['addOns'] = [];
+    const addOns: NonNullable<PricingInput['addOns']>[number][] = [];
     for (const item of cart.offerings) {
       const row = rows.find((entry) => entry.id === item.offeringId);
       const line = lineById.get(item.lineId);
@@ -538,7 +541,10 @@ export class PostgresRegistrationPricingSource implements CheckoutPricingSourceL
           selection.quantity > definition.maxQuantity
         )
           throw new Error('Selected add-on exceeds its quantity limit');
-        if (definition.sizes?.length && !definition.sizes.includes(selection.size ?? ''))
+        if (
+          definition.sizes?.length &&
+          !definition.sizes.includes(selection.size ?? '')
+        )
           throw new Error('Selected add-on size is not offered');
         addOns.push({
           id: `add:${item.lineId}:${selection.key}:${String(index)}`,

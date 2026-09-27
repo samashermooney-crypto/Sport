@@ -510,9 +510,16 @@ export interface Checkouts {
   invoice_id: string | null;
   items: Generated<Json>;
   org_id: string;
+  payment_due_at: Timestamp | null;
   payment_intent_id: string | null;
+  payment_plan: Json | null;
   payment_plan_choice: Json | null;
   pricing_snapshot: Json | null;
+  reminder_sent_at: Timestamp | null;
+  requirements: Generated<Json>;
+  requirements_completed_at: Timestamp | null;
+  requirements_enc: Buffer | null;
+  source: Generated<string>;
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
@@ -2095,15 +2102,51 @@ export interface Refunds {
   version: Generated<number>;
 }
 
+export interface RegistrationAddOnSelections {
+  amount_cents: number;
+  created_at: Generated<Timestamp>;
+  id: string;
+  invoice_line_id: string | null;
+  line_key: string;
+  name: string;
+  org_id: string;
+  quantity: number;
+  registration_id: string;
+  size: string | null;
+  unit_amount_cents: number;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface RegistrationApprovals {
   created_at: Generated<Timestamp>;
   decided_at: Generated<Timestamp>;
   decided_by: string;
   decision: string;
   id: string;
+  idempotency_key: string | null;
   note: string | null;
   org_id: string;
   registration_id: string;
+  request_hash: Buffer | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface RegistrationNoticeOutbox {
+  account_id: string;
+  attempts: Generated<number>;
+  created_at: Generated<Timestamp>;
+  id: string;
+  kind: string;
+  last_error: string | null;
+  lease_token: string | null;
+  lease_until: Timestamp | null;
+  message_key: string;
+  org_id: string;
+  payload: Generated<Json>;
+  provider_message_id: string | null;
+  sent_at: Timestamp | null;
+  source_id: string;
+  status: Generated<string>;
   updated_at: Generated<Timestamp>;
 }
 
@@ -2131,6 +2174,11 @@ export interface RegistrationOfferings {
 }
 
 export interface Registrations {
+  approval_decision: Json | null;
+  approval_payment_due_at: Timestamp | null;
+  cancel_idempotency_key: string | null;
+  cancel_request_hash: Buffer | null;
+  cancel_result: Json | null;
   canceled_at: Timestamp | null;
   canceled_by: string | null;
   checkout_id: string | null;
@@ -2608,6 +2656,21 @@ export interface TeamEntries {
   version: Generated<number>;
 }
 
+export interface TeamEntryInvites {
+  accepted_registration_id: string | null;
+  created_at: Generated<Timestamp>;
+  email: string;
+  expires_at: Timestamp;
+  id: string;
+  invited_by: string;
+  org_id: string;
+  person_id: string | null;
+  status: Generated<string>;
+  team_entry_id: string;
+  token_hash: Buffer;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface Teams {
   age_label: string | null;
   birth_year: number | null;
@@ -2696,13 +2759,17 @@ export interface Transfers {
   idempotency_key: string;
   org_id: string;
   performed_by: string;
+  request_hash: Buffer | null;
   result: Generated<Json>;
   to_registration_id: string;
   updated_at: Generated<Timestamp>;
 }
 
 export interface WaitlistEntries {
+  accepted_at: Timestamp | null;
+  checkout_id: string | null;
   created_at: Generated<Timestamp>;
+  expiring_notified_at: Timestamp | null;
   household_id: string;
   id: string;
   offer_expires_at: Timestamp | null;
@@ -2892,7 +2959,9 @@ export interface DB {
   refund_approvals: RefundApprovals;
   refund_attempts: RefundAttempts;
   refunds: Refunds;
+  registration_add_on_selections: RegistrationAddOnSelections;
   registration_approvals: RegistrationApprovals;
+  registration_notice_outbox: RegistrationNoticeOutbox;
   registration_offerings: RegistrationOfferings;
   registration_status_history: RegistrationStatusHistory;
   registrations: Registrations;
@@ -2928,6 +2997,7 @@ export interface DB {
   suppressions: Suppressions;
   tax_rates: TaxRates;
   team_entries: TeamEntries;
+  team_entry_invites: TeamEntryInvites;
   team_seasons: TeamSeasons;
   team_staff: TeamStaff;
   teams: Teams;

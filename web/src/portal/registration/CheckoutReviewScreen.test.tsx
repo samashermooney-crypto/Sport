@@ -69,6 +69,9 @@ beforeEach(() => {
       chargeNowCents: 2600,
       serviceFeeCents: 100,
       taxCents: 0,
+      paidInFull: false,
+      pendingApproval: false,
+      plan: null,
       lines: [
         {
           kind: 'participant',
@@ -125,5 +128,48 @@ describe('family registration payment review', () => {
       );
       expect(vi.mocked(apiPost).mock.calls[1]?.[0]).toContain('/quote');
     });
+  });
+
+  it('confirms a zero-balance registration without requesting Stripe client configuration', async () => {
+    vi.mocked(apiPost).mockImplementation((path) =>
+      Promise.resolve(
+        path.endsWith('/refund-terms/accept')
+          ? { terms, termsHash, accepted: true }
+          : {
+              checkoutId,
+              invoiceId,
+              invoiceNumber: 43,
+              totalCents: 0,
+              chargeNowCents: 0,
+              serviceFeeCents: 0,
+              taxCents: 0,
+              paidInFull: true,
+              pendingApproval: false,
+              plan: null,
+              lines: [],
+            },
+      ),
+    );
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter>
+          <CheckoutReviewScreen orgId={orgId} checkoutId={checkoutId} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await screen.findByText('Through 2026-10-01: 50% of eligible charges');
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Continue to payment' }),
+    );
+    expect(await screen.findByText('Registration confirmed')).toBeTruthy();
+    expect(apiGet).not.toHaveBeenCalledWith(
+      '/finance/stripe-client-config',
+      expect.anything(),
+    );
   });
 });

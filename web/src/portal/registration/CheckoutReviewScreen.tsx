@@ -49,10 +49,24 @@ const quoteSchema = z.strictObject({
   checkoutId: z.uuid(),
   invoiceId: z.uuid(),
   invoiceNumber: z.number().int().positive(),
-  totalCents: z.number().int().positive(),
-  chargeNowCents: z.number().int().positive(),
+  totalCents: z.number().int().nonnegative(),
+  chargeNowCents: z.number().int().nonnegative(),
   serviceFeeCents: z.number().int().nonnegative(),
   taxCents: z.number().int().nonnegative(),
+  paidInFull: z.boolean(),
+  pendingApproval: z.boolean(),
+  plan: z
+    .strictObject({
+      templateId: z.uuid(),
+      depositCents: z.number().int().nonnegative(),
+      installments: z.array(
+        z.strictObject({
+          dueOn: z.iso.date(),
+          amountCents: z.number().int().nonnegative(),
+        }),
+      ),
+    })
+    .nullable(),
   lines: z.array(
     z.strictObject({
       kind: z.string(),
@@ -144,12 +158,14 @@ export function CheckoutReviewScreen({
         quoteSchema,
         stableQuoteKey(checkoutId),
       );
-      const config = await apiGet(
-        '/finance/stripe-client-config',
-        configSchema,
-      );
       setQuote(result);
-      setPublishableKey(config.publishableKey);
+      if (result.chargeNowCents > 0) {
+        const config = await apiGet(
+          '/finance/stripe-client-config',
+          configSchema,
+        );
+        setPublishableKey(config.publishableKey);
+      }
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : 'Checkout is unavailable.',
@@ -235,7 +251,24 @@ export function CheckoutReviewScreen({
               </button>
             </section>
           )}
-        {quote && paymentQuote && (
+        {quote && quote.chargeNowCents === 0 && (
+          <section className="money-panel" role="status">
+            <h2>
+              {quote.pendingApproval
+                ? 'Registration submitted for review'
+                : 'Registration confirmed'}
+            </h2>
+            <p>
+              {quote.pendingApproval
+                ? 'Your place is reserved while staff reviews this registration.'
+                : 'Your registration is confirmed. No payment is due now.'}
+            </p>
+            <Link to={`/portal/orgs/${orgId}/money/invoices`}>
+              View invoice and registration
+            </Link>
+          </section>
+        )}
+        {quote && quote.chargeNowCents > 0 && paymentQuote && (
           <section aria-label="Payment quote">
             <p>
               Invoice #{quote.invoiceNumber}:{' '}

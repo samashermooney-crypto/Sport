@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 
-import { generateInstallments } from '@shared/algorithms/installments';
 import { serviceFee } from '@shared/algorithms/fees';
-import { allocate } from '@shared/money';
+import { generateInstallments } from '@shared/algorithms/installments';
 import { newId } from '@shared/ids';
+import { allocate } from '@shared/money';
 import { sql, type Kysely } from 'kysely';
 import { z } from 'zod';
 
@@ -14,6 +14,11 @@ import {
   type OrgContext,
   type OrgTransaction,
 } from '../../db/withOrg.js';
+import {
+  decryptRestricted,
+  encryptRestricted,
+  type EncryptionKeys,
+} from '../../lib/crypto.js';
 import { appendAuditEvent } from '../audit/service.js';
 import { PostgresCheckoutHoldRepository } from '../checkout/capacity-repo.js';
 import { PostgresCheckoutPricingRepository } from '../checkout/pricing-repo.js';
@@ -28,14 +33,14 @@ import {
   registrationCartSchema,
   RegistrationCheckoutError,
 } from './checkout-start.js';
+import { enqueueRegistrationNotice } from './notices.js';
 import { refundTermsHash } from './policy-acceptance.js';
+import { PostgresRegistrationPricingSource } from './registration-pricing-source.js';
 import {
-  checkoutRequirementsSchema,
+  parseCheckoutRequirements,
   type CheckoutRequirements,
   waiverDocumentHash,
 } from './requirements.js';
-import { PostgresRegistrationPricingSource } from './registration-pricing-source.js';
-import { enqueueRegistrationNotice } from './notices.js';
 
 const planChargeSchema = z.strictObject({
   sequence: z.number().int().nonnegative(),
@@ -132,8 +137,18 @@ interface ExistingInvoice {
 
 const programPolicySchema = z.looseObject({
   chargeAtSubmission: z.boolean().optional(),
-  approvalDecisionHours: z.number().int().min(1).max(24 * 90).optional(),
-  paymentDueHours: z.number().int().min(1).max(24 * 30).optional(),
+  approvalDecisionHours: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 90)
+    .optional(),
+  paymentDueHours: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 30)
+    .optional(),
 });
 
 /** Freezes one quote and atomically issues its invoice plus pending registrations. */
@@ -143,6 +158,7 @@ export class PostgresRegistrationCheckoutQuote {
   constructor(
     private readonly database: Kysely<DB>,
     private readonly context: OrgContext,
+    private readonly encryption?: EncryptionKeys,
     private readonly now: () => Date = () => new Date(),
   ) {
     this.withOrg = createWithOrg(database);
@@ -180,9 +196,11 @@ export class PostgresRegistrationCheckoutQuote {
           'account_id',
           'status',
           'expires_at',
+          'source',
           'items',
           'pricing_snapshot',
           'requirements',
+          'requirements_enc',
           'requirements_completed_at',
           'payment_plan',
         ])
@@ -222,20 +240,12 @@ export class PostgresRegistrationCheckoutQuote {
         chargeNowCents: snapshot.chargeNowCents,
       });
       const cart = registrationCartSchema.parse(checkout.items);
-      const requirements = checkoutRequirementsSchema
-        .nullable()
-        .parse(checkout.requirements ?? null);
+      const requirements = parseCheckoutRequirements(checkout.requirements);
       if (checkout.invoice_id)
-        return this.existingQuote(
-          trx,
-          input.checkoutId,
-          checkout.invoice_id,
-          {
-            ...snapshot,
-            creditAppliedCents: snapshot.creditAppliedCents,
-          },
-          requirements,
-        );
+        return this.existingQuote(trx, input.checkoutId, checkout.invoice_id, {
+          ...snapshot,
+          creditAppliedCents: snapshot.creditAppliedCents,
+        });
       const holds = await trx
         .selectFrom('capacity_holds')
         .select(['expires_at', 'released_at', 'converted_at'])
@@ -323,7 +333,8 @@ export class PostgresRegistrationCheckoutQuote {
           'REQUIREMENTS_PENDING',
           'Required forms, waivers and choices must be submitted first',
         );
-      if (requirements) await this.verifyRequirements(trx, input.orgId, requirements);
+      if (requirements)
+        await this.verifyRequirements(trx, input.orgId, requirements);
       const byLine = new Map(descriptions.map((item) => [item.line_id, item]));
       if (byLine.size !== cart.offerings.length)
         throw new RegistrationCheckoutError(
@@ -387,6 +398,12 @@ export class PostgresRegistrationCheckoutQuote {
             'PLAN_UNAVAILABLE',
             'Payment plan is unavailable',
           );
+        if (template.autopay_required)
+          throw new RegistrationCheckoutError(
+            409,
+            'PLAN_AUTOPAY_CONSENT_REQUIRED',
+            'This plan requires a separate automatic-payment authorization',
+          );
         const templateInput = z
           .strictObject({
             deposit: z.discriminatedUnion('kind', [
@@ -405,7 +422,10 @@ export class PostgresRegistrationCheckoutQuote {
                 count: z.number().int().min(1).max(36),
                 dayOfMonth: z.number().int().min(1).max(31),
               }),
-              z.strictObject({ kind: z.literal('weekly'), count: z.number().int().min(1).max(36) }),
+              z.strictObject({
+                kind: z.literal('weekly'),
+                count: z.number().int().min(1).max(36),
+              }),
               z.strictObject({
                 kind: z.literal('fixed_dates'),
                 dates: z.array(z.iso.date()).min(1).max(36),
@@ -413,7 +433,11 @@ export class PostgresRegistrationCheckoutQuote {
             ]),
             minAmountCents: z.number().int().nonnegative(),
           })
-          .parse({ deposit: template.deposit, schedule: template.schedule, minAmountCents: template.min_amount_cents });
+          .parse({
+            deposit: template.deposit,
+            schedule: template.schedule,
+            minAmountCents: template.min_amount_cents,
+          });
         const baseCents =
           snapshot.subtotalCents -
           snapshot.discountCents -
@@ -447,36 +471,32 @@ export class PostgresRegistrationCheckoutQuote {
           generated.depositCents,
           ...generated.installments.map((inst) => inst.amountCents),
         ];
-        const baseShares = allocate(
-          baseCents,
-          amounts,
-        );
+        const baseShares = allocate(baseCents, amounts);
         const paymentTerms = z
           .looseObject({
-            serviceFee: z
-              .discriminatedUnion('enabled', [
-                z.strictObject({ enabled: z.literal(false) }),
-                z.discriminatedUnion('mode', [
-                  z.strictObject({
-                    enabled: z.literal(true),
-                    mode: z.literal('cover_costs'),
-                    processing: z
-                      .strictObject({
-                        bps: z.number().int().nonnegative().max(10_000),
-                        fixedCents: z.number().int().nonnegative(),
-                      })
-                      .optional(),
-                  }),
-                  z.strictObject({
-                    enabled: z.literal(true),
-                    mode: z.literal('custom'),
-                    custom: z.strictObject({
+            serviceFee: z.discriminatedUnion('enabled', [
+              z.strictObject({ enabled: z.literal(false) }),
+              z.discriminatedUnion('mode', [
+                z.strictObject({
+                  enabled: z.literal(true),
+                  mode: z.literal('cover_costs'),
+                  processing: z
+                    .strictObject({
                       bps: z.number().int().nonnegative().max(10_000),
                       fixedCents: z.number().int().nonnegative(),
-                    }),
+                    })
+                    .optional(),
+                }),
+                z.strictObject({
+                  enabled: z.literal(true),
+                  mode: z.literal('custom'),
+                  custom: z.strictObject({
+                    bps: z.number().int().nonnegative().max(10_000),
+                    fixedCents: z.number().int().nonnegative(),
                   }),
-                ]),
+                }),
               ]),
+            ]),
           })
           .parse(snapshot.paymentTerms);
         const feeConfig = !paymentTerms.serviceFee.enabled
@@ -528,7 +548,9 @@ export class PostgresRegistrationCheckoutQuote {
           (total, charge) => total + charge.amountCents,
           0,
         );
-        const feeLine = snapshot.lines.find((line) => line.kind === 'service_fee');
+        const feeLine = snapshot.lines.find(
+          (line) => line.kind === 'service_fee',
+        );
         const lines = feeLine
           ? snapshot.lines.map((line) =>
               line.kind === 'service_fee'
@@ -750,6 +772,21 @@ export class PostgresRegistrationCheckoutQuote {
       // waiver signatures bound to the exact document hash, and add-on/size
       // selections for the uniform report.
       if (requirements) {
+        const restrictedAnswers = checkout.requirements_enc
+          ? z
+              .strictObject({
+                version: z.literal(1),
+                forms: z.record(z.string(), z.record(z.string(), z.unknown())),
+              })
+              .parse(
+                JSON.parse(
+                  decryptRestricted(
+                    checkout.requirements_enc,
+                    this.requireEncryption(),
+                  ).toString('utf8'),
+                ),
+              )
+          : { version: 1 as const, forms: {} };
         for (const form of requirements.forms) {
           const registrationId = registrationIds.get(form.lineId);
           if (!registrationId)
@@ -762,6 +799,8 @@ export class PostgresRegistrationCheckoutQuote {
                 .where('id', '=', form.reuseResponseId)
                 .executeTakeFirst()
             : undefined;
+          const restricted =
+            restrictedAnswers.forms[`${form.lineId}:${form.formDefinitionId}`];
           await trx
             .insertInto('form_responses')
             .values({
@@ -772,6 +811,12 @@ export class PostgresRegistrationCheckoutQuote {
               subject_type: 'registration',
               subject_id: registrationId,
               answers: form.answers as Json,
+              answers_enc: restricted
+                ? encryptRestricted(
+                    Buffer.from(JSON.stringify(restricted)),
+                    this.requireEncryption(),
+                  )
+                : null,
               submitted_by_account_id: this.context.actor.accountId,
               supersedes_id: prior?.id ?? null,
             })
@@ -790,6 +835,12 @@ export class PostgresRegistrationCheckoutQuote {
                 subject_type: 'person',
                 subject_id: personId,
                 answers: form.answers as Json,
+                answers_enc: restricted
+                  ? encryptRestricted(
+                      Buffer.from(JSON.stringify(restricted)),
+                      this.requireEncryption(),
+                    )
+                  : null,
                 submitted_by_account_id: this.context.actor.accountId,
                 supersedes_id: prior?.id ?? null,
               })
@@ -803,21 +854,44 @@ export class PostgresRegistrationCheckoutQuote {
           const personId = descriptions.find(
             (item) => item.line_id === waiver.lineId,
           )?.person_id;
-          await sql`
-            INSERT INTO waiver_signatures
-              (id, org_id, waiver_document_id, document_version, document_hash,
-               participant_person_id, signer_account_id, signer_name_typed,
-               method, registration_id, ip, user_agent)
-            VALUES
-              (${newId()}::uuid, ${input.orgId}::uuid,
-               ${waiver.waiverDocumentId}::uuid, ${waiver.documentVersion},
-               decode(${waiver.documentHash}, 'hex'),
-               ${personId ?? null}::uuid,
-               ${this.context.actor.accountId}::uuid, ${waiver.signerName},
-               ${waiver.method}, ${registrationId}::uuid,
-               ${(requirements as { evidence?: { ip?: string } }).evidence?.ip ?? null}::inet,
-               ${(requirements as { evidence?: { userAgent?: string } }).evidence?.userAgent ?? null})
-          `.execute(trx);
+          if (!personId || !waiver.signerRole)
+            throw new RegistrationCheckoutError(
+              409,
+              'WAIVER_SIGNER_REQUIRED',
+              'Waiver signer evidence is incomplete',
+            );
+          const signatures = waiver.participantSignerName
+            ? [
+                { name: waiver.signerName, signerPersonId: null },
+                {
+                  name: waiver.participantSignerName,
+                  signerPersonId: personId,
+                },
+              ]
+            : [
+                {
+                  name: waiver.signerName,
+                  signerPersonId:
+                    waiver.signerRole === 'participant' ? personId : null,
+                },
+              ];
+          for (const signature of signatures) {
+            await sql`
+              INSERT INTO waiver_signatures
+                (id, org_id, waiver_document_id, document_version, document_hash,
+                 participant_person_id, signer_account_id, signer_person_id,
+                 signer_name_typed, method, registration_id, ip, user_agent)
+              VALUES
+                (${newId()}::uuid, ${input.orgId}::uuid,
+                 ${waiver.waiverDocumentId}::uuid, ${waiver.documentVersion},
+                 decode(${waiver.documentHash}, 'hex'), ${personId}::uuid,
+                 ${this.context.actor.accountId}::uuid,
+                 ${signature.signerPersonId}::uuid, ${signature.name},
+                 ${waiver.method}, ${registrationId}::uuid,
+                 ${requirements.evidence?.ip ?? null}::inet,
+                 ${requirements.evidence?.userAgent ?? null})
+            `.execute(trx);
+          }
         }
         for (const line of requirements.lines) {
           const registrationId = registrationIds.get(line.lineId);
@@ -855,9 +929,11 @@ export class PostgresRegistrationCheckoutQuote {
             const invoiceLineId = lineIds.get(`volunteer:${line.lineId}`);
             const buyout = z
               .looseObject({
-                volunteerRequirement: z.strictObject({
-                  buyoutCents: z.number().int().nonnegative(),
-                }),
+                volunteerRequirement: z
+                  .strictObject({
+                    buyoutCents: z.number().int().nonnegative(),
+                  })
+                  .optional(),
               })
               .parse(
                 programSettingsRows.find(
@@ -903,7 +979,7 @@ export class PostgresRegistrationCheckoutQuote {
                 sequence: charge.sequence,
                 due_on: charge.dueOn,
                 amount_cents: charge.amountCents,
-                autopay: true,
+                autopay: false,
               })
               .execute();
           }
@@ -1085,8 +1161,7 @@ export class PostgresRegistrationCheckoutQuote {
         !document ||
         document.retired_at ||
         document.version !== waiver.documentVersion ||
-        waiverDocumentHash(document.body_html, document.version) !==
-          waiver.documentHash
+        waiverDocumentHash(document.body_html) !== waiver.documentHash
       )
         throw new RegistrationCheckoutError(
           409,
@@ -1127,7 +1202,6 @@ export class PostgresRegistrationCheckoutQuote {
     checkoutId: string,
     invoiceId: string,
     snapshot: z.output<typeof frozenSnapshotSchema>,
-    requirements: CheckoutRequirements | null,
   ): Promise<z.output<typeof checkoutQuoteSchema>> {
     const invoice = await sql<ExistingInvoice>`
       SELECT id AS invoice_id, number, total_cents, balance_cents, status
@@ -1150,9 +1224,7 @@ export class PostgresRegistrationCheckoutQuote {
     `.execute(trx);
     const plan = checkoutPlanSchema
       .nullable()
-      .parse(
-        (snapshot.paymentTerms as { plan?: unknown }).plan ?? null,
-      );
+      .parse((snapshot.paymentTerms as { plan?: unknown }).plan ?? null);
     const lines = await sql<{
       kind: string;
       description: string;
@@ -1162,13 +1234,12 @@ export class PostgresRegistrationCheckoutQuote {
       WHERE org_id = ${this.context.orgId}::uuid AND invoice_id = ${invoiceId}::uuid
       ORDER BY checkout_line_index
     `.execute(trx);
-    void requirements;
     return checkoutQuoteSchema.parse({
       checkoutId,
       invoiceId,
       invoiceNumber: row.number,
       totalCents: row.total_cents,
-      chargeNowCents: row.balance_cents ?? snapshot.chargeNowCents,
+      chargeNowCents: row.balance_cents,
       serviceFeeCents: snapshot.serviceFeeCents,
       taxCents: snapshot.taxCents,
       paidInFull: row.status === 'paid',
@@ -1189,5 +1260,13 @@ export class PostgresRegistrationCheckoutQuote {
         amountCents: line.amount_cents,
       })),
     });
+  }
+
+  private requireEncryption(): EncryptionKeys {
+    if (!this.encryption)
+      throw new Error(
+        'Restricted registration answers require encryption keys',
+      );
+    return this.encryption;
   }
 }

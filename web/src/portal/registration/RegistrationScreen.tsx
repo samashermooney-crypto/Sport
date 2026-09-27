@@ -136,7 +136,7 @@ export function RegistrationScreen({
         crypto.randomUUID(),
       );
       void navigate(
-        `/portal/orgs/${orgId}/register/checkouts/${result.checkoutId}`,
+        `/portal/orgs/${orgId}/register/checkouts/${result.checkoutId}/requirements`,
       );
     } catch (caught) {
       setError(

@@ -20,6 +20,11 @@ import {
   checkoutPolicyReviewSchema,
   PostgresCheckoutPolicyAcceptance,
 } from './policy-acceptance.js';
+import {
+  checkoutRequirementsSchema,
+  PostgresRegistrationRequirements,
+  requirementsDiscoverySchema,
+} from './requirements.js';
 
 const catalogItemSchema = z.strictObject({
   programId: z.uuid(),
@@ -339,8 +344,67 @@ export function createRegistrationRouter(
         const result = await new PostgresRegistrationCheckoutQuote(
           dependencies.database,
           { orgId, actor: { accountId: session.accountId } },
+          dependencies.encryption,
         ).quote({ orgId, checkoutId, quoteKey });
         response.json(checkoutQuoteSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/checkouts/:checkoutId/requirements',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Impersonation is unavailable',
+          );
+        const orgId = z.uuid().parse(request.params.orgId);
+        const checkoutId = z.uuid().parse(request.params.checkoutId);
+        const result = await new PostgresRegistrationRequirements(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+          dependencies.encryption,
+        ).discover({ orgId, checkoutId });
+        response.json(requirementsDiscoverySchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post(
+    '/orgs/:orgId/checkouts/:checkoutId/requirements',
+    async (request, response) => {
+      try {
+        if (
+          !validWriteOrigin(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Checkout requirements are unavailable',
+          );
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const checkoutId = z.uuid().parse(request.params.checkoutId);
+        const requirements = checkoutRequirementsSchema.parse(request.body);
+        const result = await new PostgresRegistrationRequirements(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+          dependencies.encryption,
+        ).submit({
+          orgId,
+          checkoutId,
+          requirements,
+          userAgent: request.get('User-Agent') ?? null,
+          ip: request.ip ?? null,
+        });
+        response.json(result);
       } catch (error) {
         sendError(response, error);
       }

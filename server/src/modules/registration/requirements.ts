@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import { ageOnDate } from '@shared/dates';
 import { sql, type Kysely } from 'kysely';
 import { z } from 'zod';
 
@@ -9,6 +10,11 @@ import {
   type OrgContext,
   type OrgTransaction,
 } from '../../db/withOrg.js';
+import {
+  decryptRestricted,
+  encryptRestricted,
+  type EncryptionKeys,
+} from '../../lib/crypto.js';
 import { appendAuditEvent } from '../audit/service.js';
 
 import {
@@ -50,7 +56,10 @@ export const checkoutRequirementsSchema = z.strictObject({
       waiverDocumentId: z.uuid(),
       documentVersion: z.number().int().positive(),
       documentHash: z.string().regex(/^[0-9a-f]{64}$/),
+      accepted: z.literal(true),
       signerName: z.string().trim().min(1).max(200),
+      participantSignerName: z.string().trim().min(1).max(200).optional(),
+      signerRole: z.enum(['guardian', 'participant']).optional(),
       method: z.enum(['online_typed', 'online_drawn']),
     }),
   ),
@@ -69,12 +78,35 @@ export const checkoutRequirementsSchema = z.strictObject({
 
 export type CheckoutRequirements = z.output<typeof checkoutRequirementsSchema>;
 
+export function parseCheckoutRequirements(
+  value: Json | null | undefined,
+): CheckoutRequirements | null {
+  if (value === null || value === undefined) return null;
+  if (
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 0
+  )
+    return null;
+  return checkoutRequirementsSchema.parse(value);
+}
+
+const sensitivitySchema = z.enum([
+  'public',
+  'internal',
+  'sensitive',
+  'restricted',
+]);
+
 const formFieldSchema = z.looseObject({
   key: z.string(),
   label: z.string().optional(),
   required: z.boolean().optional(),
   type: z.string().optional(),
   options: z.array(z.string()).optional(),
+  sensitivity: sensitivitySchema.optional(),
+  sensitivityTier: sensitivitySchema.optional(),
+  tier: sensitivitySchema.optional(),
 });
 
 const formDefShape = z.looseObject({
@@ -148,10 +180,69 @@ export const requirementsDiscoverySchema = z.strictObject({
   requirementsSubmitted: z.boolean(),
 });
 
-export function waiverDocumentHash(bodyHtml: string, version: number): string {
-  return createHash('sha256')
-    .update(JSON.stringify({ bodyHtml, version }))
-    .digest('hex');
+export function waiverDocumentHash(bodyHtml: string): string {
+  const renderedText = bodyHtml
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&#x27;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+  return createHash('sha256').update(renderedText).digest('hex');
+}
+
+function orgLocalDate(now: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
+function sameName(left: string, right: string): boolean {
+  return (
+    left.trim().replace(/\s+/g, ' ').toLocaleLowerCase() ===
+    right.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+  );
+}
+
+function fieldSensitivity(
+  field: z.output<typeof formFieldSchema>,
+): z.infer<typeof sensitivitySchema> {
+  return field.sensitivity ?? field.sensitivityTier ?? field.tier ?? 'internal';
+}
+
+function splitFormAnswers(
+  fields: z.output<typeof formFieldSchema>[],
+  answers: Record<string, unknown>,
+): { answers: Record<string, unknown>; restricted: Record<string, unknown> } {
+  const byKey = new Map(fields.map((field) => [field.key, field]));
+  const plain: Record<string, unknown> = {};
+  const restricted: Record<string, unknown> = {};
+  for (const [key, answer] of Object.entries(answers)) {
+    const field = byKey.get(key);
+    if (!field)
+      throw new RegistrationCheckoutError(
+        400,
+        'FORM_FIELD_UNKNOWN',
+        'A submitted form contains an unknown field',
+      );
+    if (fieldSensitivity(field) === 'restricted') restricted[key] = answer;
+    else plain[key] = answer;
+  }
+  return { answers: plain, restricted };
+}
+
+function mergeFormAnswers(
+  fields: z.output<typeof formFieldSchema>[],
+  answers: Record<string, unknown>,
+  restricted: Record<string, unknown>,
+): Record<string, unknown> {
+  return { ...answers, ...splitFormAnswers(fields, restricted).restricted };
 }
 
 interface CheckoutRow {
@@ -196,8 +287,9 @@ export class PostgresRegistrationRequirements {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
 
   constructor(
-    private readonly database: Kysely<DB>,
+    database: Kysely<DB>,
     private readonly context: OrgContext,
+    private readonly encryption: EncryptionKeys,
     private readonly now: () => Date = () => new Date(),
   ) {
     this.withOrg = createWithOrg(database);
@@ -273,7 +365,7 @@ export class PostgresRegistrationRequirements {
             );
           const prior = await trx
             .selectFrom('form_responses')
-            .select(['answers'])
+            .select(['answers', 'answers_enc'])
             .where('org_id', '=', input.orgId)
             .where('form_definition_id', '=', definitionId)
             .where('subject_type', '=', 'person')
@@ -282,15 +374,31 @@ export class PostgresRegistrationRequirements {
             .limit(1)
             .executeTakeFirst();
           const shape = formDefShape.parse(definition.schema ?? {});
+          const reusable = (prior?.answers ?? {}) as Record<string, unknown>;
+          const reusableRestricted = prior?.answers_enc
+            ? z
+                .record(z.string(), z.unknown())
+                .parse(
+                  JSON.parse(
+                    decryptRestricted(
+                      prior.answers_enc,
+                      this.encryption,
+                    ).toString('utf8'),
+                  ),
+                )
+            : {};
           forms.push({
             formDefinitionId: definition.id,
             name: definition.name,
             version: definition.version,
             fields: shape.fields ?? [],
-            reusableAnswers: (prior?.answers ?? null) as Record<
-              string,
-              unknown
-            > | null,
+            reusableAnswers: prior
+              ? mergeFormAnswers(
+                  shape.fields ?? [],
+                  reusable,
+                  reusableRestricted,
+                )
+              : null,
           });
         }
         const waivers = [];
@@ -319,10 +427,7 @@ export class PostgresRegistrationRequirements {
             waiverDocumentId: document.id,
             name: document.name,
             version: document.version,
-            documentHash: waiverDocumentHash(
-              document.body_html,
-              document.version,
-            ),
+            documentHash: waiverDocumentHash(document.body_html),
             requires: document.requires,
             bodyHtml: document.body_html,
           });
@@ -408,16 +513,16 @@ export class PostgresRegistrationRequirements {
         'Organization mismatch',
       );
     const requirements = checkoutRequirementsSchema.parse(input.requirements);
+    if (requirements.waivers.some((waiver) => waiver.signerRole))
+      throw new RegistrationCheckoutError(
+        400,
+        'WAIVER_SIGNER_MISMATCH',
+        'Signer role is assigned by the registration service',
+      );
     await this.withOrg(this.context, async (trx) => {
       const checkout = await trx
         .selectFrom('checkouts')
-        .select([
-          'account_id',
-          'status',
-          'expires_at',
-          'items',
-          'requirements',
-        ])
+        .select(['account_id', 'status', 'expires_at', 'items', 'requirements'])
         .where('org_id', '=', input.orgId)
         .where('id', '=', input.checkoutId)
         .forUpdate()
@@ -440,6 +545,17 @@ export class PostgresRegistrationRequirements {
           'CHECKOUT_EXPIRED',
           'Checkout has expired',
         );
+      const signerAccount = await trx
+        .selectFrom('accounts')
+        .select(['first_name', 'last_name'])
+        .where('id', '=', this.context.actor.accountId)
+        .executeTakeFirstOrThrow();
+      const organization = await trx
+        .selectFrom('organizations')
+        .select('timezone')
+        .where('id', '=', input.orgId)
+        .executeTakeFirstOrThrow();
+      const localDate = orgLocalDate(this.now(), organization.timezone);
       const cart = registrationCartSchema.parse(checkout.items);
       const lineIds = new Set(cart.offerings.map((item) => item.lineId));
       const submitLines = new Map(
@@ -463,8 +579,42 @@ export class PostgresRegistrationRequirements {
           'DUPLICATE_REQUIREMENTS_LINE',
           'Requirements lines must be distinct',
         );
+      if (
+        submitForms.size !== requirements.forms.length ||
+        submitWaivers.size !== requirements.waivers.length ||
+        lineIds.size !== submitLines.size ||
+        [...submitLines.keys()].some((lineId) => !lineIds.has(lineId))
+      )
+        throw new RegistrationCheckoutError(
+          400,
+          'REQUIREMENTS_MISMATCH',
+          'Requirements must match every cart line exactly once',
+        );
+      const restrictedByForm: Record<string, Record<string, unknown>> = {};
+      const sanitizedForms = new Map<
+        string,
+        CheckoutRequirements['forms'][number]
+      >();
+      const expectedFormKeys = new Set<string>();
+      const expectedWaiverKeys = new Set<string>();
+      const signerRoles = new Map<string, 'guardian' | 'participant'>();
       for (const item of cart.offerings) {
         const line = submitLines.get(item.lineId);
+        if (!line)
+          throw new RegistrationCheckoutError(
+            400,
+            'REQUIREMENTS_LINE_MISSING',
+            'Requirements are missing a cart line',
+          );
+        if (
+          new Set(line.addOns.map((selection) => selection.key)).size !==
+          line.addOns.length
+        )
+          throw new RegistrationCheckoutError(
+            400,
+            'ADD_ON_DUPLICATE',
+            'Choose each add-on once per participant',
+          );
         const offering = await trx
           .selectFrom('registration_offerings')
           .select([
@@ -492,7 +642,7 @@ export class PostgresRegistrationRequirements {
         for (const definition of definitions.filter(
           (entry) => entry.required,
         )) {
-          const chosen = line?.addOns.find(
+          const chosen = line.addOns.find(
             (selection) => selection.key === definition.key,
           );
           if (!chosen)
@@ -502,7 +652,7 @@ export class PostgresRegistrationRequirements {
               `Add-on "${definition.name}" is required`,
             );
         }
-        for (const selection of line?.addOns ?? []) {
+        for (const selection of line.addOns) {
           const definition = byKey.get(selection.key);
           if (!definition)
             throw new RegistrationCheckoutError(
@@ -539,14 +689,17 @@ export class PostgresRegistrationRequirements {
             volunteerRequirement: volunteerRequirementSchema.optional(),
           })
           .safeParse(program.settings);
-        if (volunteer.success && volunteer.data.volunteerRequirement?.required) {
-          if (!line || !['commit', 'buyout'].includes(line.volunteer))
+        if (
+          volunteer.success &&
+          volunteer.data.volunteerRequirement?.required
+        ) {
+          if (!['commit', 'buyout'].includes(line.volunteer))
             throw new RegistrationCheckoutError(
               409,
               'VOLUNTEER_REQUIRED',
               'Choose the volunteer commitment or buyout',
             );
-        } else if (line && line.volunteer === 'buyout') {
+        } else if (line.volunteer === 'buyout') {
           throw new RegistrationCheckoutError(
             409,
             'VOLUNTEER_UNAVAILABLE',
@@ -554,6 +707,7 @@ export class PostgresRegistrationRequirements {
           );
         }
         for (const definitionId of offering.form_definition_ids) {
+          expectedFormKeys.add(`${item.lineId}:${definitionId}`);
           const submission = submitForms.get(`${item.lineId}:${definitionId}`);
           if (!submission)
             throw new RegistrationCheckoutError(
@@ -563,7 +717,7 @@ export class PostgresRegistrationRequirements {
             );
           const definition = await trx
             .selectFrom('form_definitions')
-            .select(['version', 'schema', 'retired_at'])
+            .select(['id', 'version', 'schema', 'retired_at', 'scope'])
             .where('org_id', '=', input.orgId)
             .where('id', '=', definitionId)
             .executeTakeFirst();
@@ -580,6 +734,39 @@ export class PostgresRegistrationRequirements {
               'A form changed during checkout; reload and resubmit',
             );
           const shape = formDefShape.parse(definition.schema ?? {});
+          if (definition.scope !== 'registration')
+            throw new RegistrationCheckoutError(
+              409,
+              'FORM_UNAVAILABLE',
+              'The required form is not a registration form',
+            );
+          if (submission.reuseResponseId) {
+            const reusable = await trx
+              .selectFrom('form_responses')
+              .select('id')
+              .where('org_id', '=', input.orgId)
+              .where('id', '=', submission.reuseResponseId)
+              .where('form_definition_id', '=', definitionId)
+              .where('subject_type', '=', 'person')
+              .where('subject_id', '=', item.personId)
+              .executeTakeFirst();
+            if (!reusable)
+              throw new RegistrationCheckoutError(
+                409,
+                'FORM_RESPONSE_UNAVAILABLE',
+                'The selected saved response is unavailable for this participant',
+              );
+          }
+          const { answers: plainAnswers, restricted } = splitFormAnswers(
+            shape.fields ?? [],
+            submission.answers,
+          );
+          sanitizedForms.set(`${item.lineId}:${definitionId}`, {
+            ...submission,
+            answers: plainAnswers,
+          });
+          if (Object.keys(restricted).length)
+            restrictedByForm[`${item.lineId}:${definitionId}`] = restricted;
           for (const field of shape.fields ?? []) {
             const answer = submission.answers[field.key];
             if (
@@ -614,9 +801,10 @@ export class PostgresRegistrationRequirements {
               'WAIVER_REQUIRED',
               'A required waiver is missing',
             );
+          expectedWaiverKeys.add(`${item.lineId}:${documentId}`);
           const document = await trx
             .selectFrom('waiver_documents')
-            .select(['version', 'body_html', 'retired_at'])
+            .select(['version', 'body_html', 'retired_at', 'requires'])
             .where('org_id', '=', input.orgId)
             .where('id', '=', documentId)
             .executeTakeFirst();
@@ -628,13 +816,82 @@ export class PostgresRegistrationRequirements {
             );
           if (
             document.version !== submission.documentVersion ||
-            waiverDocumentHash(document.body_html, document.version) !==
-              submission.documentHash
+            waiverDocumentHash(document.body_html) !== submission.documentHash
           )
             throw new RegistrationCheckoutError(
               409,
               'REQUIREMENTS_STALE',
               'A waiver changed during checkout; reload and resubmit',
+            );
+          const person = await trx
+            .selectFrom('people')
+            .select(['date_of_birth', 'first_name', 'last_name'])
+            .where('org_id', '=', input.orgId)
+            .where('id', '=', item.personId)
+            .executeTakeFirstOrThrow();
+          const links = await trx
+            .selectFrom('person_account_links')
+            .select('relationship')
+            .where('org_id', '=', input.orgId)
+            .where('person_id', '=', item.personId)
+            .where('account_id', '=', this.context.actor.accountId)
+            .where('verified_at', 'is not', null)
+            .where('revoked_at', 'is', null)
+            .execute();
+          const isGuardian = links.some(
+            (link) => link.relationship === 'guardian',
+          );
+          const isParticipant = links.some(
+            (link) => link.relationship === 'self',
+          );
+          const minor =
+            ageOnDate(
+              person.date_of_birth.toISOString().slice(0, 10),
+              localDate,
+            ) < 18;
+          const personName = `${person.first_name} ${person.last_name}`;
+          const accountName = `${signerAccount.first_name} ${signerAccount.last_name}`;
+          const guardianSignatureMatches =
+            isGuardian && sameName(submission.signerName, accountName);
+          const participantSignatureMatches =
+            isParticipant && sameName(submission.signerName, personName);
+          const childSignatureMatches = sameName(
+            submission.participantSignerName ?? '',
+            personName,
+          );
+          const validSigner =
+            document.requires === 'guardian_if_minor'
+              ? minor
+                ? guardianSignatureMatches
+                : participantSignatureMatches
+              : document.requires === 'participant'
+                ? participantSignatureMatches
+                : guardianSignatureMatches && childSignatureMatches;
+          if (!validSigner)
+            throw new RegistrationCheckoutError(
+              409,
+              'WAIVER_SIGNER_REQUIRED',
+              document.requires === 'both'
+                ? 'A verified guardian and the participant must sign this waiver'
+                : minor
+                  ? 'A verified guardian must sign this waiver'
+                  : 'The participant must sign this waiver',
+            );
+          signerRoles.set(
+            `${item.lineId}:${documentId}`,
+            document.requires === 'both' ||
+              (document.requires === 'guardian_if_minor' && minor)
+              ? 'guardian'
+              : 'participant',
+          );
+          if (
+            document.requires !== 'both' &&
+            submission.participantSignerName !== undefined
+          )
+            throw new RegistrationCheckoutError(
+              400,
+              'WAIVER_SIGNER_MISMATCH',
+              'This waiver does not require a participant co-signature',
             );
         }
       }
@@ -651,6 +908,15 @@ export class PostgresRegistrationRequirements {
           400,
           'REQUIREMENTS_MISMATCH',
           'Requirements reference a line outside the cart',
+        );
+      if (
+        [...submitForms.keys()].some((key) => !expectedFormKeys.has(key)) ||
+        [...submitWaivers.keys()].some((key) => !expectedWaiverKeys.has(key))
+      )
+        throw new RegistrationCheckoutError(
+          400,
+          'REQUIREMENTS_MISMATCH',
+          'Requirements include a form or waiver outside this cart',
         );
       if (requirements.planTemplateId) {
         const template = await trx
@@ -684,6 +950,17 @@ export class PostgresRegistrationRequirements {
       }
       const stored: CheckoutRequirements = {
         ...requirements,
+        waivers: requirements.waivers.map((waiver) => ({
+          ...waiver,
+          signerRole: signerRoles.get(
+            `${waiver.lineId}:${waiver.waiverDocumentId}`,
+          ),
+        })),
+        forms: requirements.forms.map(
+          (form) =>
+            sanitizedForms.get(`${form.lineId}:${form.formDefinitionId}`) ??
+            form,
+        ),
         evidence: {
           ...(input.ip ? { ip: input.ip } : {}),
           ...(input.userAgent ? { userAgent: input.userAgent } : {}),
@@ -694,6 +971,14 @@ export class PostgresRegistrationRequirements {
         .updateTable('checkouts')
         .set({
           requirements: stored as Json,
+          requirements_enc: Object.keys(restrictedByForm).length
+            ? encryptRestricted(
+                Buffer.from(
+                  JSON.stringify({ version: 1, forms: restrictedByForm }),
+                ),
+                this.encryption,
+              )
+            : null,
           requirements_completed_at: this.now(),
           version: sql`version + 1`,
         })
