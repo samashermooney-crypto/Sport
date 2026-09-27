@@ -61,12 +61,15 @@ export interface PaymentsGateway {
     idempotencyKey: string,
   ): Promise<GatewayPaymentIntent>;
   createRefund(input: {
+    orgId?: string;
     paymentIntentId: string;
     amountCents: number;
     reverseTransfer: boolean;
     refundApplicationFee: boolean;
     idempotencyKey: string;
   }): Promise<{ id: string; status: string; amountCents: number }>;
+  retrieveRefund(refundId: string): Promise<GatewayRefund>;
+  listRefundsForCharge(chargeId: string): Promise<GatewayRefund[]>;
   reverseTransfer(input: {
     transferId: string;
     amountCents: number;
@@ -127,6 +130,15 @@ export interface GatewayPaymentIntent {
     'card' | 'us_bank_account' | 'link' | 'apple_pay' | 'google_pay' | null;
   failureCode?: string | null;
   failureMessage?: string | null;
+  orgId?: string | null;
+}
+
+export interface GatewayRefund {
+  id: string;
+  status: string;
+  amountCents: number;
+  paymentIntentId: string | null;
+  orgId: string | null;
 }
 
 export interface GatewayPaymentMethod {

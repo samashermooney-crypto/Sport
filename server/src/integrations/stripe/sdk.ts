@@ -7,6 +7,7 @@ import {
   type GatewayBalanceTransaction,
   type GatewayPaymentMethod,
   type GatewayPaymentIntent,
+  type GatewayRefund,
   type GatewayPayout,
   type PaymentsGateway,
 } from './gateway.js';
@@ -43,6 +44,7 @@ function paymentIntentView(intent: Stripe.PaymentIntent): GatewayPaymentIntent {
       intent.last_payment_error?.code ??
       null,
     failureMessage: intent.last_payment_error?.message ?? null,
+    orgId: intent.metadata.org_id ?? null,
   };
 }
 
@@ -303,6 +305,7 @@ export class StripeSdkGateway implements PaymentsGateway {
   }
 
   async createRefund(input: {
+    orgId?: string;
     paymentIntentId: string;
     amountCents: number;
     reverseTransfer: boolean;
@@ -318,6 +321,7 @@ export class StripeSdkGateway implements PaymentsGateway {
         amount: input.amountCents,
         reverse_transfer: input.reverseTransfer,
         refund_application_fee: input.refundApplicationFee,
+        ...(input.orgId ? { metadata: { org_id: input.orgId } } : {}),
       },
       { idempotencyKey: input.idempotencyKey },
     );
@@ -325,6 +329,34 @@ export class StripeSdkGateway implements PaymentsGateway {
       id: refund.id,
       status: refund.status ?? 'pending',
       amountCents: refund.amount,
+    };
+  }
+
+  async retrieveRefund(refundId: string): Promise<GatewayRefund> {
+    const refund = await this.stripe.refunds.retrieve(refundId);
+    return this.refundView(refund);
+  }
+
+  async listRefundsForCharge(chargeId: string): Promise<GatewayRefund[]> {
+    const page = await this.stripe.refunds.list({
+      charge: chargeId,
+      limit: 100,
+    });
+    if (page.has_more)
+      throw new Error('Stripe charge refunds require pagination');
+    return page.data.map((refund) => this.refundView(refund));
+  }
+
+  private refundView(refund: Stripe.Refund): GatewayRefund {
+    return {
+      id: refund.id,
+      status: refund.status ?? 'pending',
+      amountCents: refund.amount,
+      paymentIntentId:
+        typeof refund.payment_intent === 'string'
+          ? refund.payment_intent
+          : (refund.payment_intent?.id ?? null),
+      orgId: refund.metadata?.org_id ?? null,
     };
   }
 

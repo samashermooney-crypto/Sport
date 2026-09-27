@@ -70,6 +70,19 @@ export interface RefundAttemptStore {
   fail(input: { orgId: string; paymentId: string; key: string }): Promise<void>;
 }
 
+/** Persists a Stripe refund and line allocations before the attempt completes. */
+export interface RefundRecordStore {
+  recordPending(input: {
+    orgId: string;
+    paymentId: string;
+    refundId: string;
+    proposal: ProposedRefund;
+    requestedByAccountId: string;
+    approvedByAccountId: string | null;
+    refundApplicationFee: boolean;
+  }): Promise<void>;
+}
+
 export interface RefundRequest {
   orgId: string;
   paymentId: string;
@@ -115,6 +128,7 @@ export class StripeRefundService {
     private readonly approvals: RefundApprovalPolicy,
     private readonly attempts: RefundAttemptStore,
     private readonly gateway: Pick<PaymentsGateway, 'createRefund'>,
+    private readonly records: RefundRecordStore,
   ) {}
 
   async refund(input: RefundRequest): Promise<RefundResult> {
@@ -168,13 +182,28 @@ export class StripeRefundService {
       });
       externalStarted = true;
       const refund = await this.gateway.createRefund({
+        orgId: input.orgId,
         paymentIntentId: source.paymentIntentId,
         amountCents: proposal.totalCents,
         reverseTransfer: true,
         refundApplicationFee: source.refundApplicationFee,
         idempotencyKey: `refund:${input.paymentId}:${input.idempotencyKey}`,
       });
+      if (
+        !refund.id.startsWith('re_') ||
+        refund.amountCents !== proposal.totalCents
+      )
+        throw new Error('Stripe refund differs from the approved proposal');
       const result = { id: refund.id, status: refund.status, proposal };
+      await this.records.recordPending({
+        orgId: input.orgId,
+        paymentId: input.paymentId,
+        refundId: refund.id,
+        proposal,
+        requestedByAccountId: input.requestedByAccountId,
+        approvedByAccountId: input.approvedByAccountId ?? null,
+        refundApplicationFee: source.refundApplicationFee,
+      });
       await this.attempts.complete({
         orgId: input.orgId,
         paymentId: input.paymentId,
