@@ -1,0 +1,12 @@
+// Instantiate inside withOrg; never use an unscoped database handle here.
+export interface SchedulingRepository {
+  list(): Promise<readonly SchedulingRecord[]>;
+  get(id: string): Promise<SchedulingRecord | null>;
+  create(input: { name: string }): Promise<SchedulingRecord>;
+}
+
+export interface SchedulingRecord {
+  id: string;
+  orgId: string;
+  name: string;
+}
