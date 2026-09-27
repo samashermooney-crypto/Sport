@@ -14,9 +14,11 @@ import type {
   AudienceSpec,
   CampaignDraft,
   CommunicationCategory,
+  DeliveryChannel,
 } from './schema';
 import {
   audienceOptionsSchema,
+  campaignAudiencePreviewSchema,
   campaignDraftSchema,
   campaignSummarySchema,
 } from './schema';
@@ -407,22 +409,15 @@ export async function updateCampaign(
   });
 }
 
-export async function previewCampaign(
+async function previewAudience(
   context: OrgContext,
-  campaignId: string,
+  audience: AudienceSpec,
+  category: CommunicationCategory,
+  channels: DeliveryChannel[],
   now = new Date(),
   runWithOrg: typeof withOrg = withOrg,
 ) {
-  const campaign = await runWithOrg(context, async (trx) => {
-    await requireCommunicationsRole(trx, context);
-    return requiredCampaign(trx, context, campaignId);
-  });
-  const recipients = await resolveAudience(
-    context,
-    campaign.audience as unknown as AudienceSpec,
-    now,
-    runWithOrg,
-  );
+  const recipients = await resolveAudience(context, audience, now, runWithOrg);
   const eligibility = await runWithOrg(context, async (trx) => {
     const accountIds = [
       ...new Set(recipients.map((recipient) => recipient.accountId)),
@@ -433,7 +428,7 @@ export async function previewCampaign(
           .select(['account_id', 'channel', 'enabled'])
           .where('org_id', '=', context.orgId)
           .where('account_id', 'in', accountIds)
-          .where('category', '=', campaign.category)
+          .where('category', '=', category)
           .execute()
       : [];
     const preferenceMap = new Map(
@@ -500,13 +495,13 @@ export async function previewCampaign(
       : [];
     const pushAccounts = new Set(pushIds.map((item) => item.account_id));
     const channelsFor = (recipient: ResolvedRecipient) =>
-      campaign.channels.filter((channel) => {
+      channels.filter((channel) => {
         const configured = preferenceMap.get(
           `${recipient.accountId}:${channel}`,
         );
         if (
           configured === false ||
-          (campaign.category === 'marketing' && configured !== true)
+          (category === 'marketing' && configured !== true)
         )
           return false;
         if (channel === 'email')
@@ -537,7 +532,7 @@ export async function previewCampaign(
     channels: eligibility.channelsFor(recipient),
   }));
   const counts = Object.fromEntries(
-    campaign.channels.map((channel) => [
+    channels.map((channel) => [
       channel,
       recipients.filter((recipient) =>
         eligibility.channelsFor(recipient).includes(channel),
@@ -549,6 +544,55 @@ export async function previewCampaign(
     counts,
     recipients: visibleRecipients,
   };
+}
+
+export async function previewCampaign(
+  context: OrgContext,
+  campaignId: string,
+  now = new Date(),
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const campaign = await runWithOrg(context, async (trx) => {
+    const row = await requiredCampaign(trx, context, campaignId);
+    await requireCommunicationsRole(trx, context, row.category === 'emergency');
+    return row;
+  });
+  return previewAudience(
+    context,
+    campaign.audience as unknown as AudienceSpec,
+    campaign.category as CommunicationCategory,
+    campaign.channels as DeliveryChannel[],
+    now,
+    runWithOrg,
+  );
+}
+
+export async function previewCampaignDraft(
+  context: OrgContext,
+  input: {
+    audience: AudienceSpec;
+    category: CommunicationCategory;
+    channels: DeliveryChannel[];
+  },
+  now = new Date(),
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const parsed = campaignAudiencePreviewSchema.parse(input);
+  await runWithOrg(context, async (trx) => {
+    await requireCommunicationsRole(
+      trx,
+      context,
+      parsed.category === 'emergency',
+    );
+  });
+  return previewAudience(
+    context,
+    parsed.audience,
+    parsed.category,
+    parsed.channels,
+    now,
+    runWithOrg,
+  );
 }
 
 export async function scheduleCampaign(

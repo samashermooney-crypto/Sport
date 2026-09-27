@@ -146,7 +146,10 @@ export const audienceOptionsSchema = z.strictObject({
 });
 export const campaignPreviewSchema = z.strictObject({
   recipientCount: z.number().int().nonnegative(),
-  counts: z.record(deliveryChannelSchema, z.number().int().nonnegative()),
+  counts: z.partialRecord(
+    deliveryChannelSchema,
+    z.number().int().nonnegative(),
+  ),
   recipients: z
     .array(
       z.strictObject({
@@ -158,6 +161,16 @@ export const campaignPreviewSchema = z.strictObject({
     )
     .max(50),
 });
+export const campaignAudiencePreviewSchema = z
+  .strictObject({
+    audience: audienceSpecSchema,
+    category: communicationCategorySchema,
+    channels: z.array(deliveryChannelSchema).min(1).max(4),
+  })
+  .refine((value) => new Set(value.channels).size === value.channels.length, {
+    message: 'Delivery channels must be unique',
+    path: ['channels'],
+  });
 export const campaignStatsSchema = z.strictObject({
   id: z.uuid(),
   status: campaignSummarySchema.shape.status,

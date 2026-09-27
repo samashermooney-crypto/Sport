@@ -18,6 +18,7 @@ import { deliverDueCampaigns } from './delivery';
 import { createCommunicationsRouter } from './routes';
 import {
   audienceOptionsSchema,
+  campaignAudiencePreviewSchema,
   campaignDetailSchema,
   campaignDraftSchema,
   campaignListSchema,
@@ -55,6 +56,13 @@ const routes = [
     summary: 'Search people, teams and programs for campaign targeting',
     response: audienceOptionsSchema,
     query: { search: z.string().optional() },
+  },
+  {
+    method: 'post',
+    path: '/api/v1/communications/orgs/{orgId}/audience-preview',
+    summary: 'Preview current campaign audience and eligible channels',
+    body: campaignAudiencePreviewSchema,
+    response: campaignPreviewSchema,
   },
   {
     method: 'get',
