@@ -3,6 +3,7 @@ import {
   authStatusResponseSchema,
 } from '@shared/schemas/auth';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 
 import { apiPost } from '../api/client';
@@ -15,18 +16,18 @@ const content: Record<
   { heading: string; action: string; endpoint: string }
 > = {
   verify: {
-    heading: 'Verify your email',
-    action: 'Verify email',
+    heading: 'verifyEmailTitle',
+    action: 'verifyEmailAction',
     endpoint: '/auth/verify-email',
   },
   magic: {
-    heading: 'Sign in with your link',
-    action: 'Sign in',
+    heading: 'magicRedeemTitle',
+    action: 'signIn',
     endpoint: '/auth/magic/redeem',
   },
   'email-change': {
-    heading: 'Confirm your new email',
-    action: 'Confirm email',
+    heading: 'emailChangeTitle',
+    action: 'emailChangeAction',
     endpoint: '/auth/email/change/confirm',
   },
 };
@@ -38,6 +39,7 @@ export function TokenAction({
 }): React.JSX.Element {
   const { token } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation('auth');
   const [error, setError] = useState('');
   const [complete, setComplete] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -67,35 +69,29 @@ export function TokenAction({
       await apiPost(copy.endpoint, { token }, authStatusResponseSchema);
       setComplete(true);
     } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : 'The link could not be used.',
-      );
+      setError(caught instanceof Error ? caught.message : t('linkFailed'));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <AuthFrame footer={<AuthLink to="/">Return to sign in</AuthLink>}>
-      <h1>{copy.heading}</h1>
+    <AuthFrame footer={<AuthLink to="/">{t('returnToSignIn')}</AuthLink>}>
+      <h1>{t(copy.heading)}</h1>
       {complete ? (
         <p role="status">
-          {purpose === 'verify'
-            ? 'Email verified. You can now sign in.'
-            : 'Email changed. Please sign in again.'}
+          {purpose === 'verify' ? t('emailVerified') : t('emailChanged')}
         </p>
       ) : (
         <>
-          <p>This link can be used once. Continue to confirm the request.</p>
+          <p>{t('oneUseLink')}</p>
           <ErrorBox error={error} />
           <Button
             type="button"
             disabled={busy || !token}
             onClick={() => void act()}
           >
-            {busy ? 'Working…' : copy.action}
+            {busy ? t('working') : t(copy.action)}
           </Button>
         </>
       )}
