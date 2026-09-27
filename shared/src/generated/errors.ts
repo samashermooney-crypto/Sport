@@ -3,4 +3,6 @@ export const moduleErrorCodes = [
   'CLASS_OFFERING_FULL',
   'CLASS_SESSION_FULL',
   'MAKEUP_CREDIT_UNAVAILABLE',
+  'SCHEDULE_CONFLICT',
+  'SCHEDULE_INVALID',
 ] as const;

@@ -9,7 +9,7 @@ Owns: `server/src/modules/classes/**`, `web/src/console/classes/**`, `web/src/po
 ## Ready for integration
 
 - Class backend, console and family portal are implemented; nested route discovery now includes both academy route files in `web/src/generated/nested-routes.ts`.
-- Focused academy integration (17 tests), family portal component test, and the Chromium make-up journey pass; full trunk merge gate remains pending.
+- Focused academy integration (17 tests), family portal component test, Chromium make-up journey, and schema spine (4 tests) pass; migration 5006 indexes all academy foreign keys, and the full trunk merge gate remains pending.
 
 ## Requests to other tracks
 

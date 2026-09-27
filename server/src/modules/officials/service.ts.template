@@ -1,0 +1,10 @@
+import type { CreateOfficialsInput } from '../../../../shared/src/schemas/officials.js';
+import type { OfficialsRepository } from './repo.js';
+
+export function createOfficialsService(repository: OfficialsRepository) {
+  return {
+    list: () => repository.list(),
+    get: (id: string) => repository.get(id),
+    create: (input: CreateOfficialsInput) => repository.create(input),
+  };
+}

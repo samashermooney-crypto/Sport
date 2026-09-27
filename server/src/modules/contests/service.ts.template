@@ -1,0 +1,10 @@
+import type { CreateContestsInput } from '../../../../shared/src/schemas/contests.js';
+import type { ContestsRepository } from './repo.js';
+
+export function createContestsService(repository: ContestsRepository) {
+  return {
+    list: () => repository.list(),
+    get: (id: string) => repository.get(id),
+    create: (input: CreateContestsInput) => repository.create(input),
+  };
+}
