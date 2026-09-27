@@ -195,11 +195,41 @@ type Slot = {
   startsAt: string;
   endsAt: string;
   blockedUntil: string;
+  startsAtEpochMs: number;
+  endsAtEpochMs: number;
   localDate: string;
   localMinutes: number;
   weekday: number;
   weekKey: string;
 };
+type LocalParts = ReturnType<typeof localParts>;
+type LocalPartsLookup = (instant: string) => LocalParts;
+type EpochMillisecondsLookup = (instant: string) => number;
+
+function createLocalPartsLookup(timezone: string): LocalPartsLookup {
+  const byInstant = new Map<string, LocalParts>();
+  return (instant) => {
+    const cached = byInstant.get(instant);
+    if (cached) return cached;
+    const parts = localParts(instant, timezone);
+    byInstant.set(instant, parts);
+    return parts;
+  };
+}
+
+function createEpochMillisecondsLookup(): EpochMillisecondsLookup {
+  const byInstant = new Map<string, number>();
+  return (instant) => {
+    const cached = byInstant.get(instant);
+    if (cached !== undefined) return cached;
+    const milliseconds = Date.parse(instant);
+    if (!Number.isFinite(milliseconds))
+      throw new RangeError('Invalid schedule instant');
+    byInstant.set(instant, milliseconds);
+    return milliseconds;
+  };
+}
+
 function overlaps(
   aStart: string,
   aEnd: string,
@@ -226,6 +256,7 @@ function localParts(
 
 export function expandSpaceSlots(input: GeneratorInput): Slot[] {
   const slots: Slot[] = [];
+  const localPartsAt = createLocalPartsLookup(input.timezone);
   for (const space of input.spaces) {
     for (const window of space.availability) {
       const start = Temporal.Instant.from(window.startsAt).epochMilliseconds;
@@ -263,7 +294,7 @@ export function expandSpaceSlots(input: GeneratorInput): Slot[] {
           )
         )
           continue;
-        const local = localParts(startsAt, input.timezone);
+        const local = localPartsAt(startsAt);
         if (
           local.date < input.seasonStartsOn ||
           local.date > input.seasonEndsOn
@@ -275,6 +306,8 @@ export function expandSpaceSlots(input: GeneratorInput): Slot[] {
           startsAt,
           endsAt,
           blockedUntil,
+          startsAtEpochMs: ms,
+          endsAtEpochMs: ms + input.durationMinutes * minuteMs,
           localDate: local.date,
           localMinutes: local.minutes,
           weekday: local.weekday,
@@ -310,6 +343,8 @@ function hardAllowed(
   teamById: Map<string, GeneratorTeam>,
   spaceById: Map<string, GeneratorSpace>,
   divisionById: Map<string, GeneratorDivision>,
+  localPartsAt: LocalPartsLookup,
+  epochMillisecondsAt: EpochMillisecondsLookup,
 ): boolean {
   const division = divisionById.get(pairing.divisionId);
   const space = spaceById.get(slot.spaceId);
@@ -364,7 +399,7 @@ function hardAllowed(
     const sharedTeams = currentIds.filter((id) => eventTeams.includes(id));
     const sharedTeam = sharedTeams.length > 0;
     if (sharedTeam) {
-      const eventSlot = localParts(event.startsAt, input.timezone);
+      const eventSlot = localPartsAt(event.startsAt);
       for (const teamId of sharedTeams) {
         if (eventSlot.date === slot.localDate) {
           const count = (sameDayGames.get(teamId) ?? 0) + 1;
@@ -377,13 +412,6 @@ function hardAllowed(
           if (count >= maxWeek) return false;
         }
       }
-      const gap = Math.max(
-        Temporal.Instant.from(slot.startsAt).epochMilliseconds -
-          Temporal.Instant.from(event.endsAt).epochMilliseconds,
-        Temporal.Instant.from(event.startsAt).epochMilliseconds -
-          Temporal.Instant.from(slot.endsAt).epochMilliseconds,
-      );
-      if (gap < restMs) return false;
     }
     const otherHome = teamById.get(event.homeTeamId);
     const otherAway = teamById.get(event.awayTeamId);
@@ -391,15 +419,21 @@ function hardAllowed(
       ...(otherHome?.coachIds ?? []),
       ...(otherAway?.coachIds ?? []),
     ].some((id) => coaches.has(id));
+    let gapMs: number | undefined;
+    if (sharedTeam) {
+      gapMs = Math.max(
+        slot.startsAtEpochMs - epochMillisecondsAt(event.endsAt),
+        epochMillisecondsAt(event.startsAt) - slot.endsAtEpochMs,
+      );
+      if (gapMs < restMs) return false;
+    }
     if (sharedCoach) {
       const travelMs = event.facilityId === slot.facilityId ? 0 : 30 * minuteMs;
-      const gap = Math.max(
-        Temporal.Instant.from(slot.startsAt).epochMilliseconds -
-          Temporal.Instant.from(event.endsAt).epochMilliseconds,
-        Temporal.Instant.from(event.startsAt).epochMilliseconds -
-          Temporal.Instant.from(slot.endsAt).epochMilliseconds,
+      gapMs ??= Math.max(
+        slot.startsAtEpochMs - epochMillisecondsAt(event.endsAt),
+        epochMillisecondsAt(event.startsAt) - slot.endsAtEpochMs,
       );
-      if (gap < travelMs) return false;
+      if (gapMs < travelMs) return false;
     }
   }
   return true;
@@ -410,6 +444,7 @@ function penalty(
   input: GeneratorInput,
   teamById: Map<string, GeneratorTeam>,
   divisionById: Map<string, GeneratorDivision>,
+  localPartsAt: LocalPartsLookup,
 ): number {
   const w = { ...defaultWeights, ...input.weights };
   let total = 0;
@@ -431,7 +466,7 @@ function penalty(
         ).length * w.homeSpace;
     const perWeek = new Map<string, number>();
     games.forEach((game) => {
-      const key = localParts(game.startsAt, input.timezone).week;
+      const key = localPartsAt(game.startsAt).week;
       perWeek.set(key, (perWeek.get(key) ?? 0) + 1);
     });
     if (perWeek.size > 1) {
@@ -458,7 +493,7 @@ function penalty(
   }
   for (const event of events) {
     const division = divisionById.get(event.divisionId);
-    const local = localParts(event.startsAt, input.timezone);
+    const local = localPartsAt(event.startsAt);
     if (division?.preferredStartMinutes !== undefined)
       total +=
         (Math.abs(local.minutes - division.preferredStartMinutes) / 30) *
@@ -501,6 +536,7 @@ function incrementalPenalty(
   input: GeneratorInput,
   teamById: Map<string, GeneratorTeam>,
   divisionById: Map<string, GeneratorDivision>,
+  localPartsAt: LocalPartsLookup,
 ): number {
   const w = { ...defaultWeights, ...input.weights };
   const home = teamById.get(pairing.homeTeamId);
@@ -527,8 +563,7 @@ function incrementalPenalty(
       w.homeAwayImbalance;
     value +=
       prior.filter(
-        (event) =>
-          localParts(event.startsAt, input.timezone).week === slot.weekKey,
+        (event) => localPartsAt(event.startsAt).week === slot.weekKey,
       ).length * w.weeklySpread;
     const previous = [...prior].sort((a, b) =>
       b.startsAt.localeCompare(a.startsAt),
@@ -567,6 +602,7 @@ function incrementalPenalty(
 function metrics(
   events: readonly DraftEvent[],
   input: GeneratorInput,
+  localPartsAt: LocalPartsLookup,
 ): TeamScheduleMetrics[] {
   return input.teams.map((team) => {
     const games = events.filter(
@@ -574,13 +610,13 @@ function metrics(
     );
     const times = games
       .map((game) => {
-        const local = localParts(game.startsAt, input.timezone).minutes;
+        const local = localPartsAt(game.startsAt).minutes;
         return `${String(Math.floor(local / 60)).padStart(2, '0')}:${String(local % 60).padStart(2, '0')}`;
       })
       .sort();
     const gamesPerWeek: Record<string, number> = {};
     games.forEach((game) => {
-      const key = localParts(game.startsAt, input.timezone).week;
+      const key = localPartsAt(game.startsAt).week;
       gamesPerWeek[key] = (gamesPerWeek[key] ?? 0) + 1;
     });
     return {
@@ -723,6 +759,8 @@ export function generateSchedule(input: GeneratorInput): GeneratorOutput {
   const divisionById = new Map(
     input.divisions.map((division) => [division.id, division]),
   );
+  const localPartsAt = createLocalPartsLookup(input.timezone);
+  const epochMillisecondsAt = createEpochMillisecondsLookup();
   const pairings = input.divisions.flatMap(circlePairings);
   const slots = expandSpaceSlots(input);
   const feasible = (pairing: Pairing, events: readonly DraftEvent[]): Slot[] =>
@@ -735,6 +773,8 @@ export function generateSchedule(input: GeneratorInput): GeneratorOutput {
         teamById,
         spaceById,
         divisionById,
+        localPartsAt,
+        epochMillisecondsAt,
       ),
     );
   const ordered = [...pairings].sort(
@@ -762,15 +802,30 @@ export function generateSchedule(input: GeneratorInput): GeneratorOutput {
         input,
         teamById,
         divisionById,
+        localPartsAt,
       ) <
-      incrementalPenalty(pairing, best, assigned, input, teamById, divisionById)
+      incrementalPenalty(
+        pairing,
+        best,
+        assigned,
+        input,
+        teamById,
+        divisionById,
+        localPartsAt,
+      )
         ? slot
         : best,
     );
     assigned.push(asEvent(pairing, chosen));
   }
   const rng = random(input.seed);
-  let currentPenalty = penalty(assigned, input, teamById, divisionById);
+  let currentPenalty = penalty(
+    assigned,
+    input,
+    teamById,
+    divisionById,
+    localPartsAt,
+  );
   const iterations = Math.floor(
     Math.min(budget * 200, 100_000 / Math.max(1, assigned.length)),
   );
@@ -810,6 +865,8 @@ export function generateSchedule(input: GeneratorInput): GeneratorOutput {
           teamById,
           spaceById,
           divisionById,
+          localPartsAt,
+          epochMillisecondsAt,
         ) ||
         !hardAllowed(
           movedB,
@@ -819,6 +876,8 @@ export function generateSchedule(input: GeneratorInput): GeneratorOutput {
           teamById,
           spaceById,
           divisionById,
+          localPartsAt,
+          epochMillisecondsAt,
         )
       )
         continue;
@@ -833,7 +892,13 @@ export function generateSchedule(input: GeneratorInput): GeneratorOutput {
         },
       ];
     }
-    const proposedPenalty = penalty(proposal, input, teamById, divisionById);
+    const proposedPenalty = penalty(
+      proposal,
+      input,
+      teamById,
+      divisionById,
+      localPartsAt,
+    );
     const temperature = 50 * (0.1 / 50) ** (step / Math.max(1, iterations - 1));
     if (
       proposedPenalty <= currentPenalty ||
@@ -850,7 +915,13 @@ export function generateSchedule(input: GeneratorInput): GeneratorOutput {
         if (slot) {
           assigned.push(asEvent(pairing, slot));
           unscheduled.splice(i, 1);
-          currentPenalty = penalty(assigned, input, teamById, divisionById);
+          currentPenalty = penalty(
+            assigned,
+            input,
+            teamById,
+            divisionById,
+            localPartsAt,
+          );
         }
       }
     }
@@ -871,8 +942,14 @@ export function generateSchedule(input: GeneratorInput): GeneratorOutput {
             'No suitable space and time window remains after availability and blackouts.',
           ],
     })),
-    totalPenalty: penalty(balancedAssigned, input, teamById, divisionById),
-    teamMetrics: metrics(balancedAssigned, input),
+    totalPenalty: penalty(
+      balancedAssigned,
+      input,
+      teamById,
+      divisionById,
+      localPartsAt,
+    ),
+    teamMetrics: metrics(balancedAssigned, input, localPartsAt),
   };
 }
 

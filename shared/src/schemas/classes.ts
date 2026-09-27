@@ -9,19 +9,13 @@ import {
   tenantEntitySchema,
 } from './entities/base';
 
-export const classBillingSchema = z.enum([
-  'term',
-  'monthly',
-  'drop_in',
-  'punch_card',
-]);
-export type ClassBilling = z.infer<typeof classBillingSchema>;
+const classBillingSchema = z.enum(['term', 'monthly', 'drop_in', 'punch_card']);
 
 export const tuitionTierSchema = z.strictObject({
   maxClassesPerWeek: z.number().int().positive().nullable(),
   amountCents: moneyCentsSchema,
 });
-export const tuitionTiersSchema = z
+const tuitionTiersSchema = z
   .array(tuitionTierSchema)
   .max(12)
   .superRefine((tiers, ctx) => {
@@ -42,13 +36,12 @@ export const tuitionTiersSchema = z
   });
 export type TuitionTier = z.infer<typeof tuitionTierSchema>;
 
-export const makeupPolicySchema = z.strictObject({
+const makeupPolicySchema = z.strictObject({
   creditsPerTerm: z.number().int().nonnegative().default(0),
   expiryDays: z.number().int().positive().default(90),
   eligibleLevelIds: z.array(entityIdSchema).nullable().default(null),
   eligibleOfferingIds: z.array(entityIdSchema).nullable().default(null),
 });
-export type MakeupPolicy = z.infer<typeof makeupPolicySchema>;
 
 export const classOfferingSchema = tenantEntitySchema.extend({
   programId: entityIdSchema,
@@ -169,14 +162,6 @@ export type ClassScheduleUpdate = z.output<typeof classScheduleUpdateSchema>;
 export const instructorAssignSchema = z.strictObject({
   personId: entityIdSchema,
 });
-export const instructorSchema = z.strictObject({
-  id: entityIdSchema,
-  personId: entityIdSchema,
-  name: z.string(),
-  status: z.enum(['pending_compliance', 'active', 'removed']),
-  eligible: z.boolean(),
-  missing: z.array(z.string()),
-});
 export const classScheduleListSchema = z.strictObject({
   items: z.array(classScheduleSchema),
 });
@@ -210,7 +195,7 @@ export const classSessionListSchema = z.strictObject({
   items: z.array(classSessionSchema),
 });
 
-export const enrollmentStatusSchema = z.enum([
+const enrollmentStatusSchema = z.enum([
   'trial',
   'active',
   'paused',
@@ -293,7 +278,7 @@ export const resumeBodySchema = z.strictObject({
   expectedVersion: entityVersionSchema,
 });
 
-export const waitlistEntrySchema = z.strictObject({
+const waitlistEntrySchema = z.strictObject({
   id: entityIdSchema,
   classOfferingId: entityIdSchema,
   personId: entityIdSchema,
@@ -352,7 +337,7 @@ export const attendanceMarkSchema = z.strictObject({
   personId: entityIdSchema,
   status: z.enum(['present', 'absent', 'late', 'excused', 'unknown']),
 });
-export const sessionAttendanceSchema = z.strictObject({
+const sessionAttendanceSchema = z.strictObject({
   personId: entityIdSchema,
   personName: z.string(),
   membership: z.enum(['enrolled', 'drop_in', 'makeup', 'trial']),
@@ -493,20 +478,11 @@ export const syncLevelsBodySchema = z.strictObject({
   sportProfileId: entityIdSchema,
 });
 
-export const skillRecordStatusSchema = z.enum([
+const skillRecordStatusSchema = z.enum([
   'not_started',
   'in_progress',
   'achieved',
 ]);
-export const athleteSkillRecordSchema = z.strictObject({
-  skillId: entityIdSchema,
-  skillName: z.string(),
-  skillLevelId: entityIdSchema,
-  levelName: z.string(),
-  status: skillRecordStatusSchema,
-  assessedAt: z.iso.datetime().nullable(),
-  note: z.string().nullable(),
-});
 export const athleteProgressSchema = z.strictObject({
   personId: entityIdSchema,
   personName: z.string(),
@@ -637,52 +613,20 @@ export const academyDashboardSchema = z.strictObject({
 });
 export type AcademyDashboard = z.infer<typeof academyDashboardSchema>;
 
-export const classesErrorCodes = [
-  'CLASS_OFFERING_FULL',
-  'CLASS_AGE_INELIGIBLE',
-  'CLASS_ENROLLMENT_EXISTS',
-  'CLASS_SESSION_FULL',
-  'MAKEUP_CREDIT_UNAVAILABLE',
-  'MAKEUP_CREDIT_INELIGIBLE',
-  'PUNCH_CARD_EXHAUSTED',
-  'WITHDRAWAL_NOTICE_REQUIRED',
-  'PROMOTION_STATE_INVALID',
-  'INSTRUCTOR_INELIGIBLE',
-  'ENROLLMENT_NOT_ACTIVE',
-  'SCHEDULE_HAS_ENROLLMENTS',
-] as const;
-
 export type InstructorAssign = z.output<typeof instructorAssignSchema>;
-export type WaitlistEntry = z.infer<typeof waitlistEntrySchema>;
 export type BrowseClass = z.infer<typeof browseClassSchema>;
-export type AttendanceMark = z.infer<typeof attendanceMarkSchema>;
-export type SessionAttendance = z.infer<typeof sessionAttendanceSchema>;
 export type SessionRoster = z.infer<typeof sessionRosterSchema>;
 export type MarkAttendanceBody = z.output<typeof markAttendanceBodySchema>;
-export type CheckOutBody = z.output<typeof checkOutBodySchema>;
 export type MakeupCredit = z.infer<typeof makeupCreditSchema>;
-export type BookMakeupBody = z.output<typeof bookMakeupBodySchema>;
 export type PunchCard = z.infer<typeof punchCardSchema>;
-export type PunchCardPurchase = z.output<typeof punchCardPurchaseSchema>;
-export type DropInBody = z.output<typeof dropInBodySchema>;
 export type BookingResult = z.infer<typeof bookingResultSchema>;
 export type TuitionSubscription = z.infer<typeof tuitionSubscriptionSchema>;
-export type SubscriptionUpdate = z.output<typeof subscriptionUpdateSchema>;
 export type SkillLevel = z.infer<typeof skillLevelSchema>;
 export type Skill = z.infer<typeof skillSchema>;
 export type SkillLevelDetail = z.infer<typeof skillLevelDetailSchema>;
 export type SkillLevelBody = z.output<typeof skillLevelBodySchema>;
 export type SkillBody = z.output<typeof skillBodySchema>;
-export type SyncLevelsBody = z.output<typeof syncLevelsBodySchema>;
-export type SkillRecordStatus = z.infer<typeof skillRecordStatusSchema>;
-export type AthleteSkillRecord = z.infer<typeof athleteSkillRecordSchema>;
 export type AthleteProgress = z.infer<typeof athleteProgressSchema>;
-export type RecordSkillBody = z.output<typeof recordSkillBodySchema>;
-export type SessionSkillMarks = z.output<typeof sessionSkillMarksSchema>;
 export type Promotion = z.infer<typeof promotionSchema>;
-export type RecommendPromotion = z.output<typeof recommendPromotionSchema>;
-export type PromotionDecision = z.output<typeof promotionDecisionSchema>;
 export type WithdrawBody = z.output<typeof withdrawBodySchema>;
-export type WithdrawResult = z.infer<typeof withdrawResultSchema>;
 export type PauseBody = z.output<typeof pauseBodySchema>;
-export type ResumeBody = z.output<typeof resumeBodySchema>;

@@ -99,6 +99,18 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
         .where('id', '=', program.programId)
         .execute();
       await trx
+        .updateTable('teams')
+        .set({ name: 'Northside' })
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', home.teamId)
+        .execute();
+      await trx
+        .updateTable('teams')
+        .set({ name: 'Southside' })
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', away.teamId)
+        .execute();
+      await trx
         .insertInto('facilities')
         .values({
           id: facilityId,
@@ -206,7 +218,11 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
       page.getByLabel('Private mark (athlete) · staff only'),
     ).toBeVisible();
     await page.getByLabel('Goals (team) · public').check();
-    await page.getByRole('button', { name: 'Save statistic settings' }).click();
+    const saveStats = page.getByRole('button', {
+      name: 'Save statistic settings',
+    });
+    await saveStats.click();
+    await expect(saveStats).toBeEnabled({ timeout: 15_000 });
     await expect(page.getByRole('status')).toHaveText(
       'Program statistics settings saved.',
     );
@@ -218,6 +234,9 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     ).toBeVisible();
     await page.getByLabel(`Goals for ${home.teamSeasonId}`).fill('3');
     await page.getByLabel(`Goals for ${away.teamSeasonId}`).fill('1');
+    await page
+      .getByLabel('Format-specific result JSON')
+      .fill('{"home":2,"away":1}');
     await page.getByLabel('Finalize result and update standings').check();
     await page.getByRole('button', { name: 'Submit result' }).click();
     await expect(page.getByRole('status')).toHaveText('Result submitted.');
@@ -243,6 +262,45 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     await expect(
       page.getByRole('cell', { name: '3', exact: true }),
     ).toBeVisible();
+    await page.getByRole('button', { name: 'Load standings' }).click();
+    await expect(page.getByRole('status')).toHaveText(
+      'Standings snapshot loaded.',
+    );
+    const standingsRegion = page.getByRole('region', { name: 'Standings' });
+    await expect(
+      standingsRegion.getByRole('rowheader', { name: 'Northside' }),
+    ).toBeVisible();
+    await expect(
+      standingsRegion.getByRole('rowheader', { name: 'Southside' }),
+    ).toBeVisible();
+    const snapshot = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('standings_snapshots')
+        .select('rows')
+        .where('org_id', '=', actor.orgId)
+        .where('scope_type', '=', 'program')
+        .where('scope_id', '=', program.programId)
+        .orderBy('computed_at', 'desc')
+        .executeTakeFirst(),
+    );
+    expect(snapshot?.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          teamId: home.teamSeasonId,
+          played: 1,
+          wins: 1,
+          scored: 2,
+          allowed: 1,
+        }),
+        expect.objectContaining({
+          teamId: away.teamSeasonId,
+          played: 1,
+          losses: 1,
+          scored: 1,
+          allowed: 2,
+        }),
+      ]),
+    );
     const closureForm = page
       .locator('form')
       .filter({ has: page.getByRole('button', { name: 'Preview and close' }) });

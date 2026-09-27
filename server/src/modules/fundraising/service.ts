@@ -12,15 +12,15 @@ import { systemWorkerActorId } from '../jobs/credentials-expiry';
 
 import type { GuestDonationCheckoutPort } from './checkout';
 
-export class FundraisingConflictError extends Error {
+class FundraisingConflictError extends Error {
   readonly status = 409;
   readonly code = 'CONFLICT';
 }
-export class FundraisingNotFoundError extends Error {
+class FundraisingNotFoundError extends Error {
   readonly status = 404;
   readonly code = 'NOT_FOUND';
 }
-export class FundraisingCheckoutUnavailableError extends Error {
+class FundraisingCheckoutUnavailableError extends Error {
   readonly status = 503;
   readonly code = 'CHECKOUT_UNAVAILABLE';
 }
