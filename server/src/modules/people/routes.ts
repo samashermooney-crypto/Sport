@@ -1,4 +1,9 @@
 import {
+  emergencyContactCreateSchema,
+  emergencyContactRemoveSchema,
+  emergencyContactUpdateSchema,
+} from '@shared/schemas/emergencyContacts';
+import {
   householdCreateSchema,
   householdMemberCreateSchema,
   householdMemberRemoveSchema,
@@ -25,6 +30,7 @@ import { requestImpersonation } from '../../lib/tenant-guard';
 import type { AuthDependencies } from '../auth/routes';
 import { requireSession } from '../auth/routes';
 
+import { createEmergencyContactsRepository } from './emergencyContacts';
 import { listFamily } from './family';
 import { createGuardianLinksRepository } from './guardianLinks';
 import { createHouseholdsRepository } from './households';
@@ -90,6 +96,9 @@ export function createPeopleRouter(
     dependencies.database,
     dependencies.encryption,
   );
+  const emergencyContacts = createEmergencyContactsRepository(
+    dependencies.database,
+  );
   router.use(express.json({ limit: '32kb' }));
   router.use((_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
@@ -149,6 +158,112 @@ export function createPeopleRouter(
       sendError(response, error);
     }
   });
+
+  router.get(
+    '/orgs/:orgId/:personId/emergency-contacts',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(
+            404,
+            'NOT_FOUND',
+            'Emergency contacts not found',
+          );
+        response.json(
+          await emergencyContacts.list(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            z.uuid().parse(request.params.personId),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/:personId/emergency-contacts',
+    async (request, response) => {
+      try {
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid request origin');
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        const orgId = z.uuid().parse(request.params.orgId);
+        const personId = z.uuid().parse(request.params.personId);
+        await emergencyContacts.create(
+          orgId,
+          session.accountId,
+          personId,
+          emergencyContactCreateSchema.parse(request.body),
+        );
+        response
+          .status(201)
+          .json(
+            await emergencyContacts.list(orgId, session.accountId, personId),
+          );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.patch(
+    '/orgs/:orgId/:personId/emergency-contacts/:contactId',
+    async (request, response) => {
+      try {
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid request origin');
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        const orgId = z.uuid().parse(request.params.orgId);
+        const personId = z.uuid().parse(request.params.personId);
+        await emergencyContacts.update(
+          orgId,
+          session.accountId,
+          personId,
+          z.uuid().parse(request.params.contactId),
+          emergencyContactUpdateSchema.parse(request.body),
+        );
+        response.json(
+          await emergencyContacts.list(orgId, session.accountId, personId),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/:personId/emergency-contacts/:contactId/remove',
+    async (request, response) => {
+      try {
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid request origin');
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        const orgId = z.uuid().parse(request.params.orgId);
+        const personId = z.uuid().parse(request.params.personId);
+        await emergencyContacts.remove(
+          orgId,
+          session.accountId,
+          personId,
+          z.uuid().parse(request.params.contactId),
+          emergencyContactRemoveSchema.parse(request.body).expectedVersion,
+        );
+        response.json(
+          await emergencyContacts.list(orgId, session.accountId, personId),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
 
   router.get('/orgs/:orgId', async (request, response) => {
     try {

@@ -1,4 +1,10 @@
 import {
+  emergencyContactCreateSchema,
+  emergencyContactRemoveSchema,
+  emergencyContactsSchema,
+  emergencyContactUpdateSchema,
+} from '@shared/schemas/emergencyContacts';
+import {
   householdCreateSchema,
   householdListSchema,
   householdMemberCreateSchema,
@@ -44,6 +50,33 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/emergency-contacts',
+      summary: 'List audited emergency contacts for an authorized person',
+      response: emergencyContactsSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/emergency-contacts',
+      summary: 'Add an emergency contact',
+      body: emergencyContactCreateSchema,
+      response: emergencyContactsSchema,
+    },
+    {
+      method: 'patch',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/emergency-contacts/{contactId}',
+      summary: 'Update a versioned emergency contact',
+      body: emergencyContactUpdateSchema,
+      response: emergencyContactsSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/emergency-contacts/{contactId}/remove',
+      summary: 'Retain and remove an emergency contact',
+      body: emergencyContactRemoveSchema,
+      response: emergencyContactsSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/people/orgs/{orgId}/{personId}/medical',

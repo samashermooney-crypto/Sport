@@ -195,6 +195,19 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
         .getByRole('status')
         .filter({ hasText: 'Medical profile saved.' }),
     ).toBeVisible();
+    await guardianPage
+      .getByRole('textbox', { name: 'Contact name' })
+      .fill('Jordan Rivera');
+    await guardianPage
+      .getByRole('textbox', { name: 'Relationship' })
+      .fill('Parent');
+    await guardianPage
+      .getByRole('textbox', { name: 'Phone (+country code) *', exact: true })
+      .fill('+15555550123');
+    await guardianPage
+      .getByRole('button', { name: 'Add emergency contact' })
+      .click();
+    await expect(guardianPage.getByText('Jordan Rivera')).toBeVisible();
     expect(await accessibilityViolations(guardianPage)).toEqual([]);
     const links = await createWithOrg(database)(staff, (trx) =>
       trx

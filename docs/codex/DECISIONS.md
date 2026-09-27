@@ -551,7 +551,7 @@
 - **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
 - **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
 
-### DEC-080 — Require a staff-issued, email-bound adult profile claim
+### DEC-097 — Require a staff-issued, email-bound adult profile claim
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 2 adult self links
 - **Context:** An adult person may need to claim an existing profile, but a typed email search would let an account attach itself to another person's record.
@@ -559,10 +559,18 @@
 - **Why:** Staff approval and email control authorize the exact profile attachment, while the redemption recheck closes the stale-record window. A shared account model lets an adult also serve as staff without creating a duplicate identity.
 - **Consequences / follow-ups:** Email changes invalidate pending claims. Staff must issue a new invitation after a profile email change; existing verified links are handled through the account and person privacy flows.
 
-### DEC-081 — Bind medical visibility to the exact child and active team
+### DEC-098 — Bind medical visibility to the exact child and active team
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 2 medical
 - **Context:** Medical details are Restricted. A general People read permission must not expose them to registrars or team staff without the explicit organization setting and current relationship.
 - **Decision:** Medical reads and writes recheck the active person inside `withOrg`. Verified guardians, adult self accounts, owners, admins and compliance officers receive full access; registrars receive it only when `registrarMedicalAccess` is true. A 13–17 self account receives a read-only full view. An active team staff member linked to the exact athlete through an active roster receives allergy flags by default, or full details when `coachMedicalAccess` is `full`; team staff cannot edit. Every permitted read writes a redacted audit entry, including an empty profile. Sensitive fields use AES-256-GCM encryption, and versioned writes serialize on the person row.
 - **Why:** Authorization follows a current relationship and explicit setting, while a uniform 404 conceals records from other actors. Coaches get the safety flags they need without unnecessary detail.
 - **Consequences / follow-ups:** Emergency contacts use a separate scope and authorization path. Family and staff medical editors consume the same versioned API.
+
+### DEC-099 — Retain emergency contacts and protect the last active contact
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 emergency contacts
+- **Context:** The schema spine creates `emergency_contacts` at migration 0100, but the sprint reserves A's original migration range before that table exists. Existing contact rows have a unique priority that would prevent replacing a removed contact at the same priority.
+- **Decision:** Migration 0900 adds `removed_at` and `version` after the spine and changes the priority constraint to apply only to active rows. Contacts are removed by timestamp, never deleted. The last active contact cannot be removed while a person has an active registration. Guardian, adult self, owner/admin/compliance and registrar editors may manage contacts; active team staff may read them. Minor self accounts may read but not edit. All permitted reads and writes are audited without copying phone numbers into audit changes.
+- **Why:** Teams retain an emergency contact for active participants, concurrent edits cannot silently overwrite, and replacement does not erase the safety record.
+- **Consequences / follow-ups:** 0900 is an unused post-spine migration slot outside the original A range because a pre-spine ALTER cannot apply. The emergency-contact API and editor are shared by staff and family screens.

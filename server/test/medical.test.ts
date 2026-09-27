@@ -161,7 +161,11 @@ it('encrypts medical details, audits every authorized read and limits coach and 
   );
   expect(
     await medical.read(owner.orgId, coach.accountId, childId),
-  ).toMatchObject({ visibility: 'full', allergies: 'Severe peanut allergy' });
+  ).toMatchObject({
+    visibility: 'full',
+    canEdit: false,
+    allergies: 'Severe peanut allergy',
+  });
   expect(
     await medical.read(owner.orgId, registrar.accountId, childId),
   ).toMatchObject({ visibility: 'full', allergies: 'Severe peanut allergy' });

@@ -839,7 +839,9 @@ export interface EmergencyContacts {
   phone_e164: string;
   priority: number;
   relationship: string;
+  removed_at: Timestamp | null;
   updated_at: Generated<Timestamp>;
+  version: Generated<number>;
 }
 
 export interface EventParticipants {
@@ -1208,6 +1210,7 @@ export interface InvoiceLines {
   id: string;
   invoice_id: string;
   kind: string;
+  late_fee_installment_id: string | null;
   org_id: string;
   parent_line_id: string | null;
   person_id: string | null;

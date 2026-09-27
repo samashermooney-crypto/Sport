@@ -13,15 +13,17 @@ import type { EncryptionKeys } from '../../lib/crypto';
 
 import { PeopleError } from './repo';
 
-type Access = 'full' | 'flags_only' | 'self_read_only';
+export type PersonCareAccess =
+  'full' | 'flags_only' | 'self_read_only' | 'coach_full';
 
-async function authorize(
+export async function authorizePersonCare(
   trx: OrgTransaction,
   orgId: string,
   actorId: string,
   personId: string,
   write: boolean,
-): Promise<Access> {
+  medicalDetails = true,
+): Promise<PersonCareAccess> {
   let personQuery = trx
     .selectFrom('people')
     .select(['id', 'status', 'date_of_birth'])
@@ -82,6 +84,7 @@ async function authorize(
     )
       return 'full';
     if (roles.some((row) => row.role === 'registrar')) {
+      if (!medicalDetails) return 'full';
       const org = await trx
         .selectFrom('organizations')
         .select('settings')
@@ -132,7 +135,7 @@ async function authorize(
         settings && typeof settings === 'object' && !Array.isArray(settings)
           ? settings.coachMedicalAccess
           : undefined;
-      return visibility === 'full' ? 'full' : 'flags_only';
+      return visibility === 'full' ? 'coach_full' : 'flags_only';
     }
   }
   throw new PeopleError(404, 'NOT_FOUND', 'Medical profile not found');
@@ -158,7 +161,7 @@ async function audit(
   actorId: string,
   personId: string,
   action: string,
-  visibility: Access,
+  visibility: PersonCareAccess,
 ) {
   await trx
     .insertInto('audit_log')
@@ -182,7 +185,7 @@ export function createMedicalRepository(
   return {
     async read(orgId: string, actorId: string, personId: string) {
       return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
-        const visibility = await authorize(
+        const visibility = await authorizePersonCare(
           trx,
           orgId,
           actorId,
@@ -228,7 +231,7 @@ export function createMedicalRepository(
       input: MedicalUpdate,
     ) {
       return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
-        await authorize(trx, orgId, actorId, personId, true);
+        await authorizePersonCare(trx, orgId, actorId, personId, true);
         const row = await trx
           .selectFrom('medical_profiles')
           .select(['id', 'version'])

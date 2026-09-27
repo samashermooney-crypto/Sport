@@ -17,6 +17,8 @@ import {
 } from '../ui/primitives';
 import { AppShell } from '../ui/shell';
 
+import { EmergencyContacts } from './EmergencyContacts';
+
 type Profile = z.output<typeof medicalResponseSchema>;
 type Values = Omit<MedicalUpdate, 'expectedVersion' | 'allergyFlags'> & {
   allergyFlags: string;
@@ -201,6 +203,9 @@ export function FamilyMedical(): React.JSX.Element {
             )}
             {saved && <p role="status">Medical profile saved.</p>}
           </Card>
+        )}
+        {current && orgId && personId && (
+          <EmergencyContacts orgId={orgId} personId={personId} />
         )}
       </main>
     </AppShell>
