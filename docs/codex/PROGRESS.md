@@ -3,6 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
+- 09:00 CDT Track C fixed trunk's CI test/Knip failures in `9b5b430`; commits `c9a3621`, `95f51a8`, `be3a9de`, and `6c13238` complete Files privilege, webhook ingress, nested finance routing, and Stripe worker-registry coverage. Full C gates passed on isolated Postgres; the no-commit trunk merge passed typecheck/lint/tests but its Chromium gate failed at the ownership-transfer status assertion and was aborted.
 - M0 is on `main` at `d0f59a1`. The spine, ready B/C/D/E/F/H ranges, Phase 1 tasks 5–9, 11–13 and 17, and Track B's infrastructure are integrated on `rebuild/trunk`. Track A continues tasks 4 and 16. Track E's ready finance and test-mode Billing range through migration 1050 is integrated and trunk green. Track H's chat notification batching through migration 4006 is integrated and trunk green. Track F's Phase 7 foundation is integrated with 46 documented HTTP operations and mounted safety screens. Phase 7 acceptance remains open for coach/official/volunteer gating, the concussion roster journey, QR privacy, Checkr fixture behavior, and detailed response contracts. Inspect E/F/G/H readiness at every task boundary and keep each phase open until every acceptance criterion passes.
 - Track A's Phase 2 People and household foundation is on trunk through membership removal, derived age/grade, balances, program/team filters and consent-aware photos. The guardian direct-link, person-bound invitation and cross-org family read path is integrated. The latest merged trunk gate passed typecheck, lint, 722 tests (one operator smoke skipped), 42 browser tests (four guarded design skips), build, size and generated-file freshness. Continue athlete self links, adult self claims, medical editing and role-aware compliance; keep Phase 2 open.
 
@@ -34,7 +35,7 @@
 |---|---|---|---|---|
 | A | Core and integration | GPT-6 Sol until S1 | working | `track/a-core` |
 | B | Sport engine, algorithms, policies; platform infrastructure | GPT-6 Sol | logic queue and Phase 1 tasks 10, 14–15 integrated; tasks 9 and 13 in progress | `track/b-logic` |
-| C | Files and provider adapters | GPT-6 Luna | complete adapter queue integrated; files acceptance passed, email acceptance still open | `track/c-adapters` |
+| C | Files, providers and wiring | GPT-6 Luna | CI repair committed; adapter/wiring range ready; local trunk gate needs ownership-transfer E2E fix and retry | `track/c-adapters` |
 | D | Design system | GPT-6 Luna | complete component and auth restyle range integrated; app-wide shell acceptance remains with A | `track/d-design` |
 | E | Stripe and finance | GPT-6 Sol | ready aid/credit/tax/year-end/autopay/PDF/notice ranges integrated; phase acceptance remains | `track/e-finance` |
 | F | Safety and compliance | GPT-6 Luna | ready foundation integrated; cross-track and full phase acceptance remain | `track/f-safety` |

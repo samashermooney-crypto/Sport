@@ -12,7 +12,7 @@ Branch: `track/sec`
 ## Requests to other tracks
 
 - C — mount the new global security-header middleware in `server/src/app.ts` before API and static routes; ensure CSP has the documented Stripe/Turnstile/storage directives and HSTS is production-only. The current app factory sends no global CSP, HSTS, frame, referrer, or permissions headers.
-- C — add generated route metadata for every API operation (`permission`, `resource`, `scope`) and publish it to OpenAPI/registry so tenancy fuzzing and permission-matrix completeness can iterate all routes. Current OpenAPI operations have no such metadata.
+- C — add generated route metadata for every API operation (`permission`, `resource`, and scope values `organization`, `account`, `platform`, or `public`) and publish it to OpenAPI/registry. Every ID-bearing organization-scoped GET/PATCH/DELETE needs a tenancy fixture marker; PATCH/DELETE fixtures include a schema-valid synthetic body. The fuzzer sends each route an authenticated request using a real foreign organization ID and expects 404. Current OpenAPI operations have no such metadata.
 - C — mount Stripe and Connect webhook routers before JSON parsing so raw signature verification runs on production traffic; keep the existing endpoint-specific signature verification.
 - C — add gitleaks to CI and expose the draft `docs/security/security.txt` at `/.well-known/security.txt`; replace its reserved `.example` contact and canonical domain with staffed production values before launch.
 - A — regenerate Kysely types after migration `1054_late_fee_fk_index.sql`; `npm run db:migrate` generated `invoice_lines.late_fee_installment_id`, which is currently absent from `server/src/db/types.ts` on `rebuild/trunk`.
@@ -25,7 +25,7 @@ Branch: `track/sec`
 
 - `npm run typecheck`, `npm run lint`, and `git diff --check` pass.
 - Isolated `athlentry_sec` Vitest security/regression selection: 16 files, 44 tests passed, including the CLI dry-run and apply paths.
-- SEC Chromium checks: guardian family-isolation passes; header/route-metadata/matrix/tenancy checks remain `test.fixme` until Track C wiring lands (4 skipped).
+- SEC Chromium checks: guardian family-isolation passes; the route fuzzer enumerates id-bearing organization GET/PATCH/DELETE routes and sends authenticated requests with a real foreign organization ID plus schema-valid mutation bodies. It remains `test.fixme` until Track C publishes route metadata and fixtures. Header and permission-matrix e2e checks also remain `test.fixme` (4 skipped total).
 - Full branch gate: 203 Vitest files passed, 1 existing skip; Chromium 24 passed with the 4 Track C fixmes; `npm run build` passes.
 
 Track SEC sprint complete
