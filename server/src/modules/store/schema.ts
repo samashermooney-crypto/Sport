@@ -76,6 +76,35 @@ export const productCategoryUpdateSchema = z.strictObject({
   archived: z.boolean().optional(),
   expectedVersion: z.number().int().positive(),
 });
+export const registrationAddOnBodySchema = z.strictObject({
+  productId: uuid,
+  required: z.boolean(),
+  quantity: z.number().int().min(1).max(100),
+  active: z.boolean().default(true),
+  expectedVersion: z.number().int().positive().optional(),
+});
+export const registrationAddOnSchema = z.strictObject({
+  id: uuid,
+  productId: uuid,
+  productName: z.string(),
+  kind: z.enum(['uniform', 'spirit_wear', 'other']),
+  required: z.boolean(),
+  quantity: z.number().int().positive(),
+  version: z.number().int().positive(),
+  variants: z.array(
+    z.strictObject({
+      id: uuid,
+      sku: z.string(),
+      size: z.string().nullable(),
+      color: z.string().nullable(),
+      priceCents: cents,
+      available: z.number().int().nonnegative(),
+    }),
+  ),
+});
+export const registrationAddOnListSchema = z.strictObject({
+  addons: z.array(registrationAddOnSchema),
+});
 export const stockBodySchema = z.strictObject({
   quantity: z.number().int().min(1).max(10000),
   memo: z.string().trim().max(500).optional(),

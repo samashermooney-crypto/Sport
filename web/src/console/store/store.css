@@ -1,0 +1,26 @@
+.store-console {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.store-console__forms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.store-console__forms form {
+  display: grid;
+  gap: 0.875rem;
+}
+
+.store-console__check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.store-console__check input {
+  accent-color: var(--accent);
+}

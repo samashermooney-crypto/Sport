@@ -22,6 +22,8 @@ import {
   productBodySchema,
   productListSchema,
   productSchema,
+  registrationAddOnBodySchema,
+  registrationAddOnListSchema,
   stockBodySchema,
   uniformReportSchema,
 } from './schema';
@@ -34,6 +36,8 @@ import {
   listStoreOrders,
   placeStoreOrder,
   receiveStock,
+  listRegistrationAddOns,
+  saveRegistrationAddOn,
   uniformSizeReport,
   updateProductCategory,
   updateFulfillment,
@@ -80,6 +84,36 @@ export function createStoreRouter(
         sendModuleError(response, error);
       }
     };
+
+  router.get(
+    '/orgs/:orgId/offerings/:offeringId/add-ons',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      response.json(
+        registrationAddOnListSchema.parse({
+          addons: await listRegistrationAddOns(
+            dependencies.database,
+            actor.context,
+            uuid(request.params.offeringId),
+          ),
+        }),
+      );
+    }),
+  );
+  router.post(
+    '/orgs/:orgId/offerings/:offeringId/add-ons',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      requireAnyRole(actor.roles, managers);
+      const body = registrationAddOnBodySchema.parse(request.body as unknown);
+      const saved = await saveRegistrationAddOn(
+        dependencies.database,
+        actor.context,
+        { ...body, offeringId: uuid(request.params.offeringId) },
+      );
+      response.status(201).json(saved);
+    }),
+  );
 
   router.get(
     '/orgs/:orgId/categories',

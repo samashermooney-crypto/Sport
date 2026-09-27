@@ -51,6 +51,15 @@ interface StoreProduct {
   variants: StoreProductVariant[];
 }
 
+interface RegistrationAddOnVariant {
+  id: string;
+  sku: string;
+  size: string | null;
+  color: string | null;
+  priceCents: number;
+  available: number;
+}
+
 function presentProductCategory(row: {
   id: string;
   name: string;
@@ -161,6 +170,191 @@ export async function updateProductCategory(
       },
     });
     return presentProductCategory(category);
+  });
+}
+
+export async function saveRegistrationAddOn(
+  database: Kysely<DB>,
+  context: OrgContext,
+  input: {
+    offeringId: string;
+    productId: string;
+    required: boolean;
+    quantity: number;
+    active: boolean;
+    expectedVersion?: number | undefined;
+  },
+) {
+  return createWithOrg(database)(context, async (trx) => {
+    const offering = await trx
+      .selectFrom('registration_offerings')
+      .select('id')
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', input.offeringId)
+      .executeTakeFirst();
+    const product = await trx
+      .selectFrom('products')
+      .select(['id', 'required_for_registration'])
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', input.productId)
+      .where('active', '=', true)
+      .executeTakeFirst();
+    if (!offering || !product)
+      throw new StoreNotFoundError(
+        'Registration offering or product not found',
+      );
+    const existing = await trx
+      .selectFrom('store_registration_addons')
+      .select(['id', 'version'])
+      .where('org_id', '=', context.orgId)
+      .where('offering_id', '=', input.offeringId)
+      .where('product_id', '=', input.productId)
+      .forUpdate()
+      .executeTakeFirst();
+    const required = input.required || product.required_for_registration;
+    let addon;
+    if (existing) {
+      if (input.expectedVersion !== existing.version)
+        throw new StoreConflictError(
+          'Registration add-on changed; reload before updating',
+        );
+      addon = await trx
+        .updateTable('store_registration_addons')
+        .set({
+          required,
+          quantity: input.quantity,
+          active: input.active,
+          version: sql`version + 1`,
+          updated_at: new Date(),
+        })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', existing.id)
+        .where('version', '=', existing.version)
+        .returning(['id', 'version'])
+        .executeTakeFirst();
+      if (!addon)
+        throw new StoreConflictError(
+          'Registration add-on changed; reload before updating',
+        );
+    } else {
+      if (input.expectedVersion !== undefined)
+        throw new StoreConflictError('Registration add-on no longer exists');
+      addon = await trx
+        .insertInto('store_registration_addons')
+        .values({
+          org_id: context.orgId,
+          offering_id: input.offeringId,
+          product_id: input.productId,
+          required,
+          quantity: input.quantity,
+          active: input.active,
+        })
+        .returning(['id', 'version'])
+        .executeTakeFirstOrThrow();
+    }
+    await appendAuditEvent(trx, context, {
+      action: 'store.registration_addon_saved',
+      entityType: 'store_registration_addon',
+      entityId: addon.id,
+      changes: {
+        offeringId: { tier: 'internal', after: input.offeringId },
+        productId: { tier: 'internal', after: input.productId },
+        required: { tier: 'internal', after: required },
+        quantity: { tier: 'internal', after: input.quantity },
+        active: { tier: 'internal', after: input.active },
+      },
+    });
+    return { id: addon.id, version: addon.version };
+  });
+}
+
+export async function listRegistrationAddOns(
+  database: Kysely<DB>,
+  context: OrgContext,
+  offeringId: string,
+) {
+  return createWithOrg(database)(context, async (trx) => {
+    const offering = await trx
+      .selectFrom('registration_offerings')
+      .select('id')
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', offeringId)
+      .executeTakeFirst();
+    if (!offering)
+      throw new StoreNotFoundError('Registration offering not found');
+    const rows = await sql<{
+      addon_id: string;
+      product_id: string;
+      product_name: string;
+      kind: 'uniform' | 'spirit_wear' | 'other';
+      required: boolean;
+      quantity: number;
+      version: number;
+      variant_id: string | null;
+      sku: string | null;
+      size: string | null;
+      color: string | null;
+      price_cents: number | null;
+      available: number | null;
+    }>`
+      SELECT addon.id AS addon_id, product.id AS product_id,
+        product.name AS product_name, product.kind, addon.required,
+        addon.quantity, addon.version, variant.id AS variant_id,
+        variant.sku, variant.size, variant.color, variant.price_cents,
+        COALESCE(balance.available, 0)::int AS available
+      FROM store_registration_addons addon
+      JOIN products product
+        ON product.org_id = addon.org_id AND product.id = addon.product_id
+        AND product.active = true
+      LEFT JOIN product_variants variant
+        ON variant.org_id = product.org_id AND variant.product_id = product.id
+        AND variant.archived_at IS NULL
+      LEFT JOIN inventory_balances balance
+        ON balance.org_id = variant.org_id AND balance.product_variant_id = variant.id
+      WHERE addon.org_id = ${context.orgId}::uuid
+        AND addon.offering_id = ${offeringId}::uuid
+        AND addon.active = true
+      ORDER BY addon.required DESC, product.name, variant.size, variant.sku
+    `.execute(trx);
+    const addons = new Map<
+      string,
+      {
+        id: string;
+        productId: string;
+        productName: string;
+        kind: 'uniform' | 'spirit_wear' | 'other';
+        required: boolean;
+        quantity: number;
+        version: number;
+        variants: RegistrationAddOnVariant[];
+      }
+    >();
+    for (const row of rows.rows) {
+      let addon = addons.get(row.addon_id);
+      if (!addon) {
+        addon = {
+          id: row.addon_id,
+          productId: row.product_id,
+          productName: row.product_name,
+          kind: row.kind,
+          required: row.required,
+          quantity: row.quantity,
+          version: row.version,
+          variants: [],
+        };
+        addons.set(row.addon_id, addon);
+      }
+      if (row.variant_id && row.sku !== null && row.price_cents !== null)
+        addon.variants.push({
+          id: row.variant_id,
+          sku: row.sku,
+          size: row.size,
+          color: row.color,
+          priceCents: row.price_cents,
+          available: row.available ?? 0,
+        });
+    }
+    return [...addons.values()];
   });
 }
 

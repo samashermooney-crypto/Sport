@@ -40,6 +40,19 @@ const route = (
   ...(body ? { body } : {}),
 });
 const openapiRoutes = [
+  route(
+    'get',
+    '/offerings/{offeringId}/add-ons',
+    'List registration uniform and spirit-wear add-ons with sizes',
+    z.json(),
+  ),
+  route(
+    'post',
+    '/offerings/{offeringId}/add-ons',
+    'Create or update a registration store add-on',
+    z.json(),
+    z.json(),
+  ),
   route('get', '/categories', 'List product categories', z.json()),
   route('post', '/categories', 'Create a product category', z.json(), z.json()),
   route(

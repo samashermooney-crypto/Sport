@@ -558,3 +558,11 @@
 - **Decision:** H exposes a `GuestDonationCheckoutPort` and signed-payment completion seam for E/C to implement through the Stripe adapter and webhook dispatcher. Store orders use one active product-tax rate per invoice, matching E's invoice invariant of a single tax line.
 - **Why:** This preserves payer identity and accounting integrity and keeps provider details in E's adapter.
 - **Consequences / follow-ups:** Guest donation checkout remains unavailable on trunk until E/C wire the adapter and webhook. Orders containing products with different tax rates need separate invoices. (Phase 13 federation was briefly drafted under this track and is removed; it belongs to J per SPRINT.md — see commit history `c16c555` for the discarded draft.)
+
+### DEC-081 — Keep store order terms recoverable and registration add-ons versioned
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 11 store
+- **Context:** A store order reserves inventory in one tenant transaction, then issues an E-owned invoice in a separate transaction. A process interruption between those commits must not lose the invoice link or change what the purchaser agreed to buy. Registration add-on requirements also need to remain reviewable as products and sizes change.
+- **Decision:** Store orders persist a request hash and tax-rate snapshot and recover an invoice with the same creation key on retry. Product categories and offering add-ons are archived/disabled with optimistic versions rather than deleted. A registration product marked required cannot be made optional through its offering configuration; the registration contract returns only active product sizes and ledger-backed availability.
+- **Why:** Replay can restore the original invoice without duplicating the inventory reservation, and families cannot bypass a required uniform choice by changing an add-on flag.
+- **Consequences / follow-ups:** E must consume H's offering add-on contract in the registration checkout and reserve the selected variant through H's inventory order path. The H API already exposes allowed variants and availability; that integration remains open until E wires it.

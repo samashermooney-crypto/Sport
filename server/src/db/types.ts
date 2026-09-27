@@ -2610,6 +2610,7 @@ export interface StoreOrders {
 }
 
 export interface StoreRegistrationAddons {
+  active: Generated<boolean>;
   created_at: Generated<Timestamp>;
   id: Generated<string>;
   offering_id: string;
@@ -2618,6 +2619,7 @@ export interface StoreRegistrationAddons {
   quantity: Generated<number>;
   required: Generated<boolean>;
   updated_at: Generated<Timestamp>;
+  version: Generated<number>;
 }
 
 export interface StripeEvents {

@@ -9,8 +9,10 @@ import {
   createProductCategory,
   listProductCategories,
   listProducts,
+  listRegistrationAddOns,
   placeStoreOrder,
   receiveStock,
+  saveRegistrationAddOn,
   updateProductCategory,
 } from '../../../src/modules/store/service';
 import { createTestFactories } from '../../../test/factories';
@@ -69,6 +71,62 @@ describe('store inventory ledger', () => {
         ],
       }),
     ).rejects.toThrow('Product category not found');
+  });
+
+  it('exposes tenant-scoped required uniform add-ons and selected sizes to registration', async () => {
+    const factories = createTestFactories(database);
+    const actor = await factories.actor();
+    const offering = await factories.program(actor);
+    const productId = await createProduct(database, actor, {
+      name: 'Required game kit',
+      kind: 'uniform',
+      requiredForRegistration: true,
+      variants: [
+        {
+          sku: `KIT-${randomUUID().slice(0, 8)}`,
+          size: 'Youth Large',
+          priceCents: 6_000,
+        },
+      ],
+    });
+    const variantId = (await listProducts(database, actor)).find(
+      (item) => item.id === productId,
+    )?.variants[0]?.id;
+    if (!variantId) throw new Error('Created game kit variant was not listed');
+    await receiveStock(database, actor, variantId, 8);
+    const saved = await saveRegistrationAddOn(database, actor, {
+      offeringId: offering.offeringId,
+      productId,
+      required: false,
+      quantity: 1,
+      active: true,
+    });
+    const addons = await listRegistrationAddOns(
+      database,
+      actor,
+      offering.offeringId,
+    );
+    expect(addons).toMatchObject([
+      {
+        id: saved.id,
+        productId,
+        productName: 'Required game kit',
+        required: true,
+        quantity: 1,
+        variants: [{ id: variantId, size: 'Youth Large', available: 8 }],
+      },
+    ]);
+    await saveRegistrationAddOn(database, actor, {
+      offeringId: offering.offeringId,
+      productId,
+      required: false,
+      quantity: 1,
+      active: false,
+      expectedVersion: saved.version,
+    });
+    expect(
+      await listRegistrationAddOns(database, actor, offering.offeringId),
+    ).toEqual([]);
   });
 
   it('never reserves more than on-hand stock under concurrent orders', async () => {
