@@ -3019,7 +3019,12 @@ export function ScheduleConsole({
                   Save visibility
                 </Button>
               </form>
-              <div className="table-scroll">
+              <div
+                className="table-scroll"
+                role="region"
+                aria-label="Standings table"
+                tabIndex={0}
+              >
                 <table className="ui-table">
                   <thead>
                     <tr>

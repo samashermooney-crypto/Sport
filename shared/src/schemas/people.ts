@@ -248,7 +248,7 @@ export const peopleFilterOptionsSchema = z.strictObject({
   items: z.array(z.strictObject({ id: z.uuid(), name: z.string() })),
 });
 
-export const duplicatePersonSchema = z.strictObject({
+const duplicatePersonSchema = z.strictObject({
   id: z.uuid(),
   firstName: z.string(),
   lastName: z.string(),
@@ -257,7 +257,7 @@ export const duplicatePersonSchema = z.strictObject({
   phoneE164: z.string().nullable(),
 });
 
-export const duplicatePairSchema = z.strictObject({
+const duplicatePairSchema = z.strictObject({
   a: duplicatePersonSchema,
   b: duplicatePersonSchema,
   reason: z.enum(['same_email', 'same_phone', 'similar_name_birth_date']),
@@ -272,7 +272,7 @@ export const personMergeCreateSchema = z.strictObject({
   mergedId: z.uuid(),
 });
 
-export const personMergeSummarySchema = z.strictObject({
+const personMergeSummarySchema = z.strictObject({
   survivorName: z.string(),
   mergedName: z.string(),
   moved: z.record(z.string(), z.number()),

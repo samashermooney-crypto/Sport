@@ -49,6 +49,12 @@ async function headerDifferenceRatio(
   return differentPixels / (width * height);
 }
 
+function referenceForPlatform(referenceName: string): string {
+  return process.platform === 'linux'
+    ? referenceName.replace(/\.png$/, '-linux.png')
+    : referenceName;
+}
+
 test('shell chrome compares against the legacy captures at desktop and phone widths', async ({
   page,
   browserName,
@@ -68,7 +74,7 @@ test('shell chrome compares against the legacy captures at desktop and phone wid
     });
     const difference = await headerDifferenceRatio(
       rendered,
-      reference,
+      referenceForPlatform(reference),
       width,
       height,
     );

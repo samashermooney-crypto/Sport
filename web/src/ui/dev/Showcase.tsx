@@ -157,7 +157,7 @@ function ShowcaseIcon({
         <path d="M2 9h20M16 15h2" />
       </>
     ),
-    chevron: <path d="m7 10 5 5 5-5" />,
+    chevron: <path d="m6 9 6 6 6-6" />,
   };
 
   return (
@@ -168,7 +168,7 @@ function ShowcaseIcon({
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth={name === 'chevron' ? 2 : 1.8}
       strokeLinecap="round"
       strokeLinejoin="round"
     >

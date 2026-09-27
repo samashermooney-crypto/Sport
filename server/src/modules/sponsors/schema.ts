@@ -4,14 +4,14 @@ const uuid = z.uuid();
 const dateOnly = z.iso.date();
 const dollars = z.number().int().min(0).max(100_000_000);
 
-export const sponsorContactSchema = z.strictObject({
+const sponsorContactSchema = z.strictObject({
   name: z.string().trim().max(160).optional(),
   email: z.email().optional(),
   phone: z.string().trim().max(40).optional(),
   accountId: uuid.nullable().optional(),
 });
 
-export const sponsorPlacementSchema = z.strictObject({
+const sponsorPlacementSchema = z.strictObject({
   surface: z.enum([
     'website_home',
     'program_page',
@@ -83,7 +83,7 @@ export const sponsorListSchema = z.strictObject({
   sponsors: z.array(sponsorSchema),
 });
 
-export const publicSponsorSchema = z.strictObject({
+const publicSponsorSchema = z.strictObject({
   id: uuid,
   name: z.string(),
   tier: z.string(),
