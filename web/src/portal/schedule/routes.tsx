@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
 import { FamilySchedule } from './FamilySchedule';
+import { OfficialAssignmentsPortal } from './OfficialAssignmentsPortal';
 import { PracticeSlotPicker } from './PracticeSlotPicker';
 import { PublicFacilityPage } from './PublicFacilityPage';
 import { PublicStandingsPage } from './PublicStandingsPage';
@@ -37,6 +38,15 @@ function PracticeSlotPickerRoute(): React.JSX.Element {
     <main className="schedule-page">
       Choose a team to request practice time.
     </main>
+  );
+}
+
+function OfficialAssignmentsRoute(): React.JSX.Element {
+  const { orgId } = useParams<{ orgId: string }>();
+  return orgId ? (
+    <OfficialAssignmentsPortal orgId={orgId} />
+  ) : (
+    <main className="schedule-page">Organization not found.</main>
   );
 }
 
@@ -87,6 +97,10 @@ function PublicDivisionStandingsRoute(): React.JSX.Element {
 }
 
 export const portalScheduleRoutes: readonly RouteObject[] = [
+  {
+    path: '/portal/orgs/:orgId/schedule/officials',
+    element: <OfficialAssignmentsRoute />,
+  },
   {
     path: '/portal/orgs/:orgId/schedule/teams/:teamSeasonId/practice-slots',
     element: <PracticeSlotPickerRoute />,

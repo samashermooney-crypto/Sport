@@ -3,7 +3,7 @@ import type { StandingsConfig } from '@shared/sport/schema';
 import { useCallback, useEffect, useState } from 'react';
 import type { SubmitEvent } from 'react';
 
-import { Badge, Button, Field, Input, Select, Textarea } from '../../ui';
+import { Badge, Button, Field, Input, Link, Select, Textarea } from '../../ui';
 
 import { ResourceScheduleCalendar } from './ResourceScheduleCalendar';
 import type { ResourceScheduleEvent } from './ResourceScheduleCalendar';
@@ -1123,9 +1123,14 @@ export function ScheduleConsole({
 
   async function createContestForEvent(): Promise<void> {
     if (!selectedEvent) return;
+    const selected = events.find((event) => event.id === selectedEvent);
     await api(
       `${base(orgId, 'contests')}/events/${selectedEvent}/contests`,
-      json({ formatIndex: 0, stage: 'regular', countsForStandings: true }),
+      json({
+        formatIndex: 0,
+        stage: 'regular',
+        countsForStandings: selected?.kind !== 'meet',
+      }),
     );
     await loadContest();
   }
@@ -1230,6 +1235,11 @@ export function ScheduleConsole({
   }
 
   const selected = events.find((item) => item.id === selectedEvent);
+  const meetLaneCount = contest?.format?.lanes ?? 1;
+  const meetHeatCount =
+    contest?.format?.heats && contest.participants
+      ? Math.ceil(contest.participants.length / meetLaneCount)
+      : 1;
 
   return (
     <main className="schedule-page">
@@ -2411,7 +2421,13 @@ export function ScheduleConsole({
                                   type="number"
                                   min={1}
                                   required
-                                  defaultValue={participant.heat ?? 1}
+                                  defaultValue={
+                                    participant.heat ??
+                                    (contest.format?.heats
+                                      ? meetHeatCount -
+                                        Math.floor(index / meetLaneCount)
+                                      : 1)
+                                  }
                                 />
                               </td>
                               <td>
@@ -2422,7 +2438,10 @@ export function ScheduleConsole({
                                   min={1}
                                   max={contest.format?.lanes}
                                   required
-                                  defaultValue={participant.lane ?? index + 1}
+                                  defaultValue={
+                                    participant.lane ??
+                                    (index % meetLaneCount) + 1
+                                  }
                                 />
                               </td>
                             </tr>
@@ -4378,7 +4397,14 @@ function OfficialsPanel({
   }
   return (
     <section className="schedule-card" aria-labelledby="officials-heading">
-      <h2 id="officials-heading">Officials and pay</h2>
+      <div className="schedule-card__title">
+        <h2 id="officials-heading">Officials and pay</h2>
+        <Link
+          to={`/portal/orgs/${encodeURIComponent(orgId)}/schedule/officials`}
+        >
+          Open official portal
+        </Link>
+      </div>
       <p>
         Review assignments, offer game positions, and track approved external
         pay batches.
@@ -4415,6 +4441,7 @@ function OfficialsPanel({
                 contestId: formText(form, 'contestId'),
                 personId: formText(form, 'personId'),
                 positionKey: formText(form, 'positionKey'),
+                mileageCents: Number(formText(form, 'mileageCents')),
               }),
             );
           }, 'Official assignment offered.');
@@ -4428,6 +4455,16 @@ function OfficialsPanel({
         </Field>
         <Field label="Position key" required>
           <Input name="positionKey" required />
+        </Field>
+        <Field label="Travel reimbursement (cents)" required>
+          <Input
+            name="mileageCents"
+            type="number"
+            min={0}
+            step={1}
+            defaultValue={0}
+            required
+          />
         </Field>
         <Button type="submit" disabled={busy}>
           Offer assignment
