@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const orgKindSchema = z.enum([
+const orgKindSchema = z.enum([
   'club',
   'league',
   'association',
