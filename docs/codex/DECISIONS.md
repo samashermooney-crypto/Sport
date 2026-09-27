@@ -423,3 +423,11 @@
 - **Decision:** A weekly template takes a positive installment count. The first charge is seven calendar days after the organization-local checkout date, with later charges at seven-day intervals on the same weekday. Deposit, cent allocation and minimum-charge reduction follow the existing installment rules.
 - **Why:** This gives `weekly` a deterministic schedule without inventing another day-of-week or interval setting.
 - **Consequences / follow-ups:** Finance template validation and quoting should accept `{ kind: 'weekly', count }` and use the shared generator; a later custom cadence needs an explicit schema and decision.
+
+### DEC-056 — Store the exact localized consent draft shown at signup
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 identity and internationalization
+- **Context:** Sign-up offered a Spanish interface but served and saved only the English legal drafts. The consent record must retain the exact document displayed to the account holder.
+- **Decision:** Serve the current English or Spanish draft from `/api/v1/auth/legal?locale=`, using English for unknown values. Assign the Spanish draft its own version and save its full text with the selected locale during sign-up. Both drafts remain clearly labeled for legal review.
+- **Why:** The consent audit trail must match the language and wording the person saw before accepting.
+- **Consequences / follow-ups:** A qualified legal reviewer must replace and approve both language versions before launch; publish future revisions as distinct immutable versions.

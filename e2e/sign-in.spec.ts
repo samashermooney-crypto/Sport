@@ -114,6 +114,10 @@ test('account creation and recovery screens follow the Spanish preference', asyn
   await expect(
     page.getByRole('checkbox', { name: /Términos de servicio/ }),
   ).toBeVisible();
+  await page.locator('.legal-text summary').first().click();
+  await expect(
+    page.getByText(/BORRADOR — requiere revisión legal/).first(),
+  ).toBeVisible();
   expect(await accessibilityViolations(page)).toEqual([]);
   await page.getByRole('link', { name: /Inicie sesión/ }).click();
   await page.getByRole('link', { name: '¿Olvidó su contraseña?' }).click();

@@ -85,7 +85,19 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
-        }
+        },
+        "parameters": [
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "enum": ["en", "es"]
+            }
+          }
+        ]
       }
     },
     "/api/v1/auth/captcha-config": {
