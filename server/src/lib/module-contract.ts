@@ -7,6 +7,7 @@ export interface ServerModule {
   name: string;
   path: `/api/v1/${string}`;
   router?: (dependencies: AuthDependencies) => Router;
+  publicRouter?: (dependencies: AuthDependencies) => Router;
   extraRouters?: readonly {
     path: `/api/v1/${string}`;
     router: (dependencies: AuthDependencies) => Router;

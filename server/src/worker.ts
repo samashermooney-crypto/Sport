@@ -1,12 +1,18 @@
 import { serverModules } from './generated/registry';
+import { writeStructuredLog } from './lib/observability/logging';
+import {
+  captureRedactedException,
+  initSentry,
+} from './lib/observability/sentry';
 import { startRegisteredWorker } from './modules/jobs/runtime';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString)
   throw new Error('DATABASE_URL is required for the worker');
 
+initSentry();
 const worker = await startRegisteredWorker(serverModules, connectionString);
-process.stdout.write(`Athlentry worker ready: ${worker.id}\n`);
+writeStructuredLog('info', 'worker.ready', { module: 'worker' });
 let stopping = false;
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
@@ -15,9 +21,12 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     void worker.stop().then(
       () => process.exit(0),
       (error: unknown) => {
-        process.stderr.write(
-          `${error instanceof Error ? error.message : String(error)}\n`,
-        );
+        writeStructuredLog('error', 'worker.shutdown_failed', {
+          module: 'worker',
+          result: 'failed',
+        });
+        captureRedactedException(error);
+        process.stderr.write('Worker shutdown failed\n');
         process.exit(1);
       },
     );

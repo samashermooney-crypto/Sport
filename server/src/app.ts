@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -10,6 +11,8 @@ import { createWithOrg } from './db/withOrg';
 import { apiRouteMetadata, serverModules } from './generated/registry';
 import { createStripeWebhookRouter } from './integrations/stripe/webhook-routes';
 import type { StripeWebhookDependencies } from './integrations/stripe/webhook-routes';
+import { writeStructuredLog } from './lib/observability/logging';
+import { captureRedactedException } from './lib/observability/sentry';
 import { createSecurityHeaders } from './lib/security/security-headers';
 import { requestImpersonation, tenantGuard } from './lib/tenant-guard';
 import type { AuthDependencies } from './modules/auth/routes';
@@ -91,6 +94,25 @@ export function createApp(
 ): express.Express {
   const app = express();
   app.disable('x-powered-by');
+  app.use((_request, response, next) => {
+    const requestId = randomUUID();
+    const startedAt = performance.now();
+    const logRequestId = `req:${requestId}`;
+    response.setHeader('x-request-id', logRequestId);
+    response.once('finish', () => {
+      const statusCode = response.statusCode;
+      writeStructuredLog(
+        statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'info',
+        'http.response',
+        {
+          requestId: logRequestId,
+          statusCode,
+          durationMs: Math.round(performance.now() - startedAt),
+        },
+      );
+    });
+    next();
+  });
   app.use(
     createSecurityHeaders({
       ...(process.env.ATHLENTRY_STORAGE_PUBLIC_ORIGIN
@@ -158,6 +180,9 @@ export function createApp(
     app.use('/api/v1/webhooks', createStripeWebhookRouter(stripeWebhooks));
   }
   if (auth) {
+    for (const module of serverModules) {
+      if (module.publicRouter) app.use(module.publicRouter(auth));
+    }
     app.use('/api/v1', tenantGuard(auth));
     app.use('/api/v1', organizationRelationshipGuard(auth));
     for (const module of serverModules) {
@@ -177,5 +202,32 @@ export function createApp(
       }
     });
   }
+  app.use(
+    (
+      error: unknown,
+      _request: express.Request,
+      response: express.Response,
+      next: express.NextFunction,
+    ) => {
+      if (response.headersSent) {
+        next(error);
+        return;
+      }
+      const requestId = response.getHeader('x-request-id');
+      writeStructuredLog('error', 'http.unhandled_error', {
+        ...(typeof requestId === 'string' ? { requestId } : {}),
+        statusCode: 500,
+      });
+      captureRedactedException(error);
+      response.status(500).json(
+        apiErrorSchema.parse({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'An unexpected error occurred',
+          },
+        }),
+      );
+    },
+  );
   return app;
 }

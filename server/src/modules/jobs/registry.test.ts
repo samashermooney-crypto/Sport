@@ -13,16 +13,30 @@ import { collectRegisteredJobs } from './registry';
 describe('job registry', () => {
   it('accepts every generated module job at worker startup', () => {
     const jobs = collectRegisteredJobs(serverModules);
+    const generatedJobsModule = serverModules.find(
+      (module) => module.name === 'jobs',
+    );
     const names = jobs.map((job) => job.name);
     const stripeEvent = jobs.find((job) => job.name === 'stripe.event');
+    const alertCheck = jobs.find((job) => job.name === 'ops.alert-check');
     expect(names).toContain('communications.deliver-due');
     expect(stripeEvent?.name).toBe('stripe.event');
     expect(typeof stripeEvent?.run).toBe('function');
+    expect(alertCheck).toMatchObject({
+      name: 'ops.alert-check',
+      cron: '* * * * *',
+    });
+    expect(generatedJobsModule?.publicRouter).toBe(
+      moduleDefinition.publicRouter,
+    );
   });
 
   it('collects executable jobs from module descriptors', async () => {
     const jobs = collectRegisteredJobs([moduleDefinition]);
-    expect(jobs.map((job) => job.name)).toEqual(['jobs.probe']);
+    expect(jobs.map((job) => job.name)).toEqual([
+      'jobs.probe',
+      'ops.alert-check',
+    ]);
     await expect(jobs[0]?.run({})).resolves.toEqual({ healthy: true });
   });
 
