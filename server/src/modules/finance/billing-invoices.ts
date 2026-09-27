@@ -10,7 +10,7 @@ import { appendAuditEvent } from '../audit/service.js';
 export type BillingInvoice = Awaited<
   ReturnType<PaymentsGateway['retrieveBillingInvoice']>
 >;
-export class BillingInvoiceConflictError extends Error {}
+class BillingInvoiceConflictError extends Error {}
 const statusSchema = z.enum([
   'draft',
   'open',

@@ -41,7 +41,7 @@ export async function scanDueInstallments(
 }
 
 /** Bounded per-org scan; each attempt has its own durable pre-Stripe claim. */
-export async function chargeDueInstallments(
+async function chargeDueInstallments(
   dependencies: InstallmentChargeJobDependencies,
 ): Promise<{ created: number }> {
   const organizationIds =
