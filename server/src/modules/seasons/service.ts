@@ -71,6 +71,8 @@ const resolveInstant = (
 };
 
 export type RolloverIdMap = {
+  orgId: string;
+  sourceSeasonId: string;
   seasonId: string;
   programIds: ReadonlyMap<string, string>;
   divisionIds: ReadonlyMap<string, string>;
@@ -725,6 +727,8 @@ export class SeasonsService {
         .execute();
     }
     const ids: RolloverIdMap = {
+      orgId: this.context.orgId,
+      sourceSeasonId: sourceId,
       seasonId: target.id,
       programIds,
       divisionIds,

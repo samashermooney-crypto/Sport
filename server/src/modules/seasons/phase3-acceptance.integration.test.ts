@@ -327,6 +327,8 @@ describe('season rollover acceptance', () => {
     expect(copied.starts_on.toISOString().slice(0, 10)).toBe('2027-09-20');
     expect(copied.ends_on.toISOString().slice(0, 10)).toBe('2027-12-10');
     expect(captured).toHaveLength(1);
+    expect(captured[0]?.orgId).toBe(context.orgId);
+    expect(captured[0]?.sourceSeasonId).toBe(sourceSeason);
     expect(captured[0]?.seasonId).toBe(copy.season.id);
     expect(captured[0]?.programIds.size).toBe(1);
     expect(captured[0]?.offeringIds.has(sourceOffering.id)).toBe(true);
