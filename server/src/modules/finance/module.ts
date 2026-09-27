@@ -53,6 +53,7 @@ import {
   taxRateReplaceSchema,
   taxRateSchema,
 } from './tax-rates.js';
+import { yearEndStatementSchema } from './year-end-statements.js';
 
 export const moduleDefinition = {
   name: 'finance',
@@ -63,6 +64,13 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/me/statements/{year}',
+      summary:
+        'Read payer cash flows and donation allocations for an org tax year',
+      response: yearEndStatementSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/finance/orgs/{orgId}/tax-rates',

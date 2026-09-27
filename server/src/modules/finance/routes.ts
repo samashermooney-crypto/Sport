@@ -96,6 +96,11 @@ import {
   taxRateSchema,
   TaxRateConflictError,
 } from './tax-rates.js';
+import {
+  PostgresYearEndStatements,
+  StatementUnavailableError,
+  yearEndStatementSchema,
+} from './year-end-statements.js';
 
 export const offlinePaymentBodySchema = z.strictObject({
   invoiceId: z.uuid(),
@@ -409,7 +414,8 @@ function sendError(response: Response, error: unknown): void {
           error instanceof AidProgramConflictError ||
           error instanceof AidReviewConflictError ||
           error instanceof CreditLedgerConflictError ||
-          error instanceof TaxRateConflictError
+          error instanceof TaxRateConflictError ||
+          error instanceof StatementUnavailableError
         ? 409
         : error instanceof InvoiceNotFoundError
           ? 404
@@ -480,6 +486,27 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.get('/orgs/:orgId/me/statements/:year', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const year = z.coerce
+        .number()
+        .int()
+        .min(2000)
+        .max(2100)
+        .parse(request.params.year);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      const statement = await new PostgresYearEndStatements(
+        dependencies.database,
+        context,
+      ).read(year);
+      response.json(yearEndStatementSchema.parse(statement));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
   router.get('/orgs/:orgId/tax-rates', async (request, response) => {
     try {
       if (requestImpersonation(request)) throw new FinanceAccessError();

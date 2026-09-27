@@ -27,6 +27,7 @@ import {
   staffCreditIssueResponseSchema,
 } from './routes.js';
 import { taxRateSchema } from './tax-rates.js';
+import { yearEndStatementSchema } from './year-end-statements.js';
 
 const origin = 'http://127.0.0.1:5173';
 const now = new Date('2026-09-27T12:00:00Z');
@@ -353,6 +354,27 @@ describe('staff invoice HTTP', () => {
     expect(await voided.json()).toMatchObject({
       status: 'void',
       voidReason: 'Canceled',
+    });
+  });
+});
+
+describe('payer year-end statement HTTP', () => {
+  it('returns only the signed-in account money for the requested org year', async () => {
+    const response = await fetch(
+      `${baseUrl}/orgs/${context.orgId}/me/statements/2026`,
+      {
+        headers: { Cookie: `__Host-athlentry_session=${token}` },
+      },
+    );
+    expect(response.status).toBe(200);
+    expect(
+      yearEndStatementSchema.parse((await response.json()) as unknown),
+    ).toMatchObject({
+      orgId: context.orgId,
+      year: 2026,
+      currency: 'USD',
+      totalPaidCents: 1000,
+      donationPaidCents: 0,
     });
   });
 });

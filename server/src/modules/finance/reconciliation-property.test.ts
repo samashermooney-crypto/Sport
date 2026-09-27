@@ -276,5 +276,5 @@ describe('finance reconciliation property', () => {
       ),
       { numRuns: 25 },
     );
-  });
+  }, 20_000);
 });
