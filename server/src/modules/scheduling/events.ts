@@ -14,8 +14,9 @@ import { assertSchedulePermission } from './access';
 import type { ResourceScope } from './access';
 import type {
   EventCreateWithOverrideInput,
+  EventSeriesCreateInput,
   EventUpdateInput,
-  GeneratorConstraints,
+  SeriesEditInput,
 } from './schema';
 
 export type ScheduleConflict = {
@@ -1127,7 +1128,7 @@ export async function updateEvent(
 
 export async function createEventSeries(
   context: OrgContext,
-  input: import('./schema').EventSeriesCreateInput,
+  input: EventSeriesCreateInput,
 ): Promise<{ seriesId: string; eventIds: string[] }> {
   return withOrg(context, async (trx) => {
     await assertSchedulePermission(trx, context, 'schedule.manage', {
@@ -1307,7 +1308,7 @@ async function createSeriesOccurrence(
 export async function editEventSeries(
   context: OrgContext,
   seriesId: string,
-  input: import('./schema').SeriesEditInput,
+  input: SeriesEditInput,
 ): Promise<{ eventIds: string[]; seriesId: string | null }> {
   return withOrg(context, async (trx) => {
     const series = await trx
@@ -2483,40 +2484,4 @@ export async function publicFacilityPage(orgSlug: string, facilityId: string) {
       };
     },
   );
-}
-
-export function generatorInputFromConstraints(
-  constraints: GeneratorConstraints,
-  values: {
-    divisions: unknown[];
-    teams: unknown[];
-    spaces: unknown[];
-    timezone: string;
-    durationMinutes: number;
-    bufferMinutes: number;
-  },
-) {
-  return {
-    ...values,
-    ...constraints,
-    divisions: (constraints.divisions ?? []).map((division) => ({
-      id: division.divisionId,
-      allowedWeekdays: division.allowedWeekdays,
-      timeWindows: division.timeWindows,
-      ...(division.gamesPerTeam === undefined
-        ? {}
-        : { gamesPerTeam: division.gamesPerTeam }),
-      ...(division.roundRobin === undefined
-        ? {}
-        : { roundRobin: division.roundRobin }),
-      ...(division.preferredStartMinutes === undefined
-        ? {}
-        : { preferredStartMinutes: division.preferredStartMinutes }),
-      ...(division.ageOrder === undefined
-        ? {}
-        : { ageOrder: division.ageOrder }),
-      teamIds: [],
-    })),
-    divisionsFromDatabase: values.divisions,
-  };
 }

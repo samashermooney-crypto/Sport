@@ -1,7 +1,7 @@
 import { recurrenceSchema, timedRecurrenceSchema } from '@shared/recurrence';
 import { z } from 'zod';
 
-export const eventKindSchema = z.enum([
+const eventKindSchema = z.enum([
   'game',
   'practice',
   'meet',
@@ -14,14 +14,14 @@ export const eventKindSchema = z.enum([
   'volunteer_shift',
   'other',
 ]);
-export const eventStatusSchema = z.enum([
+const eventStatusSchema = z.enum([
   'scheduled',
   'postponed',
   'canceled',
   'completed',
 ]);
 
-export const participantInputSchema = z.discriminatedUnion('type', [
+const participantInputSchema = z.discriminatedUnion('type', [
   z.strictObject({
     type: z.literal('team'),
     id: z.uuid(),
@@ -44,7 +44,7 @@ export const participantInputSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
-export const eventCreateSchema = z.strictObject({
+const eventCreateSchema = z.strictObject({
   kind: eventKindSchema,
   title: z.string().trim().min(1).max(200),
   startsAt: z.iso.datetime({ offset: true }),
@@ -143,25 +143,6 @@ export const eventResponseSchema = z.strictObject({
 export const eventListSchema = z.strictObject({
   items: z.array(eventResponseSchema),
 });
-export const eventIdResponseSchema = z.strictObject({ id: z.uuid() });
-export const conflictReportSchema = z.strictObject({
-  conflicts: z.array(
-    z.strictObject({
-      kind: z.enum([
-        'space',
-        'blackout',
-        'availability',
-        'team',
-        'coach',
-        'official',
-      ]),
-      eventId: z.uuid().nullable(),
-      message: z.string(),
-      overridable: z.boolean(),
-    }),
-  ),
-});
-
 export const closureCreateSchema = z.strictObject({
   scopeType: z.enum(['facility', 'space', 'org']),
   scopeId: z.uuid().nullable().optional(),
@@ -365,8 +346,6 @@ export const feedCreatedSchema = z.strictObject({
   url: z.string(),
 });
 
-export const eventSeriesSchema = eventSeriesCreateSchema;
-export type EventCreateInput = z.infer<typeof eventCreateSchema>;
 export type EventCreateWithOverrideInput = z.infer<
   typeof eventCreateWithOverrideSchema
 >;
@@ -374,10 +353,3 @@ export type EventUpdateInput = z.infer<typeof eventUpdateSchema>;
 export type EventSeriesCreateInput = z.infer<typeof eventSeriesCreateSchema>;
 export type SeriesEditInput = z.infer<typeof seriesEditSchema>;
 export type GeneratorConstraints = z.infer<typeof generatorConstraintsSchema>;
-export type SpaceAvailabilityCreateInput = z.infer<
-  typeof spaceAvailabilityCreateSchema
->;
-export type SpaceBlackoutCreateInput = z.infer<
-  typeof spaceBlackoutCreateSchema
->;
-export type BlackoutRequestInput = z.infer<typeof blackoutRequestSchema>;
