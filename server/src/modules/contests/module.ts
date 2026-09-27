@@ -45,6 +45,21 @@ const endpoints = [
   ['get', '/orgs/{orgId}/teams/{teamSeasonId}/stats', 'List team statistics'],
   [
     'get',
+    '/orgs/{orgId}/programs/{programId}/stats/settings',
+    'Get program statistic settings',
+  ],
+  [
+    'put',
+    '/orgs/{orgId}/programs/{programId}/stats/settings',
+    'Update program statistic settings',
+  ],
+  [
+    'get',
+    '/orgs/{orgId}/programs/{programId}/stats/leaders',
+    'List program or division statistic leaders',
+  ],
+  [
+    'get',
     '/orgs/{orgId}/people/{personId}/personal-bests',
     'List athlete personal bests',
   ],
@@ -63,6 +78,13 @@ const openapiRoutes = endpoints.map(([method, path, summary]) => ({
   ...(path.startsWith('/public/') ? { public: true } : {}),
   tags: ['contests'],
 }));
+const leadersRoute = openapiRoutes.find((route) =>
+  route.path.endsWith('/stats/leaders'),
+);
+if (leadersRoute)
+  Object.assign(leadersRoute, {
+    query: { divisionId: z.uuid().optional() },
+  });
 
 export const moduleDefinition = {
   name: 'contests',

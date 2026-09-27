@@ -750,3 +750,11 @@
 - **Decision:** After bracket wiring and each finalized result, propagate settled winner/loser outcomes and automatically finalize non-final matches only when both source slots are resolved and at least one entrant remains. Also settle fully empty intermediate loser matches so their outcomes can advance.
 - **Why:** Top-seeded byes must preserve correct double-elimination progression through GF1 and the conditional GF2 without treating an unresolved source as an empty slot.
 - **Consequences / follow-ups:** A 13-team acceptance regression completes the losers path, GF1 upset and if-necessary GF2; championship finals are never auto-finalized as byes.
+
+### DEC-105 — Store program statistic enablement in versioned settings
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 9 results and statistics
+- **Context:** The sport profile defines available metrics, while the sport-engine spec makes capture optional per program through `ProgramSettings.statsEnabled`; the program module does not yet expose that setting for schedule staff.
+- **Decision:** Store enabled stat keys in `programs.settings.statsEnabled`, expose a version-checked `results.manage` settings API and staff console editor, and capture only enabled keys. Public summaries include only enabled definitions marked public; private athlete metrics are shown in result-entry controls to staff managers only.
+- **Why:** Program-level opt-in prevents accidental collection, version checks avoid lost edits, and the public flag protects youth performance data.
+- **Consequences / follow-ups:** Personal bests and program/division leaderboards use shared aggregation functions and include only finalized contests. Saving a result replaces its stat lines when the request supplies a stats array; clients that omit that optional field preserve prior stat lines.

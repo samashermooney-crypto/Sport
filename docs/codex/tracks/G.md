@@ -19,6 +19,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Emergency closure batches become due immediately; routine schedule-change batches retain their 15-minute window.
 - [x] Added a 13-team double-elimination acceptance regression and fixed the shared bracket algorithm to propagate bye winners and empty loser outcomes until the if-necessary final is playable.
 - [x] Fixed the 48-team league schedule acceptance: candidate feasibility no longer rescans all assigned games inside each team check, and a deterministic Euler orientation keeps every scheduled team within one home/away game.
+- [x] Added versioned program `statsEnabled` settings, staff-only configuration, stat entry fields, program/division leaderboards, and enabled/public filtering for team summaries and athlete personal bests; stat corrections replace the contest's stat lines.
 - [x] Lineup suspension checks now call Track F's discipline policy. The save transaction commits the policy's audit event before returning the 409 conflict; an integration test covers both the denial and durable audit record.
 - [x] `npm run registry` regenerated 18 server modules, 6 integrations and 6 web features; `npm run openapi` regenerated API documentation, including the personal-best endpoint.
 
@@ -32,6 +33,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Shared algorithm tests pass: 14/14; focused G generator/bracket acceptance tests pass: 2/2. The 48-team case is below the 60-second acceptance bound.
 - [x] `npm run typecheck` and `npm run lint` pass after syncing `rebuild/trunk` through `af353fc` (merge `70b7c2d`).
 - [x] Updated scheduling access integration passes, including official closure recipients and emergency batch timing.
+- [x] Program statistic settings, leaderboard aggregation, enabled/public filters, private-stat staff access, and optimistic-concurrency integration regression pass against the isolated Postgres stack.
 - [x] Chromium + WebKit mobile baseline E2E: 38 passed, 4 failed, 4 skipped; failures were unrelated sign-in, ownership-transfer and people journeys, and no G schedule journey ran.
 - [ ] Previous lock-protected full merge gate (before the latest algorithm fixes): typecheck/lint passed; `heavy.sh npm test` reported 757 passed, 1 skipped, 2 failed. Both failures are now fixed and pass in targeted suites; rerun the full gate before integration.
 - [ ] Phase 8/9 Chromium + WebKit mobile schedule journeys with axe remain outstanding. No G journeys currently exist and the registered schedule routes are not mounted into app routing.
@@ -49,6 +51,6 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 ## Decisions and review
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
-- G decisions are `DEC-082–104` in `docs/codex/DECISIONS.md`; the latest trunk decisions are preserved through `DEC-081`.
+- G decisions are `DEC-082–105` in `docs/codex/DECISIONS.md`; the latest trunk decisions are preserved through `DEC-081`.
 - Last trunk sync: `70b7c2d` (through `af353fc`); earlier syncs were `7bd217f` (through `9b5b430`), `925d8ff` (through `d991fee`) and `69bd7c9` (through `4660724`). The latest lock-protected self-merge attempt failed before the algorithm fixes and was rolled back. All G changes remain local on `track/g-schedule`; nothing was pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.

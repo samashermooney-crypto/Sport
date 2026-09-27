@@ -6,7 +6,14 @@ import { createDatabase, getDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 
-import { listPersonPersonalBests } from './service';
+import {
+  contestDetail,
+  listPersonPersonalBests,
+  listProgramStatLeaders,
+  getProgramStatSettings,
+  listTeamStats,
+  updateProgramStatSettings,
+} from './service';
 
 let database: ReturnType<typeof createDatabase>;
 
@@ -29,6 +36,11 @@ describe('contest statistics', () => {
     const orgId = newId();
     const personId = newId();
     const profileId = newId();
+    const seasonId = newId();
+    const programId = newId();
+    const divisionId = newId();
+    const teamIds = [newId(), newId()];
+    const teamSeasonIds = [newId(), newId()];
     const actor: OrgContext = { orgId, actor: { accountId } };
     const baseProfile = builtInSportTemplates[0];
     const profile = {
@@ -61,11 +73,24 @@ describe('contest statistics', () => {
           aggregate: 'max',
           public: false,
         },
+        {
+          key: 'goals',
+          label: { en: 'Goals', es: 'Goles' },
+          abbreviation: 'G',
+          level: 'team',
+          valueType: 'integer',
+          aggregate: 'sum',
+          public: true,
+        },
       ],
     };
-    const events = [newId(), newId()];
-    const contests = [newId(), newId()];
-    const dates = ['2026-09-01T12:00:00Z', '2026-09-08T12:00:00Z'];
+    const events = [newId(), newId(), newId()];
+    const contests = [newId(), newId(), newId()];
+    const dates = [
+      '2026-09-01T12:00:00Z',
+      '2026-09-08T12:00:00Z',
+      '2026-09-15T12:00:00Z',
+    ];
     const withOrg = createWithOrg(database);
 
     for (const id of [accountId, strangerId])
@@ -141,6 +166,66 @@ describe('contest statistics', () => {
           profile,
         })
         .execute();
+      await trx
+        .insertInto('seasons')
+        .values({
+          id: seasonId,
+          org_id: orgId,
+          name: 'Track 2026',
+          starts_on: '2026-09-01',
+          ends_on: '2026-12-31',
+        })
+        .execute();
+      await trx
+        .insertInto('programs')
+        .values({
+          id: programId,
+          org_id: orgId,
+          season_id: seasonId,
+          sport_profile_id: profileId,
+          mode: 'league',
+          name: 'Track 2026',
+          slug: `track-${orgId.slice(0, 8)}`,
+          starts_on: '2026-09-01',
+          ends_on: '2026-12-31',
+          settings: {
+            statsEnabled: ['sprint_100', 'points', 'private_mark', 'goals'],
+          },
+        })
+        .execute();
+      await trx
+        .insertInto('divisions')
+        .values({
+          id: divisionId,
+          org_id: orgId,
+          program_id: programId,
+          name: 'Open',
+          level: 'open',
+        })
+        .execute();
+      await trx
+        .insertInto('teams')
+        .values(
+          teamIds.map((id, index) => ({
+            id,
+            org_id: orgId,
+            name: `Track Team ${String(index + 1)}`,
+            sport_profile_id: profileId,
+          })),
+        )
+        .execute();
+      await trx
+        .insertInto('team_seasons')
+        .values(
+          teamSeasonIds.map((id, index) => ({
+            id,
+            org_id: orgId,
+            team_id: teamIds[index] ?? '',
+            program_id: programId,
+            division_id: divisionId,
+          })),
+        )
+        .execute();
       const profileVersion = await trx
         .selectFrom('sport_profile_versions')
         .select('version')
@@ -171,6 +256,8 @@ describe('contest statistics', () => {
             org_id: orgId,
             title: `Meet ${String(index + 1)}`,
             kind: 'meet',
+            program_id: programId,
+            division_id: divisionId,
             starts_at: startsAt,
             ends_at: new Date(new Date(startsAt).getTime() + 3_600_000),
             timezone: 'UTC',
@@ -184,8 +271,8 @@ describe('contest statistics', () => {
             event_id: eventId,
             sport_profile_id: profileId,
             profile_version: 1,
-            format: 'multi_timed',
-            status: 'final',
+            format: profile.contestFormats[0]?.format ?? 'head_to_head_score',
+            status: index === 2 ? 'in_progress' : 'final',
           })
           .execute();
         await trx
@@ -218,6 +305,24 @@ describe('contest statistics', () => {
               stat_key: 'private_mark',
               value: 99,
             },
+            {
+              id: newId(),
+              org_id: orgId,
+              contest_id: contestId,
+              person_id: null,
+              team_season_id: teamSeasonIds[0] ?? null,
+              stat_key: 'goals',
+              value: index === 0 ? 2 : index === 1 ? 4 : 100,
+            },
+            {
+              id: newId(),
+              org_id: orgId,
+              contest_id: contestId,
+              person_id: null,
+              team_season_id: teamSeasonIds[1] ?? null,
+              stat_key: 'goals',
+              value: index === 0 ? 1 : index === 1 ? 3 : 99,
+            },
           ])
           .execute();
       }
@@ -232,10 +337,77 @@ describe('contest statistics', () => {
       result.items.find((item) => item.key === 'sprint_100')?.achievedAt,
     ).toBe('2026-09-08T12:00:00.000Z');
 
+    const leaderboards = await listProgramStatLeaders(actor, { programId });
+    expect(
+      leaderboards.items.find((item) => item.key === 'sprint_100')?.leaders,
+    ).toMatchObject([{ subjectLabel: 'Fast Runner', value: 18_000, rank: 1 }]);
+    expect(
+      leaderboards.items.find((item) => item.key === 'private_mark'),
+    ).toBeUndefined();
+    expect(
+      leaderboards.items.find((item) => item.key === 'goals')?.leaders,
+    ).toMatchObject([
+      { subjectLabel: 'Track Team 1', value: 6, rank: 1 },
+      { subjectLabel: 'Track Team 2', value: 4, rank: 2 },
+    ]);
+    const teamStats = await listTeamStats(actor, {
+      teamSeasonId: teamSeasonIds[0] ?? '',
+    });
+    expect(teamStats.summary.goals).toBe(6);
+    const statSettings = await getProgramStatSettings(actor, programId);
+    expect(statSettings.enabledStatKeys).toEqual([
+      'goals',
+      'points',
+      'private_mark',
+      'sprint_100',
+    ]);
+    const savedSettings = await updateProgramStatSettings(actor, programId, {
+      expectedVersion: statSettings.version,
+      enabledStatKeys: ['points', 'private_mark'],
+    });
+    expect(savedSettings.enabledStatKeys).toEqual(['points', 'private_mark']);
+    await expect(
+      updateProgramStatSettings(actor, programId, {
+        expectedVersion: statSettings.version,
+        enabledStatKeys: ['points'],
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      updateProgramStatSettings(actor, programId, {
+        expectedVersion: savedSettings.version,
+        enabledStatKeys: ['not-a-profile-stat'],
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    const firstContestId = contests[0];
+    if (!firstContestId) throw new Error('Expected a seeded contest.');
+    const contest = await contestDetail(actor, firstContestId);
+    expect(contest.statDefinitions.map((definition) => definition.key)).toEqual(
+      ['points', 'private_mark'],
+    );
+    expect(
+      (await listProgramStatLeaders(actor, { programId })).items.map(
+        (item) => item.key,
+      ),
+    ).toEqual(['points']);
+    const disabledTeamStats = await listTeamStats(actor, {
+      teamSeasonId: teamSeasonIds[0] ?? '',
+    });
+    expect(disabledTeamStats.definitions).toEqual([]);
+    expect(
+      (await listPersonPersonalBests(actor, personId)).items,
+    ).toMatchObject([{ key: 'points', value: 12 }]);
+
     await expect(
       listPersonPersonalBests(
         { orgId, actor: { accountId: strangerId } },
         personId,
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      getProgramStatSettings(
+        { orgId, actor: { accountId: strangerId } },
+        programId,
       ),
     ).rejects.toMatchObject({ status: 403 });
   });

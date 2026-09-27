@@ -13,11 +13,14 @@ import {
   createContest,
   assignMeetParticipants,
   disputeContestResult,
+  getProgramStatSettings,
   listContestResults,
   listPersonPersonalBests,
+  listProgramStatLeaders,
   listTeamStats,
   liveContestPublic,
   submitContestResult,
+  updateProgramStatSettings,
 } from './service';
 
 const id = z.uuid();
@@ -276,6 +279,64 @@ export function createContestsRouter(
       fail(res, error);
     }
   });
+  router.get(
+    '/orgs/:orgId/programs/:programId/stats/settings',
+    async (req, res) => {
+      try {
+        res.json(
+          await getProgramStatSettings(
+            await contextFor(dependencies, req),
+            id.parse(req.params.programId),
+          ),
+        );
+      } catch (error) {
+        fail(res, error);
+      }
+    },
+  );
+  router.put(
+    '/orgs/:orgId/programs/:programId/stats/settings',
+    async (req, res) => {
+      try {
+        mutate(dependencies, req);
+        const input = z
+          .strictObject({
+            expectedVersion: z.number().int().positive(),
+            enabledStatKeys: z
+              .array(z.string().regex(/^[a-z0-9][a-z0-9_]*$/))
+              .max(200),
+          })
+          .parse(req.body);
+        res.json(
+          await updateProgramStatSettings(
+            await contextFor(dependencies, req),
+            id.parse(req.params.programId),
+            input,
+          ),
+        );
+      } catch (error) {
+        fail(res, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/programs/:programId/stats/leaders',
+    async (req, res) => {
+      try {
+        const query = req.query as Record<string, unknown>;
+        res.json(
+          await listProgramStatLeaders(await contextFor(dependencies, req), {
+            programId: id.parse(req.params.programId),
+            ...(query.divisionId === undefined
+              ? {}
+              : { divisionId: id.parse(query.divisionId) }),
+          }),
+        );
+      } catch (error) {
+        fail(res, error);
+      }
+    },
+  );
   router.get(
     '/orgs/:orgId/people/:personId/personal-bests',
     async (req, res) => {
