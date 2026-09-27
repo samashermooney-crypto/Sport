@@ -5,7 +5,7 @@ Branch: `track/qa`
 
 ## Ready for integration ranges
 
-- None yet. The five original QA commits and follow-up audits remain unmerged. Sync merge `06b8150` includes trunk `cd5b638`; typecheck, lint, and build pass, while `npm run size` and `npm run knip` fail. Chromium exits before test collection because Track I owns QA's prescribed offset 1500, and the isolated QA Postgres stack cannot start.
+- None yet. The five original QA commits and follow-up audits remain unmerged. Latest sync merge `74e8a30` includes `rebuild/trunk` `0ca39573`. Typecheck and lint pass, 15 isolated security unit tests pass, and Playwright lists 24 Chromium tests across seven QA specs. Full PostgreSQL and browser execution remain blocked while Track I owns the prescribed QA offset 1500.
 
 ## Requests to other tracks
 
@@ -29,6 +29,7 @@ Branch: `track/qa`
 - H — QA-ACC-021: extend the communications browser journey through quiet-hour deferral and tokenized unsubscribe. Details are in `docs/codex/qa/DEFECTS.md`.
 - H — QA-ACC-037: run the Phase 11 $300 donation acceptance flow from an anonymous browser context; its current scenario retains the authenticated setup session. Details are in `docs/codex/qa/DEFECTS.md`.
 - H — QA-SEC-009: restrict household volunteer ledger reads to a verified guardian of that household or an authorized volunteer oversight role; the current service grants any active organization membership access. A scoped-director regression is marked `test.fixme` in `e2e/security/volunteer-household-ledger.spec.ts`.
+- H/E — QA-ACC-038: link family uniform orders to the selected athlete's registration/team and reject forged team attribution so paid purchases feed accurate size reports. The portal-to-report regression is marked `test.fixme` in `e2e/phase11-uniform-report.spec.ts`.
 - I — QA-ACC-024: extend the academy browser flow to cover monthly tuition/proration and level promotion in addition to its current make-up booking and attendance coverage. Details are in `docs/codex/qa/DEFECTS.md`.
 - I — release or move the active `athlentry_i` stack from the QA-required `PORT_OFFSET=1500`; its Postgres, Mailpit, and Stripe mock mappings collide with ports `6932`, `2525/9525`, and `13611`. Do not stop the other track's containers from QA.
 
@@ -50,7 +51,9 @@ Branch: `track/qa`
 - Filed QA-ACC-036: Phase 13 journey 25 submits both field windows but schedules one game only, so it cannot prove both clubs' availability affects the generated schedule.
 - Audited the integrated Phase 11 journeys: journey 23 now records its volunteer acceptance flow as covered but awaiting QA execution; QA-ACC-037 asks H to exercise the donation acceptance path without the setup session.
 - Static privacy audit found QA-SEC-009: a scoped director with an active org membership can read unrelated household volunteer ledger data because the ledger service checks membership but not role scope. Added a focused `test.fixme` request test; runtime verification is blocked by the QA stack collision.
+- Phase 11 store audit found QA-ACC-038: the family store omits registration/team identifiers that the report requires, while the service trusts arbitrary caller-supplied team IDs. Added a paid family-order-to-report `test.fixme`; execution is pending the isolated database/browser stack.
 - Selected isolated SSRF, stored-XSS, security-header, and `security.txt` Vitest checks pass (15 tests) using a temporary config without the PostgreSQL global setup; full database and browser suites remain blocked by the occupied QA offset.
+- Synced trunk through Phase 11 commit `0ca39573` in merge `74e8a30`; resolved H's track note while retaining QA requests. The post-sync full typecheck/lint and changed-file pre-commit checks pass.
 - Filed QA-SEC-008: `readMemberCompliance` has no real-Postgres test for the status-only allow-list, denied-sharing response, or dual-org audit.
 - Re-ran `npm run knip` on the post-Phase 13 tree: 8 unused files, 44 exports, 28 types, and 1 duplicate. The new federation dead exports and demo helper are routed through the Track C quality-gate request.
 - Post-Phase 13 `npm run typecheck`, `npm run lint`, and `npm run build` pass; build warns that the 1.35 MB app entry chunk exceeds Vite's 500 KB warning threshold. `npm run size` measures 404.93 KB gzip against a 200 KB limit. Targeted federation/crawler Chromium exits before test collection because its configured web server cannot start; the stack conflict remains with Track I.

@@ -82,6 +82,16 @@
 - **Request:** replace the broad active-membership check with explicit owner/admin/volunteer-coordinator authorization (including the applicable scope policy) or verified guardian access, and add an integration regression for a program-scoped director.
 - **Status:** high-confidence static access-control defect; database-backed HTTP execution awaits the isolated QA stack.
 
+### QA-ACC-038 — Family uniform orders are not linked to team/program size reports
+
+- **Owner:** Track H (coordinate registration add-on checkout with Track E)
+- **Phase:** 11 acceptance criterion 4
+- **Evidence:** the family `StorePortal.placeOrder()` sends `householdId`, fulfillment, and line `personId`, but no `registrationId` or `teamSeasonId`. `placeStoreOrder()` stores those omitted fields as null, while `uniformSizeReport()` filters/group rows using `store_order_lines.registration_id` and `team_season_id`. The existing report integration test manually supplies both IDs to `placeStoreOrder()`, so it bypasses the family portal contract. The service also trusts a caller-supplied team season without checking its relationship to the household member or registration.
+- **Reproduce:** place and pay for a uniform as a family through `/me/orgs/:orgId/store`, then query the report for the athlete's program/team. The portal order has no team or registration association and does not appear in the team's report; supplying another valid team-season UUID directly can instead misattribute it.
+- **Expected:** a paid uniform selection for a registered athlete is attributed to that athlete's verified registration and team, and callers cannot attach purchases to unrelated teams; report totals match actual family selections.
+- **Request:** wire the registration add-on and family store flows to derive or validate registration/team attribution from the selected household member, reject mismatched team IDs, and add a browser regression that pays for a family uniform and verifies the team/program report.
+- **Status:** open Phase 11 acceptance/data-integrity gap; current report evidence covers only a direct service call with manually supplied attribution.
+
 ### QA-OPS-001 — Render health probes have no `/readyz` handler and public status is missing
 
 - **Owner:** Track C
