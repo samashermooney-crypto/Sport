@@ -60,11 +60,25 @@ export async function registerDevice(
   assertPlatform(session, parsed.platform);
   const { hash, stored } = canonicalDevice(parsed);
   return database.transaction().execute(async (trx) => {
+    const activeSession = await trx
+      .selectFrom('sessions')
+      .select('id')
+      .where('id', '=', session.id)
+      .where('account_id', '=', session.accountId)
+      .where('revoked_at', 'is', null)
+      .where('idle_expires_at', '>', now)
+      .where('absolute_expires_at', '>', now)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!activeSession) {
+      throw new AuthDomainError(401, 'UNAUTHENTICATED', 'Session expired');
+    }
     const inserted = await trx
       .insertInto('device_tokens')
       .values({
         id: newId(),
         account_id: session.accountId,
+        session_id: session.id,
         platform: parsed.platform,
         token_hash: hash,
         token_or_subscription: stored,
@@ -100,6 +114,7 @@ export async function registerDevice(
       .set({
         token_or_subscription: stored,
         last_seen_at: now,
+        session_id: session.id,
         revoked_at: null,
       })
       .where('id', '=', existing.id)
@@ -116,19 +131,53 @@ export async function registerDevice(
 export async function listDevices(
   database: Kysely<DB>,
   accountId: string,
+  now = new Date(),
 ): Promise<RegisteredDevice[]> {
   const rows = await database
     .selectFrom('device_tokens')
-    .select(['id', 'platform', 'last_seen_at'])
-    .where('account_id', '=', accountId)
-    .where('revoked_at', 'is', null)
-    .orderBy('last_seen_at', 'desc')
+    .innerJoin('sessions', 'sessions.id', 'device_tokens.session_id')
+    .select([
+      'device_tokens.id',
+      'device_tokens.platform',
+      'device_tokens.last_seen_at',
+    ])
+    .where('device_tokens.account_id', '=', accountId)
+    .where('device_tokens.revoked_at', 'is', null)
+    .where('sessions.revoked_at', 'is', null)
+    .where('sessions.idle_expires_at', '>', now)
+    .where('sessions.absolute_expires_at', '>', now)
+    .orderBy('device_tokens.last_seen_at', 'desc')
     .execute();
   return rows.map((row) => ({
     id: row.id,
     platform: row.platform as RegisteredDevice['platform'],
     lastSeenAt: row.last_seen_at,
   }));
+}
+
+export async function expireStaleDevices(
+  database: Kysely<DB>,
+  now: Date,
+): Promise<number> {
+  const expired = await database
+    .updateTable('device_tokens')
+    .set({ revoked_at: now, token_or_subscription: {} })
+    .where('revoked_at', 'is', null)
+    .where('session_id', 'in', (query) =>
+      query
+        .selectFrom('sessions')
+        .select('id')
+        .where((expression) =>
+          expression.or([
+            expression('revoked_at', 'is not', null),
+            expression('idle_expires_at', '<=', now),
+            expression('absolute_expires_at', '<=', now),
+          ]),
+        ),
+    )
+    .returning('id')
+    .execute();
+  return expired.length;
 }
 
 export async function revokeDevice(
