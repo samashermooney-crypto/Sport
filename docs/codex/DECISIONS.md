@@ -391,3 +391,11 @@
 - **Decision:** The chat API reports attachment capabilities using the current Files authorization contract. The portal renders upload/download actions only when those capabilities allow them; chat messages remain visible with a neutral access-unavailable label otherwise.
 - **Why:** A family-facing button that predictably receives 403 is not a working feature, and membership must not grant file access outside the Files policy.
 - **Consequences / follow-ups:** Track C must extend Files upload/download authorization to active same-organization conversation members for approved chat image/PDF attachments; then remove any stale capability duplication if Files exposes an authorization API.
+
+### DEC-048 — Preview draft audiences without persisting campaign state
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 campaign composer
+- **Context:** The composer needs a live recipient count and preview while users change selectors, categories and channels, before saving a campaign.
+- **Decision:** Provide a read-only draft audience preview endpoint that calls the same recipient resolver and eligibility calculation as a saved campaign preview. Require the same campaign role and owner/admin restriction for emergency audiences; debounce composer requests and skip preview until a selector and channel are present.
+- **Why:** Staff can validate recipient routing immediately without creating a persisted campaign for every draft edit, and preview counts stay aligned with send-time policy.
+- **Consequences / follow-ups:** Both saved and unsaved preview paths must remain covered by tenant and permission integration tests.
