@@ -102,6 +102,7 @@ function Message({ text }: { text: string }): React.JSX.Element | null {
 
 export function ImpersonationBanner(): React.JSX.Element | null {
   const [current, setCurrent] = useState<Impersonation | null>(null);
+  const [error, setError] = useState('');
   useEffect(() => {
     let live = true;
     const refresh = () => {
@@ -118,6 +119,7 @@ export function ImpersonationBanner(): React.JSX.Element | null {
         })
         .catch(() => {
           sessionStorage.removeItem('athlentry.impersonation');
+          if (live) setCurrent(null);
         });
     };
     refresh();
@@ -127,6 +129,20 @@ export function ImpersonationBanner(): React.JSX.Element | null {
       window.removeEventListener('athlentry:impersonation', refresh);
     };
   }, []);
+  useEffect(() => {
+    if (!current) return;
+    const remaining = new Date(current.expiresAt).getTime() - Date.now();
+    const timer = window.setTimeout(
+      () => {
+        sessionStorage.removeItem('athlentry.impersonation');
+        setCurrent(null);
+      },
+      Math.max(0, remaining),
+    );
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [current]);
   if (!current) return null;
   return (
     <aside className="platform-console__impersonation" role="status">
@@ -141,14 +157,21 @@ export function ImpersonationBanner(): React.JSX.Element | null {
         onClick={() => {
           void platformApi(`/impersonations/${current.id}`, {
             method: 'DELETE',
-          }).then(() => {
-            sessionStorage.removeItem('athlentry.impersonation');
-            setCurrent(null);
-          });
+          })
+            .then(() => {
+              sessionStorage.removeItem('athlentry.impersonation');
+              setCurrent(null);
+            })
+            .catch((cause: unknown) => {
+              setError(
+                cause instanceof Error ? cause.message : 'Request failed.',
+              );
+            });
         }}
       >
         End impersonation
       </button>
+      {error && <span role="alert">{error}</span>}
     </aside>
   );
 }

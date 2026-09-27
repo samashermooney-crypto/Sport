@@ -68,6 +68,10 @@ export function NotificationCenter({
 
   useEffect(() => {
     const stream = new EventSource('/api/v1/stream', { withCredentials: true });
+    stream.addEventListener('open', () => {
+      setCursor(null);
+      setRevision((value) => value + 1);
+    });
     stream.addEventListener('notification', () => {
       setCursor(null);
       setRevision((value) => value + 1);

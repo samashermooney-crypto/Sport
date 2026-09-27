@@ -193,6 +193,14 @@ export function createStreamRouter(
         channel: notificationChannel,
         accept: (payload) =>
           notificationStreamEvent(payload, session.accountId),
+        authorize: async () => {
+          try {
+            const current = await requireSession(dependencies, request);
+            return current.id === session.id;
+          } catch {
+            return false;
+          }
+        },
       });
     } catch (error) {
       if (!response.headersSent) sendError(response, error);

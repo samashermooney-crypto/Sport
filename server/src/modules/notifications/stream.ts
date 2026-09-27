@@ -14,11 +14,15 @@ export function notificationStreamEvent(
   payload: string,
   accountId: string,
 ): SseEvent | null {
-  const parsed = envelopeSchema.safeParse(JSON.parse(payload) as unknown);
-  if (!parsed.success || parsed.data.accountId !== accountId) return null;
-  return {
-    id: parsed.data.id,
-    event: 'notification',
-    data: { id: parsed.data.id, orgId: parsed.data.orgId },
-  };
+  try {
+    const parsed = envelopeSchema.safeParse(JSON.parse(payload) as unknown);
+    if (!parsed.success || parsed.data.accountId !== accountId) return null;
+    return {
+      id: parsed.data.id,
+      event: 'notification',
+      data: { id: parsed.data.id, orgId: parsed.data.orgId },
+    };
+  } catch {
+    return null;
+  }
 }

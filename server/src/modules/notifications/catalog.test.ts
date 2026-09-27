@@ -46,5 +46,6 @@ describe('notification catalog and stream envelope', () => {
         '3208481e-5bad-4e82-b9fb-9c93fa172954',
       ),
     ).toBeNull();
+    expect(notificationStreamEvent('{broken', accountId)).toBeNull();
   });
 });

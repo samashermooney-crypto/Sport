@@ -161,6 +161,9 @@ export async function markNotificationRead(
         entityType: 'notification',
         entityId: notificationId,
       });
+      await sql`select pg_notify(${notificationChannel}, ${JSON.stringify({ id: notificationId, orgId: context.orgId, accountId: context.actor.accountId })})`.execute(
+        trx,
+      );
       return row.read_at;
     }
     const current = await trx

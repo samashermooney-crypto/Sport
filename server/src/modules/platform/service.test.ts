@@ -5,6 +5,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDatabase } from '../../db/kysely';
+import { issueSession } from '../auth/sessions';
 import type { ActiveSession } from '../auth/sessions';
 
 import {
@@ -119,6 +120,29 @@ describe('platform administration', () => {
         database,
       ),
     ).rejects.toThrow('permission denied');
+    const issued = await database.transaction().execute((trx) =>
+      issueSession(
+        trx,
+        {
+          accountId: userId,
+          kind: 'cookie',
+          client: 'web',
+          privileged: true,
+          mfaVerifiedAt: new Date(),
+        },
+        new Date(),
+      ),
+    );
+    await savePlatformStaff(adminDatabase, platformAdmin, userId, {
+      role: 'support',
+      active: true,
+    });
+    const revoked = await database
+      .selectFrom('sessions')
+      .select('revoked_at')
+      .where('id', '=', issued.id)
+      .executeTakeFirst();
+    expect(revoked?.revoked_at).toBeInstanceOf(Date);
   });
 
   it('lists and suspends an organization with version checks and audit', async () => {
@@ -171,6 +195,14 @@ describe('platform administration', () => {
       key: 'test.feature',
       enabled: false,
     });
+    await expect(
+      saveFeatureFlag(adminDatabase, platformAdmin, 'test.feature', {
+        description: 'Test feature',
+        enabled: true,
+        organizationOverrides: { [randomUUID()]: true },
+        expectedVersion: 1,
+      }),
+    ).rejects.toBeInstanceOf(PlatformAccessError);
     const now = new Date();
     const current = await startImpersonation(
       adminDatabase,

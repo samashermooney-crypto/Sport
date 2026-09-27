@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { createDatabase } from '../../db/kysely';
 import type { DB } from '../../db/types';
 import { VersionConflictError } from '../../lib/version-check';
+import { revokeSessions } from '../auth/sessions';
 
 import { PlatformAccessError } from './service';
 import type { PlatformRole, PlatformStaff } from './service';
@@ -146,6 +147,16 @@ export async function saveFeatureFlag(
     throw new RangeError('Invalid feature flag key');
   const input = featureFlagInputSchema.parse(rawInput);
   return database.transaction().execute(async (trx) => {
+    const orgIds = Object.keys(input.organizationOverrides);
+    if (orgIds.length) {
+      const known = await trx
+        .selectFrom('organizations')
+        .select('id')
+        .where('id', 'in', orgIds)
+        .execute();
+      if (known.length !== orgIds.length)
+        throw new PlatformAccessError('Organization override not found', 404);
+    }
     const current = await sql<{
       version: number;
     }>`SELECT version FROM platform_feature_flags
@@ -230,6 +241,13 @@ export async function savePlatformStaff(
       VALUES (${accountId}, ${input.role}, ${input.active})
       ON CONFLICT (account_id) DO UPDATE SET role = EXCLUDED.role,
         active = EXCLUDED.active`.execute(trx);
+    if (
+      !current.rows[0] ||
+      current.rows[0].role !== input.role ||
+      current.rows[0].active !== input.active
+    ) {
+      await revokeSessions(trx, accountId, new Date());
+    }
     await sql`INSERT INTO platform_audit_log
       (id, staff_account_id, action, target_account_id, details)
       VALUES (${randomUUID()}, ${actor.accountId}, 'platform_staff.update', ${accountId},

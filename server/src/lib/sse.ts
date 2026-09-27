@@ -20,6 +20,7 @@ export async function listenSse(
     channel: string;
     accept: (payload: string) => SseEvent | null;
     heartbeatMs?: number;
+    authorize?: () => Promise<boolean>;
   },
 ): Promise<void> {
   if (!/^[a-z][a-z0-9_]{0,62}$/.test(options.channel))
@@ -40,7 +41,17 @@ export async function listenSse(
   response.flushHeaders();
   response.write(': connected\n\n');
   const heartbeat = setInterval(() => {
-    if (!response.destroyed) response.write(': heartbeat\n\n');
+    if (!options.authorize) {
+      if (!response.destroyed) response.write(': heartbeat\n\n');
+      return;
+    }
+    void options
+      .authorize()
+      .then((authorized) => {
+        if (!authorized) close();
+        else if (!response.destroyed) response.write(': heartbeat\n\n');
+      })
+      .catch(close);
   }, options.heartbeatMs ?? 20_000);
   let closed = false;
   const close = () => {
