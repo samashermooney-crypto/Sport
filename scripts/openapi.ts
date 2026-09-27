@@ -1,6 +1,7 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 
 import prettier from 'prettier';
+import * as ts from 'typescript';
 import { z } from 'zod';
 
 import { serverModules } from '../server/src/generated/registry';
@@ -453,6 +454,59 @@ async function declaredRouteKeys(): Promise<Set<string>> {
         '{$1}',
       );
       keys.add(`${method} ${path}`);
+    }
+    for (const extra of module.extraRouters ?? []) {
+      const directory = `server/src/modules/${module.name}`;
+      const filenames = (await readdir(directory)).filter(
+        (name) => name.endsWith('.ts') && !name.endsWith('.test.ts'),
+      );
+      let foundFactory = false;
+      for (const filename of filenames) {
+        const path = `${directory}/${filename}`;
+        const code = await readFile(path, 'utf8');
+        const sourceFile = ts.createSourceFile(
+          path,
+          code,
+          ts.ScriptTarget.Latest,
+          true,
+        );
+        for (const declaration of sourceFile.statements) {
+          if (
+            !ts.isFunctionDeclaration(declaration) ||
+            declaration.name?.text !== extra.router.name ||
+            !declaration.body
+          )
+            continue;
+          foundFactory = true;
+          const visit = (node: ts.Node): void => {
+            if (
+              ts.isCallExpression(node) &&
+              ts.isPropertyAccessExpression(node.expression) &&
+              ts.isIdentifier(node.expression.expression) &&
+              node.expression.expression.text === 'router' &&
+              ['get', 'post', 'put', 'patch', 'delete'].includes(
+                node.expression.name.text,
+              ) &&
+              node.arguments[0] &&
+              ts.isStringLiteral(node.arguments[0])
+            ) {
+              const suffix = node.arguments[0].text;
+              const routePath =
+                `${extra.path}${suffix === '/' ? '' : suffix}`.replace(
+                  /:([a-zA-Z][a-zA-Z0-9_]*)/g,
+                  '{$1}',
+                );
+              keys.add(`${node.expression.name.text} ${routePath}`);
+            }
+            ts.forEachChild(node, visit);
+          };
+          visit(declaration.body);
+        }
+      }
+      if (!foundFactory)
+        throw new Error(
+          `Extra router source not found: ${module.name}.${extra.router.name}`,
+        );
     }
   }
   return keys;

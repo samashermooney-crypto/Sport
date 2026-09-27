@@ -141,7 +141,7 @@ test('platform staff and portal notifications work accessibly', async ({
     expect(await accessibilityViolations(page)).toEqual([]);
     const guardedInbox = page.waitForRequest(
       (request) =>
-        request.url().includes(`/notifications/orgs/${orgId}/inbox`) &&
+        request.url().includes(`/orgs/${orgId}/notifications`) &&
         request.headers()['x-athlentry-impersonation'] === impersonationId,
     );
     await page.goto(`/portal/orgs/${orgId}/notifications`);

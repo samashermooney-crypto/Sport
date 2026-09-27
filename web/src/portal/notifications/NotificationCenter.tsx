@@ -35,19 +35,19 @@ export function NotificationCenter({
   const [busy, setBusy] = useState('');
   const [revision, setRevision] = useState(0);
   const impersonationId = useImpersonationId();
-  const base = `/api/v1/notifications/orgs/${encodeURIComponent(orgId)}`;
+  const base = `/api/v1/orgs/${encodeURIComponent(orgId)}`;
 
   useEffect(() => {
     const controller = new AbortController();
     const query = new URLSearchParams({ limit: '50' });
     if (cursor) query.set('cursor', cursor);
     void Promise.all([
-      fetch(`${base}/inbox?${query}`, {
+      fetch(`${base}/notifications?${query}`, {
         credentials: 'include',
         headers: impersonationHeaders(impersonationId),
         signal: controller.signal,
       }),
-      fetch(`${base}/preferences`, {
+      fetch(`${base}/notification-preferences`, {
         credentials: 'include',
         headers: impersonationHeaders(impersonationId),
         signal: controller.signal,
@@ -98,7 +98,7 @@ export function NotificationCenter({
     setBusy(id);
     try {
       const response = await fetch(
-        `${base}/inbox/${encodeURIComponent(id)}/read`,
+        `${base}/notifications/${encodeURIComponent(id)}/read`,
         {
           method: 'PATCH',
           credentials: 'include',
@@ -127,7 +127,7 @@ export function NotificationCenter({
     setBusy(key);
     try {
       const response = await fetch(
-        `${base}/preferences/${preference.category}/${preference.channel}`,
+        `${base}/notification-preferences/${preference.category}/${preference.channel}`,
         {
           method: 'PUT',
           credentials: 'include',

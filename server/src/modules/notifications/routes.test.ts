@@ -1,15 +1,14 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 
-import express from 'express';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { createApp } from '../../app';
 import { createDatabase, getDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { AuthDependencies } from '../auth/routes';
 
-import { createNotificationsRouter } from './routes';
 import { createNotification } from './service';
 
 const origin = 'http://127.0.0.1:5173';
@@ -21,7 +20,7 @@ const otherOrgId = randomUUID();
 let ownNotificationId: string;
 let otherNotificationId: string;
 let token: string;
-let server: ReturnType<express.Express['listen']>;
+let server: ReturnType<ReturnType<typeof createApp>['listen']>;
 let baseUrl: string;
 let previousDatabaseUrl: string | undefined;
 
@@ -105,17 +104,13 @@ beforeAll(async () => {
   } finally {
     await database.destroy();
   }
-  const app = express();
-  app.use(
-    '/api/v1/notifications',
-    createNotificationsRouter({
-      database: getDatabase(),
-      appUrl: origin,
-      clock: () => now,
-    } as AuthDependencies),
-  );
+  const app = createApp({
+    database: getDatabase(),
+    appUrl: origin,
+    clock: () => now,
+  } as AuthDependencies);
   server = app.listen(0);
-  baseUrl = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/api/v1/notifications`;
+  baseUrl = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/api/v1`;
 });
 
 afterAll(async () => {
@@ -130,13 +125,30 @@ function request(
   method = 'GET',
   originHeader = origin,
 ): Promise<Response> {
-  return fetch(`${baseUrl}${path}`, {
+  return fetch(`${baseUrl}/notifications${path}`, {
     method,
     headers: {
       Cookie: `__Host-athlentry_session=${token}`,
       Origin: originHeader,
       'X-Athlentry-Request': '1',
     },
+  });
+}
+
+function aliasRequest(
+  path: string,
+  method = 'GET',
+  body?: unknown,
+): Promise<Response> {
+  return fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      Cookie: `__Host-athlentry_session=${token}`,
+      Origin: origin,
+      'X-Athlentry-Request': '1',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 }
 
@@ -174,5 +186,74 @@ describe('notification HTTP tenancy', () => {
     );
     expect(own.status).toBe(200);
     expect(await own.json()).toHaveProperty('readAt');
+  });
+
+  it('mounts account and organization aliases with the same tenant boundary', async () => {
+    const orgInbox = await aliasRequest(`/orgs/${ownOrgId}/notifications`);
+    expect(orgInbox.status).toBe(200);
+    expect(await orgInbox.json()).toMatchObject({
+      items: [{ id: ownNotificationId }],
+    });
+    const accountInbox = await aliasRequest(
+      `/me/notifications?orgId=${ownOrgId}`,
+    );
+    expect(accountInbox.status).toBe(200);
+    expect(await accountInbox.json()).toMatchObject({
+      items: [{ id: ownNotificationId }],
+    });
+    expect((await aliasRequest('/me/notifications')).status).toBe(400);
+    expect(
+      (await aliasRequest(`/me/notifications?orgId=${otherOrgId}`)).status,
+    ).toBe(404);
+    expect(
+      (await aliasRequest(`/orgs/${otherOrgId}/notifications`)).status,
+    ).toBe(404);
+    expect(
+      (await aliasRequest(`/orgs/${ownOrgId}/notification-preferences`)).status,
+    ).toBe(200);
+    expect(
+      (await aliasRequest(`/me/notification-preferences?orgId=${ownOrgId}`))
+        .status,
+    ).toBe(200);
+    const marked = await aliasRequest(
+      `/me/notifications/${ownNotificationId}/read?orgId=${ownOrgId}`,
+      'PATCH',
+    );
+    expect(marked.status).toBe(200);
+    const preference = await aliasRequest(
+      `/me/notification-preferences/marketing/email?orgId=${ownOrgId}`,
+      'PUT',
+      { enabled: true, expectedVersion: 0 },
+    );
+    expect(preference.status).toBe(200);
+    expect(await preference.json()).toMatchObject({
+      enabled: true,
+      version: 1,
+    });
+  });
+
+  it('blocks account and organization aliases when a member organization is suspended', async () => {
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    try {
+      await admin.query('UPDATE organizations SET status = $1 WHERE id = $2', [
+        'suspended',
+        ownOrgId,
+      ]);
+      expect(
+        (await aliasRequest(`/me/notifications?orgId=${ownOrgId}`)).status,
+      ).toBe(403);
+      expect(
+        (await aliasRequest(`/orgs/${ownOrgId}/notifications`)).status,
+      ).toBe(403);
+    } finally {
+      await admin.query('UPDATE organizations SET status = $1 WHERE id = $2', [
+        'active',
+        ownOrgId,
+      ]);
+      await admin.end();
+    }
   });
 });

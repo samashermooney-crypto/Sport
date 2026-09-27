@@ -25,6 +25,11 @@ export class NotificationAccessError extends Error {
   readonly code = 'NOT_FOUND';
 }
 
+export class NotificationSuspendedError extends Error {
+  readonly status = 403;
+  readonly code = 'FORBIDDEN';
+}
+
 async function requireMembership(
   trx: OrgTransaction,
   context: OrgContext,
@@ -37,6 +42,13 @@ async function requireMembership(
     .where('status', '=', 'active')
     .executeTakeFirst();
   if (!member) throw new NotificationAccessError('Inbox not found');
+  const organization = await trx
+    .selectFrom('organizations')
+    .select('status')
+    .where('id', '=', context.orgId)
+    .executeTakeFirstOrThrow();
+  if (organization.status === 'suspended')
+    throw new NotificationSuspendedError('Organization is suspended');
 }
 
 export async function createNotification(

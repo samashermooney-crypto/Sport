@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol
 Branch: `track/b-logic`
-Current: Second queue B-owned implementation and stream/portal/MFA/banner mounts are on trunk; tenant impersonation enforcement, suspension blocking and shared API contracts remain for Phase 1 acceptance.
+Current: Second queue B-owned modules and audited tenant impersonation are on trunk; notification scope aliases are ready locally, while shared API contracts remain for strict Phase 1 acceptance.
 Ready: Age/eligibility — `shared/src/sport/{age,eligibility}.ts`; 11 targeted tests, typecheck and lint green.
 Ready: Recurrence — `shared/src/recurrence.ts`; 11 targeted tests across four timezones, typecheck and lint green.
 Ready: Sport schema/results/stats/standings — 19 targeted tests, typecheck and lint green; template goldens still pending.
@@ -20,16 +20,14 @@ Ready: Logic edge review — refund rule validation and date parsing; bracket, f
 Ready: Scoring variants — swim relay points, diving difficulty, cross-country/golf team totals, rugby bonuses and cricket net run rate; 46 golden files checked.
 Ready: Property invariants — brackets, capacity, schedule, dunning, waitlist, evaluation, sport engine and all five policies.
 Ready: Phase 1 task 10 core — pg-boss schema, executable job descriptors, 30-second worker heartbeat and redacted failed-job listing; isolated Postgres job completed.
-Ready: Phase 1 task 15 core — OpenAPI 3.1 for 67 current operations with route coverage/freshness check; closed error schema on auth/orgs, cursor pagination, transactional Idempotency-Key and version checks.
+Ready: Phase 1 task 15 core — OpenAPI 3.1 for 75 current operations with primary/extra-router coverage and freshness check; closed error schema on auth/orgs, cursor pagination, transactional Idempotency-Key and version checks.
 Ready: Phase 1 task 14 — append-only audit service, fail-closed Restricted-field redaction/read helper, role-scoped cursor API and functional console viewer.
-Ready: Phase 1 task 13 core — code-defined catalog, org-scoped inbox and preferences APIs, audited writes, Postgres LISTEN/NOTIFY SSE transport, and portal notification center; 8 targeted server tests pass including account-filtered SSE HTTP.
-Ready: Phase 1 task 9 core — global platform staff/flags/impersonation/audit schema, org and plan controls, read-only 60-minute impersonation service, health API, functional `/platform` console and hidden-password bootstrap script; 7 targeted Postgres/HTTP, 2 web and 2 browser tests pass.
-Ready for integration: 2d322a3..HEAD — mounted `/api/v1/stream` HTTP test, portal inbox/read/preference browser coverage and B-owned impersonation-aware tenant views; second-queue tasks 10/15/14/13/9 core and earlier permission/browser tests are on trunk at `2d322a3`, and complete logic queue `30a775f..5c01024` is also on trunk.
-Requests to other tracks: A — wire `auditImpersonatedRequest` from `server/src/modules/platform/impersonation.ts` into every impersonated tenant request, enforce read-only and 60-minute expiry, carry impersonation ID into tenant audits, and reject org operations when status is suspended; stream/portal mounts, global banner and platform-staff sign-in MFA are now on trunk.
-Requests to other tracks: A — map notification inbox/preferences aliases under the account/organization API scope in `01 §5` when mounting the new module; generated registry currently mounts `/api/v1/notifications/orgs/:orgId/*`.
+Ready: Phase 1 task 13 — code-defined catalog, account/organization-scoped inbox and preferences aliases, audited writes, Postgres LISTEN/NOTIFY SSE, and portal notification center; 10 targeted server tests pass including mounted SSE, tenancy and suspended-org aliases.
+Ready: Phase 1 task 9 — global platform staff/flags/impersonation/audit schema, org and plan controls, guarded read-only 60-minute impersonation, health API, functional `/platform` console and hidden-password bootstrap script; Postgres/HTTP and Chromium/WebKit acceptance pass.
+Ready for integration: 148b986..HEAD — account/organization notification aliases, canonical portal API, expanded extra-router OpenAPI coverage and merged platform browser acceptance; second-queue tasks 10/15/14/9 core and earlier notification/permission/browser tests are on trunk at `148b986`, and complete logic queue `30a775f..5c01024` is also on trunk.
 Requests to other tracks: A/C — move file-route request/response contracts and B module-local audit/notification/platform contracts to shared Zod schemas; merged file-route descriptors make OpenAPI generation pass.
 Requests to other tracks: A/C — migrate A-owned mutable org routes to `expectedVersion`/version helpers and align C-owned files errors with the closed shared error envelope (`FILE_INVALID` is currently undeclared and uses a different JSON shape).
-Integration dependencies: A-owned tenant impersonation and suspension hooks plus A/C-owned shared API contracts; mounted stream and portal flows are covered locally.
+Integration dependencies: A/C-owned shared Zod request/response contracts, A-owned org version helper migration and C-owned files error envelope; mounted stream, portal aliases and audited impersonation are covered locally.
 Self-review: Checked age and eligibility against `03 §3` and `15 §C8`; date rules reuse `shared/src/dates.ts`.
 Self-review: Checked recurrence DST behavior against `15 §C1` across Chicago, New York, Phoenix and Honolulu.
 Self-review: Checked money sequencing and state invariants against `20 §1–§5`; all arithmetic uses integer cents.
@@ -44,4 +42,4 @@ Self-review: Marketing notification preferences default disabled until explicit 
 Self-review: Notification SSE revalidates its session on every 20-second heartbeat, ignores malformed envelopes and reloads the inbox on reconnect.
 Self-review: B-owned audit/notification tenant reads carry the impersonation header; notification writes are hidden or disabled while impersonating, and banner end/expiry synchronizes the read-only state.
 Self-review: Task 9 checked against Phase 1 task 9; platform writes use admin role where app grants are revoked, plan and org changes carry versions, last active super admin is protected, and impersonation requests log IDs without record payloads.
-Self-review: Full unit/integration suite passes (433 tests, 1 existing skip) after trunk sync; typecheck, lint, build, registry and OpenAPI freshness pass; Chromium/WebKit verify platform, global impersonation banner, mounted stream, portal inbox/read/preference persistence and axe.
+Self-review: Full unit/integration suite passes (438 tests, 1 existing skip) after trunk sync; typecheck, lint, build, registry and OpenAPI generation pass; Chromium/WebKit verify platform, audited global impersonation, mounted stream, canonical portal inbox/read/preference persistence and axe.
