@@ -12,6 +12,7 @@ import {
 import {
   dispatchFinanceStripeEvent,
   financeStripeEventHandlers,
+  replayStoredStripeEvents,
 } from './stripe-event-job.js';
 
 describe('finance Stripe event worker', () => {
@@ -75,5 +76,21 @@ describe('finance Stripe event worker', () => {
     } finally {
       await database.destroy();
     }
+  });
+
+  it('replays later events after a poison event and surfaces the failure', async () => {
+    const seen: string[] = [];
+    const repository = {
+      pendingIds: () => Promise.resolve(['evt_bad', 'evt_good']),
+    };
+    await expect(
+      replayStoredStripeEvents(repository, (id) => {
+        seen.push(id);
+        return id === 'evt_bad'
+          ? Promise.reject(new Error('Bad event'))
+          : Promise.resolve('processed' as const);
+      }),
+    ).rejects.toThrow('Stripe event replay failed');
+    expect(seen).toEqual(['evt_bad', 'evt_good']);
   });
 });
