@@ -14,7 +14,15 @@ import { useNavigate } from 'react-router';
 
 import { apiDelete, apiGet, apiPost } from '../api/client';
 import { disconnectBrowserPush } from '../push/browser';
-import { AuthFrame, AuthLink, Button, ErrorBox, Field } from '../ui/auth';
+import {
+  AuthFrame,
+  AuthLink,
+  Button,
+  ErrorBox,
+  Field,
+  Input,
+  Select,
+} from '../ui/auth';
 
 import { BrowserPush } from './BrowserPush';
 
@@ -217,7 +225,7 @@ export function SecuritySettings(): React.JSX.Element {
             required
             error={passwordForm.formState.errors.currentPassword?.message}
           >
-            <input
+            <Input
               type="password"
               autoComplete="current-password"
               {...passwordForm.register('currentPassword', {
@@ -230,7 +238,7 @@ export function SecuritySettings(): React.JSX.Element {
             required
             error={passwordForm.formState.errors.newPassword?.message}
           >
-            <input
+            <Input
               type="password"
               autoComplete="new-password"
               {...passwordForm.register('newPassword', {
@@ -259,7 +267,7 @@ export function SecuritySettings(): React.JSX.Element {
           noValidate
         >
           <Field label="Verification method">
-            <select
+            <Select
               value={stepMethod}
               onChange={(event) => {
                 setStepMethod(event.target.value as 'password' | 'totp');
@@ -269,7 +277,7 @@ export function SecuritySettings(): React.JSX.Element {
               {account.data.mfaEnabled && (
                 <option value="totp">Authenticator code</option>
               )}
-            </select>
+            </Select>
           </Field>
           <Field
             label={
@@ -278,7 +286,7 @@ export function SecuritySettings(): React.JSX.Element {
             required
             error={stepForm.formState.errors.secret?.message}
           >
-            <input
+            <Input
               type={stepMethod === 'password' ? 'password' : 'text'}
               autoComplete={
                 stepMethod === 'password' ? 'current-password' : 'one-time-code'
@@ -308,7 +316,7 @@ export function SecuritySettings(): React.JSX.Element {
             required
             error={emailForm.formState.errors.email?.message}
           >
-            <input
+            <Input
               type="email"
               autoComplete="email"
               {...emailForm.register('email', {
@@ -365,7 +373,7 @@ export function SecuritySettings(): React.JSX.Element {
                 required
                 error={codeForm.formState.errors.code?.message}
               >
-                <input
+                <Input
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   {...codeForm.register('code', {

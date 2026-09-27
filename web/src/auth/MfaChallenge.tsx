@@ -4,7 +4,14 @@ import { useForm } from 'react-hook-form';
 import { useLocation, useNavigate } from 'react-router';
 
 import { apiPost } from '../api/client';
-import { AuthFrame, AuthLink, Button, ErrorBox, Field } from '../ui/auth';
+import {
+  AuthFrame,
+  AuthLink,
+  Button,
+  ErrorBox,
+  Field,
+  Input,
+} from '../ui/auth';
 
 interface ChallengeState {
   challengeToken: string;
@@ -70,7 +77,7 @@ export function MfaChallenge(): React.JSX.Element {
           required
           error={errors.code?.message}
         >
-          <input
+          <Input
             autoComplete="one-time-code"
             inputMode={method === 'totp' ? 'numeric' : 'text'}
             {...register('code', { required: 'Enter your code.' })}

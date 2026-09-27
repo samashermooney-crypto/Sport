@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { Calendar } from './extended';
-import { DataTable, Tabs } from './primitives';
+import { DataTable, Switch, Tabs } from './primitives';
 
 describe('shared design system interactions', () => {
   it('changes tabs and supports sorting and row selection', () => {
@@ -38,6 +38,14 @@ describe('shared design system interactions', () => {
     expect(tableRows[0]?.textContent).toContain('Baseball');
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select all rows' }));
     expect(onSelectionChange).toHaveBeenCalledWith(['2', '1']);
+  });
+
+  it('preserves uncontrolled switch state when no checked value is provided', () => {
+    render(<Switch label="Schedule alerts" defaultChecked />);
+    const control = screen.getByRole('switch', { name: 'Schedule alerts' });
+    expect((control as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(control);
+    expect((control as HTMLInputElement).checked).toBe(false);
   });
 
   it('changes calendar views without requiring an owner callback', () => {

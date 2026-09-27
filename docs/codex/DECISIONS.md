@@ -279,3 +279,27 @@
 - **Decision:** Production startup requires approved legal documents, a strong session secret, HTTPS app URL, live delivery mode, database and encryption settings, Resend sender, Turnstile site and secret keys, and a VAPID public key. It uses server-side Turnstile verification and the configured Resend sender. An hourly registered worker job deletes only expired rate-limit rows; unexpired counters remain intact.
 - **Why:** Missing protection or credentials cannot silently fall back to local adapters in production, while scheduled cleanup bounds storage without resetting active limits.
 - **Consequences / follow-ups:** Deployment must provide these values before startup. Local development and tests continue to use preview/fake delivery; production service calls are not exercised in tests.
+
+### DEC-034 — Meet contrast minimums in calendar and pagination text
+- **Date:** 2026-09-26
+- **Phase / area:** Track D shared design system
+- **Context:** The legacy muted text colors for outside-month dates and pagination details fall below the required 4.5:1 contrast on their backgrounds.
+- **Decision:** Use the existing `--muted` token for those two text treatments while leaving the token palette unchanged.
+- **Why:** Accessibility is the only permitted visual adjustment under `01 §11a`; using the existing muted hue is the smallest passing change.
+- **Consequences / follow-ups:** These two labels are slightly darker than legacy; all remaining captured token values and component styling stay unchanged.
+
+### DEC-035 — Preserve modal styling while meeting phone touch targets
+- **Date:** 2026-09-26
+- **Phase / area:** Track D shared design system
+- **Context:** The legacy admin modal close control is 32px square, while `01 §11` requires 44×44px touch targets. The admin modal reference uses a 68px title bar.
+- **Decision:** Keep the 32px close affordance on desktop. On phone widths, expand its control box to 44×44px and reduce title-bar vertical padding so the captured title-bar height remains unchanged; retain the legacy icon, colors, border and typography.
+- **Why:** This satisfies the explicit touch target requirement with the smallest mobile-only change to the legacy modal.
+- **Consequences / follow-ups:** Phone screenshots include the wider invisible close-control area; modal styling otherwise follows the captured admin modal treatment.
+
+### DEC-036 — Correct empty-state copy contrast
+- **Date:** 2026-09-26
+- **Phase / area:** Track D shared design system
+- **Context:** The legacy empty-state copy color fails the required contrast check on a white panel, surfaced by the design parity axe audit.
+- **Decision:** Use the existing `--muted` token for shared empty-state copy while preserving its size, layout and surrounding styles.
+- **Why:** Accessibility is the only permitted visual adjustment under `01 §11a`; the existing muted token is the smallest passing change.
+- **Consequences / follow-ups:** Empty-state copy is darker than the original legacy color; the palette and all other captured values stay unchanged.
