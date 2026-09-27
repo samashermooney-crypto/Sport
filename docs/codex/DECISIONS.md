@@ -494,3 +494,11 @@
 - **Decision:** A household may have one primary contact, who must have an adult household role. Adding a new primary contact clears the former flag in the same locked transaction. Show invoice balances grouped by currency and never add amounts from different currencies.
 - **Why:** The rule prevents ambiguous contact routing and misleading financial totals.
 - **Consequences / follow-ups:** Member editing and removal must preserve or deliberately reassign the primary contact. Household address and membership changes are audited and versioned.
+
+### DEC-071 — Retain removed household membership history
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 household membership
+- **Context:** A household member can hold encrypted custody notes and financial responsibility; deleting the row would erase context needed for audits and could leave authorization consumers trusting a stale link.
+- **Decision:** Set `removed_at` on removal and retain the row. Re-adding the same person creates a new active membership. Every family, chat, checkout and finance authorization query ignores removed memberships. Removing the last primary contact while other members remain requires another adult to be assigned first.
+- **Why:** Historical contact decisions remain reviewable while access ends immediately.
+- **Consequences / follow-ups:** New membership consumers must filter on `removed_at IS NULL`; membership removal and reassignment are covered by PostgreSQL and browser tests.

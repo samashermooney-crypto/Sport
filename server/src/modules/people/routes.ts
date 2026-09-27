@@ -1,6 +1,8 @@
 import {
   householdCreateSchema,
   householdMemberCreateSchema,
+  householdMemberRemoveSchema,
+  householdMemberUpdateSchema,
   householdUpdateSchema,
 } from '@shared/schemas/households';
 import {
@@ -307,6 +309,61 @@ export function createPeopleRouter(
               householdMemberCreateSchema.parse(request.body),
             ),
           );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.patch(
+    '/households/orgs/:orgId/:householdId/members/:memberId',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        const orgId = z.uuid().parse(request.params.orgId);
+        const householdId = z.uuid().parse(request.params.householdId);
+        const memberId = z.uuid().parse(request.params.memberId);
+        response.json(
+          await households.updateMember(
+            orgId,
+            session.accountId,
+            householdId,
+            memberId,
+            householdMemberUpdateSchema.parse(request.body),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post(
+    '/households/orgs/:orgId/:householdId/members/:memberId/remove',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        const orgId = z.uuid().parse(request.params.orgId);
+        const householdId = z.uuid().parse(request.params.householdId);
+        const memberId = z.uuid().parse(request.params.memberId);
+        const { expectedVersion } = householdMemberRemoveSchema.parse(
+          request.body,
+        );
+        response.json(
+          await households.removeMember(
+            orgId,
+            session.accountId,
+            householdId,
+            memberId,
+            expectedVersion,
+          ),
+        );
       } catch (error) {
         sendError(response, error);
       }

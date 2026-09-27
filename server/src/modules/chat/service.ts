@@ -1842,6 +1842,7 @@ export async function listHouseholdMessageHistory(
       .select('person_id')
       .where('org_id', '=', context.orgId)
       .where('household_id', '=', householdId)
+      .where('removed_at', 'is', null)
       .execute();
     const personIds = [...new Set(members.map((member) => member.person_id))];
     if (!personIds.length) return { items: [] };

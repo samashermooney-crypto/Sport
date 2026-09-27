@@ -1036,6 +1036,7 @@ export interface HouseholdMembers {
   org_id: string;
   person_id: string;
   receives_communications: Generated<boolean>;
+  removed_at: Timestamp | null;
   role: string;
   updated_at: Generated<Timestamp>;
 }

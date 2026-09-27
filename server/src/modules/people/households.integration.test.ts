@@ -94,6 +94,7 @@ it('scopes household members and preserves primary contact, version and audit', 
   const outsider = await actor();
   const guardian = await person(owner, 'Riley', '1980-01-01');
   const child = await person(owner, 'Alex', '2012-01-01');
+  const secondAdult = await person(owner, 'Morgan', '1982-01-01');
   const otherTenantPerson = await person(outsider, 'Other', '2012-01-01');
   const repo = createHouseholdsRepository(database);
   const created = await repo.create(owner.orgId, owner.accountId, {
@@ -177,6 +178,113 @@ it('scopes household members and preserves primary contact, version and audit', 
       name: 'Stale',
     }),
   ).rejects.toMatchObject({ status: 409 });
+  const childMember = withChild.members.find(
+    (member) => member.personId === child,
+  );
+  const guardianMember = withChild.members.find(
+    (member) => member.personId === guardian,
+  );
+  expect(childMember).toBeDefined();
+  expect(guardianMember).toBeDefined();
+  if (!childMember || !guardianMember)
+    throw new Error('Expected household members');
+  const withEditedChild = await repo.updateMember(
+    owner.orgId,
+    owner.accountId,
+    created.id,
+    childMember.id,
+    { expectedVersion: 4, canPickUp: true },
+  );
+  expect(
+    withEditedChild.members.find((member) => member.personId === child)
+      ?.canPickUp,
+  ).toBe(true);
+  await expect(
+    repo.removeMember(
+      owner.orgId,
+      owner.accountId,
+      created.id,
+      guardianMember.id,
+      5,
+    ),
+  ).rejects.toMatchObject({ status: 409 });
+  const withoutChild = await repo.removeMember(
+    owner.orgId,
+    owner.accountId,
+    created.id,
+    childMember.id,
+    5,
+  );
+  expect(withoutChild.members.map((member) => member.personId)).not.toContain(
+    child,
+  );
+  const historical = await withOrg(owner, (trx) =>
+    trx
+      .selectFrom('household_members')
+      .select('removed_at')
+      .where('org_id', '=', owner.orgId)
+      .where('id', '=', childMember.id)
+      .executeTakeFirstOrThrow(),
+  );
+  expect(historical.removed_at).not.toBeNull();
+  const readded = await repo.addMember(
+    owner.orgId,
+    owner.accountId,
+    created.id,
+    {
+      personId: child,
+      role: 'athlete',
+      isPrimaryContact: false,
+      receivesCommunications: false,
+      financiallyResponsible: false,
+      canPickUp: false,
+      livesHere: true,
+    },
+  );
+  expect(
+    readded.members.find((member) => member.personId === child)?.id,
+  ).not.toBe(childMember.id);
+  const withSecondAdult = await repo.addMember(
+    owner.orgId,
+    owner.accountId,
+    created.id,
+    {
+      personId: secondAdult,
+      role: 'other_adult',
+      isPrimaryContact: false,
+      receivesCommunications: true,
+      financiallyResponsible: false,
+      canPickUp: true,
+      livesHere: true,
+    },
+  );
+  const secondMember = withSecondAdult.members.find(
+    (member) => member.personId === secondAdult,
+  );
+  expect(secondMember).toBeDefined();
+  if (!secondMember) throw new Error('Expected second adult member');
+  const reassigned = await repo.updateMember(
+    owner.orgId,
+    owner.accountId,
+    created.id,
+    secondMember.id,
+    { expectedVersion: 8, isPrimaryContact: true },
+  );
+  expect(
+    reassigned.members
+      .filter((member) => member.isPrimaryContact)
+      .map((member) => member.personId),
+  ).toEqual([secondAdult]);
+  const withoutGuardian = await repo.removeMember(
+    owner.orgId,
+    owner.accountId,
+    created.id,
+    guardianMember.id,
+    9,
+  );
+  expect(
+    withoutGuardian.members.map((member) => member.personId),
+  ).not.toContain(guardian);
   expect(
     (await repo.list(owner.orgId, owner.accountId)).items.map(
       (item) => item.id,
@@ -196,5 +304,11 @@ it('scopes household members and preserves primary contact, version and audit', 
     'household.member_added',
     'household.member_added',
     'household.updated',
+    'household.member_updated',
+    'household.member_removed',
+    'household.member_added',
+    'household.member_added',
+    'household.member_updated',
+    'household.member_removed',
   ]);
 });
