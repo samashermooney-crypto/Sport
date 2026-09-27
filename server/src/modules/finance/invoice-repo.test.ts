@@ -8,7 +8,10 @@ import { createDatabase } from '../../db/kysely.js';
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 
-import { PostgresInvoiceRepository } from './invoice-repo.js';
+import {
+  PostgresInvoiceRepository,
+  recomputeInvoiceStatus,
+} from './invoice-repo.js';
 import { invoiceTotals, type IssueInvoiceInput } from './invoices.js';
 
 let database: Kysely<DB>;
@@ -129,5 +132,136 @@ describe('invoice issuance', () => {
     expect(() => invoiceTotals({ ...input(), source: 'staff' })).toThrow(
       'only to product orders',
     );
+  });
+
+  it('derives past-due status without changing the idempotent issuance result', async () => {
+    const request = { ...input(), dueOn: '2026-01-01' };
+    const issued = await repository.issue(request);
+    const status = await createWithOrg(database)(context, (trx) =>
+      recomputeInvoiceStatus(trx, context.orgId, issued.id, '2026-09-26'),
+    );
+    expect(status).toBe('past_due');
+    expect(await repository.issue(request)).toEqual(issued);
+  });
+
+  it('voids only after successful payment is fully refunded and audits the action', async () => {
+    const invoice = await repository.issue(input());
+    const paymentId = newId();
+    const refundId = newId();
+    const lineId = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('invoice_lines')
+        .select('id')
+        .where('invoice_id', '=', invoice.id)
+        .where('kind', '=', 'product')
+        .executeTakeFirstOrThrow(),
+    );
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('payments')
+        .values({
+          id: paymentId,
+          org_id: context.orgId,
+          account_id: context.actor.accountId,
+          method: 'card',
+          status: 'succeeded',
+          amount_cents: 945,
+        })
+        .execute();
+      await trx
+        .insertInto('payment_allocations')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          payment_id: paymentId,
+          invoice_id: invoice.id,
+          amount_cents: 945,
+        })
+        .execute();
+      await trx
+        .updateTable('invoices')
+        .set({ paid_cents: 945 })
+        .where('id', '=', invoice.id)
+        .execute();
+      expect(
+        await recomputeInvoiceStatus(
+          trx,
+          context.orgId,
+          invoice.id,
+          '2026-09-26',
+        ),
+      ).toBe('paid');
+    });
+    await expect(
+      repository.void({
+        orgId: context.orgId,
+        invoiceId: invoice.id,
+        reason: 'Duplicate assessment',
+      }),
+    ).rejects.toThrow('Cannot void');
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('refunds')
+        .values({
+          id: refundId,
+          org_id: context.orgId,
+          payment_id: paymentId,
+          amount_cents: 945,
+          reason: 'duplicate',
+          status: 'succeeded',
+        })
+        .execute();
+      await trx
+        .insertInto('refund_allocations')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          refund_id: refundId,
+          invoice_line_id: lineId.id,
+          amount_cents: 945,
+        })
+        .execute();
+      await trx
+        .updateTable('invoices')
+        .set({ refunded_cents: 945 })
+        .where('id', '=', invoice.id)
+        .execute();
+      expect(
+        await recomputeInvoiceStatus(
+          trx,
+          context.orgId,
+          invoice.id,
+          '2026-09-26',
+        ),
+      ).toBe('open');
+    });
+    await repository.void({
+      orgId: context.orgId,
+      invoiceId: invoice.id,
+      reason: 'Duplicate assessment',
+    });
+    const record = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('invoices')
+        .select(['status', 'void_reason'])
+        .where('id', '=', invoice.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(record).toEqual({
+      status: 'void',
+      void_reason: 'Duplicate assessment',
+    });
+    const events = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('audit_log')
+        .select('action')
+        .where('org_id', '=', context.orgId)
+        .where('entity_id', '=', invoice.id)
+        .execute(),
+    );
+    expect(events.map((event) => event.action).sort()).toEqual([
+      'invoice.issued',
+      'invoice.voided',
+    ]);
   });
 });

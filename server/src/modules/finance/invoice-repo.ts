@@ -1,9 +1,15 @@
+import { deriveInvoiceState } from '@shared/algorithms/invoice-state';
 import { newId } from '@shared/ids';
 import { sql, type Kysely } from 'kysely';
 
 import { allocateOrgNumber } from '../../db/orgCounters.js';
 import type { DB } from '../../db/types.js';
-import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
+import {
+  createWithOrg,
+  type OrgContext,
+  type OrgTransaction,
+} from '../../db/withOrg.js';
+import { appendAuditEvent } from '../audit/service.js';
 
 import {
   initialInvoiceStatus,
@@ -105,6 +111,15 @@ export class PostgresInvoiceRepository {
             })
             .execute();
         }
+        await appendAuditEvent(trx, this.context, {
+          action: 'invoice.issued',
+          entityType: 'invoice',
+          entityId: id,
+          changes: {
+            totalCents: { tier: 'internal', after: totals.totalCents },
+            number: { tier: 'internal', after: number },
+          },
+        });
         return {
           id,
           orgId: input.orgId,
@@ -129,6 +144,61 @@ export class PostgresInvoiceRepository {
     }
   }
 
+  async void(input: {
+    orgId: string;
+    invoiceId: string;
+    reason: string;
+  }): Promise<void> {
+    if (input.orgId !== this.context.orgId)
+      throw new Error('Invoice organization mismatch');
+    if (!input.reason.trim())
+      throw new Error('Invoice void reason is required');
+    await this.withOrg(this.context, async (trx) => {
+      const invoice = await trx
+        .selectFrom('invoices')
+        .select([
+          'id',
+          'status',
+          'total_cents',
+          'paid_cents',
+          'refunded_cents',
+          'credit_applied_cents',
+        ])
+        .where('org_id', '=', input.orgId)
+        .where('id', '=', input.invoiceId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!invoice) throw new Error('Invoice not found');
+      if (invoice.status === 'void') return;
+      deriveInvoiceState({
+        totalCents: invoice.total_cents,
+        succeededAllocationsCents: invoice.paid_cents,
+        refundedToMethodCents: invoice.refunded_cents,
+        creditAppliedCents: invoice.credit_applied_cents,
+        todayLocal: '1970-01-01',
+        confirmed: true,
+        voided: true,
+      });
+      await trx
+        .updateTable('invoices')
+        .set({
+          status: 'void',
+          voided_at: new Date(),
+          void_reason: input.reason,
+          version: sql`version + 1`,
+        })
+        .where('org_id', '=', input.orgId)
+        .where('id', '=', input.invoiceId)
+        .execute();
+      await appendAuditEvent(trx, this.context, {
+        action: 'invoice.voided',
+        entityType: 'invoice',
+        entityId: input.invoiceId,
+        changes: { reason: { tier: 'internal', after: input.reason } },
+      });
+    });
+  }
+
   private replay(row: InvoiceRow, hash: string): IssuedInvoice {
     if (row.creation_hash !== hash) {
       throw new Error('Invoice creation key was used for a different request');
@@ -141,4 +211,65 @@ export class PostgresInvoiceRepository {
       status: initialInvoiceStatus(row.total_cents),
     };
   }
+}
+
+/** Call inside the same withOrg transaction as allocation/refund/credit writes. */
+export async function recomputeInvoiceStatus(
+  trx: OrgTransaction,
+  orgId: string,
+  invoiceId: string,
+  todayLocal: string,
+): Promise<string> {
+  const invoice = await sql<{
+    status: string;
+    total_cents: number;
+    paid_cents: number;
+    refunded_cents: number;
+    credit_applied_cents: number;
+    balance_cents: number;
+    due_on: string | null;
+  }>`
+    SELECT status, total_cents, paid_cents, refunded_cents,
+           credit_applied_cents, balance_cents, due_on::text
+    FROM invoices WHERE org_id = ${orgId}::uuid AND id = ${invoiceId}::uuid
+    FOR UPDATE
+  `.execute(trx);
+  const row = invoice.rows[0];
+  if (!row) throw new Error('Invoice not found');
+  if (row.status === 'draft') return 'draft';
+  const installments = await sql<{
+    due_on: string;
+    amount_cents: number;
+    paid_cents: number;
+  }>`
+    SELECT due_on::text, amount_cents, paid_cents FROM installments
+    WHERE org_id = ${orgId}::uuid AND invoice_id = ${invoiceId}::uuid
+  `.execute(trx);
+  const state = deriveInvoiceState({
+    totalCents: row.total_cents,
+    succeededAllocationsCents: row.paid_cents,
+    refundedToMethodCents: row.refunded_cents,
+    creditAppliedCents: row.credit_applied_cents,
+    installments: installments.rows.map((item) => ({
+      dueOn: item.due_on,
+      amountCents: item.amount_cents,
+      paidCents: item.paid_cents,
+    })),
+    dueOn: row.due_on,
+    todayLocal,
+    confirmed: true,
+    voided: row.status === 'void',
+  });
+  if (state.balanceCents !== row.balance_cents) {
+    throw new Error('Invoice balance differs from derived state');
+  }
+  if (state.status !== row.status) {
+    await trx
+      .updateTable('invoices')
+      .set({ status: state.status, version: sql`version + 1` })
+      .where('org_id', '=', orgId)
+      .where('id', '=', invoiceId)
+      .execute();
+  }
+  return state.status;
 }
