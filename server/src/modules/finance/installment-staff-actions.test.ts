@@ -338,5 +338,9 @@ describe('staff installment schedule actions', () => {
       status: 'waived',
       autopay: false,
     });
+    expect(await repo.listInvoice(invoice.id)).toMatchObject({
+      installments: [{ id: targetId, status: 'waived', version: 2 }],
+      consents: [],
+    });
   });
 });
