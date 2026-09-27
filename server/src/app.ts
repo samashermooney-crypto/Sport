@@ -24,6 +24,9 @@ export function createApp(auth?: AuthDependencies): express.Express {
   if (auth) {
     for (const module of serverModules) {
       if (module.router) app.use(module.path, module.router(auth));
+      for (const extra of module.extraRouters ?? []) {
+        app.use(extra.path, extra.router(auth));
+      }
     }
   }
   if (process.env.NODE_ENV === 'production') {

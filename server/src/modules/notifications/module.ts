@@ -17,7 +17,7 @@ export const moduleDefinition = {
   name: 'notifications',
   path: '/api/v1/notifications',
   router: createNotificationsRouter,
-  streamRouter: createStreamRouter,
+  extraRouters: [{ path: '/api/v1/stream', router: createStreamRouter }],
   jobs: [],
   permissions: [],
   notificationTypes,
@@ -63,5 +63,4 @@ export const moduleDefinition = {
   ],
 } satisfies ServerModule & {
   openapiRoutes: readonly unknown[];
-  streamRouter: typeof createStreamRouter;
 };
