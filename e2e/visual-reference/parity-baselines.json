@@ -1,0 +1,9 @@
+{
+  "legacyRevision": "9ef77bb",
+  "linux": {
+    "container": "mcr.microsoft.com/playwright:v1.58.0-noble",
+    "platform": "linux/amd64",
+    "viewportHeight": 900,
+    "shellFiles": ["dashboard-1440-linux.png", "dashboard-390-linux.png"]
+  }
+}
