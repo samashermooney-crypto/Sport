@@ -13,6 +13,7 @@ Ready for integration: local `d63eaba..c609ac2` — ambiguous Stripe confirmatio
 Ready for integration: local `d47d120..409f99c` — direct participant access fix and versioned installment-template finance API; queue work continues.
 Ready for integration: local `409f99c..189e0e9` — Luna finance handoff and idempotent `account.updated` Connect sync handler; queue work continues.
 Ready for integration: local `1297355..a6a5ed4` — unique frozen checkout-to-invoice binding before PaymentIntent; queue work continues.
+Ready for integration: local `96230da..4572f61` — database-owned service fee settings and frozen cover-costs/custom checkout charges; queue work continues.
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
@@ -28,6 +29,7 @@ Requests to other tracks: A: provide a durable system actor account ID for finan
 Requests to other tracks: A: include E's `connectAccountHandlers` in the `stripe.event` dispatcher when wiring the worker; it verifies Connect endpoint account identity and fresh Stripe metadata before withOrg sync (2026-09-27).
 Requests to other tracks: A: block opening a priced registration offering until its organization's `payment_accounts.charges_enabled` is true, using E's Connect account state (2026-09-27).
 Requests to other tracks: A: record invoice refund terms at issuance as a policy snapshot in DECISIONS.md; changing org/program settings must not reprice a historical refund (2026-09-27).
+Requests to other tracks: A: expose org `settings.serviceFee` as the strict `{ enabled, mode, custom_bps, custom_fixed_cents }` contract; E's checkout loader fails closed on unknown org pricing settings and freezes the chosen rates (2026-09-27).
 Blocked on: None; schema spine and test factories are on `rebuild/trunk`.
 Luna finance: Build checkout flow by calling `CheckoutPricingService` with `PostgresCheckoutPricingRepository`, then `PostgresInvoiceRepository.issue`, then `CheckoutPaymentService` with `PostgresFrozenChargeReader`/attempt/record stores; never calculate or trust client-provided prices or create a Stripe intent before a frozen invoice reconciles.
 Luna finance: Use `shared/src/algorithms/{pricing,fees,installments,invoice-state,dunning-schedule}.ts` and `shared/src/policies/refund-policy.ts`; keep cents as safe integers, use only `withOrg` for tenant rows, and make every external money call pass a durable idempotency claim before Stripe.
@@ -41,7 +43,7 @@ Gateway review: test-only keys and events enforced; raw webhook bytes verified; 
 Gateway review: no live keys, no real payment or email sent; test-mode smoke script needs operator test credentials and onboarding.
 Gateway gate: 83 tests, typecheck, lint, build, registry/OpenAPI/codegen freshness green; no gateway screens for Playwright.
 Additional gate: 267 tests passed/1 skipped against isolated Postgres, typecheck, lint and build green; no affected mounted Playwright screens or generated inputs.
-Current gate: 537 tests passed/1 skipped with isolated Postgres and stripe-mock; typecheck, lint, build, and Playwright 24 passed/4 skipped on Chromium/WebKit mobile. A-owned registry/OpenAPI/codegen regeneration remains for integration.
+Current gate: 539 tests passed/1 skipped with isolated Postgres and stripe-mock; typecheck, lint, build, and Playwright 24 passed/4 skipped on Chromium/WebKit mobile after one WebKit design-target flake passed in isolation and on full rerun. A-owned registry/OpenAPI/codegen regeneration remains for integration.
 Current review: Refund approval hashes bind requester, proposal, destination and key; checkout attempts serialize different keys before Stripe, and payout exports require exact reconciliation.
 Current review: Tenant finance data uses `withOrg`; account-wide payer methods use the authenticated account; no live keys, real charges or external messages were used.
 Current review: Frozen charge terms must be persisted with the checkout snapshot before the payment route is mounted; multi-payment refund allocation and dispute evidence remain in the queue.
@@ -84,7 +86,7 @@ Checkout core: `checkout/service.ts` contracts for atomic holds, fixed lock orde
 Lost-capacity refunds: checkout now durably claims each intent before Stripe refund and preserves uncertain claims for reconciliation; 1 replay/failure test added.
 Checkout pricing: `checkout/pricing.ts` freezes Track B pricing from repository-owned inputs in one withOrg transaction, validates invoice/credit reconciliation and replays stored cents; 2 targeted tests pass.
 Checkout pricing persistence: `checkout/pricing-repo.ts` locks the payer's open checkout, accepts a transactional economic-source loader, stores Track B cents plus immutable payment terms, canonicalizes zero signs for exact replay, and rejects stale keys or mismatched fees; freeze→invoice→charge-reader Postgres test and fee-mismatch test pass.
-Checkout source loader: `checkout/pricing-source-repo.ts` loads database offering price only with a direct active participant `person_account_links` access grant, public active offering, open program and live program/offering holds; household roles alone grant no access, and unsupported pricing fails closed; 1 Postgres test passes.
+Checkout source loader: `checkout/pricing-source-repo.ts` requires direct active participant access, public open offering and live holds; it freezes spec-shaped cover-costs/custom service fee settings and application rates while unsupported org/offering pricing fails closed; 1 Postgres test covers access, rate snapshots and unknown settings.
 Refund core: `finance/refunds.ts` applies Track B refund policy with proportional service-fee reversal, two-person threshold, ACH-processing block and stable idempotent Stripe refunds; 7 targeted tests pass.
 Refund attempts: migration 1003 and `finance/refund-attempt-repo.ts` persist scoped request-hash conflicts, pre-external retries, external fences and exact replay results; 2 real-Postgres tests pass.
 Stripe refund settlement: `finance/refund-record-repo.ts` records pending Stripe refunds with line/service-fee allocations before an attempt completes; latest-state `charge.refunded` and `charge.refund.updated` handlers settle invoice refunded cents once; 2 real-Postgres and 2 handler tests pass.
