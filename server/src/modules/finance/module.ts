@@ -101,6 +101,9 @@ import {
 } from './tax-rates.js';
 import { yearEndStatementSchema } from './year-end-statements.js';
 
+const yearPathSchema = z.string().regex(/^(?:200[0-9]|20[1-9][0-9]|2100)$/);
+const payoutIdPathSchema = z.string().regex(/^po_[A-Za-z0-9_]+$/);
+
 export const moduleDefinition = {
   name: 'finance',
   path: '/api/v1/finance',
@@ -205,6 +208,7 @@ export const moduleDefinition = {
       path: '/api/v1/finance/orgs/{orgId}/me/statements/{year}',
       summary:
         'Read payer cash flows and donation allocations for an org tax year',
+      pathParameters: { year: yearPathSchema },
       response: yearEndStatementSchema,
     },
     {
@@ -481,6 +485,7 @@ export const moduleDefinition = {
       method: 'post',
       path: '/api/v1/finance/orgs/{orgId}/payouts/{payoutId}/journal-export',
       summary: 'Export a reconciled payout journal with explicit GL codes',
+      pathParameters: { payoutId: payoutIdPathSchema },
       body: payoutJournalBodySchema,
       response: payoutJournalResponseSchema,
     },
@@ -502,18 +507,21 @@ export const moduleDefinition = {
       path: '/api/v1/finance/orgs/{orgId}/payouts/{payoutId}/journal-export',
       summary:
         'Export a reconciled payout journal with saved organization accounts',
+      pathParameters: { payoutId: payoutIdPathSchema },
       response: savedJournalResponseSchema,
     },
     {
       method: 'get',
       path: '/api/v1/finance/orgs/{orgId}/payouts/{payoutId}/reconciliation',
       summary: 'Read the payout and each matched Stripe movement',
+      pathParameters: { payoutId: payoutIdPathSchema },
       response: payoutReconciliationSchema,
     },
     {
       method: 'get',
       path: '/api/v1/finance/orgs/{orgId}/payouts/{payoutId}/reconciliation.csv',
       summary: 'Export the payout reconciliation as CSV',
+      pathParameters: { payoutId: payoutIdPathSchema },
       response: z.string(),
     },
   ],

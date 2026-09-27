@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test.fixme('SEC-001 / Track C: application responses include the required security headers', async ({
+test('SEC-001 / Track C: application responses include the required security headers', async ({
   request,
 }) => {
   const response = await request.get('/api/v1/auth/legal');

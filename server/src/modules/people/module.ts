@@ -15,6 +15,7 @@ import {
   guardianLinkCreateSchema,
   guardianLinksResponseSchema,
   peopleFilterOptionsSchema,
+  peopleFilterOptionsQuerySchema,
   peopleListSchema,
   personCreateSchema,
   personPhotoUpdateSchema,
@@ -101,6 +102,7 @@ export const moduleDefinition = {
       path: '/api/v1/people/orgs/{orgId}/filter-options',
       summary:
         'Search organization programs and team seasons for People filters',
+      query: peopleFilterOptionsQuerySchema.shape,
       response: peopleFilterOptionsSchema,
     },
     {

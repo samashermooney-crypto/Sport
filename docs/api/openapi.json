@@ -7,6 +7,9 @@
       "get": {
         "operationId": "get_healthz",
         "summary": "Process health",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "system",
+        "x-athlentry-scope": "public",
         "tags": ["system"],
         "security": [],
         "responses": {
@@ -41,6 +44,9 @@
       "get": {
         "operationId": "get_api_v1_auth_legal",
         "summary": "Get legal documents",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.legal",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -104,6 +110,9 @@
       "get": {
         "operationId": "get_api_v1_auth_captcha_config",
         "summary": "Get CAPTCHA configuration",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.captcha-config",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -151,6 +160,9 @@
       "get": {
         "operationId": "get_api_v1_auth_push_config",
         "summary": "Get push configuration",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.push-config",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -188,6 +200,9 @@
       "get": {
         "operationId": "get_api_v1_auth_me",
         "summary": "Get current account",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.me",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -253,6 +268,9 @@
       "patch": {
         "operationId": "patch_api_v1_auth_locale",
         "summary": "Set account language preference",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.locale",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -303,6 +321,9 @@
       "post": {
         "operationId": "post_api_v1_auth_sign_up",
         "summary": "Create account",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.sign-up",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -385,6 +406,9 @@
       "post": {
         "operationId": "post_api_v1_auth_verify_email",
         "summary": "Verify email",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.verify-email",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -431,6 +455,9 @@
       "post": {
         "operationId": "post_api_v1_auth_sign_in",
         "summary": "Sign in",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.sign-in",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -510,6 +537,9 @@
       "post": {
         "operationId": "post_api_v1_auth_token",
         "summary": "Issue native token",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.token",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -588,6 +618,9 @@
       "post": {
         "operationId": "post_api_v1_auth_token_mfa",
         "summary": "Complete native MFA",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.token",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -663,6 +696,9 @@
       "post": {
         "operationId": "post_api_v1_auth_magic_request",
         "summary": "Request magic link",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.magic",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -715,6 +751,9 @@
       "post": {
         "operationId": "post_api_v1_auth_magic_redeem",
         "summary": "Redeem magic link",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.magic",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -787,6 +826,9 @@
       "post": {
         "operationId": "post_api_v1_auth_mfa_challenge",
         "summary": "Complete MFA challenge",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.mfa",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -837,6 +879,9 @@
       "post": {
         "operationId": "post_api_v1_auth_password_reset_request",
         "summary": "Request password reset",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.password",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -889,6 +934,9 @@
       "post": {
         "operationId": "post_api_v1_auth_password_reset_confirm",
         "summary": "Confirm password reset",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.password",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -938,6 +986,9 @@
       "post": {
         "operationId": "post_api_v1_auth_password_change",
         "summary": "Change password",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.password",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -987,6 +1038,9 @@
       "post": {
         "operationId": "post_api_v1_auth_email_change_request",
         "summary": "Request email change",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.email",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1039,6 +1093,9 @@
       "post": {
         "operationId": "post_api_v1_auth_email_change_confirm",
         "summary": "Confirm email change",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "auth.auth.email",
+        "x-athlentry-scope": "public",
         "tags": ["auth"],
         "security": [],
         "responses": {
@@ -1085,6 +1142,9 @@
       "post": {
         "operationId": "post_api_v1_auth_mfa_enroll_start",
         "summary": "Begin MFA enrollment",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.mfa",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1120,6 +1180,9 @@
       "post": {
         "operationId": "post_api_v1_auth_mfa_enroll_confirm",
         "summary": "Confirm MFA enrollment",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.mfa",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1173,6 +1236,9 @@
       "post": {
         "operationId": "post_api_v1_auth_mfa_recovery_regenerate",
         "summary": "Regenerate recovery codes",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.mfa",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1212,6 +1278,9 @@
       "post": {
         "operationId": "post_api_v1_auth_step_up",
         "summary": "Reauthenticate",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.step-up",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1274,6 +1343,9 @@
       "get": {
         "operationId": "get_api_v1_auth_sessions",
         "summary": "List sessions",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.sessions",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1364,6 +1436,9 @@
       "post": {
         "operationId": "post_api_v1_auth_devices",
         "summary": "Register device",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.devices",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1484,6 +1559,9 @@
       "get": {
         "operationId": "get_api_v1_auth_devices",
         "summary": "List devices",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.devices",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1541,6 +1619,9 @@
       "delete": {
         "operationId": "delete_api_v1_auth_devices_id",
         "summary": "Revoke device",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.devices",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1581,6 +1662,9 @@
       "delete": {
         "operationId": "delete_api_v1_auth_sessions_id",
         "summary": "Revoke session",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.sessions",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1621,6 +1705,9 @@
       "post": {
         "operationId": "post_api_v1_auth_sign_out",
         "summary": "Sign out",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.sign-out",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1653,6 +1740,9 @@
       "post": {
         "operationId": "post_api_v1_auth_account_deletion",
         "summary": "Request account deletion",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "auth.auth.account-deletion",
+        "x-athlentry-scope": "account",
         "tags": ["auth"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1706,6 +1796,9 @@
       "get": {
         "operationId": "get_api_v1_orgs_mine",
         "summary": "List organizations for the current account",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "notifications.orgs.mine",
+        "x-athlentry-scope": "account",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1754,6 +1847,9 @@
       "get": {
         "operationId": "get_api_v1_orgs_orgId_workspace",
         "summary": "Get the active organization workspace and available actions",
+        "x-athlentry-permission": "notifications.read",
+        "x-athlentry-resource": "notifications.workspace",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1795,6 +1891,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -1809,6 +1906,9 @@
       "get": {
         "operationId": "get_api_v1_orgs_orgId_profile",
         "summary": "Get organization profile and branding",
+        "x-athlentry-permission": "notifications.read",
+        "x-athlentry-resource": "notifications.profile",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -1982,6 +2082,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -1994,6 +2095,9 @@
       "patch": {
         "operationId": "patch_api_v1_orgs_orgId_profile",
         "summary": "Update versioned organization profile and branding",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.profile",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -2166,6 +2270,28 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": {
+            "name": "xx",
+            "legalName": "x",
+            "timezone": "x",
+            "address": {
+              "line1": "x",
+              "city": "x",
+              "region": "xx",
+              "postalCode": "x",
+              "country": "US"
+            },
+            "phone": "x",
+            "email": "security@example.test",
+            "websiteUrl": "https://example.test/resource",
+            "defaultLocale": "en",
+            "brand": { "primaryColor": "x", "accentColor": "x" },
+            "logoFileId": "00000000-0000-4000-8000-000000000001",
+            "nonprofit": false,
+            "expectedVersion": 1
+          }
         },
         "parameters": [
           {
@@ -2315,6 +2441,9 @@
       "get": {
         "operationId": "get_api_v1_orgs_sport_templates",
         "summary": "List built-in sport templates",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "notifications.orgs.sport-templates",
+        "x-athlentry-scope": "account",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -2353,6 +2482,9 @@
       "get": {
         "operationId": "get_api_v1_orgs_orgId_credential_types",
         "summary": "List organization safety requirements",
+        "x-athlentry-permission": "notifications.read",
+        "x-athlentry-resource": "notifications.credential-types",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -2420,6 +2552,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -2434,6 +2567,9 @@
       "patch": {
         "operationId": "patch_api_v1_orgs_orgId_credential_types_credentialId",
         "summary": "Update organization safety requirement",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.credential-types",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -2498,6 +2634,15 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": {
+          "body": {
+            "name": "xx",
+            "validityMonths": 1,
+            "blocksActivation": false,
+            "active": false,
+            "version": 1
+          }
+        },
         "parameters": [
           {
             "name": "orgId",
@@ -2556,6 +2701,9 @@
       "patch": {
         "operationId": "patch_api_v1_orgs_orgId_members_memberId_roles",
         "summary": "Update organization member roles",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.members.roles",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -2612,6 +2760,9 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": { "roles": ["owner"], "expectedVersion": 1 }
         },
         "parameters": [
           {
@@ -2674,6 +2825,9 @@
       "patch": {
         "operationId": "patch_api_v1_orgs_orgId_members_memberId_status",
         "summary": "Suspend, reactivate or remove organization membership",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.members.status",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -2714,6 +2868,9 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": { "status": "active", "expectedVersion": 1 }
         },
         "parameters": [
           {
@@ -2759,6 +2916,9 @@
       "patch": {
         "operationId": "patch_api_v1_orgs_orgId_members_memberId_scoped_role",
         "summary": "Grant or revoke a scoped organization role",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.members.scoped-role",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -2796,6 +2956,15 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": {
+            "role": "admin",
+            "scopeType": "season",
+            "scopeId": "00000000-0000-4000-8000-000000000001",
+            "enabled": false,
+            "expectedVersion": 1
+          }
         },
         "parameters": [
           {
@@ -2868,6 +3037,9 @@
       "post": {
         "operationId": "post_api_v1_orgs_orgId_ownership_transfer",
         "summary": "Request recipient-accepted ownership transfer",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.ownership-transfer",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -2944,6 +3116,9 @@
       "post": {
         "operationId": "post_api_v1_orgs_orgId_ownership_transfer_accept",
         "summary": "Accept organization ownership transfer",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.ownership-transfer.accept",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -3019,6 +3194,9 @@
       "post": {
         "operationId": "post_api_v1_orgs_orgId_invitations",
         "summary": "Invite organization member",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.invitations",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -3143,6 +3321,9 @@
       "post": {
         "operationId": "post_api_v1_orgs_orgId_invitations_accept",
         "summary": "Accept organization invitation",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.invitations.accept",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -3233,6 +3414,9 @@
       "get": {
         "operationId": "get_api_v1_orgs_orgId_staff",
         "summary": "List organization members and pending invitations",
+        "x-athlentry-permission": "notifications.read",
+        "x-athlentry-resource": "notifications.staff",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -3450,6 +3634,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -3464,6 +3649,9 @@
       "post": {
         "operationId": "post_api_v1_orgs_orgId_invitations_invitationId_resend",
         "summary": "Resend organization invitation",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.invitations.resend",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -3532,6 +3720,9 @@
       "delete": {
         "operationId": "delete_api_v1_orgs_orgId_invitations_invitationId",
         "summary": "Revoke organization invitation",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.invitations",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -3560,6 +3751,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -3580,6 +3772,9 @@
       "get": {
         "operationId": "get_api_v1_orgs_slug_availability",
         "summary": "Check organization slug",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "notifications.orgs.slug-availability",
+        "x-athlentry-scope": "account",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -3634,6 +3829,9 @@
       "post": {
         "operationId": "post_api_v1_orgs",
         "summary": "Create organization",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "notifications.orgs",
+        "x-athlentry-scope": "account",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -3770,6 +3968,9 @@
       "post": {
         "operationId": "post_api_v1_files_uploads",
         "summary": "Begin file upload",
+        "x-athlentry-permission": "files.manage",
+        "x-athlentry-resource": "files.files.uploads",
+        "x-athlentry-scope": "organization",
         "tags": ["files"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -3848,6 +4049,9 @@
       "post": {
         "operationId": "post_api_v1_files_uploads_id_complete",
         "summary": "Complete file upload",
+        "x-athlentry-permission": "files.manage",
+        "x-athlentry-resource": "files.files.uploads",
+        "x-athlentry-scope": "organization",
         "tags": ["files"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -3969,6 +4173,9 @@
       "put": {
         "operationId": "put_api_v1_files_uploads_id_content",
         "summary": "Upload local file content",
+        "x-athlentry-permission": "files.manage",
+        "x-athlentry-resource": "files.files.uploads",
+        "x-athlentry-scope": "organization",
         "tags": ["files"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -3996,6 +4203,9 @@
       "get": {
         "operationId": "get_api_v1_files_id_download",
         "summary": "Issue permission-checked file download link",
+        "x-athlentry-permission": "files.read",
+        "x-athlentry-resource": "files.files.download",
+        "x-athlentry-scope": "organization",
         "tags": ["files"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4029,6 +4239,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "pathResource": "file" },
         "parameters": [
           {
             "name": "id",
@@ -4043,6 +4254,9 @@
       "get": {
         "operationId": "get_api_v1_files_id_content",
         "summary": "Download local file content",
+        "x-athlentry-permission": "files.read",
+        "x-athlentry-resource": "files.files.content",
+        "x-athlentry-scope": "organization",
         "tags": ["files"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4063,6 +4277,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "pathResource": "file" },
         "parameters": [
           {
             "name": "id",
@@ -4077,6 +4292,9 @@
       "get": {
         "operationId": "get_api_v1_audit_orgs_orgId",
         "summary": "List organization audit history",
+        "x-athlentry-permission": "audit.read",
+        "x-athlentry-resource": "audit",
+        "x-athlentry-scope": "organization",
         "tags": ["audit"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4177,6 +4395,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -4239,6 +4458,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_chat_attachment_capabilities",
         "summary": "Get chat attachment permissions for the current account",
+        "x-athlentry-permission": "chat.read",
+        "x-athlentry-resource": "communications.chat.attachment-capabilities",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4268,6 +4490,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -4282,6 +4505,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_chat_member_options",
         "summary": "Search organization accounts for chat channel membership",
+        "x-athlentry-permission": "chat.read",
+        "x-athlentry-resource": "communications.chat.member-options",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4325,6 +4551,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -4349,6 +4576,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_audience_options",
         "summary": "Search people, teams and programs for campaign targeting",
+        "x-athlentry-permission": "communications.read",
+        "x-athlentry-resource": "communications.audience-options",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4424,6 +4654,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -4447,6 +4678,9 @@
       "post": {
         "operationId": "post_api_v1_communications_orgs_orgId_audience_preview",
         "summary": "Preview current campaign audience and eligible channels",
+        "x-athlentry-permission": "communications.manage",
+        "x-athlentry-resource": "communications.audience-preview",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4700,6 +4934,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_campaigns",
         "summary": "List organization campaigns",
+        "x-athlentry-permission": "communications.read",
+        "x-athlentry-resource": "communications.campaigns",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4821,6 +5058,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -4833,6 +5071,9 @@
       "post": {
         "operationId": "post_api_v1_communications_orgs_orgId_campaigns",
         "summary": "Create a bilingual campaign draft",
+        "x-athlentry-permission": "communications.manage",
+        "x-athlentry-resource": "communications.campaigns",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -5236,6 +5477,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_campaigns_campaignId",
         "summary": "Get campaign draft",
+        "x-athlentry-permission": "communications.read",
+        "x-athlentry-resource": "communications.campaigns",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -5618,6 +5862,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -5636,6 +5881,9 @@
       "put": {
         "operationId": "put_api_v1_communications_orgs_orgId_campaigns_campaignId",
         "summary": "Update campaign draft",
+        "x-athlentry-permission": "communications.manage",
+        "x-athlentry-resource": "communications.campaigns",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -6057,6 +6305,9 @@
       "post": {
         "operationId": "post_api_v1_communications_orgs_orgId_campaigns_campaignId_preview",
         "summary": "Preview campaign audience and channel counts",
+        "x-athlentry-permission": "communications.manage",
+        "x-athlentry-resource": "communications.campaigns.preview",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -6156,6 +6407,9 @@
       "post": {
         "operationId": "post_api_v1_communications_orgs_orgId_campaigns_campaignId_test_send",
         "summary": "Send campaign test to the signed-in sender",
+        "x-athlentry-permission": "communications.manage",
+        "x-athlentry-resource": "communications.campaigns.test-send",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -6220,6 +6474,9 @@
       "post": {
         "operationId": "post_api_v1_communications_orgs_orgId_campaigns_campaignId_send",
         "summary": "Send campaign after audience confirmation",
+        "x-athlentry-permission": "communications.manage",
+        "x-athlentry-resource": "communications.campaigns.send",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -6299,6 +6556,9 @@
       "post": {
         "operationId": "post_api_v1_communications_orgs_orgId_campaigns_campaignId_schedule",
         "summary": "Schedule a campaign",
+        "x-athlentry-permission": "communications.manage",
+        "x-athlentry-resource": "communications.campaigns.schedule",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -6455,6 +6715,9 @@
       "post": {
         "operationId": "post_api_v1_communications_orgs_orgId_campaigns_campaignId_cancel",
         "summary": "Cancel a scheduled campaign",
+        "x-athlentry-permission": "communications.manage",
+        "x-athlentry-resource": "communications.campaigns.cancel",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -6606,6 +6869,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_campaigns_campaignId_stats",
         "summary": "Get delivery statistics",
+        "x-athlentry-permission": "communications.read",
+        "x-athlentry-resource": "communications.campaigns.stats",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -6666,6 +6932,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -6686,6 +6953,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_people_personId_history",
         "summary": "Get communication history for a person",
+        "x-athlentry-permission": "communications.read",
+        "x-athlentry-resource": "communications.people.history",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -6784,6 +7054,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -6804,6 +7075,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_households_householdId_history",
         "summary": "Get communication history for a household",
+        "x-athlentry-permission": "communications.read",
+        "x-athlentry-resource": "communications.households.history",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -6902,6 +7176,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -6922,6 +7197,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_sender_identity",
         "summary": "Get organization sender identity",
+        "x-athlentry-permission": "communications.read",
+        "x-athlentry-resource": "communications.sender-identity",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -6973,6 +7251,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -6985,6 +7264,9 @@
       "put": {
         "operationId": "put_api_v1_communications_orgs_orgId_sender_identity",
         "summary": "Update sender identity and verify reply-to",
+        "x-athlentry-permission": "communications.manage",
+        "x-athlentry-resource": "communications.sender-identity",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -7105,6 +7387,9 @@
       "get": {
         "operationId": "get_api_v1_communications_sender_verify_token",
         "summary": "Verify a sender reply-to address",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "communications.communications.sender",
+        "x-athlentry-scope": "public",
         "tags": ["communications"],
         "security": [],
         "responses": {
@@ -7140,6 +7425,9 @@
       "post": {
         "operationId": "post_api_v1_communications_sender_verify_token",
         "summary": "Confirm a sender reply-to address",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "communications.communications.sender",
+        "x-athlentry-scope": "public",
         "tags": ["communications"],
         "security": [],
         "responses": {
@@ -7177,6 +7465,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_sms_consent",
         "summary": "Get current account SMS consent",
+        "x-athlentry-permission": "communications.read",
+        "x-athlentry-resource": "communications.sms-consent",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -7222,6 +7513,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -7234,6 +7526,9 @@
       "post": {
         "operationId": "post_api_v1_communications_orgs_orgId_sms_consent",
         "summary": "Record SMS consent for a verified phone",
+        "x-athlentry-permission": "communications.manage",
+        "x-athlentry-resource": "communications.sms-consent",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -7309,6 +7604,9 @@
       "delete": {
         "operationId": "delete_api_v1_communications_orgs_orgId_sms_consent",
         "summary": "Revoke SMS consent",
+        "x-athlentry-permission": "communications.manage",
+        "x-athlentry-resource": "communications.sms-consent",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -7354,6 +7652,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -7368,6 +7667,9 @@
       "get": {
         "operationId": "get_api_v1_communications_unsubscribe_token",
         "summary": "Confirm a tokenized email unsubscribe",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "communications.communications.unsubscribe",
+        "x-athlentry-scope": "public",
         "tags": ["communications"],
         "security": [],
         "responses": {
@@ -7403,6 +7705,9 @@
       "post": {
         "operationId": "post_api_v1_communications_unsubscribe_token",
         "summary": "Apply a tokenized email unsubscribe",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "communications.communications.unsubscribe",
+        "x-athlentry-scope": "public",
         "tags": ["communications"],
         "security": [],
         "responses": {
@@ -7440,6 +7745,9 @@
       "post": {
         "operationId": "post_api_v1_communications_webhooks_resend",
         "summary": "Process signed Resend delivery events",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "communications.communications.webhooks",
+        "x-athlentry-scope": "public",
         "tags": ["communications"],
         "security": [],
         "responses": {
@@ -7471,6 +7779,9 @@
       "post": {
         "operationId": "post_api_v1_communications_webhooks_twilio_status",
         "summary": "Process signed Twilio delivery callbacks",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "communications.communications.webhooks",
+        "x-athlentry-scope": "public",
         "tags": ["communications"],
         "security": [],
         "responses": {
@@ -7500,6 +7811,9 @@
       "post": {
         "operationId": "post_api_v1_communications_webhooks_twilio_inbound",
         "summary": "Process signed Twilio STOP, START and HELP commands",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "communications.communications.webhooks",
+        "x-athlentry-scope": "public",
         "tags": ["communications"],
         "security": [],
         "responses": {
@@ -7529,6 +7843,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_chat_conversations",
         "summary": "List conversations",
+        "x-athlentry-permission": "chat.read",
+        "x-athlentry-resource": "communications.chat.conversations",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -7618,6 +7935,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -7630,6 +7948,9 @@
       "post": {
         "operationId": "post_api_v1_communications_orgs_orgId_chat_conversations",
         "summary": "Create or open a conversation",
+        "x-athlentry-permission": "chat.send",
+        "x-athlentry-resource": "communications.chat.conversations",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -7774,6 +8095,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_chat_teams",
         "summary": "List teams available to the current account",
+        "x-athlentry-permission": "chat.read",
+        "x-athlentry-resource": "communications.chat.teams",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -7818,6 +8142,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -7832,6 +8157,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_chat_conversations_conversationId_messages",
         "summary": "List conversation messages",
+        "x-athlentry-permission": "chat.read",
+        "x-athlentry-resource": "communications.chat.conversations",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -7950,6 +8278,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -7968,6 +8297,9 @@
       "post": {
         "operationId": "post_api_v1_communications_orgs_orgId_chat_conversations_conversationId_messages",
         "summary": "Send a conversation message",
+        "x-athlentry-permission": "chat.send",
+        "x-athlentry-resource": "communications.chat.conversations",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8037,6 +8369,9 @@
       "post": {
         "operationId": "post_api_v1_communications_orgs_orgId_chat_conversations_conversationId_read",
         "summary": "Mark a conversation read",
+        "x-athlentry-permission": "chat.send",
+        "x-athlentry-resource": "communications.chat.conversations",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8082,6 +8417,9 @@
       "put": {
         "operationId": "put_api_v1_communications_orgs_orgId_chat_conversations_conversationId_mute",
         "summary": "Mute or unmute a conversation",
+        "x-athlentry-permission": "chat.send",
+        "x-athlentry-resource": "communications.chat.conversations",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8141,6 +8479,9 @@
       "put": {
         "operationId": "put_api_v1_communications_orgs_orgId_chat_conversations_conversationId_messages_messageId",
         "summary": "Edit an authored message",
+        "x-athlentry-permission": "chat.send",
+        "x-athlentry-resource": "communications.chat.conversations",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8211,6 +8552,9 @@
       "delete": {
         "operationId": "delete_api_v1_communications_orgs_orgId_chat_conversations_conversationId_messages_messageId",
         "summary": "Hide a message",
+        "x-athlentry-permission": "chat.moderate",
+        "x-athlentry-resource": "communications.chat.conversations",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8236,6 +8580,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -8262,6 +8607,9 @@
       "post": {
         "operationId": "post_api_v1_communications_orgs_orgId_chat_conversations_conversationId_messages_messageId_report",
         "summary": "Report a message to compliance",
+        "x-athlentry-permission": "chat.send",
+        "x-athlentry-resource": "communications.chat.conversations",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8330,6 +8678,9 @@
       "get": {
         "operationId": "get_api_v1_communications_orgs_orgId_chat_moderation_reports",
         "summary": "List compliance chat reports",
+        "x-athlentry-permission": "chat.read",
+        "x-athlentry-resource": "communications.chat.moderation",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8422,6 +8773,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -8436,6 +8788,9 @@
       "put": {
         "operationId": "put_api_v1_communications_orgs_orgId_chat_moderation_reports_reportId",
         "summary": "Update a compliance report status",
+        "x-athlentry-permission": "chat.send",
+        "x-athlentry-resource": "communications.chat.moderation",
+        "x-athlentry-scope": "organization",
         "tags": ["communications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8502,6 +8857,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_organizations_orgId_dashboard",
         "summary": "Read compliance dashboard",
+        "x-athlentry-permission": "compliance.read",
+        "x-athlentry-resource": "compliance.dashboard",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8536,6 +8894,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -8550,6 +8909,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_organizations_orgId_credential_types",
         "summary": "List credential types",
+        "x-athlentry-permission": "compliance.read",
+        "x-athlentry-resource": "compliance.credential-types",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8584,6 +8946,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -8598,6 +8961,9 @@
       "patch": {
         "operationId": "patch_api_v1_compliance_organizations_orgId_credential_types_credentialTypeId",
         "summary": "Update credential type",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.credential-types",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8631,6 +8997,17 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": {
+            "name": "xx",
+            "description": "x",
+            "validity": { "months": 1 },
+            "blocksActivation": false,
+            "renewalReminderDays": [],
+            "active": false,
+            "version": 1
+          }
         },
         "parameters": [
           {
@@ -8733,6 +9110,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_organizations_orgId_requirements",
         "summary": "List role credential requirements",
+        "x-athlentry-permission": "compliance.read",
+        "x-athlentry-resource": "compliance.requirements",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8767,6 +9147,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -8779,6 +9160,9 @@
       "post": {
         "operationId": "post_api_v1_compliance_organizations_orgId_requirements",
         "summary": "Create role credential requirement",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.requirements",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8884,6 +9268,9 @@
       "patch": {
         "operationId": "patch_api_v1_compliance_organizations_orgId_requirements_requirementId",
         "summary": "Update role credential requirement",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.requirements",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -8917,6 +9304,17 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": {
+            "role": "head_coach",
+            "credentialTypeId": "00000000-0000-4000-8000-000000000001",
+            "scopeType": "org",
+            "minimumAge": 0,
+            "active": false,
+            "id": "00000000-0000-4000-8000-000000000001",
+            "version": 1
+          }
         },
         "parameters": [
           {
@@ -9007,6 +9405,9 @@
       "post": {
         "operationId": "post_api_v1_compliance_organizations_orgId_overrides",
         "summary": "Grant a time-limited compliance override",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.overrides",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -9115,6 +9516,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_organizations_orgId_credentials_review_queue",
         "summary": "List credential reviews",
+        "x-athlentry-permission": "compliance.read",
+        "x-athlentry-resource": "compliance.credentials.review-queue",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -9149,6 +9553,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -9163,6 +9568,9 @@
       "post": {
         "operationId": "post_api_v1_compliance_organizations_orgId_credentials_credentialId_review",
         "summary": "Review submitted credential",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.credentials.review",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -9242,6 +9650,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_organizations_orgId_people_personId_credentials",
         "summary": "List person credentials",
+        "x-athlentry-permission": "compliance.read",
+        "x-athlentry-resource": "compliance.people.credentials",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -9276,6 +9687,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -9296,6 +9708,9 @@
       "post": {
         "operationId": "post_api_v1_compliance_organizations_orgId_credentials",
         "summary": "Submit person credential",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.credentials",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -9400,6 +9815,9 @@
       "patch": {
         "operationId": "patch_api_v1_compliance_organizations_orgId_credentials_credentialId",
         "summary": "Correct submitted credential",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.credentials",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -9433,6 +9851,14 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": {
+            "issuedOn": "2026-09-27",
+            "expiresOn": "2026-09-27",
+            "fileId": "00000000-0000-4000-8000-000000000001",
+            "version": 1
+          }
         },
         "parameters": [
           {
@@ -9505,6 +9931,9 @@
       "post": {
         "operationId": "post_api_v1_compliance_organizations_orgId_credentials_credentialId_revoke",
         "summary": "Revoke person credential",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.credentials.revoke",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -9584,6 +10013,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_organizations_orgId_background_check_settings",
         "summary": "Read background-check settings",
+        "x-athlentry-permission": "compliance.read",
+        "x-athlentry-resource": "compliance.background-check-settings",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -9618,6 +10050,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -9630,6 +10063,9 @@
       "patch": {
         "operationId": "patch_api_v1_compliance_organizations_orgId_background_check_settings",
         "summary": "Update background-check settings",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.background-check-settings",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -9663,6 +10099,22 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": {
+            "providerMode": "manual",
+            "volunteerPaysFee": false,
+            "package": "x",
+            "disclosureVersion": "x",
+            "disclosureText": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "authorizationVersion": "x",
+            "authorizationText": "xxxxxxxxxxxxxxxxxxxx",
+            "preAdverseNoticeText": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "rightsSummaryText": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "adverseNoticeText": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "fcraHolidays": [],
+            "version": 1
+          }
         },
         "parameters": [
           {
@@ -9765,6 +10217,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_organizations_orgId_background_checks",
         "summary": "List background checks",
+        "x-athlentry-permission": "compliance.read",
+        "x-athlentry-resource": "compliance.background-checks",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -9799,6 +10254,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -9811,6 +10267,9 @@
       "post": {
         "operationId": "post_api_v1_compliance_organizations_orgId_background_checks",
         "summary": "Begin background check",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.background-checks",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -9895,6 +10354,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_organizations_orgId_my_background_checks",
         "summary": "List own background checks",
+        "x-athlentry-permission": "compliance.read",
+        "x-athlentry-resource": "compliance.my-background-checks",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -9929,6 +10391,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -9943,6 +10406,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_organizations_orgId_background_checks_orderId",
         "summary": "Read background-check details",
+        "x-athlentry-permission": "compliance.read",
+        "x-athlentry-resource": "compliance.background-checks",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -9977,6 +10443,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -9997,6 +10464,9 @@
       "post": {
         "operationId": "post_api_v1_compliance_organizations_orgId_background_checks_orderId_manual_result",
         "summary": "Record manual background result",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.background-checks.manual-result",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -10086,6 +10556,9 @@
       "post": {
         "operationId": "post_api_v1_compliance_organizations_orgId_background_checks_orderId_pre_adverse_notice",
         "summary": "Send pre-adverse notice",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.background-checks.pre-adverse-notice",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -10140,6 +10613,9 @@
       "post": {
         "operationId": "post_api_v1_compliance_organizations_orgId_background_checks_orderId_adverse_notice",
         "summary": "Send adverse notice",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.background-checks.adverse-notice",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -10194,6 +10670,9 @@
       "post": {
         "operationId": "post_api_v1_compliance_organizations_orgId_background_checks_orderId_adjudication",
         "summary": "Adjudicate background check",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.background-checks.adjudication",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -10277,6 +10756,9 @@
       "post": {
         "operationId": "post_api_v1_compliance_organizations_orgId_background_checks_orderId_disputes",
         "summary": "Submit background-check dispute",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.background-checks.disputes",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -10349,6 +10831,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_organizations_orgId_background_checks_orderId_disputes",
         "summary": "List own background-check disputes",
+        "x-athlentry-permission": "compliance.read",
+        "x-athlentry-resource": "compliance.background-checks.disputes",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -10383,6 +10868,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -10403,6 +10889,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_organizations_orgId_background_check_disputes",
         "summary": "List background-check disputes",
+        "x-athlentry-permission": "compliance.read",
+        "x-athlentry-resource": "compliance.background-check-disputes",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -10437,6 +10926,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -10451,6 +10941,9 @@
       "patch": {
         "operationId": "patch_api_v1_compliance_organizations_orgId_background_check_disputes_disputeId",
         "summary": "Resolve background-check dispute",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.background-check-disputes",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -10484,6 +10977,9 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": { "resolution": "xxxxxxxxxx", "version": 1 }
         },
         "parameters": [
           {
@@ -10530,6 +11026,9 @@
       "post": {
         "operationId": "post_api_v1_compliance_organizations_orgId_cards",
         "summary": "Create player or staff card",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.cards",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -10644,6 +11143,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_organizations_orgId_people_personId_cards",
         "summary": "List person cards",
+        "x-athlentry-permission": "compliance.read",
+        "x-athlentry-resource": "compliance.people.cards",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -10678,6 +11180,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -10698,6 +11201,9 @@
       "patch": {
         "operationId": "patch_api_v1_compliance_organizations_orgId_cards_cardId",
         "summary": "Revoke player or staff card",
+        "x-athlentry-permission": "compliance.manage",
+        "x-athlentry-resource": "compliance.cards",
+        "x-athlentry-scope": "organization",
         "tags": ["compliance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -10731,6 +11237,9 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": { "status": "active", "version": 1 }
         },
         "parameters": [
           {
@@ -10773,6 +11282,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_cards_verify_token",
         "summary": "Verify public card",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "compliance.compliance.cards",
+        "x-athlentry-scope": "public",
         "tags": ["compliance"],
         "security": [],
         "responses": {
@@ -10821,6 +11333,9 @@
       "get": {
         "operationId": "get_api_v1_compliance_cards_verify_token_photo",
         "summary": "Read public card photo",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "compliance.compliance.cards",
+        "x-athlentry-scope": "public",
         "tags": ["compliance"],
         "security": [],
         "responses": {
@@ -10855,6 +11370,9 @@
       "post": {
         "operationId": "post_api_v1_compliance_webhooks_checkr",
         "summary": "Receive Checkr webhook",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "compliance.compliance.webhooks",
+        "x-athlentry-scope": "public",
         "tags": ["compliance"],
         "security": [],
         "responses": {
@@ -10906,6 +11424,9 @@
       "post": {
         "operationId": "post_api_v1_discipline_organizations_orgId_records",
         "summary": "Record disciplinary action",
+        "x-athlentry-permission": "discipline.manage",
+        "x-athlentry-resource": "discipline.records",
+        "x-athlentry-scope": "organization",
         "tags": ["discipline"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11032,6 +11553,9 @@
       "get": {
         "operationId": "get_api_v1_discipline_organizations_orgId_people_personId",
         "summary": "List person disciplinary records",
+        "x-athlentry-permission": "discipline.read",
+        "x-athlentry-resource": "discipline.people",
+        "x-athlentry-scope": "organization",
         "tags": ["discipline"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11066,6 +11590,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -11086,6 +11611,9 @@
       "get": {
         "operationId": "get_api_v1_discipline_organizations_orgId",
         "summary": "List organization disciplinary records",
+        "x-athlentry-permission": "discipline.read",
+        "x-athlentry-resource": "discipline",
+        "x-athlentry-scope": "organization",
         "tags": ["discipline"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11120,6 +11648,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -11134,6 +11663,9 @@
       "patch": {
         "operationId": "patch_api_v1_discipline_organizations_orgId_records_recordId",
         "summary": "Update disciplinary action",
+        "x-athlentry-permission": "discipline.manage",
+        "x-athlentry-resource": "discipline.records",
+        "x-athlentry-scope": "organization",
         "tags": ["discipline"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11167,6 +11699,9 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": { "action": "serve_games", "games": 1, "version": 1 }
         },
         "parameters": [
           {
@@ -11244,6 +11779,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_billing",
         "summary": "Read available test-mode platform plans and org subscription",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.billing",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11356,6 +11894,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -11370,6 +11909,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_billing_checkout",
         "summary": "Start an owner-only platform subscription Checkout",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.billing.checkout",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11437,6 +11979,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_billing_portal",
         "summary": "Open the organization Stripe Billing portal",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.billing.portal",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11483,6 +12028,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_me_receipts",
         "summary": "List payer-owned settled payment receipts",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.me.receipts",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11576,6 +12124,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_me_invoices_invoiceId_pdf",
         "summary": "Download a payer-owned invoice PDF",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.me.invoices",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11616,6 +12167,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_me_payments_paymentId_receipt_pdf",
         "summary": "Download a reconciled payer payment receipt PDF",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.me.payments",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11656,6 +12210,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_me_autopay_staff_method_options",
         "summary": "List payer invoices with unpaid future installments",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.me.autopay",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11722,6 +12279,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_me_autopay_staff_method_consents",
         "summary": "Record payer consent for a saved method on one installment invoice",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.me.autopay",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11807,6 +12367,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_me_autopay",
         "summary": "List payer-owned autopay mandates and future installments",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.me.autopay",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11912,6 +12475,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_me_autopay_id_revoke",
         "summary": "Revoke a payer mandate and stop future installment charges",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.me.autopay",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11965,6 +12531,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_me_statements_year",
         "summary": "Read payer cash flows and donation allocations for an org tax year",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.me.statements",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12058,7 +12627,11 @@
             "name": "year",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^(?:200[0-9]|20[1-9][0-9]|2100)$"
+            }
           }
         ]
       }
@@ -12067,6 +12640,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_tax_rates",
         "summary": "List product-only tax rates for finance staff",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.tax-rates",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12133,6 +12709,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -12145,6 +12722,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_tax_rates",
         "summary": "Create an idempotent product-only tax rate",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.tax-rates",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12241,6 +12821,9 @@
       "put": {
         "operationId": "put_api_v1_finance_orgs_orgId_tax_rates_rateId",
         "summary": "Replace a product-only tax rate at an exact version",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.tax-rates",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12348,6 +12931,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_gl_codes",
         "summary": "List the organization GL code catalog",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.gl-codes",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12410,6 +12996,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -12422,6 +13009,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_gl_codes",
         "summary": "Create a versioned GL code with an idempotency key",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.gl-codes",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12518,6 +13108,9 @@
       "put": {
         "operationId": "put_api_v1_finance_orgs_orgId_gl_codes_codeId",
         "summary": "Replace a GL code at an exact version",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.gl-codes",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12625,6 +13218,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_credits",
         "summary": "Issue an audited credit to a linked payer or active household",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.credits",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12736,6 +13332,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_me_credits_apply",
         "summary": "Apply payer-owned available credit to a billed invoice",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.me.credits",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12828,6 +13427,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_me_credits",
         "summary": "Read payer-owned unexpired account and household credits",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.me.credits",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12920,6 +13522,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_aid_applications",
         "summary": "List restricted aid review metadata for finance staff",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.aid-applications",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -13009,6 +13614,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -13023,6 +13629,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_aid_applications_applicationId_decision",
         "summary": "Start review or decline an application at an exact version",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.aid-applications.decision",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -13117,6 +13726,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_aid_programs",
         "summary": "List season aid funds for owner or finance staff",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.aid-programs",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -13203,6 +13815,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -13215,6 +13828,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_aid_programs",
         "summary": "Create an idempotent draft season aid fund",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.aid-programs",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -13350,6 +13966,9 @@
       "put": {
         "operationId": "put_api_v1_finance_orgs_orgId_aid_programs_programId",
         "summary": "Replace a season aid fund at an exact version",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.aid-programs",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -13496,6 +14115,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_aid_applications_applicationId_award",
         "summary": "Reserve a versioned aid award within the season budget",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.aid-applications.award",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -13634,6 +14256,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_me_invoices",
         "summary": "List invoices billed to the signed-in account in one organization",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.me.invoices",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -13779,6 +14404,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_invoices",
         "summary": "Issue an idempotent staff invoice with frozen refund terms",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.invoices",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -13974,6 +14602,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_invoices_invoiceId",
         "summary": "Read a finance invoice and its line ledger",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.invoices",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -14189,6 +14820,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -14209,6 +14841,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_invoices_invoiceId_void",
         "summary": "Void an unpaid invoice at an exact version",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.invoices.void",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -14287,6 +14922,9 @@
       "get": {
         "operationId": "get_api_v1_finance_stripe_client_config",
         "summary": "Read the test-mode Stripe publishable key for authenticated payers",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.finance.stripe-client-config",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -14324,6 +14962,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_me_installments",
         "summary": "List payer-owned outstanding installments available for payment",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.me.installments",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -14411,6 +15052,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_me_installments_installmentId_payment_intents",
         "summary": "Reserve a payer-owned manual installment PaymentIntent",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.me.installments",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -14477,6 +15121,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_invoices_invoiceId_installments",
         "summary": "List a finance invoice installment schedule and active payer consents",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.invoices.installments",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -14587,6 +15234,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -14607,6 +15255,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_installments_installmentId_actions",
         "summary": "Change an installment due date or split it at an exact version",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.installments.actions",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -14863,6 +15514,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_installment_templates",
         "summary": "List active installment plan templates for an organization",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.installment-templates",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -15039,6 +15693,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -15051,6 +15706,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_installment_templates",
         "summary": "Create a versioned installment plan template",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.installment-templates",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -15344,6 +16002,9 @@
       "patch": {
         "operationId": "patch_api_v1_finance_orgs_orgId_installment_templates_templateId",
         "summary": "Replace an installment plan template at an exact version",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.installment-templates",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -15498,6 +16159,16 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": {
+          "body": {
+            "name": "x",
+            "deposit": { "kind": "fixed", "amountCents": 0 },
+            "schedule": { "kind": "monthly", "count": 1, "dayOfMonth": 1 },
+            "minAmountCents": 0,
+            "autopayRequired": false,
+            "allowedMethods": ["card"]
+          }
+        },
         "parameters": [
           {
             "name": "orgId",
@@ -15641,6 +16312,9 @@
       "delete": {
         "operationId": "delete_api_v1_finance_orgs_orgId_installment_templates_templateId",
         "summary": "Archive an installment plan template at an exact version",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.installment-templates",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -15669,6 +16343,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -15689,6 +16364,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_checkout_payment_intents",
         "summary": "Create an idempotent test-mode PaymentIntent for a frozen checkout",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.checkout-payment-intents",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -15797,6 +16475,9 @@
       "post": {
         "operationId": "post_api_v1_finance_me_setup_intents",
         "summary": "Create a test-mode SetupIntent for the signed-in payer",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.finance.me",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -15832,6 +16513,9 @@
       "get": {
         "operationId": "get_api_v1_finance_me_payment_methods",
         "summary": "List saved payment methods for the signed-in payer",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.finance.me",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -15917,6 +16601,9 @@
       "post": {
         "operationId": "post_api_v1_finance_me_payment_methods_paymentMethodId_default",
         "summary": "Set the signed-in payer default payment method",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.finance.me",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -15959,6 +16646,9 @@
       "delete": {
         "operationId": "delete_api_v1_finance_me_payment_methods_paymentMethodId",
         "summary": "Detach a saved payment method and revoke its autopay mandates",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "finance.finance.me",
+        "x-athlentry-scope": "account",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -16001,6 +16691,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_connect_onboarding",
         "summary": "Create or resume Stripe Express onboarding",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.connect.onboarding",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -16047,6 +16740,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_connect_continue",
         "summary": "Create a fresh Stripe Express onboarding link",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.connect.continue",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -16093,6 +16789,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_connect_dashboard",
         "summary": "Open the enabled Stripe Express dashboard",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.connect.dashboard",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -16139,6 +16838,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_connect_status",
         "summary": "Refresh Stripe Express requirements and payment capability",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.connect.status",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -16187,6 +16889,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -16201,6 +16904,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_offline_payments",
         "summary": "Record an offline invoice payment",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.offline-payments",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -16292,6 +16998,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_refunds",
         "summary": "Create a policy-based refund to original method or credit",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.refunds",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -16445,6 +17154,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_refund_approvals",
         "summary": "Request a second finance approval for a refund",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.refund-approvals",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -16564,6 +17276,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_refund_approvals_approvalId_approve",
         "summary": "Approve a refund with a separate stepped-up finance session",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.refund-approvals.approve",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -16612,6 +17327,9 @@
       "post": {
         "operationId": "post_api_v1_finance_orgs_orgId_payouts_payoutId_journal_export",
         "summary": "Export a reconciled payout journal with explicit GL codes",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.payouts.journal-export",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -16657,7 +17375,11 @@
             "name": "payoutId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "format": "uuid" }
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^po_[A-Za-z0-9_]+$"
+            }
           }
         ],
         "requestBody": {
@@ -16706,6 +17428,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_payouts_payoutId_journal_export",
         "summary": "Export a reconciled payout journal with saved organization accounts",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.payouts.journal-export",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -16750,6 +17475,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -16761,7 +17487,11 @@
             "name": "payoutId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "format": "uuid" }
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^po_[A-Za-z0-9_]+$"
+            }
           }
         ]
       }
@@ -16770,6 +17500,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_journal_mapping",
         "summary": "Read the organization payout journal mapping",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.journal-mapping",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -16847,6 +17580,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -16859,6 +17593,9 @@
       "put": {
         "operationId": "put_api_v1_finance_orgs_orgId_journal_mapping",
         "summary": "Save payout journal accounts at an exact version",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.journal-mapping",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -16987,6 +17724,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_payouts_payoutId_reconciliation",
         "summary": "Read the payout and each matched Stripe movement",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.payouts.reconciliation",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -17115,6 +17855,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -17126,7 +17867,11 @@
             "name": "payoutId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "format": "uuid" }
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^po_[A-Za-z0-9_]+$"
+            }
           }
         ]
       }
@@ -17135,6 +17880,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_payouts_payoutId_reconciliation_csv",
         "summary": "Export the payout reconciliation as CSV",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.payouts.reconciliation.csv",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -17158,6 +17906,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -17169,7 +17918,11 @@
             "name": "payoutId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "format": "uuid" }
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^po_[A-Za-z0-9_]+$"
+            }
           }
         ]
       }
@@ -17178,6 +17931,9 @@
       "get": {
         "operationId": "get_api_v1_notifications_orgs_orgId_inbox",
         "summary": "List in-app notifications",
+        "x-athlentry-permission": "notifications.read",
+        "x-athlentry-resource": "notifications.inbox",
+        "x-athlentry-scope": "organization",
         "tags": ["notifications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -17367,6 +18123,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -17409,6 +18166,9 @@
       "patch": {
         "operationId": "patch_api_v1_notifications_orgs_orgId_inbox_id_read",
         "summary": "Mark an in-app notification read",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.inbox.read",
+        "x-athlentry-scope": "organization",
         "tags": ["notifications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -17441,6 +18201,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -17461,6 +18222,9 @@
       "get": {
         "operationId": "get_api_v1_notifications_orgs_orgId_preferences",
         "summary": "List communication preferences",
+        "x-athlentry-permission": "notifications.read",
+        "x-athlentry-resource": "notifications.preferences",
+        "x-athlentry-scope": "organization",
         "tags": ["notifications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -17522,6 +18286,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -17536,6 +18301,9 @@
       "put": {
         "operationId": "put_api_v1_notifications_orgs_orgId_preferences_category_channel",
         "summary": "Update a communication preference",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.preferences",
+        "x-athlentry-scope": "organization",
         "tags": ["notifications"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -17629,6 +18397,9 @@
       "get": {
         "operationId": "get_api_v1_stream",
         "summary": "Stream account notifications",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "notifications.stream",
+        "x-athlentry-scope": "account",
         "tags": ["stream"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -17658,6 +18429,9 @@
       "get": {
         "operationId": "get_api_v1_me_notifications_orgs_orgId_inbox",
         "summary": "List account notifications for an organization",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "notifications.inbox",
+        "x-athlentry-scope": "account",
         "tags": ["me"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -17889,6 +18663,9 @@
       "patch": {
         "operationId": "patch_api_v1_me_notifications_orgs_orgId_inbox_id_read",
         "summary": "Mark an account notification read",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "notifications.inbox.read",
+        "x-athlentry-scope": "account",
         "tags": ["me"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -17941,6 +18718,9 @@
       "get": {
         "operationId": "get_api_v1_me_notifications_orgs_orgId_preferences",
         "summary": "List account notification preferences",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "notifications.preferences",
+        "x-athlentry-scope": "account",
         "tags": ["me"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -18016,6 +18796,9 @@
       "put": {
         "operationId": "put_api_v1_me_notifications_orgs_orgId_preferences_category_channel",
         "summary": "Update an account notification preference",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "notifications.preferences",
+        "x-athlentry-scope": "account",
         "tags": ["me"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -18109,6 +18892,9 @@
       "get": {
         "operationId": "get_api_v1_orgs_orgId_notifications_inbox",
         "summary": "List organization notification inbox",
+        "x-athlentry-permission": "notifications.read",
+        "x-athlentry-resource": "notifications.notifications.inbox",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -18298,6 +19084,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -18340,6 +19127,9 @@
       "patch": {
         "operationId": "patch_api_v1_orgs_orgId_notifications_inbox_id_read",
         "summary": "Mark an organization inbox notification read",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.notifications.inbox",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -18372,6 +19162,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -18392,6 +19183,9 @@
       "get": {
         "operationId": "get_api_v1_orgs_orgId_notifications_preferences",
         "summary": "List organization communication preferences",
+        "x-athlentry-permission": "notifications.read",
+        "x-athlentry-resource": "notifications.notifications.preferences",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -18453,6 +19247,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -18467,6 +19262,9 @@
       "put": {
         "operationId": "put_api_v1_orgs_orgId_notifications_preferences_category_channel",
         "summary": "Update an organization communication preference",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.notifications.preferences",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -18560,6 +19358,9 @@
       "get": {
         "operationId": "get_api_v1_orgs_orgId_notifications",
         "summary": "List organization notifications for the account",
+        "x-athlentry-permission": "notifications.read",
+        "x-athlentry-resource": "notifications.notifications",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -18749,6 +19550,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -18791,6 +19593,9 @@
       "patch": {
         "operationId": "patch_api_v1_orgs_orgId_notifications_id_read",
         "summary": "Mark an organization notification read",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.notifications.read",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -18823,6 +19628,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -18843,6 +19649,9 @@
       "get": {
         "operationId": "get_api_v1_orgs_orgId_notification_preferences",
         "summary": "List organization notification preferences",
+        "x-athlentry-permission": "notifications.read",
+        "x-athlentry-resource": "notifications.notification-preferences",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -18904,6 +19713,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -18918,6 +19728,9 @@
       "put": {
         "operationId": "put_api_v1_orgs_orgId_notification_preferences_category_channel",
         "summary": "Update an organization notification preference",
+        "x-athlentry-permission": "notifications.manage",
+        "x-athlentry-resource": "notifications.notification-preferences",
+        "x-athlentry-scope": "organization",
         "tags": ["orgs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -19011,6 +19824,9 @@
       "get": {
         "operationId": "get_api_v1_me_notifications",
         "summary": "List account notifications for one organization",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "notifications.me.notifications",
+        "x-athlentry-scope": "account",
         "tags": ["me"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -19247,6 +20063,9 @@
       "patch": {
         "operationId": "patch_api_v1_me_notifications_id_read",
         "summary": "Mark an account notification read",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "notifications.me.notifications",
+        "x-athlentry-scope": "account",
         "tags": ["me"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -19304,6 +20123,9 @@
       "get": {
         "operationId": "get_api_v1_me_notification_preferences",
         "summary": "List account preferences for one organization",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "notifications.me.notification-preferences",
+        "x-athlentry-scope": "account",
         "tags": ["me"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -19384,6 +20206,9 @@
       "put": {
         "operationId": "put_api_v1_me_notification_preferences_category_channel",
         "summary": "Update an account preference for one organization",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "notifications.me.notification-preferences",
+        "x-athlentry-scope": "account",
         "tags": ["me"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -19482,6 +20307,9 @@
       "get": {
         "operationId": "get_api_v1_people_me_family",
         "summary": "List verified family links across organizations for this account",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "people.people.me",
+        "x-athlentry-scope": "account",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -19563,6 +20391,9 @@
       "get": {
         "operationId": "get_api_v1_people_households_orgs_orgId",
         "summary": "List staff-visible households",
+        "x-athlentry-permission": "people.read",
+        "x-athlentry-resource": "people",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -19782,6 +20613,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -19794,6 +20626,9 @@
       "post": {
         "operationId": "post_api_v1_people_households_orgs_orgId",
         "summary": "Create household",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -20067,6 +20902,9 @@
       "get": {
         "operationId": "get_api_v1_people_households_orgs_orgId_householdId",
         "summary": "Read household, members, registrations and balance",
+        "x-athlentry-permission": "people.read",
+        "x-athlentry-resource": "people",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -20261,6 +21099,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -20279,6 +21118,9 @@
       "patch": {
         "operationId": "patch_api_v1_people_households_orgs_orgId_householdId",
         "summary": "Versioned household update",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -20473,6 +21315,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": { "expectedVersion": 1 } },
         "parameters": [
           {
             "name": "orgId",
@@ -20562,6 +21405,9 @@
       "post": {
         "operationId": "post_api_v1_people_households_orgs_orgId_householdId_members",
         "summary": "Add household member",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.members",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -20824,6 +21670,9 @@
       "patch": {
         "operationId": "patch_api_v1_people_households_orgs_orgId_householdId_members_memberId",
         "summary": "Versioned household member update",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.members",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -21018,6 +21867,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": { "expectedVersion": 1 } },
         "parameters": [
           {
             "name": "orgId",
@@ -21084,6 +21934,9 @@
       "post": {
         "operationId": "post_api_v1_people_households_orgs_orgId_householdId_members_memberId_remove",
         "summary": "Retain and remove a household member",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.members.remove",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -21324,6 +22177,9 @@
       "get": {
         "operationId": "get_api_v1_people_orgs_orgId",
         "summary": "List and search staff-visible people",
+        "x-athlentry-permission": "people.read",
+        "x-athlentry-resource": "people",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -21461,6 +22317,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -21473,6 +22330,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId",
         "summary": "Create a person",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -21672,6 +22532,9 @@
       "get": {
         "operationId": "get_api_v1_people_orgs_orgId_filter_options",
         "summary": "Search organization programs and team seasons for People filters",
+        "x-athlentry-permission": "people.read",
+        "x-athlentry-resource": "people.filter-options",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -21715,12 +22578,36 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": {
+          "body": {},
+          "query": { "kind": "program" }
+        },
         "parameters": [
           {
             "name": "orgId",
             "in": "path",
             "required": true,
             "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "enum": ["program", "team"]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "maxLength": 120
+            }
           }
         ]
       }
@@ -21729,6 +22616,9 @@
       "get": {
         "operationId": "get_api_v1_people_orgs_orgId_personId",
         "summary": "Read a person",
+        "x-athlentry-permission": "people.read",
+        "x-athlentry-resource": "people",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -21832,6 +22722,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -21850,6 +22741,9 @@
       "patch": {
         "operationId": "patch_api_v1_people_orgs_orgId_personId",
         "summary": "Versioned person update",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -21953,6 +22847,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": { "expectedVersion": 1 } },
         "parameters": [
           {
             "name": "orgId",
@@ -22044,6 +22939,9 @@
       "get": {
         "operationId": "get_api_v1_people_orgs_orgId_personId_guardians",
         "summary": "List verified guardian links for a person",
+        "x-athlentry-permission": "people.read",
+        "x-athlentry-resource": "people.guardians",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22108,6 +23006,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -22126,6 +23025,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_personId_guardians",
         "summary": "Link an existing verified adult account as guardian",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.guardians",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22231,6 +23133,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_personId_guardians_invitations",
         "summary": "Invite an adult to become a guardian of this person",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.guardians.invitations",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22314,6 +23219,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_guardians_invitations_accept",
         "summary": "Accept a person-bound guardian invitation",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.guardians.invitations",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22384,6 +23292,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_personId_guardians_linkId_revoke",
         "summary": "Revoke a guardian link while preserving minor supervision",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.guardians.revoke",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22474,6 +23385,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_personId_photo",
         "summary": "Attach or remove a consent-aware person photo",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.photo",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22627,6 +23541,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_personId_archive",
         "summary": "Archive a person",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.archive",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22770,6 +23687,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_personId_restore",
         "summary": "Restore an archived person",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.restore",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22913,6 +23833,9 @@
       "get": {
         "operationId": "get_api_v1_platform_me",
         "summary": "Get platform staff role",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.platform.me",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22955,6 +23878,9 @@
       "get": {
         "operationId": "get_api_v1_platform_orgs",
         "summary": "List organizations",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.platform.orgs",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23057,6 +23983,9 @@
       "get": {
         "operationId": "get_api_v1_platform_orgs_orgId",
         "summary": "Get organization",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23172,6 +24101,9 @@
       "patch": {
         "operationId": "patch_api_v1_platform_orgs_orgId_status",
         "summary": "Suspend or reactivate organization",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.status",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23246,6 +24178,9 @@
       "patch": {
         "operationId": "patch_api_v1_platform_orgs_orgId_plan",
         "summary": "Assign organization plan",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.plan",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23322,6 +24257,9 @@
       "get": {
         "operationId": "get_api_v1_platform_plans",
         "summary": "List platform plans",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.platform.plans",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23402,6 +24340,9 @@
       "post": {
         "operationId": "post_api_v1_platform_plans",
         "summary": "Create platform plan",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.platform.plans",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23509,6 +24450,9 @@
       "put": {
         "operationId": "put_api_v1_platform_plans_id",
         "summary": "Update platform plan",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.platform.plans",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23624,6 +24568,9 @@
       "get": {
         "operationId": "get_api_v1_platform_feature_flags",
         "summary": "List feature flags",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.platform.feature-flags",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23690,6 +24637,9 @@
       "put": {
         "operationId": "put_api_v1_platform_feature_flags_key",
         "summary": "Save feature flag",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.platform.feature-flags",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23778,6 +24728,9 @@
       "get": {
         "operationId": "get_api_v1_platform_staff",
         "summary": "List platform staff",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.platform.staff",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23843,6 +24796,9 @@
       "put": {
         "operationId": "put_api_v1_platform_staff_accountId",
         "summary": "Save platform staff",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.platform.staff",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23914,6 +24870,9 @@
       "post": {
         "operationId": "post_api_v1_platform_impersonations",
         "summary": "Begin audited read-only impersonation",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.platform.impersonations",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23995,6 +24954,9 @@
       "get": {
         "operationId": "get_api_v1_platform_impersonations_id",
         "summary": "Get impersonation status",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.platform.impersonations",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24057,6 +25019,9 @@
       "delete": {
         "operationId": "delete_api_v1_platform_impersonations_id",
         "summary": "End impersonation",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.platform.impersonations",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24097,6 +25062,9 @@
       "get": {
         "operationId": "get_api_v1_platform_health",
         "summary": "Get platform system health",
+        "x-athlentry-permission": "platform.staff",
+        "x-athlentry-resource": "platform.platform.health",
+        "x-athlentry-scope": "platform",
         "tags": ["platform"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24208,6 +25176,9 @@
       "post": {
         "operationId": "post_api_v1_safety_organizations_orgId_injuries",
         "summary": "Report injury",
+        "x-athlentry-permission": "safety.manage",
+        "x-athlentry-resource": "safety.injuries",
+        "x-athlentry-scope": "organization",
         "tags": ["safety"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24314,6 +25285,9 @@
       "get": {
         "operationId": "get_api_v1_safety_organizations_orgId_people_personId_injuries",
         "summary": "List person injuries",
+        "x-athlentry-permission": "safety.read",
+        "x-athlentry-resource": "safety.people.injuries",
+        "x-athlentry-scope": "organization",
         "tags": ["safety"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24348,6 +25322,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -24368,6 +25343,9 @@
       "post": {
         "operationId": "post_api_v1_safety_organizations_orgId_injuries_injuryId_clearances",
         "summary": "Submit return-to-play clearance",
+        "x-athlentry-permission": "safety.manage",
+        "x-athlentry-resource": "safety.injuries.clearances",
+        "x-athlentry-scope": "organization",
         "tags": ["safety"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24452,6 +25430,9 @@
       "get": {
         "operationId": "get_api_v1_safety_organizations_orgId_clearances_review_queue",
         "summary": "List clearance reviews",
+        "x-athlentry-permission": "safety.read",
+        "x-athlentry-resource": "safety.clearances.review-queue",
+        "x-athlentry-scope": "organization",
         "tags": ["safety"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24486,6 +25467,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -24500,6 +25482,9 @@
       "post": {
         "operationId": "post_api_v1_safety_organizations_orgId_clearances_clearanceId_review",
         "summary": "Review clearance",
+        "x-athlentry-permission": "safety.manage",
+        "x-athlentry-resource": "safety.clearances.review",
+        "x-athlentry-scope": "organization",
         "tags": ["safety"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24579,6 +25564,9 @@
       "post": {
         "operationId": "post_api_v1_safety_organizations_orgId_incidents",
         "summary": "Report safety incident",
+        "x-athlentry-permission": "safety.manage",
+        "x-athlentry-resource": "safety.incidents",
+        "x-athlentry-scope": "organization",
         "tags": ["safety"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24684,6 +25672,9 @@
       "get": {
         "operationId": "get_api_v1_safety_organizations_orgId_incidents",
         "summary": "List safety incidents",
+        "x-athlentry-permission": "safety.read",
+        "x-athlentry-resource": "safety.incidents",
+        "x-athlentry-scope": "organization",
         "tags": ["safety"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24718,6 +25709,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -24732,6 +25724,9 @@
       "get": {
         "operationId": "get_api_v1_safety_organizations_orgId_incidents_incidentId",
         "summary": "Read safety incident",
+        "x-athlentry-permission": "safety.read",
+        "x-athlentry-resource": "safety.incidents",
+        "x-athlentry-scope": "organization",
         "tags": ["safety"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24766,6 +25761,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -24784,6 +25780,9 @@
       "patch": {
         "operationId": "patch_api_v1_safety_organizations_orgId_incidents_incidentId",
         "summary": "Update safety incident",
+        "x-athlentry-permission": "safety.manage",
+        "x-athlentry-resource": "safety.incidents",
+        "x-athlentry-scope": "organization",
         "tags": ["safety"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24817,6 +25816,9 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": { "status": "open", "version": 1 }
         },
         "parameters": [
           {

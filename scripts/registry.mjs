@@ -139,6 +139,7 @@ await writeGenerated(
 
 export const serverModules: readonly ServerModule[] = [${serverNames.map((name) => `${identifier(name)}Module`).join(', ')}];
 export const integrationConfigs: readonly IntegrationConfig[] = [${integrationNames.map((name) => `${identifier(name)}Config`).join(', ')}];
+export { apiRouteMetadata } from './api-route-metadata';
 `,
 );
 

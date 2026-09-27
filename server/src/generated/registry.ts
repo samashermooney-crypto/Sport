@@ -42,3 +42,4 @@ export const integrationConfigs: readonly IntegrationConfig[] = [
   smsConfig,
   storageConfig,
 ];
+export { apiRouteMetadata } from './api-route-metadata';

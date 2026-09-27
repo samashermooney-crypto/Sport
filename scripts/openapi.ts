@@ -12,6 +12,7 @@ import { healthResponseSchema } from '../shared/src/schemas/health';
 import * as orgs from '../shared/src/schemas/orgs';
 
 type Method = 'get' | 'post' | 'put' | 'patch' | 'delete';
+type ApiScope = 'organization' | 'account' | 'platform' | 'public';
 export type OpenApiRoute = {
   method: Method;
   path: string;
@@ -22,9 +23,18 @@ export type OpenApiRoute = {
   tags?: string[];
   public?: boolean;
   query?: Record<string, z.ZodType>;
+  pathParameters?: Record<string, z.ZodType>;
   idempotencyKey?: boolean;
   contentType?: string;
   binary?: boolean;
+  permission?: string;
+  resource?: string;
+  scope?: ApiScope;
+  tenancyFixture?: {
+    body?: unknown;
+    query?: Record<string, string>;
+    pathResource?: 'file';
+  };
 };
 
 const authBase = '/api/v1/auth';
@@ -438,20 +448,218 @@ function jsonSchema(schema: z.ZodType): Record<string, unknown> {
   return z.toJSONSchema(schema, { target: 'draft-2020-12' });
 }
 
+function moduleFor(route: OpenApiRoute) {
+  return serverModules.find(
+    (module) =>
+      route.path === module.path ||
+      route.path.startsWith(`${module.path}/`) ||
+      module.extraRouters?.some(
+        (extra) =>
+          route.path === extra.path || route.path.startsWith(`${extra.path}/`),
+      ),
+  );
+}
+
+function routeScope(route: OpenApiRoute): ApiScope {
+  if (
+    route.scope ||
+    route.public ||
+    route.path === '/healthz' ||
+    route.path.includes('/webhooks/')
+  ) {
+    return route.scope ?? 'public';
+  }
+  if (route.path.startsWith('/api/v1/platform/')) return 'platform';
+  if (
+    route.path.startsWith('/api/v1/auth/') ||
+    route.path.includes('/me/') ||
+    route.path.startsWith('/api/v1/me/') ||
+    route.path.startsWith('/api/v1/people/me/') ||
+    route.path.startsWith('/api/v1/finance/me/') ||
+    route.path === '/api/v1/stream' ||
+    route.path === '/api/v1/finance/stripe-client-config' ||
+    route.path === '/api/v1/orgs' ||
+    route.path === '/api/v1/orgs/mine' ||
+    route.path === '/api/v1/orgs/slug-availability' ||
+    route.path === '/api/v1/orgs/sport-templates'
+  ) {
+    return 'account';
+  }
+  if (/\{(?:orgId|organizationId|tenantId)\}/i.test(route.path))
+    return 'organization';
+  const module = moduleFor(route);
+  if (module?.name === 'files') return 'organization';
+  if (module?.name === 'orgs') return 'account';
+  if (module?.name === 'platform') return 'platform';
+  if (module?.name === 'auth') return 'account';
+  if (module) return 'organization';
+  throw new Error(
+    `OpenAPI route has no security scope: ${route.method} ${route.path}`,
+  );
+}
+
+function routeResource(route: OpenApiRoute): string {
+  if (route.resource) return route.resource;
+  const module = moduleFor(route);
+  const tail = route.path
+    .split('/')
+    .slice(3)
+    .filter((part) => part.length > 0);
+  const tenantIndex = tail.findIndex(
+    (part, index) =>
+      ['orgs', 'organizations', 'tenants'].includes(part) &&
+      /^\{(?:orgId|organizationId|tenantId)\}$/i.test(tail[index + 1] ?? ''),
+  );
+  const resourceParts = (
+    tenantIndex >= 0 ? tail.slice(tenantIndex + 2) : tail
+  ).filter((part) => !/^\{.+\}$/.test(part));
+  const namespace = module?.name ?? 'system';
+  return [namespace, ...resourceParts.slice(0, 2)].join('.');
+}
+
+function routePermission(route: OpenApiRoute, scope: ApiScope): string {
+  if (route.permission) return route.permission;
+  if (scope === 'public') return 'public.access';
+  if (scope === 'account') return 'account.self';
+  if (scope === 'platform') return 'platform.staff';
+  const module = moduleFor(route);
+  if (module?.permissions?.length === 1)
+    return module.permissions[0] ?? 'organization.member';
+  if (module?.name === 'communications') {
+    if (route.path.includes('/chat/')) {
+      if (route.method === 'get') return 'chat.read';
+      if (route.method === 'delete') return 'chat.moderate';
+      return 'chat.send';
+    }
+    return route.method === 'get'
+      ? 'communications.read'
+      : 'communications.manage';
+  }
+  if (module?.name === 'finance' && route.path.includes('/me/'))
+    return route.method === 'get'
+      ? 'finance.payer.read'
+      : 'finance.payer.manage';
+  const action = route.method === 'get' ? 'read' : 'manage';
+  return module ? `${module.name}.${action}` : `organization.${action}`;
+}
+
+function exampleValue(schema: unknown): unknown {
+  if (!schema || typeof schema !== 'object') return {};
+  const shape = schema as Record<string, unknown>;
+  if ('const' in shape) return shape.const;
+  if (Array.isArray(shape.enum) && shape.enum.length > 0) return shape.enum[0];
+  for (const union of ['oneOf', 'anyOf'] as const) {
+    const variants = shape[union];
+    if (Array.isArray(variants) && variants.length > 0)
+      return exampleValue(variants[0]);
+  }
+  const type = shape.type;
+  if (type === 'object' || shape.properties) {
+    const properties = shape.properties;
+    if (!properties || typeof properties !== 'object') return {};
+    const required = new Set(
+      Array.isArray(shape.required)
+        ? shape.required.filter(
+            (value): value is string => typeof value === 'string',
+          )
+        : [],
+    );
+    return Object.fromEntries(
+      Object.entries(properties).flatMap(([key, property]) =>
+        required.has(key) ? [[key, exampleValue(property)]] : [],
+      ),
+    );
+  }
+  if (type === 'array') {
+    const minimum =
+      typeof shape.minItems === 'number' ? Math.max(0, shape.minItems) : 0;
+    return Array.from({ length: minimum }, () => exampleValue(shape.items));
+  }
+  if (type === 'integer' || type === 'number') {
+    const minimum =
+      typeof shape.minimum === 'number'
+        ? shape.minimum
+        : typeof shape.exclusiveMinimum === 'number'
+          ? shape.exclusiveMinimum + 1
+          : 1;
+    return type === 'integer' ? Math.ceil(minimum) : minimum;
+  }
+  if (type === 'boolean') return false;
+  if (type === 'string' || Array.isArray(type)) {
+    const format = shape.format;
+    if (format === 'uuid') return '00000000-0000-4000-8000-000000000001';
+    if (format === 'email') return 'security@example.test';
+    if (format === 'uri' || format === 'url')
+      return 'https://example.test/resource';
+    if (format === 'date') return '2026-09-27';
+    if (format === 'date-time') return '2026-09-27T12:00:00.000Z';
+    const minimum =
+      typeof shape.minLength === 'number' ? Math.max(1, shape.minLength) : 1;
+    return 'x'.repeat(minimum);
+  }
+  return {};
+}
+
+function routeTenancyFixture(
+  route: OpenApiRoute,
+  scope: ApiScope,
+): OpenApiRoute['tenancyFixture'] | undefined {
+  if (route.tenancyFixture) return route.tenancyFixture;
+  if (
+    scope === 'organization' &&
+    route.path.startsWith(`${filesBase}/`) &&
+    route.method === 'get' &&
+    /\/\{id\}\/(?:download|content)$/.test(route.path)
+  ) {
+    return { pathResource: 'file' };
+  }
+  if (
+    scope !== 'organization' ||
+    !/\{(?:orgId|organizationId|tenantId)\}/i.test(route.path) ||
+    !['get', 'patch', 'delete'].includes(route.method)
+  ) {
+    return undefined;
+  }
+  const requiredQuery: Record<string, string> = {};
+  for (const [name, schema] of Object.entries(route.query ?? {})) {
+    if (!schema.safeParse(undefined).success)
+      requiredQuery[name] = String(exampleValue(jsonSchema(schema)));
+  }
+  return {
+    body: route.body ? exampleValue(jsonSchema(route.body)) : {},
+    ...(Object.keys(requiredQuery).length > 0 ? { query: requiredQuery } : {}),
+  };
+}
+
+function routeMetadata(route: OpenApiRoute) {
+  const scope = routeScope(route);
+  return {
+    permission: routePermission(route, scope),
+    resource: routeResource(route),
+    scope,
+    tenancyFixture: routeTenancyFixture(route, scope),
+  };
+}
+
 function operation(route: OpenApiRoute): Record<string, unknown> {
+  const metadata = routeMetadata(route);
   const pathNames = [
     ...route.path.matchAll(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g),
   ].map((match) => match[1] ?? '');
   const parameters = [
-    ...pathNames.map((name) => ({
-      name,
-      in: 'path',
-      required: true,
-      schema:
-        name === 'id' || name.endsWith('Id')
-          ? { type: 'string', format: 'uuid' }
-          : { type: 'string' },
-    })),
+    ...pathNames.map((name) => {
+      const declaredSchema = route.pathParameters?.[name];
+      return {
+        name,
+        in: 'path',
+        required: true,
+        schema: declaredSchema
+          ? jsonSchema(declaredSchema)
+          : name === 'id' || name.endsWith('Id')
+            ? { type: 'string', format: 'uuid' }
+            : { type: 'string' },
+      };
+    }),
     ...Object.entries(route.query ?? {}).map(([name, schema]) => ({
       name,
       in: 'query',
@@ -473,6 +681,9 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
   const result: Record<string, unknown> = {
     operationId: `${route.method}_${route.path.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '')}`,
     summary: route.summary,
+    'x-athlentry-permission': metadata.permission,
+    'x-athlentry-resource': metadata.resource,
+    'x-athlentry-scope': metadata.scope,
     tags: route.tags ?? [route.path.split('/')[3] ?? 'system'],
     security: route.public ? [] : [{ cookieAuth: [] }, { bearerAuth: [] }],
     responses: {
@@ -503,6 +714,8 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
       '503': { $ref: '#/components/responses/Unavailable' },
     },
   };
+  if (metadata.tenancyFixture)
+    result['x-athlentry-tenancy-fixture'] = metadata.tenancyFixture;
   if (parameters.length) result.parameters = parameters;
   if (route.body)
     result.requestBody = {
@@ -625,6 +838,20 @@ for (const route of routes) {
   operations[route.method] = operation(route);
   paths[route.path] = operations;
 }
+const apiRouteMetadata = routes.map((route) => {
+  const metadata = routeMetadata(route);
+  return {
+    operationId: `${route.method}_${route.path.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '')}`,
+    method: route.method,
+    path: route.path,
+    permission: metadata.permission,
+    resource: metadata.resource,
+    scope: metadata.scope,
+    ...(metadata.tenancyFixture
+      ? { tenancyFixture: metadata.tenancyFixture }
+      : {}),
+  };
+});
 const errorResponse = (description: string) => ({
   description,
   content: {
@@ -662,4 +889,12 @@ await mkdir('docs/api', { recursive: true });
 await writeFile(
   'docs/api/openapi.json',
   await prettier.format(JSON.stringify(document), { parser: 'json' }),
+);
+await mkdir('server/src/generated', { recursive: true });
+await writeFile(
+  'server/src/generated/api-route-metadata.ts',
+  await prettier.format(
+    `export const apiRouteMetadata = ${JSON.stringify(apiRouteMetadata)} as const;\n`,
+    { parser: 'typescript' },
+  ),
 );

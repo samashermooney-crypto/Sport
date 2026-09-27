@@ -21,7 +21,7 @@ async function readOpenApi(): Promise<OpenApiDocument> {
   return JSON.parse(source) as OpenApiDocument;
 }
 
-test.fixme('SEC-002 / Track C: every API operation declares permission, resource, and scope metadata', async () => {
+test('SEC-002 / Track C: every API operation declares permission, resource, and scope metadata', async () => {
   const document = await readOpenApi();
   const missing: string[] = [];
   for (const [path, methods] of Object.entries(document.paths)) {
@@ -31,7 +31,9 @@ test.fixme('SEC-002 / Track C: every API operation declares permission, resource
       if (
         !operation['x-athlentry-permission'] ||
         !operation['x-athlentry-resource'] ||
-        !operation['x-athlentry-scope']
+        !['organization', 'account', 'platform', 'public'].includes(
+          operation['x-athlentry-scope'] ?? '',
+        )
       ) {
         missing.push(`${method.toUpperCase()} ${path}`);
       }
