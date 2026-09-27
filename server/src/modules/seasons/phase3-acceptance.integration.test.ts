@@ -143,12 +143,37 @@ const addPerson = async (firstName: string, dateOfBirth = '2014-05-01') => {
 };
 
 describe('season rollover acceptance', () => {
+  it('creates a manually named persistent team in its selected program', async () => {
+    const created = await new TeamsService(database, context).createForProgram({
+      team: {
+        name: `Manual ${randomUUID().slice(0, 8)}`,
+        sportProfileId: profileId,
+      },
+      programId,
+      divisionId,
+    });
+
+    expect(created.team.sport_profile_id).toBe(profileId);
+    expect(created.season.program_id).toBe(programId);
+    expect(created.season.division_id).toBe(divisionId);
+    await expect(
+      new TeamsService(database, context).list(programId),
+    ).resolves.toContainEqual(
+      expect.objectContaining({
+        id: created.season.id,
+        team_id: created.team.id,
+      }),
+    );
+  });
+
   it('preserves registration wall time when an offset crosses daylight saving time', async () => {
-    await database
-      .updateTable('organizations')
-      .set({ timezone: 'America/Chicago' })
-      .where('id', '=', context.orgId)
-      .execute();
+    await withOrg()(context, (trx) =>
+      trx
+        .updateTable('organizations')
+        .set({ timezone: 'America/Chicago' })
+        .where('id', '=', context.orgId)
+        .execute(),
+    );
     const seasons = new SeasonsService(database, context);
     const programs = new ProgramsService(database, context);
     const spring = await seasons.create({
@@ -174,16 +199,28 @@ describe('season rollover acceptance', () => {
         .execute(),
     );
 
-    const copy = await withOrg()(context, (trx) =>
-      seasons.rolloverInTransaction(trx, spring.id, {
-        name: 'Spring 2028',
-        startsOn: '2028-03-01',
-        endsOn: '2028-03-20',
-        offsetDays: 1,
-        returningTeamSeasonIds: [],
-        carryStaffIds: [],
-      }),
-    );
+    const copy = await (async () => {
+      try {
+        return await withOrg()(context, (trx) =>
+          seasons.rolloverInTransaction(trx, spring.id, {
+            name: 'Spring 2028',
+            startsOn: '2028-03-01',
+            endsOn: '2028-03-20',
+            offsetDays: 1,
+            returningTeamSeasonIds: [],
+            carryStaffIds: [],
+          }),
+        );
+      } finally {
+        await withOrg()(context, (trx) =>
+          trx
+            .updateTable('organizations')
+            .set({ timezone: 'UTC' })
+            .where('id', '=', context.orgId)
+            .execute(),
+        );
+      }
+    })();
     const copied = await withOrg()(context, (trx) =>
       trx
         .selectFrom('programs')
@@ -216,25 +253,73 @@ describe('season rollover acceptance', () => {
       priceCents: 12500,
       pricing: {
         earlyPriceCents: 11000,
+        earlyEndsAt: '2026-11-15T23:59:00-06:00',
+        latePriceCents: 13500,
+        lateStartsAt: '2026-11-16T00:00:00-06:00',
         installmentTemplateIds: [],
-        siblingDiscountEligible: true,
+        siblingDiscountEligible: false,
         glCode: 'REG',
       },
+      addOns: [
+        {
+          key: 'uniform-kit',
+          name: 'Uniform kit',
+          priceCents: 2500,
+          required: true,
+          options: [{ key: 'youth-small', label: 'Youth small' }],
+        },
+      ],
       formDefinitionIds: [],
       waiverDocumentIds: [],
       active: true,
     });
-    const copy = await withOrg()(context, (trx) =>
-      seasons.rolloverInTransaction(trx, sourceSeason, {
-        name: 'Fall 2027',
-        startsOn: '2027-09-01',
-        endsOn: '2027-12-15',
-        offsetDays: 0,
-        dateMap: { '2026-09-10': '2027-09-20', '2026-12-01': '2027-12-10' },
-        returningTeamSeasonIds: [teamSeasonId],
-        carryStaffIds: [],
-      }),
+    await withOrg()(context, (trx) =>
+      trx
+        .updateTable('organizations')
+        .set({ timezone: 'America/Chicago' })
+        .where('id', '=', context.orgId)
+        .execute(),
     );
+    const rolloverInput = {
+      name: 'Fall 2027',
+      startsOn: '2027-09-01',
+      endsOn: '2027-12-15',
+      offsetDays: 365,
+      dateMap: {
+        '2026-09-10': '2027-09-20',
+        '2026-12-01': '2027-12-10',
+      },
+      returningTeamSeasonIds: [teamSeasonId],
+      carryStaffIds: [],
+    };
+    const preview = await seasons.preview(sourceSeason, rolloverInput);
+    const previewProgram = preview.programs.find(
+      (item) => item.id === programId,
+    );
+    if (!previewProgram)
+      throw new Error('Program missing from rollover preview');
+    expect(
+      previewProgram.divisions.some((division) => division.name.length > 0),
+    ).toBe(true);
+    const previewOffering = previewProgram.offerings.at(0);
+    expect(previewOffering?.name).toBe('Season registration');
+    expect(previewOffering?.priceCents).toBe(12500);
+    expect(previewOffering?.addOnCount).toBe(1);
+    const copy = await (async () => {
+      try {
+        return await withOrg()(context, (trx) =>
+          seasons.rolloverInTransaction(trx, sourceSeason, rolloverInput),
+        );
+      } finally {
+        await withOrg()(context, (trx) =>
+          trx
+            .updateTable('organizations')
+            .set({ timezone: 'UTC' })
+            .where('id', '=', context.orgId)
+            .execute(),
+        );
+      }
+    })();
     const next = await programs.list(copy.season.id);
     expect(next).toHaveLength(1);
     const copied = next.at(0);
@@ -250,11 +335,31 @@ describe('season rollover acceptance', () => {
     expect(copiedDetail.offerings[0]).toMatchObject({
       name: sourceOffering.name,
       price_cents: sourceOffering.price_cents,
-      pricing: sourceOffering.pricing,
+      pricing: {
+        earlyPriceCents: 11000,
+        installmentTemplateIds: [],
+        siblingDiscountEligible: false,
+        glCode: 'REG',
+      },
+      add_ons: [
+        {
+          key: 'uniform-kit',
+          name: 'Uniform kit',
+          priceCents: 2500,
+          required: true,
+          options: [{ key: 'youth-small', label: 'Youth small' }],
+        },
+      ],
       form_definition_ids: [],
       waiver_document_ids: [],
       active: false,
     });
+    const copiedPricing = copiedDetail.offerings[0]?.pricing as {
+      earlyEndsAt?: string;
+      lateStartsAt?: string;
+    };
+    expect(copiedPricing.earlyEndsAt).toBe('2027-11-16T05:59:00.000Z');
+    expect(copiedPricing.lateStartsAt).toBe('2027-11-16T06:00:00.000Z');
     const copiedRegistrations = await withOrg()(context, (trx) =>
       trx
         .selectFrom('registrations')
@@ -379,6 +484,29 @@ describe('season rollover acceptance', () => {
     expect(staffRows).toMatchObject([
       { person_id: coachId, role: 'other', status: 'pending_compliance' },
     ]);
+  });
+
+  it('rejects duplicate rollover selections before creating a second copy', async () => {
+    await expect(
+      withOrg()(context, (trx) =>
+        new SeasonsService(database, context).rolloverInTransaction(
+          trx,
+          sourceSeason,
+          {
+            name: `Duplicate selection ${randomUUID().slice(0, 8)}`,
+            startsOn: '2028-09-01',
+            endsOn: '2028-12-15',
+            offsetDays: 365,
+            returningTeamSeasonIds: [teamSeasonId, teamSeasonId],
+            carryStaffIds: [],
+          },
+        ),
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      message: 'A returning team can only be selected once',
+    });
   });
 });
 

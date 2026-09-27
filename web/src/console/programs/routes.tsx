@@ -49,7 +49,7 @@ function ProgramRoute(): React.JSX.Element {
     </AppShell>
   );
 }
-export const programConsoleRoutes = [
+export const consoleProgramsRoutes = [
   { path: '/console/orgs/:orgId/programs', element: <ProgramRoute /> },
 ];
 
@@ -94,7 +94,7 @@ function ProgramDetailRoute(): React.JSX.Element {
     </AppShell>
   );
 }
-programConsoleRoutes.push({
+consoleProgramsRoutes.push({
   path: '/console/orgs/:orgId/programs/:programId',
   element: <ProgramDetailRoute />,
 });

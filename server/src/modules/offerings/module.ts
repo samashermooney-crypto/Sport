@@ -48,5 +48,11 @@ export const moduleDefinition = {
         'List available finance installment plans for the offering editor',
       response: installmentTemplateListSchema,
     },
+    {
+      method: 'get',
+      path: '/api/v1/offerings/orgs/{orgId}/pricing-context',
+      summary: 'Read the organization timezone used by offering price windows',
+      response: z.strictObject({ timezone: z.string() }),
+    },
   ],
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };

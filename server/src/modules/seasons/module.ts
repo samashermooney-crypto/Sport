@@ -16,6 +16,31 @@ const row = z.looseObject({
   status: z.string(),
   version: z.number().int().positive(),
 });
+const previewProgram = z.strictObject({
+  id: z.uuid(),
+  name: z.string(),
+  startsOn: z.string(),
+  endsOn: z.string(),
+  copiedStartsOn: z.string(),
+  copiedEndsOn: z.string(),
+  divisions: z.array(
+    z.strictObject({
+      program_id: z.uuid(),
+      name: z.string(),
+      age_label: z.string().nullable(),
+      competition_gender: z.string().nullable(),
+    }),
+  ),
+  offerings: z.array(
+    z.strictObject({
+      name: z.string(),
+      priceCents: z.number().int().nonnegative(),
+      formCount: z.number().int().nonnegative(),
+      waiverCount: z.number().int().nonnegative(),
+      addOnCount: z.number().int().nonnegative(),
+    }),
+  ),
+});
 export const moduleDefinition = {
   name: 'seasons',
   path: '/api/v1/seasons',
@@ -62,7 +87,7 @@ export const moduleDefinition = {
           startsOn: z.string(),
           endsOn: z.string(),
         }),
-        programs: z.array(z.unknown()),
+        programs: z.array(previewProgram),
         teams: z.array(z.unknown()),
         staff: z.array(z.unknown()),
         exclusions: z.array(z.string()),

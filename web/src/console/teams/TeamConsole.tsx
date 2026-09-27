@@ -8,7 +8,10 @@ import { Button, Card, Field, Input, Select } from '../../ui/primitives';
 import '../programs/programs.css';
 
 const idRow = z.looseObject({ id: z.uuid(), name: z.string() });
-const programRow = idRow.extend({ status: z.string() });
+const programRow = idRow.extend({
+  status: z.string(),
+  sport_profile_id: z.uuid(),
+});
 const divisionRow = idRow.extend({ is_default: z.boolean() });
 const detail = z.object({
   program: programRow,
@@ -95,6 +98,7 @@ export function TeamConsole({ orgId }: { orgId: string }): React.JSX.Element {
   const [editingPositions, setEditingPositions] = useState<string[]>([]);
   const [destinationTeamSeasonId, setDestinationTeamSeasonId] = useState('');
   const [teamName, setTeamName] = useState('');
+  const [manualTeamName, setManualTeamName] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [rosterLimit, setRosterLimit] = useState('');
   const [teamSeasonStatus, setTeamSeasonStatus] = useState('forming');
@@ -226,6 +230,85 @@ export function TeamConsole({ orgId }: { orgId: string }): React.JSX.Element {
           {notice}
         </p>
       )}
+      <Card>
+        <h2>Create a team manually</h2>
+        <form
+          className="phase3-form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const selectedProgram = programs.find(
+              (program) => program.id === programId,
+            );
+            if (!selectedProgram || !divisionId) {
+              setError('Choose a program and division first');
+              return;
+            }
+            void mutate(async () => {
+              const created = await apiPost(
+                `/teams/orgs/${orgId}/seasons/manual`,
+                {
+                  team: {
+                    name: manualTeamName,
+                    sportProfileId: selectedProgram.sport_profile_id,
+                  },
+                  programId,
+                  divisionId,
+                },
+                z.object({
+                  team: z.looseObject({ id: z.uuid() }),
+                  season: z.looseObject({ id: z.uuid() }),
+                }),
+              );
+              setManualTeamName('');
+              setSelectedTeamId(created.season.id);
+              setNotice(`Created ${manualTeamName.trim()}`);
+            });
+          }}
+        >
+          <Field label="Program">
+            <Select
+              value={programId}
+              onChange={(event) => {
+                setProgramId(event.target.value);
+              }}
+            >
+              <option value="">Choose program</option>
+              {programs.map((program) => (
+                <option key={program.id} value={program.id}>
+                  {program.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Division">
+            <Select
+              value={divisionId}
+              onChange={(event) => {
+                setDivisionId(event.target.value);
+              }}
+            >
+              <option value="">Choose division</option>
+              {divisions.map((division) => (
+                <option key={division.id} value={division.id}>
+                  {division.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Persistent team name">
+            <Input
+              value={manualTeamName}
+              onChange={(event) => {
+                setManualTeamName(event.target.value);
+              }}
+              required
+            />
+          </Field>
+          <Button disabled={busy || !programId || !divisionId}>
+            Create team
+          </Button>
+        </form>
+      </Card>
       <Card>
         <h2>Generate teams</h2>
         <p>Create persistent team identities in a program division.</p>

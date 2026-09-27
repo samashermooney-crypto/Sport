@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 import { sportProfileSchema } from '../schema.js';
 
+import { getTemplateSeed } from './catalog.js';
+
 import { builtInSportTemplates } from './index.js';
 
 describe('built-in sport templates', () => {
@@ -12,6 +14,12 @@ describe('built-in sport templates', () => {
     expect(
       new Set(builtInSportTemplates.map((profile) => profile.key)).size,
     ).toBe(46);
+  });
+
+  it('rejects unknown template seed keys', () => {
+    expect(() => getTemplateSeed('invented-sport')).toThrow(
+      'Unknown sport template: invented-sport',
+    );
   });
 
   it.each(builtInSportTemplates)(

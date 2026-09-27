@@ -35,6 +35,14 @@ export const teamSeasonInputSchema = z.strictObject({
   rosterLimit: z.number().int().positive().nullable().default(null),
   homeFacilityId: z.uuid().nullable().default(null),
 });
+export const teamForProgramInputSchema = z.strictObject({
+  team: teamInputSchema,
+  programId: z.uuid(),
+  divisionId: z.uuid(),
+  displayName: z.string().trim().max(120).nullable().default(null),
+  rosterLimit: z.number().int().positive().nullable().default(null),
+  homeFacilityId: z.uuid().nullable().default(null),
+});
 export const teamGeneratorSchema = z.strictObject({
   programId: z.uuid(),
   divisionId: z.uuid(),
@@ -209,6 +217,79 @@ export class TeamsService {
         })
         .returningAll()
         .executeTakeFirstOrThrow();
+    });
+  }
+  createForProgram(input: z.input<typeof teamForProgramInputSchema>) {
+    const value = teamForProgramInputSchema.parse(input);
+    return this.withOrg(this.context, async (trx) => {
+      await requireStaff(
+        trx,
+        this.context.orgId,
+        this.context.actor.accountId,
+        false,
+      );
+      const program = await trx
+        .selectFrom('programs')
+        .select(['id', 'sport_profile_id'])
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', value.programId)
+        .executeTakeFirst();
+      const division = await trx
+        .selectFrom('divisions')
+        .select('id')
+        .where('org_id', '=', this.context.orgId)
+        .where('program_id', '=', value.programId)
+        .where('id', '=', value.divisionId)
+        .executeTakeFirst();
+      const profile = await trx
+        .selectFrom('sport_profiles')
+        .select('id')
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', value.team.sportProfileId)
+        .where('archived_at', 'is', null)
+        .executeTakeFirst();
+      if (
+        !program ||
+        !division ||
+        !profile ||
+        program.sport_profile_id !== profile.id
+      )
+        throw new TeamError(
+          400,
+          'VALIDATION_ERROR',
+          'Team, program and division must share this organization and sport',
+        );
+      const team = await trx
+        .insertInto('teams')
+        .values({
+          id: newId(),
+          org_id: this.context.orgId,
+          name: value.team.name,
+          short_name: value.team.shortName,
+          sport_profile_id: value.team.sportProfileId,
+          competition_gender: value.team.competitionGender,
+          birth_year: value.team.birthYear,
+          age_label: value.team.ageLabel,
+          level: value.team.level,
+          colors: value.team.colors as Json,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      const season = await trx
+        .insertInto('team_seasons')
+        .values({
+          id: newId(),
+          org_id: this.context.orgId,
+          team_id: team.id,
+          program_id: value.programId,
+          division_id: value.divisionId,
+          display_name: value.displayName,
+          roster_limit: value.rosterLimit,
+          home_facility_id: value.homeFacilityId,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      return { team, season };
     });
   }
   generate(input: z.input<typeof teamGeneratorSchema>) {

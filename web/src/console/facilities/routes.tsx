@@ -48,6 +48,6 @@ function FacilitiesRoute(): React.JSX.Element {
     </AppShell>
   );
 }
-export const facilityConsoleRoutes = [
+export const consoleFacilitiesRoutes = [
   { path: '/console/orgs/:orgId/facilities', element: <FacilitiesRoute /> },
 ];

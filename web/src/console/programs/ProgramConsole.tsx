@@ -1,3 +1,4 @@
+import { orgLocalToInstant } from '@shared/dates';
 import { useCallback, useEffect, useState } from 'react';
 import { z } from 'zod';
 
@@ -47,6 +48,7 @@ const installmentSchema = z.object({
     z.looseObject({ id: z.uuid(), name: z.string(), active: z.boolean() }),
   ),
 });
+const pricingContextSchema = z.strictObject({ timezone: z.string() });
 const librarySchema = z.object({
   forms: z.array(
     z.looseObject({
@@ -70,6 +72,12 @@ type Season = z.output<typeof seasonSchema>;
 type Profile = z.output<typeof profileSchema>;
 type Program = z.output<typeof programSchema>;
 type Template = z.output<typeof templateSchema>;
+type AddOnDraft = {
+  name: string;
+  price: string;
+  required: boolean;
+  options: string;
+};
 
 const modes = [
   'league',
@@ -87,13 +95,46 @@ type OfferingDraft = {
   price: string;
   capacity: string;
   installmentTemplateId: string;
+  earlyPrice: string;
+  earlyEndsAt: string;
+  latePrice: string;
+  lateStartsAt: string;
+  siblingDiscountEligible: boolean;
+  addOns: AddOnDraft[];
 };
+const emptyAddOn = (): AddOnDraft => ({
+  name: '',
+  price: '0',
+  required: false,
+  options: '',
+});
 const emptyOffering = (): OfferingDraft => ({
   name: 'Player registration',
   price: '0',
   capacity: '',
   installmentTemplateId: '',
+  earlyPrice: '',
+  earlyEndsAt: '',
+  latePrice: '',
+  lateStartsAt: '',
+  siblingDiscountEligible: true,
+  addOns: [],
 });
+const dollarsToCents = (value: string, label: string): number => {
+  const amount = Number(value);
+  if (!value.trim() || !Number.isFinite(amount) || amount < 0)
+    throw new Error(`${label} must be zero or greater`);
+  return Math.round(amount * 100);
+};
+const optionalDollarsToCents = (value: string, label: string) =>
+  value.trim() ? dollarsToCents(value, label) : undefined;
+const optionKey = (value: string, index: number) =>
+  value
+    .toLocaleLowerCase('en-US')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || `choice-${String(index + 1)}`;
+const dateTimeValue = (value: string, timezone: string) =>
+  value ? orgLocalToInstant(value, timezone) : undefined;
 
 export function ProgramConsole({
   orgId,
@@ -107,6 +148,7 @@ export function ProgramConsole({
   const [plans, setPlans] = useState<
     z.output<typeof installmentSchema>['templates']
   >([]);
+  const [orgTimezone, setOrgTimezone] = useState('UTC');
   const [programs, setPrograms] = useState<Program[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -151,6 +193,7 @@ export function ProgramConsole({
       nextProfiles,
       nextTemplates,
       nextPlans,
+      nextPricingContext,
       nextPrograms,
       nextLibraries,
     ] = await Promise.all([
@@ -161,6 +204,7 @@ export function ProgramConsole({
         `/offerings/orgs/${orgId}/installment-templates`,
         installmentSchema,
       ),
+      apiGet(`/offerings/orgs/${orgId}/pricing-context`, pricingContextSchema),
       apiGet(`/programs/orgs/${orgId}`, z.array(programSchema)),
       apiGet(`/offerings/orgs/${orgId}/libraries`, librarySchema),
     ]);
@@ -168,6 +212,7 @@ export function ProgramConsole({
     setProfiles(nextProfiles);
     setTemplates(nextTemplates);
     setPlans(nextPlans.templates);
+    setOrgTimezone(nextPricingContext.timezone);
     setPrograms(nextPrograms);
     setLibraries(nextLibraries);
     setSeasonId((current) => current || nextSeasons[0]?.id || '');
@@ -238,6 +283,24 @@ export function ProgramConsole({
       ),
     );
   };
+  const updateAddOn = (
+    offeringIndex: number,
+    addOnIndex: number,
+    patch: Partial<AddOnDraft>,
+  ) => {
+    setOfferings((current) =>
+      current.map((offering, index) =>
+        index === offeringIndex
+          ? {
+              ...offering,
+              addOns: offering.addOns.map((addOn, at) =>
+                at === addOnIndex ? { ...addOn, ...patch } : addOn,
+              ),
+            }
+          : offering,
+      ),
+    );
+  };
   const selectedProfile = profiles.find((profile) => profile.id === profileId);
   const editedProfile = profiles.find(
     (profile) => profile.id === editProfileId,
@@ -301,21 +364,68 @@ export function ProgramConsole({
         );
       }
       for (const offering of offerings.slice(detail.offerings.length)) {
+        const earlyPriceCents = optionalDollarsToCents(
+          offering.earlyPrice,
+          'Early price',
+        );
+        const earlyEndsAt = dateTimeValue(offering.earlyEndsAt, orgTimezone);
+        const latePriceCents = optionalDollarsToCents(
+          offering.latePrice,
+          'Late price',
+        );
+        const lateStartsAt = dateTimeValue(offering.lateStartsAt, orgTimezone);
+        if ((earlyPriceCents === undefined) !== (earlyEndsAt === undefined))
+          throw new Error(
+            'Complete both early price fields or leave them blank',
+          );
+        if ((latePriceCents === undefined) !== (lateStartsAt === undefined))
+          throw new Error(
+            'Complete both late price fields or leave them blank',
+          );
+        const addOns = offering.addOns.map((addOn, addOnIndex) => {
+          const options = addOn.options
+            .split(',')
+            .map((option) => option.trim())
+            .filter(Boolean)
+            .map((label, optionIndex) => ({
+              key: optionKey(label, optionIndex),
+              label,
+            }));
+          if (
+            new Set(options.map((option) => option.key)).size !== options.length
+          )
+            throw new Error(`Choices for ${addOn.name} must be unique`);
+          if (!addOn.name.trim()) throw new Error('Name every offered product');
+          return {
+            key: `add-on-${String(addOnIndex + 1)}`,
+            name: addOn.name.trim(),
+            priceCents: dollarsToCents(addOn.price, `${addOn.name} price`),
+            required: addOn.required,
+            options,
+          };
+        });
         await apiPost(
           `/offerings/orgs/${orgId}`,
           {
             programId,
             name: offering.name,
             registrantRole: 'athlete',
-            priceCents: Math.round(Number(offering.price) * 100),
+            priceCents: dollarsToCents(offering.price, 'Offering price'),
             capacity: offering.capacity ? Number(offering.capacity) : null,
             pricing: {
+              ...(earlyPriceCents === undefined
+                ? {}
+                : { earlyPriceCents, earlyEndsAt }),
+              ...(latePriceCents === undefined
+                ? {}
+                : { latePriceCents, lateStartsAt }),
               installmentTemplateIds: offering.installmentTemplateId
                 ? [offering.installmentTemplateId]
                 : [],
-              siblingDiscountEligible: true,
+              siblingDiscountEligible: offering.siblingDiscountEligible,
               glCode: null,
             },
+            addOns,
             formDefinitionIds: formIds,
             waiverDocumentIds: waiverIds,
             visibility: 'public',
@@ -737,6 +847,7 @@ export function ProgramConsole({
         )}
         {step === 2 && (
           <div>
+            <p>Price windows use the organization timezone: {orgTimezone}.</p>
             {offerings.map((offering, index) => (
               <div className="phase3-form-grid phase3-offering" key={index}>
                 <Field label={`Offering ${String(index + 1)} name`}>
@@ -768,6 +879,62 @@ export function ProgramConsole({
                     }}
                   />
                 </Field>
+                <Field label="Early-bird price ($)">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={offering.earlyPrice}
+                    onChange={(event) => {
+                      updateOffering(index, { earlyPrice: event.target.value });
+                    }}
+                  />
+                </Field>
+                <Field label={`Early-bird ends (${orgTimezone})`}>
+                  <Input
+                    type="datetime-local"
+                    value={offering.earlyEndsAt}
+                    onChange={(event) => {
+                      updateOffering(index, {
+                        earlyEndsAt: event.target.value,
+                      });
+                    }}
+                  />
+                </Field>
+                <Field label="Late price ($)">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={offering.latePrice}
+                    onChange={(event) => {
+                      updateOffering(index, { latePrice: event.target.value });
+                    }}
+                  />
+                </Field>
+                <Field label={`Late pricing starts (${orgTimezone})`}>
+                  <Input
+                    type="datetime-local"
+                    value={offering.lateStartsAt}
+                    onChange={(event) => {
+                      updateOffering(index, {
+                        lateStartsAt: event.target.value,
+                      });
+                    }}
+                  />
+                </Field>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={offering.siblingDiscountEligible}
+                    onChange={(event) => {
+                      updateOffering(index, {
+                        siblingDiscountEligible: event.target.checked,
+                      });
+                    }}
+                  />{' '}
+                  Eligible for sibling discounts
+                </label>
                 {plans.length > 0 && (
                   <Field label="Installment plan">
                     <Select
@@ -787,6 +954,85 @@ export function ProgramConsole({
                     </Select>
                   </Field>
                 )}
+                <fieldset>
+                  <legend>Optional products and uniforms</legend>
+                  {offering.addOns.map((addOn, addOnIndex) => (
+                    <fieldset key={addOnIndex}>
+                      <legend>Product {String(addOnIndex + 1)}</legend>
+                      <Field label="Product name">
+                        <Input
+                          value={addOn.name}
+                          onChange={(event) => {
+                            updateAddOn(index, addOnIndex, {
+                              name: event.target.value,
+                            });
+                          }}
+                          required
+                        />
+                      </Field>
+                      <Field label="Product price ($)">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={addOn.price}
+                          onChange={(event) => {
+                            updateAddOn(index, addOnIndex, {
+                              price: event.target.value,
+                            });
+                          }}
+                        />
+                      </Field>
+                      <Field label="Choices or sizes (comma-separated)">
+                        <Input
+                          value={addOn.options}
+                          onChange={(event) => {
+                            updateAddOn(index, addOnIndex, {
+                              options: event.target.value,
+                            });
+                          }}
+                          placeholder="Youth small, Youth medium, Adult small"
+                        />
+                      </Field>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={addOn.required}
+                          onChange={(event) => {
+                            updateAddOn(index, addOnIndex, {
+                              required: event.target.checked,
+                            });
+                          }}
+                        />{' '}
+                        Required with this offering
+                      </label>{' '}
+                      <Button
+                        type="button"
+                        secondary
+                        onClick={() => {
+                          updateOffering(index, {
+                            addOns: offering.addOns.filter(
+                              (_, at) => at !== addOnIndex,
+                            ),
+                          });
+                        }}
+                      >
+                        Remove product
+                      </Button>
+                    </fieldset>
+                  ))}
+                  <Button
+                    type="button"
+                    secondary
+                    onClick={() => {
+                      updateOffering(index, {
+                        addOns: [...offering.addOns, emptyAddOn()],
+                      });
+                    }}
+                  >
+                    Add product or uniform
+                  </Button>
+                </fieldset>
               </div>
             ))}
             <Button

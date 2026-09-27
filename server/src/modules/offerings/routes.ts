@@ -106,6 +106,10 @@ export function createOfferingsRouter(
     })),
   );
   router.get(
+    '/orgs/:orgId/pricing-context',
+    run(async (request) => (await service(request)).pricingContext()),
+  );
+  router.get(
     '/orgs/:orgId/libraries',
     run(async (request) => (await service(request)).libraries()),
   );

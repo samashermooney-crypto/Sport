@@ -48,6 +48,6 @@ function TeamsRoute(): React.JSX.Element {
     </AppShell>
   );
 }
-export const teamConsoleRoutes = [
+export const consoleTeamsRoutes = [
   { path: '/console/orgs/:orgId/teams', element: <TeamsRoute /> },
 ];

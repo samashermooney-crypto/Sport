@@ -9,6 +9,7 @@ import {
   TeamsService,
   TeamError,
   staffInputSchema,
+  teamForProgramInputSchema,
   teamGeneratorSchema,
   teamInputSchema,
   teamSeasonInputSchema,
@@ -94,6 +95,16 @@ export function createTeamsRouter(
       async (request) =>
         (await service(request, true)).createTeam(
           teamInputSchema.parse(request.body),
+        ),
+      201,
+    ),
+  );
+  router.post(
+    '/orgs/:orgId/seasons/manual',
+    run(
+      async (request) =>
+        (await service(request, true)).createForProgram(
+          teamForProgramInputSchema.parse(request.body),
         ),
       201,
     ),

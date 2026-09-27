@@ -7,15 +7,80 @@ import { createWithOrg, type OrgContext } from '../../db/withOrg';
 import { PostgresInstallmentTemplates } from '../finance/installment-templates';
 import { requireStaff } from '../people/repo';
 
-const pricingSchema = z.strictObject({
-  earlyPriceCents: z.number().int().nonnegative().optional(),
-  earlyEndsAt: z.iso.datetime({ offset: true }).optional(),
-  latePriceCents: z.number().int().nonnegative().optional(),
-  lateStartsAt: z.iso.datetime({ offset: true }).optional(),
-  installmentTemplateIds: z.array(z.uuid()).default([]),
-  siblingDiscountEligible: z.boolean().default(true),
-  glCode: z.string().trim().max(40).nullable().default(null),
+export const offeringPricingSchema = z
+  .strictObject({
+    earlyPriceCents: z.number().int().nonnegative().optional(),
+    earlyEndsAt: z.iso.datetime({ offset: true }).optional(),
+    latePriceCents: z.number().int().nonnegative().optional(),
+    lateStartsAt: z.iso.datetime({ offset: true }).optional(),
+    installmentTemplateIds: z.array(z.uuid()).default([]),
+    siblingDiscountEligible: z.boolean().default(true),
+    glCode: z.string().trim().max(40).nullable().default(null),
+  })
+  .superRefine((pricing, ctx) => {
+    if (
+      (pricing.earlyPriceCents === undefined) !==
+      (pricing.earlyEndsAt === undefined)
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Early price and early end time must be set together',
+        path: ['earlyPriceCents'],
+      });
+    if (
+      (pricing.latePriceCents === undefined) !==
+      (pricing.lateStartsAt === undefined)
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Late price and late start time must be set together',
+        path: ['latePriceCents'],
+      });
+    if (
+      pricing.earlyEndsAt &&
+      pricing.lateStartsAt &&
+      Date.parse(pricing.earlyEndsAt) >= Date.parse(pricing.lateStartsAt)
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Early pricing must end before late pricing starts',
+        path: ['lateStartsAt'],
+      });
+  });
+
+const addOnOptionSchema = z.strictObject({
+  key: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  label: z.string().trim().min(1).max(80),
 });
+export const offeringAddOnSchema = z
+  .strictObject({
+    key: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    name: z.string().trim().min(1).max(120),
+    priceCents: z.number().int().nonnegative(),
+    required: z.boolean().default(false),
+    options: z.array(addOnOptionSchema).default([]),
+  })
+  .superRefine((addOn, ctx) => {
+    if (
+      new Set(addOn.options.map((option) => option.key)).size !==
+      addOn.options.length
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Add-on option keys must be unique',
+        path: ['options'],
+      });
+  });
+const addOnsSchema = z
+  .array(offeringAddOnSchema)
+  .default([])
+  .superRefine((addOns, ctx) => {
+    if (new Set(addOns.map((addOn) => addOn.key)).size !== addOns.length)
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Add-on keys must be unique within an offering',
+      });
+  });
 export const offeringInputSchema = z.strictObject({
   programId: z.uuid(),
   divisionId: z.uuid().nullable().default(null),
@@ -28,7 +93,7 @@ export const offeringInputSchema = z.strictObject({
     'official',
   ]),
   priceCents: z.number().int().nonnegative(),
-  pricing: pricingSchema.default({
+  pricing: offeringPricingSchema.default({
     installmentTemplateIds: [],
     siblingDiscountEligible: true,
     glCode: null,
@@ -38,7 +103,7 @@ export const offeringInputSchema = z.strictObject({
   requiresApproval: z.boolean().default(false),
   formDefinitionIds: z.array(z.uuid()).default([]),
   waiverDocumentIds: z.array(z.uuid()).default([]),
-  addOns: z.array(z.unknown()).default([]),
+  addOns: addOnsSchema,
   visibility: z
     .enum(['public', 'invite_only', 'staff_only'])
     .default('staff_only'),
@@ -153,7 +218,7 @@ export class OfferingsService {
           requires_approval: value.requiresApproval,
           form_definition_ids: value.formDefinitionIds,
           waiver_document_ids: value.waiverDocumentIds,
-          add_ons: value.addOns as Json,
+          add_ons: JSON.stringify(value.addOns) as unknown as Json,
           visibility: value.visibility,
           active: value.active,
         })
@@ -271,7 +336,9 @@ export class OfferingsService {
             : { waiver_document_ids: value.waiverDocumentIds }),
           ...(value.addOns === undefined
             ? {}
-            : { add_ons: value.addOns as Json }),
+            : {
+                add_ons: JSON.stringify(value.addOns) as unknown as Json,
+              }),
           ...(value.visibility === undefined
             ? {}
             : { visibility: value.visibility }),
@@ -288,6 +355,24 @@ export class OfferingsService {
     return new PostgresInstallmentTemplates(this.database, this.context).list(
       true,
     );
+  }
+  pricingContext() {
+    return this.withOrg(this.context, async (trx) => {
+      await requireStaff(
+        trx,
+        this.context.orgId,
+        this.context.actor.accountId,
+        false,
+      );
+      const organization = await trx
+        .selectFrom('organizations')
+        .select('timezone')
+        .where('id', '=', this.context.orgId)
+        .executeTakeFirst();
+      if (!organization)
+        throw new OfferingError(404, 'NOT_FOUND', 'Organization not found');
+      return { timezone: organization.timezone };
+    });
   }
   libraries() {
     return this.withOrg(this.context, async (trx) => {

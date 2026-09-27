@@ -4,6 +4,8 @@ import {
   type Tiebreaker,
 } from './schema.js';
 
+type NumericTiebreaker = Exclude<Tiebreaker, 'coin_toss_manual'>;
+
 export type StandingContest = {
   homeTeamId: string;
   awayTeamId: string;
@@ -252,7 +254,7 @@ function ratio(numerator: number, denominator: number): number {
 
 function criterionValue(
   row: MutableRow,
-  criterion: Tiebreaker,
+  criterion: NumericTiebreaker,
   mini?: MutableRow,
 ): number {
   const source = criterion.startsWith('head_to_head')
@@ -285,8 +287,6 @@ function criterionValue(
       return -row.disciplinePoints;
     case 'net_run_rate':
       return row.netRunRate;
-    case 'coin_toss_manual':
-      return 0;
   }
 }
 
@@ -337,7 +337,6 @@ export function computeStandings(
   const decided = new Map<string, Tiebreaker | 'primary' | null>();
   const unresolved = new Set<string>();
   const resolve = (group: MutableRow[], index: number): MutableRow[] => {
-    if (group.length < 2) return group;
     if (index >= config.tiebreakers.length) {
       group.forEach((row) => {
         if (!manual.has(row.teamId)) unresolved.add(row.teamId);
@@ -350,7 +349,7 @@ export function computeStandings(
       );
     }
     const criterion = config.tiebreakers[index];
-    if (!criterion) return group;
+    if (!criterion) throw new RangeError('Missing standings tiebreaker');
     if (criterion === 'coin_toss_manual') {
       const ordered = [...group].sort(
         (a, b) =>

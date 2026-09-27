@@ -3,12 +3,13 @@ import { newId } from '@shared/ids';
 import type { Kysely } from 'kysely';
 import { z } from 'zod';
 
-import type { DB } from '../../db/types';
+import type { DB, Json } from '../../db/types';
 import {
   createWithOrg,
   type OrgContext,
   type OrgTransaction,
 } from '../../db/withOrg';
+import { offeringPricingSchema } from '../offerings/service';
 import { requireStaff } from '../people/repo';
 
 export const seasonCreateSchema = z.strictObject({
@@ -209,6 +210,44 @@ export class SeasonsService {
         .where('season_id', '=', id)
         .where('status', '!=', 'archived')
         .execute();
+      const programIds = programs.map((program) => program.id);
+      const [divisions, offerings] = programIds.length
+        ? await Promise.all([
+            trx
+              .selectFrom('divisions')
+              .select(['program_id', 'name', 'age_label', 'competition_gender'])
+              .where('org_id', '=', this.context.orgId)
+              .where('program_id', 'in', programIds)
+              .orderBy('sort_order')
+              .execute(),
+            trx
+              .selectFrom('registration_offerings')
+              .select([
+                'program_id',
+                'name',
+                'price_cents',
+                'form_definition_ids',
+                'waiver_document_ids',
+                'add_ons',
+              ])
+              .where('org_id', '=', this.context.orgId)
+              .where('program_id', 'in', programIds)
+              .orderBy('sort_order')
+              .execute(),
+          ])
+        : [[], []];
+      const divisionsByProgram = new Map<string, typeof divisions>();
+      const offeringsByProgram = new Map<string, typeof offerings>();
+      for (const division of divisions)
+        divisionsByProgram.set(division.program_id, [
+          ...(divisionsByProgram.get(division.program_id) ?? []),
+          division,
+        ]);
+      for (const offering of offerings)
+        offeringsByProgram.set(offering.program_id, [
+          ...(offeringsByProgram.get(offering.program_id) ?? []),
+          offering,
+        ]);
       const teamSeasons = await trx
         .selectFrom('team_seasons as ts')
         .innerJoin('programs as p', 'p.id', 'ts.program_id')
@@ -273,6 +312,16 @@ export class SeasonsService {
             value.dateMap,
           ),
           copiedEndsOn: resolveDate(p.ends_on, value.offsetDays, value.dateMap),
+          divisions: divisionsByProgram.get(p.id) ?? [],
+          offerings: (offeringsByProgram.get(p.id) ?? []).map((offering) => ({
+            name: offering.name,
+            priceCents: offering.price_cents,
+            formCount: offering.form_definition_ids.length,
+            waiverCount: offering.waiver_document_ids.length,
+            addOnCount: Array.isArray(offering.add_ons)
+              ? offering.add_ons.length
+              : 0,
+          })),
         })),
         teams: teamSeasons.map((team) => ({
           ...team,
@@ -297,6 +346,20 @@ export class SeasonsService {
         400,
         'VALIDATION_ERROR',
         'Season end must follow start',
+      );
+    const returning = new Set(value.returningTeamSeasonIds);
+    if (returning.size !== value.returningTeamSeasonIds.length)
+      throw new SeasonError(
+        400,
+        'VALIDATION_ERROR',
+        'A returning team can only be selected once',
+      );
+    const carry = new Set(value.carryStaffIds);
+    if (carry.size !== value.carryStaffIds.length)
+      throw new SeasonError(
+        400,
+        'VALIDATION_ERROR',
+        'A staff member can only be selected once',
       );
     await this.staff(trx);
     const source = await trx
@@ -448,7 +511,31 @@ export class SeasonsService {
         .where('org_id', '=', this.context.orgId)
         .where('program_id', '=', old.id)
         .execute();
-      for (const offering of offerings)
+      for (const offering of offerings) {
+        const pricing = offeringPricingSchema.parse(offering.pricing);
+        const copiedPricing = {
+          ...pricing,
+          ...(pricing.earlyEndsAt
+            ? {
+                earlyEndsAt: resolveInstant(
+                  new Date(pricing.earlyEndsAt),
+                  value.offsetDays,
+                  value.dateMap,
+                  org.timezone,
+                )?.toISOString(),
+              }
+            : {}),
+          ...(pricing.lateStartsAt
+            ? {
+                lateStartsAt: resolveInstant(
+                  new Date(pricing.lateStartsAt),
+                  value.offsetDays,
+                  value.dateMap,
+                  org.timezone,
+                )?.toISOString(),
+              }
+            : {}),
+        };
         await trx
           .insertInto('registration_offerings')
           .values({
@@ -461,18 +548,19 @@ export class SeasonsService {
             name: offering.name,
             registrant_role: offering.registrant_role,
             price_cents: offering.price_cents,
-            pricing: offering.pricing,
+            pricing: copiedPricing,
             capacity: offering.capacity,
             waitlist_enabled: offering.waitlist_enabled,
             requires_approval: offering.requires_approval,
             form_definition_ids: offering.form_definition_ids,
             waiver_document_ids: offering.waiver_document_ids,
-            add_ons: offering.add_ons,
+            add_ons: JSON.stringify(offering.add_ons) as unknown as Json,
             visibility: offering.visibility,
             sort_order: offering.sort_order,
             active: false,
           })
           .execute();
+      }
     }
     const oldTeamSeasons = await trx
       .selectFrom('team_seasons')
@@ -487,13 +575,6 @@ export class SeasonsService {
       )
       .where('status', 'in', ['forming', 'active'])
       .execute();
-    const returning = new Set(value.returningTeamSeasonIds);
-    if (value.returningTeamSeasonIds.some((id) => !returning.has(id)))
-      throw new SeasonError(
-        400,
-        'VALIDATION_ERROR',
-        'Selected returning team is not in the source season',
-      );
     const eligibleTeamSeasonIds = new Set(
       oldTeamSeasons.map((team) => team.id),
     );
@@ -544,7 +625,6 @@ export class SeasonsService {
       )
       .where('status', '!=', 'removed')
       .execute();
-    const carry = new Set(value.carryStaffIds);
     const eligibleStaffIds = new Set(oldStaff.map((member) => member.id));
     if ([...carry].some((id) => !eligibleStaffIds.has(id)))
       throw new SeasonError(

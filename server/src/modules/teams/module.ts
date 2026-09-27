@@ -5,6 +5,7 @@ import type { ServerModule } from '../../lib/module-contract';
 import { createTeamsRouter } from './routes';
 import {
   staffInputSchema,
+  teamForProgramInputSchema,
   teamGeneratorSchema,
   teamInputSchema,
   teamSeasonInputSchema,
@@ -35,6 +36,13 @@ export const moduleDefinition = {
       summary: 'Create a persistent team',
       body: teamInputSchema,
       response: row,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/teams/orgs/{orgId}/seasons/manual',
+      summary: 'Create a persistent team and team-season in one transaction',
+      body: teamForProgramInputSchema,
+      response: z.object({ team: row, season: row }),
     },
     {
       method: 'post',

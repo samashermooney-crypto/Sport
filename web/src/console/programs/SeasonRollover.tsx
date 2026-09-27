@@ -24,6 +24,22 @@ const previewSchema = z.looseObject({
       endsOn: z.string(),
       copiedStartsOn: z.string(),
       copiedEndsOn: z.string(),
+      divisions: z.array(
+        z.looseObject({
+          name: z.string(),
+          age_label: z.string().nullable(),
+          competition_gender: z.string().nullable(),
+        }),
+      ),
+      offerings: z.array(
+        z.looseObject({
+          name: z.string(),
+          priceCents: z.number().int().nonnegative(),
+          formCount: z.number().int().nonnegative(),
+          waiverCount: z.number().int().nonnegative(),
+          addOnCount: z.number().int().nonnegative(),
+        }),
+      ),
     }),
   ),
   teams: z.array(
@@ -277,6 +293,23 @@ export function SeasonRollover({
                   }}
                 />
               </Field>
+              <p>
+                Copies {program.divisions.length} divisions:{' '}
+                {program.divisions
+                  .map((division) => division.name)
+                  .join(', ') || 'none'}
+                .
+              </p>
+              <p>
+                Copies {program.offerings.length} offerings:{' '}
+                {program.offerings
+                  .map(
+                    (offering) =>
+                      `${offering.name} · $${(offering.priceCents / 100).toFixed(2)} · ${String(offering.addOnCount)} add-ons · ${String(offering.formCount)} forms · ${String(offering.waiverCount)} waivers`,
+                  )
+                  .join('; ') || 'none'}
+                .
+              </p>
             </div>
           ))}
           <Button

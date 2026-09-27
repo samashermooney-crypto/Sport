@@ -101,6 +101,19 @@ describe('eligibility', () => {
     ).toBe('GRADE_OUT_OF_RANGE');
   });
 
+  it('rejects athletes older than the configured maximum', () => {
+    const result = checkEligibility(rules, {
+      ...facts,
+      dateOfBirth: '2010-04-01',
+    });
+
+    expect(result.eligible).toBe(false);
+    expect(result.reasons).toContainEqual({
+      code: 'AGE_ABOVE_MAX',
+      message: 'Athlete must be no older than 12 years.',
+    });
+  });
+
   it('never rejects a participant inside an inclusive age range', () => {
     fc.assert(
       fc.property(
