@@ -335,3 +335,11 @@
 - **Decision:** Re-encode every accepted image MIME type, including document photos, and store the sanitized WebP original and derivatives. Leave PDF and import bytes unchanged.
 - **Why:** A file's purpose does not reduce the location privacy risk of embedded image metadata.
 - **Consequences / follow-ups:** Document photo downloads return `image/webp`. A committed GPS-tagged JPEG fixture verifies that the original and both stored variants have no EXIF, XMP or IPTC metadata.
+
+### DEC-041 — Select the initial web language from a local preference
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 frontend internationalization
+- **Context:** The web app needs an initial language before authentication, when no account preference is available.
+- **Decision:** Use a saved explicit English or Spanish choice when available, then the browser language, then English. Update the document language when the user switches and continue rendering if browser storage is unavailable.
+- **Why:** A choice made on the sign-in screen should survive navigation, while private-browsing storage failures must not block access.
+- **Consequences / follow-ups:** Account preference synchronization and complete auth/portal/site translations remain part of Task 16.
