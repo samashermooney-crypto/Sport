@@ -1512,6 +1512,21 @@ export interface OrgMemberships {
   version: Generated<number>;
 }
 
+export interface OrgSubscriptions {
+  created_at: Generated<Timestamp>;
+  current_period_end: Timestamp | null;
+  customer_claim_key: string | null;
+  customer_claim_status: Generated<string>;
+  id: string;
+  org_id: string;
+  plan_id: string | null;
+  status: Generated<string>;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface PayerProfiles {
   account_id: string;
   created_at: Generated<Timestamp>;
@@ -2600,6 +2615,7 @@ export interface DB {
   official_profiles: OfficialProfiles;
   org_counters: OrgCounters;
   org_memberships: OrgMemberships;
+  org_subscriptions: OrgSubscriptions;
   organizations: Organizations;
   payer_profiles: PayerProfiles;
   payment_accounts: PaymentAccounts;
