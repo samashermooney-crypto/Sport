@@ -695,6 +695,17 @@ describe('Phase 6 evaluations integration', () => {
     );
     expect(second.accountId).toBe(evaluatorAccountB);
 
+    const photoFileId = randomUUID();
+    await admin.query(
+      `INSERT INTO files (id, org_id, purpose, owner_type, owner_id, storage_key, mime, bytes, sensitivity, created_by, upload_state)
+       VALUES ($1, $2, 'image', 'person', $3, $4, 'image/jpeg', 128, 'internal', $5, 'complete')`,
+      [photoFileId, orgA, childA, `phase6/${photoFileId}.jpg`, ownerAccount],
+    );
+    await admin.query(
+      `UPDATE people SET photo_file_id=$1 WHERE org_id=$2 AND id=$3`,
+      [photoFileId, orgA, childA],
+    );
+
     const assignedSheet = await listEvaluationScoringSheet(
       dependencies(),
       ownerContext,
@@ -702,8 +713,29 @@ describe('Phase 6 evaluations integration', () => {
       evaluatorAccountA,
       false,
     );
+    expect(
+      assignedSheet.participants.find(
+        (participant) => participant.personId === childA,
+      ),
+    ).toMatchObject({ photoFileId });
     expect(assignedSheet.participants[0]).not.toHaveProperty('email');
     expect(assignedSheet.participants[0]).not.toHaveProperty('phone');
+    await admin.query(
+      `UPDATE people SET media_consent='denied' WHERE org_id=$1 AND id=$2`,
+      [orgA, childA],
+    );
+    const consentRevokedSheet = await listEvaluationScoringSheet(
+      dependencies(),
+      ownerContext,
+      eventId,
+      evaluatorAccountA,
+      false,
+    );
+    expect(
+      consentRevokedSheet.participants.find(
+        (participant) => participant.personId === childA,
+      )?.photoFileId,
+    ).toBeNull();
     await expect(
       listEvaluationScoringSheet(
         dependencies(),
