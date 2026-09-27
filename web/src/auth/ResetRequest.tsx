@@ -3,7 +3,14 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { apiPost } from '../api/client';
-import { AuthFrame, AuthLink, Button, ErrorBox, Field } from '../ui/auth';
+import {
+  AuthFrame,
+  AuthLink,
+  Button,
+  ErrorBox,
+  Field,
+  Input,
+} from '../ui/auth';
 
 export function ResetRequest(): React.JSX.Element {
   const [error, setError] = useState('');
@@ -40,7 +47,7 @@ export function ResetRequest(): React.JSX.Element {
       ) : (
         <form onSubmit={(event) => void handleSubmit(submit)(event)} noValidate>
           <Field label="Email address" required error={errors.email?.message}>
-            <input
+            <Input
               type="email"
               autoComplete="email"
               {...register('email', { required: 'Enter your email address.' })}
