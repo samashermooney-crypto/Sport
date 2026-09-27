@@ -1,0 +1,175 @@
+{
+  "key": "boxing",
+  "name": {
+    "en": "Boxing",
+    "es": "Boxeo"
+  },
+  "category": "individual",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Bout",
+      "es": "Juego"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Ring",
+      "es": "ring"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "head_to_head_bout",
+      "methods": [
+        {
+          "key": "decision",
+          "label": {
+            "en": "decision",
+            "es": "decision"
+          },
+          "teamPoints": 1
+        },
+        {
+          "key": "stoppage",
+          "label": {
+            "en": "stoppage",
+            "es": "stoppage"
+          },
+          "teamPoints": 1
+        }
+      ],
+      "periods": {
+        "label": {
+          "en": "Round",
+          "es": "Round"
+        },
+        "count": 3
+      }
+    }
+  ],
+  "positions": [
+    {
+      "key": "weight_class",
+      "label": {
+        "en": "Weight class",
+        "es": "Weight class"
+      }
+    }
+  ],
+  "maxPositionsPerAthlete": 2,
+  "roster": {
+    "defaultMax": 30,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "age_on_date",
+    "monthDay": "08-01",
+    "yearBasis": "season_start"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["ring"],
+  "officials": [
+    {
+      "key": "referee",
+      "label": {
+        "en": "Referee",
+        "es": "Referee"
+      },
+      "required": true
+    },
+    {
+      "key": "judge",
+      "label": {
+        "en": "Judge",
+        "es": "Judge"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "footwork",
+      "label": {
+        "en": "Footwork",
+        "es": "Footwork"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "defense",
+      "label": {
+        "en": "Defense",
+        "es": "Defense"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "combinations",
+      "label": {
+        "en": "Combinations",
+        "es": "Combinations"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "conditioning",
+      "label": {
+        "en": "Conditioning",
+        "es": "Conditioning"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "trunks",
+      "label": {
+        "en": "Trunks",
+        "es": "Trunks"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "gloves",
+      "label": {
+        "en": "Gloves",
+        "es": "Gloves"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "disciplineTypes": []
+}

@@ -1,0 +1,160 @@
+{
+  "key": "pickleball",
+  "name": {
+    "en": "Pickleball",
+    "es": "Pickleball"
+  },
+  "category": "individual",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Match",
+      "es": "Partido"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Court",
+      "es": "Cancha"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "head_to_head_sets",
+      "bestOf": 3,
+      "pointsPerSet": 11,
+      "decidingSetPoints": 11,
+      "winBy": 2,
+      "scoringUnit": "points"
+    }
+  ],
+  "positions": [
+    {
+      "key": "singles",
+      "label": {
+        "en": "Singles",
+        "es": "Singles"
+      }
+    },
+    {
+      "key": "doubles",
+      "label": {
+        "en": "Doubles",
+        "es": "Doubles"
+      }
+    }
+  ],
+  "maxPositionsPerAthlete": 2,
+  "roster": {
+    "defaultMax": 2,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "none"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["court"],
+  "officials": [
+    {
+      "key": "referee",
+      "label": {
+        "en": "Referee",
+        "es": "Referee"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "serve",
+      "label": {
+        "en": "Serve",
+        "es": "Serve"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "dinking",
+      "label": {
+        "en": "Dinking",
+        "es": "Dinking"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "volley",
+      "label": {
+        "en": "Volley",
+        "es": "Volley"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "court_positioning",
+      "label": {
+        "en": "Court positioning",
+        "es": "Court positioning"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "jersey",
+      "label": {
+        "en": "Jersey",
+        "es": "Jersey"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "shorts",
+      "label": {
+        "en": "Shorts",
+        "es": "Shorts"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "socks",
+      "label": {
+        "en": "Socks",
+        "es": "Socks"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "disciplineTypes": []
+}

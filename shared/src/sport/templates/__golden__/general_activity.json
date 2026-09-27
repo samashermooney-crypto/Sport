@@ -1,0 +1,116 @@
+{
+  "key": "general_activity",
+  "name": {
+    "en": "General activity",
+    "es": "Actividad general"
+  },
+  "category": "individual",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Instructor",
+      "es": "Instructor"
+    },
+    "contest": {
+      "en": "Activity",
+      "es": "Juego"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Room",
+      "es": "room"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "placement_only",
+      "events": []
+    }
+  ],
+  "positions": [],
+  "maxPositionsPerAthlete": 0,
+  "roster": {
+    "defaultMax": 100,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "none"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["room"],
+  "officials": [],
+  "evaluationRubric": [
+    {
+      "key": "participation",
+      "label": {
+        "en": "Participation",
+        "es": "Participation"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "effort",
+      "label": {
+        "en": "Effort",
+        "es": "Effort"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "progress",
+      "label": {
+        "en": "Progress",
+        "es": "Progress"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "teamwork",
+      "label": {
+        "en": "Teamwork",
+        "es": "Teamwork"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "team_shirt",
+      "label": {
+        "en": "Team shirt",
+        "es": "Team shirt"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "disciplineTypes": []
+}

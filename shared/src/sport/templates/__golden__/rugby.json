@@ -1,0 +1,318 @@
+{
+  "key": "rugby",
+  "name": {
+    "en": "Rugby",
+    "es": "Rugby"
+  },
+  "category": "team",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Match",
+      "es": "Partido"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Field",
+      "es": "Campo"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "head_to_head_score",
+      "periods": {
+        "label": {
+          "en": "Half",
+          "es": "Half"
+        },
+        "count": 2
+      },
+      "scoreLabel": {
+        "en": "Score",
+        "es": "Marcador"
+      },
+      "allowTie": true,
+      "scoreDirection": "higher_wins"
+    }
+  ],
+  "positions": [
+    {
+      "key": "forward_1",
+      "label": {
+        "en": "Forward 1",
+        "es": "Forward 1"
+      }
+    },
+    {
+      "key": "forward_2",
+      "label": {
+        "en": "Forward 2",
+        "es": "Forward 2"
+      }
+    },
+    {
+      "key": "forward_3",
+      "label": {
+        "en": "Forward 3",
+        "es": "Forward 3"
+      }
+    },
+    {
+      "key": "forward_4",
+      "label": {
+        "en": "Forward 4",
+        "es": "Forward 4"
+      }
+    },
+    {
+      "key": "forward_5",
+      "label": {
+        "en": "Forward 5",
+        "es": "Forward 5"
+      }
+    },
+    {
+      "key": "forward_6",
+      "label": {
+        "en": "Forward 6",
+        "es": "Forward 6"
+      }
+    },
+    {
+      "key": "forward_7",
+      "label": {
+        "en": "Forward 7",
+        "es": "Forward 7"
+      }
+    },
+    {
+      "key": "forward_8",
+      "label": {
+        "en": "Forward 8",
+        "es": "Forward 8"
+      }
+    },
+    {
+      "key": "back_9",
+      "label": {
+        "en": "Back 9",
+        "es": "Back 9"
+      }
+    },
+    {
+      "key": "back_10",
+      "label": {
+        "en": "Back 10",
+        "es": "Back 10"
+      }
+    },
+    {
+      "key": "back_11",
+      "label": {
+        "en": "Back 11",
+        "es": "Back 11"
+      }
+    },
+    {
+      "key": "back_12",
+      "label": {
+        "en": "Back 12",
+        "es": "Back 12"
+      }
+    },
+    {
+      "key": "back_13",
+      "label": {
+        "en": "Back 13",
+        "es": "Back 13"
+      }
+    },
+    {
+      "key": "back_14",
+      "label": {
+        "en": "Back 14",
+        "es": "Back 14"
+      }
+    },
+    {
+      "key": "back_15",
+      "label": {
+        "en": "Back 15",
+        "es": "Back 15"
+      }
+    }
+  ],
+  "maxPositionsPerAthlete": 2,
+  "roster": {
+    "defaultMax": 26,
+    "defaultMin": 1,
+    "onFieldCount": 15,
+    "jerseyNumbers": "optional",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "school_grade",
+    "schoolYearCutoff": "08-01"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["field"],
+  "officials": [
+    {
+      "key": "referee",
+      "label": {
+        "en": "Referee",
+        "es": "Referee"
+      },
+      "required": true
+    },
+    {
+      "key": "assistant_referee",
+      "label": {
+        "en": "Assistant referee",
+        "es": "Assistant referee"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "passing",
+      "label": {
+        "en": "Passing",
+        "es": "Passing"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "tackling",
+      "label": {
+        "en": "Tackling",
+        "es": "Tackling"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "running_lines",
+      "label": {
+        "en": "Running lines",
+        "es": "Running lines"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "game_awareness",
+      "label": {
+        "en": "Game awareness",
+        "es": "Game awareness"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "jersey",
+      "label": {
+        "en": "Jersey",
+        "es": "Jersey"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "shorts",
+      "label": {
+        "en": "Shorts",
+        "es": "Shorts"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "socks",
+      "label": {
+        "en": "Socks",
+        "es": "Socks"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "defaultStandings": {
+    "basis": "match",
+    "points": {
+      "win": 4,
+      "overtimeWin": 4,
+      "tie": 2,
+      "overtimeLoss": 0,
+      "loss": 0,
+      "forfeitWin": 4,
+      "forfeitLoss": 0,
+      "forfeitDeduction": 0
+    },
+    "rankBy": "points",
+    "winPercentageTieValue": 0.5,
+    "forfeitScore": {
+      "winner": 3,
+      "loser": 0
+    },
+    "tiebreakers": [
+      "head_to_head_points",
+      "head_to_head_differential",
+      "differential",
+      "scored",
+      "coin_toss_manual"
+    ],
+    "include": {
+      "stages": ["regular"],
+      "crossDivision": false
+    },
+    "columns": ["rank", "team", "played", "wins", "losses", "ties", "points"],
+    "publicVisibility": "members"
+  },
+  "disciplineTypes": [
+    {
+      "key": "yellow_card",
+      "label": {
+        "en": "Yellow card",
+        "es": "Yellow card"
+      },
+      "defaultSuspensionGames": 0
+    },
+    {
+      "key": "red_card",
+      "label": {
+        "en": "Red card",
+        "es": "Red card"
+      },
+      "defaultSuspensionGames": 1
+    }
+  ]
+}

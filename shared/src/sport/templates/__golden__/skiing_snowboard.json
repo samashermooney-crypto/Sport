@@ -1,0 +1,184 @@
+{
+  "key": "skiing_snowboard",
+  "name": {
+    "en": "Skiing / snowboard",
+    "es": "Skiing / snowboard"
+  },
+  "category": "individual",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Race",
+      "es": "Juego"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Slope",
+      "es": "slope"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "multi_timed",
+      "events": [
+        {
+          "key": "slalom",
+          "label": {
+            "en": "slalom",
+            "es": "slalom"
+          }
+        },
+        {
+          "key": "giant_slalom",
+          "label": {
+            "en": "giant slalom",
+            "es": "giant slalom"
+          }
+        },
+        {
+          "key": "snowboard_cross",
+          "label": {
+            "en": "snowboard cross",
+            "es": "snowboard cross"
+          }
+        }
+      ],
+      "lowerIsBetter": true,
+      "precision": "hundredths",
+      "heats": false,
+      "lanes": 8
+    }
+  ],
+  "positions": [
+    {
+      "key": "ski",
+      "label": {
+        "en": "Ski",
+        "es": "Ski"
+      }
+    },
+    {
+      "key": "snowboard",
+      "label": {
+        "en": "Snowboard",
+        "es": "Snowboard"
+      }
+    }
+  ],
+  "maxPositionsPerAthlete": 2,
+  "roster": {
+    "defaultMax": 30,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "birth_year",
+    "label": "U{n}",
+    "seasonYearBasis": "season_end"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["slope"],
+  "officials": [
+    {
+      "key": "starter",
+      "label": {
+        "en": "Starter",
+        "es": "Starter"
+      },
+      "required": true
+    },
+    {
+      "key": "gate_judge",
+      "label": {
+        "en": "Gate judge",
+        "es": "Gate judge"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "edge_control",
+      "label": {
+        "en": "Edge control",
+        "es": "Edge control"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "turns",
+      "label": {
+        "en": "Turns",
+        "es": "Turns"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "balance",
+      "label": {
+        "en": "Balance",
+        "es": "Balance"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "race_line",
+      "label": {
+        "en": "Race line",
+        "es": "Race line"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "bib",
+      "label": {
+        "en": "Bib",
+        "es": "Bib"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "helmet",
+      "label": {
+        "en": "Helmet",
+        "es": "Helmet"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "disciplineTypes": []
+}

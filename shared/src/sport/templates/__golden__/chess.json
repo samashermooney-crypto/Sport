@@ -1,0 +1,166 @@
+{
+  "key": "chess",
+  "name": {
+    "en": "Chess",
+    "es": "Ajedrez"
+  },
+  "category": "individual",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Match",
+      "es": "Partido"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Room",
+      "es": "room"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "head_to_head_bout",
+      "methods": [
+        {
+          "key": "win",
+          "label": {
+            "en": "win",
+            "es": "win"
+          },
+          "teamPoints": 1
+        },
+        {
+          "key": "draw",
+          "label": {
+            "en": "draw",
+            "es": "draw"
+          },
+          "teamPoints": 0.5
+        },
+        {
+          "key": "loss",
+          "label": {
+            "en": "loss",
+            "es": "loss"
+          },
+          "teamPoints": 0
+        }
+      ],
+      "periods": {
+        "label": {
+          "en": "Round",
+          "es": "Round"
+        },
+        "count": 1
+      }
+    }
+  ],
+  "positions": [
+    {
+      "key": "board",
+      "label": {
+        "en": "Board",
+        "es": "Board"
+      }
+    }
+  ],
+  "maxPositionsPerAthlete": 2,
+  "roster": {
+    "defaultMax": 10,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "school_grade",
+    "schoolYearCutoff": "08-01"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["room"],
+  "officials": [
+    {
+      "key": "arbiter",
+      "label": {
+        "en": "Arbiter",
+        "es": "Arbiter"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "opening",
+      "label": {
+        "en": "Opening",
+        "es": "Opening"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "tactics",
+      "label": {
+        "en": "Tactics",
+        "es": "Tactics"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "endgame",
+      "label": {
+        "en": "Endgame",
+        "es": "Endgame"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "time_management",
+      "label": {
+        "en": "Time management",
+        "es": "Time management"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "team_shirt",
+      "label": {
+        "en": "Team shirt",
+        "es": "Team shirt"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "disciplineTypes": []
+}

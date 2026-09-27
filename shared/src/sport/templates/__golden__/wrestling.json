@@ -1,0 +1,239 @@
+{
+  "key": "wrestling",
+  "name": {
+    "en": "Wrestling",
+    "es": "Lucha"
+  },
+  "category": "hybrid",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Dual",
+      "es": "Duelo"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Mat",
+      "es": "Tapiz"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "head_to_head_bout",
+      "methods": [
+        {
+          "key": "fall",
+          "label": {
+            "en": "fall",
+            "es": "fall"
+          },
+          "teamPoints": 6
+        },
+        {
+          "key": "tech_fall",
+          "label": {
+            "en": "tech fall",
+            "es": "tech fall"
+          },
+          "teamPoints": 5
+        },
+        {
+          "key": "major_decision",
+          "label": {
+            "en": "major decision",
+            "es": "major decision"
+          },
+          "teamPoints": 4
+        },
+        {
+          "key": "decision",
+          "label": {
+            "en": "decision",
+            "es": "decision"
+          },
+          "teamPoints": 3
+        },
+        {
+          "key": "forfeit",
+          "label": {
+            "en": "forfeit",
+            "es": "forfeit"
+          },
+          "teamPoints": 6
+        }
+      ],
+      "periods": {
+        "label": {
+          "en": "Period",
+          "es": "Period"
+        },
+        "count": 3
+      }
+    }
+  ],
+  "positions": [
+    {
+      "key": "weight_class",
+      "label": {
+        "en": "Weight class",
+        "es": "Weight class"
+      }
+    }
+  ],
+  "maxPositionsPerAthlete": 2,
+  "roster": {
+    "defaultMax": 40,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "school_grade",
+    "schoolYearCutoff": "08-01"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["mat"],
+  "officials": [
+    {
+      "key": "referee",
+      "label": {
+        "en": "Referee",
+        "es": "Referee"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "takedowns",
+      "label": {
+        "en": "Takedowns",
+        "es": "Takedowns"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "escapes",
+      "label": {
+        "en": "Escapes",
+        "es": "Escapes"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "top_control",
+      "label": {
+        "en": "Top control",
+        "es": "Top control"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "conditioning",
+      "label": {
+        "en": "Conditioning",
+        "es": "Conditioning"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "singlet",
+      "label": {
+        "en": "Singlet",
+        "es": "Singlet"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "headgear",
+      "label": {
+        "en": "Headgear",
+        "es": "Headgear"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "defaultStandings": {
+    "basis": "match",
+    "points": {
+      "win": 3,
+      "overtimeWin": 2,
+      "tie": 1,
+      "overtimeLoss": 1,
+      "loss": 0,
+      "forfeitWin": 3,
+      "forfeitLoss": 0,
+      "forfeitDeduction": 0
+    },
+    "rankBy": "points",
+    "winPercentageTieValue": 0.5,
+    "forfeitScore": {
+      "winner": 3,
+      "loser": 0
+    },
+    "tiebreakers": [
+      "head_to_head_points",
+      "head_to_head_differential",
+      "differential",
+      "scored",
+      "coin_toss_manual"
+    ],
+    "include": {
+      "stages": ["regular"],
+      "crossDivision": false
+    },
+    "columns": ["rank", "team", "played", "wins", "losses", "ties", "points"],
+    "publicVisibility": "members"
+  },
+  "disciplineTypes": [
+    {
+      "key": "unsportsmanlike_conduct",
+      "label": {
+        "en": "Unsportsmanlike conduct",
+        "es": "Unsportsmanlike conduct"
+      },
+      "defaultSuspensionGames": 0
+    },
+    {
+      "key": "ejection",
+      "label": {
+        "en": "Ejection",
+        "es": "Ejection"
+      },
+      "defaultSuspensionGames": 1
+    }
+  ]
+}
