@@ -98,6 +98,7 @@ export interface Allocations {
   id: string;
   org_id: string;
   purpose: string;
+  recurrence: Json | null;
   rrule: string;
   space_id: string;
   start_time: string;
@@ -820,6 +821,7 @@ export interface Divisions {
   created_at: Generated<Timestamp>;
   eligibility: Generated<Json>;
   id: string;
+  is_default: Generated<boolean>;
   level: Generated<string>;
   name: string;
   org_id: string;
@@ -2269,6 +2271,7 @@ export interface SpaceAvailability {
   id: string;
   org_id: string;
   permit_reference: string | null;
+  recurrence: Json | null;
   rrule: string;
   source: string;
   space_id: string;
@@ -2329,6 +2332,15 @@ export interface SportProfiles {
   template_key: string | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
+}
+
+export interface SportProfileVersions {
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  org_id: string;
+  profile: Json;
+  sport_profile_id: string;
+  version: number;
 }
 
 export interface SportTemplates {
@@ -2704,6 +2716,7 @@ export interface DB {
   space_blackouts: SpaceBlackouts;
   space_bookings: SpaceBookings;
   spaces: Spaces;
+  sport_profile_versions: SportProfileVersions;
   sport_profiles: SportProfiles;
   sport_templates: SportTemplates;
   standings_configs: StandingsConfigs;

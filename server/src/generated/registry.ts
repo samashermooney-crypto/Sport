@@ -10,14 +10,21 @@ import { moduleDefinition as authModule } from '../modules/auth/module';
 import { moduleDefinition as communicationsModule } from '../modules/communications/module';
 import { moduleDefinition as complianceModule } from '../modules/compliance/module';
 import { moduleDefinition as disciplineModule } from '../modules/discipline/module';
+import { moduleDefinition as facilitiesModule } from '../modules/facilities/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
 import { moduleDefinition as notificationsModule } from '../modules/notifications/module';
+import { moduleDefinition as offeringsModule } from '../modules/offerings/module';
 import { moduleDefinition as orgsModule } from '../modules/orgs/module';
 import { moduleDefinition as peopleModule } from '../modules/people/module';
 import { moduleDefinition as platformModule } from '../modules/platform/module';
+import { moduleDefinition as programsModule } from '../modules/programs/module';
+import { moduleDefinition as rostersModule } from '../modules/rosters/module';
 import { moduleDefinition as safetyModule } from '../modules/safety/module';
+import { moduleDefinition as seasonsModule } from '../modules/seasons/module';
+import { moduleDefinition as sportsModule } from '../modules/sports/module';
+import { moduleDefinition as teamsModule } from '../modules/teams/module';
 
 export const serverModules: readonly ServerModule[] = [
   auditModule,
@@ -25,14 +32,21 @@ export const serverModules: readonly ServerModule[] = [
   communicationsModule,
   complianceModule,
   disciplineModule,
+  facilitiesModule,
   filesModule,
   financeModule,
   jobsModule,
   notificationsModule,
+  offeringsModule,
   orgsModule,
   peopleModule,
   platformModule,
+  programsModule,
+  rostersModule,
   safetyModule,
+  seasonsModule,
+  sportsModule,
+  teamsModule,
 ];
 export const integrationConfigs: readonly IntegrationConfig[] = [
   backgroundCheckConfig,
