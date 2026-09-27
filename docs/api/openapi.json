@@ -2046,13 +2046,13 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "memberId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
