@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
+import { ageOnDate, orgToday } from '@shared/dates';
 import { newId } from '@shared/ids';
+import {
+  gradeFromGraduationYear,
+  gradeLabel,
+  schoolYearEndYear,
+} from '@shared/sport/age';
 import type { Kysely } from 'kysely';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
@@ -77,12 +83,140 @@ it('scopes people, versions edits, archives instead of deleting, and audits writ
     lastName: 'Rivera',
     preferredName: null,
     dateOfBirth: '2011-04-12',
+    graduationYear: 2029,
     gender: 'female',
     email: 'alex@example.invalid',
     phoneE164: null,
     mediaConsent: 'unknown',
   });
   expect(created.version).toBe(1);
+  const today = orgToday('UTC');
+  const age = ageOnDate('2011-04-12', today);
+  expect(created).toMatchObject({
+    age,
+    graduationYear: 2029,
+    grade: gradeLabel(
+      gradeFromGraduationYear(2029, schoolYearEndYear(today, '08-01')),
+    ),
+  });
+  const matching = await people.list(owner.orgId, owner.accountId, {
+    status: 'active',
+    gender: 'female',
+    minAge: age,
+    maxAge: age,
+    grade: gradeFromGraduationYear(2029, schoolYearEndYear(today, '08-01')),
+    limit: 30,
+  });
+  expect(matching.items.map((person) => person.id)).toEqual([created.id]);
+  expect(
+    (
+      await people.list(owner.orgId, owner.accountId, {
+        status: 'active',
+        gender: 'male',
+        limit: 30,
+      })
+    ).items,
+  ).toEqual([]);
+  await expect(
+    people.create(owner.orgId, owner.accountId, {
+      firstName: 'Future',
+      lastName: 'Child',
+      preferredName: null,
+      dateOfBirth: '2200-01-01',
+      graduationYear: null,
+      gender: 'unspecified',
+      email: null,
+      phoneE164: null,
+      mediaConsent: 'unknown',
+    }),
+  ).rejects.toMatchObject({ status: 400 });
+  const householdId = newId();
+  const invoiceId = newId();
+  await withOrg(owner, async (trx) => {
+    await trx
+      .insertInto('households')
+      .values({
+        id: householdId,
+        org_id: owner.orgId,
+        name: 'Rivera household',
+      })
+      .execute();
+    await trx
+      .insertInto('household_members')
+      .values({
+        id: newId(),
+        org_id: owner.orgId,
+        household_id: householdId,
+        person_id: created.id,
+        role: 'athlete',
+      })
+      .execute();
+    await trx
+      .insertInto('invoices')
+      .values({
+        id: invoiceId,
+        org_id: owner.orgId,
+        number: 1,
+        account_id: owner.accountId,
+        household_id: householdId,
+        status: 'open',
+        subtotal_cents: 500,
+        total_cents: 500,
+        source: 'staff',
+        issued_at: new Date(),
+      })
+      .execute();
+    await trx
+      .insertInto('invoice_lines')
+      .values({
+        id: newId(),
+        org_id: owner.orgId,
+        invoice_id: invoiceId,
+        kind: 'team_fee',
+        description: 'Team fee',
+        amount_cents: 500,
+        unit_amount_cents: 500,
+        person_id: created.id,
+      })
+      .execute();
+  });
+  expect(
+    (
+      await people.list(owner.orgId, owner.accountId, {
+        status: 'active',
+        householdId,
+        hasBalance: true,
+        limit: 30,
+      })
+    ).items.map((person) => person.id),
+  ).toEqual([created.id]);
+  expect(
+    (
+      await people.list(owner.orgId, owner.accountId, {
+        status: 'active',
+        hasBalance: false,
+        limit: 30,
+      })
+    ).items,
+  ).toEqual([]);
+  await withOrg(owner, (trx) =>
+    trx
+      .updateTable('household_members')
+      .set({ removed_at: new Date() })
+      .where('org_id', '=', owner.orgId)
+      .where('household_id', '=', householdId)
+      .execute()
+      .then(() => undefined),
+  );
+  expect(
+    (
+      await people.list(owner.orgId, owner.accountId, {
+        status: 'active',
+        householdId,
+        limit: 30,
+      })
+    ).items,
+  ).toEqual([]);
   expect(
     (
       await people.list(owner.orgId, owner.accountId, {

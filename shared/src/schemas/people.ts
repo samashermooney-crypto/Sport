@@ -5,6 +5,7 @@ const editablePersonSchema = z.strictObject({
   lastName: z.string().trim().min(1).max(120),
   preferredName: z.string().trim().max(120).nullable(),
   dateOfBirth: z.iso.date(),
+  graduationYear: z.int().min(1900).max(2200).nullable(),
   gender: z.enum(['female', 'male', 'nonbinary', 'unspecified']),
   email: z.email().nullable(),
   phoneE164: z
@@ -15,6 +16,7 @@ const editablePersonSchema = z.strictObject({
 });
 
 export const personCreateSchema = editablePersonSchema.extend({
+  graduationYear: editablePersonSchema.shape.graduationYear.default(null),
   preferredName: editablePersonSchema.shape.preferredName.default(null),
   gender: editablePersonSchema.shape.gender.default('unspecified'),
   email: editablePersonSchema.shape.email.default(null),
@@ -33,10 +35,14 @@ export const personResponseSchema = z.strictObject({
   lastName: z.string(),
   preferredName: z.string().nullable(),
   dateOfBirth: z.iso.date(),
+  graduationYear: z.int().min(1900).max(2200).nullable(),
+  age: z.int().nonnegative(),
+  grade: z.string().nullable(),
   gender: z.enum(['female', 'male', 'nonbinary', 'unspecified']),
   email: z.string().nullable(),
   phoneE164: z.string().nullable(),
   mediaConsent: z.enum(['granted', 'denied', 'unknown']),
+  photoFileId: z.uuid().nullable(),
   status: z.enum(['active', 'archived', 'merged', 'anonymized']),
   version: z.int().positive(),
 });
@@ -46,11 +52,95 @@ export const peopleListSchema = z.strictObject({
   nextCursor: z.uuid().nullable(),
 });
 
+export const personPhotoUpdateSchema = z.strictObject({
+  expectedVersion: z.int().positive(),
+  fileId: z.uuid().nullable(),
+});
+
+export const guardianLinkCreateSchema = z.strictObject({
+  email: z.email().max(254),
+});
+
+export const guardianLinkResponseSchema = z.strictObject({
+  id: z.uuid(),
+  accountId: z.uuid(),
+  email: z.email(),
+  name: z.string(),
+  verifiedAt: z.iso.datetime(),
+});
+
+export const guardianLinksResponseSchema = z.strictObject({
+  items: z.array(guardianLinkResponseSchema),
+});
+
+export const guardianInvitationResponseSchema = z.strictObject({
+  id: z.uuid(),
+  email: z.email(),
+  expiresAt: z.iso.datetime(),
+});
+
+export const guardianInvitationAcceptSchema = z.strictObject({
+  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+});
+
+export const guardianInvitationAcceptedResponseSchema = z.strictObject({
+  personId: z.uuid(),
+  linkId: z.uuid(),
+});
+
+export const familyResponseSchema = z.strictObject({
+  organizations: z.array(
+    z.strictObject({
+      orgId: z.uuid(),
+      orgName: z.string(),
+      people: z.array(
+        z.strictObject({
+          personId: z.uuid(),
+          firstName: z.string(),
+          lastName: z.string(),
+          age: z.int().nonnegative(),
+          relationship: z.enum(['guardian', 'self']),
+        }),
+      ),
+    }),
+  ),
+});
+
 export const peopleQuerySchema = z.strictObject({
   q: z.string().trim().max(120).optional(),
   status: z
     .enum(['active', 'archived', 'merged', 'anonymized'])
     .default('active'),
+  gender: z.enum(['female', 'male', 'nonbinary', 'unspecified']).optional(),
+  minAge: z.coerce.number().int().min(0).max(120).optional(),
+  maxAge: z.coerce.number().int().min(0).max(120).optional(),
+  grade: z.coerce.number().int().min(-1).max(12).optional(),
+  householdId: z.uuid().optional(),
+  programId: z.uuid().optional(),
+  teamSeasonId: z.uuid().optional(),
+  credentialStatus: z
+    .enum([
+      'pending_review',
+      'verified',
+      'rejected',
+      'expired',
+      'revoked',
+      'none',
+    ])
+    .optional(),
+  hasBalance: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
   cursor: z.uuid().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
+});
+
+export const peopleFilterOptionsQuerySchema = z.strictObject({
+  kind: z.enum(['program', 'team']),
+  q: z.string().trim().max(120).optional(),
+});
+
+export const peopleFilterOptionsSchema = z.strictObject({
+  items: z.array(z.strictObject({ id: z.uuid(), name: z.string() })),
 });

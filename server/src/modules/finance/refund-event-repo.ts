@@ -5,7 +5,9 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import type { GatewayRefund } from '../../integrations/stripe/gateway.js';
 import { appendAuditEvent } from '../audit/service.js';
+import { createNotification } from '../notifications/service.js';
 
+import { activeFinanceNotificationRecipients } from './finance-notification-recipients.js';
 import { recomputeInvoiceStatus } from './invoice-repo.js';
 import type { RefundEventRepository } from './refund-events.js';
 
@@ -55,7 +57,7 @@ export class PostgresRefundEventRepository implements RefundEventRepository {
         throw new Error('Stripe refund amount differs from recorded refund');
       const payment = await trx
         .selectFrom('payments')
-        .select('stripe_payment_intent_id')
+        .select(['stripe_payment_intent_id', 'account_id'])
         .where('org_id', '=', input.orgId)
         .where('id', '=', refund.payment_id)
         .executeTakeFirstOrThrow();
@@ -88,12 +90,13 @@ export class PostgresRefundEventRepository implements RefundEventRepository {
         refund.amount_cents
       )
         throw new Error('Refund allocations do not reconcile');
-      await trx
-        .updateTable('refunds')
-        .set({ status: target, version: sql`version + 1` })
-        .where('org_id', '=', input.orgId)
-        .where('id', '=', refund.id)
-        .execute();
+      await sql`
+        UPDATE refunds SET status = ${target}, version = version + 1,
+          succeeded_at = CASE WHEN ${target} = 'succeeded'
+            THEN ${new Date(this.now().toString())}::timestamptz
+            ELSE succeeded_at END
+        WHERE org_id = ${input.orgId}::uuid AND id = ${refund.id}::uuid
+      `.execute(trx);
       if (target === 'succeeded') {
         const org = await trx
           .selectFrom('organizations')
@@ -120,6 +123,23 @@ export class PostgresRefundEventRepository implements RefundEventRepository {
             allocation.invoice_id,
             todayLocal,
           );
+        }
+        const staff = await activeFinanceNotificationRecipients(
+          trx,
+          input.orgId,
+        );
+        const recipients = new Set([
+          ...(payment.account_id ? [payment.account_id] : []),
+          ...staff,
+        ]);
+        if (!payment.account_id)
+          throw new Error('Settled refund payment lacks a payer account');
+        for (const accountId of recipients) {
+          await createNotification(trx, context, {
+            accountId,
+            type: 'refund.issued',
+            payload: { resourceType: 'refund', resourceId: refund.id },
+          });
         }
       }
       await appendAuditEvent(trx, context, {

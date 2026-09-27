@@ -470,3 +470,83 @@
 - **Decision:** Reject enabling volunteer-paid mode until Track E exposes an invoice-backed flow; manual and configured Checkr checks remain available without collecting money.
 - **Why:** A background-check flow must not collect or promise a fee without an auditable invoice and reconciliation path.
 - **Consequences / follow-ups:** Track E can unblock the option by providing its documented invoice service; no live payment path is introduced here.
+
+### DEC-062 — Use the organization calendar for People age and grade
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People directory
+- **Context:** The data model stores graduation year but leaves the school-year rollover for directory grade unspecified.
+- **Decision:** Calculate current age on the organization's local calendar date. Calculate grade from graduation year with an August 1 school-year rollover, stored as `peopleSchoolYearCutoff` in organization settings for later configuration. Never store the derived age or grade on a person.
+- **Why:** This keeps directory and eligibility values current across birthdays and school years without bulk data updates.
+- **Consequences / follow-ups:** Filters use the same local date and cutoff. A later organization settings control can expose the cutoff after its validation and audit flow is built.
+
+### DEC-063 — Batch outbound unread chat fallback per conversation
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 chat notifications
+- **Context:** Busy conversations can produce repeated push and email alerts, while chat itself must remain realtime over Track B's inbox/SSE path.
+- **Decision:** Keep the per-message in-app/SSE notification immediate, and batch only external unread fallback by organization, conversation and recipient for ten minutes from the first message. Recheck active membership, mute and unread state at dispatch; send push when enabled and use email only when push is unavailable; never include chat body text. Push delivery follows the shared quiet-hours policy.
+- **Why:** Families keep realtime chat while notification bursts are reduced, read conversations do not produce stale fallback, and message content stays out of external notification bodies.
+- **Consequences / follow-ups:** H stores retryable tenant-scoped batch state in migrations `4005`–`4006`; preference defaults and channel selection come from Track B. Provider failures retry with bounded backoff.
+
+### DEC-070 — Keep household primary contacts and balances explicit
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 households
+- **Context:** The data model allows multiple households per person and invoices in different currencies; the task does not define primary-contact replacement or balance aggregation.
+- **Decision:** A household may have one primary contact, who must have an adult household role. Adding a new primary contact clears the former flag in the same locked transaction. Show invoice balances grouped by currency and never add amounts from different currencies.
+- **Why:** The rule prevents ambiguous contact routing and misleading financial totals.
+- **Consequences / follow-ups:** Member editing and removal must preserve or deliberately reassign the primary contact. Household address and membership changes are audited and versioned.
+
+### DEC-071 — Retain removed household membership history
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 household membership
+- **Context:** A household member can hold encrypted custody notes and financial responsibility; deleting the row would erase context needed for audits and could leave authorization consumers trusting a stale link.
+- **Decision:** Set `removed_at` on removal and retain the row. Re-adding the same person creates a new active membership. Every family, chat, checkout and finance authorization query ignores removed memberships. Removing the last primary contact while other members remain requires another adult to be assigned first.
+- **Why:** Historical contact decisions remain reviewable while access ends immediately.
+- **Consequences / follow-ups:** New membership consumers must filter on `removed_at IS NULL`; membership removal and reassignment are covered by PostgreSQL and browser tests.
+
+### DEC-072 — Keep People balance filtering tied to direct invoice lines
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People directory
+- **Context:** A person may belong to several households, while a household invoice can contain charges for several people. The directory's `has balance` filter does not define whether a family debt belongs to every member.
+- **Decision:** Count a person as having a balance only when an outstanding, non-draft, non-void invoice contains a line assigned to that person. Household filtering uses active membership only; a removed membership does not appear in results.
+- **Why:** This avoids attributing a sibling's or guardian's debt to a child and prevents a removed relationship from keeping someone in a household result.
+- **Consequences / follow-ups:** Unassigned invoice lines do not make every member appear indebted. The People directory can still show household-wide balances separately in the household view.
+
+### DEC-073 — Use current participation for People program and team filters
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People directory
+- **Context:** Registration and roster history is retained after withdrawal and release, but the directory's program and team filters do not specify whether former participants should remain in results.
+- **Decision:** A program filter matches a registration that has not been canceled, withdrawn or transferred out. A team filter matches a current roster entry with active, injured or suspended status and no departure date. Staff search organization programs and team seasons by name, with team labels including their program.
+- **Why:** This makes the directory useful for current operations while keeping historical participation available in the underlying records.
+- **Consequences / follow-ups:** Historical participation needs a separate history view rather than broadening these current-participant filters.
+
+### DEC-074 — Retire person photos when media consent ends
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People photos
+- **Context:** A person's photo can remain in the file store after consent changes, and the generic file endpoint can issue a download link independently of the People profile.
+- **Decision:** Staff attach only a completed image file with sensitive classification and exact person ownership after media consent is granted. The browser crops to a square before upload. Removing or replacing a photo, or revoking consent, clears the profile link and soft-deletes the old file record in the same org transaction. Person responses suppress photo IDs whenever consent is not granted.
+- **Why:** The file cannot be newly downloaded after consent revocation, while the audit and file metadata remain reviewable.
+- **Consequences / follow-ups:** Previously issued external presigned URLs may remain valid until their five-minute expiry. The family portal photo editor must reuse the same consent and ownership checks when Phase 2 guardian access lands.
+
+### DEC-075 — Label the People compliance filter by credential record state
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People directory
+- **Context:** A person may have multiple credentials, while eligibility depends on role, program, age, expiry, requirements and overrides. A single `compliant` flag in the directory could incorrectly imply permission to coach or officiate.
+- **Decision:** Offer exact credential-record states (`pending_review`, `verified`, `rejected`, `expired`, `revoked`) plus no record. A person can match more than one state. Label the control “Compliance credential status,” and continue to use the Phase 7 role policy for activation decisions.
+- **Why:** Staff can find records needing review without treating a verified credential as proof that all role requirements are satisfied.
+- **Consequences / follow-ups:** The Phase 2 task remains open until the role-aware compliance view and remaining acceptance criteria are complete.
+
+### DEC-076 — Verify adult guardian accounts before direct staff linking
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 guardian links
+- **Context:** Staff may link an existing account to a person by email, which immediately grants access to protected child records. A shared, unverified, suspended or minor account must not gain guardian access.
+- **Decision:** Direct linking resolves only an active, email-verified account whose date of birth proves age 18 or older in the organization's timezone. The person must be active and belong to that organization. A duplicate active link is rejected, every link/revocation is audited, and revoking the final verified guardian of a minor with a self account is blocked.
+- **Why:** Staff linking is an explicit authorization action, but account control, adult status, tenant scope and continuing supervision must still be checked at the time of change.
+- **Consequences / follow-ups:** Guardian invitation redemption repeats these checks and binds its token to the intended person and email. Athlete and adult self-claim flows remain before Phase 2 task 3 can close.
+
+### DEC-079 — Discover family organizations through an account candidate index
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 family portal
+- **Context:** A guardian may have people in several organizations without an organization staff membership. A cross-tenant family listing must find candidate org IDs without querying tenant rows outside `withOrg`.
+- **Decision:** The existing account `linked_org_ids` array remains an append-only candidate index. A trigger adds an org when a person-account link is inserted and a migration backfills existing links. The family reader starts from the authenticated global account, then checks active, verified links and active people separately inside `withOrg` for each candidate organization. Revocation does not remove the candidate ID.
+- **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
+- **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.

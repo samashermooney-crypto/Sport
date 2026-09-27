@@ -496,10 +496,17 @@ export async function unsubscribeFromCategory(
         channel: { tier: 'internal', after: 'email' },
       },
     });
+    const account = await trx
+      .selectFrom('accounts')
+      .select('locale')
+      .where('id', '=', claims.accountId)
+      .executeTakeFirst();
     return {
+      orgId: claims.orgId,
       category: claims.category,
       channel: 'email' as const,
       enabled: false,
+      locale: account?.locale === 'es' ? ('es' as const) : ('en' as const),
     };
   });
 }

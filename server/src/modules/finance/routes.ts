@@ -1,6 +1,7 @@
 import { apiErrorSchema } from '@shared/schemas/errors';
 import express from 'express';
 import type { Request, Response } from 'express';
+import { sql } from 'kysely';
 import Stripe from 'stripe';
 import { z } from 'zod';
 
@@ -11,11 +12,72 @@ import { requestImpersonation } from '../../lib/tenant-guard.js';
 import { requireSession } from '../auth/routes.js';
 import type { AuthDependencies } from '../auth/routes.js';
 
+import { AidAwardConflictError, PostgresAidAwards } from './aid-awards.js';
+import {
+  aidProgramCreateSchema,
+  aidProgramListSchema,
+  aidProgramReplaceSchema,
+  aidProgramSchema,
+  AidProgramConflictError,
+  PostgresAidPrograms,
+} from './aid-programs.js';
+import {
+  aidDecisionBodySchema,
+  aidDecisionResponseSchema,
+  aidQueueSchema,
+  AidReviewConflictError,
+  PostgresAidReview,
+} from './aid-review.js';
 import { PostgresPaymentAttemptStore } from './attempt-repo.js';
+import {
+  autopayAuthorizationListSchema,
+  AutopayAuthorizationConflictError,
+  AutopayAuthorizationNotFoundError,
+  PostgresAutopayAuthorizations,
+  STAFF_METHOD_CONSENT_VERSION,
+  staffMethodOptionsSchema,
+} from './autopay-authorizations.js';
+import {
+  BillingCheckoutConflictError,
+  BillingCheckoutService,
+  billingCheckoutInputSchema,
+  billingCheckoutResponseSchema,
+  PostgresBillingCheckoutClaims,
+} from './billing-checkout.js';
+import {
+  BillingCustomerConflictError,
+  BillingCustomerService,
+  PostgresBillingCustomerClaims,
+} from './billing-customer.js';
 import { ConnectConflictError, ConnectOnboardingService } from './connect.js';
+import {
+  creditBalanceSchema,
+  PostgresPayerCreditBalances,
+} from './credit-balances.js';
 import { PostgresCreditRefundRepository } from './credit-refund-repo.js';
 import { CreditRefundService } from './credit-refunds.js';
+import {
+  CreditAccessError,
+  CreditLedgerConflictError,
+  PostgresCreditLedger,
+} from './credits.js';
 import { PostgresFrozenChargeReader } from './frozen-charge-repo.js';
+import {
+  glCodeBodySchema,
+  GlCodeConflictError,
+  glCodeListSchema,
+  glCodeReplaceSchema,
+  glCodeSchema,
+  PostgresGlCodes,
+} from './gl-codes.js';
+import {
+  installmentStaffActionSchema,
+  installmentStaffListSchema,
+  installmentStaffResultSchema,
+  InstallmentStaffConflictError,
+  InstallmentStaffNotFoundError,
+  PostgresInstallmentStaffActions,
+} from './installment-staff-actions.js';
 import {
   installmentTemplateBodySchema,
   installmentTemplateListSchema,
@@ -24,26 +86,63 @@ import {
   PostgresInstallmentTemplates,
 } from './installment-templates.js';
 import {
+  InvoiceConflictError,
+  InvoiceNotFoundError,
+  PostgresInvoiceRepository,
+} from './invoice-repo.js';
+import {
   JournalExportError,
   payoutJournalCsv,
   payoutJournalLines,
 } from './journal-export.js';
 import {
+  journalAccounts,
+  JournalMappingConflictError,
+  journalMappingResponseSchema,
+  journalMappingSaveSchema,
+  journalMappingSchema,
+  PostgresJournalMapping,
+} from './journal-mapping.js';
+import {
+  manualInstallmentIntentSchema,
+  manualInstallmentListSchema,
+  ManualInstallmentConflictError,
+  PostgresManualInstallmentPayments,
+} from './manual-installment-pay.js';
+import {
+  MoneyDocumentGlyphError,
+  MoneyDocumentNotFoundError,
+  MoneyDocumentUnavailableError,
+  PostgresMoneyDocuments,
+} from './money-documents.js';
+import {
   OfflinePaymentConflictError,
   PostgresOfflinePayments,
 } from './offline-payments.js';
+import { OrgBillingConflictError } from './org-billing.js';
+import { PostgresPayerInvoices } from './payer-invoices.js';
 import {
   PayerMethodConflictError,
   PayerMethodsService,
 } from './payer-methods.js';
+import {
+  payerReceiptListSchema,
+  PostgresPayerReceipts,
+} from './payer-receipts.js';
 import { PostgresPayerProfileRepository } from './payer-repo.js';
 import { PostgresSavedPaymentMethodRepository } from './payment-method-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
-import { PostgresPayoutReconciliation } from './reconciliation.js';
+import {
+  payoutReconciliationCsv,
+  PayoutReconciliationNotFoundError,
+  payoutReconciliationSchema,
+  PostgresPayoutReconciliation,
+} from './reconciliation.js';
 import { PostgresRefundApprovalPolicy } from './refund-approval-repo.js';
 import { PostgresRefundAttemptStore } from './refund-attempt-repo.js';
 import { PostgresRefundRecordStore } from './refund-record-repo.js';
 import { PostgresRefundSourceReader } from './refund-source-repo.js';
+import { refundTermsSchema } from './refund-terms.js';
 import {
   refundProposal,
   RefundConflictError,
@@ -51,13 +150,212 @@ import {
 } from './refunds.js';
 import { PostgresConnectAccountRepository } from './repo.js';
 import { CheckoutPaymentService, PaymentConflictError } from './service.js';
-import { FinanceAccessError, requireFinanceStaff } from './staff-access.js';
+import {
+  FinanceAccessError,
+  requireAidStaff,
+  requireBillingOwner,
+  requireFinanceStaff,
+} from './staff-access.js';
+import {
+  PostgresProductTaxRates,
+  taxRateBodySchema,
+  taxRateListSchema,
+  taxRateReplaceSchema,
+  taxRateSchema,
+  TaxRateConflictError,
+} from './tax-rates.js';
+import {
+  PostgresYearEndStatements,
+  StatementUnavailableError,
+  yearEndStatementSchema,
+} from './year-end-statements.js';
+
+export const autopayRevocationResponseSchema = z.strictObject({
+  revoked: z.boolean(),
+  stoppedInstallments: z.number().int().nonnegative(),
+});
+export const staffMethodConsentBodySchema = z.strictObject({
+  invoiceId: z.uuid(),
+  stripePaymentMethodId: z.string().regex(/^pm_[A-Za-z0-9_]+$/),
+  consentVersion: z.literal(STAFF_METHOD_CONSENT_VERSION),
+  accepted: z.literal(true),
+});
+export const staffMethodConsentResponseSchema = z.strictObject({
+  id: z.uuid(),
+  paymentMethodId: z.uuid(),
+});
+export const stripeClientConfigSchema = z.strictObject({
+  publishableKey: z.string().startsWith('pk_test_'),
+});
 
 export const offlinePaymentBodySchema = z.strictObject({
   invoiceId: z.uuid(),
   method: z.enum(['cash', 'check', 'external']),
   amountCents: z.number().int().positive(),
   reference: z.string().max(200).nullable().optional(),
+});
+export const staffInvoiceBodySchema = z.strictObject({
+  accountId: z.uuid(),
+  householdId: z.uuid().optional(),
+  dueOn: z.iso.date().optional(),
+  memo: z.string().max(2000).optional(),
+  refundTerms: refundTermsSchema,
+  lines: z
+    .array(
+      z.strictObject({
+        kind: z.enum([
+          'registration',
+          'add_on',
+          'product',
+          'team_fee',
+          'tuition',
+          'volunteer_buyout',
+          'donation',
+          'service_fee',
+          'late_fee',
+          'adjustment',
+          'discount',
+          'aid',
+        ]),
+        description: z.string().trim().min(1).max(500),
+        amountCents: z
+          .number()
+          .int()
+          .min(-Number.MAX_SAFE_INTEGER)
+          .max(Number.MAX_SAFE_INTEGER)
+          .refine((value) => value !== 0),
+        refundable: z.boolean(),
+        parentLineIndex: z.number().int().nonnegative().optional(),
+      }),
+    )
+    .min(1)
+    .max(100),
+});
+export const aidAwardBodySchema = z.strictObject({
+  expectedVersion: z.number().int().positive(),
+  decision: z.discriminatedUnion('kind', [
+    z.strictObject({
+      kind: z.literal('fixed'),
+      amountCents: z.number().int().positive(),
+    }),
+    z.strictObject({
+      kind: z.literal('percent'),
+      bps: z.number().int().min(1).max(10_000),
+      maxCents: z.number().int().positive(),
+    }),
+  ]),
+});
+export const aidAwardResponseSchema = z.strictObject({
+  applicationId: z.uuid(),
+  status: z.enum(['awarded', 'partially_awarded']),
+  awardCents: z.number().int().positive(),
+  awardKind: z.enum(['fixed', 'percent']),
+  awardBps: z.number().int().min(1).max(10_000).nullable(),
+  version: z.number().int().positive(),
+});
+export const staffCreditIssueSchema = z.strictObject({
+  recipient: z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('account'), accountId: z.uuid() }),
+    z.strictObject({ kind: z.literal('household'), householdId: z.uuid() }),
+  ]),
+  amountCents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  source: z.enum(['goodwill', 'manual_adjustment']),
+  expiresOn: z.iso.date().nullable(),
+  note: z.string().trim().min(1).max(500).optional(),
+});
+export const staffCreditIssueResponseSchema = z.strictObject({
+  creditId: z.uuid(),
+});
+export const payerCreditApplySchema = z.strictObject({
+  recipient: z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('account') }),
+    z.strictObject({ kind: z.literal('household'), householdId: z.uuid() }),
+  ]),
+  invoiceId: z.uuid(),
+  amountCents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+});
+export const payerCreditApplyResponseSchema = z.strictObject({
+  applied: z.literal(true),
+});
+export const staffInvoiceResponseSchema = z.strictObject({
+  id: z.uuid(),
+  number: z.number().int().positive(),
+  totalCents: z.number().int().nonnegative(),
+  status: z.enum(['open', 'paid']),
+});
+export const invoiceDetailSchema = z.strictObject({
+  id: z.uuid(),
+  number: z.number().int().positive(),
+  accountId: z.uuid(),
+  householdId: z.uuid().nullable(),
+  status: z.enum([
+    'draft',
+    'open',
+    'paid',
+    'partially_paid',
+    'past_due',
+    'void',
+    'uncollectible',
+  ]),
+  issuedAt: z.iso.datetime().nullable(),
+  dueOn: z.iso.date().nullable(),
+  subtotalCents: z.number().int().nonnegative(),
+  discountCents: z.number().int().nonnegative(),
+  serviceFeeCents: z.number().int().nonnegative(),
+  taxCents: z.number().int().nonnegative(),
+  totalCents: z.number().int().nonnegative(),
+  paidCents: z.number().int().nonnegative(),
+  refundedCents: z.number().int().nonnegative(),
+  creditAppliedCents: z.number().int().nonnegative(),
+  balanceCents: z.number().int().nonnegative().nullable(),
+  memo: z.string().nullable(),
+  source: z.string(),
+  version: z.number().int().positive(),
+  voidedAt: z.iso.datetime().nullable(),
+  voidReason: z.string().nullable(),
+  lines: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      kind: z.string(),
+      description: z.string(),
+      amountCents: z.number().int(),
+      refundable: z.boolean(),
+      parentLineId: z.uuid().nullable(),
+    }),
+  ),
+});
+export const voidInvoiceBodySchema = z.strictObject({
+  reason: z.string().trim().min(1).max(500),
+  expectedVersion: z.number().int().positive(),
+});
+export const voidInvoiceResponseSchema = z.strictObject({
+  id: z.uuid(),
+  status: z.literal('void'),
+});
+export const payerInvoiceListSchema = z.strictObject({
+  invoices: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      number: z.number().int().positive(),
+      status: z.enum([
+        'open',
+        'paid',
+        'partially_paid',
+        'past_due',
+        'void',
+        'uncollectible',
+      ]),
+      source: z.string(),
+      issuedAt: z.iso.datetime().nullable(),
+      dueOn: z.iso.date().nullable(),
+      totalCents: z.number().int().nonnegative(),
+      paidCents: z.number().int().nonnegative(),
+      refundedCents: z.number().int().nonnegative(),
+      creditAppliedCents: z.number().int().nonnegative(),
+      balanceCents: z.number().int().nonnegative().nullable(),
+    }),
+  ),
+  nextBeforeNumber: z.number().int().positive().nullable(),
 });
 export const offlinePaymentReceiptSchema = z.strictObject({
   paymentId: z.uuid(),
@@ -115,6 +413,35 @@ export const payoutJournalResponseSchema = z.strictObject({
   journalNo: z.string().min(1),
   lineCount: z.number().int().nonnegative(),
 });
+export const savedJournalResponseSchema = payoutJournalResponseSchema.extend({
+  mappingVersion: z.number().int().positive(),
+});
+export const billingOverviewSchema = z.strictObject({
+  plans: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      name: z.string(),
+      monthlyPriceCents: z.number().int().nonnegative(),
+    }),
+  ),
+  subscription: z
+    .strictObject({
+      planId: z.uuid().nullable(),
+      status: z.string(),
+      currentPeriodEnd: z.iso.datetime().nullable(),
+    })
+    .nullable(),
+  checkout: z
+    .strictObject({
+      planId: z.uuid(),
+      status: z.enum(['reserved', 'external_started', 'created']),
+      url: z.url().nullable(),
+    })
+    .nullable(),
+});
+export const billingPortalResponseSchema = z.strictObject({
+  url: z.url().startsWith('https://billing.stripe.com/'),
+});
 export const setupIntentResponseSchema = z.strictObject({
   id: z.string().startsWith('seti_'),
   clientSecret: z.string().min(1),
@@ -130,6 +457,7 @@ export const savedPaymentMethodSchema = z.strictObject({
 });
 export const savedPaymentMethodsResponseSchema = z.strictObject({
   methods: z.array(savedPaymentMethodSchema),
+  defaultMethodId: z.string().startsWith('pm_').nullable(),
 });
 export const paymentMethodActionResponseSchema = z.strictObject({
   success: z.literal(true),
@@ -187,25 +515,48 @@ function writeOriginValid(request: Request, appUrl: string): boolean {
 
 function sendError(response: Response, error: unknown): void {
   const status =
-    error instanceof FinanceAccessError
+    error instanceof FinanceAccessError || error instanceof CreditAccessError
       ? 403
       : error instanceof OfflinePaymentConflictError ||
           error instanceof RefundConflictError ||
           error instanceof JournalExportError ||
+          error instanceof JournalMappingConflictError ||
+          error instanceof BillingCheckoutConflictError ||
+          error instanceof BillingCustomerConflictError ||
+          error instanceof OrgBillingConflictError ||
           error instanceof PayerMethodConflictError ||
           error instanceof ConnectConflictError ||
           error instanceof PaymentConflictError ||
-          error instanceof InstallmentTemplateConflictError
+          error instanceof InstallmentTemplateConflictError ||
+          error instanceof InstallmentStaffConflictError ||
+          error instanceof AutopayAuthorizationConflictError ||
+          error instanceof ManualInstallmentConflictError ||
+          error instanceof InvoiceConflictError ||
+          error instanceof AidAwardConflictError ||
+          error instanceof AidProgramConflictError ||
+          error instanceof AidReviewConflictError ||
+          error instanceof CreditLedgerConflictError ||
+          error instanceof GlCodeConflictError ||
+          error instanceof TaxRateConflictError ||
+          error instanceof StatementUnavailableError ||
+          error instanceof MoneyDocumentUnavailableError ||
+          error instanceof MoneyDocumentGlyphError
         ? 409
-        : error instanceof FinanceDependencyError
-          ? 503
-          : error instanceof z.ZodError || error instanceof RangeError
-            ? 400
-            : error instanceof Error &&
-                'status' in error &&
-                error.status === 401
-              ? 401
-              : 500;
+        : error instanceof InvoiceNotFoundError ||
+            error instanceof AutopayAuthorizationNotFoundError ||
+            error instanceof InstallmentStaffNotFoundError ||
+            error instanceof MoneyDocumentNotFoundError ||
+            error instanceof PayoutReconciliationNotFoundError
+          ? 404
+          : error instanceof FinanceDependencyError
+            ? 503
+            : error instanceof z.ZodError || error instanceof RangeError
+              ? 400
+              : error instanceof Error &&
+                  'status' in error &&
+                  error.status === 401
+                ? 401
+                : 500;
   response.status(status).json(
     apiErrorSchema.parse({
       error: {
@@ -214,13 +565,15 @@ function sendError(response: Response, error: unknown): void {
             ? 'FORBIDDEN'
             : status === 409
               ? 'CONFLICT'
-              : status === 503
-                ? 'DEPENDENCY_UNAVAILABLE'
-                : status === 400
-                  ? 'VALIDATION_ERROR'
-                  : status === 401
-                    ? 'UNAUTHENTICATED'
-                    : 'INTERNAL_ERROR',
+              : status === 404
+                ? 'NOT_FOUND'
+                : status === 503
+                  ? 'DEPENDENCY_UNAVAILABLE'
+                  : status === 400
+                    ? 'VALIDATION_ERROR'
+                    : status === 401
+                      ? 'UNAUTHENTICATED'
+                      : 'INTERNAL_ERROR',
         message:
           status === 500
             ? 'The request could not be completed'
@@ -262,6 +615,705 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.get('/stripe-client-config', async (request, response) => {
+    try {
+      await requireSession(dependencies, request);
+      const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+      if (!publishableKey?.startsWith('pk_test_'))
+        throw new FinanceDependencyError('Stripe test client is unavailable');
+      response.json(stripeClientConfigSchema.parse({ publishableKey }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/orgs/:orgId/me/autopay', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      const authorizations = await new PostgresAutopayAuthorizations(
+        dependencies.database,
+        context,
+      ).list();
+      response.json(autopayAuthorizationListSchema.parse({ authorizations }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/orgs/:orgId/me/autopay/staff-method-consents',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const input = staffMethodConsentBodySchema.parse(
+          request.body as unknown,
+        );
+        const operationKey = z.uuid().parse(request.get('Idempotency-Key'));
+        const result = await new PostgresAutopayAuthorizations(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).authorizeStaffMethod({
+          invoiceId: input.invoiceId,
+          stripePaymentMethodId: input.stripePaymentMethodId,
+          accepted: input.accepted,
+          operationKey,
+          ip: request.ip ?? null,
+          userAgent: request.get('User-Agent') ?? null,
+        });
+        response
+          .status(201)
+          .json(staffMethodConsentResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/me/autopay/staff-method-options',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const result = await new PostgresAutopayAuthorizations(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).staffMethodOptions();
+        response.json(staffMethodOptionsSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/me/invoices/:invoiceId/pdf',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const invoiceId = z.uuid().parse(request.params.invoiceId);
+        const document = await new PostgresMoneyDocuments(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).invoice(invoiceId);
+        response.setHeader('Content-Type', 'application/pdf');
+        response.setHeader(
+          'Content-Disposition',
+          `attachment; filename="invoice-${invoiceId}.pdf"`,
+        );
+        response.send(Buffer.from(document));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/me/payments/:paymentId/receipt.pdf',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const paymentId = z.uuid().parse(request.params.paymentId);
+        const document = await new PostgresMoneyDocuments(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).receipt(paymentId);
+        response.setHeader('Content-Type', 'application/pdf');
+        response.setHeader(
+          'Content-Disposition',
+          `attachment; filename="receipt-${paymentId}.pdf"`,
+        );
+        response.send(Buffer.from(document));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get('/orgs/:orgId/me/receipts', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const cursor = z.string().optional().parse(request.query.cursor);
+      const result = await new PostgresPayerReceipts(dependencies.database, {
+        orgId,
+        actor: { accountId: session.accountId },
+      }).list(cursor);
+      response.json(payerReceiptListSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/orgs/:orgId/me/autopay/:id/revoke',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const id = z.uuid().parse(request.params.id);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        const result = await new PostgresAutopayAuthorizations(
+          dependencies.database,
+          context,
+        ).revoke(id);
+        response.json(autopayRevocationResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get('/orgs/:orgId/me/statements/:year', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const year = z.coerce
+        .number()
+        .int()
+        .min(2000)
+        .max(2100)
+        .parse(request.params.year);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      const statement = await new PostgresYearEndStatements(
+        dependencies.database,
+        context,
+      ).read(year);
+      response.json(yearEndStatementSchema.parse(statement));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/orgs/:orgId/tax-rates', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const taxRates = await new PostgresProductTaxRates(
+        dependencies.database,
+        context,
+      ).list();
+      response.json(taxRateListSchema.parse({ taxRates }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/tax-rates', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = taxRateBodySchema.parse(request.body as unknown);
+      const key = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const rate = await new PostgresProductTaxRates(
+        dependencies.database,
+        context,
+      ).create(body, key);
+      response.status(201).json(taxRateSchema.parse(rate));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.put('/orgs/:orgId/tax-rates/:rateId', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const rateId = z.uuid().parse(request.params.rateId);
+      const body = taxRateReplaceSchema.parse(request.body as unknown);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const rate = await new PostgresProductTaxRates(
+        dependencies.database,
+        context,
+      ).replace(rateId, body);
+      response.json(taxRateSchema.parse(rate));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/orgs/:orgId/gl-codes', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const codes = await new PostgresGlCodes(
+        dependencies.database,
+        context,
+      ).list();
+      response.json(glCodeListSchema.parse({ codes }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/gl-codes', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = glCodeBodySchema.parse(request.body as unknown);
+      const key = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const created = await new PostgresGlCodes(
+        dependencies.database,
+        context,
+      ).create(body, key);
+      response.status(201).json(glCodeSchema.parse(created));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.put('/orgs/:orgId/gl-codes/:codeId', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const codeId = z.uuid().parse(request.params.codeId);
+      const body = glCodeReplaceSchema.parse(request.body as unknown);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const replaced = await new PostgresGlCodes(
+        dependencies.database,
+        context,
+      ).replace(codeId, body);
+      response.json(glCodeSchema.parse(replaced));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/credits', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = staffCreditIssueSchema.parse(request.body as unknown);
+      const operationKey = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const creditId = await new PostgresCreditLedger(
+        dependencies.database,
+        context,
+      ).issue({
+        orgId,
+        ...(body.recipient.kind === 'account'
+          ? { accountId: body.recipient.accountId }
+          : { householdId: body.recipient.householdId }),
+        amountCents: body.amountCents,
+        source: body.source,
+        expiresOn: body.expiresOn,
+        ...(body.note ? { note: body.note } : {}),
+        operationKey,
+        requireOrgRecipient: true,
+      });
+      response
+        .status(201)
+        .json(staffCreditIssueResponseSchema.parse({ creditId }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/me/credits/apply', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = payerCreditApplySchema.parse(request.body as unknown);
+      const operationKey = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await new PostgresCreditLedger(dependencies.database, context).apply({
+        orgId,
+        ...(body.recipient.kind === 'account'
+          ? { accountId: session.accountId }
+          : { householdId: body.recipient.householdId }),
+        invoiceId: body.invoiceId,
+        amountCents: body.amountCents,
+        operationKey,
+        payerAccountId: session.accountId,
+      });
+      response.json(payerCreditApplyResponseSchema.parse({ applied: true }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/orgs/:orgId/me/credits', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      const balance = await new PostgresPayerCreditBalances(
+        dependencies.database,
+        context,
+      ).read();
+      response.json(creditBalanceSchema.parse(balance));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/orgs/:orgId/aid-programs', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireAidStaff(dependencies.database, context);
+      const seasonId =
+        request.query.seasonId === undefined
+          ? undefined
+          : z.uuid().parse(request.query.seasonId);
+      const programs = await new PostgresAidPrograms(
+        dependencies.database,
+        context,
+      ).list(seasonId);
+      response.json(aidProgramListSchema.parse({ programs }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/aid-programs', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = aidProgramCreateSchema.parse(request.body as unknown);
+      const key = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireAidStaff(dependencies.database, context);
+      const program = await new PostgresAidPrograms(
+        dependencies.database,
+        context,
+      ).create(body, key);
+      response.status(201).json(aidProgramSchema.parse(program));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.put(
+    '/orgs/:orgId/aid-programs/:programId',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const programId = z.uuid().parse(request.params.programId);
+        const body = aidProgramReplaceSchema.parse(request.body as unknown);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireAidStaff(dependencies.database, context);
+        const program = await new PostgresAidPrograms(
+          dependencies.database,
+          context,
+        ).replace(programId, body);
+        response.json(aidProgramSchema.parse(program));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get('/orgs/:orgId/aid-applications', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireAidStaff(dependencies.database, context);
+      const result = await new PostgresAidReview(
+        dependencies.database,
+        context,
+      ).queue({
+        seasonId:
+          request.query.seasonId === undefined
+            ? undefined
+            : z.uuid().parse(request.query.seasonId),
+        limit:
+          request.query.limit === undefined
+            ? 50
+            : z.coerce.number().int().parse(request.query.limit),
+        cursor:
+          request.query.cursor === undefined
+            ? undefined
+            : z.string().parse(request.query.cursor),
+      });
+      response.json(aidQueueSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/orgs/:orgId/aid-applications/:applicationId/decision',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const applicationId = z.uuid().parse(request.params.applicationId);
+        const body = aidDecisionBodySchema.parse(request.body as unknown);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireAidStaff(dependencies.database, context);
+        const result = await new PostgresAidReview(
+          dependencies.database,
+          context,
+        ).decide(applicationId, body);
+        response.json(aidDecisionResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post(
+    '/orgs/:orgId/aid-applications/:applicationId/award',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const applicationId = z.uuid().parse(request.params.applicationId);
+        const input = aidAwardBodySchema.parse(request.body as unknown);
+        const operationKey = z.uuid().parse(request.get('Idempotency-Key'));
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireAidStaff(dependencies.database, context);
+        const award = await new PostgresAidAwards(
+          dependencies.database,
+          context,
+        ).award({
+          orgId,
+          applicationId,
+          expectedVersion: input.expectedVersion,
+          operationKey,
+          decision: input.decision,
+        });
+        response.json(aidAwardResponseSchema.parse(award));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get('/orgs/:orgId/me/invoices', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const beforeNumber = z.coerce
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .parse(request.query.beforeNumber);
+      const invoices = await new PostgresPayerInvoices(
+        dependencies.database,
+      ).list({
+        orgId,
+        accountId: session.accountId,
+        ...(beforeNumber ? { beforeNumber } : {}),
+      });
+      response.json(payerInvoiceListSchema.parse(invoices));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/orgs/:orgId/invoices/:invoiceId', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const invoiceId = z.uuid().parse(request.params.invoiceId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const invoice = await new PostgresInvoiceRepository(
+        dependencies.database,
+        context,
+      ).read(orgId, invoiceId);
+      response.json(invoiceDetailSchema.parse(invoice));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/orgs/:orgId/invoices/:invoiceId/void',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const invoiceId = z.uuid().parse(request.params.invoiceId);
+        const input = voidInvoiceBodySchema.parse(request.body as unknown);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        await new PostgresInvoiceRepository(
+          dependencies.database,
+          context,
+        ).void({
+          orgId,
+          invoiceId,
+          reason: input.reason,
+          expectedVersion: input.expectedVersion,
+        });
+        response.json(
+          voidInvoiceResponseSchema.parse({ id: invoiceId, status: 'void' }),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post('/orgs/:orgId/invoices', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const input = staffInvoiceBodySchema.parse(request.body as unknown);
+      const creationKey = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const billable = await createWithOrg(dependencies.database)(
+        context,
+        async (trx) => {
+          if (input.householdId) {
+            const householdLink = await trx
+              .selectFrom('person_account_links as pal')
+              .innerJoin('household_members as hm', (join) =>
+                join
+                  .onRef('hm.org_id', '=', 'pal.org_id')
+                  .onRef('hm.person_id', '=', 'pal.person_id'),
+              )
+              .innerJoin('households as h', (join) =>
+                join
+                  .onRef('h.org_id', '=', 'hm.org_id')
+                  .onRef('h.id', '=', 'hm.household_id'),
+              )
+              .select('pal.id')
+              .where('pal.org_id', '=', orgId)
+              .where('pal.account_id', '=', input.accountId)
+              .where('pal.revoked_at', 'is', null)
+              .where('pal.verified_at', 'is not', null)
+              .where('hm.household_id', '=', input.householdId)
+              .where('hm.removed_at', 'is', null)
+              .where('hm.financially_responsible', '=', true)
+              .where('h.status', '=', 'active')
+              .executeTakeFirst();
+            return Boolean(householdLink);
+          }
+          const member = await trx
+            .selectFrom('org_memberships')
+            .select('id')
+            .where('org_id', '=', orgId)
+            .where('account_id', '=', input.accountId)
+            .where('status', '=', 'active')
+            .executeTakeFirst();
+          if (member) return true;
+          const participant = await trx
+            .selectFrom('person_account_links')
+            .select('id')
+            .where('org_id', '=', orgId)
+            .where('account_id', '=', input.accountId)
+            .where('revoked_at', 'is', null)
+            .where('verified_at', 'is not', null)
+            .executeTakeFirst();
+          return Boolean(participant);
+        },
+      );
+      if (!billable) throw new FinanceAccessError();
+      const invoice = await new PostgresInvoiceRepository(
+        dependencies.database,
+        context,
+      ).issue({
+        orgId,
+        accountId: input.accountId,
+        source: 'staff',
+        creationKey,
+        refundTerms: input.refundTerms,
+        lines: input.lines.map((line) => ({
+          kind: line.kind,
+          description: line.description,
+          amountCents: line.amountCents,
+          refundable: line.refundable,
+          ...(line.parentLineIndex === undefined
+            ? {}
+            : { parentLineIndex: line.parentLineIndex }),
+        })),
+        ...(input.householdId ? { householdId: input.householdId } : {}),
+        ...(input.dueOn ? { dueOn: input.dueOn } : {}),
+        ...(input.memo ? { memo: input.memo } : {}),
+      });
+      response.status(201).json(
+        staffInvoiceResponseSchema.parse({
+          id: invoice.id,
+          number: invoice.number,
+          totalCents: invoice.totalCents,
+          status: invoice.status,
+        }),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
   router.get(
     '/orgs/:orgId/installment-templates',
     async (request, response) => {
@@ -297,6 +1349,92 @@ export function createFinanceRouter(
           context,
         ).list(true);
         response.json(installmentTemplateListSchema.parse({ templates }));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get('/orgs/:orgId/me/installments', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await new PostgresManualInstallmentPayments(
+        dependencies.database,
+        { orgId, actor: { accountId: session.accountId } },
+      ).listPayable();
+      response.json(manualInstallmentListSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/orgs/:orgId/me/installments/:installmentId/payment-intents',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const installmentId = z.uuid().parse(request.params.installmentId);
+        const key = z.uuid().parse(request.get('Idempotency-Key'));
+        const result = await new PostgresManualInstallmentPayments(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+          gatewayFactory(),
+        ).create(installmentId, key);
+        response.status(201).json(manualInstallmentIntentSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post(
+    '/orgs/:orgId/installments/:installmentId/actions',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const installmentId = z.uuid().parse(request.params.installmentId);
+        const operationKey = z.uuid().parse(request.get('Idempotency-Key'));
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const input = installmentStaffActionSchema.parse(
+          request.body as unknown,
+        );
+        const result = await new PostgresInstallmentStaffActions(
+          dependencies.database,
+          context,
+        ).perform(installmentId, operationKey, input);
+        response.json(installmentStaffResultSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/invoices/:invoiceId/installments',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const invoiceId = z.uuid().parse(request.params.invoiceId);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const result = await new PostgresInstallmentStaffActions(
+          dependencies.database,
+          context,
+        ).listInvoice(invoiceId);
+        response.json(installmentStaffListSchema.parse(result));
       } catch (error) {
         sendError(response, error);
       }
@@ -453,7 +1591,17 @@ export function createFinanceRouter(
       if (requestImpersonation(request)) throw new FinanceAccessError();
       const session = await requireSession(dependencies, request);
       const methods = await payerMethods().list(session.accountId);
-      response.json(savedPaymentMethodsResponseSchema.parse({ methods }));
+      const storedDefault = await new PostgresSavedPaymentMethodRepository(
+        dependencies.database,
+      ).loadDefault(session.accountId);
+      response.json(
+        savedPaymentMethodsResponseSchema.parse({
+          methods,
+          defaultMethodId: methods.some((method) => method.id === storedDefault)
+            ? storedDefault
+            : null,
+        }),
+      );
     } catch (error) {
       sendError(response, error);
     }
@@ -569,6 +1717,175 @@ export function createFinanceRouter(
         orgId,
       );
       response.json(connectLinkResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/orgs/:orgId/billing', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireBillingOwner(dependencies.database, context);
+      const overview = await createWithOrg(dependencies.database)(
+        context,
+        async (trx) => {
+          const plans = await trx
+            .selectFrom('plans')
+            .select(['id', 'name', 'monthly_price_cents'])
+            .where('active', '=', true)
+            .where('stripe_price_id', 'is not', null)
+            .orderBy('monthly_price_cents')
+            .execute();
+          const subscription = await sql<{
+            plan_id: string | null;
+            status: string;
+            current_period_end: Date | null;
+          }>`
+          SELECT plan_id, status, current_period_end FROM org_subscriptions
+          WHERE org_id = ${orgId}::uuid
+        `.execute(trx);
+          const checkout = await sql<{
+            plan_id: string;
+            status: 'reserved' | 'external_started' | 'created';
+            checkout_url: string | null;
+          }>`
+          SELECT plan_id, status, checkout_url FROM billing_checkout_claims
+          WHERE org_id = ${orgId}::uuid
+            AND status IN ('reserved', 'external_started', 'created')
+        `.execute(trx);
+          const current = subscription.rows[0];
+          const pendingCheckout = checkout.rows[0];
+          return {
+            plans: plans.map((plan) => ({
+              id: plan.id,
+              name: plan.name,
+              monthlyPriceCents: plan.monthly_price_cents,
+            })),
+            subscription: current
+              ? {
+                  planId: current.plan_id,
+                  status: current.status,
+                  currentPeriodEnd:
+                    current.current_period_end?.toISOString() ?? null,
+                }
+              : null,
+            checkout: pendingCheckout
+              ? {
+                  planId: pendingCheckout.plan_id,
+                  status: pendingCheckout.status,
+                  url: pendingCheckout.checkout_url,
+                }
+              : null,
+          };
+        },
+      );
+      response.json(billingOverviewSchema.parse(overview));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/billing/checkout', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const { planId } = billingCheckoutInputSchema.parse(
+        request.body as unknown,
+      );
+      const requestKey = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireBillingOwner(dependencies.database, context);
+      const profile = await createWithOrg(dependencies.database)(
+        context,
+        async (trx) => {
+          const org = await trx
+            .selectFrom('organizations')
+            .select(['name', 'email', 'status'])
+            .where('id', '=', orgId)
+            .executeTakeFirstOrThrow();
+          const account = await trx
+            .selectFrom('accounts')
+            .select('email')
+            .where('id', '=', session.accountId)
+            .executeTakeFirstOrThrow();
+          const plan = await trx
+            .selectFrom('plans')
+            .select('id')
+            .where('id', '=', planId)
+            .where('active', '=', true)
+            .where('stripe_price_id', 'is not', null)
+            .executeTakeFirst();
+          if (!plan || org.status === 'closed' || org.status === 'suspended')
+            throw new BillingCheckoutConflictError(
+              'Active Billing plan is unavailable',
+            );
+          return { name: org.name, email: org.email ?? account.email };
+        },
+      );
+      const gateway = gatewayFactory();
+      await new BillingCustomerService(
+        new PostgresBillingCustomerClaims(dependencies.database, context),
+        gateway,
+      ).getOrCreate({ orgId, ...profile });
+      const returnUrl = new URL(
+        `/console/orgs/${orgId}/money/billing`,
+        dependencies.appUrl,
+      ).toString();
+      const result = await new BillingCheckoutService(
+        new PostgresBillingCheckoutClaims(dependencies.database, context),
+        gateway,
+      ).start({
+        orgId,
+        planId,
+        requestKey,
+        successUrl: returnUrl,
+        cancelUrl: returnUrl,
+      });
+      response.status(201).json(billingCheckoutResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/billing/portal', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireBillingOwner(dependencies.database, context);
+      const customer = await createWithOrg(dependencies.database)(
+        context,
+        async (trx) => {
+          const row = await sql<{ stripe_customer_id: string | null }>`
+          SELECT stripe_customer_id FROM org_subscriptions
+          WHERE org_id = ${orgId}::uuid AND customer_claim_status = 'complete'
+        `.execute(trx);
+          return row.rows[0]?.stripe_customer_id ?? null;
+        },
+      );
+      if (!customer)
+        throw new BillingCheckoutConflictError(
+          'Billing Customer is unavailable',
+        );
+      const returnUrl = new URL(
+        `/console/orgs/${orgId}/money/billing`,
+        dependencies.appUrl,
+      ).toString();
+      const result = await gatewayFactory().createBillingPortal({
+        customerId: customer,
+        returnUrl,
+      });
+      response.json(billingPortalResponseSchema.parse(result));
     } catch (error) {
       sendError(response, error);
     }
@@ -823,6 +2140,126 @@ export function createFinanceRouter(
             lineCount: lines.length,
           }),
         );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get('/orgs/:orgId/journal-mapping', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const mapping = await new PostgresJournalMapping(
+        dependencies.database,
+        context,
+      ).read();
+      response.json(journalMappingResponseSchema.parse({ mapping }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.put('/orgs/:orgId/journal-mapping', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = journalMappingSaveSchema.parse(request.body as unknown);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const mapping = await new PostgresJournalMapping(
+        dependencies.database,
+        context,
+      ).save(body);
+      response.json(journalMappingSchema.parse(mapping));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get(
+    '/orgs/:orgId/payouts/:payoutId/journal-export',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const payoutId = z
+          .string()
+          .regex(/^po_[A-Za-z0-9_]+$/)
+          .parse(request.params.payoutId);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const mapping = await new PostgresJournalMapping(
+          dependencies.database,
+          context,
+        ).read();
+        if (!mapping)
+          throw new JournalMappingConflictError('Journal mapping is required');
+        const report = await new PostgresPayoutReconciliation(
+          dependencies.database,
+          context,
+        ).read(payoutId);
+        const lines = payoutJournalLines(report, journalAccounts(mapping));
+        response.json(
+          savedJournalResponseSchema.parse({
+            csv: payoutJournalCsv(lines),
+            journalNo: `PAYOUT-${payoutId}`,
+            lineCount: lines.length,
+            mappingVersion: mapping.version,
+          }),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/payouts/:payoutId/reconciliation',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const payoutId = z
+          .string()
+          .regex(/^po_[A-Za-z0-9_]+$/)
+          .parse(request.params.payoutId);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const report = await new PostgresPayoutReconciliation(
+          dependencies.database,
+          context,
+        ).read(payoutId);
+        response.json(payoutReconciliationSchema.parse(report));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/payouts/:payoutId/reconciliation.csv',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const payoutId = z
+          .string()
+          .regex(/^po_[A-Za-z0-9_]+$/)
+          .parse(request.params.payoutId);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const report = await new PostgresPayoutReconciliation(
+          dependencies.database,
+          context,
+        ).read(payoutId);
+        response.type('text/csv').send(payoutReconciliationCsv(report));
       } catch (error) {
         sendError(response, error);
       }

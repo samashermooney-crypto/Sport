@@ -145,6 +145,7 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
             JOIN people person ON person.org_id = athlete.org_id AND person.id = athlete.person_id
             WHERE athlete.org_id = o.org_id AND athlete.person_id = ${item.personId}::uuid
               AND athlete.household_id = ${item.householdId}::uuid
+              AND athlete.removed_at IS NULL
               AND h.status = 'active' AND person.status = 'active'
               AND EXISTS (
                 SELECT 1 FROM person_account_links pal

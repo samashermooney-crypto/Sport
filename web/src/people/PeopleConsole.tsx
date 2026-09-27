@@ -1,5 +1,10 @@
+import { householdListSchema } from '@shared/schemas/households';
 import { orgWorkspaceSchema } from '@shared/schemas/orgs';
-import { peopleListSchema, personResponseSchema } from '@shared/schemas/people';
+import {
+  peopleFilterOptionsSchema,
+  peopleListSchema,
+  personResponseSchema,
+} from '@shared/schemas/people';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
@@ -19,12 +24,16 @@ import {
 } from '../ui/primitives';
 import { AppShell } from '../ui/shell';
 
+import { GuardianLinks } from './GuardianLinks';
+import { PersonPhoto } from './PersonPhoto';
+
 type Person = z.output<typeof personResponseSchema>;
 type FormValues = {
   firstName: string;
   lastName: string;
   preferredName: string;
   dateOfBirth: string;
+  graduationYear: string;
   gender: Person['gender'];
   email: string;
   phoneE164: string;
@@ -36,6 +45,7 @@ const blank: FormValues = {
   lastName: '',
   preferredName: '',
   dateOfBirth: '',
+  graduationYear: '',
   gender: 'unspecified',
   email: '',
   phoneE164: '',
@@ -58,6 +68,7 @@ function PersonForm({
           lastName: initial.lastName,
           preferredName: initial.preferredName ?? '',
           dateOfBirth: initial.dateOfBirth,
+          graduationYear: initial.graduationYear?.toString() ?? '',
           gender: initial.gender,
           email: initial.email ?? '',
           phoneE164: initial.phoneE164 ?? '',
@@ -132,6 +143,17 @@ function PersonForm({
           }}
         />
       </Field>
+      <Field label="Graduation year">
+        <Input
+          type="number"
+          min="1900"
+          max="2200"
+          value={values.graduationYear}
+          onChange={(event) => {
+            set('graduationYear', event.target.value);
+          }}
+        />
+      </Field>
       <Field label="Gender">
         <Select
           value={values.gender}
@@ -188,7 +210,7 @@ function PersonForm({
   );
 }
 
-function PeopleShell({
+export function PeopleShell({
   orgId,
   children,
 }: {
@@ -212,6 +234,7 @@ function PeopleShell({
           items: [
             ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
             { label: 'People', to: people },
+            { label: 'Households', to: `${home}/households` },
             { label: 'Account', to: '/me' },
           ],
         },
@@ -219,6 +242,7 @@ function PeopleShell({
       mobileTabs={[
         ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
         { label: 'People', to: people },
+        { label: 'Households', to: `${home}/households` },
         { label: 'Account', to: '/me' },
       ]}
     >
@@ -233,6 +257,8 @@ function requestBody(values: FormValues) {
     lastName: values.lastName.trim(),
     preferredName: values.preferredName.trim() || null,
     dateOfBirth: values.dateOfBirth,
+    graduationYear:
+      values.graduationYear === '' ? null : Number(values.graduationYear),
     gender: values.gender,
     email: values.email.trim() || null,
     phoneE164: values.phoneE164.trim() || null,
@@ -248,13 +274,76 @@ export function PeopleList(): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState<string | null>(null);
   const [status, setStatus] = useState<'active' | 'archived'>('active');
+  const [gender, setGender] = useState('');
+  const [minAge, setMinAge] = useState('');
+  const [maxAge, setMaxAge] = useState('');
+  const [grade, setGrade] = useState('');
+  const [householdSearch, setHouseholdSearch] = useState('');
+  const [householdId, setHouseholdId] = useState('');
+  const [programSearch, setProgramSearch] = useState('');
+  const [programId, setProgramId] = useState('');
+  const [teamSearch, setTeamSearch] = useState('');
+  const [teamSeasonId, setTeamSeasonId] = useState('');
+  const [credentialStatus, setCredentialStatus] = useState('');
+  const [hasBalance, setHasBalance] = useState('');
+  const programs = useQuery({
+    queryKey: ['people-filter-programs', orgId, programSearch],
+    queryFn: () =>
+      apiGet(
+        `/people/orgs/${String(orgId)}/filter-options?${new URLSearchParams({ kind: 'program', ...(programSearch ? { q: programSearch } : {}) })}`,
+        peopleFilterOptionsSchema,
+      ),
+    enabled: Boolean(orgId),
+  });
+  const teams = useQuery({
+    queryKey: ['people-filter-teams', orgId, teamSearch],
+    queryFn: () =>
+      apiGet(
+        `/people/orgs/${String(orgId)}/filter-options?${new URLSearchParams({ kind: 'team', ...(teamSearch ? { q: teamSearch } : {}) })}`,
+        peopleFilterOptionsSchema,
+      ),
+    enabled: Boolean(orgId),
+  });
+  const households = useQuery({
+    queryKey: ['households', orgId, 'people-filter', householdSearch],
+    queryFn: () =>
+      apiGet(
+        `/people/households/orgs/${String(orgId)}${householdSearch ? `?q=${encodeURIComponent(householdSearch)}` : ''}`,
+        householdListSchema,
+      ),
+    enabled: Boolean(orgId),
+  });
   const people = useQuery({
-    queryKey: ['people', orgId, query, status, cursor],
+    queryKey: [
+      'people',
+      orgId,
+      query,
+      status,
+      gender,
+      minAge,
+      maxAge,
+      grade,
+      householdId,
+      programId,
+      teamSeasonId,
+      credentialStatus,
+      hasBalance,
+      cursor,
+    ],
     queryFn: () =>
       apiGet(
         `/people/orgs/${String(orgId)}?${new URLSearchParams({
           ...(query ? { q: query } : {}),
           status,
+          ...(gender ? { gender } : {}),
+          ...(minAge ? { minAge } : {}),
+          ...(maxAge ? { maxAge } : {}),
+          ...(grade ? { grade } : {}),
+          ...(householdId ? { householdId } : {}),
+          ...(programId ? { programId } : {}),
+          ...(teamSeasonId ? { teamSeasonId } : {}),
+          ...(credentialStatus ? { credentialStatus } : {}),
+          ...(hasBalance ? { hasBalance } : {}),
           ...(cursor ? { cursor } : {}),
         })}`,
         peopleListSchema,
@@ -300,6 +389,177 @@ export function PeopleList(): React.JSX.Element {
               }}
             />
           </Field>
+          <Field label="Gender">
+            <Select
+              value={gender}
+              options={[
+                { value: '', label: 'Any gender' },
+                { value: 'female', label: 'Female' },
+                { value: 'male', label: 'Male' },
+                { value: 'nonbinary', label: 'Nonbinary' },
+                { value: 'unspecified', label: 'Unspecified' },
+              ]}
+              onChange={(event) => {
+                setGender(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Minimum age">
+            <Input
+              type="number"
+              min="0"
+              max="120"
+              value={minAge}
+              onChange={(event) => {
+                setMinAge(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Maximum age">
+            <Input
+              type="number"
+              min="0"
+              max="120"
+              value={maxAge}
+              onChange={(event) => {
+                setMaxAge(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Grade">
+            <Select
+              value={grade}
+              options={[
+                { value: '', label: 'Any grade' },
+                { value: '-1', label: 'Pre-K' },
+                { value: '0', label: 'Kindergarten' },
+                ...Array.from({ length: 12 }, (_, index) => ({
+                  value: String(index + 1),
+                  label: `Grade ${String(index + 1)}`,
+                })),
+              ]}
+              onChange={(event) => {
+                setGrade(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Find household">
+            <Input
+              type="search"
+              value={householdSearch}
+              onChange={(event) => {
+                setHouseholdSearch(event.target.value);
+                setHouseholdId('');
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Household">
+            <Select
+              value={householdId}
+              options={[
+                { value: '', label: 'Any household' },
+                ...(households.data?.items.map((household) => ({
+                  value: household.id,
+                  label: household.name,
+                })) ?? []),
+              ]}
+              onChange={(event) => {
+                setHouseholdId(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Balance">
+            <Select
+              value={hasBalance}
+              options={[
+                { value: '', label: 'Any balance' },
+                { value: 'true', label: 'Has outstanding balance' },
+                { value: 'false', label: 'No outstanding balance' },
+              ]}
+              onChange={(event) => {
+                setHasBalance(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Find program">
+            <Input
+              type="search"
+              value={programSearch}
+              onChange={(event) => {
+                setProgramSearch(event.target.value);
+                setProgramId('');
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Program">
+            <Select
+              value={programId}
+              options={[
+                { value: '', label: 'Any program' },
+                ...(programs.data?.items.map((program) => ({
+                  value: program.id,
+                  label: program.name,
+                })) ?? []),
+              ]}
+              onChange={(event) => {
+                setProgramId(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Find team">
+            <Input
+              type="search"
+              value={teamSearch}
+              onChange={(event) => {
+                setTeamSearch(event.target.value);
+                setTeamSeasonId('');
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Team">
+            <Select
+              value={teamSeasonId}
+              options={[
+                { value: '', label: 'Any team' },
+                ...(teams.data?.items.map((team) => ({
+                  value: team.id,
+                  label: team.name,
+                })) ?? []),
+              ]}
+              onChange={(event) => {
+                setTeamSeasonId(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Compliance credential status">
+            <Select
+              value={credentialStatus}
+              options={[
+                { value: '', label: 'Any credential status' },
+                { value: 'pending_review', label: 'Pending review' },
+                { value: 'verified', label: 'Has verified credential' },
+                { value: 'rejected', label: 'Has rejected credential' },
+                { value: 'expired', label: 'Has expired credential' },
+                { value: 'revoked', label: 'Has revoked credential' },
+                { value: 'none', label: 'No credential records' },
+              ]}
+              onChange={(event) => {
+                setCredentialStatus(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
           {people.isPending && <p role="status">Loading people…</p>}
           {people.isError && <ErrorBox error="People could not be loaded." />}
           {people.data && (
@@ -311,6 +571,9 @@ export function PeopleList(): React.JSX.Element {
                       {person.firstName} {person.lastName}
                     </Link>
                     {person.preferredName ? ` (${person.preferredName})` : ''}
+                    {' · Age '}
+                    {person.age}
+                    {person.grade ? ` · ${person.grade}` : ''}
                   </li>
                 ))}
               </ul>
@@ -414,6 +677,8 @@ export function PersonDetail(): React.JSX.Element {
           <Card>
             <h2>Profile</h2>
             <p>Date of birth: {current.dateOfBirth}</p>
+            <p>Age: {current.age}</p>
+            <p>Grade: {current.grade ?? 'Unknown'}</p>
             <p>Gender: {current.gender}</p>
             <p>Email: {current.email ?? 'None'}</p>
           </Card>
@@ -421,6 +686,9 @@ export function PersonDetail(): React.JSX.Element {
         {!impersonationId && current.status === 'active' && (
           <Card>
             <h2>Profile</h2>
+            <p>
+              Age: {current.age} · Grade: {current.grade ?? 'Unknown'}
+            </p>
             <PersonForm
               key={current.version}
               initial={current}
@@ -434,6 +702,13 @@ export function PersonDetail(): React.JSX.Element {
                   },
                   personResponseSchema,
                 );
+                await client.invalidateQueries({ queryKey: ['people', orgId] });
+              }}
+            />
+            <PersonPhoto
+              orgId={orgId}
+              person={current}
+              onSaved={async () => {
                 await client.invalidateQueries({ queryKey: ['people', orgId] });
               }}
             />
@@ -518,6 +793,13 @@ export function PersonDetail(): React.JSX.Element {
               Restore person
             </Button>
           </Card>
+        )}
+        {current.status === 'active' && (
+          <GuardianLinks
+            orgId={orgId}
+            personId={personId}
+            readOnly={Boolean(impersonationId)}
+          />
         )}
       </main>
     </PeopleShell>

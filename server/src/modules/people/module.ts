@@ -1,6 +1,23 @@
 import {
+  householdCreateSchema,
+  householdListSchema,
+  householdMemberCreateSchema,
+  householdMemberRemoveSchema,
+  householdMemberUpdateSchema,
+  householdResponseSchema,
+  householdUpdateSchema,
+} from '@shared/schemas/households';
+import {
+  familyResponseSchema,
+  guardianInvitationAcceptedResponseSchema,
+  guardianInvitationAcceptSchema,
+  guardianInvitationResponseSchema,
+  guardianLinkCreateSchema,
+  guardianLinksResponseSchema,
+  peopleFilterOptionsSchema,
   peopleListSchema,
   personCreateSchema,
+  personPhotoUpdateSchema,
   personResponseSchema,
   personUpdateSchema,
 } from '@shared/schemas/people';
@@ -21,15 +38,109 @@ export const moduleDefinition = {
   openapiRoutes: [
     {
       method: 'get',
+      path: '/api/v1/people/me/family',
+      summary:
+        'List verified family links across organizations for this account',
+      response: familyResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/people/households/orgs/{orgId}',
+      summary: 'List staff-visible households',
+      response: householdListSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/people/households/orgs/{orgId}/{householdId}',
+      summary: 'Read household, members, registrations and balance',
+      response: householdResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/households/orgs/{orgId}',
+      summary: 'Create household',
+      body: householdCreateSchema,
+      response: householdResponseSchema,
+    },
+    {
+      method: 'patch',
+      path: '/api/v1/people/households/orgs/{orgId}/{householdId}',
+      summary: 'Versioned household update',
+      body: householdUpdateSchema,
+      response: householdResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/households/orgs/{orgId}/{householdId}/members',
+      summary: 'Add household member',
+      body: householdMemberCreateSchema,
+      response: householdResponseSchema,
+    },
+    {
+      method: 'patch',
+      path: '/api/v1/people/households/orgs/{orgId}/{householdId}/members/{memberId}',
+      summary: 'Versioned household member update',
+      body: householdMemberUpdateSchema,
+      response: householdResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/households/orgs/{orgId}/{householdId}/members/{memberId}/remove',
+      summary: 'Retain and remove a household member',
+      body: householdMemberRemoveSchema,
+      response: householdResponseSchema,
+    },
+    {
+      method: 'get',
       path: '/api/v1/people/orgs/{orgId}',
       summary: 'List and search staff-visible people',
       response: peopleListSchema,
     },
     {
       method: 'get',
+      path: '/api/v1/people/orgs/{orgId}/filter-options',
+      summary:
+        'Search organization programs and team seasons for People filters',
+      response: peopleFilterOptionsSchema,
+    },
+    {
+      method: 'get',
       path: '/api/v1/people/orgs/{orgId}/{personId}',
       summary: 'Read a person',
       response: personResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/guardians',
+      summary: 'List verified guardian links for a person',
+      response: guardianLinksResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/guardians',
+      summary: 'Link an existing verified adult account as guardian',
+      body: guardianLinkCreateSchema,
+      response: guardianLinksResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/guardians/invitations',
+      summary: 'Invite an adult to become a guardian of this person',
+      body: guardianLinkCreateSchema,
+      response: guardianInvitationResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/guardians/invitations/accept',
+      summary: 'Accept a person-bound guardian invitation',
+      body: guardianInvitationAcceptSchema,
+      response: guardianInvitationAcceptedResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/guardians/{linkId}/revoke',
+      summary: 'Revoke a guardian link while preserving minor supervision',
+      response: guardianLinksResponseSchema,
     },
     {
       method: 'post',
@@ -43,6 +154,13 @@ export const moduleDefinition = {
       path: '/api/v1/people/orgs/{orgId}/{personId}',
       summary: 'Versioned person update',
       body: personUpdateSchema,
+      response: personResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/photo',
+      summary: 'Attach or remove a consent-aware person photo',
+      body: personPhotoUpdateSchema,
       response: personResponseSchema,
     },
     {

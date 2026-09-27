@@ -99,4 +99,23 @@ describe('Postgres Stripe event repository', () => {
       }),
     ).rejects.toThrow('Conflicting Stripe event ID');
   });
+
+  it('lists unclaimed and expired events for scheduled recovery', async () => {
+    const fresh = stored();
+    const leased = stored();
+    await repository.store(fresh);
+    await repository.store(leased);
+    const claim = await repository.claim(leased.id);
+    if (!claim) throw new Error('Expected lease');
+    const first = await repository.pendingIds();
+    expect(first).toContain(fresh.id);
+    expect(first).not.toContain(leased.id);
+    await sql`
+      UPDATE stripe_events SET lease_expires_at = now() - interval '1 second'
+      WHERE stripe_event_id = ${leased.id}
+    `.execute(database);
+    expect(await repository.pendingIds()).toContain(leased.id);
+    await repository.complete(leased.id, claim.claimToken);
+    expect(await repository.pendingIds()).not.toContain(leased.id);
+  });
 });
