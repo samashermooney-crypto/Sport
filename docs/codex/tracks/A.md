@@ -8,6 +8,10 @@ Ready for integration: none on A. Guardian direct links and invitations are inte
 Requests to other tracks: E — proceed with Phase 4 against the spine now on trunk.
 Requests to other tracks: D — identity screens in task 3 are stable for your auth restyle queue; console Home in task 17 remains with A.
 Blocked on: none
+
+## Requests from SEC
+
+- Regenerate `server/src/db/types.ts` after migration `1054_late_fee_fk_index.sql`; applying current migrations added `invoice_lines.late_fee_installment_id`, which is absent from the checked-in generated types (2026-09-27).
 Self-review: Server app, worker and configuration consume the generated module/integration registry; web routing consumes generated feature routes.
 Self-review: Existing auth routes keep `/api/v1/auth`; full browser sign-up, Mailpit verification, MFA and device journey passes on Chromium and WebKit.
 Self-review: Generated errors and permissions are sorted/deduplicated; CI checks all four generated files for freshness. Track C's SMTP port offset passes isolated browser tests.
