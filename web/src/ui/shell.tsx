@@ -180,7 +180,9 @@ export function AppShell({
         ref={paletteRef}
         aria-label="Command palette"
         onClose={() => {
-          setPaletteOpen(false);
+          // A queued close event from Escape can arrive after the next shortcut
+          // has reopened the dialog. Keep the newer open state in that case.
+          if (!paletteRef.current?.open) setPaletteOpen(false);
         }}
       >
         <form
