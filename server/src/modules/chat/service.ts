@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
 import { ageOnDate } from '@shared/dates';
-import { checkSafeSport } from '@shared/policies/safesport';
-import type { ConversationMember as SafeSportMember } from '@shared/policies/safesport';
 import { sql } from 'kysely';
 
 import type { Json } from '../../db/types';
@@ -12,6 +10,8 @@ import { encryptRestricted } from '../../lib/crypto';
 import type { EncryptionKeys } from '../../lib/crypto';
 import { decodeCursor, pageFromRows } from '../../lib/pagination';
 import { appendAuditEvent } from '../audit/service';
+import { evaluateSafeSport } from '../safety/safesport';
+import type { ConversationMember as SafeSportMember } from '../safety/safesport';
 
 import { chatMessageSchema, chatMessageListSchema } from './schema';
 
@@ -27,11 +27,11 @@ export class SafeSportError extends Error {
   readonly status = 409;
   readonly code = 'SAFESPORT_GUARDIAN_REQUIRED';
 }
-export class ChatConflictError extends Error {
+class ChatConflictError extends Error {
   readonly status = 409;
   readonly code = 'CONFLICT';
 }
-export class ChatIntegrationUnavailableError extends Error {
+class ChatIntegrationUnavailableError extends Error {
   readonly status = 503;
   readonly code = 'SERVICE_UNAVAILABLE';
 }
@@ -412,7 +412,7 @@ async function enforceSafeSport(
     extraMinorPeople,
     now,
   );
-  const result = checkSafeSport({
+  const result = evaluateSafeSport({
     kind,
     senderAccountId: senderId,
     members: graph.members,
