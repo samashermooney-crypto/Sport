@@ -24,6 +24,7 @@ Webhook persistence: migration 1000 adds lease token/expiry; `stripe/repo.ts` at
 Money UI: Stripe React/JS dependency `73bdd07`; unmounted Connect onboarding and Payment Element components use token CSS, frozen quote lines and test-key guards; 4 component tests pass.
 Money core: `finance/service.ts` uses Track B fee algorithms for service/application fees, validates frozen charges, enforces Connect/autopay gates and reserves idempotent PaymentIntent attempts; 8 targeted tests pass.
 Money idempotency: PaymentIntent and refund attempts set a durable external-start fence before Stripe calls; ambiguous network/persistence failures remain blocked for reconciliation; 4 failure tests pass.
+Payment attempts: migration 1002 and `finance/attempt-repo.ts` persist scoped request-hash conflicts, pre-external retries, external fences and replayed results; 3 real-Postgres tests pass.
 Installment quotes: `finance/installment-quotes.ts` uses Track B schedule and fee algorithms to show per-charge service/application fees and reconcile the plan total; 2 targeted tests pass.
 Connect core: `finance/connect.ts` defines withOrg reservation/persistence, org-stable Stripe account creation, onboarding/dashboard links and latest-state refresh; 5 targeted tests pass; unresolved Stripe creation keeps its reservation for reconciliation.
 Connect persistence: `finance/repo.ts` implements a durable one-row reservation, idempotent account sync and cross-org RLS isolation on spine `payment_accounts`; 2 real-Postgres tests pass.
