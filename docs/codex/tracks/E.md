@@ -19,6 +19,7 @@ Ready for integration: local `f56be6b..254448e` — immutable per-payment invoic
 Ready for integration: local `1a2738c..0897daf` — database-backed sibling pricing for one household with confirmed registration history; queue work continues.
 Ready for integration: local `4e1b9ef..5ba8c41` — scoped discount-code reservations, redemption caps, stacking and exact invoice-link redemption; queue work continues.
 In progress: local `45c8a05..b151f55` — authenticated staff invoice issuance with payer/household checks and frozen refund terms; full Playwright gate remains red outside E-owned paths.
+In progress: local `a6296f1..9af07ea` — finance invoice detail and versioned void API; void refuses net money, active disputes, unsettled payments and active installments; full Playwright gate remains red outside E-owned paths.
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
@@ -41,6 +42,7 @@ Requests to other tracks: A: use strict sibling rule `config` keys `second_bps` 
 Requests to other tracks: B: extend the shared sibling pricing input if mixed-household carts or offering-scoped sibling rules are required; E currently fails those cases closed because the shared function takes one checkout-wide sibling rule (2026-09-27).
 Requests to other tracks: A: regenerate Kysely types after migration 1027 and use strict `discount_codes.applies_to` keys `programIds`, `offeringIds`, `productVariantIds` in the staff editor; E enforces active windows and global/account caps at checkout freeze (2026-09-27).
 Requests to other tracks: A: regenerate finance OpenAPI/registry for `POST /api/v1/finance/orgs/{orgId}/invoices`; full Playwright also timed out in A-owned `e2e/sign-in.spec.ts` waiting for a preview-email link in the second run (2026-09-27).
+Requests to other tracks: A: also include finance `GET /api/v1/finance/orgs/{orgId}/invoices/{invoiceId}` and `POST /api/v1/finance/orgs/{orgId}/invoices/{invoiceId}/void` in generated OpenAPI; the latter requires an exact invoice version (2026-09-27).
 Requests to other tracks: D: fix the WebKit mobile 44px touch target for the `Items per page` select in `web/src/ui/overlays.tsx`; full Playwright measured 49×19 in two runs, although the isolated check passed (2026-09-27).
 Blocked on: None; schema spine and test factories are on `rebuild/trunk`.
 Luna finance: Build checkout flow by calling `CheckoutPricingService` with `PostgresCheckoutPricingRepository`, then `PostgresInvoiceRepository.issue`, then `CheckoutPaymentService` with `PostgresFrozenChargeReader`/attempt/record stores; never calculate or trust client-provided prices or create a Stripe intent before a frozen invoice reconciles.
@@ -57,6 +59,7 @@ Gateway gate: 83 tests, typecheck, lint, build, registry/OpenAPI/codegen freshne
 Additional gate: 267 tests passed/1 skipped against isolated Postgres, typecheck, lint and build green; no affected mounted Playwright screens or generated inputs.
 Current gate: 569 tests passed/1 skipped with isolated Postgres and stripe-mock; typecheck, lint, build, and Playwright 26 passed/4 skipped on Chromium/WebKit mobile. A-owned registry/OpenAPI/codegen regeneration remains for integration.
 Latest gate: 570 tests passed/1 skipped; typecheck, lint and build green. Full Playwright ran twice: D-owned WebKit touch target failed both times; the second run also timed out in A-owned preview-email sign-in. Targeted WebKit touch-target rerun passed. Staff invoice range is not marked ready until the full gate is green.
+Latest invoice gate: 571 tests passed/1 skipped; typecheck, lint and build green. The affected finance routes are unmounted from the A-owned web router, so no new browser case exists; the last full Playwright failures remain recorded above.
 Current review: Refund approval hashes bind requester, proposal, destination and key; checkout attempts serialize different keys before Stripe, and payout exports require exact reconciliation.
 Current review: Tenant finance data uses `withOrg`; account-wide payer methods use the authenticated account; no live keys, real charges or external messages were used.
 Current review: Net line shares include parent-linked discounts and aid, use Track B's integer `allocate`, and reconcile to invoice cents before a payment is recorded.
@@ -65,6 +68,7 @@ Current review: RLS and composite invoice-line foreign keys guard cross-tenant a
 Current review: Sibling ranking uses only the same household and season, locks rule and registration facts during the quote, and rejects missing historical invoice prices instead of repricing from today's offering.
 Current review: Code row locks serialize final-use reservations and invoice redemptions; one code or multiple stackable codes are priced by Track B, caps count live holds plus redemptions, and exact replay makes no second redemption.
 Current review: Staff invoice API requires active finance access, same-origin write, an org-linked payer and a financially responsible household link when supplied; issuance freezes refund terms and rejects changed idempotency-key replays.
+Current review: Invoice read is finance-only; void uses an exact version and idempotent reason, and locks the invoice before checking net money, disputes, pending allocations and installments.
 Current review: Frozen charge terms must be persisted with the checkout snapshot before the payment route is mounted; multi-payment refund allocation and dispute evidence remain in the queue.
 Additional review: `20 §3–§5` fee, installment and state rules checked; every external Stripe money call now has a durable claim before invocation.
 Additional review: webhook handlers fetch latest Stripe state and require org-scoped id/amount matching; repository persistence and real concurrency gates await spine.
