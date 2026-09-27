@@ -1,12 +1,12 @@
 # Track E — Stripe and finance
 
-Status: blocked
+Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Stripe SDK gateway complete at adapter layer; next Phase 4 modules wait for schema spine on trunk.
-Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway; push pending.
+Current: Build spine-independent webhook dispatch, Connect onboarding UI and money orchestration; Phase 4 persistence follows the spine.
+Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Requests to other tracks: none
-Blocked on: auto-review denied `git push origin track/e-finance` (remote privacy/ownership and export authorization unverified); Phase 4 database work awaits schema spine and test factories on `rebuild/trunk`.
+Blocked on: Phase 4 database persistence awaits schema spine and test factories on `rebuild/trunk`.
 Gateway: Stripe SDK 22.6.2 dependency-only commit `cf83f4c`; real SDK adapter covers Connect, Customers, payment methods, intents, refunds, reversals, disputes, payouts, Billing and domains.
 Gateway tests: 36 passed, including stripe-mock Express account and destination PaymentIntent; typecheck and targeted lint green.
 Gateway review: test-only keys and events enforced; raw webhook bytes verified; exact destination fee and idempotency key asserted.
