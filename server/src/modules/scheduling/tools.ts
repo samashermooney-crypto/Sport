@@ -394,7 +394,7 @@ export function decodeScheduleImportFile(
   return csvTextFromFile(file, filename);
 }
 
-export async function importScheduleFile(
+async function importScheduleFile(
   context: OrgContext,
   file: Uint8Array,
   filename: string,
@@ -741,7 +741,7 @@ export async function discardScheduleImport(
   });
 }
 
-export async function importScheduleCsv(
+async function importScheduleCsv(
   context: OrgContext,
   source: string,
   commit: boolean,

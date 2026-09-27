@@ -70,7 +70,3 @@ export function sendScheduleError(response: Response, error: unknown): void {
     }),
   );
 }
-
-export function routeError(response: Response, error: unknown): void {
-  sendScheduleError(response, error);
-}

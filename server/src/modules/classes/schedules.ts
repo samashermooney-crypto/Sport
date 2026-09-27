@@ -54,7 +54,7 @@ interface InstructorRow {
   last_name: string;
 }
 
-export function stripExceptions(recurrence: Recurrence): Recurrence {
+function stripExceptions(recurrence: Recurrence): Recurrence {
   if (recurrence.kind === 'once') return recurrence;
   const clone = { ...recurrence } as Record<string, unknown>;
   clone['exceptions'] = [];
@@ -63,7 +63,7 @@ export function stripExceptions(recurrence: Recurrence): Recurrence {
 }
 
 /** Materialize class_session events for a schedule inside a transaction. */
-export async function materializeScheduleSessions(
+async function materializeScheduleSessions(
   trx: OrgTransaction,
   context: OrgContext,
   schedule: {
