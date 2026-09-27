@@ -59,13 +59,13 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f db/init/001-roles.sql
-      - name: Set ephemeral app role password
+      - name: Set ephemeral database role passwords
         env:
           PGPASSWORD: postgres
-        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "ALTER ROLE athlentry_app PASSWORD 'athlentry-ci-only'"
+        run: psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "ALTER ROLE athlentry_admin PASSWORD 'athlentry-admin-ci-only'; ALTER ROLE athlentry_app PASSWORD 'athlentry-ci-only'"
       - name: Run tests with coverage
         env:
-          DATABASE_ADMIN_URL: postgres://postgres:postgres@127.0.0.1:5432/athlentry_test
+          DATABASE_ADMIN_URL: postgres://athlentry_admin:athlentry-admin-ci-only@127.0.0.1:5432/athlentry_test
           DATABASE_APP_URL: postgres://athlentry_app:athlentry-ci-only@127.0.0.1:5432/athlentry_test
         run: npm test -- --coverage
       - uses: actions/upload-artifact@v4
