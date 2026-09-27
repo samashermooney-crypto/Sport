@@ -56,32 +56,3 @@ Self-review: Full unit/integration suite passes (550 tests, 1 existing skip) aft
 
 Phase 3 progress: date-based registration instants and offering price windows preserve org-local wall time over DST; rollover preview lists copied divisions/offers/prices/add-ons/forms/waivers, while copy remains idempotent and excludes registrations, invoices, payments and results. Team creation supports manual and generated teams; roster capacity serializes on the team-season row, concurrent jersey uniqueness is database-enforced, and staff assignment calls F's eligibility gate. Facilities retain split-field exclusion, versioned availability, blackouts, suitability, public visibility and map URL validation. Generated nested routes include all three B screens and the OpenAPI freshness script passes after adding descriptors for all B-owned operations. Focused server/shared Phase 3 suites pass (132 tests); sport engine line coverage is 100%; typecheck and lint pass.
 Pending Phase 3 gate: E checkout support for configured price windows/add-ons, H volunteer rollover extras, QA's Chromium/WebKit-mobile 390px axe journey, full gate, build and self-merge protocol. Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_b`, `PORT_OFFSET=2500`, Postgres `127.0.0.1:7932`.
-
-## HANDOFF
-
-Checkpoint `3984c4b` contains the local sync of `rebuild/trunk` commit `5ae5499` plus the current Track B Phase 3 edits. This branch has not passed the Phase 3 merge gate, so no Phase 3 changes are integrated into `rebuild/trunk`.
-
-Done: existing Phase 3 implementation covers sport profiles, seasons/rollover, program wizard/divisions, offerings, persistent teams/rosters/staff, and facilities/availability. Focused Phase 3 server/shared suites passed (132 tests); the sport engine has 100% line coverage. The new profile snapshot integration test passed. `npm run typecheck` passed in the commit hook and `npm run lint` passed after the latest test edit.
-
-In-progress checkpoint paths:
-- `db/migrations/0210_phase3_profiles_divisions_availability.sql`
-- `server/src/modules/facilities/service.ts`
-- `server/src/modules/seasons/service.ts`
-- `server/src/modules/sports/service.ts`
-- `server/src/modules/sports/service.integration.test.ts`
-- Trunk-sync generated files: `docs/api/openapi.json`, `server/src/db/types.ts`, `server/src/generated/registry.ts`, `web/src/generated/nested-routes.ts`
-
-Next steps, in order:
-1. Recheck the checkpoint and run the affected Phase 3 suites: `server/src/modules/sports/service.integration.test.ts`, `server/src/modules/seasons/phase3-acceptance.integration.test.ts`, `server/src/modules/programs/phase3.integration.test.ts`, `server/src/modules/programs/division-generator.test.ts`, `server/src/modules/offerings/service.test.ts`, and `server/src/modules/facilities/split-field.integration.test.ts`.
-2. Resolve Phase 3 integration requests: E checkout consumption of offering price windows/add-ons; H volunteer requirement rollover contribution; C registry composition of `seasonRolloverExtras`.
-3. Complete QA's Chromium and WebKit-mobile 390px Phase 3 wizard journey with axe, including volleyball, three divisions, two offerings/installments, and team generation.
-4. Run `npm run build`, the required full tests and Playwright gates through `~/athlentry-sprint/heavy.sh`, then merge this branch to `rebuild/trunk` with the SPRINT self-merge protocol only after the local gate passes.
-5. At the scheduled 13:30 Phase 16 split, take Track B's security §1 work after the Phase 3 acceptance work is ready.
-
-Known failing tests: none. The full `npm test`, Phase 3 Playwright journey, build, and trunk merge gate have not been run after this sync; they remain required gates.
-
-Other open requests recorded in this track: E to consume the weekly-installment and separate lost-dispute fields; F to merge the compliance declaration and wire credentials-expiry delivery/SSE; H to use `preferencesCenterPath(orgId)` after tokenized unsubscribe; A/C to move file-route and B module contracts to shared Zod schemas and align the files error envelope.
-
-Environment: `COMPOSE_PROJECT_NAME=athlentry_b`, `PORT_OFFSET=2500`, Postgres `127.0.0.1:7932`.
-
-HANDED OFF 13:38
