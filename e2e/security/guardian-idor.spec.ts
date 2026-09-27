@@ -95,6 +95,12 @@ test('guardian A family view excludes guardian B child', async ({
     );
     expect(personIds).toContain(childA);
     expect(personIds).not.toContain(childB);
+
+    const foreignMedicalProfile = await request.get(
+      `http://127.0.0.1:${String(3001 + offset)}/api/v1/people/orgs/${org.orgId}/${childB}/medical`,
+      { headers },
+    );
+    expect(foreignMedicalProfile.status()).toBe(404);
   } finally {
     await database.destroy();
   }

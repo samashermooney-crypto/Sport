@@ -1,12 +1,12 @@
 # Required Playwright journey audit
 
-Audit snapshot: `track/qa` after merging `rebuild/trunk` at `27c2826`. This is a coverage inventory, not a claim that local Playwright runs passed. At this snapshot all browser verification is blocked by the required QA stack's port collision with Track I; see `docs/codex/tracks/QA.md`.
+Audit snapshot: `track/qa` after merging `rebuild/trunk` at `2ac58d6`. This is a coverage inventory, not a claim that local Playwright runs passed. Browser verification is blocked by the required QA stack's port collision with Track I; see `docs/codex/tracks/QA.md`.
 
 | # | Journey | Status on the audit snapshot | Browser evidence / remaining acceptance |
 |---:|---|---|---|
 | 1 | Org sign-up → MFA → invite admin → role change revokes session | Covered | `e2e/sign-in.spec.ts` exercises signup, verification, MFA, org creation, admin invite/acceptance, MFA completion, role change and revoked-session redirect. Local run pending. |
-| 2 | Guardian accepts invitation and edits child medical info | Partial | `e2e/guardian-invitation.spec.ts` accepts a verified invitation and checks family access on a phone. Medical editing is not implemented on trunk and is absent from the journey. |
-| 3 | Import 2,000 people with preview and rollback | Not available | Phase 2 imports remain open; no import Playwright test exists. |
+| 2 | Guardian accepts invitation and edits child medical info | Added; execution pending | `e2e/guardian-invitation.spec.ts` now verifies saved allergy/medication values after reload; `e2e/security/guardian-idor.spec.ts` asserts a different guardian receives 404 for the child's medical profile. |
+| 3 | Import 2,000 people with preview and rollback | Added; execution pending | `e2e/journeys/import-scale.spec.ts` previews, commits and rolls back a 2,000-person batch, then verifies all imported records are archived. |
 | 4 | Volleyball season wizard and team generation | Not available | Phase 3 is not started on the audit snapshot; no journey exists. |
 | 5 | Season rollover preview and commit | Not available | Phase 3 is not started on the audit snapshot; no journey exists. |
 | 6 | Stripe onboarding → first payment → approved partial refund | Partial | `e2e/finance-portal.spec.ts` only checks portal navigation and intercepts payment-method APIs. It does not exercise onboarding, payment, or refund. |
@@ -34,6 +34,6 @@ Audit snapshot: `track/qa` after merging `rebuild/trunk` at `27c2826`. This is a
 
 ## Execution status
 
-- `e2e/crawler/routes.spec.ts` now discovers destinations from rendered navigation for anonymous, organization, family and platform roles. It checks route responses, settled same-origin API responses, page/console errors and axe, and fails rather than silently truncating the crawl.
-- Crawler and new journey specs type-check and lint. Required browser verification remains pending until the QA stack can bind Postgres port `6932` without stopping another track's services.
+- `e2e/crawler/routes.spec.ts` discovers destinations from rendered navigation for anonymous, organization, family and platform roles. It checks route responses, settled same-origin API responses, page/console errors and axe, and fails rather than silently truncating the crawl.
+- Crawler and journey specs type-check and lint. Required browser verification remains pending until the QA stack can bind Postgres port `6932` without stopping another track's services.
 - “Not available” means the feature is not on this merged trunk snapshot, not that a failing browser assertion is being suppressed.

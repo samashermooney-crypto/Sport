@@ -197,6 +197,13 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
         .getByRole('status')
         .filter({ hasText: 'Medical profile saved.' }),
     ).toBeVisible();
+    await guardianPage.reload();
+    await expect(
+      guardianPage.getByRole('textbox', { name: 'Allergies', exact: true }),
+    ).toHaveValue('Peanuts');
+    await expect(
+      guardianPage.getByRole('textbox', { name: 'Medications' }),
+    ).toHaveValue('Epinephrine auto-injector');
     await guardianPage
       .getByRole('textbox', { name: 'Contact name' })
       .fill('Jordan Rivera');

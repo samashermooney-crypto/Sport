@@ -5,11 +5,10 @@ Branch: `track/qa`
 
 ## Ready for integration ranges
 
-- None yet. Branch was synced from `rebuild/trunk` at `27c2826`; crawler and journey browser verification remain blocked.
+- None yet. Branch was synced from `rebuild/trunk` at `2ac58d6`; crawler and QA-authored journey browser verification remain blocked.
 
 ## Requests to other tracks
 
-- A — QA-ACC-002: extend the guardian invitation journey through the newly landed medical profile edit and reload, retaining an unauthorized-access assertion. Details are in `docs/codex/qa/DEFECTS.md`.
 - C — QA-SEC-001: publish permission/resource/scope metadata and tenancy fixture contracts for every API operation; the route-authorization, permission-matrix, and tenancy-fuzz e2e checks still use `test.fixme`, and the permission matrix has no operation rows. Details and reproduction are in `docs/codex/qa/DEFECTS.md`.
 - C — QA-SEC-002: enable the security-header browser check; it remains `test.fixme` even though C reports the middleware is mounted. Details are in `docs/codex/qa/DEFECTS.md`.
 - C — QA-SEC-003: add Gitleaks to CI; the current workflow has no secret scan. Details are in `docs/codex/qa/DEFECTS.md`.
@@ -22,8 +21,8 @@ Branch: `track/qa`
 
 ## Progress
 
-- Merged `rebuild/trunk` (`27c2826`) into `track/qa` (`7824926`). Latest local `rebuild/trunk` is `2ac58d6` and includes Track A medical and 2,000-person import work; QA is syncing to it before the next audit pass.
+- Merged `rebuild/trunk` (`2ac58d6`) into `track/qa` (`0589556`), bringing in Track A medical and import flows. The guardian journey now checks saved medical values after reload and the guardian IDOR journey asserts foreign medical access returns 404.
 - Reviewed WIP `7a39c59`; replaced the fixed 50-route/5-role crawl with rendered-navigation discovery, per-route HTTP/API/request/error checks, explicit queue completion, axe, and fixtures for every organization role, guardian/self, and all platform roles.
-- Added the 27-journey audit inventory and a SafeSport guardian-inclusion browser journey. `npm run typecheck`, `npm run lint`, and `git diff --check` pass.
+- Added the 27-journey audit inventory, a 2,000-person import preview/commit/rollback journey, and a SafeSport guardian-inclusion browser journey. Guardian medical save/reload and cross-guardian medical 404 checks are also added. After installing the merged lockfile dependencies, `npm run typecheck`, `npm run lint`, and `git diff --check` pass on the post-sync tree.
 - Targeted Chromium runs remain unverified: the latest `heavy.sh` attempt exited before `webServer` started; current Docker inspection confirms Track I owns QA's Postgres, Mailpit and Stripe mock ports. No other track containers were stopped.
 - No range is ready for integration until the required Chromium merge gate can run.

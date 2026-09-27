@@ -32,15 +32,25 @@
 - **Request:** add the scan to CI and verify the workflow on a clean repository state.
 - **Status:** open.
 
-### QA-ACC-002 — Guardian invitation journey stops before medical editing
+### QA-ACC-002 — Guardian medical journey awaits browser verification
 
 - **Owner:** Track A
 - **Phase:** 2, required journey 2
-- **Evidence:** `e2e/guardian-invitation.spec.ts` verifies invitation acceptance and family visibility, but does not edit the child's medical information. `docs/codex/PROGRESS.md` says medical editing remains open.
-- **Reproduce:** run the guardian invitation journey and inspect the assertions after `/me/family`; there is no medical edit step.
-- **Expected:** after accepting the verified invite, the guardian opens the child's medical form, saves an authorized update, and sees the saved value on reload; unauthorized access remains denied.
-- **Request:** add the medical-editing acceptance step when the Phase 2 medical flow lands. This is a coverage gap, not a known product defect.
-- **Status:** open coverage gap; implementation is not yet on the audit snapshot.
+- **Evidence:** upstream `2ac58d6` landed the medical flow and updated `e2e/guardian-invitation.spec.ts` to save allergy, medication and emergency-contact data. QA added saved-value assertions after reload and extended `e2e/security/guardian-idor.spec.ts` to assert that another guardian receives 404 for the medical profile.
+- **Reproduce:** run `e2e/guardian-invitation.spec.ts` and `e2e/security/guardian-idor.spec.ts` against the isolated QA stack.
+- **Expected:** accepted guardians can update and reload the child's medical data; an unlinked guardian cannot read it.
+- **Request:** none; coverage is added on `track/qa`.
+- **Status:** browser verification pending because Track I owns the QA Postgres port.
+
+### QA-ACC-003 — Import acceptance does not exercise the required 2,000-row batch
+
+- **Owner:** Track A
+- **Phase:** 2, required journey 3
+- **Evidence:** trunk `e2e/people-import.spec.ts` previews and rolls back a two-row file. QA added `e2e/journeys/import-scale.spec.ts` to exercise the specified 2,000-person batch and verify all rows are archived after rollback.
+- **Reproduce:** run `e2e/journeys/import-scale.spec.ts` against the isolated QA stack.
+- **Expected:** the full 2,000-row preview reports all records to create, commit succeeds, rollback marks all records archived, and axe reports no violations.
+- **Request:** none; scale coverage is added on `track/qa`.
+- **Status:** browser verification pending because Track I owns the QA Postgres port.
 
 ### QA-ACC-021 — Communications journey omits quiet-hour deferral and unsubscribe
 
