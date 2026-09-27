@@ -33,7 +33,21 @@ afterAll(async () => {
   const admin = new pg.Client({ connectionString: adminUrl });
   await admin.connect();
   try {
-    await admin.query(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`);
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      try {
+        await admin.query(`DROP DATABASE IF EXISTS ${dbName}`);
+        return;
+      } catch (error) {
+        if (
+          !(error instanceof Error) ||
+          !error.message.includes('being accessed by other users') ||
+          attempt === 9
+        ) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
   } finally {
     await admin.end();
   }
