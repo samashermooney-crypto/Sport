@@ -11,6 +11,7 @@ import { requestImpersonation } from '../../lib/tenant-guard.js';
 import { requireSession } from '../auth/routes.js';
 import type { AuthDependencies } from '../auth/routes.js';
 
+import { AidAwardConflictError, PostgresAidAwards } from './aid-awards.js';
 import { PostgresPaymentAttemptStore } from './attempt-repo.js';
 import { ConnectConflictError, ConnectOnboardingService } from './connect.js';
 import { PostgresCreditRefundRepository } from './credit-refund-repo.js';
@@ -58,7 +59,11 @@ import {
 } from './refunds.js';
 import { PostgresConnectAccountRepository } from './repo.js';
 import { CheckoutPaymentService, PaymentConflictError } from './service.js';
-import { FinanceAccessError, requireFinanceStaff } from './staff-access.js';
+import {
+  FinanceAccessError,
+  requireAidStaff,
+  requireFinanceStaff,
+} from './staff-access.js';
 
 export const offlinePaymentBodySchema = z.strictObject({
   invoiceId: z.uuid(),
@@ -102,6 +107,28 @@ export const staffInvoiceBodySchema = z.strictObject({
     )
     .min(1)
     .max(100),
+});
+export const aidAwardBodySchema = z.strictObject({
+  expectedVersion: z.number().int().positive(),
+  decision: z.discriminatedUnion('kind', [
+    z.strictObject({
+      kind: z.literal('fixed'),
+      amountCents: z.number().int().positive(),
+    }),
+    z.strictObject({
+      kind: z.literal('percent'),
+      bps: z.number().int().min(1).max(10_000),
+      maxCents: z.number().int().positive(),
+    }),
+  ]),
+});
+export const aidAwardResponseSchema = z.strictObject({
+  applicationId: z.uuid(),
+  status: z.enum(['awarded', 'partially_awarded']),
+  awardCents: z.number().int().positive(),
+  awardKind: z.enum(['fixed', 'percent']),
+  awardBps: z.number().int().min(1).max(10_000).nullable(),
+  version: z.number().int().positive(),
 });
 export const staffInvoiceResponseSchema = z.strictObject({
   id: z.uuid(),
@@ -321,7 +348,8 @@ function sendError(response: Response, error: unknown): void {
           error instanceof ConnectConflictError ||
           error instanceof PaymentConflictError ||
           error instanceof InstallmentTemplateConflictError ||
-          error instanceof InvoiceConflictError
+          error instanceof InvoiceConflictError ||
+          error instanceof AidAwardConflictError
         ? 409
         : error instanceof InvoiceNotFoundError
           ? 404
@@ -392,6 +420,38 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.post(
+    '/orgs/:orgId/aid-applications/:applicationId/award',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const applicationId = z.uuid().parse(request.params.applicationId);
+        const input = aidAwardBodySchema.parse(request.body as unknown);
+        const operationKey = z.uuid().parse(request.get('Idempotency-Key'));
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireAidStaff(dependencies.database, context);
+        const award = await new PostgresAidAwards(
+          dependencies.database,
+          context,
+        ).award({
+          orgId,
+          applicationId,
+          expectedVersion: input.expectedVersion,
+          operationKey,
+          decision: input.decision,
+        });
+        response.json(aidAwardResponseSchema.parse(award));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   router.get('/orgs/:orgId/me/invoices', async (request, response) => {
     try {
       if (requestImpersonation(request)) throw new FinanceAccessError();

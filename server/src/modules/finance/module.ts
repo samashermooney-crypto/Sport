@@ -24,6 +24,8 @@ import {
   checkoutPaymentResponseSchema,
   staffInvoiceBodySchema,
   staffInvoiceResponseSchema,
+  aidAwardBodySchema,
+  aidAwardResponseSchema,
   invoiceDetailSchema,
   voidInvoiceBodySchema,
   voidInvoiceResponseSchema,
@@ -39,6 +41,13 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/aid-applications/{applicationId}/award',
+      summary: 'Reserve a versioned aid award within the season budget',
+      body: aidAwardBodySchema,
+      response: aidAwardResponseSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/finance/orgs/{orgId}/me/invoices',

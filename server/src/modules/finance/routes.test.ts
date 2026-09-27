@@ -18,6 +18,7 @@ import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
 import {
+  aidAwardResponseSchema,
   createFinanceRouter,
   payoutJournalResponseSchema,
   refundResponseSchema,
@@ -399,6 +400,87 @@ describe('payer invoice feed', () => {
       true,
     );
     expect(body.nextBeforeNumber).toBeNull();
+  });
+});
+
+describe('aid award HTTP', () => {
+  it('reserves one budgeted decision for a finance actor and replays the exact key', async () => {
+    const seasonId = newId();
+    const householdId = newId();
+    const aidProgramId = newId();
+    const applicationId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('seasons')
+        .values({
+          id: seasonId,
+          org_id: context.orgId,
+          name: 'Aid season',
+          starts_on: '2026-01-01',
+          ends_on: '2027-12-31',
+        })
+        .execute();
+      await trx
+        .insertInto('households')
+        .values({
+          id: householdId,
+          org_id: context.orgId,
+          name: 'Aid household',
+        })
+        .execute();
+      await trx
+        .insertInto('financial_aid_programs')
+        .values({
+          id: aidProgramId,
+          org_id: context.orgId,
+          name: 'Aid fund',
+          season_id: seasonId,
+          budget_cents: 500,
+          status: 'open',
+        })
+        .execute();
+      await trx
+        .insertInto('aid_applications')
+        .values({
+          id: applicationId,
+          org_id: context.orgId,
+          financial_aid_program_id: aidProgramId,
+          household_id: householdId,
+          requested_cents: 500,
+          status: 'under_review',
+        })
+        .execute();
+    });
+    const key = randomUUID();
+    const path = `${baseUrl}/orgs/${context.orgId}/aid-applications/${applicationId}/award`;
+    const post = (requestOrigin: string, idempotencyKey = key) =>
+      fetch(path, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: requestOrigin,
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': idempotencyKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          expectedVersion: 1,
+          decision: { kind: 'fixed', amountCents: 500 },
+        }),
+      });
+    expect((await post('https://attacker.example')).status).toBe(403);
+    const first = await post(origin);
+    expect(first.status).toBe(200);
+    const body = aidAwardResponseSchema.parse((await first.json()) as unknown);
+    expect(body).toMatchObject({
+      applicationId,
+      status: 'awarded',
+      awardCents: 500,
+    });
+    const replay = await post(origin);
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toEqual(body);
+    expect((await post(origin, randomUUID())).status).toBe(409);
   });
 });
 
