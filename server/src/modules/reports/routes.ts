@@ -31,6 +31,11 @@ import {
 
 import { ReportError } from './query';
 import {
+  createReportSchedule,
+  listReportSchedules,
+  updateReportSchedule,
+} from './schedules';
+import {
   createSavedReport,
   exportReport,
   getSavedReport,
@@ -39,11 +44,6 @@ import {
   previewReport,
   updateSavedReport,
 } from './service';
-import {
-  createReportSchedule,
-  listReportSchedules,
-  updateReportSchedule,
-} from './schedules';
 
 const reportIdSchema = z.uuid();
 
@@ -309,9 +309,9 @@ export function createReportsRouter(
         dependencies.clock(),
         withOrg,
       );
-      response.status(201).json(
-        reportScheduleCreateResponseSchema.parse({ schedule }),
-      );
+      response
+        .status(201)
+        .json(reportScheduleCreateResponseSchema.parse({ schedule }));
     }),
   );
 
@@ -328,9 +328,7 @@ export function createReportsRouter(
         dependencies.clock(),
         withOrg,
       );
-      response.json(
-        reportScheduleUpdateResponseSchema.parse({ schedule }),
-      );
+      response.json(reportScheduleUpdateResponseSchema.parse({ schedule }));
     }),
   );
 

@@ -1,5 +1,4 @@
 import { Temporal } from '@js-temporal/polyfill';
-
 import type { ReportScheduleBody } from '@shared/schemas/reports';
 
 export interface ReportScheduleAnchor {
@@ -12,7 +11,9 @@ export function reportScheduleAnchor(
   now: Date,
   timezone: string,
 ): ReportScheduleAnchor {
-  const local = Temporal.Instant.from(now.toISOString()).toZonedDateTimeISO(timezone);
+  const local = Temporal.Instant.from(now.toISOString()).toZonedDateTimeISO(
+    timezone,
+  );
   return {
     runOnDay: cadence === 'monthly' ? local.day : null,
     runOnWeekday: cadence === 'weekly' ? local.dayOfWeek : null,
@@ -35,10 +36,7 @@ export function nextReportScheduleAt(input: {
 
   for (let offset = 0; offset <= 366 * 3; offset += 1) {
     const date = startDate.add({ days: offset });
-    if (
-      input.cadence === 'weekly' &&
-      date.dayOfWeek !== input.runOnWeekday
-    )
+    if (input.cadence === 'weekly' && date.dayOfWeek !== input.runOnWeekday)
       continue;
     if (
       input.cadence === 'monthly' &&
@@ -59,7 +57,7 @@ export function nextReportScheduleAt(input: {
       { disambiguation: 'later' },
     ).toInstant();
     if (Temporal.Instant.compare(candidate, after) > 0)
-      return new Date(Number(candidate.epochMilliseconds));
+      return new Date(candidate.epochMilliseconds);
   }
   throw new RangeError('Could not find the next report schedule occurrence');
 }

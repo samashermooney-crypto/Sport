@@ -20,12 +20,19 @@ import { z } from 'zod';
 import type { ServerModule } from '../../lib/module-contract';
 
 import { createReportsRouter } from './routes';
+import { runScheduledReportDeliveryJob } from './schedule-delivery';
 
 export const moduleDefinition = {
   name: 'reports',
   path: '/api/v1/reports',
   router: createReportsRouter,
-  jobs: [],
+  jobs: [
+    {
+      name: 'reports.schedule-delivery',
+      cron: '* * * * *',
+      run: runScheduledReportDeliveryJob,
+    },
+  ],
   openapiRoutes: [
     {
       method: 'get',

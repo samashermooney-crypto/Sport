@@ -75,16 +75,6 @@ export const savedReportUpdateSchema = z.strictObject({
   expectedVersion: z.number().int().positive(),
 });
 
-export const reportScheduleBodySchema = z.strictObject({
-  savedReportId: z.uuid(),
-  cadence: z.enum(['daily', 'weekly', 'monthly']),
-  recipientAccountIds: z.array(z.uuid()).min(1).max(20),
-  delivery: z.enum(['link', 'csv_attachment']),
-  format: z.enum(['csv', 'xlsx']).default('csv'),
-  /** Minutes after midnight in the organization's timezone. */
-  runAtMinute: z.number().int().min(0).max(1439).default(360),
-});
-
 export const reportScheduleUpdateSchema = z.strictObject({
   cadence: z.enum(['daily', 'weekly', 'monthly']).optional(),
   recipientAccountIds: z

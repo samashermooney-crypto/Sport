@@ -2255,6 +2255,19 @@ export interface ReportDeliveryOutbox {
   updated_at: Generated<Timestamp>;
 }
 
+export interface ReportDeliveryRecipients {
+  account_id: string;
+  attempts: Generated<number>;
+  created_at: Generated<Timestamp>;
+  id: string;
+  last_error: string | null;
+  org_id: string;
+  outbox_id: string;
+  provider_message_id: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface ReportSchedules {
   cadence: string;
   created_at: Generated<Timestamp>;
@@ -2987,6 +3000,7 @@ export interface DB {
   registrations: Registrations;
   report_deliveries: ReportDeliveries;
   report_delivery_outbox: ReportDeliveryOutbox;
+  report_delivery_recipients: ReportDeliveryRecipients;
   report_schedules: ReportSchedules;
   reschedule_requests: RescheduleRequests;
   result_audit: ResultAudit;

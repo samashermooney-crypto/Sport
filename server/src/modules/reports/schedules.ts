@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import {
-  datasetByKey,
-} from '@shared/reports/datasets';
+import { datasetByKey } from '@shared/reports/datasets';
 import {
   reportDefinitionSchema,
   reportScheduleBodySchema,
@@ -19,7 +17,6 @@ import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 import { appendAuditEvent } from '../audit/service';
 
 import {
-  canEditSavedReport,
   canManageSavedReports,
   canViewSavedReport,
   loadReportActorAccess,
@@ -64,7 +61,11 @@ type ScheduleRow = {
 
 function recipientIds(value: unknown): string[] {
   if (!Array.isArray(value) || !value.every((item) => typeof item === 'string'))
-    throw new ReportError(500, 'INTERNAL_ERROR', 'Schedule recipients are invalid');
+    throw new ReportError(
+      500,
+      'INTERNAL_ERROR',
+      'Schedule recipients are invalid',
+    );
   return value;
 }
 
@@ -93,7 +94,14 @@ async function loadAccessibleSavedReport(
 ): Promise<{ row: SavedReportRow; definition: ReportDefinition }> {
   const row = await trx
     .selectFrom('saved_reports')
-    .select(['id', 'dataset', 'definition', 'created_by', 'shared_roles', 'is_preset'])
+    .select([
+      'id',
+      'dataset',
+      'definition',
+      'created_by',
+      'shared_roles',
+      'is_preset',
+    ])
     .where('org_id', '=', context.orgId)
     .where('id', '=', reportId)
     .executeTakeFirst();
@@ -101,7 +109,11 @@ async function loadAccessibleSavedReport(
     throw new ReportError(404, 'NOT_FOUND', 'Saved report not found');
   const definition = reportDefinitionSchema.parse(row.definition);
   if (row.dataset !== definition.dataset)
-    throw new ReportError(500, 'INTERNAL_ERROR', 'Saved report dataset is invalid');
+    throw new ReportError(
+      500,
+      'INTERNAL_ERROR',
+      'Saved report dataset is invalid',
+    );
   const dataset = datasetForActor(definition.dataset, roles);
   if (!(await datasetAvailable(trx, dataset)))
     throw new ReportError(
@@ -151,8 +163,7 @@ async function validateRecipients(
     members.length !== body.recipientAccountIds.length ||
     members.some(
       (member) =>
-        member.account_status !== 'active' ||
-        member.email_verified_at === null,
+        member.account_status !== 'active' || member.email_verified_at === null,
     )
   )
     throw new ReportError(
@@ -184,11 +195,9 @@ async function validateRecipients(
       accountId,
     );
     const recipientDataset = datasetForActor(definition.dataset, roles);
-    const visible = columnsForActor(
-      recipientDataset,
-      recipientAccess.roles,
-      { registrarMedicalAccess: recipientAccess.registrarMedicalAccess },
-    );
+    const visible = columnsForActor(recipientDataset, recipientAccess.roles, {
+      registrarMedicalAccess: recipientAccess.registrarMedicalAccess,
+    });
     validateReportDefinition(recipientDataset, visible, definition);
     if (!canViewSavedReport(accountId, roles, report))
       throw new ReportError(
@@ -213,7 +222,11 @@ export async function createReportSchedule(
       context.actor.accountId,
     );
     if (!canManageSavedReports(access.roles))
-      throw new ReportError(403, 'FORBIDDEN', 'Report management access required');
+      throw new ReportError(
+        403,
+        'FORBIDDEN',
+        'Report management access required',
+      );
     const { row: report, definition } = await loadAccessibleSavedReport(
       trx,
       context,
@@ -226,7 +239,11 @@ export async function createReportSchedule(
       .select('timezone')
       .where('id', '=', context.orgId)
       .executeTakeFirstOrThrow();
-    const anchor = reportScheduleAnchor(body.cadence, now, organization.timezone);
+    const anchor = reportScheduleAnchor(
+      body.cadence,
+      now,
+      organization.timezone,
+    );
     const nextRunAt = nextReportScheduleAt({
       cadence: body.cadence,
       runAtMinute: body.runAtMinute,
@@ -246,7 +263,7 @@ export async function createReportSchedule(
         run_on_weekday: anchor.runOnWeekday,
         run_on_day: anchor.runOnDay,
         next_run_at: nextRunAt,
-        recipients: body.recipientAccountIds as unknown as Json,
+        recipients: JSON.stringify(body.recipientAccountIds) as unknown as Json,
         delivery: body.delivery,
         format: body.format,
         created_by: context.actor.accountId,
@@ -328,7 +345,11 @@ export async function updateReportSchedule(
     )
       throw new ReportError(404, 'NOT_FOUND', 'Report schedule not found');
     if (!canManageSavedReports(access.roles))
-      throw new ReportError(403, 'FORBIDDEN', 'Report management access required');
+      throw new ReportError(
+        403,
+        'FORBIDDEN',
+        'Report management access required',
+      );
     if (current.version !== body.expectedVersion)
       throw new ReportError(
         409,
@@ -367,8 +388,7 @@ export async function updateReportSchedule(
     const timeChanged =
       body.runAtMinute !== undefined || body.cadence !== undefined;
     const nextRunAt =
-      nextStatus === 'active' &&
-      (current.status === 'paused' || timeChanged)
+      nextStatus === 'active' && (current.status === 'paused' || timeChanged)
         ? nextReportScheduleAt({
             cadence: nextBody.cadence,
             runAtMinute: nextBody.runAtMinute,
@@ -385,7 +405,9 @@ export async function updateReportSchedule(
         run_at_minute: nextBody.runAtMinute,
         run_on_weekday: anchor.runOnWeekday,
         run_on_day: anchor.runOnDay,
-        recipients: nextBody.recipientAccountIds as unknown as Json,
+        recipients: JSON.stringify(
+          nextBody.recipientAccountIds,
+        ) as unknown as Json,
         delivery: nextBody.delivery,
         format: nextBody.format,
         status: nextStatus,
