@@ -38,6 +38,11 @@ function paymentIntentView(intent: Stripe.PaymentIntent): GatewayPaymentIntent {
         ? intent.latest_charge
         : (intent.latest_charge?.id ?? null),
     method,
+    failureCode:
+      intent.last_payment_error?.decline_code ??
+      intent.last_payment_error?.code ??
+      null,
+    failureMessage: intent.last_payment_error?.message ?? null,
   };
 }
 
@@ -269,6 +274,9 @@ export class StripeSdkGateway implements PaymentsGateway {
           org_id: input.orgId,
           invoice_id: input.invoiceId,
           ...(input.checkoutId ? { checkout_id: input.checkoutId } : {}),
+          ...(input.installmentId
+            ? { installment_id: input.installmentId }
+            : {}),
         },
       },
       { idempotencyKey: input.idempotencyKey },

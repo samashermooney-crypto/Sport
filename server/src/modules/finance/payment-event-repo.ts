@@ -1,4 +1,5 @@
 import { Temporal } from '@js-temporal/polyfill';
+import { nextInstallmentAttempt } from '@shared/algorithms/dunning-schedule';
 import { sql, type Kysely } from 'kysely';
 
 import type { DB } from '../../db/types.js';
@@ -63,7 +64,15 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
     return this.withOrg(context, async (trx) => {
       const payment = await trx
         .selectFrom('payments')
-        .select(['id', 'amount_cents', 'status', 'method', 'stripe_charge_id'])
+        .select([
+          'id',
+          'amount_cents',
+          'status',
+          'method',
+          'stripe_charge_id',
+          'failure_code',
+          'failure_message',
+        ])
         .select(
           sql<Date | null>`processing_started_at`.as('processing_started_at'),
         )
@@ -98,10 +107,20 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
       if (target === 'succeeded' && method === 'unknown')
         throw new Error('Successful Stripe payment method is unknown');
       const chargeId = input.latest.latestChargeId ?? payment.stripe_charge_id;
+      const failureCode =
+        target === 'failed'
+          ? (input.latest.failureCode ?? 'unknown')
+          : target === 'canceled'
+            ? 'canceled'
+            : null;
+      const failureMessage =
+        target === 'failed' ? (input.latest.failureMessage ?? null) : null;
       if (
         target === payment.status &&
         method === payment.method &&
-        chargeId === payment.stripe_charge_id
+        chargeId === payment.stripe_charge_id &&
+        failureCode === payment.failure_code &&
+        failureMessage === payment.failure_message
       )
         return 'unchanged';
 
@@ -124,6 +143,8 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
           status: target,
           method,
           stripe_charge_id: chargeId,
+          failure_code: failureCode,
+          failure_message: failureMessage,
           succeeded_at: firstSuccess
             ? new Date(this.now().epochMilliseconds)
             : undefined,
@@ -151,7 +172,12 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
         if (allocation.installment_id) {
           await trx
             .updateTable('installments')
-            .set({ paid_cents: sql`paid_cents + ${allocation.amount_cents}` })
+            .set({
+              paid_cents: sql`paid_cents + ${allocation.amount_cents}`,
+              status: sql`CASE WHEN paid_cents + ${allocation.amount_cents} >= amount_cents THEN 'paid' ELSE 'processing' END`,
+              next_attempt_at: null,
+              version: sql`version + 1`,
+            })
             .where('org_id', '=', input.orgId)
             .where('id', '=', allocation.installment_id)
             .execute();
@@ -162,6 +188,50 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
           allocation.invoice_id,
           todayLocal,
         );
+      }
+      if (
+        allocation.installment_id &&
+        (target === 'failed' || target === 'canceled')
+      ) {
+        const installment = await trx
+          .selectFrom('installments')
+          .select(['attempt_count', 'status'])
+          .where('org_id', '=', input.orgId)
+          .where('id', '=', allocation.installment_id)
+          .forUpdate()
+          .executeTakeFirstOrThrow();
+        if (installment.status !== 'paid') {
+          const retry =
+            target === 'failed'
+              ? nextInstallmentAttempt(
+                  this.now().toString(),
+                  installment.attempt_count,
+                  failureCode ?? 'unknown',
+                  org.timezone,
+                )
+              : { retry: false, nextAttemptAt: null, finalFailure: true };
+          await trx
+            .updateTable('installments')
+            .set({
+              status: 'failed',
+              autopay: retry.retry,
+              next_attempt_at: retry.nextAttemptAt
+                ? new Date(retry.nextAttemptAt)
+                : null,
+              last_failure_code: failureCode,
+              last_failure_message: failureMessage,
+              version: sql`version + 1`,
+            })
+            .where('org_id', '=', input.orgId)
+            .where('id', '=', allocation.installment_id)
+            .execute();
+          await recomputeInvoiceStatus(
+            trx,
+            input.orgId,
+            allocation.invoice_id,
+            todayLocal,
+          );
+        }
       }
       await appendAuditEvent(trx, context, {
         action: `payment.${target}`,

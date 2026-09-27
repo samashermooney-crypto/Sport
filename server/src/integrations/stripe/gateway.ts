@@ -109,6 +109,7 @@ export interface DestinationPaymentInput {
   orgId: string;
   invoiceId: string;
   checkoutId?: string;
+  installmentId?: string;
   idempotencyKey: string;
   saveForAutopay: boolean;
   statementDescriptorSuffix?: string;
@@ -124,6 +125,8 @@ export interface GatewayPaymentIntent {
   latestChargeId: string | null;
   method?:
     'card' | 'us_bank_account' | 'link' | 'apple_pay' | 'google_pay' | null;
+  failureCode?: string | null;
+  failureMessage?: string | null;
 }
 
 export interface GatewayPaymentMethod {
