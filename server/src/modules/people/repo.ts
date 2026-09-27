@@ -51,6 +51,7 @@ const selection = [
   'email',
   'phone_e164',
   'media_consent',
+  'photo_file_id',
   'status',
   'version',
 ] as const;
@@ -101,6 +102,7 @@ function mapPerson(
     email: string | null;
     phone_e164: string | null;
     media_consent: string;
+    photo_file_id: string | null;
     status: string;
     version: number;
   },
@@ -129,6 +131,7 @@ function mapPerson(
     email: row.email,
     phoneE164: row.phone_e164,
     mediaConsent: row.media_consent,
+    photoFileId: row.media_consent === 'granted' ? row.photo_file_id : null,
     status: row.status,
     version: row.version,
   });
@@ -416,6 +419,17 @@ export function createPeopleRepository(database: Kysely<DB>) {
         const context = await presentation(trx, orgId);
         if (input.dateOfBirth !== undefined)
           validateBirthDate(input.dateOfBirth, context);
+        const priorPhoto =
+          input.mediaConsent && input.mediaConsent !== 'granted'
+            ? await trx
+                .selectFrom('people')
+                .select('photo_file_id')
+                .where('org_id', '=', orgId)
+                .where('id', '=', personId)
+                .where('version', '=', input.expectedVersion)
+                .forUpdate()
+                .executeTakeFirst()
+            : null;
         const fields = {
           ...(input.firstName !== undefined
             ? { first_name: input.firstName }
@@ -438,7 +452,12 @@ export function createPeopleRepository(database: Kysely<DB>) {
             ? { phone_e164: input.phoneE164 }
             : {}),
           ...(input.mediaConsent !== undefined
-            ? { media_consent: input.mediaConsent }
+            ? {
+                media_consent: input.mediaConsent,
+                ...(input.mediaConsent !== 'granted'
+                  ? { photo_file_id: null }
+                  : {}),
+              }
             : {}),
         };
         const row = await trx
@@ -456,6 +475,14 @@ export function createPeopleRepository(database: Kysely<DB>) {
             'CONFLICT',
             'Person changed; reload before saving',
           );
+        if (priorPhoto?.photo_file_id)
+          await trx
+            .updateTable('files')
+            .set({ deleted_at: new Date() })
+            .where('org_id', '=', orgId)
+            .where('id', '=', priorPhoto.photo_file_id)
+            .where('deleted_at', 'is', null)
+            .execute();
         await audit(
           trx,
           orgId,
@@ -465,6 +492,82 @@ export function createPeopleRepository(database: Kysely<DB>) {
           row.version,
         );
         return mapPerson(row, context);
+      });
+    },
+    async setPhoto(
+      orgId: string,
+      actorId: string,
+      personId: string,
+      input: { expectedVersion: number; fileId: string | null },
+    ) {
+      return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
+        await requireStaff(trx, orgId, actorId, false);
+        const current = await trx
+          .selectFrom('people')
+          .select(['version', 'status', 'media_consent', 'photo_file_id'])
+          .where('org_id', '=', orgId)
+          .where('id', '=', personId)
+          .forUpdate()
+          .executeTakeFirst();
+        if (!current)
+          throw new PeopleError(404, 'NOT_FOUND', 'Person not found');
+        if (
+          current.status !== 'active' ||
+          current.version !== input.expectedVersion
+        )
+          throw new PeopleError(
+            409,
+            'CONFLICT',
+            'Person changed; reload before saving',
+          );
+        if (input.fileId) {
+          if (current.media_consent !== 'granted')
+            throw new PeopleError(409, 'CONFLICT', 'Photo consent is required');
+          const file = await trx
+            .selectFrom('files')
+            .select('id')
+            .where('org_id', '=', orgId)
+            .where('id', '=', input.fileId)
+            .where('owner_type', '=', 'person')
+            .where('owner_id', '=', personId)
+            .where('purpose', '=', 'image')
+            .where('sensitivity', '=', 'sensitive')
+            .where('upload_state', '=', 'complete')
+            .where('deleted_at', 'is', null)
+            .where('mime', 'in', ['image/jpeg', 'image/png', 'image/webp'])
+            .executeTakeFirst();
+          if (!file)
+            throw new PeopleError(
+              400,
+              'VALIDATION_ERROR',
+              'Photo file is unavailable',
+            );
+        }
+        const row = await trx
+          .updateTable('people')
+          .set({ photo_file_id: input.fileId, version: sql`version + 1` })
+          .where('org_id', '=', orgId)
+          .where('id', '=', personId)
+          .where('version', '=', input.expectedVersion)
+          .returning(selection)
+          .executeTakeFirstOrThrow();
+        if (current.photo_file_id && current.photo_file_id !== input.fileId)
+          await trx
+            .updateTable('files')
+            .set({ deleted_at: new Date() })
+            .where('org_id', '=', orgId)
+            .where('id', '=', current.photo_file_id)
+            .where('deleted_at', 'is', null)
+            .execute();
+        await audit(
+          trx,
+          orgId,
+          actorId,
+          personId,
+          input.fileId ? 'person.photo_attached' : 'person.photo_removed',
+          row.version,
+        );
+        return mapPerson(row, await presentation(trx, orgId));
       });
     },
     async archive(

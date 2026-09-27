@@ -518,3 +518,11 @@
 - **Decision:** A program filter matches a registration that has not been canceled, withdrawn or transferred out. A team filter matches a current roster entry with active, injured or suspended status and no departure date. Staff search organization programs and team seasons by name, with team labels including their program.
 - **Why:** This makes the directory useful for current operations while keeping historical participation available in the underlying records.
 - **Consequences / follow-ups:** Historical participation needs a separate history view rather than broadening these current-participant filters.
+
+### DEC-074 — Retire person photos when media consent ends
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People photos
+- **Context:** A person's photo can remain in the file store after consent changes, and the generic file endpoint can issue a download link independently of the People profile.
+- **Decision:** Staff attach only a completed image file with sensitive classification and exact person ownership after media consent is granted. The browser crops to a square before upload. Removing or replacing a photo, or revoking consent, clears the profile link and soft-deletes the old file record in the same org transaction. Person responses suppress photo IDs whenever consent is not granted.
+- **Why:** The file cannot be newly downloaded after consent revocation, while the audit and file metadata remain reviewable.
+- **Consequences / follow-ups:** Previously issued external presigned URLs may remain valid until their five-minute expiry. The family portal photo editor must reuse the same consent and ownership checks when Phase 2 guardian access lands.
