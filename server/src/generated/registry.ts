@@ -7,6 +7,7 @@ import { integrationConfig as storageConfig } from '../integrations/storage/conf
 import type { IntegrationConfig, ServerModule } from '../lib/module-contract';
 import { moduleDefinition as auditModule } from '../modules/audit/module';
 import { moduleDefinition as authModule } from '../modules/auth/module';
+import { moduleDefinition as classesModule } from '../modules/classes/module';
 import { moduleDefinition as communicationsModule } from '../modules/communications/module';
 import { moduleDefinition as complianceModule } from '../modules/compliance/module';
 import { moduleDefinition as disciplineModule } from '../modules/discipline/module';
@@ -22,6 +23,7 @@ import { moduleDefinition as safetyModule } from '../modules/safety/module';
 export const serverModules: readonly ServerModule[] = [
   auditModule,
   authModule,
+  classesModule,
   communicationsModule,
   complianceModule,
   disciplineModule,
