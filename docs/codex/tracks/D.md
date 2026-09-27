@@ -3,15 +3,16 @@
 Status: ready-for-integration
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Current: Track D queue complete; identity screens were restyled after Track A marked them stable (task 3/17).
-Ready for integration: 195e30e..HEAD — shared primitives, extended components, design parity coverage, shell navigation, and auth controls are ready for dependent screens.
-Requests to other tracks: none; the dev showcase route and generated types are integrated on trunk.
-Blocked on: None.
-Completed: Queue 1 reference capture and token snapshot; queue 2 shared primitives and initial tests.
-Completed: Queue 3 extended controls, overlays, calendar, chart, rich text, signature, QR, print, board, bracket and chat components.
-Completed: Queue 4 parity suite and queue 5 mobile tabs, command palette and global search shell.
-Completed: Queue 6 auth restyle; auth fields, buttons, links, checkboxes, and select controls now use shared primitives while retaining the captured sign-in frame.
-Self-review: `tokens.css` and `tokens.json` retain captured legacy values; DEC-028 records the only contrast adjustments, with no palette or type scale changes.
-Self-review: `/__ui` is development-only and route discovery uses `routes.tsx`/`nav.ts` through the generated registry.
-Self-review: Board moves have a keyboard alternative; calendar views, shell shortcuts, mobile overflow, 44px touch targets and axe checks have targeted coverage.
-Verification: `npm run typecheck`, `npm run lint`, `npm test` (431 passed, 1 skipped), `npm run build`, `npm run registry`, and `npm run openapi` pass. Full browser suite: 16 passed and 4 project skips, including sign-in journeys and design parity on Chromium and WebKit mobile. Fresh e2e migrations and seed completed; source references are Chromium captures.
+Current: All Track D queue items 1–6 are complete; the dev-only showcase is mounted through the generated registry.
+Ready for integration: 195e30e..HEAD — primitives, extended components, parity coverage, shell navigation and auth controls are ready for dependent screens.
+Requests to other tracks: Track A — latest observed `rebuild/trunk` (`fd46684`) fails the staged ESLint hook in `memberRoles.ts`, `ownershipTransfer.ts` and `orgs/routes.ts`; fix before full-gate integration. `/__ui` is picked up through `web/src/ui/routes.tsx`.
+Blocked on: None for Track D.
+Completed: Queue 1 legacy reference captures and token snapshot; queue 2 primitives published in early batches with initial tests.
+Completed: Queue 3 extended controls, overlays, calendar views/resource grid, chart, rich text, signature, QR, print, keyboard-accessible board, bracket and chat components.
+Completed: Queue 4 parity suite; queue 5 mobile bottom tabs, command palette and global search shell.
+Completed: Queue 6 auth controls restyled through shared components after Track A marked identity screens stable.
+Self-review: `tokens.css` and `tokens.json` retain captured legacy values and fonts; accessibility-only adjustments use existing tokens (DEC-029, DEC-031) and the mobile modal touch-target adjustment is logged in DEC-030.
+Self-review: `/__ui` is dev-only and registry-discovered; chart tones are token-backed; no CSS framework or styled component library is used.
+Self-review: Desktop/mobile axe checks, 44px targets, modal escape behavior, keyboard tabs, calendar views and board keyboard moves are covered by the parity suite.
+Verification: typecheck, lint, `npm test` (439 passed, 1 skipped), build (149.63 KB gzip main bundle), registry, OpenAPI and database codegen pass; full Playwright: 20 passed, 4 expected skips.
+Track D complete.
