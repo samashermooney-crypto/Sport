@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol
 Branch: `track/b-logic`
-Current: Second queue B-owned modules and audited tenant impersonation are on trunk; canonical notification aliases and two-way OpenAPI route coverage are ready locally, while shared API contracts remain for strict Phase 1 acceptance.
+Current: Track B complete; E/F/H cross-track requests are committed locally and the integration branch passes the full gate.
 Ready: Age/eligibility — `shared/src/sport/{age,eligibility}.ts`; 11 targeted tests, typecheck and lint green.
 Ready: Recurrence — `shared/src/recurrence.ts`; 11 targeted tests across four timezones, typecheck and lint green.
 Ready: Sport schema/results/stats/standings — 19 targeted tests, typecheck and lint green; template goldens still pending.
@@ -24,7 +24,13 @@ Ready: Phase 1 task 15 core — OpenAPI 3.1 for 85 current operations with AST-v
 Ready: Phase 1 task 14 — append-only audit service, fail-closed Restricted-field redaction/read helper, role-scoped cursor API and functional console viewer.
 Ready: Phase 1 task 13 — code-defined catalog, canonical and trunk-compatible account/organization inbox and preference aliases, audited writes, Postgres LISTEN/NOTIFY SSE, and portal notification center; mounted HTTP, SSE, tenancy and suspended-org tests pass.
 Ready: Phase 1 task 9 — global platform staff/flags/impersonation/audit schema, org and plan controls, guarded read-only 60-minute impersonation, health API, functional `/platform` console and hidden-password bootstrap script; Postgres/HTTP and Chromium/WebKit acceptance pass.
-Ready for integration: ef17f99..HEAD — two-way AST OpenAPI route coverage and regenerated 85-operation document after staff-role merge; canonical and trunk-compatible notification aliases, second-queue tasks 10/15/14/9 core and complete logic queue `30a775f..5c01024` are on trunk.
+Ready: Track E finance request `c537133` — weekly installments from `02 §L`, separate lost-dispute cents in invoice state, targeted shared tests and DEC-042.
+Ready: Track F safety request `7f08458` — `credentials.expiry` registry runner with locked system actor, account-scoped notification trigger and F payload-safe inbox contract; targeted job/Postgres tests.
+Ready: Track H communications request `5751eb2` — all 47 Phase 10 template types in the inbox catalog, SMS/push preferences, and a preferences-center link target for tokenized unsubscribe; targeted Postgres and Chromium/WebKit tests.
+Ready for integration: 58ce328..HEAD — E/F/H requests, 109-operation regenerated OpenAPI document and latest trunk sync; second-queue tasks 10/15/14/13/9 and logic queue `30a775f..5c01024` are on trunk.
+Requests to other tracks: E — pass `disputedLostCents` separately from `refundedToMethodCents` to `deriveInvoiceState` and accept `{ kind: 'weekly', count }` in installment-template validation (2026-09-27).
+Requests to other tracks: F — merge the compliance module declaration; `credentials.expiry` resolves to the B runner and direct notification inserts publish SSE through migration 0606 (2026-09-27).
+Requests to other tracks: H — use `preferencesCenterPath(orgId)` after applying a tokenized unsubscribe; H-owned English/Spanish template bodies remain in the communications module (2026-09-27).
 Requests to other tracks: A/C — move file-route request/response contracts and B module-local audit/notification/platform contracts to shared Zod schemas; merged file-route descriptors make OpenAPI generation pass.
 Requests to other tracks: A/C — migrate A-owned mutable org routes to `expectedVersion`/version helpers and align C-owned files errors with the closed shared error envelope (`FILE_INVALID` is currently undeclared and uses a different JSON shape).
 Integration dependencies: A/C-owned shared Zod request/response contracts, A-owned org version helper migration and C-owned files error envelope; mounted stream, portal aliases and audited impersonation are covered locally.
@@ -42,4 +48,4 @@ Self-review: Marketing notification preferences default disabled until explicit 
 Self-review: Notification SSE revalidates its session on every 20-second heartbeat, ignores malformed envelopes and reloads the inbox on reconnect.
 Self-review: B-owned audit/notification tenant reads carry the impersonation header; notification writes are hidden or disabled while impersonating, and banner end/expiry synchronizes the read-only state.
 Self-review: Task 9 checked against Phase 1 task 9; platform writes use admin role where app grants are revoked, plan and org changes carry versions, last active super admin is protected, and impersonation requests log IDs without record payloads.
-Self-review: Full unit/integration suite passes (441 tests, 1 existing skip) after staff-role trunk sync; typecheck, lint, build, registry and OpenAPI generation pass; full Chromium/WebKit gate passes (11 pass, 3 existing skips) including platform, audited impersonation, mounted stream, canonical portal inbox/read/preference persistence and axe.
+Self-review: Full unit/integration suite passes (550 tests, 1 existing skip) after E/F/H changes; typecheck, lint, build, registry and 109-operation OpenAPI generation pass; full Chromium/WebKit gate passes (26 pass, 4 existing skips) including platform, SMS/push preferences, mounted stream and axe.
