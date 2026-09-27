@@ -50,4 +50,35 @@ describe('refund policy', () => {
       }).serviceFeeCents,
     ).toBe(0);
   });
+
+  it('rejects malformed dates, duplicate lines and over-refunded amounts', () => {
+    expect(() => proposeRefund([], 0, '09/01/2026', policy)).toThrow();
+    expect(() => proposeRefund([], -1, '2026-09-01', policy)).toThrow();
+    expect(() => proposeRefund([], 100, '2026-09-01', policy, 101)).toThrow();
+    expect(() =>
+      proposeRefund(
+        [
+          { id: 'a', paidCents: 100 },
+          { id: 'a', paidCents: 100 },
+        ],
+        0,
+        '2026-09-01',
+        policy,
+      ),
+    ).toThrow();
+    expect(() =>
+      proposeRefund(
+        [{ id: 'a', paidCents: 100, previouslyRefundedCents: 101 }],
+        0,
+        '2026-09-01',
+        policy,
+      ),
+    ).toThrow();
+    expect(() =>
+      proposeRefund([], 0, '2026-09-01', { ...policy, afterLastBps: 10_001 }),
+    ).toThrow();
+    expect(() =>
+      proposeRefund([], 0, '2026-10-01', { ...policy, afterLastBps: 10_001 }),
+    ).toThrow();
+  });
 });

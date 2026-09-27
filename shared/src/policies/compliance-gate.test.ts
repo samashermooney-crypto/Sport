@@ -92,4 +92,35 @@ describe('compliance gate', () => {
       }).eligible,
     ).toBe(false);
   });
+
+  it('uses the longest valid renewal for each requirement and the earliest requirement expiry', () => {
+    const result = checkCompliance({
+      ...base,
+      requirements: [{ typeId: 'safesport' }, { typeId: 'concussion' }],
+      credentials: [
+        ...base.credentials,
+        { typeId: 'safesport', status: 'verified', expiresOn: '2027-12-31' },
+        { typeId: 'concussion', status: 'verified', expiresOn: '2027-01-31' },
+      ],
+    });
+    expect(result.expiryDate).toBe('2027-01-31');
+    expect(
+      checkCompliance({
+        ...base,
+        credentials: [
+          { typeId: 'safesport', status: 'pending_review', expiresOn: null },
+        ],
+      }).missing[0]?.code,
+    ).toBe('CREDENTIAL_UNVERIFIED');
+  });
+
+  it('rejects invalid minimum ages and grace periods', () => {
+    expect(() => checkCompliance({ ...base, minimumAge: -1 })).toThrow();
+    expect(() =>
+      checkCompliance({
+        ...base,
+        requirements: [{ typeId: 'safesport', graceDays: -1 }],
+      }),
+    ).toThrow();
+  });
 });

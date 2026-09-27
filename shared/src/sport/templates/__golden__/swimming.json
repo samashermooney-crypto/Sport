@@ -114,7 +114,8 @@
       "precision": "hundredths",
       "heats": true,
       "lanes": 8,
-      "placePoints": [6, 4, 3, 2, 1]
+      "placePoints": [6, 4, 3, 2, 1],
+      "relayPlacePoints": [8, 4, 2]
     }
   ],
   "positions": [

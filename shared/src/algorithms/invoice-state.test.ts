@@ -112,4 +112,21 @@ describe('invoice state', () => {
       ),
     );
   });
+
+  it('marks overdue installments past due and rejects unreconciled money', () => {
+    expect(
+      deriveInvoiceState({
+        ...base,
+        installments: [
+          { dueOn: '2026-09-01', amountCents: 1000, paidCents: 0 },
+        ],
+      }).status,
+    ).toBe('past_due');
+    expect(() => {
+      assertInvoiceLines(100, [{ amountCents: 99.5 }, { amountCents: 0.5 }]);
+    }).toThrow();
+    expect(() => {
+      assertPaymentAllocations(100, [99], []);
+    }).toThrow();
+  });
 });

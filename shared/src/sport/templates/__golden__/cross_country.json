@@ -58,7 +58,11 @@
       "precision": "hundredths",
       "heats": false,
       "lanes": 8,
-      "placePoints": []
+      "placePoints": [],
+      "teamScoring": {
+        "method": "sum_of_places_top_n",
+        "count": 5
+      }
     }
   ],
   "positions": [],
