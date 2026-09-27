@@ -5,6 +5,7 @@ import { healthResponseSchema } from '@shared/schemas/health';
 import express from 'express';
 
 import { serverModules } from './generated/registry';
+import { tenantGuard } from './lib/tenant-guard';
 import type { AuthDependencies } from './modules/auth/routes';
 
 export function createApp(auth?: AuthDependencies): express.Express {
@@ -22,6 +23,7 @@ export function createApp(auth?: AuthDependencies): express.Express {
     response.json(healthResponseSchema.parse({ status: 'ok' }));
   });
   if (auth) {
+    app.use('/api/v1', tenantGuard(auth));
     for (const module of serverModules) {
       if (module.router) app.use(module.path, module.router(auth));
       for (const extra of module.extraRouters ?? []) {
