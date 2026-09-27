@@ -687,3 +687,10 @@
 - **Decision:** Store enabled stat keys in `programs.settings.statsEnabled`, expose a version-checked `results.manage` settings API and staff console editor, and capture only enabled keys. Public summaries include only enabled definitions marked public; private athlete metrics are shown in result-entry controls to staff managers only.
 - **Why:** Program-level opt-in prevents accidental collection, version checks avoid lost edits, and the public flag protects youth performance data.
 - **Consequences / follow-ups:** Personal bests and program/division leaderboards use shared aggregation functions and include only finalized contests. Saving a result replaces its stat lines when the request supplies a stats array; clients that omit that optional field preserve prior stat lines.
+### DEC-109 — Fail closed on incomplete route-security metadata
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 §1 security verification
+- **Context:** The generated OpenAPI document has no route permission/resource/scope metadata, and the checked-in permission matrix has no operation rows. Deriving expected access from path names or role labels would turn assumptions into security assertions.
+- **Decision:** Keep the all-route authorization, permission-matrix, and tenancy-fuzz Playwright checks marked `test.fixme` until Track C publishes operation metadata, real synthetic out-of-tenant resource fixtures, and a reviewed allow/deny row for every route. Do not count a random nonexistent ID as proof that an existing foreign resource is isolated.
+- **Why:** The checks must fail on real authorization gaps without inventing route policy or hiding a cross-tenant read behind an unrelated 404.
+- **Consequences / follow-ups:** Track C owns the generated contracts and CI wiring; the precise requests are recorded in `docs/codex/tracks/SEC.md` and `docs/codex/tracks/C.md`. Remove the `test.fixme` markers when those contracts are available and the checks can exercise real fixtures.
