@@ -25,6 +25,10 @@ export class VolunteerAccessError extends Error {
   readonly code = 'FORBIDDEN';
 }
 
+function numericValue(value: number | string): number {
+  return Number(value);
+}
+
 const dateOnly = (value: Date | string): string =>
   value instanceof Date ? value.toISOString().slice(0, 10) : value.slice(0, 10);
 
@@ -258,7 +262,7 @@ export async function listVolunteerShifts(
       endsAt: row.ends_at.toISOString(),
       slots: row.slots,
       filledSlots: row.filled_slots,
-      creditHours: row.credit_hours,
+      creditHours: numericValue(row.credit_hours),
       notes: row.notes,
       status: row.status,
       version: row.version,
@@ -396,7 +400,7 @@ export async function signupForVolunteerShift(
       personId: input.personId,
       householdId: input.householdId,
       status: row.status,
-      hoursCredited: row.hours_credited,
+      hoursCredited: numericValue(row.hours_credited),
       version: row.version,
     };
   });
@@ -449,8 +453,17 @@ export async function updateVolunteerSignup(
       throw new VolunteerConflictError('This signup status cannot be changed');
     const hours =
       input.status === 'completed'
-        ? (input.hoursCredited ?? current.credit_hours)
+        ? (input.hoursCredited ?? numericValue(current.credit_hours))
         : 0;
+    if (
+      input.status === 'completed' &&
+      (!Number.isFinite(hours) ||
+        hours < 0 ||
+        hours > numericValue(current.credit_hours))
+    )
+      throw new VolunteerConflictError(
+        'Credited hours must be within the shift credit limit',
+      );
     const row = await trx
       .updateTable('volunteer_signups')
       .set({
@@ -495,7 +508,7 @@ export async function updateVolunteerSignup(
       personId: row.person_id,
       householdId: row.household_id,
       status: row.status,
-      hoursCredited: row.hours_credited,
+      hoursCredited: numericValue(row.hours_credited),
       version: row.version,
     };
   });
@@ -646,7 +659,7 @@ export async function listShiftSignups(
       householdId: row.household_id,
       personName: `${row.first_name} ${row.last_name}`.trim(),
       status: row.status,
-      hoursCredited: row.hours_credited,
+      hoursCredited: numericValue(row.hours_credited),
       version: row.version,
     }));
   });
@@ -731,32 +744,39 @@ export async function householdVolunteerLedger(
     if (!requirementIds.length) return { householdId, items: [] };
     const credits = await sql<{
       requirement_id: string;
-      person_id: string;
+      person_id: string | null;
       completed: string | number;
       bought_out: string | number;
     }>`
-      SELECT requirement.id AS requirement_id, signup.person_id,
+      SELECT requirement.id AS requirement_id,
+        CASE WHEN requirement.amount_per_athlete IS NOT NULL THEN signup.person_id ELSE NULL END AS person_id,
         COALESCE(sum(CASE WHEN signup.status = 'completed' THEN
           CASE WHEN requirement.unit = 'hours' THEN signup.hours_credited ELSE 1 END
           ELSE 0 END), 0) AS completed,
-        COALESCE((SELECT sum(buyout.units) FROM volunteer_buyouts buyout
-          WHERE buyout.org_id = signup.org_id
-            AND buyout.requirement_id = requirement.id
-            AND buyout.household_id = signup.household_id
-            AND buyout.person_id IS NOT DISTINCT FROM CASE WHEN requirement.amount_per_athlete IS NOT NULL THEN signup.person_id ELSE NULL END), 0) AS bought_out
+        COALESCE(max(buyout.units), 0) AS bought_out
       FROM volunteer_signups signup
       JOIN volunteer_shifts shift
         ON shift.org_id = signup.org_id AND shift.id = signup.volunteer_shift_id
       JOIN volunteer_requirements requirement
         ON requirement.org_id = shift.org_id AND requirement.id = shift.requirement_id
+      LEFT JOIN (
+        SELECT org_id, requirement_id, household_id, person_id, sum(units) AS units
+        FROM volunteer_buyouts
+        GROUP BY org_id, requirement_id, household_id, person_id
+      ) buyout
+        ON buyout.org_id = signup.org_id
+       AND buyout.requirement_id = requirement.id
+       AND buyout.household_id = signup.household_id
+       AND buyout.person_id IS NOT DISTINCT FROM CASE WHEN requirement.amount_per_athlete IS NOT NULL THEN signup.person_id ELSE NULL END
       WHERE signup.org_id = ${context.orgId}::uuid
         AND signup.household_id = ${householdId}::uuid
         AND requirement.id = ANY(${requirementIds}::uuid[])
-      GROUP BY requirement.id, signup.org_id, signup.household_id, signup.person_id
+      GROUP BY requirement.id, signup.org_id, signup.household_id,
+        CASE WHEN requirement.amount_per_athlete IS NOT NULL THEN signup.person_id ELSE NULL END
     `.execute(trx);
     const creditMap = new Map(
       credits.rows.map((row) => [
-        `${row.requirement_id}:${row.person_id}`,
+        `${row.requirement_id}:${row.person_id ?? 'household'}`,
         { completed: Number(row.completed), boughtOut: Number(row.bought_out) },
       ]),
     );
@@ -774,16 +794,13 @@ export async function householdVolunteerLedger(
         Temporal.Instant.fromEpochMilliseconds(now.getTime()),
       );
       const deadline = dateOnly(first.deadline);
-      const targets =
+      const targetPersonIds =
         first.athlete_amount === null
-          ? [{ personId: null, rows }]
+          ? [null]
           : [...new Map(rows.map((row) => [row.person_id, row])).values()].map(
-              (row) => ({
-                personId: row.person_id,
-                rows: [row],
-              }),
+              (row) => row.person_id,
             );
-      return targets.map(({ personId, rows: targetRows }) => {
+      return targetPersonIds.map((personId) => {
         const required = Number(
           first.household_amount ?? first.athlete_amount ?? 0,
         );
@@ -795,19 +812,10 @@ export async function householdVolunteerLedger(
           : null;
         const allCredits = personId
           ? perPerson
-          : targetRows.reduce(
-              (sum, row) => {
-                const credit = creditMap.get(`${id}:${row.person_id}`) ?? {
-                  completed: 0,
-                  boughtOut: 0,
-                };
-                return {
-                  completed: sum.completed + credit.completed,
-                  boughtOut: sum.boughtOut + credit.boughtOut,
-                };
-              },
-              { completed: 0, boughtOut: 0 },
-            );
+          : (creditMap.get(`${id}:household`) ?? {
+              completed: 0,
+              boughtOut: 0,
+            });
         const completed = allCredits?.completed ?? 0;
         const boughtOut = allCredits?.boughtOut ?? 0;
         const remaining = Math.max(0, required - completed - boughtOut);

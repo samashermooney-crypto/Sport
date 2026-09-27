@@ -249,6 +249,16 @@ export async function createGuestDonation(
   },
   now = new Date(),
 ) {
+  const donorName = input.donorName.trim();
+  const donorEmail = input.donorEmail.trim().toLowerCase();
+  const dedication = input.dedication?.trim() || null;
+  if (
+    !donorName ||
+    !Number.isSafeInteger(input.amountCents) ||
+    input.amountCents < 100 ||
+    input.amountCents > 2_500_000
+  )
+    throw new RangeError('Donation details are outside the supported range');
   const context: OrgContext = {
     orgId: input.orgId,
     actor: { accountId: systemWorkerActorId },
@@ -258,15 +268,33 @@ export async function createGuestDonation(
       .selectFrom('donations')
       .select([
         'id',
+        'campaign_id',
+        'donor_name',
+        'donor_email',
         'receipt_number',
         'amount_cents',
+        'anonymous',
+        'dedication',
         'checkout_session_id',
         'status',
       ])
       .where('org_id', '=', input.orgId)
       .where('creation_key', '=', input.idempotencyKey)
       .executeTakeFirst();
-    if (existing) return existing;
+    if (existing) {
+      if (
+        existing.campaign_id !== input.campaignId ||
+        existing.donor_name !== donorName ||
+        existing.donor_email !== donorEmail ||
+        existing.amount_cents !== input.amountCents ||
+        existing.anonymous !== input.anonymous ||
+        existing.dedication !== dedication
+      )
+        throw new FundraisingConflictError(
+          'Donation idempotency key was already used with different details',
+        );
+      return existing;
+    }
     const campaign = await trx
       .selectFrom('fundraising_campaigns')
       .select('id')
@@ -288,8 +316,13 @@ export async function createGuestDonation(
     const receiptNumber = `DON-${String(now.getUTCFullYear())}-${String(number).padStart(6, '0')}`;
     const result = await sql<{
       id: string;
+      campaign_id: string;
+      donor_name: string;
+      donor_email: string;
+      anonymous: boolean;
+      dedication: string | null;
     }>`INSERT INTO donations (org_id, campaign_id, donor_name, donor_email, amount_cents, anonymous, dedication, receipt_number, creation_key)
-      VALUES (${input.orgId}, ${input.campaignId}, ${input.donorName}, ${input.donorEmail.toLowerCase()}, ${input.amountCents}, ${input.anonymous}, ${input.dedication ?? null}, ${receiptNumber}, ${input.idempotencyKey}) RETURNING id`.execute(
+      VALUES (${input.orgId}, ${input.campaignId}, ${donorName}, ${donorEmail}, ${input.amountCents}, ${input.anonymous}, ${dedication}, ${receiptNumber}, ${input.idempotencyKey}) RETURNING id, campaign_id, donor_name, donor_email, anonymous, dedication`.execute(
       trx,
     );
     const inserted = result.rows[0];
@@ -297,8 +330,13 @@ export async function createGuestDonation(
       throw new FundraisingConflictError('Donation could not be recorded');
     return {
       id: inserted.id,
+      campaign_id: inserted.campaign_id,
+      donor_name: inserted.donor_name,
+      donor_email: inserted.donor_email,
       receipt_number: receiptNumber,
       amount_cents: input.amountCents,
+      anonymous: inserted.anonymous,
+      dedication: inserted.dedication,
       checkout_session_id: null,
       status: 'pending',
     };
@@ -314,11 +352,11 @@ export async function createGuestDonation(
     };
   const checkoutResult = await checkout.create({
     orgId: input.orgId,
-    campaignId: input.campaignId,
+    campaignId: donation.campaign_id,
     donationId: donation.id,
     amountCents: donation.amount_cents,
-    donorName: input.donorName,
-    donorEmail: input.donorEmail.toLowerCase(),
+    donorName: donation.donor_name,
+    donorEmail: donation.donor_email,
     successUrl: `${input.appUrl}/me/donations/${donation.id}?status=success`,
     cancelUrl: `${input.appUrl}/site/${encodeURIComponent(input.orgId)}/fundraisers/${encodeURIComponent(input.campaignId)}?status=cancel`,
     idempotencyKey: input.idempotencyKey,
@@ -502,6 +540,7 @@ export async function markDonationPaid(
         'receipt_number',
         'status',
         'provider_payment_id',
+        'receipt_sent_at',
       ])
       .where('org_id', '=', context.orgId)
       .where('id', '=', input.donationId)
@@ -513,7 +552,10 @@ export async function markDonationPaid(
     if (current.status === 'paid') {
       if (current.provider_payment_id !== input.providerPaymentId)
         throw new FundraisingConflictError('Donation payment ID mismatch');
-      return { donation: current, alreadyPaid: true };
+      return {
+        donation: current,
+        sendReceipt: current.receipt_sent_at === null,
+      };
     }
     const paid = await trx
       .updateTable('donations')
@@ -535,6 +577,7 @@ export async function markDonationPaid(
         'receipt_number',
         'status',
         'provider_payment_id',
+        'receipt_sent_at',
       ])
       .executeTakeFirst();
     if (!paid)
@@ -550,10 +593,10 @@ export async function markDonationPaid(
         receiptNumber: { tier: 'internal', after: paid.receipt_number },
       },
     });
-    return { donation: paid, alreadyPaid: false };
+    return { donation: paid, sendReceipt: true };
   });
   const donation = outcome.donation;
-  if (outcome.alreadyPaid)
+  if (!outcome.sendReceipt)
     return {
       donationId: donation.id,
       receiptNumber: donation.receipt_number,
