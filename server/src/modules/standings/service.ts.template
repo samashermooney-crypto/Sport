@@ -1,0 +1,10 @@
+import type { CreateStandingsInput } from '../../../../shared/src/schemas/standings.js';
+import type { StandingsRepository } from './repo.js';
+
+export function createStandingsService(repository: StandingsRepository) {
+  return {
+    list: () => repository.list(),
+    get: (id: string) => repository.get(id),
+    create: (input: CreateStandingsInput) => repository.create(input),
+  };
+}
