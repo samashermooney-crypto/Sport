@@ -77,6 +77,7 @@ test('platform staff can inspect and suspend an organization accessibly', async 
     await expect
       .poll(async () => (await request.get('/healthz')).status())
       .toBe(200);
+    expect((await request.get('/api/v1/stream')).status()).toBe(401);
     await page.goto('/platform');
     await expect(
       page.getByRole('heading', { name: 'Platform', exact: true }),
@@ -94,6 +95,8 @@ test('platform staff can inspect and suspend an organization accessibly', async 
     await expect(
       page.getByRole('button', { name: 'Reactivate' }),
     ).toBeVisible();
+    await page.getByRole('button', { name: 'Reactivate' }).click();
+    await expect(page.getByRole('button', { name: 'Suspend' })).toBeVisible();
     await page
       .getByRole('textbox', { name: 'Reason for read-only impersonation' })
       .fill('Investigating an organization support request');
@@ -114,6 +117,19 @@ test('platform staff can inspect and suspend an organization accessibly', async 
     expect(impersonation.rows).toMatchObject([{ expires_in_seconds: 3600 }]);
     const impersonationId = impersonation.rows[0]?.id;
     expect(impersonationId).toBeTruthy();
+    await page
+      .getByRole('link', { name: 'Review safety requirements' })
+      .click();
+    await expect(
+      page.getByRole('heading', { name: 'Safety requirements' }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Viewing as platform staff. Changes are disabled.'),
+    ).toBeVisible();
+    await expect(
+      page.getByText(`Read-only impersonation for organization ${orgId}`),
+    ).toBeVisible();
+    expect(await accessibilityViolations(page)).toEqual([]);
     await page.getByRole('button', { name: 'End impersonation' }).click();
     await expect(
       page.getByText(`Read-only impersonation for organization ${orgId}`),
@@ -124,9 +140,16 @@ test('platform staff can inspect and suspend an organization accessibly', async 
     );
     expect(audits.rows.map((row) => row.action)).toEqual([
       'impersonation.start',
+      'impersonation.request',
       'impersonation.end',
     ]);
+    const tenantAudits = await database.query<{ impersonation_id: string }>(
+      `SELECT impersonation_id FROM audit_log WHERE org_id = $1 AND action = 'platform.impersonation_read'`,
+      [orgId],
+    );
+    expect(tenantAudits.rows).toEqual([{ impersonation_id: impersonationId }]);
     expect(await accessibilityViolations(page)).toEqual([]);
+    await page.goto('/platform');
     await page.getByRole('button', { name: 'Health' }).click();
     await expect(
       page.getByRole('heading', { name: 'System health' }),
