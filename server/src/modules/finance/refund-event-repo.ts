@@ -5,6 +5,7 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import type { GatewayRefund } from '../../integrations/stripe/gateway.js';
 import { appendAuditEvent } from '../audit/service.js';
+import { createNotification } from '../notifications/service.js';
 
 import { recomputeInvoiceStatus } from './invoice-repo.js';
 import type { RefundEventRepository } from './refund-events.js';
@@ -55,7 +56,7 @@ export class PostgresRefundEventRepository implements RefundEventRepository {
         throw new Error('Stripe refund amount differs from recorded refund');
       const payment = await trx
         .selectFrom('payments')
-        .select('stripe_payment_intent_id')
+        .select(['stripe_payment_intent_id', 'account_id'])
         .where('org_id', '=', input.orgId)
         .where('id', '=', refund.payment_id)
         .executeTakeFirstOrThrow();
@@ -121,6 +122,35 @@ export class PostgresRefundEventRepository implements RefundEventRepository {
             allocation.invoice_id,
             todayLocal,
           );
+        }
+        const staff = await trx
+          .selectFrom('role_assignments as role')
+          .innerJoin('org_memberships as member', (join) =>
+            join
+              .onRef('member.org_id', '=', 'role.org_id')
+              .onRef('member.account_id', '=', 'role.account_id'),
+          )
+          .select('role.account_id')
+          .distinct()
+          .where('role.org_id', '=', input.orgId)
+          .where('role.role', 'in', ['owner', 'admin', 'finance'])
+          .where('role.scope_type', '=', 'org')
+          .where('role.revoked_at', 'is', null)
+          .where('role.pending_mfa', '=', false)
+          .where('member.status', '=', 'active')
+          .execute();
+        const recipients = new Set([
+          ...(payment.account_id ? [payment.account_id] : []),
+          ...staff.map((member) => member.account_id),
+        ]);
+        if (!payment.account_id)
+          throw new Error('Settled refund payment lacks a payer account');
+        for (const accountId of recipients) {
+          await createNotification(trx, context, {
+            accountId,
+            type: 'refund.issued',
+            payload: { resourceType: 'refund', resourceId: refund.id },
+          });
         }
       }
       await appendAuditEvent(trx, context, {

@@ -211,6 +211,39 @@ describe('pending Stripe refund records', () => {
       context.actor.accountId,
       () => Temporal.Instant.from('2026-09-26T12:00:00Z'),
     );
+    const financeAccountId = newId();
+    await database
+      .insertInto('accounts')
+      .values({
+        id: financeAccountId,
+        email: `refund-finance-${randomUUID()}@example.invalid`,
+        first_name: 'Finance',
+        last_name: 'Reviewer',
+        date_of_birth: '1990-01-01',
+      })
+      .execute();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('org_memberships')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          account_id: financeAccountId,
+          status: 'active',
+        })
+        .execute();
+      await trx
+        .insertInto('role_assignments')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          account_id: financeAccountId,
+          role: 'finance',
+          scope_type: 'org',
+          pending_mfa: false,
+        })
+        .execute();
+    });
     const latest = {
       id: input.refundId,
       status: 'succeeded',
@@ -224,6 +257,17 @@ describe('pending Stripe refund records', () => {
     expect(
       await settlements.applyLatest({ orgId: context.orgId, refund: latest }),
     ).toBe('unchanged');
+    const notifications = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('notifications')
+        .select('account_id')
+        .where('org_id', '=', context.orgId)
+        .where('type', '=', 'refund.issued')
+        .execute(),
+    );
+    expect(notifications.map((row) => row.account_id).sort()).toEqual(
+      [context.actor.accountId, financeAccountId].sort(),
+    );
     const settled = await createWithOrg(database)(context, (trx) =>
       trx
         .selectFrom('invoices')

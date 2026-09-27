@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Card 3DS action, failure, recovery and duplicate success are now covered against the real invoice ledger; the A-owned app still must mount raw webhooks and enqueue `stripe.event`.
+Current: Successful original-method refunds now notify the payer and active org finance staff in the settlement transaction, once per Stripe refund; the A-owned app still must mount raw webhooks and enqueue `stripe.event`.
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
@@ -55,6 +55,9 @@ Ready for integration: local `be0bf4d..HEAD` — scheduled `installments.charge`
 Ready for integration: local `b79700b..HEAD` — finance invoice and payment emails freeze a payer-owned PDF and verified recipient before first send; full gate green (714 tests, 40 browser tests).
 Ready for integration: local `9001eeb..HEAD` — scheduled `stripe.replay` recovers unprocessed events after lost enqueue or expired leases without waiting for Stripe redelivery; full gate green (716 tests, 40 browser tests).
 Ready for integration: local `ffe0362..HEAD` — real-Postgres card PaymentIntent test covers 3DS action, failed method, recovery and duplicate success with exactly one invoice settlement; full gate green (719 tests, 40 browser tests).
+Ready for integration: local `eaf5f1d..HEAD` — settled Stripe refunds create payer and active finance staff inbox notifications atomically with invoice reopening; full gate green (719 tests, 40 browser tests).
+Review: `refund.issued` targets the exact payment payer and distinct active owner/admin/finance org roles with completed MFA; a duplicate settled event creates no additional messages.
+Review: Notification writes share the refund transaction and therefore roll back with a failed money update; typecheck, lint, 719 tests, 40 browser tests and build passed.
 Review: The card lifecycle uses recorded webhook shapes and a fresh Stripe-state gateway read at each step; invoice paid cents remain zero through challenge and failure.
 Review: Duplicate success leaves paid cents unchanged; typecheck, lint, 719 tests, 40 browser tests and build passed with fake Stripe state.
 Review: Replay selects only unprocessed, currently unleased event IDs, uses the same dispatcher and tenant handlers, and caps each minute at 100 events.
@@ -208,6 +211,7 @@ Dispute evidence: migration 1023 and `finance/dispute-evidence*` build tenant-ow
 Refund core: `finance/refunds.ts` applies Track B refund policy with proportional service-fee reversal, two-person threshold, ACH-processing block and stable idempotent Stripe refunds; 7 targeted tests pass.
 Refund attempts: migration 1003 and `finance/refund-attempt-repo.ts` persist scoped request-hash conflicts, pre-external retries, external fences and exact replay results; 2 real-Postgres tests pass.
 Stripe refund settlement: `finance/refund-record-repo.ts` records pending Stripe refunds with line/service-fee allocations before an attempt completes; latest-state `charge.refunded` and `charge.refund.updated` handlers settle invoice refunded cents once; 2 real-Postgres and 2 handler tests pass.
+Refund notification: successful original-method settlement creates the existing `refund.issued` in-app notice for the payer and active org finance staff within the same money transaction; duplicate webhooks do not fan out another notice.
 Refund to credit: migration 1014 links a succeeded internal refund to one issued credit; `finance/credit-refunds.ts` applies Track B policy and two-person approval, while `credit-refund-repo.ts` atomically writes refund allocations, invoice reopening and account/household credit; 1 real-Postgres and 2 policy tests pass.
 Invoice issuance: migration 1004 adds product-tax lines and creation keys; `finance/invoice-repo.ts` atomically numbers, dedupes and reconciles header/lines with the spine triggers; 2 real-Postgres tests pass.
 Invoice state: `finance/invoice-repo.ts` now recomputes Track B-derived status inside money transactions, audits issuance/voids and permits void only after net payments and credits reach zero; 2 further real-Postgres tests pass.
