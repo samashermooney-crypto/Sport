@@ -1,0 +1,11 @@
+# Track F — safety
+
+Status: ready-for-integration
+Branch: `track/f-safety`
+Current: Phase 7 migrations 2000–2008 and compliance, safety, discipline and safety UI are implemented on top of `rebuild/trunk` at `77f58d8`; module scaffolds were generated with `npm run gen:module`.
+Ready for integration: `77f58d8..HEAD` — Track F complete for its owned paths; Phase 7 end-to-end acceptance still needs the A/C integration requests below.
+Requests to other tracks: A — discover nested safety feature routes in the generated web registry and add the Phase 7 Playwright journeys on Chromium and WebKit mobile with axe (2026-09-27); A/G — call `assertEligibleForRole()` from staff, evaluator and official assignment flows (2026-09-27); B — run `credentials.expiry` from the module job registry and provide its notification delivery contract (2026-09-27); C — authorize linked guardian restricted uploads and owner/compliance restricted evidence downloads through the files module, preserving audit and person ownership checks (2026-09-27); E — expose the invoice service before volunteer-paid background checks can be enabled (2026-09-27); H — consume `server/src/modules/safety/safesport.ts` for message and conversation checks (2026-09-27).
+Blocked on: global Phase 7 acceptance needs A's generated web registry and Chromium/WebKit mobile safety journeys plus C's guardian upload and compliance download authorization; B's expiry worker and A/G/H policy call sites remain integration dependencies.
+Self-review: read 00, 02 §G, 04, 11 Phase 7, 15, and 50 §§2–3/6–7; wrapped B's compliance gate, FCRA timeline and SafeSport policy; applied FCRA waiting periods, encrypted evidence and Restricted-read audit checks; added decisions 026–029; `docs/codex/60-LUNA-PLAYBOOK.md` was absent from `rebuild/trunk` and `track/a-core`.
+Targeted verification: `server/src/modules/compliance/phase7.integration.test.ts` — 5 passed against isolated PostgreSQL, including tenancy, Restricted reads, person-owned evidence and staff demotion/reactivation.
+Full gate: `npm run typecheck`, `npm run lint`, `npm test` (75 files passed, 1 skipped; 348 passed, 1 skipped), `npm run test:e2e` (9 passed, 3 skipped across Chromium desktop and WebKit mobile), `npm run build`, `npm run registry` and `npm run openapi` passed/generated; no Phase 7 safety Playwright journeys exist in the A-owned e2e tree.

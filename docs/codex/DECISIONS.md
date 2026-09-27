@@ -215,3 +215,35 @@
 - **Decision:** Owners with completed MFA and recent step-up can edit the name, validity, activation blocking and active state with a version check. Show the verification method as read-only until a working provider workflow exists. Audit each change and hide another tenant's credential identifiers with 404.
 - **Why:** This lets an owner control every default requirement while preventing a setting that claims to verify credentials through an unavailable provider.
 - **Consequences / follow-ups:** Add selectable verification methods only with their complete review or provider workflow in a later phase.
+
+### DEC-026 — Compare compliance dates as organization calendar dates
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 7 credential eligibility and expiry
+- **Context:** PostgreSQL `date` values are returned through the driver as JavaScript `Date` objects; comparing those instants against an organization-local calendar day can shift eligibility at timezone boundaries.
+- **Decision:** Convert stored dates to `YYYY-MM-DD` values and compare them as SQL `date` values for eligibility, overrides and expiry.
+- **Why:** Credential and FCRA deadlines are calendar dates, not UTC instants.
+- **Consequences / follow-ups:** Tests cover timezone-safe expiry, credential review and override boundaries.
+
+### DEC-027 — Accept linked guardian injury reports
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 7 injuries and return to play
+- **Context:** The family portal presents injury reporting for a linked athlete, while the Phase 7 text does not narrow reporting to staff.
+- **Decision:** Permit a verified self or guardian link to submit and read that person's injury record; encrypt the narrative, write Restricted-read audits, notify guardians, and automatically hold rosters for suspected concussion reports.
+- **Why:** Families need a direct safety reporting path and concussion holds must not wait for staff review.
+- **Consequences / follow-ups:** Staff still review return-to-play evidence before roster restoration; role authorization remains tenant-scoped.
+
+### DEC-028 — Associate restricted uploads with the represented person
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 7 credential evidence
+- **Context:** Restricted file IDs are opaque, but a same-organization file ID could otherwise be attached to another person's credential.
+- **Decision:** Credential evidence must be a completed restricted file whose owner type is `person_credential` and owner id is the credential subject. The Files module must authorize guardian uploads and compliance reviewer downloads with its own audited policy.
+- **Why:** Organization scope alone does not prevent one person's protected document from appearing on another person's safety record.
+- **Consequences / follow-ups:** Track C must extend the Files module's current owner/admin-only access without weakening its tenant, consent, or audit checks.
+
+### DEC-029 — Keep volunteer-paid background checks disabled without invoicing
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 7 FCRA configuration
+- **Context:** The settings contract includes a volunteer-paid fee option, but the finance invoice service is not yet available to Track F.
+- **Decision:** Reject enabling volunteer-paid mode until Track E exposes an invoice-backed flow; manual and configured Checkr checks remain available without collecting money.
+- **Why:** A background-check flow must not collect or promise a fee without an auditable invoice and reconciliation path.
+- **Consequences / follow-ups:** Track E can unblock the option by providing its documented invoice service; no live payment path is introduced here.

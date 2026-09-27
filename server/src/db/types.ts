@@ -5,6 +5,14 @@
 
 import type { ColumnType } from 'kysely';
 
+export type ArrayType<T> =
+  ArrayTypeImpl<T> extends (infer U)[] ? U[] : ArrayTypeImpl<T>;
+
+export type ArrayTypeImpl<T> =
+  T extends ColumnType<infer S, infer I, infer U>
+    ? ColumnType<S[], I[], U[]>
+    : T[];
+
 export type Generated<T> =
   T extends ColumnType<infer S, infer I, infer U>
     ? ColumnType<S, I | undefined, U>
@@ -94,6 +102,7 @@ export interface Allocations {
 }
 
 export interface AthleteCards {
+  card_kind: Generated<string>;
   card_number: string;
   created_at: Generated<Timestamp>;
   id: string;
@@ -101,7 +110,7 @@ export interface AthleteCards {
   person_id: string;
   photo_file_id: string | null;
   program_id: string | null;
-  qr_secret: Buffer;
+  qr_secret_enc: Buffer;
   season_id: string | null;
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
@@ -188,22 +197,57 @@ export interface AutopayAuthorizations {
   user_agent: string | null;
 }
 
+export interface BackgroundCheckAdjudicationEvents {
+  action_at: Generated<Timestamp>;
+  actor_account_id: string;
+  adjudication: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  order_id: string;
+  org_id: string;
+  reason_enc: Buffer;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface BackgroundCheckDisputes {
+  candidate_account_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  order_id: string;
+  org_id: string;
+  resolution_enc: Buffer | null;
+  resolved_at: Timestamp | null;
+  resolved_by: string | null;
+  statement_enc: Buffer;
+  status: Generated<string>;
+  submitted_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface BackgroundCheckOrders {
   adjudicated_at: Timestamp | null;
   adjudicated_by: string | null;
   adjudication: Generated<string>;
   adverse_notice_at: Timestamp | null;
+  adverse_notice_delivered_at: Timestamp | null;
+  authorization_text: string | null;
+  authorization_version: string | null;
   completed_at: Timestamp | null;
+  consent_ip: string | null;
   consent_signed_at: Timestamp | null;
+  consent_user_agent: string | null;
   created_at: Generated<Timestamp>;
   credential_id: string | null;
   details_enc: Buffer | null;
+  disclosure_text: string | null;
   disclosure_version: string | null;
   id: string;
   org_id: string;
   package: string;
   person_id: string;
   pre_adverse_notice_at: Timestamp | null;
+  pre_adverse_notice_delivered_at: Timestamp | null;
   provider: string;
   provider_candidate_id: string | null;
   provider_report_id: string | null;
@@ -211,6 +255,43 @@ export interface BackgroundCheckOrders {
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
+}
+
+export interface BackgroundCheckProviderIndex {
+  created_at: Generated<Timestamp>;
+  order_id: string;
+  org_id: string;
+  provider: string;
+  report_id: string;
+}
+
+export interface BackgroundCheckSettings {
+  adverse_notice_text: string | null;
+  authorization_text: string | null;
+  authorization_version: string | null;
+  checkr_enabled: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  disclosure_text: string | null;
+  disclosure_version: string | null;
+  fcra_holidays: Generated<ArrayType<Timestamp>>;
+  id: string;
+  org_id: string;
+  package: Generated<string>;
+  pre_adverse_notice_text: string | null;
+  provider_mode: Generated<string>;
+  rights_summary_text: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+  volunteer_pays_fee: Generated<boolean>;
+}
+
+export interface BackgroundCheckWebhookEvents {
+  id: string;
+  org_id: string;
+  provider_event_id: string;
+  received_at: Generated<Timestamp>;
+  report_id: string;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface BalanceTransactions {
@@ -377,6 +458,24 @@ export interface CommunicationPreferences {
   version: Generated<number>;
 }
 
+export interface ComplianceOverrides {
+  approved_by: string;
+  created_at: Generated<Timestamp>;
+  expires_on: Timestamp;
+  granted_on: Timestamp;
+  id: string;
+  org_id: string;
+  person_id: string;
+  reason: string;
+  revoked_at: Timestamp | null;
+  revoked_by: string | null;
+  role: string;
+  scope_id: string | null;
+  scope_type: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface ContestParticipants {
   contest_id: string;
   created_at: Generated<Timestamp>;
@@ -451,6 +550,16 @@ export interface Conversations {
   title: string | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
+}
+
+export interface CredentialReminderEvents {
+  created_at: Generated<Timestamp>;
+  days_before: number;
+  expires_on: Timestamp;
+  id: string;
+  org_id: string;
+  person_credential_id: string;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface CredentialTypes {
@@ -840,6 +949,18 @@ export interface InjuryReports {
   person_id: string;
   reported_by: string;
   status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface InjuryRosterHolds {
+  created_at: Generated<Timestamp>;
+  former_status: string;
+  id: string;
+  injury_report_id: string;
+  org_id: string;
+  restored_at: Timestamp | null;
+  roster_entry_id: string;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -1315,6 +1436,7 @@ export interface PersonCredentials {
   file_id: string | null;
   id: string;
   identifier_enc: Buffer | null;
+  identifier_hint: string | null;
   issued_on: Timestamp | null;
   org_id: string;
   person_id: string;
@@ -1564,7 +1686,12 @@ export interface ReturnToPlayClearances {
   injury_report_id: string;
   org_id: string;
   recorded_by: string;
+  rejection_reason: string | null;
+  review_status: Generated<string>;
+  reviewed_at: Timestamp | null;
+  reviewed_by: string | null;
   updated_at: Generated<Timestamp>;
+  version: Generated<number>;
 }
 
 export interface RoleAssignments {
@@ -1587,6 +1714,7 @@ export interface RoleCredentialRequirements {
   created_at: Generated<Timestamp>;
   credential_type_id: string;
   id: string;
+  minimum_age: Generated<number>;
   org_id: string;
   role: string;
   scope_id: string | null;
@@ -1971,7 +2099,12 @@ export interface DB {
   auth_tokens: AuthTokens;
   automatic_discount_rules: AutomaticDiscountRules;
   autopay_authorizations: AutopayAuthorizations;
+  background_check_adjudication_events: BackgroundCheckAdjudicationEvents;
+  background_check_disputes: BackgroundCheckDisputes;
   background_check_orders: BackgroundCheckOrders;
+  background_check_provider_index: BackgroundCheckProviderIndex;
+  background_check_settings: BackgroundCheckSettings;
+  background_check_webhook_events: BackgroundCheckWebhookEvents;
   balance_transactions: BalanceTransactions;
   bracket_matches: BracketMatches;
   brackets: Brackets;
@@ -1983,11 +2116,13 @@ export interface DB {
   checkouts: Checkouts;
   closures: Closures;
   communication_preferences: CommunicationPreferences;
+  compliance_overrides: ComplianceOverrides;
   contest_participants: ContestParticipants;
   contest_results: ContestResults;
   contests: Contests;
   conversation_members: ConversationMembers;
   conversations: Conversations;
+  credential_reminder_events: CredentialReminderEvents;
   credential_types: CredentialTypes;
   credits: Credits;
   device_tokens: DeviceTokens;
@@ -2013,6 +2148,7 @@ export interface DB {
   idempotency_keys: IdempotencyKeys;
   incident_reports: IncidentReports;
   injury_reports: InjuryReports;
+  injury_roster_holds: InjuryRosterHolds;
   installment_plan_templates: InstallmentPlanTemplates;
   installments: Installments;
   invoice_lines: InvoiceLines;
