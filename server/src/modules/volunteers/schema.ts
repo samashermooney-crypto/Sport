@@ -174,5 +174,11 @@ export const shiftSignupListSchema = z.strictObject({
   signups: z.array(volunteerSignupSchema.extend({ personName: z.string() })),
 });
 export const myVolunteerHouseholdsSchema = z.strictObject({
-  households: z.array(z.strictObject({ id: uuid, personIds: z.array(uuid) })),
+  households: z.array(
+    z.strictObject({
+      id: uuid,
+      personIds: z.array(uuid),
+      people: z.array(z.strictObject({ id: uuid, name: z.string() })),
+    }),
+  ),
 });

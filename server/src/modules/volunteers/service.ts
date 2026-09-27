@@ -594,22 +594,43 @@ export async function listMyVolunteerHouseholds(
           .onRef('link.org_id', '=', 'member.org_id')
           .onRef('link.person_id', '=', 'member.person_id'),
       )
-      .select(['member.household_id', 'member.person_id'])
+      .innerJoin('people as person', (join) =>
+        join
+          .onRef('person.org_id', '=', 'member.org_id')
+          .onRef('person.id', '=', 'member.person_id'),
+      )
+      .select([
+        'member.household_id',
+        'member.person_id',
+        'person.first_name',
+        'person.last_name',
+      ])
       .where('member.org_id', '=', context.orgId)
       .where('member.removed_at', 'is', null)
       .where('link.account_id', '=', context.actor.accountId)
       .where('link.verified_at', 'is not', null)
       .where('link.revoked_at', 'is', null)
       .execute();
-    const households = new Map<string, string[]>();
+    const households = new Map<
+      string,
+      { personIds: string[]; people: { id: string; name: string }[] }
+    >();
     for (const row of rows) {
-      const members = households.get(row.household_id) ?? [];
-      members.push(row.person_id);
+      const members = households.get(row.household_id) ?? {
+        personIds: [],
+        people: [],
+      };
+      members.personIds.push(row.person_id);
+      members.people.push({
+        id: row.person_id,
+        name: `${row.first_name} ${row.last_name}`.trim(),
+      });
       households.set(row.household_id, members);
     }
-    return [...households.entries()].map(([id, personIds]) => ({
+    return [...households.entries()].map(([id, members]) => ({
       id,
-      personIds,
+      personIds: members.personIds,
+      people: members.people,
     }));
   });
 }

@@ -8,6 +8,7 @@ import {
   createVolunteerRole,
   createVolunteerShift,
   householdVolunteerLedger,
+  listMyVolunteerHouseholds,
   signupForVolunteerShift,
   updateVolunteerSignup,
   buyOutVolunteerRequirement,
@@ -73,6 +74,12 @@ describe('volunteer requirements and signups', () => {
           .execute();
       }
     });
+    const portalHousehold = (
+      await listMyVolunteerHouseholds(database, actor)
+    ).find((household) => household.id === householdId);
+    expect(portalHousehold?.people.map((person) => person.name).sort()).toEqual(
+      ['Casey Athlete', 'Jordan Athlete', 'Morgan Athlete'],
+    );
     const facilityId = randomUUID();
     await factories.row(actor, 'facilities', {
       id: facilityId,
