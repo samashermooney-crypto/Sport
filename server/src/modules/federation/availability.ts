@@ -1,5 +1,5 @@
-import { Temporal } from '@js-temporal/polyfill';
 import { newId } from '@shared/ids';
+import { expand } from '@shared/recurrence';
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 
@@ -32,23 +32,12 @@ export interface FederationSpace {
   bookings: { startsAt: string; endsAt: string }[];
 }
 
-const WEEKDAY_CODE: Record<string, number> = {
-  MO: 1,
-  TU: 2,
-  WE: 3,
-  TH: 4,
-  FR: 5,
-  SA: 6,
-  SU: 7,
-};
-
 /**
- * Expand the spine availability shape (`rrule` + date range + local times) into
- * concrete instants for the schedule generator. Supports FREQ=DAILY|WEEKLY
- * with optional BYDAY — anything else yields no windows rather than guessing.
+ * Expand the spine's structured recurrence into concrete instants for the
+ * federation adapter using the same timezone rules as Track G.
  */
 export function expandAvailabilityWindows(input: {
-  rrule: string;
+  recurrence: unknown;
   startsOn: string;
   endsOn: string;
   startTime: string;
@@ -56,54 +45,27 @@ export function expandAvailabilityWindows(input: {
   timezone: string;
   maxWindows?: number;
 }): { startsAt: string; endsAt: string }[] {
-  const parts = Object.fromEntries(
-    input.rrule
-      .replace(/^RRULE:/, '')
-      .split(';')
-      .map((part) => part.split('=') as [string, string])
-      .filter(([key, value]) => Boolean(key && value)),
-  );
-  const freq = parts['FREQ'];
-  if (freq !== 'WEEKLY' && freq !== 'DAILY') return [];
-  const bydays = (parts['BYDAY'] ?? '')
-    .split(',')
-    .map((code) => WEEKDAY_CODE[code.trim()])
-    .filter((day): day is number => day !== undefined);
-  const weekdaySet =
-    freq === 'WEEKLY' && bydays.length
-      ? new Set(bydays)
-      : freq === 'WEEKLY'
-        ? new Set([Temporal.PlainDate.from(input.startsOn).dayOfWeek])
-        : null;
-  const [startHour = 0, startMinute = 0] = input.startTime
-    .split(':')
-    .map(Number);
-  const [endHour = 0, endMinute = 0] = input.endTime.split(':').map(Number);
-  const windows: { startsAt: string; endsAt: string }[] = [];
-  const limit = input.maxWindows ?? 366;
-  let day = Temporal.PlainDate.from(input.startsOn);
-  const last = Temporal.PlainDate.from(input.endsOn);
-  while (Temporal.PlainDate.compare(day, last) <= 0 && windows.length < limit) {
-    if (!weekdaySet || weekdaySet.has(day.dayOfWeek)) {
-      const start = day
-        .toZonedDateTime({
-          timeZone: input.timezone,
-          plainTime: { hour: startHour, minute: startMinute },
-        })
-        .toInstant()
-        .toString();
-      const end = day
-        .toZonedDateTime({
-          timeZone: input.timezone,
-          plainTime: { hour: endHour, minute: endMinute },
-        })
-        .toInstant()
-        .toString();
-      windows.push({ startsAt: start, endsAt: end });
-    }
-    day = day.add({ days: 1 });
+  const durationMinutes =
+    (Date.parse(`1970-01-01T${input.endTime}Z`) -
+      Date.parse(`1970-01-01T${input.startTime}Z`)) /
+    60_000;
+  if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) return [];
+  try {
+    return expand(
+      {
+        recurrence: input.recurrence as never,
+        startTime: input.startTime,
+        durationMinutes,
+        timezone: input.timezone,
+      },
+      input.startsOn,
+      input.endsOn,
+    )
+      .slice(0, input.maxWindows ?? 366)
+      .map(({ startsAt, endsAt }) => ({ startsAt, endsAt }));
+  } catch {
+    return [];
   }
-  return windows;
 }
 
 /**
@@ -342,7 +304,7 @@ export async function readProgramAvailability(
         'spaces.id',
         'spaces.facility_id',
         'spaces.name',
-        'space_availability.rrule',
+        'space_availability.recurrence',
         'space_availability.starts_on',
         'space_availability.ends_on',
         'space_availability.start_time',
@@ -362,7 +324,7 @@ export async function readProgramAvailability(
       };
       space.availability.push(
         ...expandAvailabilityWindows({
-          rrule: row.rrule,
+          recurrence: row.recurrence,
           startsOn: new Date(row.starts_on).toISOString().slice(0, 10),
           endsOn: new Date(row.ends_on).toISOString().slice(0, 10),
           startTime: row.start_time,

@@ -2,7 +2,7 @@ import { newId } from '@shared/ids';
 import type { Kysely } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { createDatabase } from '../src/db/kysely';
+import { createDatabase, getDatabase } from '../src/db/kysely';
 import type { DB } from '../src/db/types';
 import { MemoryStorage } from '../src/integrations/storage/storage';
 import {
@@ -84,10 +84,13 @@ import { createTestFactories, type ActorFixture } from './factories';
 
 let database: Kysely<DB>;
 let factory: ReturnType<typeof createTestFactories>;
+let previousDatabaseUrl: string | undefined;
 
 beforeAll(() => {
   // The privileged path uses the admin (BYPASSRLS) role; in tests that is the
   // per-file scratch database created by test/setup.ts.
+  previousDatabaseUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = process.env.TEST_DATABASE_APP_URL;
   process.env.DATABASE_ADMIN_URL = process.env.TEST_DATABASE_URL;
   resetFederationAdminDatabase();
   database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
@@ -97,9 +100,12 @@ beforeAll(() => {
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 afterAll(async () => {
+  await getDatabase().destroy();
   await getFederationAdminDatabase().destroy();
   resetFederationAdminDatabase();
   await database.destroy();
+  if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+  else process.env.DATABASE_URL = previousDatabaseUrl;
 });
 
 const ctx = (actor: ActorFixture) => ({

@@ -3,4 +3,6 @@ export const moduleErrorCodes = [
   'FEDERATION_RULE',
   'FEDERATION_SHARING_DENIED',
   'FEDERATION_UNAVAILABLE',
+  'SCHEDULE_CONFLICT',
+  'SCHEDULE_INVALID',
 ] as const;

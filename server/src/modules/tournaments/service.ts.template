@@ -1,0 +1,10 @@
+import type { CreateTournamentsInput } from '../../../../shared/src/schemas/tournaments.js';
+import type { TournamentsRepository } from './repo.js';
+
+export function createTournamentsService(repository: TournamentsRepository) {
+  return {
+    list: () => repository.list(),
+    get: (id: string) => repository.get(id),
+    create: (input: CreateTournamentsInput) => repository.create(input),
+  };
+}

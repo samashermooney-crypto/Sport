@@ -1,5 +1,4 @@
 import {
-  generateSchedule,
   type DraftEvent,
   type GeneratorDivision,
   type GeneratorInput,
@@ -14,6 +13,8 @@ import type { DB } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 import { appendAuditEvent } from '../audit/service';
+import { insertSpaceBooking } from '../scheduling/events';
+import { runScheduleGeneration } from '../scheduling/generator';
 
 import { readProgramAvailability } from './availability';
 import {
@@ -44,9 +45,11 @@ function runView(row: {
   applied_at: Date | null;
   result: unknown;
 }): ScheduleRunView {
-  const result = row.result as
-    | { draftEvents?: unknown[]; unscheduled?: unknown[]; totalPenalty?: number }
-    | null;
+  const result = row.result as {
+    draftEvents?: unknown[];
+    unscheduled?: unknown[];
+    totalPenalty?: number;
+  } | null;
   return {
     id: row.id,
     programId: row.program_id,
@@ -92,7 +95,7 @@ export async function generateLeagueSchedule(
 ): Promise<{ run: ScheduleRunView; draftEvents: DraftEvent[] }> {
   const availability = await readProgramAvailability(context, input.programId);
   const admin = getFederationAdminDatabase();
-  return admin.transaction().execute(async (trx) => {
+  const runId = await admin.transaction().execute(async (trx) => {
     const divisions = await trx
       .selectFrom('divisions')
       .select(['id', 'name', 'sort_order'])
@@ -160,7 +163,9 @@ export async function generateLeagueSchedule(
     }
     const weekdaySet = [...new Set(input.timeWindows.map((w) => w.weekday))];
     const generatorDivisions: GeneratorDivision[] = divisions
-      .filter((division) => (teamIdsByDivision.get(division.id)?.length ?? 0) >= 2)
+      .filter(
+        (division) => (teamIdsByDivision.get(division.id)?.length ?? 0) >= 2,
+      )
       .map((division) => ({
         id: division.id,
         teamIds: teamIdsByDivision.get(division.id) ?? [],
@@ -209,7 +214,6 @@ export async function generateLeagueSchedule(
       seed,
       timeBudgetSeconds: 45,
     };
-    const output = generateSchedule(generatorInput);
     const runId = newId();
     await trx
       .insertInto('schedule_generation_runs')
@@ -219,29 +223,52 @@ export async function generateLeagueSchedule(
         program_id: input.programId,
         input: JSON.parse(JSON.stringify(generatorInput)) as never,
         seed,
-        status: 'succeeded',
-        result: JSON.parse(JSON.stringify(output)) as never,
+        status: 'queued',
+        progress: 0,
+        progress_message: 'Waiting for a schedule worker',
         created_by: context.actor.accountId,
       })
       .execute();
+    return runId;
+  });
+
+  try {
+    // The league-specific adapter loads external teams and cross-org windows;
+    // Track G's generation service owns run processing and the shared solver.
+    await runScheduleGeneration({ orgId: context.orgId, runId });
+  } catch (error) {
+    await admin.transaction().execute(async (trx) => {
+      await trx
+        .updateTable('schedule_generation_runs')
+        .set({
+          status: 'failed',
+          progress: 100,
+          progress_message: 'Schedule generation failed',
+          error_code: 'SCHEDULE_GENERATION_FAILED',
+          version: sql`version + 1`,
+        })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', runId)
+        .execute();
+    });
+    throw error;
+  }
+
+  const generated = await getScheduleRun(admin, context, runId);
+  await createWithOrg(admin)(context, async (trx) => {
     await appendAuditEvent(trx, context, {
       action: 'federation.schedule.generated',
       entityType: 'schedule_generation_run',
       entityId: runId,
       changes: {
         programId: { tier: 'internal', after: input.programId },
-        draftEvents: { tier: 'internal', after: output.draftEvents.length },
-        unscheduled: { tier: 'internal', after: output.unscheduled.length },
-        penalty: { tier: 'internal', after: output.totalPenalty },
+        draftEvents: { tier: 'internal', after: generated.draftEvents.length },
+        unscheduled: { tier: 'internal', after: generated.unscheduled.length },
+        penalty: { tier: 'internal', after: generated.totalPenalty },
       },
     });
-    const row = await trx
-      .selectFrom('schedule_generation_runs')
-      .selectAll()
-      .where('id', '=', runId)
-      .executeTakeFirstOrThrow();
-    return { run: runView(row), draftEvents: output.draftEvents };
   });
+  return { run: generated, draftEvents: generated.draftEvents };
 }
 
 export async function listScheduleRuns(
@@ -267,7 +294,9 @@ export async function getScheduleRun(
   database: Kysely<DB>,
   context: OrgContext,
   runId: string,
-): Promise<ScheduleRunView & { draftEvents: DraftEvent[]; unscheduled: unknown[] }> {
+): Promise<
+  ScheduleRunView & { draftEvents: DraftEvent[]; unscheduled: unknown[] }
+> {
   const withOrg = createWithOrg(database);
   return withOrg(context, async (trx) => {
     const row = await trx
@@ -454,34 +483,32 @@ export async function applyScheduleRun(
           published: true,
         })
         .execute();
-      const leaves = await sql<{ id: string }>`
-        WITH RECURSIVE descendants AS (
-          SELECT id FROM spaces WHERE org_id = ${owner.ownerOrgId}::uuid AND id = ${draft.spaceId}::uuid
-          UNION ALL
-          SELECT child.id FROM spaces child
-          JOIN descendants parent ON child.parent_space_id = parent.id
-          WHERE child.org_id = ${owner.ownerOrgId}::uuid
-        )
-        SELECT d.id FROM descendants d
-        WHERE NOT EXISTS (
-          SELECT 1 FROM spaces child WHERE child.org_id = ${owner.ownerOrgId}::uuid AND child.parent_space_id = d.id
-        )
-      `.execute(trx);
-      const bookingGroupId = newId();
-      for (const leaf of leaves.rows) {
-        await trx
-          .insertInto('space_bookings')
-          .values({
-            id: newId(),
-            org_id: owner.ownerOrgId,
-            booking_group_id: bookingGroupId,
-            leaf_space_id: leaf.id,
-            during: sql`tstzrange(${draft.startsAt}::timestamptz, ${draft.blockedUntil}::timestamptz, '[)')`,
-            event_id: clubEventId,
-            allocation_id: null,
-          })
-          .execute();
-      }
+      const endsAt = new Date(draft.endsAt);
+      const blockedUntil = new Date(draft.blockedUntil);
+      const bufferMinutes =
+        (blockedUntil.getTime() - endsAt.getTime()) / 60_000;
+      if (!Number.isInteger(bufferMinutes) || bufferMinutes < 0)
+        throw federationUnprocessable('Schedule draft has an invalid buffer');
+      // Reuse Track G's booking service so all leaf spaces receive the same
+      // exclusion-protected booking group used by local schedule operations.
+      await insertSpaceBooking(
+        trx,
+        owner.ownerOrgId,
+        draft.spaceId,
+        new Date(draft.startsAt),
+        endsAt,
+        bufferMinutes,
+        clubEventId,
+      );
+      const bookingRows = await trx
+        .selectFrom('space_bookings')
+        .select(['booking_group_id', 'leaf_space_id'])
+        .where('org_id', '=', owner.ownerOrgId)
+        .where('event_id', '=', clubEventId)
+        .execute();
+      const bookingGroupId = bookingRows[0]?.booking_group_id;
+      if (!bookingGroupId || !bookingRows.length)
+        throw federationUnprocessable('Host space booking was not created');
       await trx
         .insertInto('federation_event_links')
         .values({
@@ -492,7 +519,7 @@ export async function applyScheduleRun(
           league_event_id: leagueEventId,
           club_event_id: clubEventId,
           booking_group_id: bookingGroupId,
-          leaf_space_ids: leaves.rows.map((leaf) => leaf.id),
+          leaf_space_ids: bookingRows.map((booking) => booking.leaf_space_id),
           during: sql`tstzrange(${draft.startsAt}::timestamptz, ${draft.blockedUntil}::timestamptz, '[)')`,
           status: 'active',
         })
@@ -612,9 +639,7 @@ export async function discardScheduleRun(
  * Club view: league games hosted on its spaces (event links + the league
  * event's title/time). Privileged read — audited in both orgs.
  */
-export async function listHostedGames(
-  context: OrgContext,
-): Promise<
+export async function listHostedGames(context: OrgContext): Promise<
   {
     linkId: string;
     leagueOrgId: string;
@@ -671,15 +696,19 @@ export async function listHostedGames(
     const nameById = new Map(orgNames.map((row) => [row.id, row.name]));
     const actor = { accountId: context.actor.accountId };
     for (const leagueId of leagueIds.map((row) => row.parent_org_id)) {
-      await appendAuditEvent(trx, { orgId: leagueId, actor }, {
-        action: 'federation.cross_org.read',
-        entityType: 'federation_event_link',
-        entityId: context.orgId,
-        changes: {
-          dataset: { tier: 'internal', after: 'hosted_games' },
-          requestingOrgId: { tier: 'internal', after: context.orgId },
+      await appendAuditEvent(
+        trx,
+        { orgId: leagueId, actor },
+        {
+          action: 'federation.cross_org.read',
+          entityType: 'federation_event_link',
+          entityId: context.orgId,
+          changes: {
+            dataset: { tier: 'internal', after: 'hosted_games' },
+            requestingOrgId: { tier: 'internal', after: context.orgId },
+          },
         },
-      });
+      );
     }
     await appendAuditEvent(trx, context, {
       action: 'federation.hosted_games.read',
