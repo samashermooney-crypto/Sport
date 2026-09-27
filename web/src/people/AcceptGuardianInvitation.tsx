@@ -54,7 +54,7 @@ export function AcceptGuardianInvitation(): React.JSX.Element {
               )
                 .then(() => {
                   setAccepted(true);
-                  window.history.replaceState(null, '', '/me');
+                  window.history.replaceState(null, '', '/me/family');
                 })
                 .catch((cause: unknown) => {
                   setError(
@@ -75,7 +75,7 @@ export function AcceptGuardianInvitation(): React.JSX.Element {
       {accepted && (
         <>
           <p role="status">Guardian access is active.</p>
-          <AuthLink to="/me">Open account</AuthLink>
+          <AuthLink to="/me/family">Open family</AuthLink>
         </>
       )}
     </AuthFrame>

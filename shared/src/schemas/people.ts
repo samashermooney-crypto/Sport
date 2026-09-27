@@ -88,6 +88,24 @@ export const guardianInvitationAcceptedResponseSchema = z.strictObject({
   linkId: z.uuid(),
 });
 
+export const familyResponseSchema = z.strictObject({
+  organizations: z.array(
+    z.strictObject({
+      orgId: z.uuid(),
+      orgName: z.string(),
+      people: z.array(
+        z.strictObject({
+          personId: z.uuid(),
+          firstName: z.string(),
+          lastName: z.string(),
+          age: z.int().nonnegative(),
+          relationship: z.enum(['guardian', 'self']),
+        }),
+      ),
+    }),
+  ),
+});
+
 export const peopleQuerySchema = z.strictObject({
   q: z.string().trim().max(120).optional(),
   status: z

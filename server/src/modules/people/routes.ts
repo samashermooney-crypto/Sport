@@ -22,6 +22,7 @@ import { requestImpersonation } from '../../lib/tenant-guard';
 import type { AuthDependencies } from '../auth/routes';
 import { requireSession } from '../auth/routes';
 
+import { listFamily } from './family';
 import { createGuardianLinksRepository } from './guardianLinks';
 import { createHouseholdsRepository } from './households';
 import { createPeopleRepository, PeopleError } from './repo';
@@ -84,6 +85,21 @@ export function createPeopleRouter(
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Referrer-Policy', 'no-referrer');
     next();
+  });
+
+  router.get('/me/family', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new PeopleError(
+          403,
+          'FORBIDDEN',
+          'Impersonation is not supported here',
+        );
+      response.json(await listFamily(dependencies.database, session.accountId));
+    } catch (error) {
+      sendError(response, error);
+    }
   });
 
   router.get('/orgs/:orgId', async (request, response) => {
