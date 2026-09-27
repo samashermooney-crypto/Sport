@@ -13,6 +13,7 @@ import { moduleDefinition as disciplineModule } from '../modules/discipline/modu
 import { moduleDefinition as facilitiesModule } from '../modules/facilities/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
+import { moduleDefinition as importsModule } from '../modules/imports/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
 import { moduleDefinition as notificationsModule } from '../modules/notifications/module';
 import { moduleDefinition as offeringsModule } from '../modules/offerings/module';
@@ -35,6 +36,7 @@ export const serverModules: readonly ServerModule[] = [
   facilitiesModule,
   filesModule,
   financeModule,
+  importsModule,
   jobsModule,
   notificationsModule,
   offeringsModule,

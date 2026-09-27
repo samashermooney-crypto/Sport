@@ -9,6 +9,8 @@ import {
   teamGeneratorSchema,
   teamInputSchema,
   teamSeasonInputSchema,
+  teamSeasonUpdateSchema,
+  teamUpdateSchema,
 } from './service';
 const row = z.looseObject({
   id: z.uuid(),
@@ -52,6 +54,26 @@ export const moduleDefinition = {
       response: row,
     },
     {
+      method: 'patch',
+      path: '/api/v1/teams/orgs/{orgId}/{teamId}',
+      summary: 'Update a persistent team identity',
+      body: teamUpdateSchema,
+      response: row,
+    },
+    {
+      method: 'patch',
+      path: '/api/v1/teams/orgs/{orgId}/seasons/{teamSeasonId}',
+      summary: 'Update team-season settings and lifecycle',
+      body: teamSeasonUpdateSchema,
+      response: row,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/teams/orgs/{orgId}/seasons/{teamSeasonId}/staff',
+      summary: 'List team-season staff and eligibility state',
+      response: z.array(row),
+    },
+    {
       method: 'post',
       path: '/api/v1/teams/orgs/{orgId}/generate',
       summary: 'Generate teams in a division',
@@ -63,6 +85,19 @@ export const moduleDefinition = {
       path: '/api/v1/teams/orgs/{orgId}/seasons/{teamSeasonId}/staff',
       summary: 'Assign compliance-gated team staff',
       body: staffInputSchema,
+      response: row,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/teams/orgs/{orgId}/staff/{staffId}/revalidate',
+      summary: 'Revalidate staff eligibility for team assignment',
+      response: row,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/teams/orgs/{orgId}/staff/{staffId}/remove',
+      summary: 'Remove a staff assignment with version check',
+      body: z.object({ expectedVersion: z.number().int().positive() }),
       response: row,
     },
     {

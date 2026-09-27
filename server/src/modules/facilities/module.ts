@@ -9,6 +9,7 @@ import {
   blackoutInputSchema,
   facilityInputSchema,
   spaceInputSchema,
+  spaceUpdateSchema,
 } from './service';
 const row = z.looseObject({ id: z.uuid(), org_id: z.uuid() });
 export const moduleDefinition = {
@@ -51,6 +52,27 @@ export const moduleDefinition = {
       response: row,
     },
     {
+      method: 'patch',
+      path: '/api/v1/facilities/orgs/{orgId}/spaces/{spaceId}',
+      summary: 'Update a facility space',
+      body: spaceUpdateSchema,
+      response: row,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/facilities/orgs/{orgId}/spaces/{spaceId}/archive',
+      summary: 'Archive a space and its children',
+      body: z.object({ expectedVersion: z.number().int().positive() }),
+      response: row,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/facilities/orgs/{orgId}/{facilityId}/archive',
+      summary: 'Archive a facility and its spaces',
+      body: z.object({ expectedVersion: z.number().int().positive() }),
+      response: row,
+    },
+    {
       method: 'get',
       path: '/api/v1/facilities/orgs/{orgId}/spaces/{spaceId}/availability',
       summary: 'List space availability windows',
@@ -71,6 +93,13 @@ export const moduleDefinition = {
       response: row,
     },
     {
+      method: 'delete',
+      path: '/api/v1/facilities/orgs/{orgId}/availability/{availabilityId}',
+      summary: 'Delete an availability window with version check',
+      body: z.object({ expectedVersion: z.number().int().positive() }),
+      response: z.object({ id: z.uuid() }),
+    },
+    {
       method: 'get',
       path: '/api/v1/facilities/orgs/{orgId}/blackouts',
       summary: 'List upcoming space and facility blackouts',
@@ -82,6 +111,12 @@ export const moduleDefinition = {
       summary: 'Create a blackout window',
       body: blackoutInputSchema,
       response: row,
+    },
+    {
+      method: 'delete',
+      path: '/api/v1/facilities/orgs/{orgId}/blackouts/{blackoutId}',
+      summary: 'Delete a facility or space blackout',
+      response: z.object({ id: z.uuid() }),
     },
   ],
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };

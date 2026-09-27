@@ -54,5 +54,29 @@ export const moduleDefinition = {
       summary: 'Read the organization timezone used by offering price windows',
       response: z.strictObject({ timezone: z.string() }),
     },
+    {
+      method: 'get',
+      path: '/api/v1/offerings/orgs/{orgId}/libraries',
+      summary: 'List active forms and waivers for program offerings',
+      response: z.object({
+        forms: z.array(
+          z.looseObject({
+            id: z.uuid(),
+            name: z.string(),
+            scope: z.string(),
+            version: z.number().int(),
+          }),
+        ),
+        waivers: z.array(
+          z.looseObject({
+            id: z.uuid(),
+            name: z.string(),
+            requires: z.string(),
+            renewal: z.string(),
+            version: z.number().int(),
+          }),
+        ),
+      }),
+    },
   ],
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };

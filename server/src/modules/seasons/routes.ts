@@ -12,10 +12,15 @@ import {
   rolloverSchema,
   seasonCreateSchema,
   seasonUpdateSchema,
+  type SeasonRolloverExtras,
 } from './service';
 
+type SeasonRouteDependencies = AuthDependencies & {
+  seasonRolloverExtras?: SeasonRolloverExtras[];
+};
+
 export function createSeasonsRouter(
-  dependencies: AuthDependencies,
+  dependencies: SeasonRouteDependencies,
 ): express.Router {
   const router = express.Router();
   router.use(express.json({ limit: '64kb' }));
@@ -130,6 +135,7 @@ export function createSeasonsRouter(
         const result = await new SeasonsService(
           dependencies.database,
           ctx,
+          dependencies.seasonRolloverExtras,
         ).rolloverInTransaction(
           trx,
           z.uuid().parse(request.params.seasonId),
