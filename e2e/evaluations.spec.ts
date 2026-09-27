@@ -639,3 +639,68 @@ test('family accepts a team offer and continues to registration checkout', async
   );
   expect(acceptances).toHaveLength(1);
 });
+
+test('family can decline while online checkout is unavailable', async ({
+  page,
+}) => {
+  const declines: Array<Record<string, unknown>> = [];
+  await mockAuthenticatedAccount(page);
+  await page.route(`**/api/v1/orgs/${orgId}/workspace`, (route) =>
+    route.fulfill({ json: { name: 'North Club' } }),
+  );
+  await page.route(`**/api/v1/evaluations/orgs/${orgId}/me/offers`, (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: offerId,
+          personId,
+          firstName: 'Alex',
+          lastName: 'Athlete',
+          teamSeasonId: blueTeamId,
+          teamName: 'Blue U10',
+          amountCents: 25000,
+          depositCents: 5000,
+          expiresAt: '2026-10-01T00:00:00.000Z',
+          message: null,
+          status: 'sent',
+          version: 2,
+          acceptanceReady: false,
+        },
+      ],
+    }),
+  );
+  await page.route(
+    `**/api/v1/evaluations/orgs/${orgId}/offers/${offerId}/decline`,
+    async (route) => {
+      declines.push(route.request().postDataJSON() as Record<string, unknown>);
+      await route.fulfill({ json: { offerId, status: 'declined' } });
+    },
+  );
+
+  await page.goto(`/portal/orgs/${orgId}/offers`);
+  await expect(
+    page.getByText('Online checkout is unavailable for this offer.'),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', {
+      name: 'Accept and continue to deposit checkout',
+    }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Decline offer' }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+
+  await page
+    .getByLabel('Reason for declining')
+    .fill('Family schedule conflict');
+  await page.getByRole('button', { name: 'Decline offer' }).click();
+  await expect(
+    page.getByText(
+      'Offer declined. The placement spot is available to the organization.',
+    ),
+  ).toBeVisible();
+  expect(declines).toEqual([
+    { reason: 'Family schedule conflict', expectedVersion: 2 },
+  ]);
+});
