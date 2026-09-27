@@ -16,9 +16,11 @@ type Credential = z.output<typeof orgCredentialSchema>;
 function CredentialEditor({
   credential,
   orgId,
+  readOnly,
 }: {
   credential: Credential;
   orgId: string;
+  readOnly: boolean;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(credential);
@@ -54,6 +56,22 @@ function CredentialEditor({
       setBusy(false);
     }
   }
+  if (readOnly)
+    return (
+      <section className="start-credential-card" aria-label={credential.name}>
+        <h2>{credential.name}</h2>
+        <p>
+          Verification method: {credential.verification.replaceAll('_', ' ')}
+        </p>
+        <p>Valid for {credential.validityMonths} months</p>
+        <p>
+          {credential.blocksActivation
+            ? 'Blocks staff activation'
+            : 'Does not block staff activation'}
+        </p>
+        <p>{credential.active ? 'Active' : 'Disabled'}</p>
+      </section>
+    );
   return (
     <section className="start-credential-card" aria-label={credential.name}>
       <h2>{credential.name}</h2>
@@ -108,6 +126,7 @@ function CredentialEditor({
 
 export function Credentials(): React.JSX.Element {
   const { orgId } = useParams();
+  const readOnly = Boolean(sessionStorage.getItem('athlentry.impersonation'));
   const query = useQuery({
     queryKey: ['orgs', orgId, 'credential-types'],
     queryFn: () =>
@@ -121,6 +140,9 @@ export function Credentials(): React.JSX.Element {
   return (
     <AuthFrame footer={<AuthLink to="/me">Back to your account</AuthLink>}>
       <h1>Safety requirements</h1>
+      {readOnly && (
+        <p role="status">Viewing as platform staff. Changes are disabled.</p>
+      )}
       <p>
         These requirements are created for your organization. An owner can edit
         or disable each one after confirming their identity in{' '}
@@ -137,6 +159,7 @@ export function Credentials(): React.JSX.Element {
               key={credential.id}
               credential={credential}
               orgId={String(orgId)}
+              readOnly={readOnly}
             />
           ))}
         </div>

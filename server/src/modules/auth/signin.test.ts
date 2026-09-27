@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import { newId } from '@shared/ids';
 import type { Kysely } from 'kysely';
+import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDatabase } from '../../db/kysely';
@@ -185,5 +186,52 @@ describe('sign-in entry points', () => {
     await expect(
       completeMfaChallenge(dependencies, result.challengeToken, code, 'totp'),
     ).rejects.toBeInstanceOf(InvalidCredentialsError);
+  });
+  it('requires MFA enrollment and challenge for active platform staff', async () => {
+    const platformId = newId();
+    await database
+      .insertInto('accounts')
+      .values({
+        id: platformId,
+        email: `platform-${platformId}@example.invalid`,
+        first_name: 'Platform',
+        last_name: 'Operator',
+        date_of_birth: '1990-01-01',
+        password_hash: await hashPassword('four safe winter paddles 92'),
+        email_verified_at: now,
+      })
+      .execute();
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    try {
+      await admin.query(
+        'INSERT INTO platform_staff(account_id, role) VALUES ($1, $2)',
+        [platformId, 'support'],
+      );
+    } finally {
+      await admin.end();
+    }
+    const input = {
+      email: `platform-${platformId}@example.invalid`,
+      password: 'four safe winter paddles 92',
+    };
+    expect((await signInWithPassword(dependencies, input)).status).toBe(
+      'enrollment_required',
+    );
+    await database
+      .insertInto('mfa_factors')
+      .values({
+        id: newId(),
+        account_id: platformId,
+        type: 'totp',
+        secret_enc: encryptRestricted(Buffer.from(newTotpSecret()), encryption),
+        confirmed_at: now,
+      })
+      .execute();
+    expect((await signInWithPassword(dependencies, input)).status).toBe(
+      'mfa_required',
+    );
   });
 });
