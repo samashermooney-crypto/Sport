@@ -1,6 +1,7 @@
 import {
   orgInvitationResponseSchema,
   orgMemberRolesResponseSchema,
+  orgMemberStatusResponseSchema,
   orgRoleSchema,
   orgStaffResponseSchema,
 } from '@shared/schemas/orgs';
@@ -20,9 +21,11 @@ const roleOptions = orgRoleSchema.options.filter((role) => role !== 'owner');
 function MemberEditor({
   orgId,
   member,
+  lastOwner,
 }: {
   orgId: string;
   member: Member;
+  lastOwner: boolean;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const [roles, setRoles] = useState<string[]>(
@@ -32,11 +35,11 @@ function MemberEditor({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
+  const [notice, setNotice] = useState('');
   async function save(): Promise<void> {
     setBusy(true);
     setError('');
-    setSaved(false);
+    setNotice('');
     try {
       await apiPatch(
         `/orgs/${orgId}/members/${member.accountId}/roles`,
@@ -49,12 +52,48 @@ function MemberEditor({
       await queryClient.invalidateQueries({
         queryKey: ['orgs', orgId, 'staff'],
       });
-      setSaved(true);
+      setNotice('Roles saved. Other sessions for this member were revoked.');
     } catch (caught) {
       setError(
         caught instanceof Error
           ? caught.message
           : 'Roles could not be changed.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function changeStatus(
+    status: 'active' | 'suspended' | 'removed',
+  ): Promise<void> {
+    if (
+      status === 'removed' &&
+      !window.confirm(`Remove ${member.name} from this organization?`)
+    )
+      return;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await apiPatch(
+        `/orgs/${orgId}/members/${member.accountId}/status`,
+        {
+          status,
+          expectedVersion: member.version,
+        },
+        orgMemberStatusResponseSchema,
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ['orgs', orgId, 'staff'],
+      });
+      setNotice(
+        `Membership ${status}. Other sessions for this member were revoked.`,
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Membership could not be changed.',
       );
     } finally {
       setBusy(false);
@@ -81,45 +120,75 @@ function MemberEditor({
             .join(', ')}
         </p>
       )}
-      <fieldset>
-        <legend>Organization roles</legend>
-        {member.roles.some(
-          (role) => role.role === 'owner' && role.scopeType === 'org',
-        ) && (
-          <p>
-            Owner · transfer ownership to grant this role to another member.
-          </p>
-        )}
-        {roleOptions.map((role) => (
-          <label className="start-credential-check" key={role}>
-            <input
-              type="checkbox"
-              checked={roles.includes(role)}
-              onChange={(event) => {
-                setRoles(
-                  event.target.checked
-                    ? [...roles, role]
-                    : roles.filter((item) => item !== role),
-                );
-              }}
-            />{' '}
-            {role.replaceAll('_', ' ')}
-          </label>
-        ))}
-      </fieldset>
-      <ErrorBox error={error} />
-      {saved && (
-        <p role="status">
-          Roles saved. Other sessions for this member were revoked.
-        </p>
+      {member.status === 'active' && (
+        <fieldset>
+          <legend>Organization roles</legend>
+          {member.roles.some(
+            (role) => role.role === 'owner' && role.scopeType === 'org',
+          ) && (
+            <p>
+              Owner · transfer ownership to grant this role to another member.
+            </p>
+          )}
+          {roleOptions.map((role) => (
+            <label className="start-credential-check" key={role}>
+              <input
+                type="checkbox"
+                checked={roles.includes(role)}
+                onChange={(event) => {
+                  setRoles(
+                    event.target.checked
+                      ? [...roles, role]
+                      : roles.filter((item) => item !== role),
+                  );
+                }}
+              />{' '}
+              {role.replaceAll('_', ' ')}
+            </label>
+          ))}
+        </fieldset>
       )}
-      <Button
-        type="button"
-        disabled={busy || roles.length === 0}
-        onClick={() => void save()}
-      >
-        {busy ? 'Saving…' : 'Save roles'}
-      </Button>
+      <ErrorBox error={error} />
+      {notice && <p role="status">{notice}</p>}
+      {member.status === 'active' && (
+        <Button
+          type="button"
+          disabled={busy || roles.length === 0}
+          onClick={() => void save()}
+        >
+          {busy ? 'Saving…' : 'Save roles'}
+        </Button>
+      )}
+      {lastOwner && (
+        <p>The last active owner cannot be suspended or removed.</p>
+      )}
+      {!lastOwner && member.status === 'active' && (
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => void changeStatus('suspended')}
+        >
+          Suspend membership
+        </Button>
+      )}
+      {!lastOwner && member.status === 'suspended' && (
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => void changeStatus('active')}
+        >
+          Reactivate membership
+        </Button>
+      )}
+      {!lastOwner && (
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => void changeStatus('removed')}
+        >
+          Remove membership
+        </Button>
+      )}
     </section>
   );
 }
@@ -327,7 +396,29 @@ export function Staff(): React.JSX.Element {
           <section aria-label="Members">
             <h2>Members</h2>
             {query.data.members.map((member) => (
-              <MemberEditor key={member.accountId} orgId={id} member={member} />
+              <MemberEditor
+                key={member.accountId}
+                orgId={id}
+                member={member}
+                lastOwner={
+                  member.roles.some(
+                    (role) =>
+                      role.role === 'owner' &&
+                      role.scopeType === 'org' &&
+                      !role.pendingMfa,
+                  ) &&
+                  query.data.members.filter(
+                    (item) =>
+                      item.status === 'active' &&
+                      item.roles.some(
+                        (role) =>
+                          role.role === 'owner' &&
+                          role.scopeType === 'org' &&
+                          !role.pendingMfa,
+                      ),
+                  ).length === 1
+                }
+              />
             ))}
           </section>
         </>

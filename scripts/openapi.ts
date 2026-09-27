@@ -320,6 +320,13 @@ const orgRoutes: OpenApiRoute[] = [
     response: orgs.orgMemberRolesResponseSchema,
   },
   {
+    method: 'patch',
+    path: `${orgsBase}/{orgId}/members/{memberId}/status`,
+    summary: 'Suspend, reactivate or remove organization membership',
+    body: orgs.updateOrgMemberStatusSchema,
+    response: orgs.orgMemberStatusResponseSchema,
+  },
+  {
     method: 'post',
     path: `${orgsBase}/{orgId}/invitations`,
     summary: 'Invite organization member',

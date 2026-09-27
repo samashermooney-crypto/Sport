@@ -355,6 +355,15 @@ test('new account verifies its preview email and signs in', async ({
   await expect(
     recipient.getByRole('heading', { name: 'Sign in to continue' }),
   ).toBeVisible();
+  await invitedCard.getByRole('button', { name: 'Suspend membership' }).click();
+  await expect(invitedCard).toContainText('suspended');
+  await invitedCard
+    .getByRole('button', { name: 'Reactivate membership' })
+    .click();
+  await expect(invitedCard).toContainText('active');
+  page.once('dialog', (dialog) => void dialog.accept());
+  await invitedCard.getByRole('button', { name: 'Remove membership' }).click();
+  await expect(invitedCard).toHaveCount(0);
   await recipientContext.close();
   await page.goto(staffUrl.replace('/staff', '/credentials'));
   await expect(
