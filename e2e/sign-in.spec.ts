@@ -129,6 +129,7 @@ test('new account verifies its preview email and signs in', async ({
       configurable: true,
       value: {
         register: () => Promise.resolve(registration),
+        ready: Promise.resolve(registration),
         getRegistration: () => Promise.resolve(registration),
       },
     });
