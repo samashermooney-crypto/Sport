@@ -12,13 +12,13 @@ import { recomputeInvoiceStatus } from './invoice-repo.js';
 type AccountingState = 'warning' | 'active' | 'won' | 'lost';
 
 function accountingState(dispute: GatewayDispute): AccountingState {
-  if (dispute.status === 'lost') return 'lost';
-  if (dispute.status === 'won' || dispute.status === 'prevented') return 'won';
+  if (dispute.status === 'lost' && dispute.fundsWithdrawn) return 'lost';
   if (
-    dispute.fundsWithdrawn &&
-    (dispute.status === 'needs_response' || dispute.status === 'under_review')
+    (dispute.status === 'won' || dispute.status === 'prevented') &&
+    (!dispute.fundsWithdrawn || dispute.fundsReinstated)
   )
-    return 'active';
+    return 'won';
+  if (dispute.fundsWithdrawn) return 'active';
   return 'warning';
 }
 

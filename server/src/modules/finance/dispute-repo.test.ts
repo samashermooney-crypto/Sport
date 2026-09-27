@@ -10,6 +10,7 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import type { GatewayDispute } from '../../integrations/stripe/gateway.js';
 
+import { PostgresDisputeLiabilityRepository } from './dispute-liability-repo.js';
 import { PostgresDisputeRepository } from './dispute-repo.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
@@ -112,7 +113,20 @@ beforeAll(async () => {
     evidenceDueBy: 1_700_000_000,
     fundsWithdrawn: true,
     fundsReinstated: false,
+    reinstatedNetCents: 0,
   };
+  await createWithOrg(database)(context, (trx) =>
+    trx
+      .insertInto('payment_accounts')
+      .values({
+        id: newId(),
+        org_id: orgId,
+        stripe_account_id: `acct_${randomUUID()}`,
+        requirements: {},
+        statement_descriptor: null,
+      })
+      .execute(),
+  );
 });
 
 afterAll(async () => {
@@ -174,5 +188,44 @@ describe('dispute invoice accounting', () => {
     await expect(
       repo.applyLatest(context.orgId, { ...dispute, status: 'won' }),
     ).rejects.toThrow('cannot regress');
+    const transferId = dispute.transferId;
+    if (!transferId) throw new Error('Missing fixture transfer');
+    const liability = new PostgresDisputeLiabilityRepository(
+      database,
+      context.actor.accountId,
+    );
+    const claimInput = {
+      orgId: context.orgId,
+      disputeId: dispute.id,
+      direction: 'from_connected' as const,
+      transferId,
+      amountCents: 1000,
+      unrecoveredCents: 900,
+    };
+    const claim = await liability.claim(claimInput);
+    expect(claim).toMatchObject({
+      state: 'reserved',
+      amountCents: 1000,
+      unrecoveredCents: 900,
+    });
+    expect(await liability.start(context.orgId, claim.id)).toBe(true);
+    expect(await liability.start(context.orgId, claim.id)).toBe(false);
+    await liability.complete({
+      orgId: context.orgId,
+      movementId: claim.id,
+      stripeMovementId: 'trr_test',
+      amountCents: 1000,
+    });
+    expect(await liability.claim(claimInput)).toMatchObject({
+      state: 'completed',
+      stripeMovementId: 'trr_test',
+    });
+    await expect(
+      liability.claim({
+        ...claimInput,
+        amountCents: 999,
+        unrecoveredCents: 901,
+      }),
+    ).rejects.toThrow('conflicts');
   });
 });

@@ -11,7 +11,7 @@ Requests to other tracks: B: confirm whether `generateInstallments` must support
 Requests to other tracks: B: extend `deriveInvoiceState` with disputed-lost cents separate from refunds, while active dispute cents stay excluded from collectible balance; E will add invoice/dispute columns in migration 1015 (2026-09-26).
 Requests to other tracks: A: record the Stripe transfer-reversal limit as a `20 §10` implementation constraint in DECISIONS.md: Stripe permits reversal only up to the unreversed transfer, so full dispute amount plus fee can exceed the legal reversal amount; E will record unrecovered liability instead of claiming the fee was debited (2026-09-26).
 Blocked on: None; schema spine and test factories are on `rebuild/trunk`.
-Next: complete dispute reversal/re-transfer movements and event handler, then register finance jobs/handlers once Track A mounts the worker.
+Next: reconcile ambiguous dispute movements and add evidence workflow, then register finance jobs/handlers once Track A mounts the worker.
 Gateway: Stripe SDK 22.6.2 dependency-only commit `cf83f4c`; real SDK adapter covers Connect, Customers, payment methods, intents, refunds, reversals, disputes, payouts, Billing and domains.
 Gateway tests: 36 passed, including stripe-mock Express account and destination PaymentIntent; typecheck and targeted lint green.
 Gateway review: test-only keys and events enforced; raw webhook bytes verified; exact destination fee and idempotency key asserted.
@@ -54,4 +54,5 @@ Invoice state: `finance/invoice-repo.ts` now recomputes Track B-derived status i
 Waitlist holds: `checkout/waitlist.ts` sets family-local send times and expiry from send, with one-transaction repository contract for capacity, offer and outbox; 2 targeted tests pass.
 Payout mirror: `finance/payouts.ts` fetches latest Connect payout and all transaction pages; `payout-repo.ts` atomically mirrors immutable cents and account ownership under `withOrg`; 3 targeted tests pass.
 Payout reconciliation: org-scoped report links charge/refund/dispute balance transactions to payment and invoice numbers, flags net differences and unlinked sources, and exports CSV with formula-cell escaping; 1 Postgres test passes.
-Dispute accounting foundation: migration 1015 tracks active and lost invoice cents plus durable liability movement claims; latest Stripe dispute/charge fetch validates identity, and org-scoped mirror transitions active→lost idempotently; 1 Postgres test passes, external liability handler still pending.
+Dispute accounting foundation: migration 1015 tracks active and lost invoice cents plus durable liability movement claims; latest Stripe dispute/charge fetch validates identity, and org-scoped mirror transitions active→lost idempotently; 1 Postgres test passes.
+Dispute liability: migration 1016 records zero-available-transfer shortfalls; reversal claims cap at Stripe's unreversed transfer, fence ambiguous calls, restore only reinstated funds on a win, and keep liability shortfalls visible; 2 service and 1 Postgres tests pass.

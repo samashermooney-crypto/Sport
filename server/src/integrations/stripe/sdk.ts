@@ -414,16 +414,47 @@ export class StripeSdkGateway implements PaymentsGateway {
       evidenceDueBy: dispute.evidence_details.due_by,
       fundsWithdrawn: withdrawals.length > 0,
       fundsReinstated: reinstatements.length > 0,
+      reinstatedNetCents: reinstatements.reduce(
+        (sum, item) => sum + item.net,
+        0,
+      ),
     };
   }
 
   async retrieveTransfer(transferId: string) {
     const transfer = await this.stripe.transfers.retrieve(transferId);
+    const destinationAccountId =
+      typeof transfer.destination === 'string'
+        ? transfer.destination
+        : transfer.destination?.id;
+    if (!destinationAccountId)
+      throw new Error('Stripe transfer has no destination account');
     return {
       id: transfer.id,
       amountCents: transfer.amount,
       amountReversedCents: transfer.amount_reversed,
+      destinationAccountId,
     };
+  }
+
+  async createTransfer(input: {
+    destinationAccountId: string;
+    amountCents: number;
+    disputeId: string;
+    idempotencyKey: string;
+  }) {
+    if (!Number.isSafeInteger(input.amountCents) || input.amountCents < 1)
+      throw new RangeError('Transfer amount must be positive integer cents');
+    const transfer = await this.stripe.transfers.create(
+      {
+        amount: input.amountCents,
+        currency: 'usd',
+        destination: input.destinationAccountId,
+        metadata: { dispute_id: input.disputeId },
+      },
+      { idempotencyKey: input.idempotencyKey },
+    );
+    return { id: transfer.id, amountCents: transfer.amount };
   }
 
   async submitDisputeEvidence(input: {

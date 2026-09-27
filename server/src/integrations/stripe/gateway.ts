@@ -80,7 +80,14 @@ export interface PaymentsGateway {
     id: string;
     amountCents: number;
     amountReversedCents: number;
+    destinationAccountId: string;
   }>;
+  createTransfer(input: {
+    destinationAccountId: string;
+    amountCents: number;
+    disputeId: string;
+    idempotencyKey: string;
+  }): Promise<{ id: string; amountCents: number }>;
   submitDisputeEvidence(input: {
     disputeId: string;
     evidence: Record<string, string>;
@@ -161,6 +168,7 @@ export interface GatewayDispute {
   evidenceDueBy: number | null;
   fundsWithdrawn: boolean;
   fundsReinstated: boolean;
+  reinstatedNetCents: number;
 }
 
 export interface GatewayPaymentMethod {
