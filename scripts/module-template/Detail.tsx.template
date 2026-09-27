@@ -1,0 +1,6 @@
+import { Card } from '../ui';
+import type { __PASCAL__Item } from './List';
+
+export function __PASCAL__Detail({ item }: { item: __PASCAL__Item }) {
+  return <Card><h1>{item.name}</h1></Card>;
+}

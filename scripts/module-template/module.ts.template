@@ -1,0 +1,9 @@
+import { create__PASCAL__Router } from './routes.js';
+
+// Adapt dependencies to ServerModule after routes, permissions, and schemas are specialized.
+export const __camel__Module = {
+  name: '__NAME__',
+  path: '/api/v1/__NAME__',
+  router: create__PASCAL__Router,
+  permissions: ['__NAME__.read', '__NAME__.write'],
+};

@@ -24,6 +24,7 @@
     "build": "tsc -b --pretty false && vite build",
     "openapi": "node --import tsx scripts/openapi.ts",
     "registry": "node --import tsx scripts/registry.mjs",
+    "gen:module": "node scripts/gen-module.mjs",
     "size": "size-limit",
     "knip": "knip",
     "prepare": "simple-git-hooks"
