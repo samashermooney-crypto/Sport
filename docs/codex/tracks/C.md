@@ -28,6 +28,12 @@ Blocked on: GitHub access is currently unavailable from this environment; local 
 - Track H: wire `installment.failed` and `installment.final_notice` fanout to consented push/SMS when comms workers and event contracts are available.
 - Review requests addressed to Track A across all `docs/codex/tracks/*.md` for wiring ownership and record completion here.
 
+## Requests from SEC
+
+- SEC-002: publish generated `permission`, `resource`, and `scope` metadata for every API operation to OpenAPI and the route registry. For ID-bearing organization-scoped GET/PATCH/DELETE operations, include real synthetic foreign-resource path IDs plus schema-valid mutation bodies so the fuzzer tests existing out-of-tenant resources, not random missing IDs. Fill the reviewed role-by-operation allow/deny matrix; keep the three SEC completeness checks skipped until these descriptors and fixtures exist (2026-09-27).
+- SEC-SSRF-C-001: validate Web Push subscription endpoints before the `web-push` transport call. `WebPushSender` currently forwards a user-controlled HTTPS URL such as `https://127.0.0.1/...`; reject private/loopback/link-local and unknown destinations before transport and protect DNS resolution from rebinding. Regression assertion is `test.fixme` in `e2e/security/ssrf.spec.ts` (2026-09-27).
+- SEC-CI-001: add Gitleaks secret scanning to CI on pull requests and protected-branch pushes; no Gitleaks job is present in `.github/workflows/ci.yml` (2026-09-27).
+
 ## Verification and environment
 
 - Use real PostgreSQL integration tests; do not skip or weaken DB tests. Run full tests and Playwright only through `~/athlentry-sprint/heavy.sh`.
