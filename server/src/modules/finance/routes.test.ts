@@ -14,6 +14,7 @@ import type { PaymentsGateway } from '../../integrations/stripe/gateway.js';
 import type { AuthDependencies } from '../auth/routes.js';
 import { bindFixtureInvoice } from '../checkout/test-fixtures.js';
 
+import { aidProgramSchema } from './aid-programs.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
@@ -404,6 +405,91 @@ describe('payer invoice feed', () => {
 });
 
 describe('aid award HTTP', () => {
+  it('creates and opens an aid fund only for a finance session', async () => {
+    const seasonId = newId();
+    const formId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('seasons')
+        .values({
+          id: seasonId,
+          org_id: context.orgId,
+          name: 'Aid API season',
+          starts_on: '2026-01-01',
+          ends_on: '2027-12-31',
+        })
+        .execute();
+      await trx
+        .insertInto('form_definitions')
+        .values({
+          id: formId,
+          org_id: context.orgId,
+          name: 'Aid API form',
+          scope: 'custom',
+          schema: {},
+          published_at: now,
+        })
+        .execute();
+    });
+    const path = `${baseUrl}/orgs/${context.orgId}/aid-programs`;
+    const key = randomUUID();
+    const post = (requestOrigin: string) =>
+      fetch(path, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: requestOrigin,
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': key,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'Aid API fund',
+          seasonId,
+          applicationFormId: formId,
+          budgetCents: 1000,
+        }),
+      });
+    expect((await post('https://attacker.example')).status).toBe(403);
+    const created = await post(origin);
+    expect(created.status).toBe(201);
+    const fund = aidProgramSchema.parse((await created.json()) as unknown);
+    expect(
+      aidProgramSchema.parse((await (await post(origin)).json()) as unknown),
+    ).toEqual(fund);
+    const replace = await fetch(`${path}/${fund.id}`, {
+      method: 'PUT',
+      headers: {
+        Cookie: `__Host-athlentry_session=${token}`,
+        Origin: origin,
+        'X-Athlentry-Request': '1',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: fund.name,
+        applicationFormId: formId,
+        budgetCents: 1000,
+        expectedVersion: fund.version,
+        status: 'open',
+      }),
+    });
+    expect(replace.status).toBe(200);
+    expect(
+      aidProgramSchema.parse((await replace.json()) as unknown).status,
+    ).toBe('open');
+    const list = await fetch(`${path}?seasonId=${seasonId}`, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(list.status).toBe(200);
+    expect(await list.json()).toEqual({
+      programs: [
+        expect.objectContaining({
+          id: fund.id,
+          status: 'open',
+        }),
+      ],
+    });
+  });
   it('reserves one budgeted decision for a finance actor and replays the exact key', async () => {
     const seasonId = newId();
     const householdId = newId();

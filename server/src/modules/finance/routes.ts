@@ -12,6 +12,14 @@ import { requireSession } from '../auth/routes.js';
 import type { AuthDependencies } from '../auth/routes.js';
 
 import { AidAwardConflictError, PostgresAidAwards } from './aid-awards.js';
+import {
+  aidProgramCreateSchema,
+  aidProgramListSchema,
+  aidProgramReplaceSchema,
+  aidProgramSchema,
+  AidProgramConflictError,
+  PostgresAidPrograms,
+} from './aid-programs.js';
 import { PostgresPaymentAttemptStore } from './attempt-repo.js';
 import { ConnectConflictError, ConnectOnboardingService } from './connect.js';
 import { PostgresCreditRefundRepository } from './credit-refund-repo.js';
@@ -349,7 +357,8 @@ function sendError(response: Response, error: unknown): void {
           error instanceof PaymentConflictError ||
           error instanceof InstallmentTemplateConflictError ||
           error instanceof InvoiceConflictError ||
-          error instanceof AidAwardConflictError
+          error instanceof AidAwardConflictError ||
+          error instanceof AidProgramConflictError
         ? 409
         : error instanceof InvoiceNotFoundError
           ? 404
@@ -420,6 +429,73 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.get('/orgs/:orgId/aid-programs', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireAidStaff(dependencies.database, context);
+      const seasonId =
+        request.query.seasonId === undefined
+          ? undefined
+          : z.uuid().parse(request.query.seasonId);
+      const programs = await new PostgresAidPrograms(
+        dependencies.database,
+        context,
+      ).list(seasonId);
+      response.json(aidProgramListSchema.parse({ programs }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/aid-programs', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = aidProgramCreateSchema.parse(request.body as unknown);
+      const key = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireAidStaff(dependencies.database, context);
+      const program = await new PostgresAidPrograms(
+        dependencies.database,
+        context,
+      ).create(body, key);
+      response.status(201).json(aidProgramSchema.parse(program));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.put(
+    '/orgs/:orgId/aid-programs/:programId',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const programId = z.uuid().parse(request.params.programId);
+        const body = aidProgramReplaceSchema.parse(request.body as unknown);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireAidStaff(dependencies.database, context);
+        const program = await new PostgresAidPrograms(
+          dependencies.database,
+          context,
+        ).replace(programId, body);
+        response.json(aidProgramSchema.parse(program));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   router.post(
     '/orgs/:orgId/aid-applications/:applicationId/award',
     async (request, response) => {

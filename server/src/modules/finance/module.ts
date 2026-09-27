@@ -1,6 +1,12 @@
 import type { ServerModule } from '../../lib/module-contract.js';
 
 import {
+  aidProgramCreateSchema,
+  aidProgramListSchema,
+  aidProgramReplaceSchema,
+  aidProgramSchema,
+} from './aid-programs.js';
+import {
   installmentTemplateBodySchema,
   installmentTemplateSchema,
   installmentTemplateListSchema,
@@ -41,6 +47,26 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/aid-programs',
+      summary: 'List season aid funds for owner or finance staff',
+      response: aidProgramListSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/aid-programs',
+      summary: 'Create an idempotent draft season aid fund',
+      body: aidProgramCreateSchema,
+      response: aidProgramSchema,
+    },
+    {
+      method: 'put',
+      path: '/api/v1/finance/orgs/{orgId}/aid-programs/{programId}',
+      summary: 'Replace a season aid fund at an exact version',
+      body: aidProgramReplaceSchema,
+      response: aidProgramSchema,
+    },
     {
       method: 'post',
       path: '/api/v1/finance/orgs/{orgId}/aid-applications/{applicationId}/award',
