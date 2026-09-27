@@ -299,3 +299,5 @@ Open requests:
 - Track C: record the late-fee cap decision, wire raw Stripe webhook routers and `stripe.event` dispatch/system workers, and mount generated route discovery; coordinate the remaining finance webhooks/jobs requests already recorded above.
 - Track B: retain the shared pricing/fees/refund algorithms as the source for discount/aid-aware transfer deltas.
 - OPS: publish the stable family checkout/registration-open API path and a test-mode load fixture for 2,000 families, including capacity verification query and no-oversell invariant.
+
+HANDED OFF 13:34
