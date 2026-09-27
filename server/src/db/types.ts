@@ -998,6 +998,7 @@ export interface FormDefinitions {
   retired_at: Timestamp | null;
   schema: Json;
   scope: string;
+  supersedes_id: string | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -1081,6 +1082,50 @@ export interface IdempotencyKeys {
   request_hash: Buffer;
   response_body: Json | null;
   response_status: number | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ImportBatches {
+  committed_at: Timestamp | null;
+  committed_by: string | null;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  filename: string;
+  id: string;
+  kind: string;
+  mapping: Generated<Json>;
+  org_id: string;
+  rolled_back_at: Timestamp | null;
+  rolled_back_by: string | null;
+  stats: Generated<Json>;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ImportMappingPresets {
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  id: string;
+  kind: string;
+  mapping: Json;
+  name: string;
+  org_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ImportRows {
+  action: Generated<string>;
+  batch_id: string;
+  created_at: Generated<Timestamp>;
+  created_refs: Generated<Json>;
+  entity_id: string | null;
+  entity_type: string | null;
+  id: string;
+  issues: Generated<Json>;
+  normalized: Json | null;
+  org_id: string;
+  raw: Json;
+  row_number: number;
   updated_at: Generated<Timestamp>;
 }
 
@@ -2526,6 +2571,7 @@ export interface WaiverDocuments {
   renewal: string;
   requires: string;
   retired_at: Timestamp | null;
+  supersedes_id: string | null;
   template_unreviewed: Generated<boolean>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
@@ -2625,6 +2671,9 @@ export interface DB {
   household_members: HouseholdMembers;
   households: Households;
   idempotency_keys: IdempotencyKeys;
+  import_batches: ImportBatches;
+  import_mapping_presets: ImportMappingPresets;
+  import_rows: ImportRows;
   incident_reports: IncidentReports;
   injury_reports: InjuryReports;
   injury_roster_holds: InjuryRosterHolds;
