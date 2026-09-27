@@ -66,6 +66,90 @@ afterAll(async () => {
   await database.destroy();
 });
 
+it('blocks a full-field booking over a booked half', async () => {
+  const service = new FacilitiesService(database, context);
+  const facility = await service.createFacility({
+    name: 'Halfway Park',
+    ownership: 'permitted',
+    timezone: 'UTC',
+  });
+  const full = await service.createSpace({
+    facilityId: facility.id,
+    name: 'Field 2',
+    kind: 'field',
+  });
+  const left = await service.createSpace({
+    facilityId: facility.id,
+    parentSpaceId: full.id,
+    name: 'Field 2A',
+    kind: 'field',
+  });
+  const right = await service.createSpace({
+    facilityId: facility.id,
+    parentSpaceId: full.id,
+    name: 'Field 2B',
+    kind: 'field',
+  });
+  await createWithOrg(database)(context, async (trx) => {
+    const eventId = newId();
+    await trx
+      .insertInto('events')
+      .values({
+        id: eventId,
+        org_id: context.orgId,
+        kind: 'practice',
+        title: 'Half field first',
+        starts_at: new Date('2027-05-01T10:00:00Z'),
+        ends_at: new Date('2027-05-01T12:00:00Z'),
+        timezone: 'UTC',
+        space_id: left.id,
+      })
+      .execute();
+    await trx
+      .insertInto('space_bookings')
+      .values({
+        id: newId(),
+        org_id: context.orgId,
+        booking_group_id: newId(),
+        leaf_space_id: left.id,
+        during: '["2027-05-01 10:00:00+00","2027-05-01 12:00:00+00")',
+        event_id: eventId,
+      })
+      .execute();
+  });
+  await expect(
+    createWithOrg(database)(context, async (trx) => {
+      const eventId = newId();
+      await trx
+        .insertInto('events')
+        .values({
+          id: eventId,
+          org_id: context.orgId,
+          kind: 'practice',
+          title: 'Full field over half',
+          starts_at: new Date('2027-05-01T11:00:00Z'),
+          ends_at: new Date('2027-05-01T13:00:00Z'),
+          timezone: 'UTC',
+          space_id: full.id,
+        })
+        .execute();
+      await trx
+        .insertInto('space_bookings')
+        .values(
+          [left, right].map((space) => ({
+            id: newId(),
+            org_id: context.orgId,
+            booking_group_id: newId(),
+            leaf_space_id: space.id,
+            during: '["2027-05-01 11:00:00+00","2027-05-01 13:00:00+00")',
+            event_id: eventId,
+          })),
+        )
+        .execute();
+    }),
+  ).rejects.toThrow();
+});
+
 it('blocks overlapping full-field and half-field bookings through leaf exclusion', async () => {
   const service = new FacilitiesService(database, context);
   const facility = await service.createFacility({

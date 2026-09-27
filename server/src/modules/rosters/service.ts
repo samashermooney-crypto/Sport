@@ -32,6 +32,23 @@ export class RosterError extends Error {
   }
 }
 
+const translateUniqueViolation = (error: unknown): never => {
+  if (error instanceof Error && 'code' in error && error.code === '23505') {
+    const constraint =
+      'constraint' in error && typeof error.constraint === 'string'
+        ? error.constraint
+        : '';
+    throw new RosterError(
+      409,
+      'CONFLICT',
+      constraint.includes('jersey')
+        ? 'Jersey number is already taken on this team'
+        : 'This person is already on the roster',
+    );
+  }
+  throw error;
+};
+
 type TeamConfig = {
   teamSeasonId: string;
   profile: z.output<typeof sportProfileSchema>;
@@ -229,20 +246,24 @@ export class RostersService {
             'Guest player limit reached',
           );
       }
-      return trx
-        .insertInto('roster_entries')
-        .values({
-          id: newId(),
-          org_id: this.context.orgId,
-          team_season_id: teamSeasonId,
-          person_id: value.personId,
-          registration_id: value.registrationId,
-          kind: value.kind,
-          jersey_number: value.jerseyNumber,
-          positions: value.positions,
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
+      try {
+        return await trx
+          .insertInto('roster_entries')
+          .values({
+            id: newId(),
+            org_id: this.context.orgId,
+            team_season_id: teamSeasonId,
+            person_id: value.personId,
+            registration_id: value.registrationId,
+            kind: value.kind,
+            jersey_number: value.jerseyNumber,
+            positions: value.positions,
+          })
+          .returningAll()
+          .executeTakeFirstOrThrow();
+      } catch (error) {
+        translateUniqueViolation(error);
+      }
     });
   }
   update(id: string, input: z.input<typeof rosterUpdateSchema>) {
@@ -279,20 +300,24 @@ export class RostersService {
           : value.jerseyNumber,
         value.positions ?? current.positions,
       );
-      return trx
-        .updateTable('roster_entries')
-        .set({
-          ...(value.jerseyNumber === undefined
-            ? {}
-            : { jersey_number: value.jerseyNumber }),
-          ...(value.positions === undefined
-            ? {}
-            : { positions: value.positions }),
-          version: current.version + 1,
-        })
-        .where('id', '=', id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
+      try {
+        return await trx
+          .updateTable('roster_entries')
+          .set({
+            ...(value.jerseyNumber === undefined
+              ? {}
+              : { jersey_number: value.jerseyNumber }),
+            ...(value.positions === undefined
+              ? {}
+              : { positions: value.positions }),
+            version: current.version + 1,
+          })
+          .where('id', '=', id)
+          .returningAll()
+          .executeTakeFirstOrThrow();
+      } catch (error) {
+        translateUniqueViolation(error);
+      }
     });
   }
   move(id: string, destinationTeamSeasonId: string, expectedVersion: number) {
@@ -333,15 +358,19 @@ export class RostersService {
         current.jersey_number,
         current.positions,
       );
-      return trx
-        .updateTable('roster_entries')
-        .set({
-          team_season_id: destinationTeamSeasonId,
-          version: current.version + 1,
-        })
-        .where('id', '=', id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
+      try {
+        return await trx
+          .updateTable('roster_entries')
+          .set({
+            team_season_id: destinationTeamSeasonId,
+            version: current.version + 1,
+          })
+          .where('id', '=', id)
+          .returningAll()
+          .executeTakeFirstOrThrow();
+      } catch (error) {
+        translateUniqueViolation(error);
+      }
     });
   }
   release(id: string, expectedVersion: number) {

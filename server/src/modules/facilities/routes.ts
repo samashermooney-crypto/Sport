@@ -12,6 +12,7 @@ import {
   blackoutInputSchema,
   facilityInputSchema,
   spaceInputSchema,
+  spaceUpdateSchema,
 } from './service';
 
 export function createFacilitiesRouter(
@@ -116,6 +117,39 @@ export function createFacilitiesRouter(
       201,
     ),
   );
+  router.patch(
+    '/orgs/:orgId/spaces/:spaceId',
+    run(async (request) =>
+      (await service(request, true)).updateSpace(
+        z.uuid().parse(request.params.spaceId),
+        spaceUpdateSchema.parse(request.body),
+      ),
+    ),
+  );
+  router.post(
+    '/orgs/:orgId/spaces/:spaceId/archive',
+    run(async (request) => {
+      const body = z
+        .object({ expectedVersion: z.number().int().positive() })
+        .parse(request.body);
+      return (await service(request, true)).archiveSpace(
+        z.uuid().parse(request.params.spaceId),
+        body.expectedVersion,
+      );
+    }),
+  );
+  router.post(
+    '/orgs/:orgId/:facilityId/archive',
+    run(async (request) => {
+      const body = z
+        .object({ expectedVersion: z.number().int().positive() })
+        .parse(request.body);
+      return (await service(request, true)).archiveFacility(
+        z.uuid().parse(request.params.facilityId),
+        body.expectedVersion,
+      );
+    }),
+  );
   router.get(
     '/orgs/:orgId/spaces/:spaceId/availability',
     run(async (request) =>
@@ -134,6 +168,18 @@ export function createFacilitiesRouter(
       201,
     ),
   );
+  router.delete(
+    '/orgs/:orgId/availability/:availabilityId',
+    run(async (request) => {
+      const body = z
+        .object({ expectedVersion: z.number().int().positive() })
+        .parse(request.body);
+      return (await service(request, true)).deleteAvailability(
+        z.uuid().parse(request.params.availabilityId),
+        body.expectedVersion,
+      );
+    }),
+  );
   router.get(
     '/orgs/:orgId/blackouts',
     run(async (request) => (await service(request)).blackouts()),
@@ -146,6 +192,14 @@ export function createFacilitiesRouter(
           blackoutInputSchema.parse(request.body),
         ),
       201,
+    ),
+  );
+  router.delete(
+    '/orgs/:orgId/blackouts/:blackoutId',
+    run(async (request) =>
+      (await service(request, true)).deleteBlackout(
+        z.uuid().parse(request.params.blackoutId),
+      ),
     ),
   );
   return router;

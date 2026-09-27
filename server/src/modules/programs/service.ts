@@ -61,7 +61,14 @@ export class ProgramError extends Error {
     super(message);
   }
 }
-const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
+const pad2 = (value: number) => String(value).padStart(2, '0');
+const dateOnly = (value: Date) =>
+  [
+    pad2(value.getFullYear()),
+    pad2(value.getMonth() + 1),
+    pad2(value.getDate()),
+  ].join('-');
+const day = (value: string) => value;
 
 export class ProgramsService {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
@@ -201,9 +208,8 @@ export class ProgramsService {
           'CONFLICT',
           'Unpublish before changing the program URL',
         );
-      const starts =
-        value.startsOn ?? current.starts_on.toISOString().slice(0, 10);
-      const ends = value.endsOn ?? current.ends_on.toISOString().slice(0, 10);
+      const starts = value.startsOn ?? dateOnly(current.starts_on);
+      const ends = value.endsOn ?? dateOnly(current.ends_on);
       if (starts > ends)
         throw new ProgramError(
           400,

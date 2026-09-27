@@ -12,6 +12,8 @@ import {
   teamGeneratorSchema,
   teamInputSchema,
   teamSeasonInputSchema,
+  teamSeasonUpdateSchema,
+  teamUpdateSchema,
 } from './service';
 
 export function createTeamsRouter(
@@ -106,6 +108,32 @@ export function createTeamsRouter(
       201,
     ),
   );
+  router.patch(
+    '/orgs/:orgId/:teamId',
+    run(async (request) =>
+      (await service(request, true)).updateTeam(
+        z.uuid().parse(request.params.teamId),
+        teamUpdateSchema.parse(request.body),
+      ),
+    ),
+  );
+  router.patch(
+    '/orgs/:orgId/seasons/:teamSeasonId',
+    run(async (request) =>
+      (await service(request, true)).updateTeamSeason(
+        z.uuid().parse(request.params.teamSeasonId),
+        teamSeasonUpdateSchema.parse(request.body),
+      ),
+    ),
+  );
+  router.get(
+    '/orgs/:orgId/seasons/:teamSeasonId/staff',
+    run(async (request) =>
+      (await service(request)).listStaff(
+        z.uuid().parse(request.params.teamSeasonId),
+      ),
+    ),
+  );
   router.post(
     '/orgs/:orgId/generate',
     run(
@@ -126,6 +154,26 @@ export function createTeamsRouter(
         ),
       201,
     ),
+  );
+  router.post(
+    '/orgs/:orgId/staff/:staffId/revalidate',
+    run(async (request) =>
+      (await service(request, true)).revalidateStaff(
+        z.uuid().parse(request.params.staffId),
+      ),
+    ),
+  );
+  router.post(
+    '/orgs/:orgId/staff/:staffId/remove',
+    run(async (request) => {
+      const body = z
+        .object({ expectedVersion: z.number().int().positive() })
+        .parse(request.body);
+      return (await service(request, true)).removeStaff(
+        z.uuid().parse(request.params.staffId),
+        body.expectedVersion,
+      );
+    }),
   );
   router.post(
     '/orgs/:orgId/seasons/:teamSeasonId/roster-lock',

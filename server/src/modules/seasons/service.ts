@@ -1,3 +1,4 @@
+import { Temporal } from '@js-temporal/polyfill';
 import { newId } from '@shared/ids';
 import type { Kysely } from 'kysely';
 import { z } from 'zod';
@@ -20,7 +21,8 @@ export const seasonUpdateSchema = seasonCreateSchema.partial().extend({
   status: z.enum(['planning', 'active', 'completed', 'archived']).optional(),
 });
 export const rolloverSchema = seasonCreateSchema.extend({
-  offsetDays: z.number().int().min(-3660).max(3660),
+  offsetDays: z.number().int().min(-3660).max(3660).default(0),
+  dateMap: z.record(z.iso.date(), z.iso.date()).default({}),
   returningTeamSeasonIds: z.array(z.uuid()),
   carryStaffIds: z.array(z.uuid()),
 });
@@ -33,18 +35,60 @@ export class SeasonError extends Error {
     super(message);
   }
 }
-const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
-const dateOnly = (value: Date) => value.toISOString().slice(0, 10);
+const pad2 = (value: number) => String(value).padStart(2, '0');
+const dateOnly = (value: Date) =>
+  [
+    pad2(value.getFullYear()),
+    pad2(value.getMonth() + 1),
+    pad2(value.getDate()),
+  ].join('-');
+const day = (value: string) => value;
 const shiftDate = (value: Date, offset: number) =>
-  new Date(value.getTime() + offset * 86_400_000);
+  dateOnly(
+    new Date(value.getFullYear(), value.getMonth(), value.getDate() + offset),
+  );
 const shiftInstant = (value: Date | null, offset: number) =>
   value ? new Date(value.getTime() + offset * 86_400_000) : null;
+
+type DateMap = Readonly<Record<string, string>>;
+const resolveDate = (value: Date, offset: number, map: DateMap) =>
+  map[dateOnly(value)] ?? shiftDate(value, offset);
+const resolveInstant = (
+  value: Date | null,
+  offset: number,
+  map: DateMap,
+  timeZone: string,
+) => {
+  if (!value) return null;
+  const zoned = Temporal.Instant.fromEpochMilliseconds(
+    value.getTime(),
+  ).toZonedDateTimeISO(timeZone);
+  const mapped = map[zoned.toPlainDate().toString()];
+  if (!mapped) return shiftInstant(value, offset);
+  const target = Temporal.PlainDateTime.from(
+    `${mapped}T${zoned.toPlainTime().toString()}`,
+  ).toZonedDateTime(timeZone, { disambiguation: 'compatible' });
+  return new Date(target.toInstant().epochMilliseconds);
+};
+
+export type RolloverIdMap = {
+  seasonId: string;
+  programIds: ReadonlyMap<string, string>;
+  divisionIds: ReadonlyMap<string, string>;
+  teamSeasonIds: ReadonlyMap<string, string>;
+  staffIds: ReadonlyMap<string, string>;
+};
+export type SeasonRolloverExtras = (
+  trx: OrgTransaction,
+  ids: RolloverIdMap,
+) => Promise<void>;
 
 export class SeasonsService {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
   constructor(
     database: Kysely<DB>,
     private readonly context: OrgContext,
+    private readonly extras: SeasonRolloverExtras[] = [],
   ) {
     this.withOrg = createWithOrg(database);
   }
@@ -215,8 +259,12 @@ export class SeasonsService {
           id: p.id,
           name: p.name,
           startsOn: dateOnly(p.starts_on),
-          copiedStartsOn: dateOnly(shiftDate(p.starts_on, value.offsetDays)),
-          copiedEndsOn: dateOnly(shiftDate(p.ends_on, value.offsetDays)),
+          copiedStartsOn: resolveDate(
+            p.starts_on,
+            value.offsetDays,
+            value.dateMap,
+          ),
+          copiedEndsOn: resolveDate(p.ends_on, value.offsetDays, value.dateMap),
         })),
         teams: teamSeasons.map((team) => ({
           ...team,
@@ -251,6 +299,11 @@ export class SeasonsService {
       .forUpdate()
       .executeTakeFirst();
     if (!source) throw new SeasonError(404, 'NOT_FOUND', 'Season not found');
+    const org = await trx
+      .selectFrom('organizations')
+      .select('timezone')
+      .where('id', '=', this.context.orgId)
+      .executeTakeFirstOrThrow();
     const oldPrograms = await trx
       .selectFrom('programs')
       .selectAll()
@@ -277,6 +330,18 @@ export class SeasonsService {
     for (const old of oldPrograms) {
       const id = newId();
       programIds.set(old.id, id);
+      const startsOn = resolveDate(
+        old.starts_on,
+        value.offsetDays,
+        value.dateMap,
+      );
+      const endsOn = resolveDate(old.ends_on, value.offsetDays, value.dateMap);
+      if (startsOn > endsOn)
+        throw new SeasonError(
+          400,
+          'VALIDATION_ERROR',
+          `Copied dates for "${old.name}" end before they start`,
+        );
       await trx
         .insertInto('programs')
         .values({
@@ -289,19 +354,25 @@ export class SeasonsService {
           slug: `${old.slug}-${suffix}-${target.id.slice(0, 8)}`,
           status: 'draft',
           visibility: old.visibility,
-          starts_on: shiftDate(old.starts_on, value.offsetDays),
-          ends_on: shiftDate(old.ends_on, value.offsetDays),
-          registration_opens_at: shiftInstant(
+          starts_on: startsOn,
+          ends_on: endsOn,
+          registration_opens_at: resolveInstant(
             old.registration_opens_at,
             value.offsetDays,
+            value.dateMap,
+            org.timezone,
           ),
-          registration_closes_at: shiftInstant(
+          registration_closes_at: resolveInstant(
             old.registration_closes_at,
             value.offsetDays,
+            value.dateMap,
+            org.timezone,
           ),
-          late_registration_closes_at: shiftInstant(
+          late_registration_closes_at: resolveInstant(
             old.late_registration_closes_at,
             value.offsetDays,
+            value.dateMap,
+            org.timezone,
           ),
           eligibility: old.eligibility,
           default_facility_id: old.default_facility_id,
@@ -450,6 +521,7 @@ export class SeasonsService {
       .where('status', '!=', 'removed')
       .execute();
     const carry = new Set(value.carryStaffIds);
+    const staffIds = new Map<string, string>();
     for (const member of oldStaff) {
       if (!carry.has(member.id)) continue;
       const teamSeasonId = teamSeasonIds.get(member.team_season_id);
@@ -459,10 +531,12 @@ export class SeasonsService {
           'VALIDATION_ERROR',
           'Cannot carry staff from an excluded team',
         );
+      const staffId = newId();
+      staffIds.set(member.id, staffId);
       await trx
         .insertInto('team_staff')
         .values({
-          id: newId(),
+          id: staffId,
           org_id: this.context.orgId,
           team_season_id: teamSeasonId,
           person_id: member.person_id,
@@ -512,8 +586,16 @@ export class SeasonsService {
           division_id: divisionId ?? null,
           rrule: allocation.rrule,
           recurrence: allocation.recurrence,
-          starts_on: shiftDate(allocation.starts_on, value.offsetDays),
-          ends_on: shiftDate(allocation.ends_on, value.offsetDays),
+          starts_on: resolveDate(
+            allocation.starts_on,
+            value.offsetDays,
+            value.dateMap,
+          ),
+          ends_on: resolveDate(
+            allocation.ends_on,
+            value.offsetDays,
+            value.dateMap,
+          ),
           start_time: allocation.start_time,
           end_time: allocation.end_time,
           purpose: allocation.purpose,
@@ -521,12 +603,20 @@ export class SeasonsService {
         })
         .execute();
     }
+    const ids: RolloverIdMap = {
+      seasonId: target.id,
+      programIds,
+      divisionIds,
+      teamSeasonIds,
+      staffIds,
+    };
+    for (const extra of this.extras) await extra(trx, ids);
     return {
       season: target,
       copied: {
         programs: programIds.size,
         teams: teamSeasonIds.size,
-        staff: oldStaff.filter((member) => carry.has(member.id)).length,
+        staff: staffIds.size,
       },
     };
   }

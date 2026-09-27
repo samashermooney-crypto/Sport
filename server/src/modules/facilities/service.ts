@@ -53,6 +53,10 @@ export const blackoutInputSchema = z.strictObject({
   endsAt: z.iso.datetime({ offset: true }),
   reason: z.string().trim().min(1).max(500),
 });
+export const spaceUpdateSchema = spaceInputSchema
+  .omit({ facilityId: true })
+  .partial()
+  .extend({ expectedVersion: z.number().int().positive() });
 export class FacilityError extends Error {
   constructor(
     readonly status: number,
@@ -62,7 +66,7 @@ export class FacilityError extends Error {
     super(message);
   }
 }
-const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
+const day = (value: string) => value;
 
 export class FacilitiesService {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
@@ -219,6 +223,215 @@ export class FacilitiesService {
         })
         .returningAll()
         .executeTakeFirstOrThrow();
+    });
+  }
+  updateSpace(id: string, input: z.input<typeof spaceUpdateSchema>) {
+    const value = spaceUpdateSchema.parse(input);
+    return this.withOrg(this.context, async (trx) => {
+      await requireStaff(
+        trx,
+        this.context.orgId,
+        this.context.actor.accountId,
+        false,
+      );
+      const current = await trx
+        .selectFrom('spaces')
+        .selectAll()
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', id)
+        .where('archived_at', 'is', null)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!current)
+        throw new FacilityError(404, 'NOT_FOUND', 'Space not found');
+      if (current.version !== value.expectedVersion)
+        throw new FacilityError(
+          409,
+          'VERSION_CONFLICT',
+          'Space changed; reload before saving',
+        );
+      if (
+        value.parentSpaceId &&
+        value.parentSpaceId !== current.parent_space_id
+      ) {
+        if (value.parentSpaceId === id)
+          throw new FacilityError(
+            400,
+            'VALIDATION_ERROR',
+            'A space cannot be its own parent',
+          );
+        const parent = await trx
+          .selectFrom('spaces')
+          .select('id')
+          .where('org_id', '=', this.context.orgId)
+          .where('facility_id', '=', current.facility_id)
+          .where('id', '=', value.parentSpaceId)
+          .where('archived_at', 'is', null)
+          .executeTakeFirst();
+        if (!parent)
+          throw new FacilityError(
+            400,
+            'VALIDATION_ERROR',
+            'Parent space must be in the same facility',
+          );
+      }
+      return trx
+        .updateTable('spaces')
+        .set({
+          ...(value.parentSpaceId === undefined
+            ? {}
+            : { parent_space_id: value.parentSpaceId }),
+          ...(value.name === undefined ? {} : { name: value.name }),
+          ...(value.kind === undefined ? {} : { kind: value.kind }),
+          ...(value.surface === undefined ? {} : { surface: value.surface }),
+          ...(value.hasLights === undefined
+            ? {}
+            : { has_lights: value.hasLights }),
+          ...(value.suitability === undefined
+            ? {}
+            : { suitability: value.suitability as Json }),
+          ...(value.capacityPeople === undefined
+            ? {}
+            : { capacity_people: value.capacityPeople }),
+          version: current.version + 1,
+        })
+        .where('id', '=', id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    });
+  }
+  archiveFacility(id: string, expectedVersion: number) {
+    return this.withOrg(this.context, async (trx) => {
+      await requireStaff(
+        trx,
+        this.context.orgId,
+        this.context.actor.accountId,
+        false,
+      );
+      const current = await trx
+        .selectFrom('facilities')
+        .select('version')
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', id)
+        .where('archived_at', 'is', null)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!current)
+        throw new FacilityError(404, 'NOT_FOUND', 'Facility not found');
+      if (current.version !== expectedVersion)
+        throw new FacilityError(
+          409,
+          'VERSION_CONFLICT',
+          'Facility changed; reload before saving',
+        );
+      const now = new Date();
+      await trx
+        .updateTable('spaces')
+        .set({ archived_at: now })
+        .where('org_id', '=', this.context.orgId)
+        .where('facility_id', '=', id)
+        .where('archived_at', 'is', null)
+        .execute();
+      return trx
+        .updateTable('facilities')
+        .set({ archived_at: now, version: current.version + 1 })
+        .where('id', '=', id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    });
+  }
+  archiveSpace(id: string, expectedVersion: number) {
+    return this.withOrg(this.context, async (trx) => {
+      await requireStaff(
+        trx,
+        this.context.orgId,
+        this.context.actor.accountId,
+        false,
+      );
+      const current = await trx
+        .selectFrom('spaces')
+        .select('version')
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', id)
+        .where('archived_at', 'is', null)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!current)
+        throw new FacilityError(404, 'NOT_FOUND', 'Space not found');
+      if (current.version !== expectedVersion)
+        throw new FacilityError(
+          409,
+          'VERSION_CONFLICT',
+          'Space changed; reload before saving',
+        );
+      const now = new Date();
+      await trx
+        .updateTable('spaces')
+        .set({ archived_at: now })
+        .where('org_id', '=', this.context.orgId)
+        .where('parent_space_id', '=', id)
+        .where('archived_at', 'is', null)
+        .execute();
+      return trx
+        .updateTable('spaces')
+        .set({ archived_at: now, version: current.version + 1 })
+        .where('id', '=', id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    });
+  }
+  deleteAvailability(id: string, expectedVersion: number) {
+    return this.withOrg(this.context, async (trx) => {
+      await requireStaff(
+        trx,
+        this.context.orgId,
+        this.context.actor.accountId,
+        false,
+      );
+      const current = await trx
+        .selectFrom('space_availability')
+        .select('version')
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!current)
+        throw new FacilityError(
+          404,
+          'NOT_FOUND',
+          'Availability window not found',
+        );
+      if (current.version !== expectedVersion)
+        throw new FacilityError(
+          409,
+          'VERSION_CONFLICT',
+          'Availability window changed; reload before saving',
+        );
+      await trx
+        .deleteFrom('space_availability')
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', id)
+        .execute();
+      return { id };
+    });
+  }
+  deleteBlackout(id: string) {
+    return this.withOrg(this.context, async (trx) => {
+      await requireStaff(
+        trx,
+        this.context.orgId,
+        this.context.actor.accountId,
+        false,
+      );
+      const removed = await trx
+        .deleteFrom('space_blackouts')
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', id)
+        .returning('id')
+        .executeTakeFirst();
+      if (!removed)
+        throw new FacilityError(404, 'NOT_FOUND', 'Blackout not found');
+      return removed;
     });
   }
   availability(spaceId: string) {
