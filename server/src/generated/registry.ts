@@ -13,6 +13,7 @@ import { moduleDefinition as communicationsModule } from '../modules/communicati
 import { moduleDefinition as complianceModule } from '../modules/compliance/module';
 import { moduleDefinition as contestsModule } from '../modules/contests/module';
 import { moduleDefinition as disciplineModule } from '../modules/discipline/module';
+import { moduleDefinition as federationModule } from '../modules/federation/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
 import { moduleDefinition as importsModule } from '../modules/imports/module';
@@ -27,6 +28,7 @@ import { moduleDefinition as safetyModule } from '../modules/safety/module';
 import { moduleDefinition as schedulingModule } from '../modules/scheduling/module';
 import { moduleDefinition as standingsModule } from '../modules/standings/module';
 import { moduleDefinition as tournamentsModule } from '../modules/tournaments/module';
+import { moduleDefinition as websiteModule } from '../modules/website/module';
 
 export const serverModules: readonly ServerModule[] = [
   attendanceModule,
@@ -37,6 +39,7 @@ export const serverModules: readonly ServerModule[] = [
   complianceModule,
   contestsModule,
   disciplineModule,
+  federationModule,
   filesModule,
   financeModule,
   importsModule,
@@ -51,6 +54,7 @@ export const serverModules: readonly ServerModule[] = [
   schedulingModule,
   standingsModule,
   tournamentsModule,
+  websiteModule,
 ];
 export const integrationConfigs: readonly IntegrationConfig[] = [
   backgroundCheckConfig,

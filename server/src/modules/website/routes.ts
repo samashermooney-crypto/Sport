@@ -110,14 +110,10 @@ export function createWebsiteRouter(
   );
 
   router.get(
-    '/public/:orgSlug/pages/*pageSlug',
+    '/public/:orgSlug/pages/:pageSlug',
     route(async (request, response) => {
       const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
-      const rawPageSlug = request.params.pageSlug;
-      const pageSlugValue = Array.isArray(rawPageSlug)
-        ? rawPageSlug.join('/')
-        : rawPageSlug;
-      const pageSlug = websitePageSlugSchema.parse(pageSlugValue);
+      const pageSlug = websitePageSlugSchema.parse(request.params.pageSlug);
       const result = await getPublicWebsitePage(
         dependencies.database,
         orgSlug,
