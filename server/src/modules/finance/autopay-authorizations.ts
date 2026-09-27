@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto';
+
+import { newId } from '@shared/ids';
 import { sql, type Kysely } from 'kysely';
 import { z } from 'zod';
 
@@ -26,6 +29,10 @@ export class AutopayAuthorizationNotFoundError extends Error {
     super('Autopay authorization was not found');
   }
 }
+export class AutopayAuthorizationConflictError extends Error {}
+export const STAFF_METHOD_CONSENT_VERSION = 'staff-method-consent-v1';
+export const STAFF_METHOD_CONSENT_TEXT =
+  'I authorize this organization to charge my selected saved payment method for future unpaid installments of this invoice. I may stop future automatic charges at any time. A charge already in progress may still complete.';
 
 interface AuthorizationRow {
   id: string;
@@ -48,6 +55,116 @@ export class PostgresAutopayAuthorizations {
     private readonly context: OrgContext,
   ) {
     this.withOrg = createWithOrg(database);
+  }
+
+  async authorizeStaffMethod(input: {
+    invoiceId: string;
+    stripePaymentMethodId: string;
+    operationKey: string;
+    accepted: boolean;
+    ip: string | null;
+    userAgent: string | null;
+  }): Promise<{ id: string; paymentMethodId: string }> {
+    const invoiceId = z.uuid().parse(input.invoiceId);
+    const key = z.uuid().parse(input.operationKey);
+    if (!input.accepted)
+      throw new AutopayAuthorizationConflictError('Consent is required');
+    if (!/^pm_[A-Za-z0-9_]+$/.test(input.stripePaymentMethodId))
+      throw new AutopayAuthorizationConflictError('Invalid saved method');
+    const hash = createHash('sha256')
+      .update(STAFF_METHOD_CONSENT_TEXT)
+      .digest('hex');
+    return this.withOrg(this.context, async (trx) => {
+      await sql`SELECT pg_advisory_xact_lock(hashtext(${key}))`.execute(trx);
+      const prior = await sql<{
+        id: string;
+        invoice_id: string;
+        account_id: string;
+        payment_method_id: string;
+        stripe_payment_method_id: string;
+        mandate_text_hash: string;
+      }>`
+        SELECT a.id, a.invoice_id, a.account_id, a.payment_method_id,
+          m.stripe_payment_method_id, a.mandate_text_hash
+        FROM autopay_authorizations a
+        JOIN payment_methods m ON m.id = a.payment_method_id
+        WHERE a.org_id = ${this.context.orgId}::uuid
+          AND a.operation_key = ${key}::uuid
+      `.execute(trx);
+      if (prior.rows[0]) {
+        const row = prior.rows[0];
+        if (
+          row.invoice_id !== invoiceId ||
+          row.account_id !== this.context.actor.accountId ||
+          row.stripe_payment_method_id !== input.stripePaymentMethodId ||
+          row.mandate_text_hash !== hash
+        )
+          throw new AutopayAuthorizationConflictError('Consent key was reused');
+        return { id: row.id, paymentMethodId: row.payment_method_id };
+      }
+      const invoice = await trx
+        .selectFrom('invoices')
+        .select(['id', 'status', 'balance_cents'])
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', invoiceId)
+        .where('account_id', '=', this.context.actor.accountId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (
+        !invoice ||
+        !['open', 'partially_paid', 'past_due'].includes(invoice.status) ||
+        !invoice.balance_cents ||
+        invoice.balance_cents < 1
+      )
+        throw new AutopayAuthorizationConflictError('Invoice is not payable');
+      const future = await trx
+        .selectFrom('installments')
+        .select('id')
+        .where('org_id', '=', this.context.orgId)
+        .where('invoice_id', '=', invoiceId)
+        .where('status', 'in', ['scheduled', 'failed'])
+        .limit(1)
+        .executeTakeFirst();
+      if (!future)
+        throw new AutopayAuthorizationConflictError(
+          'No future installment exists',
+        );
+      const method = await trx
+        .selectFrom('payment_methods')
+        .select(['id', 'status', 'type'])
+        .where('account_id', '=', this.context.actor.accountId)
+        .where('stripe_payment_method_id', '=', input.stripePaymentMethodId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (
+        !method ||
+        method.status !== 'active' ||
+        !['card', 'us_bank_account', 'link'].includes(method.type)
+      )
+        throw new AutopayAuthorizationConflictError(
+          'Saved method is unavailable',
+        );
+      const id = newId();
+      await sql`
+        INSERT INTO autopay_authorizations
+          (id, org_id, account_id, payment_method_id, invoice_id,
+           mandate_text_version, mandate_text_hash, operation_key, ip, user_agent)
+        VALUES (${id}::uuid, ${this.context.orgId}::uuid,
+          ${this.context.actor.accountId}::uuid, ${method.id}::uuid,
+          ${invoiceId}::uuid, ${STAFF_METHOD_CONSENT_VERSION}, ${hash},
+          ${key}::uuid, ${input.ip}::inet, ${input.userAgent})
+      `.execute(trx);
+      await appendAuditEvent(trx, this.context, {
+        action: 'finance.autopay_authorized',
+        entityType: 'autopay_authorization',
+        entityId: id,
+        changes: {
+          invoiceId: { tier: 'internal', after: invoiceId },
+          paymentMethodId: { tier: 'internal', after: method.id },
+        },
+      });
+      return { id, paymentMethodId: method.id };
+    });
   }
 
   async list(): Promise<AutopayAuthorization[]> {

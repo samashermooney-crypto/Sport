@@ -55,6 +55,8 @@ import {
   voidInvoiceResponseSchema,
   payerInvoiceListSchema,
   autopayRevocationResponseSchema,
+  staffMethodConsentBodySchema,
+  staffMethodConsentResponseSchema,
 } from './routes.js';
 import {
   taxRateBodySchema,
@@ -92,6 +94,14 @@ export const moduleDefinition = {
       summary: 'Download a reconciled payer payment receipt PDF',
       response: z.string(),
       binary: true,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/me/autopay/staff-method-consents',
+      summary:
+        'Record payer consent for a saved method on one installment invoice',
+      body: staffMethodConsentBodySchema,
+      response: staffMethodConsentResponseSchema,
     },
     {
       method: 'get',
