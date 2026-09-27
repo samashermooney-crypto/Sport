@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Failed autopay installments now queue one payer email and in-app notice per failed attempt, with a final-method warning and ACH finance-staff alert; the A-owned app still must mount raw webhooks and enqueue `stripe.event`.
+Current: Saved cards that expire before a scheduled installment now trigger one warning 14 org-local days before due; the A-owned app still must mount raw webhooks and enqueue `stripe.event`.
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
@@ -57,6 +57,11 @@ Ready for integration: local `9001eeb..HEAD` — scheduled `stripe.replay` recov
 Ready for integration: local `ffe0362..HEAD` — real-Postgres card PaymentIntent test covers 3DS action, failed method, recovery and duplicate success with exactly one invoice settlement; full gate green (719 tests, 40 browser tests).
 Ready for integration: local `eaf5f1d..HEAD` — settled Stripe refunds create payer and active finance staff inbox notifications atomically with invoice reopening; full gate green (719 tests, 40 browser tests).
 Ready for integration: local `06b2b94..HEAD` — failed installment attempts queue payer pay-now email/in-app notices, with final failure and ACH finance alerts; full gate green (722 tests, 42 browser tests).
+Ready for integration: local `46a2f40..HEAD` — hourly local-date card expiry scan queues one payer email/in-app reminder 14 days before a scheduled charge; full gate green (724 tests, 42 browser tests).
+Requests to other tracks: A: regenerate DB types after migration 1051; `finance.card-expiry` is an hourly job and its existing autopay portal link is E-owned (2026-09-27).
+Review: The candidate must have an active saved card, active exact-invoice mandate, scheduled autopay installment and due date 14 local days ahead; expiration must precede the due month.
+Review: The outbox dedupes by installment ID, freezes the verified email before send, and suppresses changed-address retries; no card data appears in the notice.
+Review: Typecheck, lint, 724 tests, 42 browser tests and build passed with fake email only; no Stripe call or live key is used by this job.
 Requests to other tracks: A: regenerate DB types after migration 1050 and surface failed-installment/ACH-return events in the finance Action Center; E's notice links to the mounted portal pay-now route (2026-09-27).
 Requests to other tracks: H/C: fan out `installment.failed` and `installment.final_notice` to consented push/SMS channels when the comms workers are ready; E has durable payer email and in-app delivery (2026-09-27).
 Review: A failed payment ID is the notice source, so each installment attempt is distinct while duplicate webhook delivery cannot create another notice.
@@ -188,6 +193,7 @@ Checkout webhooks: migrations 1008–1009 record first ACH processing/failure ti
 Credit ledger: migrations 1010–1012 track issue sources, operation keys and deferred source/invoice reconciliation; `finance/credits.ts` issues, applies, expires and reverses unused account/household credits under row locks, with append-only database enforcement; 3 real-Postgres tests pass.
 Installment dunning: migration 1013 persists leased off-session charge attempts; `finance/installment-dunning.ts` fences Stripe calls with stable `inst:{id}:{attempt}` keys, and the repository validates mandate/method/Connect, records pending allocations, retries at Track B dates and stops on nonretryable card errors; 3 real-Postgres and 3 service tests pass.
 Installment notices: migration 1050 extends the tenant notice outbox for per-attempt failure/final messages; the same payment settlement transaction creates payer in-app/email intents, and ACH returns also notify active finance staff once; 13 focused dunning, notice and refund tests pass.
+Card expiry notices: migration 1051 extends the outbox; `finance.card-expiry` checks each org's local date hourly, alerts once 14 days before a scheduled installment only when the active saved card expires before its due month, and sends a portal autopay link through the fake/preview sender.
 Checkout capacity: migration 1006 keeps reservation keys on holds; `checkout/capacity-repo.ts` atomically reserves program/division/offering counters in fixed order, extends, confirms and releases without double counting; 2 real-Postgres tests pass.
 Checkout load gate: 300 concurrent real-Postgres reservations for 100 offering seats yield exactly 100 confirmed and 200 full with zero oversell; expired holds release the seat for the next checkout; 2 acceptance tests pass.
 Checkout failure/refund: migration 1007 stores one durable lost-capacity refund claim per checkout and intent; capacity repository reverts ACH-confirmed seats to a 72-hour hold and fences duplicate refund calls; 2 further real-Postgres tests pass.

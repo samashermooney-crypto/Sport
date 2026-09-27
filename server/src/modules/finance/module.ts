@@ -21,6 +21,7 @@ import {
   billingCheckoutInputSchema,
   billingCheckoutResponseSchema,
 } from './billing-checkout.js';
+import { runCardExpiryJob } from './card-expiry-job.js';
 import { creditBalanceSchema } from './credit-balances.js';
 import {
   glCodeBodySchema,
@@ -105,6 +106,11 @@ export const moduleDefinition = {
   path: '/api/v1/finance',
   router: createFinanceRouter,
   jobs: [
+    {
+      name: 'finance.card-expiry',
+      cron: '0 * * * *',
+      run: runCardExpiryJob,
+    },
     {
       name: 'installments.charge',
       cron: '* * * * *',
