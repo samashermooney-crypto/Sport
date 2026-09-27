@@ -4,9 +4,11 @@ import { initReactI18next } from 'react-i18next';
 import authEn from '../i18n/en/auth.json';
 import platformEn from '../i18n/en/platform.json';
 import portalEn from '../i18n/en/portal.json';
+import siteEn from '../i18n/en/site.json';
 import authEs from '../i18n/es/auth.json';
 import platformEs from '../i18n/es/platform.json';
 import portalEs from '../i18n/es/portal.json';
+import siteEs from '../i18n/es/site.json';
 
 function savedLanguage(): string | null {
   try {
@@ -29,8 +31,8 @@ const initialLanguage =
 
 void i18n.use(initReactI18next).init({
   resources: {
-    en: { auth: authEn, portal: portalEn, platform: platformEn },
-    es: { auth: authEs, portal: portalEs, platform: platformEs },
+    en: { auth: authEn, portal: portalEn, platform: platformEn, site: siteEn },
+    es: { auth: authEs, portal: portalEs, platform: platformEs, site: siteEs },
   },
   lng: initialLanguage,
   fallbackLng: 'en',

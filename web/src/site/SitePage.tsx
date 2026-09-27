@@ -1,11 +1,13 @@
 import { websitePublicPageSchema } from '@shared/schemas/website';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 
 import { apiGet } from '../api/client';
 
 export function SitePage(): React.JSX.Element {
+  const { t } = useTranslation('site');
   const params = useParams();
   const orgSlug = params.orgSlug;
   const pageSlug = params['*'];
@@ -59,14 +61,14 @@ export function SitePage(): React.JSX.Element {
   if (result.isPending)
     return (
       <main className="public-site-main" role="status">
-        Loading website…
+        {t('loadingWebsite')}
       </main>
     );
   if (result.isError)
     return (
       <main className="public-site-main" role="alert">
-        <h1>Website page unavailable</h1>
-        <p>This page is not published or could not be loaded.</p>
+        <h1>{t('websitePageUnavailable')}</h1>
+        <p>{t('websitePageUnavailableDescription')}</p>
       </main>
     );
 
@@ -91,9 +93,9 @@ export function SitePage(): React.JSX.Element {
           </span>
           {site.organization.name}
         </Link>
-        <Link to="/">Administrator sign in</Link>
+        <Link to="/">{t('administratorSignIn')}</Link>
       </header>
-      <nav className="public-site-nav" aria-label="Website navigation">
+      <nav className="public-site-nav" aria-label={t('websiteNavigation')}>
         <ul>
           {site.navigation.map((item) => (
             <li key={item.slug}>
@@ -131,6 +133,7 @@ export function SitePage(): React.JSX.Element {
       </main>
       <footer className="public-site-footer">
         <strong>{site.organization.name}</strong>
+        <Link to="/legal/accessibility">{t('accessibilityStatement')}</Link>
       </footer>
     </div>
   );

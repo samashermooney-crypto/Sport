@@ -19,6 +19,18 @@ function renderDocument(
   site: NonNullable<Awaited<ReturnType<typeof getPublicWebsitePage>>>,
 ) {
   const { organization, page } = site;
+  const copy =
+    organization.locale === 'es'
+      ? {
+          navigation: 'Navegación del sitio web',
+          signIn: 'Iniciar sesión como administrador',
+          accessibility: 'Declaración de accesibilidad',
+        }
+      : {
+          navigation: 'Website navigation',
+          signIn: 'Administrator sign in',
+          accessibility: 'Accessibility statement',
+        };
   const title = page.seo.title || `${page.title} · ${organization.name}`;
   const description = page.seo.description;
   const canonical = page.seo.canonicalPath
@@ -113,11 +125,11 @@ function renderDocument(
             ),
             organization.name,
           ),
-          createElement('a', { href: '/' }, 'Administrator sign in'),
+          createElement('a', { href: '/' }, copy.signIn),
         ),
         createElement(
           'nav',
-          { className: 'public-site-nav', 'aria-label': 'Website navigation' },
+          { className: 'public-site-nav', 'aria-label': copy.navigation },
           createElement(
             'ul',
             null,
@@ -149,6 +161,11 @@ function renderDocument(
           'footer',
           { className: 'public-site-footer' },
           createElement('strong', null, organization.name),
+          createElement(
+            'a',
+            { href: '/legal/accessibility' },
+            copy.accessibility,
+          ),
         ),
       ),
     ),
