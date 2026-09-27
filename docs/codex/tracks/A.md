@@ -39,3 +39,4 @@ Next steps, in order:
 Open requests: Track C owns app/worker/router/registry wiring and hourly full gates; the existing request above reports default Vitest concurrency failures. Track D owns Linux design-parity baselines. No owner question is pending.
 
 Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_a_identity`, `PORT_OFFSET=8000` (Postgres 13432). Real-Postgres tests use `DATABASE_ADMIN_URL=postgres://athlentry_admin@127.0.0.1:13432/athlentry_test` and `DATABASE_APP_URL=postgres://athlentry_app@127.0.0.1:13432/athlentry_test`. Browser tests use the same compose name and offset.
+HANDED OFF 08:26
