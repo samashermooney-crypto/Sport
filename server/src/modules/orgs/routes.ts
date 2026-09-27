@@ -5,10 +5,12 @@ import {
   createOrgSchema,
   orgCredentialSchema,
   orgCredentialsResponseSchema,
+  orgMemberRolesResponseSchema,
   orgSlugAvailabilitySchema,
   orgSlugSchema,
   sportTemplateCatalogSchema,
   updateOrgCredentialSchema,
+  updateOrgMemberRolesSchema,
 } from '@shared/schemas/orgs';
 import express from 'express';
 import { z } from 'zod';
@@ -18,6 +20,7 @@ import { requireSession } from '../auth/routes';
 import type { AuthDependencies } from '../auth/routes';
 
 import { createOrganization, OrgCreationError } from './create';
+import { OrgMemberRolesError, setOrgMemberRoles } from './memberRoles';
 import { isOrgSlugAvailable } from './slug';
 
 class OrgCredentialsError extends Error {
@@ -287,6 +290,39 @@ export function createOrgRouter(
       }
     },
   );
+
+  router.patch('/:orgId/members/:memberId/roles', async (request, response) => {
+    try {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Request origin could not be verified',
+        );
+      }
+      const { context, session } = await ownerContext(request);
+      if (
+        !session.elevatedUntil ||
+        session.elevatedUntil <= dependencies.clock()
+      ) {
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Confirm your identity before changing roles',
+        );
+      }
+      const result = await setOrgMemberRoles(dependencies.database, {
+        orgId: context.orgId,
+        actorId: session.accountId,
+        targetId: z.uuid().parse(request.params.memberId),
+        changes: updateOrgMemberRolesSchema.parse(request.body),
+        now: dependencies.clock(),
+      });
+      response.json(orgMemberRolesResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
   return router;
 }
 
@@ -308,7 +344,10 @@ function sendError(response: express.Response, error: unknown): void {
         error: { code: error.code, message: error.message },
       }),
     );
-  } else if (error instanceof OrgCredentialsError) {
+  } else if (
+    error instanceof OrgCredentialsError ||
+    error instanceof OrgMemberRolesError
+  ) {
     response.status(error.status).json(
       apiErrorSchema.parse({
         error: { code: error.code, message: error.message },

@@ -310,6 +310,13 @@ const orgRoutes: OpenApiRoute[] = [
     response: orgs.orgCredentialSchema,
   },
   {
+    method: 'patch',
+    path: `${orgsBase}/{orgId}/members/{memberId}/roles`,
+    summary: 'Update organization member roles',
+    body: orgs.updateOrgMemberRolesSchema,
+    response: orgs.orgMemberRolesResponseSchema,
+  },
+  {
     method: 'get',
     path: `${orgsBase}/slug-availability`,
     summary: 'Check organization slug',
