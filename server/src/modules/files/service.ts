@@ -248,7 +248,7 @@ export class FilesService {
     let mime = record.mime;
     let width: number | null = null;
     let height: number | null = null;
-    if (record.purpose === 'image' || record.purpose === 'website_asset') {
+    if (mime.startsWith('image/')) {
       if (!this.processor)
         throw new Error('Image processing dependency is not configured');
       const processed = await this.processor.process(bytes, mime);

@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- M0 is on `main` at `d0f59a1`. The spine, ready B/C/D/E ranges, Phase 1 tasks 5–9 and 13, and Track B's infrastructure are integrated on `rebuild/trunk`. Track A continues tasks 4 and 16; Track C owns 11–12. Track F published a ready Phase 7 range, but its first trunk merge was aborted because new routes lack OpenAPI operations, `credentials.expiry` has no handler, and its web routes are not mounted. Revisit F after the integration gaps are fixed. Inspect E/F/G/H readiness at every task boundary and keep Phase 1 open until every acceptance criterion passes.
+- M0 is on `main` at `d0f59a1`. The spine, ready B/C/D/E ranges, Phase 1 tasks 5–9, 11, 13 and 17, and Track B's infrastructure are integrated on `rebuild/trunk`. Track A continues tasks 4 and 16; Track C's task 12 acceptance remains. Track F published a ready Phase 7 range, but its first trunk merge was aborted because new routes lack OpenAPI operations, `credentials.expiry` has no handler, and its web routes are not mounted. Revisit F after the integration gaps are fixed. Inspect E/F/G/H readiness at every task boundary and keep Phase 1 open until every acceptance criterion passes.
 
 ## Phase status
 
@@ -33,7 +33,7 @@
 |---|---|---|---|---|
 | A | Core and integration | GPT-6 Sol until S1 | working | `track/a-core` |
 | B | Sport engine, algorithms, policies; platform infrastructure | GPT-6 Sol | logic queue and Phase 1 tasks 10, 14–15 integrated; tasks 9 and 13 in progress | `track/b-logic` |
-| C | Files and provider adapters | GPT-6 Luna | complete adapter queue integrated; files API mounted, acceptance still open | `track/c-adapters` |
+| C | Files and provider adapters | GPT-6 Luna | complete adapter queue integrated; files acceptance passed, email acceptance still open | `track/c-adapters` |
 | D | Design system | GPT-6 Luna | complete component and auth restyle range integrated; app-wide shell acceptance remains with A | `track/d-design` |
 | E | Stripe and finance | GPT-6 Sol | finance and checkout core through payer-owned PaymentIntent API integrated; phase acceptance remains | `track/e-finance` |
 | F | Safety and compliance | GPT-6 Luna | local range ready; integration gaps after aborted merge | `track/f-safety` |
@@ -102,7 +102,7 @@
 
 **Infrastructure modules**
 - [x] 10. pg-boss setup, job registry, worker heartbeat, failed-job visibility. Migration 0600, registered worker with graceful stop, heartbeat and redacted failed-job health reader pass the merged local gate.
-- [ ] 11. **Track C:** Files module (`01 §7`) with S3, local-disk and memory adapters; image processing with EXIF stripping; permission-checked download links.
+- [x] 11. Files module (`01 §7`) with S3, local-disk and memory adapters; image processing with EXIF stripping; permission-checked download links. Track C's module and adapters are integrated and mounted. Track A extended processing to document photos and tested a committed GPS-tagged JPEG through the real PostgreSQL/files service: the stored original, medium and thumbnail contain no EXIF, XMP or IPTC. Cross-tenant download denial and audit are covered. The full gate passed typecheck, lint, 531 tests (one operator smoke skipped), 24 browser tests (four guarded design skips) and build.
 - [ ] 12. **Track C:** Email module: React Email layout with org branding, `EmailSender` adapters (Resend, Mailpit SMTP via `nodemailer`, Fake), preview mode; send auth emails (verification, magic link, reset, invitations, security alerts) in en/es.
 - [x] 13. Notifications core: `notification_types` catalog in code, `notifications` table, in-app inbox API + SSE stream (`01 §5`), preferences API. Track B's org-scoped inbox/preferences and account-filtered PostgreSQL SSE are integrated. Shared handlers expose account paths under `/api/v1/me/notifications/orgs/:orgId/*` and organization paths under `/api/v1/orgs/:orgId/notifications/*`, alongside the original module path; all are documented in OpenAPI. The portal uses the account path. Chromium/WebKit tests confirm both authenticated aliases, mounted portal, axe, and unauthenticated SSE rejection. Channels beyond in-app/email remain in Phase 10.
 - [x] 14. Audit module with redaction; audit viewer component. Append-only service, Restricted-field redaction/read audit, role-scoped cursor API and functional console viewer pass merged tests; route is mounted through the web registry.
@@ -118,6 +118,6 @@
 - [ ] Identity: tests cover every flow including expiry, reuse, rotation, rate limits, MFA replay protection, step-up expiry, session revocation on password/MFA/role change, last-owner protection under concurrent demotion (two parallel transactions), and under-13 rejection.
 - [x] Playwright: new owner signs up → verifies email via Mailpit API → creates org → enrolls MFA → invites an admin → admin accepts invitation in a second browser context, enrolls MFA, signs in → owner changes admin to registrar → admin's session is revoked. All pages pass axe.
 - [x] Platform admin can impersonate read-only with banner; every accepted tenant request is audited in platform and tenant ledgers with the impersonation id. PostgreSQL tests reject writes, wrong org, expiry and suspended-org access; Chromium/WebKit tests exercise the banner, real tenant read, audits and axe.
-- [ ] Images uploaded have no EXIF (test with a GPS-tagged fixture).
+- [x] Images uploaded have no EXIF (test with `server/test/fixtures/gps-photo.jpg`): image and document photo uploads are re-encoded, and Sharp metadata checks confirm no EXIF, XMP or IPTC on the stored original, medium and thumbnail.
 - [ ] Design parity (`01 §11a`): `e2e/visual-reference/` exists; the new shell (header/chrome, navigation, page header) and ported components match the legacy screenshots within tolerance at 1440px and 390px; a unit test proves `tokens.css` values equal `e2e/visual-reference/tokens.json`; no dark theme, CSS framework or styled component library is installed.
 - [x] OpenAPI document generated and committed with route coverage for current auth, org, files and audit operations; `npm run openapi` passes on merged trunk.

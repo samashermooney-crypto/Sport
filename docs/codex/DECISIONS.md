@@ -327,3 +327,11 @@
 - **Decision:** Persist the applicable refund policy, approval threshold and fee terms with the invoice at issuance. Refund calculations use that immutable snapshot.
 - **Why:** A later setting edit must not retroactively change a family's refund rights or the finance ledger.
 - **Consequences / follow-ups:** Historical invoices need an explicit policy snapshot before staff refund actions are enabled; unsupported mixed-payment allocations fail closed.
+
+### DEC-040 — Sanitize document photos as images
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 files
+- **Context:** The files module accepted JPEG/PNG document uploads but only re-encoded the `image` and `website_asset` purposes. A document photo could therefore preserve GPS metadata.
+- **Decision:** Re-encode every accepted image MIME type, including document photos, and store the sanitized WebP original and derivatives. Leave PDF and import bytes unchanged.
+- **Why:** A file's purpose does not reduce the location privacy risk of embedded image metadata.
+- **Consequences / follow-ups:** Document photo downloads return `image/webp`. A committed GPS-tagged JPEG fixture verifies that the original and both stored variants have no EXIF, XMP or IPTC metadata.
