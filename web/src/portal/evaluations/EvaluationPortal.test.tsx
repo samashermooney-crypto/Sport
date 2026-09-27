@@ -391,4 +391,69 @@ describe('family team offers', () => {
     ).toBeDefined();
     expect(acceptRequests).toHaveLength(1);
   });
+
+  it('keeps acceptance unavailable until checkout is wired while preserving decline', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const path =
+          input instanceof Request
+            ? input.url
+            : typeof input === 'string'
+              ? input
+              : input.href;
+        if (path.endsWith('/me/offers'))
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve([
+                {
+                  id: offerId,
+                  personId,
+                  firstName: 'Alex',
+                  lastName: 'Athlete',
+                  teamSeasonId: randomUUID(),
+                  teamName: 'North U10',
+                  amountCents: 25000,
+                  depositCents: 5000,
+                  expiresAt: '2026-10-01T00:00:00.000Z',
+                  message: null,
+                  status: 'sent',
+                  version: 1,
+                  acceptanceReady: false,
+                },
+              ]),
+          } as Response);
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ name: 'North Club' }),
+        } as Response);
+      }),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[`/portal/orgs/${orgId}/offers`]}>
+          <Routes>
+            <Route
+              path="/portal/orgs/:orgId/offers"
+              element={<FamilyOffers />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(/online checkout is unavailable/i),
+    ).toBeDefined();
+    expect(
+      screen.queryByRole('button', {
+        name: 'Accept and continue to deposit checkout',
+      }),
+    ).toBeNull();
+    expect(screen.getByRole('button', { name: 'Decline offer' })).toBeDefined();
+  });
 });

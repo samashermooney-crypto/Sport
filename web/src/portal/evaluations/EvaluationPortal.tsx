@@ -675,8 +675,8 @@ export function FamilyOffers(): React.JSX.Element {
                     )}
                     {!offer.acceptanceReady && (
                       <p role="status">
-                        Registration checkout is being connected for this offer.
-                        You can decline below.
+                        Online checkout is unavailable for this offer. You can
+                        decline below.
                       </p>
                     )}
                     <Field label="Reason for declining">
