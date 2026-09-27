@@ -126,7 +126,7 @@ export const connectLinkResponseSchema = z.strictObject({
   url: z.url().startsWith('https://'),
 });
 export const connectStatusResponseSchema = z.strictObject({
-  stripeAccountId: z.string().startsWith('acct_'),
+  stripeAccountId: z.string().startsWith('acct_').nullable(),
   chargesEnabled: z.boolean(),
   payoutsEnabled: z.boolean(),
   detailsSubmitted: z.boolean(),
@@ -391,8 +391,19 @@ export function createFinanceRouter(
       });
       const connected = connect(orgId, session.accountId);
       const stored = await connected.repository.load(orgId);
-      if (!stored)
-        throw new ConnectConflictError('Stripe account has not been created');
+      if (!stored) {
+        response.json(
+          connectStatusResponseSchema.parse({
+            stripeAccountId: null,
+            chargesEnabled: false,
+            payoutsEnabled: false,
+            detailsSubmitted: false,
+            requirementsDue: [],
+            disabledReason: null,
+          }),
+        );
+        return;
+      }
       const latest = await connected.service.refresh(
         orgId,
         stored.stripeAccountId,

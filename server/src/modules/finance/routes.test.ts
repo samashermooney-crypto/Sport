@@ -584,6 +584,11 @@ describe('Connect Express finance HTTP', () => {
       Origin: origin,
       'X-Athlentry-Request': '1',
     };
+    const empty = await fetch(`${path}/status`, {
+      headers: { Cookie: headers.Cookie },
+    });
+    expect(empty.status).toBe(200);
+    expect(await empty.json()).toMatchObject({ stripeAccountId: null });
     const start = await fetch(`${path}/onboarding`, {
       method: 'POST',
       headers,
