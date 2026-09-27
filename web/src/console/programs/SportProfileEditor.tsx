@@ -45,8 +45,59 @@ type SchemaDef = {
   defaultValue?: unknown;
   discriminator?: string;
 };
-const defOf = (schema: z.ZodType): SchemaDef =>
-  schema.def as unknown as SchemaDef;
+const defOf = (schema: z.ZodType): SchemaDef => schema.def;
+
+const scalarText = (value: unknown): string =>
+  typeof value === 'string' ||
+  typeof value === 'number' ||
+  typeof value === 'boolean'
+    ? String(value)
+    : '';
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const isUnknownArray = (value: unknown): value is unknown[] =>
+  Array.isArray(value);
+
+const isComposite = (schema: z.ZodType): boolean => {
+  const def = defOf(schema);
+  if (
+    def.type === 'default' ||
+    def.type === 'prefault' ||
+    def.type === 'optional' ||
+    def.type === 'nullable' ||
+    def.type === 'nonoptional' ||
+    def.type === 'readonly'
+  ) {
+    return def.innerType ? isComposite(def.innerType) : false;
+  }
+  return (
+    def.type === 'object' ||
+    def.type === 'array' ||
+    def.type === 'tuple' ||
+    def.type === 'union'
+  );
+};
+
+function SchemaField({
+  schema,
+  name,
+  children,
+}: {
+  schema: z.ZodType;
+  name: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return isComposite(schema) ? (
+    <fieldset>
+      <legend>{name}</legend>
+      {children}
+    </fieldset>
+  ) : (
+    <Field label={name}>{children}</Field>
+  );
+}
 
 const seed = (schema: z.ZodType): unknown => {
   const def = defOf(schema);
@@ -91,8 +142,7 @@ const seed = (schema: z.ZodType): unknown => {
       const options = def.options ?? [];
       if (def.discriminator) {
         const option = options[0] ?? z.unknown();
-        const disc = def.discriminator;
-        return { ...(seed(option) as object), [disc]: undefined };
+        return seed(option);
       }
       return seed(options[0] ?? z.unknown());
     }
@@ -134,7 +184,8 @@ function Editor({
     case 'nullable': {
       const inner = def.innerType;
       if (!inner) return <span />;
-      const set = def.type === 'optional' ? value !== undefined : value !== null;
+      const set =
+        def.type === 'optional' ? value !== undefined : value !== null;
       const empty = def.type === 'optional' ? undefined : null;
       return (
         <div>
@@ -167,7 +218,7 @@ function Editor({
       const options = def.entries ? Object.values(def.entries) : [];
       return (
         <Select
-          value={String(value ?? '')}
+          value={scalarText(value)}
           onChange={(event) => {
             onChange(event.target.value);
           }}
@@ -211,30 +262,34 @@ function Editor({
       );
     case 'object': {
       const shape = def.shape ?? {};
-      const record = value && typeof value === 'object' ? value : {};
+      const record = isRecord(value) ? value : {};
       return (
         <div className="phase3-form-grid">
           {Object.entries(shape).map(([key, child]) => (
-            <Field key={key} label={label(key)}>
+            <SchemaField key={key} name={label(key)} schema={child}>
               <Editor
                 schema={child}
-                value={(record as Record<string, unknown>)[key]}
+                value={record[key]}
                 onChange={(next) => {
-                  onChange({ ...(record as object), [key]: next });
+                  onChange({ ...record, [key]: next });
                 }}
               />
-            </Field>
+            </SchemaField>
           ))}
         </div>
       );
     }
     case 'tuple': {
       const items = def.items ?? [];
-      const list = Array.isArray(value) ? value : [];
+      const list = isUnknownArray(value) ? value : [];
       return (
         <div className="phase3-form-grid">
           {items.map((item, index) => (
-            <Field key={index} label={`Value ${String(index + 1)}`}>
+            <SchemaField
+              key={index}
+              name={`Value ${String(index + 1)}`}
+              schema={item}
+            >
               <Editor
                 schema={item}
                 value={list[index]}
@@ -244,14 +299,14 @@ function Editor({
                   onChange(copy);
                 }}
               />
-            </Field>
+            </SchemaField>
           ))}
         </div>
       );
     }
     case 'array': {
       const element = def.element ?? z.unknown();
-      const list = Array.isArray(value) ? value : [];
+      const list = isUnknownArray(value) ? value : [];
       return (
         <div className="phase3-stack">
           {list.map((item, index) => (
@@ -293,10 +348,7 @@ function Editor({
       const options = def.options ?? [];
       const discriminator = def.discriminator;
       if (discriminator) {
-        const current =
-          value && typeof value === 'object'
-            ? (value as Record<string, unknown>)[discriminator]
-            : undefined;
+        const current = isRecord(value) ? value[discriminator] : undefined;
         const matched = options.find((option) => {
           const literal = defOf(option).shape?.[discriminator];
           return defOf(literal ?? z.unknown()).values?.[0] === current;
@@ -305,7 +357,7 @@ function Editor({
           <div className="phase3-stack">
             <Field label={label(discriminator)}>
               <Select
-                value={String(current ?? '')}
+                value={scalarText(current)}
                 onChange={(event) => {
                   const next = options.find((option) => {
                     const literal = defOf(option).shape?.[discriminator];
@@ -342,12 +394,10 @@ function Editor({
         (option) => defOf(option).type === 'literal',
       );
       if (literalOptions) {
-        const choices = options.map(
-          (option) => defOf(option).values?.[0],
-        ) as (string | number | boolean | null | undefined)[];
+        const choices = options.map((option) => defOf(option).values?.[0]);
         return (
           <Select
-            value={String(value ?? '')}
+            value={scalarText(value)}
             onChange={(event) => {
               const next = choices.find(
                 (choice) => String(choice) === event.target.value,
@@ -361,9 +411,7 @@ function Editor({
       return (
         <Select
           value={String(
-            options.findIndex(
-              (option) => option.safeParse(value).success,
-            ) || 0,
+            options.findIndex((option) => option.safeParse(value).success) || 0,
           )}
           onChange={(event) => {
             onChange(seed(options[Number(event.target.value)] ?? z.unknown()));
