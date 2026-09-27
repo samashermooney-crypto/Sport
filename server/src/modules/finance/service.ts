@@ -55,6 +55,20 @@ export interface CreatedPaymentIntent {
   quote: PaymentQuote;
 }
 
+/** Record the intent and its invoice allocation before exposing its secret. */
+export interface PaymentRecordStore {
+  recordPending(input: {
+    orgId: string;
+    checkoutId: string;
+    invoiceId: string;
+    accountId: string;
+    paymentIntentId: string;
+    amountCents: number;
+    applicationFeeCents: number;
+    idempotencyKey: string;
+  }): Promise<void>;
+}
+
 export type PaymentAttemptReservation =
   | { kind: 'reserved' }
   | { kind: 'replay'; result: CreatedPaymentIntent }
@@ -153,6 +167,7 @@ export class CheckoutPaymentService {
       PaymentsGateway,
       'retrieveAccount' | 'createDestinationPayment'
     >,
+    private readonly records: PaymentRecordStore,
   ) {}
 
   async create(
@@ -226,6 +241,16 @@ export class CheckoutPaymentService {
         status: intent.status,
         quote,
       };
+      await this.records.recordPending({
+        orgId: input.orgId,
+        checkoutId: input.checkoutId,
+        invoiceId: input.invoiceId,
+        accountId: input.accountId,
+        paymentIntentId: intent.id,
+        amountCents: quote.amountCents,
+        applicationFeeCents: quote.applicationFeeCents,
+        idempotencyKey: input.idempotencyKey,
+      });
       await this.attempts.complete({
         orgId: input.orgId,
         checkoutId: input.checkoutId,

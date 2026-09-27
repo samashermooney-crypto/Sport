@@ -94,10 +94,16 @@ function fixture() {
         latestChargeId: null,
       }),
     );
-  const service = new CheckoutPaymentService(reader, attempts, {
-    retrieveAccount,
-    createDestinationPayment,
-  });
+  const recordPending = vi.fn(() => Promise.resolve());
+  const service = new CheckoutPaymentService(
+    reader,
+    attempts,
+    {
+      retrieveAccount,
+      createDestinationPayment,
+    },
+    { recordPending },
+  );
   const input = {
     orgId: charge.orgId,
     checkoutId: charge.checkoutId,
@@ -112,6 +118,7 @@ function fixture() {
     attempts,
     retrieveAccount,
     createDestinationPayment,
+    recordPending,
     service,
     input,
   };
@@ -151,6 +158,16 @@ describe('finance PaymentIntent orchestration', () => {
       customerId: 'cus_1',
       saveForAutopay: true,
       idempotencyKey: `checkout:checkout_1:${test.input.idempotencyKey}`,
+    });
+    expect(test.recordPending).toHaveBeenCalledWith({
+      orgId: 'org_1',
+      checkoutId: 'checkout_1',
+      invoiceId: 'invoice_1',
+      accountId: 'account_1',
+      paymentIntentId: 'pi_1',
+      amountCents: 10_492,
+      applicationFeeCents: 157,
+      idempotencyKey: test.input.idempotencyKey,
     });
   });
 
@@ -222,6 +239,18 @@ describe('finance PaymentIntent orchestration', () => {
     );
     await expect(test.service.create(test.input)).rejects.toThrow(
       'database lost',
+    );
+    await expect(test.service.create(test.input)).rejects.toThrow(
+      'already in progress',
+    );
+    expect(test.createDestinationPayment).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the key fenced when the invoice payment record cannot commit', async () => {
+    const test = fixture();
+    test.recordPending.mockRejectedValueOnce(new Error('allocation failed'));
+    await expect(test.service.create(test.input)).rejects.toThrow(
+      'allocation failed',
     );
     await expect(test.service.create(test.input)).rejects.toThrow(
       'already in progress',

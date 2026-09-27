@@ -23,7 +23,8 @@ Webhooks: platform/Connect raw-body routes, separate signatures, account scope c
 Payment webhooks: `finance/payment-events.ts` maps five PaymentIntent events to latest-state fetch and withOrg apply contract; stale/duplicate events and metadata guards have 2 targeted tests.
 Webhook persistence: migration 1000 adds lease token/expiry; `stripe/repo.ts` atomically dedupes, claims, retries and fences stale workers on real Postgres; 4 targeted repository tests pass.
 Money UI: Stripe React/JS dependency `73bdd07`; unmounted Connect onboarding and Payment Element components use token CSS, frozen quote lines and test-key guards; 4 component tests pass.
-Money core: `finance/service.ts` uses Track B fee algorithms for service/application fees, validates frozen charges, enforces Connect/autopay gates and reserves idempotent PaymentIntent attempts; 8 targeted tests pass.
+Money core: `finance/service.ts` uses Track B fee algorithms for service/application fees, validates frozen charges, enforces Connect/autopay gates and reserves idempotent PaymentIntent attempts; 9 targeted tests pass.
+Payment recording: migration 1005 adds honest `unknown` method and checkout FK; `finance/payment-repo.ts` writes pending intents plus invoice allocations before returning a client secret and blocks balance overcommit; 2 real-Postgres tests pass.
 Money idempotency: PaymentIntent and refund attempts set a durable external-start fence before Stripe calls; ambiguous network/persistence failures remain blocked for reconciliation; 4 failure tests pass.
 Payment attempts: migration 1002 and `finance/attempt-repo.ts` persist scoped request-hash conflicts, pre-external retries, external fences and replayed results; 3 real-Postgres tests pass.
 Installment quotes: `finance/installment-quotes.ts` uses Track B schedule and fee algorithms to show per-charge service/application fees and reconcile the plan total; 2 targeted tests pass.
