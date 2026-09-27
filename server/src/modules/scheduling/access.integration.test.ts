@@ -18,6 +18,8 @@ import {
 import { getStandings } from '../standings/service';
 import { createBracket, getBracket } from '../tournaments/service';
 
+import { eventRecipients } from './events';
+
 let database: ReturnType<typeof createDatabase>;
 type TestActor = OrgContext & { accountId: string };
 
@@ -278,6 +280,10 @@ describe('schedule module access boundaries', () => {
       personId: officialPersonId,
       positionKey: 'referee',
     });
+    const closureRecipients = await createWithOrg(database)(owner, (trx) =>
+      eventRecipients(trx, orgId, [], eventId),
+    );
+    expect(closureRecipients).toContain(member.accountId);
     const offered = await createWithOrg(database)(owner, (trx) =>
       trx
         .selectFrom('notifications')

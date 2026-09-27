@@ -162,7 +162,12 @@ export async function createClosure(context: OrgContext, input: ClosureInput) {
               ]
             : []),
         ]);
-        const recipients = await eventRecipients(trx, context.orgId, people);
+        const recipients = await eventRecipients(
+          trx,
+          context.orgId,
+          people,
+          event.id,
+        );
         await queueChangeBatch(
           trx,
           context,

@@ -311,6 +311,7 @@ export async function eventRecipients(
   trx: OrgTransaction,
   orgId: string,
   participants: EventCreateWithOverrideInput['participants'],
+  eventId?: string,
 ): Promise<string[]> {
   const teamIds = participants
     .filter((item) => item.type === 'team')
@@ -336,6 +337,21 @@ export async function eventRecipients(
       .execute();
     personIds.push(...coaches.map((row) => row.person_id));
   }
+  if (eventId) {
+    const officials = await trx
+      .selectFrom('contests')
+      .innerJoin('official_assignments', (join) =>
+        join
+          .onRef('official_assignments.org_id', '=', 'contests.org_id')
+          .onRef('official_assignments.contest_id', '=', 'contests.id'),
+      )
+      .select('official_assignments.person_id')
+      .where('contests.org_id', '=', orgId)
+      .where('contests.event_id', '=', eventId)
+      .where('official_assignments.status', 'not in', ['declined', 'canceled'])
+      .execute();
+    personIds.push(...officials.map((row) => row.person_id));
+  }
   if (!personIds.length) return [];
   const links = await trx
     .selectFrom('person_account_links')
@@ -346,7 +362,7 @@ export async function eventRecipients(
     .where('verified_at', 'is not', null)
     .where('revoked_at', 'is', null)
     .execute();
-  return links.map((row) => row.account_id);
+  return [...new Set(links.map((row) => row.account_id))];
 }
 
 export async function listEvents(
