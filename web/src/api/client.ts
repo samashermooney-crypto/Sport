@@ -16,6 +16,7 @@ async function request<T extends z.ZodType>(
   schema: T,
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   body?: unknown,
+  idempotencyKey?: string,
 ): Promise<z.output<T>> {
   let response: Response;
   try {
@@ -28,6 +29,7 @@ async function request<T extends z.ZodType>(
             headers: {
               'Content-Type': 'application/json',
               'X-Athlentry-Request': '1',
+              ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
             },
           }),
       ...(method === 'GET' ? {} : { body: JSON.stringify(body ?? {}) }),
@@ -76,8 +78,9 @@ export function apiPost<T extends z.ZodType>(
   path: string,
   body: unknown,
   schema: T,
+  idempotencyKey?: string,
 ): Promise<z.output<T>> {
-  return request(path, schema, 'POST', body);
+  return request(path, schema, 'POST', body, idempotencyKey);
 }
 
 export function apiDelete<T extends z.ZodType>(

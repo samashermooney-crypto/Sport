@@ -1429,6 +1429,47 @@ export interface Plans {
   name: string;
   stripe_price_id: string | null;
   updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface PlatformAuditLog {
+  action: string;
+  created_at: Generated<Timestamp>;
+  details: Generated<Json>;
+  id: string;
+  impersonation_id: string | null;
+  staff_account_id: string;
+  target_account_id: string | null;
+  target_organization_id: string | null;
+}
+
+export interface PlatformFeatureFlags {
+  created_at: Generated<Timestamp>;
+  description: string;
+  enabled: Generated<boolean>;
+  key: string;
+  organization_overrides: Generated<Json>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface PlatformImpersonations {
+  ended_at: Timestamp | null;
+  expires_at: Timestamp;
+  id: string;
+  read_only: Generated<boolean>;
+  reason: string;
+  staff_account_id: string;
+  started_at: Generated<Timestamp>;
+  target_organization_id: string;
+}
+
+export interface PlatformStaff {
+  account_id: string;
+  active: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  role: string;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface PlayingTime {
@@ -2135,6 +2176,10 @@ export interface DB {
   'pgboss.subscription': PgbossSubscription;
   'pgboss.version': PgbossVersion;
   plans: Plans;
+  platform_audit_log: PlatformAuditLog;
+  platform_feature_flags: PlatformFeatureFlags;
+  platform_impersonations: PlatformImpersonations;
+  platform_staff: PlatformStaff;
   playing_time: PlayingTime;
   pool_members: PoolMembers;
   pools: Pools;

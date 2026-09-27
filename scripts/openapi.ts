@@ -21,6 +21,7 @@ export type OpenApiRoute = {
   tags?: string[];
   public?: boolean;
   query?: Record<string, z.ZodType>;
+  contentType?: string;
   binary?: boolean;
 };
 
@@ -333,6 +334,25 @@ const orgRoutes: OpenApiRoute[] = [
   },
   {
     method: 'get',
+    path: `${orgsBase}/{orgId}/staff`,
+    summary: 'List organization members and pending invitations',
+    response: orgs.orgStaffResponseSchema,
+  },
+  {
+    method: 'post',
+    path: `${orgsBase}/{orgId}/invitations/{invitationId}/resend`,
+    summary: 'Resend organization invitation',
+    response: orgs.orgInvitationResponseSchema,
+    status: 201,
+  },
+  {
+    method: 'delete',
+    path: `${orgsBase}/{orgId}/invitations/{invitationId}`,
+    summary: 'Revoke organization invitation',
+    response: z.strictObject({ revoked: z.literal(true) }),
+  },
+  {
+    method: 'get',
     path: `${orgsBase}/slug-availability`,
     summary: 'Check organization slug',
     query: { slug: orgs.orgSlugSchema },
@@ -389,7 +409,11 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
                     schema: { type: 'string', format: 'binary' },
                   },
                 }
-              : { 'application/json': { schema: jsonSchema(route.response) } },
+              : {
+                  [route.contentType ?? 'application/json']: {
+                    schema: jsonSchema(route.response),
+                  },
+                },
       },
       '400': { $ref: '#/components/responses/ValidationError' },
       '401': { $ref: '#/components/responses/Unauthenticated' },

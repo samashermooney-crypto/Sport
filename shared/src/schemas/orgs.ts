@@ -128,7 +128,7 @@ export const updateOrgCredentialSchema = z.strictObject({
   version: z.number().int().positive(),
 });
 
-const orgRoleSchema = z.enum([
+export const orgRoleSchema = z.enum([
   'owner',
   'admin',
   'registrar',
@@ -193,6 +193,48 @@ export const orgInvitationResponseSchema = z.strictObject({
   id: z.uuid(),
   email: z.email(),
   expiresAt: z.iso.datetime(),
+});
+
+export const orgStaffResponseSchema = z.strictObject({
+  members: z.array(
+    z.strictObject({
+      accountId: z.uuid(),
+      email: z.email(),
+      name: z.string(),
+      status: z.enum(['invited', 'active', 'suspended', 'removed']),
+      version: z.number().int().positive(),
+      roles: z.array(
+        z.strictObject({
+          role: orgRoleSchema,
+          scopeType: z.enum([
+            'org',
+            'season',
+            'program',
+            'division',
+            'team_season',
+          ]),
+          scopeId: z.uuid().nullable(),
+          pendingMfa: z.boolean(),
+        }),
+      ),
+    }),
+  ),
+  invitations: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      email: z.email(),
+      roles: z.array(orgRoleSchema),
+      scopeType: z.enum([
+        'org',
+        'season',
+        'program',
+        'division',
+        'team_season',
+      ]),
+      scopeId: z.uuid().nullable(),
+      expiresAt: z.iso.datetime(),
+    }),
+  ),
 });
 
 export const acceptOrgInvitationSchema = z.strictObject({
