@@ -8,6 +8,7 @@ import {
   householdUpdateSchema,
 } from '@shared/schemas/households';
 import {
+  peopleFilterOptionsSchema,
   peopleListSchema,
   personCreateSchema,
   personResponseSchema,
@@ -80,6 +81,13 @@ export const moduleDefinition = {
       path: '/api/v1/people/orgs/{orgId}',
       summary: 'List and search staff-visible people',
       response: peopleListSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/people/orgs/{orgId}/filter-options',
+      summary:
+        'Search organization programs and team seasons for People filters',
+      response: peopleFilterOptionsSchema,
     },
     {
       method: 'get',
