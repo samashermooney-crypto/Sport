@@ -5,7 +5,7 @@ Branch: `track/qa`
 
 ## Ready for integration ranges
 
-- None yet. The original five QA commits plus eight follow-up commits remain unmerged. Latest sync merge `74e8a30` includes `rebuild/trunk` `0ca39573`. Typecheck and lint pass, 15 isolated security unit tests pass, and the latest wrapped Playwright collection lists 72 Chromium tests across 38 files; this is collection only. Full PostgreSQL and browser execution remain blocked while Track I owns the prescribed QA offset 1500.
+- None yet. The original five QA commits plus nine follow-up commits remain unmerged. Latest sync merge `74e8a30` includes `rebuild/trunk` `0ca39573`. Typecheck and lint pass, 15 isolated security unit tests pass, and the latest wrapped Playwright collection lists 73 Chromium tests across 39 files; this is collection only. Full PostgreSQL and browser execution remain blocked while Track I owns the prescribed QA offset 1500.
 
 ## Requests to other tracks
 
@@ -17,6 +17,7 @@ Branch: `track/qa`
 - J — QA-SEC-008: add a real-Postgres regression for `readMemberCompliance` proving the shared response contains status-only fields, denied sharing yields no data, and successful reads are audited in both organizations. Details are in `docs/codex/qa/DEFECTS.md`.
 - J — QA-SEC-012: gate cached league entry/club-team reads on the current relationship and `rosters` grant; entry list/detail and member-team endpoints still reveal roster counts or player data after immediate child-side revocation. Regression is marked `test.fixme` in `e2e/security/federation-sharing-revocation.spec.ts`.
 - I — QA-SEC-013: require a verified self/guardian link for `/me/browse?personId=...`; an unrelated active member can currently infer the child's age band from filtered class offerings. Regression is marked `test.fixme` in `e2e/security/class-browse-person-link.spec.ts`.
+- I — QA-SEC-014: require the assigned instructor's own verified self link for session-roster access; a separate guardian account inherits the roster permission from its link to the instructor person. Regression is marked `test.fixme` in `e2e/security/class-instructor-guardian-roster.spec.ts`.
 - J — QA-ACC-046: keep the federation fee assessment invoiced when invoice void validation rejects cancellation; the current split transactions can leave a void assessment attached to an open payable invoice. Regression is marked `test.fixme` in `e2e/phase13-fee-void-atomicity.spec.ts`.
 - C — QA-SEC-001: publish permission/resource/scope metadata and tenancy fixture contracts for every API operation; the route-authorization, permission-matrix, and tenancy-fuzz e2e checks still use `test.fixme`, and the permission matrix has no operation rows. Details and reproduction are in `docs/codex/qa/DEFECTS.md`.
 - C — QA-SEC-002: enable the security-header browser check; it remains `test.fixme` even though C reports the middleware is mounted. Details are in `docs/codex/qa/DEFECTS.md`.
@@ -73,6 +74,7 @@ Branch: `track/qa`
 - Federation access review found QA-SEC-012: league entry list/detail reads return cached roster counts and player fields without rechecking the current relationship or `rosters` grant. Added a focused revocation `test.fixme` and routed the privacy fix to Track J.
 - Academy portal audit found QA-SEC-013: class browse accepts an unlinked child's ID and filters offerings by that child's DOB, exposing an age-band inference to any active org member. Added an API `test.fixme` and routed the link check to Track I.
 - Federation finance audit found QA-ACC-046: assessment status commits as void before the invoice void can reject an active installment, leaving a payable balance under a void assessment. Added an active-installment `test.fixme` and requested consistent state transitions from Track J.
+- Instructor-route review found QA-SEC-014: the class roster guard treats any active relationship to the instructor person as the instructor account, allowing an unrelated guardian account to read attendee names and IDs. Added a focused `test.fixme` and routed the authorization change to Track I.
 - Selected isolated SSRF, stored-XSS, security-header, and `security.txt` Vitest checks pass (15 tests) using a temporary config without the PostgreSQL global setup; full database and browser suites remain blocked by the occupied QA offset.
 - Synced trunk through Phase 11 commit `0ca39573` in merge `74e8a30`; resolved H's track note while retaining QA requests. The post-sync full typecheck/lint and changed-file pre-commit checks pass.
 - Filed QA-SEC-008: `readMemberCompliance` has no real-Postgres test for the status-only allow-list, denied-sharing response, or dual-org audit.

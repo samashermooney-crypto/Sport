@@ -202,6 +202,16 @@
 - **Request:** call `requireLinkedPerson()` before passing `personId` from `/me/browse` into the service and add the real-Postgres/API regression in the new security spec.
 - **Status:** confirmed personal-data inference path by source inspection; runtime reproduction awaits the isolated QA stack.
 
+### QA-SEC-014 — A guardian of an instructor inherits session-roster access
+
+- **Owner:** Track I
+- **Phase:** 12; academy roster privacy
+- **Evidence:** `GET /orgs/:orgId/sessions/:sessionId/roster` authorizes through `requireSessionStaffOrInstructor()`. Its instructor branch joins an active `class_instructors` row to any `person_account_links` row for that person/account pair, checking only `revoked_at IS NULL`; it does not require a verified `self` link. The route does not require organization membership before this branch. A guardian with a still-active link to an assigned adult instructor therefore passes authorization without being the instructor or class staff. `sessions.roster()` then returns attendee names and person IDs. The regression in `e2e/security/class-instructor-guardian-roster.spec.ts` records the expected 403 and no student name as `test.fixme`.
+- **Reproduce:** assign an adult instructor person to an active class schedule; retain a verified guardian link from a separate, non-member account to that person; create a booked student session; GET `/api/v1/classes/orgs/:orgId/sessions/:sessionId/roster` with the guardian's session. The current instructor predicate treats the guardian link as the instructor's own link and returns the roster.
+- **Expected:** only the assigned instructor account itself, authenticated through its current verified self link, or authorized class staff can read the session roster. A guardian link to the instructor person alone must not grant access; return 403/404 with no roster or attendee details.
+- **Request:** require a verified active self relationship (or an equally explicit account-to-instructor authorization) when authorizing session instructors; do not let guardian relationships inherit the instructor's roster permission. Add a real-Postgres/API regression for an adult instructor with a separate linked guardian account.
+- **Status:** confirmed authorization path by source inspection; runtime reproduction awaits the isolated QA Postgres stack.
+
 ### QA-ACC-046 — Rejected federation invoice void leaves the assessment marked void
 
 - **Owner:** Track J
