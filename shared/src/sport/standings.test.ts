@@ -51,6 +51,67 @@ function match(
 }
 
 describe('standings', () => {
+  it('awards rugby try and narrow-loss bonuses without crediting forfeits', () => {
+    const rugby = {
+      ...config,
+      bonusPoints: { triesThreshold: 4, losingMargin: 7, bonusPoint: 1 },
+    };
+    const rows = computeStandings(
+      ['a', 'b'],
+      [match('a', 'b', 25, 21, { homeTries: 4, awayTries: 3 })],
+      rugby,
+    );
+    expect(rows.find((row) => row.teamId === 'a')?.points).toBe(4);
+    expect(rows.find((row) => row.teamId === 'b')?.points).toBe(1);
+    const forfeited = computeStandings(
+      ['a', 'b'],
+      [match('a', 'b', 25, 21, { forfeitBy: 'away', homeTries: 4 })],
+      rugby,
+    );
+    expect(forfeited.find((row) => row.teamId === 'a')?.points).toBe(3);
+    const bothTries = computeStandings(
+      ['a', 'b'],
+      [match('a', 'b', 25, 21, { homeTries: 4, awayTries: 4 })],
+      rugby,
+    );
+    expect(bothTries.find((row) => row.teamId === 'b')?.points).toBe(2);
+    expect(() =>
+      computeStandings(
+        ['a', 'b'],
+        [match('a', 'b', 25, 21, { homeTries: -1 })],
+        rugby,
+      ),
+    ).toThrow();
+    expect(() =>
+      computeStandings(
+        ['a', 'b'],
+        [match('a', 'b', 25, 21, { awayTries: 1.5 })],
+        rugby,
+      ),
+    ).toThrow();
+  });
+
+  it('uses cricket net run rate over actual innings for tied points', () => {
+    const cricket = { ...config, tiebreakers: ['net_run_rate' as const] };
+    const rows = computeStandings(
+      ['a', 'b', 'c'],
+      [
+        match('a', 'b', 120, 100, { homeBallsFaced: 120, awayBallsFaced: 120 }),
+        match('b', 'c', 120, 100, { homeBallsFaced: 120, awayBallsFaced: 120 }),
+        match('c', 'a', 150, 100, { homeBallsFaced: 120, awayBallsFaced: 120 }),
+      ],
+      cricket,
+    );
+    expect(rows.map((row) => row.teamId)).toEqual(['c', 'b', 'a']);
+    expect(rows[0]?.netRunRate).toBeCloseTo(0.75);
+    expect(() =>
+      computeStandings(
+        ['a', 'b'],
+        [match('a', 'b', 1, 0, { homeBallsFaced: 12 })],
+        cricket,
+      ),
+    ).toThrow();
+  });
   it('counts finalized in-scope contests and caps per-match differential', () => {
     const rows = computeStandings(
       ['a', 'b'],
@@ -159,6 +220,74 @@ describe('standings', () => {
     });
     expect(() =>
       computeStandings(['a', 'b'], [match('a', 'b', 2, 1)], setConfig),
+    ).toThrow();
+  });
+
+  it('counts ties and away forfeits', () => {
+    const rows = computeStandings(
+      ['a', 'b'],
+      [match('a', 'b', 1, 1), match('a', 'b', 0, 0, { forfeitBy: 'away' })],
+      config,
+    );
+    expect(rows.find((row) => row.teamId === 'a')).toMatchObject({
+      ties: 1,
+      wins: 1,
+      points: 4,
+    });
+    expect(rows.find((row) => row.teamId === 'b')).toMatchObject({
+      ties: 1,
+      forfeits: 1,
+      points: 0,
+    });
+  });
+
+  it.each([
+    'wins',
+    'fewest_losses',
+    'differential',
+    'scored',
+    'fewest_allowed',
+    'set_ratio',
+    'point_ratio',
+    'sets_won',
+    'fewest_forfeits',
+    'fewest_discipline_points',
+  ] as const)('evaluates %s tiebreakers', (criterion) => {
+    const zero: StandingsConfig = {
+      ...config,
+      points: {
+        win: 0,
+        overtimeWin: 0,
+        tie: 0,
+        overtimeLoss: 0,
+        loss: 0,
+        forfeitWin: 0,
+        forfeitLoss: 0,
+        forfeitDeduction: 0,
+      },
+      tiebreakers: [criterion, 'coin_toss_manual'],
+    };
+    const rows = computeStandings(
+      ['a', 'b'],
+      [
+        match('a', 'b', 3, 1, {
+          homeSets: 2,
+          awaySets: 1,
+          homeSetPoints: 50,
+          awaySetPoints: 30,
+          homeDisciplinePoints: 1,
+          awayDisciplinePoints: 2,
+        }),
+      ],
+      zero,
+    );
+    expect(rows).toHaveLength(2);
+  });
+
+  it('rejects duplicate teams and self-play', () => {
+    expect(() => computeStandings(['a', 'a'], [], config)).toThrow();
+    expect(() =>
+      computeStandings(['a'], [match('a', 'a', 1, 0)], config),
     ).toThrow();
   });
 });

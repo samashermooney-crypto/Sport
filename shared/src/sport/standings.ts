@@ -22,6 +22,10 @@ export type StandingContest = {
   forfeitBy?: 'home' | 'away';
   homeDisciplinePoints?: number;
   awayDisciplinePoints?: number;
+  homeTries?: number;
+  awayTries?: number;
+  homeBallsFaced?: number;
+  awayBallsFaced?: number;
 };
 
 export type StandingRow = {
@@ -44,6 +48,11 @@ export type StandingRow = {
   points: number;
   winPercentage: number;
   disciplinePoints: number;
+  ballsFaced: number;
+  ballsBowled: number;
+  runsForRate: number;
+  runsAgainstRate: number;
+  netRunRate: number;
   decidedBy: Tiebreaker | 'primary' | null;
   manualTiebreakRequired: boolean;
 };
@@ -73,6 +82,11 @@ function emptyRow(teamId: string): MutableRow {
     points: 0,
     winPercentage: 0,
     disciplinePoints: 0,
+    ballsFaced: 0,
+    ballsBowled: 0,
+    runsForRate: 0,
+    runsAgainstRate: 0,
+    netRunRate: 0,
   };
 }
 
@@ -138,6 +152,25 @@ function scoreContest(
   away.setPointsAgainst += contest.homeSetPoints ?? 0;
   home.disciplinePoints += contest.homeDisciplinePoints ?? 0;
   away.disciplinePoints += contest.awayDisciplinePoints ?? 0;
+  if (
+    contest.homeBallsFaced !== undefined ||
+    contest.awayBallsFaced !== undefined
+  ) {
+    if (
+      ![contest.homeBallsFaced, contest.awayBallsFaced].every(
+        (balls) => Number.isSafeInteger(balls) && (balls ?? 0) > 0,
+      )
+    )
+      throw new RangeError('Both cricket innings require positive balls faced');
+    home.ballsFaced += contest.homeBallsFaced ?? 0;
+    home.ballsBowled += contest.awayBallsFaced ?? 0;
+    away.ballsFaced += contest.awayBallsFaced ?? 0;
+    away.ballsBowled += contest.homeBallsFaced ?? 0;
+    home.runsForRate += homeScore;
+    home.runsAgainstRate += awayScore;
+    away.runsForRate += awayScore;
+    away.runsAgainstRate += homeScore;
+  }
   if (contest.forfeitBy === 'home') home.forfeits += 1;
   if (contest.forfeitBy === 'away') away.forfeits += 1;
   const winner = contest.forfeitBy
@@ -190,6 +223,23 @@ function scoreContest(
     home.points -= config.points.forfeitDeduction;
   if (contest.forfeitBy === 'away')
     away.points -= config.points.forfeitDeduction;
+  if (config.bonusPoints && !contest.forfeitBy) {
+    const { triesThreshold, losingMargin, bonusPoint } = config.bonusPoints;
+    if (
+      contest.homeTries !== undefined &&
+      (!Number.isSafeInteger(contest.homeTries) || contest.homeTries < 0)
+    )
+      throw new RangeError('Invalid home try count');
+    if (
+      contest.awayTries !== undefined &&
+      (!Number.isSafeInteger(contest.awayTries) || contest.awayTries < 0)
+    )
+      throw new RangeError('Invalid away try count');
+    if ((contest.homeTries ?? 0) >= triesThreshold) home.points += bonusPoint;
+    if ((contest.awayTries ?? 0) >= triesThreshold) away.points += bonusPoint;
+    if (winner && Math.abs(homeScore - awayScore) <= losingMargin)
+      (winner === 'home' ? away : home).points += bonusPoint;
+  }
 }
 
 function ratio(numerator: number, denominator: number): number {
@@ -233,6 +283,8 @@ function criterionValue(
       return -row.forfeits;
     case 'fewest_discipline_points':
       return -row.disciplinePoints;
+    case 'net_run_rate':
+      return row.netRunRate;
     case 'coin_toss_manual':
       return 0;
   }
@@ -268,10 +320,17 @@ export function computeStandings(
   selected.forEach((contest) => {
     scoreContest(rows, contest, config);
   });
-  for (const row of rows.values())
+  for (const row of rows.values()) {
     row.winPercentage = row.played
       ? (row.wins + config.winPercentageTieValue * row.ties) / row.played
       : 0;
+    row.netRunRate =
+      row.ballsFaced && row.ballsBowled
+        ? 6 *
+          (row.runsForRate / row.ballsFaced -
+            row.runsAgainstRate / row.ballsBowled)
+        : 0;
+  }
   const manual = new Map(
     (options.manualOrder ?? []).map((id, index) => [id, index]),
   );

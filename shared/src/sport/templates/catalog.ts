@@ -307,6 +307,7 @@ export const templateSeeds: Record<string, TemplateSeed> = {
     officials: 'Referee|Assistant referee',
     discipline: 'Yellow card|Red card',
     standings: {
+      bonusPoints: { triesThreshold: 4, losingMargin: 7, bonusPoint: 1 },
       points: {
         win: 4,
         overtimeWin: 4,
@@ -377,6 +378,18 @@ export const templateSeeds: Record<string, TemplateSeed> = {
     duration: 180,
     rubric: 'Batting|Bowling|Fielding|Game awareness',
     officials: 'Umpire|Scorer',
+    standings: {
+      tiebreakers: ['net_run_rate', 'wins', 'coin_toss_manual'],
+      columns: [
+        'rank',
+        'team',
+        'played',
+        'wins',
+        'losses',
+        'points',
+        'net_run_rate',
+      ],
+    },
   },
   tennis: {
     key: 'tennis',
@@ -449,7 +462,12 @@ export const templateSeeds: Record<string, TemplateSeed> = {
           '200_im',
           'freestyle_relay',
         ],
-        { heats: true, lanes: 8, placePoints: [6, 4, 3, 2, 1] },
+        {
+          heats: true,
+          lanes: 8,
+          placePoints: [6, 4, 3, 2, 1],
+          relayPlacePoints: [8, 4, 2],
+        },
       ),
     ],
     positions: 'Free|Back|Breast|Fly|IM',
@@ -524,7 +542,12 @@ export const templateSeeds: Record<string, TemplateSeed> = {
     key: 'cross_country',
     name: 'Cross country',
     category: 'hybrid',
-    formats: [timed(['5k', '3k'], { placePoints: [] })],
+    formats: [
+      timed(['5k', '3k'], {
+        placePoints: [],
+        teamScoring: { method: 'sum_of_places_top_n', count: 5 },
+      }),
+    ],
     rosterMax: 40,
     age: grade,
     venue: 'course',
@@ -744,7 +767,11 @@ export const templateSeeds: Record<string, TemplateSeed> = {
     key: 'golf',
     name: 'Golf',
     category: 'hybrid',
-    formats: [measured(['9_holes', '18_holes'], true, 'strokes')],
+    formats: [
+      measured(['9_holes', '18_holes'], true, 'strokes', {
+        teamScoring: { method: 'best_n_of_m', count: 4 },
+      }),
+    ],
     rosterMax: 12,
     age: grade,
     venue: 'course',
