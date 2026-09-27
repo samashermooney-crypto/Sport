@@ -9,6 +9,7 @@ import { AlwaysPassCaptcha } from './integrations/captcha/provider';
 import { createMailpitEmailSender } from './integrations/email/sender';
 import { parseEncryptionKeys } from './lib/crypto';
 import type { EncryptionKeys } from './lib/crypto';
+import { createAuthRateLimits } from './modules/auth/rate-limits';
 import type { AuthDependencies } from './modules/auth/routes';
 
 const localKeyFile = resolve('data/dev-encryption-key.json');
@@ -76,6 +77,10 @@ export async function createLocalAuthDependencies(): Promise<AuthDependencies> {
       : await localEncryptionKeys();
   return {
     database: getDatabase(),
+    rateLimits: createAuthRateLimits(
+      process.env.DATABASE_URL ??
+        'postgres://athlentry_app@127.0.0.1:5432/athlentry_dev',
+    ),
     email: createMailpitEmailSender(),
     captcha: new AlwaysPassCaptcha(),
     encryption,

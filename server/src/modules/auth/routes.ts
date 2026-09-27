@@ -31,6 +31,8 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 
+import { CaptchaServiceUnavailableError } from '../../integrations/captcha/provider';
+
 import {
   changePassword,
   confirmEmailChange,
@@ -43,6 +45,8 @@ import type { CredentialsDependencies } from './credentials';
 import { listDevices, registerDevice, revokeDevice } from './devices';
 import { AuthDomainError } from './domain-error';
 import { localLegalDocuments } from './legal';
+import { RateLimitExceededError } from './rate-limits';
+import type { AuthRateLimits } from './rate-limits';
 import {
   beginMfaEnrollment,
   confirmMfaEnrollment,
@@ -68,7 +72,7 @@ import type { SignUpDependencies } from './signup';
 export type AuthDependencies = SignUpDependencies &
   SignInDependencies &
   CredentialsDependencies &
-  SecurityDependencies;
+  SecurityDependencies & { rateLimits: AuthRateLimits };
 
 const cookieName = '__Host-athlentry_session';
 
@@ -139,6 +143,10 @@ function authMeta(request: Request): {
   userAgent: string | undefined;
 } {
   return { ip: request.ip, userAgent: request.get('user-agent') };
+}
+
+function requestIp(request: Request): string {
+  return request.ip ?? request.socket.remoteAddress ?? 'unknown';
 }
 
 function sendSignInResult(
@@ -214,11 +222,9 @@ export function createAuthRouter(
   });
   router.post('/sign-up', async (request, response) => {
     const body: unknown = request.body;
-    const message = await signUp(
-      dependencies,
-      signUpSchema.parse(body),
-      authMeta(request),
-    );
+    const input = signUpSchema.parse(body);
+    await dependencies.rateLimits.signUp(requestIp(request));
+    const message = await signUp(dependencies, input, authMeta(request));
     response.status(202).json(authMessageResponseSchema.parse({ message }));
   });
   router.post('/verify-email', async (request, response) => {
@@ -237,9 +243,11 @@ export function createAuthRouter(
   });
   router.post('/sign-in', async (request, response) => {
     const body: unknown = request.body;
+    const input = signInBodySchema.parse(body);
+    await dependencies.rateLimits.signIn(requestIp(request), input.email);
     const result = await signInWithPassword(
       dependencies,
-      signInBodySchema.parse(body),
+      input,
       authMeta(request),
     );
     sendSignInResult(response, result, dependencies.clock());
@@ -247,6 +255,7 @@ export function createAuthRouter(
   router.post('/token', async (request, response) => {
     const body: unknown = request.body;
     const input = nativeTokenBodySchema.parse(body);
+    await dependencies.rateLimits.signIn(requestIp(request), input.email);
     const result = await signInWithPassword(
       dependencies,
       { email: input.email, password: input.password },
@@ -258,6 +267,7 @@ export function createAuthRouter(
   router.post('/token/mfa', async (request, response) => {
     const body: unknown = request.body;
     const input = nativeMfaChallengeBodySchema.parse(body);
+    await dependencies.rateLimits.mfa(requestIp(request));
     const session = await completeMfaChallenge(
       dependencies,
       input.challengeToken,
@@ -270,10 +280,9 @@ export function createAuthRouter(
   });
   router.post('/magic/request', async (request, response) => {
     const body: unknown = request.body;
-    const message = await requestMagicLink(
-      dependencies,
-      emailBodySchema.parse(body).email,
-    );
+    const input = emailBodySchema.parse(body);
+    await dependencies.rateLimits.magic(requestIp(request), input.email);
+    const message = await requestMagicLink(dependencies, input.email);
     response.status(202).json(authMessageResponseSchema.parse({ message }));
   });
   router.post('/magic/redeem', async (request, response) => {
@@ -288,6 +297,7 @@ export function createAuthRouter(
   router.post('/mfa/challenge', async (request, response) => {
     const body: unknown = request.body;
     const parsed = mfaChallengeBodySchema.parse(body);
+    await dependencies.rateLimits.mfa(requestIp(request));
     const session = await completeMfaChallenge(
       dependencies,
       parsed.challengeToken,
@@ -300,10 +310,9 @@ export function createAuthRouter(
   });
   router.post('/password/reset/request', async (request, response) => {
     const body: unknown = request.body;
-    const message = await requestPasswordReset(
-      dependencies,
-      emailBodySchema.parse(body).email,
-    );
+    const input = emailBodySchema.parse(body);
+    await dependencies.rateLimits.reset(requestIp(request), input.email);
+    const message = await requestPasswordReset(dependencies, input.email);
     response.status(202).json(authMessageResponseSchema.parse({ message }));
   });
   router.post('/password/reset/confirm', async (request, response) => {
@@ -566,6 +575,9 @@ export function createAuthRouter(
         );
         return;
       }
+      if (error instanceof RateLimitExceededError) {
+        response.setHeader('Retry-After', String(error.retryAfterSeconds));
+      }
       if (error instanceof AuthDomainError) {
         response.status(error.status).json(
           apiErrorSchema.parse({
@@ -594,6 +606,17 @@ export function createAuthRouter(
         response.status(403).json(
           apiErrorSchema.parse({
             error: { code: 'VERIFICATION_REQUIRED', message: error.message },
+          }),
+        );
+        return;
+      }
+      if (error instanceof CaptchaServiceUnavailableError) {
+        response.status(503).json(
+          apiErrorSchema.parse({
+            error: {
+              code: 'DEPENDENCY_UNAVAILABLE',
+              message: error.message,
+            },
           }),
         );
         return;

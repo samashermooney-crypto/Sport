@@ -201,6 +201,12 @@ export interface PrivacyRequests {
   updated_at: Generated<Timestamp>;
 }
 
+export interface RateLimitPoints {
+  expire: number | null;
+  key: string;
+  points: Generated<number>;
+}
+
 export interface RoleAssignments {
   account_id: string;
   created_at: Generated<Timestamp>;
@@ -266,6 +272,7 @@ export interface DB {
   organizations: Organizations;
   plans: Plans;
   privacy_requests: PrivacyRequests;
+  rate_limit_points: RateLimitPoints;
   role_assignments: RoleAssignments;
   schema_migrations: SchemaMigrations;
   security_events: SecurityEvents;

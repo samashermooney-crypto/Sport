@@ -12,6 +12,7 @@ export const errorCodeSchema = z.enum([
   'REAUTH_REQUIRED',
   'FORBIDDEN',
   'CONFLICT',
+  'RATE_LIMITED',
   'DEPENDENCY_UNAVAILABLE',
   'INTERNAL_ERROR',
 ]);

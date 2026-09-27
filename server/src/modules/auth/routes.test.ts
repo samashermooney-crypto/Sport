@@ -11,6 +11,8 @@ import { AlwaysPassCaptcha } from '../../integrations/captcha/provider';
 import { FakeEmailSender } from '../../integrations/email/sender';
 import { parseEncryptionKeys } from '../../lib/crypto';
 
+import { createAuthRateLimits } from './rate-limits';
+import type { AuthRateLimits } from './rate-limits';
 import { decodeBase32, totpCode } from './totp';
 
 const origin = 'http://127.0.0.1:5173';
@@ -22,13 +24,16 @@ const encryption = parseEncryptionKeys(
 );
 const now = new Date('2026-09-26T18:00:00Z');
 let database: Kysely<DB>;
+let rateLimits: AuthRateLimits;
 let server: ReturnType<ReturnType<typeof createApp>['listen']>;
 let baseUrl: string;
 
 beforeAll(() => {
   database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
+  rateLimits = createAuthRateLimits(process.env.TEST_DATABASE_APP_URL ?? '');
   server = createApp({
     database,
+    rateLimits,
     email,
     encryption,
     captcha: new AlwaysPassCaptcha(),
@@ -40,6 +45,7 @@ beforeAll(() => {
 
 afterAll(async () => {
   server.close();
+  await rateLimits.close();
   await database.destroy();
 });
 
@@ -305,5 +311,24 @@ describe('auth HTTP contract', () => {
     expect(
       ((await webPushList.json()) as { devices: { id: string }[] }).devices,
     ).toEqual([expect.objectContaining({ id: webPushId })]);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const requested = await post('/magic/request', {
+        email: 'unknown@example.invalid',
+      });
+      expect(requested.status).toBe(202);
+      expect(await requested.json()).toEqual({
+        message:
+          'If this address has an account, check your email for a sign-in link.',
+      });
+    }
+    const limited = await post('/magic/request', {
+      email: 'unknown@example.invalid',
+    });
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get('retry-after')).toMatch(/^[1-9][0-9]*$/);
+    expect(await limited.json()).toMatchObject({
+      error: { code: 'RATE_LIMITED' },
+    });
   });
 });
