@@ -104,7 +104,7 @@ export async function changePassword(
 ): Promise<void> {
   const account = await dependencies.database
     .selectFrom('accounts')
-    .select('password_hash')
+    .select(['password_hash', 'email'])
     .where('id', '=', session.accountId)
     .where('status', '=', 'active')
     .executeTakeFirst();
@@ -134,6 +134,11 @@ export async function changePassword(
         action: 'password.changed',
       })
       .execute();
+  });
+  await dependencies.email.send({
+    to: account.email,
+    subject: 'Your Athlentry password changed',
+    text: 'Your password was changed. If you did not make this change, contact Athlentry support immediately.',
   });
 }
 

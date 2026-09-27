@@ -8,7 +8,9 @@ import type { DB } from '../../db/types';
 import {
   hasStepUp,
   issueSession,
+  listActiveSessions,
   resolveSession,
+  revokeSession,
   revokeSessions,
   stepUpSession,
 } from './sessions';
@@ -127,6 +129,38 @@ describe('session lifecycle', () => {
         .transaction()
         .execute((trx) => revokeSessions(trx, accountId, now)),
     ).toBeGreaterThan(0);
+    expect(
+      await database
+        .transaction()
+        .execute((trx) => resolveSession(trx, issued.token, now)),
+    ).toBeNull();
+  });
+
+  it('lists and revokes a selected session owned by the account', async () => {
+    const issued = await database.transaction().execute((trx) =>
+      issueSession(
+        trx,
+        {
+          accountId,
+          kind: 'cookie',
+          client: 'web',
+          privileged: false,
+        },
+        now,
+      ),
+    );
+    const listed = await listActiveSessions(database, accountId, now);
+    expect(listed.map((session) => session.id)).toContain(issued.id);
+    expect(
+      await database
+        .transaction()
+        .execute((trx) => revokeSession(trx, accountId, issued.id, now)),
+    ).toBe(true);
+    expect(
+      await database
+        .transaction()
+        .execute((trx) => revokeSession(trx, accountId, issued.id, now)),
+    ).toBe(false);
     expect(
       await database
         .transaction()

@@ -95,3 +95,11 @@
 - **Decision:** Local sign-up uses versioned, clearly marked draft text now and stores its exact text in append-only consent rows. Production remains blocked until approved legal documents replace the drafts.
 - **Why:** Allows the complete consent flow to be tested without presenting draft terms as approved production policy.
 - **Consequences / follow-ups:** Phase 16 must replace the drafts with reviewable full documents and preserve older consent versions for evidence.
+
+### DEC-011 — Activate pending roles after MFA confirmation
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 identity and roles
+- **Context:** MFA factors are global account data, while role assignments are tenant data that must be updated through separate `withOrg` transactions.
+- **Decision:** Confirm the factor and issue recovery codes in one account transaction, then activate each pending role in its organization-scoped transaction with an audit entry. Each activation is idempotent.
+- **Why:** Prevents a role from becoming active before the factor is confirmed and preserves RLS for all role writes.
+- **Consequences / follow-ups:** The HTTP flow must surface an activation failure and provide a retry path; sign-in must recheck pending roles after successful MFA so a partial activation can recover.

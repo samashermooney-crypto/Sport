@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import { newId } from '@shared/ids';
-import type { Transaction } from 'kysely';
+import type { Kysely, Transaction } from 'kysely';
 
 import type { DB } from '../../db/types';
 
@@ -208,4 +208,80 @@ export async function revokeSessions(
       .execute();
   }
   return rows.length;
+}
+
+export interface ListedSession {
+  id: string;
+  kind: 'cookie' | 'bearer';
+  client: 'web' | 'ios' | 'android';
+  createdAt: Date;
+  lastSeenAt: Date;
+  idleExpiresAt: Date;
+  absoluteExpiresAt: Date;
+  ip: string | null;
+  userAgent: string | null;
+}
+
+export async function listActiveSessions(
+  database: Kysely<DB>,
+  accountId: string,
+  now: Date,
+): Promise<ListedSession[]> {
+  const rows = await database
+    .selectFrom('sessions')
+    .select([
+      'id',
+      'kind',
+      'client',
+      'created_at',
+      'updated_at',
+      'idle_expires_at',
+      'absolute_expires_at',
+      'ip',
+      'user_agent',
+    ])
+    .where('account_id', '=', accountId)
+    .where('revoked_at', 'is', null)
+    .where('idle_expires_at', '>', now)
+    .where('absolute_expires_at', '>', now)
+    .orderBy('created_at', 'desc')
+    .execute();
+  return rows.map((row) => ({
+    id: row.id,
+    kind: row.kind as ListedSession['kind'],
+    client: row.client as ListedSession['client'],
+    createdAt: row.created_at,
+    lastSeenAt: row.updated_at,
+    idleExpiresAt: row.idle_expires_at,
+    absoluteExpiresAt: row.absolute_expires_at,
+    ip: row.ip,
+    userAgent: row.user_agent,
+  }));
+}
+
+export async function revokeSession(
+  trx: Transaction<DB>,
+  accountId: string,
+  sessionId: string,
+  now: Date,
+): Promise<boolean> {
+  const revoked = await trx
+    .updateTable('sessions')
+    .set({ revoked_at: now })
+    .where('id', '=', sessionId)
+    .where('account_id', '=', accountId)
+    .where('revoked_at', 'is', null)
+    .returning('id')
+    .executeTakeFirst();
+  if (!revoked) return false;
+  await trx
+    .insertInto('security_events')
+    .values({
+      id: newId(),
+      account_id: accountId,
+      action: 'session.revoked',
+      details: { sessionId },
+    })
+    .execute();
+  return true;
 }
