@@ -16,7 +16,7 @@ async function accessibilityViolations(
     .map((violation) => `${violation.id}: ${violation.description}`);
 }
 
-test('platform staff can inspect and suspend an organization accessibly', async ({
+test('platform staff and portal notifications work accessibly', async ({
   page,
   context,
   request,
@@ -30,6 +30,7 @@ test('platform staff can inspect and suspend an organization accessibly', async 
   const orgId = randomUUID();
   const slug = `platform-${orgId.slice(0, 8)}`;
   const orgName = `Platform Browser Club ${orgId.slice(0, 8)}`;
+  const notificationId = randomUUID();
   try {
     await database.query(
       `INSERT INTO accounts
@@ -46,6 +47,16 @@ test('platform staff can inspect and suspend an organization accessibly', async 
       `INSERT INTO organizations(id, slug, name, kind, timezone, status)
       VALUES ($1, $2, $3, 'club', 'UTC', 'active')`,
       [orgId, slug, orgName],
+    );
+    await database.query(
+      `INSERT INTO org_memberships(id, org_id, account_id, status)
+       VALUES ($1, $2, $3, 'active')`,
+      [randomUUID(), orgId, accountId],
+    );
+    await database.query(
+      `INSERT INTO notifications(id, org_id, account_id, type, payload, delivered_channels)
+       VALUES ($1, $2, $3, 'registration.confirmed', '{}'::jsonb, ARRAY['in_app'])`,
+      [notificationId, orgId, accountId],
     );
     const now = new Date();
     const sessionToken = randomBytes(32).toString('base64url');
@@ -94,6 +105,8 @@ test('platform staff can inspect and suspend an organization accessibly', async 
     await expect(
       page.getByRole('button', { name: 'Reactivate' }),
     ).toBeVisible();
+    await page.getByRole('button', { name: 'Reactivate' }).click();
+    await expect(page.getByRole('button', { name: 'Suspend' })).toBeVisible();
     await page
       .getByRole('textbox', { name: 'Reason for read-only impersonation' })
       .fill('Investigating an organization support request');
@@ -114,6 +127,10 @@ test('platform staff can inspect and suspend an organization accessibly', async 
     expect(impersonation.rows).toMatchObject([{ expires_in_seconds: 3600 }]);
     const impersonationId = impersonation.rows[0]?.id;
     expect(impersonationId).toBeTruthy();
+    await page.goto(`/portal/orgs/${orgId}/notifications`);
+    await expect(
+      page.getByText(`Read-only impersonation for organization ${orgId}`),
+    ).toBeVisible();
     await page.getByRole('button', { name: 'End impersonation' }).click();
     await expect(
       page.getByText(`Read-only impersonation for organization ${orgId}`),
@@ -122,15 +139,43 @@ test('platform staff can inspect and suspend an organization accessibly', async 
       'SELECT action FROM platform_audit_log WHERE impersonation_id = $1 ORDER BY created_at',
       [impersonationId],
     );
-    expect(audits.rows.map((row) => row.action)).toEqual([
+    expect(audits.rows.map((row) => row.action)).toContain(
       'impersonation.start',
-      'impersonation.end',
-    ]);
+    );
+    expect(audits.rows.map((row) => row.action)).toContain('impersonation.end');
     expect(await accessibilityViolations(page)).toEqual([]);
+    await page.goto('/platform');
     await page.getByRole('button', { name: 'Health' }).click();
     await expect(
       page.getByRole('heading', { name: 'System health' }),
     ).toBeVisible();
+    expect(await accessibilityViolations(page)).toEqual([]);
+    await page.goto(`/portal/orgs/${orgId}/notifications`);
+    await expect(
+      page.getByRole('heading', { name: 'Notifications', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText('Registration confirmed')).toBeVisible();
+    await page.getByRole('button', { name: 'Mark read' }).click();
+    await expect(page.getByRole('button', { name: 'Mark read' })).toHaveCount(
+      0,
+    );
+    const readState = await database.query<{ read_at: Date | null }>(
+      'SELECT read_at FROM notifications WHERE id = $1',
+      [notificationId],
+    );
+    expect(readState.rows[0]?.read_at).not.toBeNull();
+    const marketingEmail = page.getByRole('checkbox', {
+      name: 'marketing · Email',
+    });
+    await expect(marketingEmail).not.toBeChecked();
+    await marketingEmail.click();
+    await expect(marketingEmail).toBeChecked();
+    const preference = await database.query<{ enabled: boolean }>(
+      `SELECT enabled FROM communication_preferences
+       WHERE org_id = $1 AND account_id = $2 AND category = 'marketing' AND channel = 'email'`,
+      [orgId, accountId],
+    );
+    expect(preference.rows).toMatchObject([{ enabled: true }]);
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
     await database.end();

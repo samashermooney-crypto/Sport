@@ -1,22 +1,21 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 
-import express from 'express';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { createApp } from '../../app';
 import { createDatabase } from '../../db/kysely';
 import type { AuthDependencies } from '../auth/routes';
 
 import { notificationChannel } from './stream';
-import { createStreamRouter } from './stream-routes';
 
 const now = new Date('2026-09-26T18:00:00Z');
 const accountId = randomUUID();
 const orgId = randomUUID();
 const token = randomBytes(32).toString('base64url');
 let database: ReturnType<typeof createDatabase>;
-let server: ReturnType<express.Express['listen']>;
+let server: ReturnType<ReturnType<typeof createApp>['listen']>;
 let baseUrl: string;
 let previousDatabaseUrl: string | undefined;
 
@@ -53,15 +52,11 @@ beforeAll(async () => {
     await admin.end();
   }
   database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
-  const app = express();
-  app.use(
-    '/api/v1/stream',
-    createStreamRouter({
-      database,
-      appUrl: 'http://127.0.0.1:5173',
-      clock: () => now,
-    } as AuthDependencies),
-  );
+  const app = createApp({
+    database,
+    appUrl: 'http://127.0.0.1:5173',
+    clock: () => now,
+  } as AuthDependencies);
   server = app.listen(0);
   baseUrl = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/api/v1/stream`;
 });
