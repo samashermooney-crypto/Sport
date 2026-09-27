@@ -562,7 +562,6 @@ export class FacilitiesService {
       return trx
         .updateTable('space_availability')
         .set({
-          rrule: '',
           recurrence: recurrence as Json,
           starts_on: day(recurrence.startsOn),
           ends_on: day(recurrence.endsOn ?? '2099-12-31'),
@@ -662,7 +661,6 @@ export class FacilitiesService {
           id: newId(),
           org_id: this.context.orgId,
           space_id: value.spaceId,
-          rrule: '',
           recurrence: value.recurrence as Json,
           starts_on: day(startsOn),
           ends_on: day(endsOn),

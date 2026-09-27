@@ -695,7 +695,6 @@ export class SeasonsService {
           space_id: allocation.space_id,
           team_season_id: teamSeasonId ?? null,
           division_id: divisionId ?? null,
-          rrule: allocation.rrule,
           recurrence: allocation.recurrence,
           starts_on: resolveDate(
             allocation.starts_on,

@@ -100,16 +100,6 @@ export class SportsService {
           'CONFLICT',
           'This sport template is already in your organization',
         );
-      await trx
-        .insertInto('sport_profile_versions')
-        .values({
-          org_id: this.context.orgId,
-          sport_profile_id: id,
-          version: 1,
-          profile: profile as Json,
-          created_by: this.context.actor.accountId,
-        })
-        .execute();
       return row;
     });
   }
@@ -139,24 +129,13 @@ export class SportsService {
           'VERSION_CONFLICT',
           'Sport profile changed; reload before saving',
         );
-      const version = current.version + 1;
       const row = await trx
         .updateTable('sport_profiles')
-        .set({ name: profile.name.en, profile: profile as Json, version })
+        .set({ name: profile.name.en, profile: profile as Json })
         .where('org_id', '=', this.context.orgId)
         .where('id', '=', id)
         .returning(['id', 'template_key', 'name', 'profile', 'version'])
         .executeTakeFirstOrThrow();
-      await trx
-        .insertInto('sport_profile_versions')
-        .values({
-          org_id: this.context.orgId,
-          sport_profile_id: id,
-          version,
-          profile: profile as Json,
-          created_by: this.context.actor.accountId,
-        })
-        .execute();
       return row;
     });
   }

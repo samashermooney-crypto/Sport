@@ -1,4 +1,7 @@
 export const modulePermissions = [
+  'attendance.manage',
+  'attendance.read',
+  'attendance.rsvp',
   'audit.read',
   'chat.moderate',
   'chat.read',
@@ -6,4 +9,11 @@ export const modulePermissions = [
   'communications.manage',
   'communications.read',
   'finance.manage',
+  'officials.manage',
+  'officials.self',
+  'results.manage',
+  'results.read',
+  'schedule.manage',
+  'schedule.read',
+  'tournaments.manage',
 ] as const;
