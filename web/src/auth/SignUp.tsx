@@ -1,0 +1,151 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  authLegalResponseSchema,
+  authMessageResponseSchema,
+  signUpSchema,
+} from '@shared/schemas/auth';
+import type { SignUpInput } from '@shared/schemas/auth';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+
+import { apiGet, apiPost } from '../api/client';
+import { AuthFrame, AuthLink, Button, ErrorBox, Field } from '../ui/auth';
+
+export function SignUp(): React.JSX.Element {
+  const legal = useQuery({
+    queryKey: ['auth', 'legal'],
+    queryFn: () => apiGet('/auth/legal', authLegalResponseSchema),
+  });
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<SignUpInput>({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: { captchaToken: 'local-preview' },
+  });
+
+  async function submit(values: SignUpInput): Promise<void> {
+    setError('');
+    try {
+      const result = await apiPost(
+        '/auth/sign-up',
+        values,
+        authMessageResponseSchema,
+      );
+      setMessage(result.message);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : 'Account creation failed.',
+      );
+    }
+  }
+
+  return (
+    <AuthFrame
+      footer={<AuthLink to="/">Already have an account? Sign in</AuthLink>}
+    >
+      <h1>Create your account</h1>
+      {message ? (
+        <p role="status">{message}</p>
+      ) : (
+        <>
+          <p>
+            You must be at least 13. A parent or guardian manages younger
+            athletes.
+          </p>
+          <ErrorBox error={error} />
+          {legal.isPending && (
+            <p role="status">Loading terms and privacy text…</p>
+          )}
+          {legal.isError && (
+            <ErrorBox error="Terms and privacy text could not be loaded. Try again later." />
+          )}
+          {legal.isSuccess && (
+            <form
+              onSubmit={(event) => void handleSubmit(submit)(event)}
+              noValidate
+            >
+              <Field
+                label="First name"
+                required
+                error={errors.firstName?.message}
+              >
+                <input autoComplete="given-name" {...register('firstName')} />
+              </Field>
+              <Field
+                label="Last name"
+                required
+                error={errors.lastName?.message}
+              >
+                <input autoComplete="family-name" {...register('lastName')} />
+              </Field>
+              <Field
+                label="Email address"
+                required
+                error={errors.email?.message}
+              >
+                <input
+                  type="email"
+                  autoComplete="email"
+                  {...register('email')}
+                />
+              </Field>
+              <Field
+                label="Date of birth"
+                required
+                error={errors.dateOfBirth?.message}
+              >
+                <input
+                  type="date"
+                  autoComplete="bday"
+                  {...register('dateOfBirth')}
+                />
+              </Field>
+              <Field label="Password" required error={errors.password?.message}>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  {...register('password')}
+                />
+              </Field>
+              <details className="legal-text">
+                <summary>Terms of service ({legal.data.terms.version})</summary>
+                <p>{legal.data.terms.text}</p>
+              </details>
+              <label className="consent">
+                <input type="checkbox" {...register('termsAccepted')} /> I have
+                read and accept the Terms of service.
+              </label>
+              {errors.termsAccepted && (
+                <small className="field-error" role="alert">
+                  Accept the Terms to continue.
+                </small>
+              )}
+              <details className="legal-text">
+                <summary>Privacy notice ({legal.data.privacy.version})</summary>
+                <p>{legal.data.privacy.text}</p>
+              </details>
+              <label className="consent">
+                <input type="checkbox" {...register('privacyAccepted')} /> I
+                have read and accept the Privacy notice.
+              </label>
+              {errors.privacyAccepted && (
+                <small className="field-error" role="alert">
+                  Accept the Privacy notice to continue.
+                </small>
+              )}
+              <input type="hidden" {...register('captchaToken')} />
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Creating account…' : 'Create account'}
+              </Button>
+            </form>
+          )}
+        </>
+      )}
+    </AuthFrame>
+  );
+}

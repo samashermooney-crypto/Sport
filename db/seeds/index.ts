@@ -1,3 +1,5 @@
+import pg from 'pg';
+
 import { migrate } from '../../server/src/db/migrate';
 
 const profileIndex = process.argv.indexOf('--profile');
@@ -11,7 +13,16 @@ if (profile !== 'e2e') {
   const url =
     process.env.DATABASE_ADMIN_URL ??
     'postgres://athlentry_admin@127.0.0.1:5432/athlentry_e2e';
-  migrate(url).catch((error: unknown) => {
+  (async () => {
+    await migrate(url);
+    const client = new pg.Client({ connectionString: url });
+    await client.connect();
+    try {
+      await client.query('TRUNCATE rate_limit_points');
+    } finally {
+      await client.end();
+    }
+  })().catch((error: unknown) => {
     process.stderr.write(
       `${error instanceof Error ? error.message : String(error)}\n`,
     );

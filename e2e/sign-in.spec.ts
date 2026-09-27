@@ -2,14 +2,97 @@ import { expect, test } from '@playwright/test';
 
 import { accessibilityViolations } from './axe';
 
-test('Phase 0 sign-in shell and API health', async ({ page, request }) => {
+test('sign-in and reset request are accessible and functional', async ({
+  page,
+  request,
+}, testInfo) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
-  await expect(page.getByText('Athlentry')).toBeVisible();
-  await expect(page.getByRole('link')).toHaveCount(0);
-  await expect(page.getByRole('button')).toHaveCount(0);
+  await expect(
+    page.getByRole('heading', { name: 'Welcome back.' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('textbox', { name: /Email address/ }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('link', { name: 'Forgot your password?' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Reset your password' }),
+  ).toBeVisible();
+  await page
+    .getByRole('textbox', { name: /Email address/ })
+    .fill(
+      `unknown-${testInfo.project.name}-${Date.now().toString()}@example.test`,
+    );
+  await page.getByRole('button', { name: 'Send reset link' }).click();
+  await expect(page.getByRole('status')).toBeVisible();
   expect(await accessibilityViolations(page)).toEqual([]);
   const health = await request.get('/healthz');
   expect(health.status()).toBe(200);
   expect(await health.json()).toEqual({ status: 'ok' });
+});
+
+test('new account verifies its preview email and signs in', async ({
+  page,
+  request,
+}, testInfo) => {
+  const email = `e2e-${testInfo.project.name}-${Date.now().toString()}@example.test`;
+  const password = 'Pinecones!7348Ridge';
+  await page.goto('/sign-up');
+  await expect(
+    page.getByRole('heading', { name: 'Create your account' }),
+  ).toBeVisible();
+  await expect(
+    page.locator('summary', { hasText: 'Terms of service' }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('textbox', { name: /First name/ }).fill('Alex');
+  await page.getByRole('textbox', { name: /Last name/ }).fill('Tester');
+  await page.getByRole('textbox', { name: /Email address/ }).fill(email);
+  await page.getByLabel('Date of birth').fill('1990-04-06');
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('checkbox', { name: /Terms of service/ }).check();
+  await page.getByRole('checkbox', { name: /Privacy notice/ }).check();
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page.getByRole('status')).toContainText('verification link');
+
+  let verificationUrl = '';
+  await expect
+    .poll(async () => {
+      const response = await request.get(
+        'http://127.0.0.1:8025/api/v1/messages',
+      );
+      const mailbox = (await response.json()) as {
+        messages: Array<{ To: Array<{ Address: string }>; Snippet: string }>;
+      };
+      verificationUrl =
+        mailbox.messages
+          .filter((message) =>
+            message.To.some((recipient) => recipient.Address === email),
+          )
+          .map(
+            (message) =>
+              /https?:\/\/[^\s]+\/verify\/[A-Za-z0-9_-]+/.exec(
+                message.Snippet,
+              )?.[0] ?? '',
+          )[0] ?? '';
+      return verificationUrl;
+    })
+    .not.toBe('');
+
+  await page.goto(verificationUrl);
+  await expect(
+    page.getByRole('heading', { name: 'Verify your email' }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('button', { name: 'Verify email' }).click();
+  await expect(page.getByRole('status')).toContainText('Email verified');
+  await page.getByRole('link', { name: 'Return to sign in' }).click();
+  await page.getByRole('textbox', { name: /Email address/ }).fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Welcome, Alex.' }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
 });

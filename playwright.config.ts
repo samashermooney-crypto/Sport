@@ -5,7 +5,11 @@ export default defineConfig({
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
-  use: { baseURL: 'http://127.0.0.1:5173', trace: 'retain-on-failure' },
+  use: {
+    baseURL: 'https://127.0.0.1:5173',
+    ignoreHTTPSErrors: true,
+    trace: 'retain-on-failure',
+  },
   projects: [
     {
       name: 'chromium-desktop',
@@ -18,7 +22,8 @@ export default defineConfig({
   ],
   webServer: {
     command: 'node scripts/dev.mjs --e2e',
-    url: 'http://127.0.0.1:5173',
+    url: 'https://127.0.0.1:5173',
+    ignoreHTTPSErrors: true,
     reuseExistingServer: false,
     timeout: 180_000,
   },

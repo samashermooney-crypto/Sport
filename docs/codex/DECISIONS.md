@@ -135,3 +135,19 @@
 - **Decision:** Capture the fictional demo at revision `9ef77bb` in an isolated worktree at 1440px and 390px. Extract every custom property and frequently repeated literal color, spacing, type size, control height, radius and shadow into a frozen JSON snapshot and CSS variables. Add a unit test comparing the CSS variables with the snapshot after normalizing quote and whitespace formatting only.
 - **Why:** Preserves the owner's chosen look as reviewable evidence while allowing the new components to share exact values.
 - **Consequences / follow-ups:** Compare the rebuilt shell and component screenshots to the frozen images; any accessibility-driven visual change needs a narrow recorded exception.
+
+### DEC-016 — Keep secure cookies in mobile browser tests
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 web authentication
+- **Context:** WebKit discarded the required `Secure` session cookie over the plain HTTP e2e origin, so a successful sign-in could not load the account page. Repeated local e2e runs also exhausted persistent public auth rate limits.
+- **Decision:** Run the e2e Vite server over local HTTPS using an ignored, generated self-signed certificate, and configure Playwright to trust that test origin. Keep the cookie flags unchanged. Clear only the global rate-limit table when seeding the isolated e2e database; use unique email addresses per browser run. Normal local development keeps its Phase 0 HTTP URL.
+- **Why:** The mobile browser test exercises the production cookie security contract without weakening it, while rate-limit tests remain in the separate Postgres integration suite.
+- **Consequences / follow-ups:** The e2e certificate and private key stay in ignored `data/`; production TLS terminates at the deployment edge. Add account security and org onboarding browser flows before Phase 1 acceptance.
+
+### DEC-017 — Minimum touch target on auth actions
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 design and accessibility
+- **Context:** The legacy login action is shorter than the `01 §11` 44×44 px touch target requirement. The extracted legacy tokens already include a 44px control height.
+- **Decision:** Keep the button's legacy color, border, radius, font and spacing, and use the existing 44px height token as its minimum height on auth screens.
+- **Why:** This is the smallest visual adjustment that makes the primary auth action meet the specified touch target size.
+- **Consequences / follow-ups:** Design screenshot assertions may mask only the resulting height and downstream vertical shift; verify all other styling against the frozen legacy reference.

@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
@@ -10,6 +13,14 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 5173,
     strictPort: true,
+    ...(process.env.ATHLENTRY_E2E_HTTPS === '1'
+      ? {
+          https: {
+            key: readFileSync(resolve('data/dev-localhost.key')),
+            cert: readFileSync(resolve('data/dev-localhost.crt')),
+          },
+        }
+      : {}),
     proxy: {
       '/api': 'http://127.0.0.1:3001',
       '/healthz': 'http://127.0.0.1:3001',

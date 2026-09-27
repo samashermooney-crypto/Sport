@@ -1,10 +1,15 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
 const e2e = process.argv.includes('--e2e');
 const dbName = e2e ? 'athlentry_e2e' : 'athlentry_dev';
 const env = {
   ...process.env,
+  ...(e2e
+    ? { APP_URL: 'https://127.0.0.1:5173', ATHLENTRY_E2E_HTTPS: '1' }
+    : {}),
   DATABASE_URL: `postgres://athlentry_app@127.0.0.1:5432/${dbName}`,
   DATABASE_ADMIN_URL: `postgres://athlentry_admin@127.0.0.1:5432/${dbName}`,
 };
@@ -69,6 +74,37 @@ process.on('SIGINT', () => void stop());
 process.on('SIGTERM', () => void stop());
 
 try {
+  if (e2e) {
+    const certificate = resolve('data/dev-localhost.crt');
+    const key = resolve('data/dev-localhost.key');
+    if (!existsSync(certificate) || !existsSync(key)) {
+      mkdirSync(resolve('data'), { recursive: true });
+      const result = spawnSync(
+        'openssl',
+        [
+          'req',
+          '-x509',
+          '-newkey',
+          'rsa:2048',
+          '-nodes',
+          '-days',
+          '365',
+          '-keyout',
+          key,
+          '-out',
+          certificate,
+          '-subj',
+          '/CN=localhost',
+          '-addext',
+          'subjectAltName=DNS:localhost,IP:127.0.0.1',
+        ],
+        { stdio: 'ignore' },
+      );
+      if (result.status !== 0)
+        throw new Error('Could not create the local HTTPS certificate');
+    }
+    chmodSync(key, 0o600);
+  }
   await done(
     run('compose', 'docker', [
       'compose',
