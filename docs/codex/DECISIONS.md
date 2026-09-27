@@ -575,3 +575,35 @@
 - **Decision:** Compose a schedule-owned resource calendar from existing UI controls. Both move paths use the versioned event update endpoint, preserve elapsed duration, interpret the target slot in the destination facility timezone, and pass optional reason text for server-approved soft-conflict overrides. Event and recurrence create/edit forms expose the same reason field; hard conflicts remain unoverridable.
 - **Why:** The scheduling feature needs its operational move workflow while retaining the frozen shared design system and backend as the authority for booking conflicts.
 - **Consequences / follow-ups:** The calendar remains inside `web/src/console/schedule`; Track A must mount the feature and add the cross-browser schedule journeys.
+
+### DEC-075 — Generate schedule, results and standings PDFs through browser print
+- **Date:** 2026-09-27
+- **Phase / area:** Phases 8–9 schedule and sport exports
+- **Context:** Schedule and meet results require CSV/PDF exports, standings and tournament brackets must print, and Track G has no server-side PDF service in its owned modules.
+- **Decision:** Build printable documents from permission-scoped schedule, contest and standings responses and let the browser print dialog save them as PDF. CSV exports use permission-scoped data and escape fields against spreadsheet formulas.
+- **Why:** Staff need usable paper/PDF output without storing duplicate operational data or adding an unrelated PDF dependency.
+- **Consequences / follow-ups:** PDFs are generated in the browser and are not stored as organization files; reusable downloadable artifacts can move to the Files/PDF service if that becomes a requirement.
+
+### DEC-076 — Serialize standings snapshot arrays as JSON
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 9 standings snapshots
+- **Context:** PostgreSQL's driver encodes JavaScript arrays as PostgreSQL arrays by default, while the standings snapshot column is `jsonb`.
+- **Decision:** Serialize the computed standings row array to JSON text before inserting it into the snapshot column.
+- **Why:** Every refresh must persist the same rows returned to the standings reader instead of failing at the database boundary.
+- **Consequences / follow-ups:** The isolated PostgreSQL integration test covers snapshot creation, labels and visibility reads.
+
+### DEC-077 — Keep private athlete statistics out of personal-best views
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 9 athlete statistics
+- **Context:** Personal-best records are shown in the family portal, and a single endpoint serves both athlete/guardian links and staff roles.
+- **Decision:** Return only athlete-level statistics marked public in the sport profile; staff-only team statistics remain behind their existing scoped endpoint.
+- **Why:** One predictable response keeps private youth performance data out of family-facing personal-best summaries.
+- **Consequences / follow-ups:** Sport profile definitions must mark a statistic public before it appears in family personal-best views.
+
+### DEC-078 — Commit lineup suspension audits before returning a conflict
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 9 discipline enforcement
+- **Context:** The discipline policy writes an audit row when it blocks a suspended athlete, but throwing the HTTP conflict from inside the `withOrg` transaction rolls that audit row back.
+- **Decision:** Return a suspension-blocked result from the transaction callback, commit the audit entry, then raise the scheduling conflict after `withOrg` completes.
+- **Why:** A denied lineup must remain denied while preserving the required safety audit trail.
+- **Consequences / follow-ups:** The attendance integration test verifies the athlete is not added and the audit record persists. Automatic result-to-discipline record creation remains dependent on Track F's missing service method.
