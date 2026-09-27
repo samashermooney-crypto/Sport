@@ -24,7 +24,8 @@
     "server/src/integrations/email/templates/**",
     "server/src/integrations/push/web-push-adapter.ts",
     "server/src/integrations/push/web-push.d.ts",
-    "server/src/integrations/storage/sharp.d.ts"
+    "server/src/integrations/storage/sharp.d.ts",
+    "web/src/ui/vite-env.d.ts"
   ],
   "ignoreDependencies": ["kysely-codegen", "web-push"],
   "ignoreExportsUsedInFile": { "type": true, "interface": true },
@@ -50,6 +51,8 @@
     "server/src/integrations/storage/config.ts": ["exports", "types"],
     "server/src/integrations/storage/storage.ts": ["exports"],
     "server/src/modules/files/module.ts": ["exports"],
-    "shared/src/algorithms/schedule-generator.ts": ["exports"]
+    "shared/src/algorithms/schedule-generator.ts": ["exports"],
+    "web/src/ui/overlays.tsx": ["exports"],
+    "web/src/ui/primitives.tsx": ["exports"]
   }
 }

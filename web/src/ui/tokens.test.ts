@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 import postcss from 'postcss';
 import { describe, expect, it } from 'vitest';
@@ -37,5 +38,25 @@ describe('legacy design tokens', () => {
         ]),
       ),
     );
+  });
+
+  it('does not add a CSS framework or styled component library', async () => {
+    const packageJson = JSON.parse(
+      await readFile(resolve('package.json'), 'utf8'),
+    ) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    const dependencies = Object.keys({
+      ...packageJson.dependencies,
+      ...packageJson.devDependencies,
+    });
+    expect(
+      dependencies.filter((name) =>
+        /^(tailwindcss|bootstrap|@mui\/|@chakra-ui\/|@mantine\/|@radix-ui\/themes|shadcn-ui)/.test(
+          name,
+        ),
+      ),
+    ).toEqual([]);
   });
 });

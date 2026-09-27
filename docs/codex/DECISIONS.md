@@ -207,3 +207,11 @@
 - **Decision:** Keep a separately configured campaign sender domain in the Resend adapter. Local and test delivery use preview/fake adapters; no live delivery is enabled by this integration.
 - **Why:** Separating bulk mail reputation from security mail protects verification and reset delivery.
 - **Consequences / follow-ups:** Production adapter setup must verify both sender domains and their credentials before enabling delivery.
+
+### DEC-025 — Guard editable safety requirements
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 organization onboarding
+- **Context:** New organizations must be able to edit or disable default credential types. The initial verification method is manual staff review; other verification providers are not wired yet.
+- **Decision:** Owners with completed MFA and recent step-up can edit the name, validity, activation blocking and active state with a version check. Show the verification method as read-only until a working provider workflow exists. Audit each change and hide another tenant's credential identifiers with 404.
+- **Why:** This lets an owner control every default requirement while preventing a setting that claims to verify credentials through an unavailable provider.
+- **Consequences / follow-ups:** Add selectable verification methods only with their complete review or provider workflow in a later phase.

@@ -1,0 +1,290 @@
+import { useEffect, useRef, useState } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
+import { Link } from 'react-router';
+
+import { Button, Input } from './primitives';
+
+export type ShellNavItem = {
+  label: string;
+  to: string;
+  icon?: ReactNode;
+  current?: boolean;
+};
+export type ShellNavGroup = { label: string; items: ShellNavItem[] };
+
+export function AppShell({
+  orgName,
+  orgSwitcher,
+  navigation,
+  actions,
+  mobileTabs,
+  onGlobalSearch,
+  searchResults = [],
+  searchLoading = false,
+  children,
+}: PropsWithChildren<{
+  orgName: string;
+  orgSwitcher?: ReactNode;
+  navigation: ShellNavGroup[];
+  actions?: ReactNode;
+  mobileTabs?: ShellNavItem[];
+  onGlobalSearch?: (query: string) => void;
+  searchResults?: ShellNavItem[];
+  searchLoading?: boolean;
+}>): React.JSX.Element {
+  const [active, setActive] = useState<string | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [searchSubmitted, setSearchSubmitted] = useState(false);
+  const paletteRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+      const target = event.target;
+      const isEditing =
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.matches('input, textarea, select, [role="textbox"]'));
+      if (event.key === '/' && !event.metaKey && !event.ctrlKey && !isEditing) {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+      if (event.key === 'Escape') {
+        setActive(null);
+        setPaletteOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
+  useEffect(() => {
+    const dialog = paletteRef.current;
+    if (!dialog) return;
+    if (paletteOpen && !dialog.open) dialog.showModal();
+    if (!paletteOpen && dialog.open) dialog.close();
+  }, [paletteOpen]);
+  const allItems = navigation.flatMap((group) => group.items);
+  const destinationResults = allItems.filter((item) =>
+    item.label.toLowerCase().includes(query.toLowerCase()),
+  );
+  const results = onGlobalSearch
+    ? query.trim()
+      ? searchResults
+      : allItems
+    : destinationResults;
+  return (
+    <div
+      className={`ui-app-shell${mobileTabs?.length ? ' ui-shell-has-tabs' : ''}`}
+    >
+      <header className="topbar ui-topbar">
+        <Link to="/" className="brand-mark" aria-label="Athlentry home">
+          A
+        </Link>
+        {orgSwitcher ?? <span className="org-name">{orgName}</span>}
+        <nav className="main-navigation" aria-label="Main navigation">
+          {navigation.map((group) => (
+            <div className="ui-nav-group" key={group.label}>
+              <button
+                type="button"
+                className={`nav-trigger${active === group.label ? ' selected' : ''}`}
+                aria-expanded={active === group.label}
+                onClick={() => {
+                  setActive(active === group.label ? null : group.label);
+                }}
+              >
+                {group.items[0]?.icon}
+                <span>{group.label}</span>
+              </button>
+              {active === group.label && (
+                <div
+                  className="mega-menu"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') setActive(null);
+                  }}
+                >
+                  {group.items.map((item) => (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      aria-current={item.current ? 'page' : undefined}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </nav>
+        <button
+          className="ui-global-search"
+          type="button"
+          aria-label="Search Athlentry"
+          onClick={() => {
+            setPaletteOpen(true);
+          }}
+        >
+          <span>Search</span>
+          <kbd>⌘K</kbd>
+        </button>
+        <div className="ui-shell-actions">{actions}</div>
+      </header>
+      {active && (
+        <button
+          className="ui-menu-dismiss"
+          aria-label="Close navigation menu"
+          onClick={() => {
+            setActive(null);
+          }}
+        />
+      )}
+      {children}
+      {mobileTabs?.length ? (
+        <nav className="ui-mobile-tabs" aria-label="Mobile navigation">
+          {mobileTabs.map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              aria-current={item.current ? 'page' : undefined}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </Link>
+          ))}
+        </nav>
+      ) : null}
+      <dialog
+        className="ui-command-dialog"
+        ref={paletteRef}
+        aria-label="Command palette"
+        onClose={() => {
+          setPaletteOpen(false);
+        }}
+      >
+        <form
+          role="search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (query.trim()) {
+              setSearchSubmitted(true);
+              onGlobalSearch?.(query.trim());
+            }
+          }}
+        >
+          <Input
+            autoFocus
+            type="search"
+            aria-label={
+              onGlobalSearch ? 'Search Athlentry' : 'Search pages and actions'
+            }
+            aria-busy={searchLoading}
+            placeholder={
+              onGlobalSearch
+                ? 'Search people, programs, teams, invoices…'
+                : 'Search pages and actions'
+            }
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setSearchSubmitted(false);
+            }}
+          />
+          <Button
+            type="button"
+            secondary
+            aria-label="Close"
+            onClick={() => {
+              setPaletteOpen(false);
+            }}
+          >
+            ×
+          </Button>
+        </form>
+        <ul>
+          {results.map((item) => (
+            <li key={`${item.to}-${item.label}`}>
+              <Link
+                to={item.to}
+                onClick={() => {
+                  setPaletteOpen(false);
+                }}
+              >
+                {item.label}
+              </Link>
+            </li>
+          ))}
+          {onGlobalSearch && searchLoading && <li role="status">Searching…</li>}
+          {!results.length && !searchLoading && (
+            <li>
+              {onGlobalSearch
+                ? searchSubmitted
+                  ? 'No matching results'
+                  : 'Press Enter to search Athlentry'
+                : 'No matching destinations'}
+            </li>
+          )}
+        </ul>
+      </dialog>
+    </div>
+  );
+}
+
+export function GlobalSearch({
+  value,
+  onChange,
+  onSubmit,
+  results = [],
+  loading = false,
+  placeholder = 'Search people, programs, invoices…',
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: (query: string) => void;
+  results?: ShellNavItem[];
+  loading?: boolean;
+  placeholder?: string;
+}): React.JSX.Element {
+  const [submittedQuery, setSubmittedQuery] = useState('');
+  const submitted = value.trim() !== '' && value.trim() === submittedQuery;
+  return (
+    <form
+      className="ui-global-search-form"
+      role="search"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit(value.trim());
+        setSubmittedQuery(value.trim());
+      }}
+    >
+      <Input
+        type="search"
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+        }}
+        aria-busy={loading}
+        placeholder={placeholder}
+        aria-label="Global search"
+      />
+      <Button secondary disabled={!value.trim()}>
+        Search
+      </Button>
+      {loading && <span role="status">Searching…</span>}
+      {!loading && submitted && (
+        <ul className="ui-global-search-results" aria-label="Search results">
+          {results.map((result) => (
+            <li key={`${result.to}-${result.label}`}>
+              <Link to={result.to}>{result.label}</Link>
+            </li>
+          ))}
+          {!results.length && <li>No matching results</li>}
+        </ul>
+      )}
+    </form>
+  );
+}
