@@ -855,3 +855,11 @@
 - **Decision:** Treat a non-empty organization website URL as completed website setup. When the website module adds an authoritative publication state, switch checklist detection to that state after reconciling the generated schema and routes from trunk.
 - **Why:** This gives organizations a durable automatic completion signal using the field already exposed in the organization profile API.
 - **Consequences / follow-ups:** Track D should confirm the canonical published-site state before final Phase 15 integration.
+
+### DEC-118 — Run the local load seed in the initialized development database
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 demo and load profiles
+- **Context:** The local Postgres initializer creates `athlentry_dev`, `athlentry_test`, and `athlentry_e2e`, but no `athlentry_load`; the documented load seed failed when it selected a database that did not exist.
+- **Decision:** Default the `load` profile to the initialized development database, where it adds a deterministic 2,000-person load organization. Keep `DATABASE_ADMIN_URL` as the explicit override for teams that provision a separate load database.
+- **Why:** The documented command works with the repository's default local stack without needing database initialization outside Track K's seed ownership.
+- **Consequences / follow-ups:** Running `load` locally adds the synthetic load organization alongside the demo profile; use a separate `DATABASE_ADMIN_URL` when isolated load data is preferred.

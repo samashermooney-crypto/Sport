@@ -865,6 +865,185 @@ export async function seedDemo(database: Kysely<DB>): Promise<void> {
       await insertChunks(trx, 'registrations', registrations);
       await insertChunks(trx, 'roster_entries', rosters);
 
+      if (spec.seed === 'northstar') {
+        const levelNames = ['Beginner', 'Intermediate', 'Advanced'];
+        const skillLevelIds = new Map<string, Map<string, string>>();
+        const skillLevels: Insertable<DB['skill_levels']>[] = [];
+        const skills: Insertable<DB['skills']>[] = [];
+        for (const sportKey of spec.sports) {
+          const levels = new Map<string, string>();
+          const sportProfileId = requiredValue(
+            sportIds.get(sportKey),
+            `sport ${sportKey}`,
+          );
+          for (const [index, name] of levelNames.entries()) {
+            const skillLevelId = stableId(
+              `demo-skill-level-northstar-${sportKey}-${String(index)}`,
+            );
+            levels.set(name, skillLevelId);
+            skillLevels.push({
+              id: skillLevelId,
+              org_id: orgId,
+              sport_profile_id: sportProfileId,
+              name,
+              description: `${name} ${sportKey} skills`,
+              sort_order: index + 1,
+            });
+            for (const [skillIndex, skillName] of [
+              'Body control',
+              'Technique',
+              'Confidence',
+            ].entries()) {
+              skills.push({
+                id: stableId(
+                  `demo-skill-northstar-${sportKey}-${String(index)}-${String(skillIndex)}`,
+                ),
+                org_id: orgId,
+                skill_level_id: skillLevelId,
+                name: `${name} ${skillName}`,
+                description: `Demonstration ${sportKey} skill objective.`,
+                sort_order: skillIndex + 1,
+              });
+            }
+          }
+          skillLevelIds.set(sportKey, levels);
+        }
+        await insertChunks(trx, 'skill_levels', skillLevels);
+        await insertChunks(trx, 'skills', skills);
+
+        const classPrograms = programRefs.filter(
+          (program) => program.spec.mode === 'class',
+        );
+        const offerings: Insertable<DB['class_offerings']>[] = [];
+        const schedules: Insertable<DB['class_schedules']>[] = [];
+        const sessions: Insertable<DB['class_sessions']>[] = [];
+        for (const [index, program] of classPrograms.entries()) {
+          const levelNumber = Number(
+            /Level (\d+)/.exec(program.spec.name)?.[1] ?? '1',
+          );
+          const levelName =
+            levelNumber <= 3
+              ? 'Beginner'
+              : levelNumber <= 6
+                ? 'Intermediate'
+                : 'Advanced';
+          const offeringId = stableId(
+            `demo-class-offering-northstar-${String(index)}`,
+          );
+          const scheduleId = stableId(
+            `demo-class-schedule-northstar-${String(index)}`,
+          );
+          const event = eventRows.find((row) => row.program_id === program.id);
+          if (!event)
+            throw new Error(`Missing class event ${program.spec.name}`);
+          const sportLevels = requiredValue(
+            skillLevelIds.get(program.spec.sportKey),
+            `skill levels for ${program.spec.sportKey}`,
+          );
+          offerings.push({
+            id: offeringId,
+            org_id: orgId,
+            program_id: program.id,
+            skill_level_id: requiredValue(
+              sportLevels.get(levelName),
+              `${levelName} ${program.spec.sportKey} level`,
+            ),
+            name: program.spec.name,
+            description: 'Weekly academy class with monthly tuition.',
+            age_min_months: 36,
+            age_max_months: 216,
+            capacity: 18,
+            instructor_ratio: '8',
+            billing: 'monthly',
+            price_cents: program.spec.priceCents,
+            trial_allowed: true,
+            trial_price_cents: 0,
+            annual_fee_cents: 2500,
+            sibling_discount_bps: [0, 1000],
+            status: 'active',
+          });
+          schedules.push({
+            id: scheduleId,
+            org_id: orgId,
+            class_offering_id: offeringId,
+            recurrence: {
+              kind: 'weekly',
+              interval: 1,
+              byDay: ['SA'],
+              startsOn: '2026-10-10',
+              endsOn: '2026-10-10',
+              exceptions: [],
+              additions: [],
+            },
+            start_time: '11:00',
+            duration_minutes: 120,
+            timezone: spec.timezone,
+            space_id: stableId(
+              `demo-space-northstar-${String(index % facilityIds.length)}`,
+            ),
+            location_text: valueAt(
+              spec.facilityNames,
+              index % facilityIds.length,
+              'academy facility',
+            ),
+            term_start: '2026-08-01',
+            term_end: '2026-12-31',
+            status: 'active',
+          });
+          sessions.push({
+            id: stableId(`demo-class-session-northstar-${String(index)}`),
+            org_id: orgId,
+            event_id: event.id,
+            class_offering_id: offeringId,
+            class_schedule_id: scheduleId,
+            capacity: 18,
+            holiday_skipped: false,
+          });
+        }
+        await insertChunks(trx, 'class_offerings', offerings);
+        await insertChunks(trx, 'class_schedules', schedules);
+        await insertChunks(trx, 'class_sessions', sessions);
+
+        const firstParticipant = valueAt(
+          participants,
+          0,
+          'academy participant',
+        );
+        const firstOffering = valueAt(offerings, 0, 'academy class offering');
+        const academyAccountId = firstParticipant.accountId ?? familyAccountId;
+        const tuitionSubscriptionId = stableId(
+          'demo-tuition-subscription-northstar',
+        );
+        await trx
+          .insertInto('tuition_subscriptions')
+          .values({
+            id: tuitionSubscriptionId,
+            org_id: orgId,
+            account_id: academyAccountId,
+            household_id: firstParticipant.householdId,
+            billing_day: 1,
+            next_bill_on: '2026-10-01',
+            status: 'active',
+            proration: 'session_count',
+          })
+          .execute();
+        await trx
+          .insertInto('class_enrollments')
+          .values({
+            id: stableId('demo-class-enrollment-northstar'),
+            org_id: orgId,
+            class_offering_id: firstOffering.id,
+            person_id: firstParticipant.id,
+            household_id: firstParticipant.householdId,
+            account_id: academyAccountId,
+            status: 'active',
+            starts_on: '2026-08-01',
+            ends_on: '2026-12-31',
+            billing_subscription_id: tuitionSubscriptionId,
+          })
+          .execute();
+      }
+
       const teamStaff: Insertable<DB['team_staff']>[] = teams
         .slice(0, Math.min(teams.length, 8))
         .map((team, index) => ({
