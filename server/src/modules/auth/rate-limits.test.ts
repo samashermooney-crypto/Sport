@@ -4,7 +4,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../../db/kysely';
 import type { DB } from '../../db/types';
 
-import { createAuthRateLimits, RateLimitExceededError } from './rate-limits';
+import {
+  clearExpiredAuthRateLimits,
+  createAuthRateLimits,
+  RateLimitExceededError,
+} from './rate-limits';
 import type { AuthRateLimits } from './rate-limits';
 
 let database: Kysely<DB>;
@@ -22,6 +26,25 @@ afterAll(async () => {
 });
 
 describe('Postgres-backed auth rate limits', () => {
+  it('cleans expired rows while preserving active rate limits', async () => {
+    const now = new Date('2026-01-01T12:00:00.000Z');
+    await database
+      .insertInto('rate_limit_points')
+      .values([
+        { key: 'expired-fixture', points: 1, expire: now.getTime() - 1 },
+        { key: 'active-fixture', points: 1, expire: now.getTime() + 1 },
+      ])
+      .execute();
+    expect(await clearExpiredAuthRateLimits(database, now)).toBe(1);
+    expect(
+      await database.selectFrom('rate_limit_points').select('key').execute(),
+    ).toContainEqual({ key: 'active-fixture' });
+    await database
+      .deleteFrom('rate_limit_points')
+      .where('key', '=', 'active-fixture')
+      .execute();
+  });
+
   it('enforces eight sign-ins per IP and email without storing the identifiers', async () => {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       await limits.signIn('192.0.2.5', 'person@example.invalid');

@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 
+import type { Kysely } from 'kysely';
 import pg from 'pg';
 import { RateLimiterPostgres, RateLimiterRes } from 'rate-limiter-flexible';
+
+import type { DB } from '../../db/types';
 
 import { AuthDomainError } from './domain-error';
 
@@ -25,6 +28,17 @@ export interface AuthRateLimits {
   signUp(ip: string): Promise<void>;
   mfa(ip: string): Promise<void>;
   close(): Promise<void>;
+}
+
+export async function clearExpiredAuthRateLimits(
+  database: Kysely<DB>,
+  now = new Date(),
+): Promise<number> {
+  const result = await database
+    .deleteFrom('rate_limit_points')
+    .where('expire', '<', now.getTime())
+    .executeTakeFirst();
+  return Number(result.numDeletedRows);
 }
 
 export function createAuthRateLimits(connectionString: string): AuthRateLimits {

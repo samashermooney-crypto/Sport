@@ -6,8 +6,14 @@ import { z } from 'zod';
 
 import { getDatabase } from './db/kysely';
 import { integrationConfigs, serverModules } from './generated/registry';
-import { AlwaysPassCaptcha } from './integrations/captcha/provider';
-import { createMailpitEmailSender } from './integrations/email/sender';
+import {
+  AlwaysPassCaptcha,
+  TurnstileCaptcha,
+} from './integrations/captcha/provider';
+import {
+  createMailpitEmailSender,
+  createResendEmailSender,
+} from './integrations/email/sender';
 import { parseEncryptionKeys } from './lib/crypto';
 import type { EncryptionKeys } from './lib/crypto';
 import { createAuthRateLimits } from './modules/auth/rate-limits';
@@ -81,6 +87,43 @@ const runtimeSchema = z.strictObject({
   stripeKey: z.string().optional(),
 });
 
+const productionAuthSchema = z.strictObject({
+  appUrl: z.url(),
+  databaseUrl: z.string().min(1),
+  encryptionKeys: z.string().min(1),
+  encryptionKid: z.string().min(1),
+  resendApiKey: z.string().min(1),
+  mailFrom: z.string().min(1),
+  turnstileSiteKey: z.string().min(1),
+  turnstileSecretKey: z.string().min(1),
+  vapidPublicKey: z.string().min(1),
+});
+
+export function productionAuthConfig(
+  env: NodeJS.ProcessEnv,
+): z.output<typeof productionAuthSchema> {
+  const result = productionAuthSchema.safeParse({
+    appUrl: env.APP_URL,
+    databaseUrl: env.DATABASE_URL,
+    encryptionKeys: env.DATA_ENCRYPTION_KEYS,
+    encryptionKid: env.DATA_ENCRYPTION_ACTIVE_KID,
+    resendApiKey: env.RESEND_API_KEY,
+    mailFrom: env.MAIL_FROM,
+    turnstileSiteKey: env.TURNSTILE_SITE_KEY,
+    turnstileSecretKey: env.TURNSTILE_SECRET_KEY,
+    vapidPublicKey: env.VAPID_PUBLIC_KEY,
+  });
+  if (!result.success) {
+    throw new Error(
+      `Production auth configuration is incomplete: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`,
+    );
+  }
+  if (new URL(result.data.appUrl).protocol !== 'https:') {
+    throw new Error('Production APP_URL must use HTTPS');
+  }
+  return result.data;
+}
+
 export async function createLocalAuthDependencies(): Promise<AuthDependencies> {
   const localIntegrationConfig: Record<string, unknown> = {
     'background-check': { mode: 'manual' },
@@ -117,7 +160,30 @@ export async function createLocalAuthDependencies(): Promise<AuthDependencies> {
         'Production requires approved legal documents and a strong session secret',
       );
     }
-    throw new Error('Production auth adapters are not configured');
+    if (runtime.deliveryMode !== 'live') {
+      throw new Error('Production requires live delivery mode');
+    }
+    const config = productionAuthConfig(process.env);
+    return {
+      database: getDatabase(),
+      rateLimits: createAuthRateLimits(config.databaseUrl),
+      email: createResendEmailSender({
+        apiKey: config.resendApiKey,
+        from: config.mailFrom,
+      }),
+      captcha: new TurnstileCaptcha(
+        config.turnstileSecretKey,
+        new URL(config.appUrl).hostname,
+      ),
+      captchaWidget: { mode: 'turnstile', siteKey: config.turnstileSiteKey },
+      pushPublicKey: config.vapidPublicKey,
+      encryption: parseEncryptionKeys(
+        config.encryptionKeys,
+        config.encryptionKid,
+      ),
+      appUrl: config.appUrl,
+      clock: () => new Date(),
+    };
   }
   if (runtime.deliveryMode !== 'preview') {
     throw new Error('Local development must use preview delivery');
