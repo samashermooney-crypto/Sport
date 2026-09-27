@@ -21,6 +21,7 @@ export type OpenApiRoute = {
   tags?: string[];
   public?: boolean;
   query?: Record<string, z.ZodType>;
+  contentType?: string;
   binary?: boolean;
 };
 
@@ -292,6 +293,19 @@ const fileRoutes: OpenApiRoute[] = [
 const orgRoutes: OpenApiRoute[] = [
   {
     method: 'get',
+    path: `${orgsBase}/{orgId}/profile`,
+    summary: 'Get organization profile and branding',
+    response: orgs.orgProfileSchema,
+  },
+  {
+    method: 'patch',
+    path: `${orgsBase}/{orgId}/profile`,
+    summary: 'Update versioned organization profile and branding',
+    body: orgs.updateOrgProfileSchema,
+    response: orgs.orgProfileSchema,
+  },
+  {
+    method: 'get',
     path: `${orgsBase}/sport-templates`,
     summary: 'List built-in sport templates',
     response: orgs.sportTemplateCatalogSchema,
@@ -308,6 +322,76 @@ const orgRoutes: OpenApiRoute[] = [
     summary: 'Update organization safety requirement',
     body: orgs.updateOrgCredentialSchema,
     response: orgs.orgCredentialSchema,
+  },
+  {
+    method: 'patch',
+    path: `${orgsBase}/{orgId}/members/{memberId}/roles`,
+    summary: 'Update organization member roles',
+    body: orgs.updateOrgMemberRolesSchema,
+    response: orgs.orgMemberRolesResponseSchema,
+  },
+  {
+    method: 'patch',
+    path: `${orgsBase}/{orgId}/members/{memberId}/status`,
+    summary: 'Suspend, reactivate or remove organization membership',
+    body: orgs.updateOrgMemberStatusSchema,
+    response: orgs.orgMemberStatusResponseSchema,
+  },
+  {
+    method: 'patch',
+    path: `${orgsBase}/{orgId}/members/{memberId}/scoped-role`,
+    summary: 'Grant or revoke a scoped organization role',
+    body: orgs.updateScopedRoleSchema,
+    response: orgs.scopedRoleResponseSchema,
+  },
+  {
+    method: 'post',
+    path: `${orgsBase}/{orgId}/ownership-transfer`,
+    summary: 'Request recipient-accepted ownership transfer',
+    body: orgs.ownershipTransferRequestSchema,
+    response: orgs.ownershipTransferRequestResponseSchema,
+    status: 201,
+  },
+  {
+    method: 'post',
+    path: `${orgsBase}/{orgId}/ownership-transfer/accept`,
+    summary: 'Accept organization ownership transfer',
+    body: orgs.ownershipTransferAcceptSchema,
+    response: orgs.ownershipTransferAcceptResponseSchema,
+  },
+  {
+    method: 'post',
+    path: `${orgsBase}/{orgId}/invitations`,
+    summary: 'Invite organization member',
+    body: orgs.orgInvitationSchema,
+    response: orgs.orgInvitationResponseSchema,
+    status: 201,
+  },
+  {
+    method: 'post',
+    path: `${orgsBase}/{orgId}/invitations/accept`,
+    summary: 'Accept organization invitation',
+    body: orgs.acceptOrgInvitationSchema,
+    response: orgs.acceptedOrgInvitationResponseSchema,
+  },
+  {
+    method: 'get',
+    path: `${orgsBase}/{orgId}/staff`,
+    summary: 'List organization members and pending invitations',
+    response: orgs.orgStaffResponseSchema,
+  },
+  {
+    method: 'post',
+    path: `${orgsBase}/{orgId}/invitations/{invitationId}/resend`,
+    summary: 'Resend organization invitation',
+    response: orgs.orgInvitationResponseSchema,
+    status: 201,
+  },
+  {
+    method: 'delete',
+    path: `${orgsBase}/{orgId}/invitations/{invitationId}`,
+    summary: 'Revoke organization invitation',
+    response: z.strictObject({ revoked: z.literal(true) }),
   },
   {
     method: 'get',
@@ -367,7 +451,11 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
                     schema: { type: 'string', format: 'binary' },
                   },
                 }
-              : { 'application/json': { schema: jsonSchema(route.response) } },
+              : {
+                  [route.contentType ?? 'application/json']: {
+                    schema: jsonSchema(route.response),
+                  },
+                },
       },
       '400': { $ref: '#/components/responses/ValidationError' },
       '401': { $ref: '#/components/responses/Unauthenticated' },

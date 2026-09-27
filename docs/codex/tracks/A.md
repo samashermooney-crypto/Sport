@@ -3,9 +3,10 @@
 Status: working
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/a-core`
-Current: Spine and ready B/C/D ranges are integrated and pushed on `rebuild/trunk`. Track A completed Phase 1 task 6 locally, including authenticated `/start`, the built-in sport catalog, and guarded credential editing and disabling. Next are tasks 3–5, 7–8 and 16–17.
-Ready for integration: Track A task 6 onboarding commits after local full gate.
+Current: Spine, ready B/C/D ranges, task 6 onboarding, ready E finance contracts and Track B's platform/notification range are integrated and pushed on `rebuild/trunk`. Phase 1 tasks 9 and 13 are complete. Task 7 has versioned role changes, concurrent last-owner guard, scoped invitations, reversible suspension, removal and the two-browser admin acceptance journey. Scoped-role API/UI editing and recipient-accepted ownership transfer are implemented; tasks 7–8 are complete; tasks 4–5 and 16–17 remain.
+Ready for integration: Completed task 8 with versioned profile/branding, same-org logo attachment and Chromium/WebKit browser upload after the combined full gate. Task 4 remains open for a real trusted HTTPS browser subscription check.
 Requests to other tracks: E — proceed with Phase 4 against the spine now on trunk.
+Requests to other tracks: D — identity screens in task 3 are stable for your auth restyle queue; console Home in task 17 remains with A.
 Blocked on: none
 Self-review: Server app, worker and configuration consume the generated module/integration registry; web routing consumes generated feature routes.
 Self-review: Existing auth routes keep `/api/v1/auth`; full browser sign-up, Mailpit verification, MFA and device journey passes on Chromium and WebKit.

@@ -10,7 +10,9 @@ import { moduleDefinition as authModule } from '../modules/auth/module';
 import { moduleDefinition as communicationsModule } from '../modules/communications/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
+import { moduleDefinition as notificationsModule } from '../modules/notifications/module';
 import { moduleDefinition as orgsModule } from '../modules/orgs/module';
+import { moduleDefinition as platformModule } from '../modules/platform/module';
 
 export const serverModules: readonly ServerModule[] = [
   auditModule,
@@ -18,7 +20,9 @@ export const serverModules: readonly ServerModule[] = [
   communicationsModule,
   filesModule,
   jobsModule,
+  notificationsModule,
   orgsModule,
+  platformModule,
 ];
 export const integrationConfigs: readonly IntegrationConfig[] = [
   backgroundCheckConfig,

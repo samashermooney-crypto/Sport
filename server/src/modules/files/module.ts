@@ -76,12 +76,10 @@ function createMountedFilesRouter(
         (request.get('Origin') !== new URL(dependencies.appUrl).origin &&
           !(bearer && !request.get('Origin'))))
     ) {
-      response
-        .status(403)
-        .json({
-          error: 'FORBIDDEN',
-          message: 'Request origin could not be verified',
-        });
+      response.status(403).json({
+        error: 'FORBIDDEN',
+        message: 'Request origin could not be verified',
+      });
       return;
     }
     next();

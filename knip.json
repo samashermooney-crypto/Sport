@@ -6,6 +6,7 @@
     "db/seeds/index.ts",
     "scripts/openapi.ts",
     "scripts/stripe-smoke.ts",
+    "scripts/create-platform-admin.ts",
     "vite.config.ts",
     "vitest.config.ts",
     "playwright.config.ts",
@@ -28,7 +29,10 @@
     "web/src/ui/vite-env.d.ts"
   ],
   "ignoreDependencies": ["kysely-codegen", "web-push"],
-  "ignoreExportsUsedInFile": { "type": true, "interface": true },
+  "ignoreExportsUsedInFile": {
+    "type": true,
+    "interface": true
+  },
   "ignoreIssues": {
     "server/src/db/types.ts": ["exports", "types"],
     "server/src/db/withOrg.ts": ["exports"],
@@ -53,6 +57,7 @@
     "server/src/modules/files/module.ts": ["exports"],
     "shared/src/algorithms/schedule-generator.ts": ["exports"],
     "web/src/ui/overlays.tsx": ["exports"],
-    "web/src/ui/primitives.tsx": ["exports"]
+    "web/src/ui/primitives.tsx": ["exports"],
+    "server/src/modules/finance/payment-events.ts": ["exports"]
   }
 }

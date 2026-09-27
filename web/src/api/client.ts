@@ -16,20 +16,30 @@ async function request<T extends z.ZodType>(
   schema: T,
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   body?: unknown,
+  idempotencyKey?: string,
+  extraHeaders?: Record<string, string>,
 ): Promise<z.output<T>> {
   let response: Response;
   try {
+    const impersonationId = /(?:^|\/)orgs\/[0-9a-f-]{36}(?:\/|$)/i.test(path)
+      ? sessionStorage.getItem('athlentry.impersonation')
+      : null;
     response = await fetch(`/api/v1${path}`, {
       method,
       credentials: 'include',
-      ...(method === 'GET'
-        ? {}
-        : {
-            headers: {
+      headers: {
+        ...(method === 'GET'
+          ? {}
+          : {
               'Content-Type': 'application/json',
               'X-Athlentry-Request': '1',
-            },
-          }),
+              ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+            }),
+        ...(impersonationId
+          ? { 'X-Athlentry-Impersonation': impersonationId }
+          : {}),
+        ...extraHeaders,
+      },
       ...(method === 'GET' ? {} : { body: JSON.stringify(body ?? {}) }),
     });
   } catch {
@@ -76,8 +86,10 @@ export function apiPost<T extends z.ZodType>(
   path: string,
   body: unknown,
   schema: T,
+  idempotencyKey?: string,
+  extraHeaders?: Record<string, string>,
 ): Promise<z.output<T>> {
-  return request(path, schema, 'POST', body);
+  return request(path, schema, 'POST', body, idempotencyKey, extraHeaders);
 }
 
 export function apiDelete<T extends z.ZodType>(

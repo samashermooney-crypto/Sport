@@ -125,6 +125,16 @@ export function Start(): React.JSX.Element {
               Review safety requirements
             </AuthLink>
           </p>
+          <p>
+            <AuthLink to={`/orgs/${created.id}/staff`}>
+              Manage staff and invitations
+            </AuthLink>
+          </p>
+          <p>
+            <AuthLink to={`/orgs/${created.id}/profile`}>
+              Edit organization profile and logo
+            </AuthLink>
+          </p>
         </>
       )}
       {account.isSuccess && !created && (

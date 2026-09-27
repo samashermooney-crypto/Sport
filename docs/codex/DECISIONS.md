@@ -216,7 +216,63 @@
 - **Why:** This lets an owner control every default requirement while preventing a setting that claims to verify credentials through an unavailable provider.
 - **Consequences / follow-ups:** Add selectable verification methods only with their complete review or provider workflow in a later phase.
 
-### DEC-026 — Preserve SMS consent evidence and global STOP state
+### DEC-026 — Bind delivery devices to sessions
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 native and Web Push devices
+- **Context:** An account-level device record could remain active after the session that registered it expired or was revoked.
+- **Decision:** Bind new device registrations to the registering session, reject a concurrent stale session, hide expired-session devices from reads, scrub subscription or token data on explicit session revocation, and run hourly expiry cleanup. Revoke and scrub pre-migration device records that have no session association.
+- **Why:** Delivery endpoints can identify a family's device; their validity must not outlast the authenticated session that supplied them.
+- **Consequences / follow-ups:** Push dispatchers must select only active session-bound devices. A trusted HTTPS browser subscription check remains before Phase 1 task 4 is complete.
+
+### DEC-027 — Serialize organization ownership changes
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 users and roles
+- **Context:** Concurrent role edits could each observe another owner and leave an organization without an active owner. A direct role edit could also grant ownership without recipient acceptance.
+- **Decision:** Add a membership version and lock the organization row before reading or changing owner assignments. Role edits require an active owner with completed MFA and recent step-up, reject direct owner grants, and revoke the target's sessions after any change. Granting admin or finance stays pending until MFA is confirmed.
+- **Why:** A single serialization point protects the last-owner invariant, and accepted transfer prevents surprise legal and financial ownership.
+- **Consequences / follow-ups:** The invitation and transfer flows must use the same organization lock. Add the users and roles screen and scoped role controls before task 7 is complete.
+
+### DEC-028 — Restrict platform impersonation to scoped reads
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 platform console
+- **Context:** The platform console can issue a 60-minute impersonation, but tenant routes need an explicit authorization and audit boundary.
+- **Decision:** Require an active MFA-verified platform staff session, an active target organization, a valid unexpired impersonation ID, and an organization UUID in the tenant route. Permit GET/HEAD/OPTIONS only. Write the impersonation ID to platform and tenant audit ledgers before the read. Reject suspended-organization operations for active members and platform impersonators; reject unsupported unscoped tenant routes rather than inferring a tenant from a record ID.
+- **Why:** Explicit scope and read-only enforcement prevent a support session from silently gaining write or cross-tenant access. Auditing before the read preserves evidence even when a downstream route denies access.
+- **Consequences / follow-ups:** Future tenant routes without an organization ID need an explicit, tested impersonation policy before they can be accessed in this mode.
+
+### DEC-029 — Keep suspension reversible and removal auditable
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 users and roles
+- **Context:** The spec requires both suspension and removal of memberships but does not define whether role grants are retained for reactivation.
+- **Decision:** Suspension preserves role assignments while denying effective access through inactive membership status; reactivation restores those assignments. Removal keeps the membership and audit history, revokes all active assignments and sessions, and requires a new invitation to rejoin. Both operations use membership versions and the organization-row lock to protect the last active owner.
+- **Why:** A temporary safety or administrative hold can be reversed without reconstructing scoped access, while removal cannot silently reactivate old privileges.
+- **Consequences / follow-ups:** Future permission checks must require active membership as well as an active assignment; the staff UI shows suspended memberships and hides removed ones.
+
+### DEC-030 — Version scoped role changes with membership
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 users and roles
+- **Context:** A member can hold distinct grants for a season, program, division or team season. Editing one grant must not overwrite grants at other scopes or let an owner use an ID from another organization.
+- **Decision:** Grant or revoke one scoped role at a time after checking the scoped entity under `withOrg`, with the same membership version, organization lock, owner step-up and target-session revocation as organization role edits. Ownership is restricted to organization scope and its separate accepted transfer flow.
+- **Why:** Each change is independently auditable and concurrent edits cannot silently overwrite each other.
+- **Consequences / follow-ups:** The staff UI lists tenant-scoped seasons, programs, divisions and team seasons by name; grants remain version-checked when those records change.
+
+### DEC-031 — Transfer ownership only after recipient acceptance
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 users and roles
+- **Context:** The spec requires owner-initiated, step-up protected transfer that the recipient accepts. It does not specify token lifetime or how concurrent changes invalidate a pending request.
+- **Decision:** Send a single-use 24-hour transfer link to an active member's verified account. Acceptance requires that account's authenticated session and confirmed MFA; it checks both membership versions and both roles under the organization lock, grants the new owner first, revokes the previous owner's assignment, audits the action and revokes both accounts' sessions. A failed email send revokes the request.
+- **Why:** Consent, identity and tenant checks precede the authority change; stale transfers cannot override later membership changes.
+- **Consequences / follow-ups:** A changed membership requires a new request. The recipient signs in again after accepting because both sessions are revoked.
+
+### DEC-032 — Keep organization branding separate from the admin chrome
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 organization profile
+- **Context:** Organization branding must be editable, while the owner's existing web design system is fixed. The spec leaves default brand colors and URL validation open.
+- **Decision:** Store a tenant's primary and accent colors for public and communication surfaces without changing admin UI tokens. Use the frozen blue values as defaults, require each color to reach 4.5:1 contrast on white, and accept HTTPS website URLs. Logo changes require a completed same-organization image from the files module and a version-checked owner profile update.
+- **Why:** This preserves design parity and prevents unsafe URLs, unreadable brand text and cross-tenant or incomplete logo attachment.
+- **Consequences / follow-ups:** Public site and email rendering use these brand values when their phases land; the admin console keeps `tokens.css` values.
+
+### DEC-033 — Preserve SMS consent evidence and global STOP state
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 10 communications consent
 - **Context:** The spine stores account/phone data and tenant suppressions, but it has no versioned SMS consent evidence and its suppression policy permits global reads but not global signed STOP writes.

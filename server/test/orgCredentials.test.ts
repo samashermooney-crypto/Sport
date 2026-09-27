@@ -26,6 +26,7 @@ let credentialA = '';
 let credentialB = '';
 let cookie = '';
 let accountA = '';
+let accountB = '';
 let sessionId = '';
 
 beforeAll(async () => {
@@ -37,6 +38,7 @@ beforeAll(async () => {
   orgA = actorA.orgId;
   orgB = actorB.orgId;
   accountA = actorA.accountId;
+  accountB = actorB.accountId;
   credentialA = newId();
   credentialB = newId();
   for (const [actor, id] of [
@@ -144,6 +146,23 @@ describe('organization safety credential HTTP contract', () => {
       version: 1,
     };
     expect((await request(orgA, credentialB, body)).status).toBe(404);
+    const roleRequest = (targetId: string) =>
+      fetch(`${baseUrl}/${orgA}/members/${targetId}/roles`, {
+        method: 'PATCH',
+        headers: {
+          Cookie: cookie,
+          Origin: origin,
+          'X-Athlentry-Request': '1',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ roles: ['reporter'], expectedVersion: 1 }),
+      });
+    expect((await roleRequest(accountB)).status).toBe(404);
+    const lastOwner = await roleRequest(accountA);
+    expect(lastOwner.status).toBe(409);
+    expect(await lastOwner.json()).toMatchObject({
+      error: { message: 'The last active owner cannot be removed' },
+    });
     expect(
       (await request(orgA, credentialA, { ...body, version: 2 })).status,
     ).toBe(409);

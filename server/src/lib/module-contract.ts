@@ -7,7 +7,15 @@ export interface ServerModule {
   name: string;
   path: `/api/v1/${string}`;
   router?: (dependencies: AuthDependencies) => Router;
-  jobs?: readonly { name: string }[];
+  extraRouters?: readonly {
+    path: `/api/v1/${string}`;
+    router: (dependencies: AuthDependencies) => Router;
+  }[];
+  jobs?: readonly {
+    name: string;
+    run?: (data: unknown) => Promise<unknown>;
+    cron?: string;
+  }[];
   permissions?: readonly string[];
   notificationTypes?: readonly string[];
   errorCodes?: readonly string[];
