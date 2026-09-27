@@ -24,6 +24,13 @@ export interface OfflinePaymentReceipt {
   amountCents: number;
 }
 
+export class OfflinePaymentConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OfflinePaymentConflictError';
+  }
+}
+
 interface StoredPayment {
   id: string;
   receipt_number: number | null;
@@ -47,7 +54,9 @@ export class PostgresOfflinePayments {
 
   async record(input: OfflinePaymentInput): Promise<OfflinePaymentReceipt> {
     if (input.orgId !== this.context.orgId)
-      throw new Error('Offline payment organization mismatch');
+      throw new OfflinePaymentConflictError(
+        'Offline payment organization mismatch',
+      );
     if (!Number.isSafeInteger(input.amountCents) || input.amountCents < 1)
       throw new RangeError('Offline payment must be positive integer cents');
     if (
@@ -55,12 +64,12 @@ export class PostgresOfflinePayments {
         input.idempotencyKey,
       )
     )
-      throw new Error('Offline payment idempotency key must be a UUID');
+      throw new RangeError('Offline payment idempotency key must be a UUID');
     const reference = input.reference?.trim() || null;
     if ((input.method === 'check' || input.method === 'external') && !reference)
-      throw new Error('Check and external payments require a reference');
+      throw new RangeError('Check and external payments require a reference');
     if (reference && reference.length > 200)
-      throw new Error('Offline payment reference is too long');
+      throw new RangeError('Offline payment reference is too long');
     return this.withOrg(this.context, async (trx) => {
       const invoice = await trx
         .selectFrom('invoices')
@@ -69,7 +78,10 @@ export class PostgresOfflinePayments {
         .where('id', '=', input.invoiceId)
         .forUpdate()
         .executeTakeFirst();
-      if (!invoice) throw new Error('Invoice does not belong to organization');
+      if (!invoice)
+        throw new OfflinePaymentConflictError(
+          'Invoice does not belong to organization',
+        );
       const existing = await sql<StoredPayment>`
         SELECT p.id, p.receipt_number, p.amount_cents, p.method,
           p.reference, p.received_by, pa.invoice_id
@@ -90,7 +102,7 @@ export class PostgresOfflinePayments {
           payment.invoice_id !== input.invoiceId ||
           payment.received_by !== this.context.actor.accountId
         )
-          throw new Error(
+          throw new OfflinePaymentConflictError(
             'Offline payment idempotency key conflicts with prior record',
           );
         return {
@@ -100,7 +112,9 @@ export class PostgresOfflinePayments {
         };
       }
       if (invoice.status === 'draft' || invoice.status === 'void')
-        throw new Error('Cannot collect an offline payment on this invoice');
+        throw new OfflinePaymentConflictError(
+          'Cannot collect an offline payment on this invoice',
+        );
       const pending = await sql<{ total: number }>`
         SELECT coalesce(sum(pa.amount_cents), 0)::bigint AS total
         FROM payment_allocations pa JOIN payments p
@@ -114,7 +128,9 @@ export class PostgresOfflinePayments {
         input.amountCents + (pending.rows[0]?.total ?? 0) >
           invoice.balance_cents
       )
-        throw new Error('Offline payment exceeds available invoice balance');
+        throw new OfflinePaymentConflictError(
+          'Offline payment exceeds available invoice balance',
+        );
       const paymentId = newId();
       const receiptNumber = await allocateOrgNumber(
         trx,

@@ -11,10 +11,12 @@ import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresOfflinePayments } from './offline-payments.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
+import { FinanceAccessError, requireFinanceStaff } from './staff-access.js';
 
 let database: Kysely<DB>;
 let context: OrgContext;
 let invoiceId: string;
+let roleId: string;
 
 beforeAll(async () => {
   database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
@@ -41,6 +43,30 @@ beforeAll(async () => {
     })
     .execute();
   context = { orgId, actor: { accountId } };
+  roleId = newId();
+  await createWithOrg(database)(context, async (trx) => {
+    await trx
+      .insertInto('org_memberships')
+      .values({
+        id: newId(),
+        org_id: orgId,
+        account_id: accountId,
+        status: 'active',
+        joined_at: new Date(),
+      })
+      .execute();
+    await trx
+      .insertInto('role_assignments')
+      .values({
+        id: roleId,
+        org_id: orgId,
+        account_id: accountId,
+        role: 'finance',
+        scope_type: 'org',
+        pending_mfa: false,
+      })
+      .execute();
+  });
   invoiceId = (
     await new PostgresInvoiceRepository(database, context).issue({
       orgId,
@@ -64,6 +90,30 @@ afterAll(async () => {
 });
 
 describe('offline payments', () => {
+  it('requires active finance access with completed MFA', async () => {
+    await expect(
+      requireFinanceStaff(database, context),
+    ).resolves.toBeUndefined();
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('role_assignments')
+        .set({ pending_mfa: true })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', roleId)
+        .execute(),
+    );
+    await expect(requireFinanceStaff(database, context)).rejects.toBeInstanceOf(
+      FinanceAccessError,
+    );
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('role_assignments')
+        .set({ pending_mfa: false })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', roleId)
+        .execute(),
+    );
+  });
   it('allocates a receipt, replays the exact request, and prevents concurrent overpayment', async () => {
     const repo = new PostgresOfflinePayments(database, context);
     const input = {
