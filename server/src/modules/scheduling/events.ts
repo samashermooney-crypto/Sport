@@ -2017,13 +2017,19 @@ async function updateOccurrenceFromTemplate(
 export async function listFacilities(context: OrgContext) {
   return withOrg(context, async (trx) => {
     await assertSchedulePermission(trx, context, 'schedule.read');
-    return trx
+    const organization = await trx
+      .selectFrom('organizations')
+      .select('timezone')
+      .where('id', '=', context.orgId)
+      .executeTakeFirstOrThrow();
+    const items = await trx
       .selectFrom('facilities')
       .selectAll()
       .where('org_id', '=', context.orgId)
       .where('archived_at', 'is', null)
       .orderBy('name')
       .execute();
+    return { items, organizationTimezone: organization.timezone };
   });
 }
 

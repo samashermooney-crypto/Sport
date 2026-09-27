@@ -82,6 +82,26 @@ type Space = {
   name: string;
   kind: string;
 };
+function closureTimezoneFor(
+  scopeType: string,
+  scopeId: string | null,
+  facilities: Facility[],
+  spaces: Space[],
+  organizationTimezone: string | null,
+): string | null {
+  if (scopeType === 'org') return organizationTimezone;
+  const facility =
+    scopeType === 'facility'
+      ? facilities.find((item) => item.id === scopeId)
+      : scopeType === 'space'
+        ? facilities.find(
+            (item) =>
+              item.id ===
+              spaces.find((space) => space.id === scopeId)?.facility_id,
+          )
+        : undefined;
+  return facility?.timezone ?? organizationTimezone;
+}
 type MeetParticipant = {
   id: string;
   person_id: string | null;
@@ -254,6 +274,9 @@ export function ScheduleConsole({
 }): React.JSX.Element {
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [organizationTimezone, setOrganizationTimezone] = useState<
+    string | null
+  >(null);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [selectedEvent, setSelectedEvent] = useState('');
   const [programId, setProgramId] = useState('');
@@ -315,13 +338,12 @@ export function ScheduleConsole({
 
   const loadFacilities = useCallback(async () => {
     try {
-      setFacilities(
-        (
-          await api<{ items: Facility[] }>(
-            `${base(orgId, 'scheduling')}/facilities`,
-          )
-        ).items,
-      );
+      const result = await api<{
+        items: Facility[];
+        organizationTimezone: string;
+      }>(`${base(orgId, 'scheduling')}/facilities`);
+      setFacilities(result.items);
+      setOrganizationTimezone(result.organizationTimezone);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : 'Could not load facilities.',
@@ -2224,11 +2246,27 @@ export function ScheduleConsole({
               const form = new FormData(event.currentTarget);
               const scopeType = formText(form, 'scopeType');
               const scopeId = formText(form, 'scopeId') || null;
+              const closureTimezone = closureTimezoneFor(
+                scopeType,
+                scopeId,
+                facilities,
+                spaces,
+                organizationTimezone,
+              );
+              if (!closureTimezone) {
+                setError(
+                  'Could not determine the organization or facility timezone for this closure.',
+                );
+                return;
+              }
               const startsAt = localInstant(
                 formText(form, 'startsAt'),
-                timezone,
+                closureTimezone,
               );
-              const endsAt = localInstant(formText(form, 'endsAt'), timezone);
+              const endsAt = localInstant(
+                formText(form, 'endsAt'),
+                closureTimezone,
+              );
               const closure = {
                 scopeType,
                 scopeId,

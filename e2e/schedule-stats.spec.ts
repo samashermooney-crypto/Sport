@@ -12,6 +12,8 @@ import { accessibilityViolations } from './axe';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
+test.use({ timezoneId: 'UTC' });
+
 function zonedInputValue(value: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone,
@@ -406,6 +408,79 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     const closureForm = page
       .locator('form')
       .filter({ has: page.getByRole('button', { name: 'Preview and close' }) });
+    await closureForm.getByLabel('Closure scope').selectOption('org');
+    await closureForm
+      .getByLabel('Starts')
+      .fill(zonedInputValue(closureStartsAt, 'America/Chicago'));
+    await closureForm
+      .getByLabel('Ends')
+      .fill(zonedInputValue(closureEndsAt, 'America/Chicago'));
+    const orgPreviewRequest = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' &&
+        request.url().endsWith('/closures/preview'),
+    );
+    const orgPreviewResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/closures/preview'),
+    );
+    page.once('dialog', async (dialog) => {
+      await dialog.dismiss();
+    });
+    await closureForm
+      .getByRole('button', { name: 'Preview and close' })
+      .click();
+    const [orgPreview, orgPreviewResult] = await Promise.all([
+      orgPreviewRequest,
+      orgPreviewResponse,
+    ]);
+    const orgPreviewBody = orgPreview.postDataJSON() as {
+      startsAt: string;
+      endsAt: string;
+    };
+    expect(new Date(orgPreviewBody.startsAt).getTime()).toBe(
+      closureStartsAt.getTime(),
+    );
+    expect(new Date(orgPreviewBody.endsAt).getTime()).toBe(
+      closureEndsAt.getTime(),
+    );
+    expect(await orgPreviewResult.json()).toMatchObject({ count: 24 });
+
+    await closureForm.getByLabel('Closure scope').selectOption('space');
+    await closureForm.getByLabel('Facility or space ID').fill(spaceId);
+    const spacePreviewRequest = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' &&
+        request.url().endsWith('/closures/preview'),
+    );
+    const spacePreviewResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/closures/preview'),
+    );
+    page.once('dialog', async (dialog) => {
+      await dialog.dismiss();
+    });
+    await closureForm
+      .getByRole('button', { name: 'Preview and close' })
+      .click();
+    const [spacePreview, spacePreviewResult] = await Promise.all([
+      spacePreviewRequest,
+      spacePreviewResponse,
+    ]);
+    const spacePreviewBody = spacePreview.postDataJSON() as {
+      startsAt: string;
+      endsAt: string;
+    };
+    expect(new Date(spacePreviewBody.startsAt).getTime()).toBe(
+      closureStartsAt.getTime(),
+    );
+    expect(new Date(spacePreviewBody.endsAt).getTime()).toBe(
+      closureEndsAt.getTime(),
+    );
+    expect(await spacePreviewResult.json()).toMatchObject({ count: 24 });
+
     await closureForm.getByLabel('Closure scope').selectOption('facility');
     await closureForm.getByLabel('Facility or space ID').fill(facilityId);
     await closureForm

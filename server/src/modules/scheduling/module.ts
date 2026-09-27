@@ -137,7 +137,10 @@ const openapiRoutes = [
     },
   ),
   route('get', '/orgs/{orgId}/facilities', 'List facilities', {
-    response: z.object({ items: z.array(json) }),
+    response: z.object({
+      items: z.array(json),
+      organizationTimezone: z.string().min(1),
+    }),
   }),
   route('post', '/orgs/{orgId}/facilities', 'Create a facility', {
     body: facilityBody,
