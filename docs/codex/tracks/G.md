@@ -61,6 +61,10 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 
 - SEC-KNIP-G: triage `npm run knip` findings in G-owned scheduling/officials paths: unused `web/src/console/schedule/nav.ts` and `web/src/portal/schedule/nav.ts`; unused exports `testComplianceForOfficial`, `generatorInputFromConstraints`, `scheduleGenerationJob`, `scheduleSeriesHorizonJob`, `scheduleBatchEmitJob`, `runScheduleGeneration`, `extendRecurringSeries`, `routeError`, `eventKindSchema`, `eventStatusSchema`, `participantInputSchema`, `eventCreateSchema`, `eventIdResponseSchema`, `conflictReportSchema`, `eventSeriesSchema`, `importScheduleFile`, `importScheduleCsv`, and `escapeHtml`; unused related types `EventCreateInput`, `EventSeriesCreateInput`, `SeriesEditInput`, `SpaceAvailabilityCreateInput`, `SpaceBlackoutCreateInput`, `BlackoutRequestInput`; duplicate export `eventSeriesCreateSchema|eventSeriesSchema` (2026-09-27).
 
+## Requests from OPS
+
+- **Track G (API contract, 2026-09-27):** keep `runScheduleGeneration` exported from `server/src/modules/scheduling/generator.ts`; Track J's federation schedule workflow imports and calls this shared service. OPS restored the export during the current trunk sync after typecheck caught the missing API.
+
 ## Decisions and review
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.

@@ -1,6 +1,21 @@
 # Heavy-query review
 
-The Phase 16 `EXPLAIN (ANALYZE, BUFFERS)` review is pending the Track A `load` seed (100 organizations, 150,000 people, 400,000 registrations and 2,000,000 attendance rows). The current local database has only migration and sport-template seed data; plans collected from it would not represent tenant selectivity or production cardinality. No index is being recommended from an unrepresentative plan.
+## Current local review — 2026-09-27
+
+Ran `perf/explain-current.mjs` against the isolated `athlentry_ops` app database role after trunk migrations through `6002` (145 recorded migrations), using `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` for eight hot-path query shapes: capacity holds, capacity counters, attendance, active roster, public facility events, standings snapshots, recent email deliveries, and payment alert windows. The organization directory was populated, but each target query had zero matching sample rows. The selected indexes below therefore describe only the current empty-table plans; they are not representative findings, and no index request is justified from them.
+
+| Query shape                     | Planner-selected index                                     | Actual rows | Finding                           |
+| ------------------------------- | ---------------------------------------------------------- | ----------: | --------------------------------- |
+| Capacity holds by reservation   | `capacity_holds_reservation_idx`                           |           0 | No selectivity or buffer evidence |
+| Capacity counter by subject     | `capacity_counters_subject_idx`                            |           0 | No selectivity or buffer evidence |
+| Attendance by event/status      | `attendance_event_status_idx`                              |           0 | No selectivity or buffer evidence |
+| Active roster by event/person   | `roster_entries_active_person_idx`, `people_org_id_id_key` |           0 | Nested loop has no sample rows    |
+| Public events by facility/space | `events_space_idx`                                         |           0 | No selectivity or buffer evidence |
+| Standings snapshot by scope     | `standings_snapshots_scope_idx`                            |           0 | No selectivity or buffer evidence |
+| Recent email deliveries         | `message_deliveries_recipient_idx`                         |           0 | No selectivity or buffer evidence |
+| Payment alert window            | `payments_status_idx`                                      |           0 | No selectivity or buffer evidence |
+
+The full acceptance review remains pending the Track A `load` seed (100 organizations, 150,000 people, 400,000 registrations and 2,000,000 attendance rows). No index request has been filed because the isolated database lacks matching rows and tenant cardinality.
 
 Once the profile is available:
 

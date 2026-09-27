@@ -22,6 +22,10 @@ Phase 13: org relationships + data-sharing agreements, member-club team entries 
 ## Ready for integration ranges
 Integrated to `rebuild/trunk` by this merge: `server/src/modules/federation/**`, `web/src/console/federation/**`, federation-owned tests, and migrations `6000–6999`.
 
+## Requests from OPS
+
+- **Track J (Knip, 2026-09-27):** resolve or wire unused `server/src/modules/federation/demo.ts` and `web/src/console/federation/nav.ts`, and remove or consume `expandAvailabilityWindows` and `withFederationAccess`; `npm run knip` reports them on updated `rebuild/trunk`. If console navigation belongs in the central shell, coordinate that link with Track C. OPS did not modify J-owned files.
+
 ## Requests to other tracks
 - C (wiring): nested route discovery now registers `consoleFederationRoutes` in `web/src/generated/nested-routes.ts`, and `web/src/app.tsx` mounts those routes. The federation `nav.ts` is not part of that nested route registry, and `web/src/console/Home.tsx` has no federation entry point; include the nav item or a link to `/console/federation/:orgId` for organizations with federation access. Track J does not own the console home, app router, or generated registries.
 - C/notifications catalog owner: add federation notification types (`federation.relationship_invited`, `federation.entry_decided`, `federation.fee_invoiced`, `federation.discipline_issued`) if federation notifications are included in the platform catalog. They are not part of the Phase 13 acceptance criteria, so the module currently emits none.

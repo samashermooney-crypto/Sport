@@ -25,6 +25,7 @@ services:
     numInstances: 2
     healthCheckPath: /readyz
     preDeployCommand: npm run db:migrate
+    dockerCommand: "/bin/sh -c 'unset DATABASE_ADMIN_URL; exec npm run start'"
     envVars:
       - fromGroup: athlentry-production-runtime
       - key: ATHLENTRY_PROCESS_TYPE
