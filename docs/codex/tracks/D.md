@@ -6,7 +6,7 @@ Branch: `track/d-design`
 Current: Queues 3–5 are complete; auth restyle remains gated until Track A marks identity screens done.
 Ready for integration: 195e30e..HEAD — primitives, extended components, parity coverage and shell navigation are available for dependent screens.
 Requests to other tracks: none; the dev showcase route request is resolved in this branch.
-Blocked on: Auth restyle remains gated until Track A marks identity screens done (task 3/17); this does not block merging shared UI work.
+Blocked on: None for queues 1–5; queue 6 auth restyle begins when Track A marks identity screens done (task 3/17).
 Completed: Queue 1 reference capture and token snapshot; queue 2 shared primitives and initial tests.
 Completed: Queue 3 extended controls, overlays, calendar, chart, rich text, signature, QR, print, board, bracket and chat components.
 Completed: Queue 4 parity suite and queue 5 mobile tabs, command palette and global search shell; parity run 5 passed, 3 WebKit-mobile cases skipped by project guards.
