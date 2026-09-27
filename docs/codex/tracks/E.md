@@ -275,3 +275,5 @@ Stripe replay worker: `stripe.replay` scans up to 100 stored unprocessed events 
 - Known failing tests: none in the checks run here. Before handoff, `npm run typecheck`, `npm run lint`, 5 registration HTTP/Postgres tests, 4 spine schema tests, 29 focused finance/registration tests and 1 portal review component test passed. The full test, E2E and build gates have not been run on `c6aeb20`.
 - Open requests: Track C module/router/OpenAPI/DB-type mounting above and prior raw webhook/worker wiring; Track A org `refundTerms` and `lateFeeCents` settings. Phase 11 finance work belongs to Track H under the sprint assignment.
 - Local services: `COMPOSE_PROJECT_NAME=athlentry_e`; `PORT_OFFSET=500`.
+
+HANDED OFF 08:24
