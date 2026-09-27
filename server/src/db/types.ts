@@ -574,6 +574,20 @@ export interface DisciplineRecords {
   version: Generated<number>;
 }
 
+export interface DiscountCodeReservations {
+  account_id: string;
+  checkout_id: string;
+  created_at: Generated<Timestamp>;
+  discount_code_id: string;
+  expires_at: Timestamp;
+  id: string;
+  org_id: string;
+  redeemed_at: Timestamp | null;
+  redeemed_invoice_id: string | null;
+  released_at: Timestamp | null;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface DiscountCodes {
   active: Generated<boolean>;
   applies_to: Generated<Json>;
@@ -2306,6 +2320,7 @@ export interface DB {
   credits: Credits;
   device_tokens: DeviceTokens;
   discipline_records: DisciplineRecords;
+  discount_code_reservations: DiscountCodeReservations;
   discount_codes: DiscountCodes;
   discount_redemptions: DiscountRedemptions;
   dispute_liability_movements: DisputeLiabilityMovements;
