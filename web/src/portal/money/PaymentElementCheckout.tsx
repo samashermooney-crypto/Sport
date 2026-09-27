@@ -68,10 +68,12 @@ function PaymentForm({
   quote,
   returnUrl,
   onSubmitted,
+  paymentContext,
 }: {
   quote: PaymentQuote;
   returnUrl: string;
   onSubmitted: (state: PaymentSubmissionState) => void;
+  paymentContext: 'checkout' | 'installment';
 }): React.JSX.Element {
   const stripe = useStripe();
   const elements = useElements();
@@ -144,10 +146,12 @@ function PaymentForm({
             <dd>{formatMoney(line.amountCents, 'en-US')}</dd>
           </div>
         ))}
-        <div>
-          <dt>Service fee</dt>
-          <dd>{formatMoney(quote.serviceFeeCents, 'en-US')}</dd>
-        </div>
+        {(paymentContext === 'checkout' || quote.serviceFeeCents > 0) && (
+          <div>
+            <dt>Service fee</dt>
+            <dd>{formatMoney(quote.serviceFeeCents, 'en-US')}</dd>
+          </div>
+        )}
         {quote.taxCents > 0 && (
           <div>
             <dt>Tax</dt>
@@ -170,7 +174,9 @@ function PaymentForm({
           {state === 'processing'
             ? 'Your bank payment is processing. Your balance will update after it clears.'
             : state === 'succeeded'
-              ? 'Stripe received your payment. We are confirming your registration.'
+              ? paymentContext === 'installment'
+                ? 'Stripe received your installment payment. Your balance will update after reconciliation.'
+                : 'Stripe received your payment. We are confirming your registration.'
               : 'Additional authentication is required to complete payment.'}
         </p>
       )}
@@ -195,12 +201,14 @@ export function PaymentElementCheckout({
   quote,
   returnUrl,
   onSubmitted,
+  paymentContext = 'checkout',
 }: {
   publishableKey: string;
   clientSecret: string;
   quote: PaymentQuote;
   returnUrl: string;
   onSubmitted: (state: PaymentSubmissionState) => void;
+  paymentContext?: 'checkout' | 'installment';
 }): React.JSX.Element {
   assertTestPublishableKey(publishableKey);
   assertPaymentQuote(quote);
@@ -218,6 +226,7 @@ export function PaymentElementCheckout({
         quote={quote}
         returnUrl={returnUrl}
         onSubmitted={onSubmitted}
+        paymentContext={paymentContext}
       />
     </Elements>
   );

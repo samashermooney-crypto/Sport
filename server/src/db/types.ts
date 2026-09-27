@@ -1250,6 +1250,24 @@ export interface Lineups {
   version: Generated<number>;
 }
 
+export interface ManualInstallmentPaymentAttempts {
+  account_id: string;
+  amount_cents: number;
+  application_fee_cents: number;
+  connected_account_id: string;
+  created_at: Generated<Timestamp>;
+  customer_id: string;
+  id: string;
+  installment_id: string;
+  operation_key: string;
+  org_id: string;
+  payment_id: string;
+  request_hash: string;
+  result: Json | null;
+  status: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface MedicalProfiles {
   allergies_enc: Buffer | null;
   allergy_flags: Generated<string[]>;
@@ -2552,6 +2570,7 @@ export interface DB {
   invoice_lines: InvoiceLines;
   invoices: Invoices;
   lineups: Lineups;
+  manual_installment_payment_attempts: ManualInstallmentPaymentAttempts;
   medical_profiles: MedicalProfiles;
   message_campaigns: MessageCampaigns;
   message_deliveries: MessageDeliveries;
