@@ -558,3 +558,11 @@
 - **Decision:** Staff issue a seven-day one-use invitation for an active adult person. A nonblank profile email must equal the invited email; a blank profile email is filled only at redemption. The token is bound to person, organization and email. Redemption requires an active, email-verified adult account, rechecks the current profile email against its issuance snapshot, rejects another person's use of that email, and allows only one active self link. The same global account may hold organization staff roles and a self person link.
 - **Why:** Staff approval and email control authorize the exact profile attachment, while the redemption recheck closes the stale-record window. A shared account model lets an adult also serve as staff without creating a duplicate identity.
 - **Consequences / follow-ups:** Email changes invalidate pending claims. Staff must issue a new invitation after a profile email change; existing verified links are handled through the account and person privacy flows.
+
+### DEC-081 — Bind medical visibility to the exact child and active team
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 medical
+- **Context:** Medical details are Restricted. A general People read permission must not expose them to registrars or team staff without the explicit organization setting and current relationship.
+- **Decision:** Medical reads and writes recheck the active person inside `withOrg`. Verified guardians, adult self accounts, owners, admins and compliance officers receive full access; registrars receive it only when `registrarMedicalAccess` is true. A 13–17 self account receives a read-only full view. An active team staff member linked to the exact athlete through an active roster receives allergy flags by default, or full details when `coachMedicalAccess` is `full`; team staff cannot edit. Every permitted read writes a redacted audit entry, including an empty profile. Sensitive fields use AES-256-GCM encryption, and versioned writes serialize on the person row.
+- **Why:** Authorization follows a current relationship and explicit setting, while a uniform 404 conceals records from other actors. Coaches get the safety flags they need without unnecessary detail.
+- **Consequences / follow-ups:** Emergency contacts use a separate scope and authorization path. Family and staff medical editors consume the same versioned API.

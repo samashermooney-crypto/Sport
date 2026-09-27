@@ -19478,6 +19478,359 @@
         }
       }
     },
+    "/api/v1/people/orgs/{orgId}/{personId}/medical": {
+      "get": {
+        "operationId": "get_api_v1_people_orgs_orgId_personId_medical",
+        "summary": "Read audited medical profile at actor visibility level",
+        "tags": ["people"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "allergies": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 4000 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "allergyFlags": {
+                      "maxItems": 30,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      }
+                    },
+                    "conditions": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 4000 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "medications": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 4000 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "physicianName": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 200 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "physicianPhone": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 50 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "insuranceCarrier": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 200 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "insurancePolicy": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 200 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "notes": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 4000 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "personId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": ["full", "flags_only"]
+                    },
+                    "canEdit": { "type": "boolean" },
+                    "onFile": { "type": "boolean" }
+                  },
+                  "required": [
+                    "allergies",
+                    "allergyFlags",
+                    "conditions",
+                    "medications",
+                    "physicianName",
+                    "physicianPhone",
+                    "insuranceCarrier",
+                    "insurancePolicy",
+                    "notes",
+                    "personId",
+                    "version",
+                    "visibility",
+                    "canEdit",
+                    "onFile"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "personId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "patch_api_v1_people_orgs_orgId_personId_medical",
+        "summary": "Replace a versioned encrypted medical profile",
+        "tags": ["people"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "allergies": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 4000 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "allergyFlags": {
+                      "maxItems": 30,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      }
+                    },
+                    "conditions": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 4000 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "medications": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 4000 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "physicianName": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 200 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "physicianPhone": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 50 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "insuranceCarrier": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 200 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "insurancePolicy": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 200 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "notes": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 4000 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "personId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": ["full", "flags_only"]
+                    },
+                    "canEdit": { "type": "boolean" },
+                    "onFile": { "type": "boolean" }
+                  },
+                  "required": [
+                    "allergies",
+                    "allergyFlags",
+                    "conditions",
+                    "medications",
+                    "physicianName",
+                    "physicianPhone",
+                    "insuranceCarrier",
+                    "insurancePolicy",
+                    "notes",
+                    "personId",
+                    "version",
+                    "visibility",
+                    "canEdit",
+                    "onFile"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "personId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "allergies": {
+                    "anyOf": [
+                      { "type": "string", "maxLength": 4000 },
+                      { "type": "null" }
+                    ]
+                  },
+                  "allergyFlags": {
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                    }
+                  },
+                  "conditions": {
+                    "anyOf": [
+                      { "type": "string", "maxLength": 4000 },
+                      { "type": "null" }
+                    ]
+                  },
+                  "medications": {
+                    "anyOf": [
+                      { "type": "string", "maxLength": 4000 },
+                      { "type": "null" }
+                    ]
+                  },
+                  "physicianName": {
+                    "anyOf": [
+                      { "type": "string", "maxLength": 200 },
+                      { "type": "null" }
+                    ]
+                  },
+                  "physicianPhone": {
+                    "anyOf": [
+                      { "type": "string", "maxLength": 50 },
+                      { "type": "null" }
+                    ]
+                  },
+                  "insuranceCarrier": {
+                    "anyOf": [
+                      { "type": "string", "maxLength": 200 },
+                      { "type": "null" }
+                    ]
+                  },
+                  "insurancePolicy": {
+                    "anyOf": [
+                      { "type": "string", "maxLength": 200 },
+                      { "type": "null" }
+                    ]
+                  },
+                  "notes": {
+                    "anyOf": [
+                      { "type": "string", "maxLength": 4000 },
+                      { "type": "null" }
+                    ]
+                  },
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "allergies",
+                  "allergyFlags",
+                  "conditions",
+                  "medications",
+                  "physicianName",
+                  "physicianPhone",
+                  "insuranceCarrier",
+                  "insurancePolicy",
+                  "notes",
+                  "expectedVersion"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/people/me/family": {
       "get": {
         "operationId": "get_api_v1_people_me_family",

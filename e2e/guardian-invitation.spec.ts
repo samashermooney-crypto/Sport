@@ -174,6 +174,28 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
     await expect(guardianPage.getByText('Mia Rivera')).toBeVisible();
     await expect(guardianPage.getByText('Zoe Morgan')).toBeVisible();
     expect(await accessibilityViolations(guardianPage)).toEqual([]);
+    await guardianPage.goto(`/me/family/${staff.orgId}/${childId}/medical`);
+    await expect(
+      guardianPage.getByRole('heading', { name: 'Medical profile' }),
+    ).toBeVisible();
+    await guardianPage
+      .getByRole('textbox', { name: 'Allergies', exact: true })
+      .fill('Peanuts');
+    await guardianPage
+      .getByRole('textbox', { name: 'Allergy flags (comma separated codes)' })
+      .fill('peanut, epipen');
+    await guardianPage
+      .getByRole('textbox', { name: 'Medications' })
+      .fill('Epinephrine auto-injector');
+    await guardianPage
+      .getByRole('button', { name: 'Save medical profile' })
+      .click();
+    await expect(
+      guardianPage
+        .getByRole('status')
+        .filter({ hasText: 'Medical profile saved.' }),
+    ).toBeVisible();
+    expect(await accessibilityViolations(guardianPage)).toEqual([]);
     const links = await createWithOrg(database)(staff, (trx) =>
       trx
         .selectFrom('person_account_links')

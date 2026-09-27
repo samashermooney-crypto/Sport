@@ -4,7 +4,7 @@ Status: working
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/a-core`
 Current: Track A's People CRUD, derived age/grade, household membership, household/balance/program/team/credential-record filters, consent-aware photos and the ready B/C/D/E/F/H ranges are integrated on `rebuild/trunk`. The latest merged gate passed 723 tests and 42 browser tests plus typecheck, lint, build, size and generated-file freshness. Phase 1 tasks 4 and 16, Phase 2 role-aware compliance and later acceptance remain open. Track G has no ready range.
-Ready for integration: none on A. Guardian direct links, invitations and the cross-org family read path are integrated. Adult self claims have focused PostgreSQL and Chromium verification and await the next self-merge. Athlete account invitations and role-aware compliance remain. Sprint scope now limits A to Phase 1 remaining acceptance and Phase 2; Track C owns wiring and PROGRESS.md.
+Ready for self-merge: adult self claims (`a5510a1`) plus encrypted medical profiles and guardian/staff editor (in progress). The adult claim focused PostgreSQL and Chromium gates passed. Two trunk merge attempts were rolled back under the sprint lock: the first had four browser failures that all passed with two workers on the isolated A stack; the second hit several full-suite timeouts during concurrent load. A will retry the full merge gate after the medical slice passes. Athlete account invitations, emergency contacts and later Phase 2 acceptance remain. Track C owns wiring and PROGRESS.md.
 Requests to other tracks: E — proceed with Phase 4 against the spine now on trunk.
 Requests to other tracks: D — identity screens in task 3 are stable for your auth restyle queue; console Home in task 17 remains with A.
 Blocked on: none

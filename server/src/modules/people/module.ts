@@ -8,6 +8,10 @@ import {
   householdUpdateSchema,
 } from '@shared/schemas/households';
 import {
+  medicalResponseSchema,
+  medicalUpdateSchema,
+} from '@shared/schemas/medical';
+import {
   familyResponseSchema,
   guardianInvitationAcceptedResponseSchema,
   guardianInvitationAcceptSchema,
@@ -40,6 +44,19 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/medical',
+      summary: 'Read audited medical profile at actor visibility level',
+      response: medicalResponseSchema,
+    },
+    {
+      method: 'patch',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/medical',
+      summary: 'Replace a versioned encrypted medical profile',
+      body: medicalUpdateSchema,
+      response: medicalResponseSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/people/me/family',

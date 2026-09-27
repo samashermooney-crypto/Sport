@@ -18,6 +18,11 @@ const FamilyHome = lazy(() =>
     default: Component,
   })),
 );
+const FamilyMedical = lazy(() =>
+  import('./FamilyMedical').then(({ FamilyMedical: Component }) => ({
+    default: Component,
+  })),
+);
 const AcceptPersonClaim = lazy(() =>
   import('./AcceptPersonClaim').then(({ AcceptPersonClaim: Component }) => ({
     default: Component,
@@ -53,6 +58,14 @@ export const peopleRoutes: readonly RouteObject[] = [
     element: (
       <Suspense fallback={<main role="status">Loading family…</main>}>
         <FamilyHome />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/me/family/:orgId/:personId/medical',
+    element: (
+      <Suspense fallback={<main role="status">Loading medical profile…</main>}>
+        <FamilyMedical />
       </Suspense>
     ),
   },
@@ -93,6 +106,14 @@ export const peopleRoutes: readonly RouteObject[] = [
     element: (
       <Suspense fallback={<main role="status">Loading person…</main>}>
         <PersonDetail />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/console/orgs/:orgId/people/:personId/medical',
+    element: (
+      <Suspense fallback={<main role="status">Loading medical profile…</main>}>
+        <FamilyMedical />
       </Suspense>
     ),
   },

@@ -688,6 +688,11 @@ export function PersonDetail(): React.JSX.Element {
           <Card>
             <h2>Profile</h2>
             <p>
+              <Link to={`/console/orgs/${orgId}/people/${personId}/medical`}>
+                Medical profile
+              </Link>
+            </p>
+            <p>
               Age: {current.age} · Grade: {current.grade ?? 'Unknown'}
             </p>
             <PersonForm

@@ -6,6 +6,7 @@ import {
   householdUpdateSchema,
   householdsQuerySchema,
 } from '@shared/schemas/households';
+import { medicalUpdateSchema } from '@shared/schemas/medical';
 import {
   guardianInvitationAcceptSchema,
   guardianLinkCreateSchema,
@@ -27,6 +28,7 @@ import { requireSession } from '../auth/routes';
 import { listFamily } from './family';
 import { createGuardianLinksRepository } from './guardianLinks';
 import { createHouseholdsRepository } from './households';
+import { createMedicalRepository } from './medical';
 import { createPeopleRepository, PeopleError } from './repo';
 import { createSelfClaimsRepository } from './selfClaims';
 
@@ -84,6 +86,10 @@ export function createPeopleRouter(
   const households = createHouseholdsRepository(dependencies.database);
   const guardianLinks = createGuardianLinksRepository(dependencies.database);
   const selfClaims = createSelfClaimsRepository(dependencies.database);
+  const medical = createMedicalRepository(
+    dependencies.database,
+    dependencies.encryption,
+  );
   router.use(express.json({ limit: '32kb' }));
   router.use((_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
@@ -101,6 +107,44 @@ export function createPeopleRouter(
           'Impersonation is not supported here',
         );
       response.json(await listFamily(dependencies.database, session.accountId));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/orgs/:orgId/:personId/medical', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new PeopleError(404, 'NOT_FOUND', 'Medical profile not found');
+      response.json(
+        await medical.read(
+          z.uuid().parse(request.params.orgId),
+          session.accountId,
+          z.uuid().parse(request.params.personId),
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.patch('/orgs/:orgId/:personId/medical', async (request, response) => {
+    try {
+      if (!validWriteOrigin(request, dependencies.appUrl))
+        throw new PeopleError(403, 'FORBIDDEN', 'Invalid request origin');
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+      const orgId = z.uuid().parse(request.params.orgId);
+      const personId = z.uuid().parse(request.params.personId);
+      await medical.write(
+        orgId,
+        session.accountId,
+        personId,
+        medicalUpdateSchema.parse(request.body),
+      );
+      response.json(await medical.read(orgId, session.accountId, personId));
     } catch (error) {
       sendError(response, error);
     }
