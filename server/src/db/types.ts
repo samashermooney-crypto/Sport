@@ -24,6 +24,9 @@ export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
 export type Numeric = ColumnType<number, number | string, number | string>;
 
+export type PgbossJobState =
+  'active' | 'cancelled' | 'completed' | 'created' | 'failed' | 'retry';
+
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
 export interface AccountConsents {
@@ -322,6 +325,7 @@ export interface ChatMessages {
 export interface ChatReports {
   created_at: Generated<Timestamp>;
   id: string;
+  incident_report_id: string | null;
   message_id: string;
   org_id: string;
   reason: string;
@@ -365,6 +369,23 @@ export interface Closures {
   version: Generated<number>;
 }
 
+export interface CommunicationConsentEvents {
+  accepted_at: Generated<Timestamp>;
+  account_id: string;
+  action: string;
+  consent_text: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  ip: string | null;
+  org_id: string;
+  phone_e164: string;
+  provider_message_id: string | null;
+  source: string;
+  updated_at: Generated<Timestamp>;
+  user_agent: string | null;
+  version: string;
+}
+
 export interface CommunicationPreferences {
   account_id: string;
   category: string;
@@ -374,6 +395,20 @@ export interface CommunicationPreferences {
   id: string;
   org_id: string;
   updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface CommunicationSenderIdentities {
+  created_at: Generated<Timestamp>;
+  display_name: string | null;
+  org_id: string;
+  reply_to: string | null;
+  reply_to_verification_expires_at: Timestamp | null;
+  reply_to_verification_hash: Buffer | null;
+  reply_to_verified_at: Timestamp | null;
+  sms_compliance_text: string | null;
+  updated_at: Generated<Timestamp>;
+  updated_by: string;
   version: Generated<number>;
 }
 
@@ -432,6 +467,7 @@ export interface ConversationMembers {
   account_id: string;
   conversation_id: string;
   created_at: Generated<Timestamp>;
+  guardian_copied: Generated<boolean>;
   id: string;
   last_read_at: Timestamp | null;
   muted: Generated<boolean>;
@@ -986,6 +1022,7 @@ export interface MessageCampaigns {
 
 export interface MessageDeliveries {
   address: string | null;
+  attempt_count: Generated<number>;
   campaign_id: string | null;
   channel: string;
   clicked_at: Timestamp | null;
@@ -993,6 +1030,8 @@ export interface MessageDeliveries {
   delivered_at: Timestamp | null;
   error: string | null;
   id: string;
+  last_attempt_at: Timestamp | null;
+  next_attempt_at: Timestamp | null;
   notification_id: string | null;
   opened_at: Timestamp | null;
   org_id: string;
@@ -1339,6 +1378,79 @@ export interface PersonMerges {
   updated_at: Generated<Timestamp>;
 }
 
+export interface PgbossJob {
+  completed_on: Timestamp | null;
+  created_on: Generated<Timestamp>;
+  data: Json | null;
+  dead_letter: string | null;
+  deletion_seconds: Generated<number>;
+  expire_seconds: Generated<number>;
+  id: Generated<string>;
+  keep_until: Generated<Timestamp>;
+  name: string;
+  output: Json | null;
+  policy: string | null;
+  priority: Generated<number>;
+  retry_backoff: Generated<boolean>;
+  retry_count: Generated<number>;
+  retry_delay: Generated<number>;
+  retry_delay_max: number | null;
+  retry_limit: Generated<number>;
+  singleton_key: string | null;
+  singleton_on: Timestamp | null;
+  start_after: Generated<Timestamp>;
+  started_on: Timestamp | null;
+  state: Generated<PgbossJobState>;
+}
+
+export interface PgbossQueue {
+  active_count: Generated<number>;
+  created_on: Generated<Timestamp>;
+  dead_letter: string | null;
+  deferred_count: Generated<number>;
+  deletion_seconds: number;
+  expire_seconds: number;
+  maintain_on: Timestamp | null;
+  monitor_on: Timestamp | null;
+  name: string;
+  partition: boolean;
+  policy: string;
+  queued_count: Generated<number>;
+  retention_seconds: number;
+  retry_backoff: boolean;
+  retry_delay: number;
+  retry_delay_max: number | null;
+  retry_limit: number;
+  singletons_active: string[] | null;
+  table_name: string;
+  total_count: Generated<number>;
+  updated_on: Generated<Timestamp>;
+  warning_queued: Generated<number>;
+}
+
+export interface PgbossSchedule {
+  created_on: Generated<Timestamp>;
+  cron: string;
+  data: Json | null;
+  key: Generated<string>;
+  name: string;
+  options: Json | null;
+  timezone: string | null;
+  updated_on: Generated<Timestamp>;
+}
+
+export interface PgbossSubscription {
+  created_on: Generated<Timestamp>;
+  event: string;
+  name: string;
+  updated_on: Generated<Timestamp>;
+}
+
+export interface PgbossVersion {
+  cron_on: Timestamp | null;
+  version: number;
+}
+
 export interface Plans {
   active: Generated<boolean>;
   application_fee_bps: number;
@@ -1420,6 +1532,15 @@ export interface Programs {
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
   visibility: Generated<string>;
+}
+
+export interface ProviderDeliveryKeys {
+  channel: string;
+  created_at: Generated<Timestamp>;
+  delivery_id: string;
+  provider_id: string;
+  tenant_org_id: string;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface RateLimitPoints {
@@ -1960,6 +2081,13 @@ export interface WaiverSignatures {
   waiver_document_id: string;
 }
 
+export interface WorkerHeartbeats {
+  heartbeat_at: Generated<Timestamp>;
+  started_at: Generated<Timestamp>;
+  stopped_at: Timestamp | null;
+  worker_id: string;
+}
+
 export interface DB {
   account_consents: AccountConsents;
   accounts: Accounts;
@@ -1982,7 +2110,9 @@ export interface DB {
   chat_reports: ChatReports;
   checkouts: Checkouts;
   closures: Closures;
+  communication_consent_events: CommunicationConsentEvents;
   communication_preferences: CommunicationPreferences;
+  communication_sender_identities: CommunicationSenderIdentities;
   contest_participants: ContestParticipants;
   contest_results: ContestResults;
   contests: Contests;
@@ -2044,12 +2174,18 @@ export interface DB {
   person_account_links: PersonAccountLinks;
   person_credentials: PersonCredentials;
   person_merges: PersonMerges;
+  'pgboss.job': PgbossJob;
+  'pgboss.queue': PgbossQueue;
+  'pgboss.schedule': PgbossSchedule;
+  'pgboss.subscription': PgbossSubscription;
+  'pgboss.version': PgbossVersion;
   plans: Plans;
   playing_time: PlayingTime;
   pool_members: PoolMembers;
   pools: Pools;
   privacy_requests: PrivacyRequests;
   programs: Programs;
+  provider_delivery_keys: ProviderDeliveryKeys;
   rate_limit_points: RateLimitPoints;
   refund_allocations: RefundAllocations;
   refunds: Refunds;
@@ -2088,4 +2224,5 @@ export interface DB {
   waitlist_entries: WaitlistEntries;
   waiver_documents: WaiverDocuments;
   waiver_signatures: WaiverSignatures;
+  worker_heartbeats: WorkerHeartbeats;
 }

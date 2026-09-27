@@ -215,3 +215,11 @@
 - **Decision:** Owners with completed MFA and recent step-up can edit the name, validity, activation blocking and active state with a version check. Show the verification method as read-only until a working provider workflow exists. Audit each change and hide another tenant's credential identifiers with 404.
 - **Why:** This lets an owner control every default requirement while preventing a setting that claims to verify credentials through an unavailable provider.
 - **Consequences / follow-ups:** Add selectable verification methods only with their complete review or provider workflow in a later phase.
+
+### DEC-026 — Preserve SMS consent evidence and global STOP state
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 10 communications consent
+- **Context:** The spine stores account/phone data and tenant suppressions, but it has no versioned SMS consent evidence and its suppression policy permits global reads but not global signed STOP writes.
+- **Decision:** Record SMS consent as append-only, tenant-scoped events containing the exact disclosure, version, phone, account, timestamp, IP and user agent. A verified Twilio STOP creates a global SMS-only suppression; signed START removes that global STOP row and appends a new consent event with the inbound text as evidence.
+- **Why:** SMS delivery must fail closed without explicit, auditable consent, and STOP must take effect across every organization immediately.
+- **Consequences / follow-ups:** Restrict global suppression writes to signed SMS webhook code; keep all tenant reads/writes inside `withOrg`; apply shared quiet-hours policy at delivery time.
