@@ -3,6 +3,7 @@
   "navigate": "Navigate",
   "messages": "Messages",
   "notifications": "Notifications",
+  "classes": "Classes",
   "money": "Payments",
   "account": "Account",
   "notificationsLoadFailed": "Could not load notifications.",

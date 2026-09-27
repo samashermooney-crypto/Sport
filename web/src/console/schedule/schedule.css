@@ -19,6 +19,13 @@
   padding: var(--space-16) 0;
 }
 
+.schedule-facility-layout {
+  display: block;
+  max-width: 100%;
+  max-height: 32rem;
+  object-fit: contain;
+}
+
 .schedule-page__header p,
 .schedule-card > p,
 .schedule-card__title p {

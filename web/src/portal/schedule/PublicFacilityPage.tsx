@@ -101,6 +101,17 @@ export function PublicFacilityPage({
           </a>
         )}
       </header>
+      {data.facility.layout_image_file_id && (
+        <section className="schedule-card" aria-label="Facility layout">
+          <img
+            className="schedule-facility-layout"
+            src={`/api/v1/files/public/orgs/${encodeURIComponent(slug)}/facilities/${encodeURIComponent(facilityId)}/layout`}
+            alt={`${data.facility.name} layout`}
+            loading="lazy"
+            decoding="async"
+          />
+        </section>
+      )}
       {!!data.closures.length && (
         <section className="schedule-card" aria-label="Facility closures">
           <h2>Closure notices</h2>

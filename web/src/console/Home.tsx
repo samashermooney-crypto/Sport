@@ -53,6 +53,11 @@ export function ConsoleHome(): React.JSX.Element {
       to: `/console/orgs/${orgId}/households`,
     },
     {
+      label: 'Manage schedule',
+      description: 'Review team schedules and event assignments.',
+      to: `/console/orgs/${orgId}/schedule`,
+    },
+    {
       label: 'Review safety requirements',
       description: 'Edit the credential checks your organization uses.',
       to: `/orgs/${orgId}/credentials`,
@@ -82,7 +87,7 @@ export function ConsoleHome(): React.JSX.Element {
   const actions = [
     ...(workspace.data.canManage
       ? [
-          ...manageActions.slice(0, 6),
+          ...manageActions.slice(0, 7),
           {
             label: 'Manage payment processing',
             description: 'Connect your organization to accept online payments.',
