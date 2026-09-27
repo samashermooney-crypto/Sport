@@ -1,1 +1,1 @@
-export const modulePermissions = [] as const;
+export const modulePermissions = ['audit.read'] as const;

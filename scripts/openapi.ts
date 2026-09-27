@@ -267,7 +267,7 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
     ...Object.entries(route.query ?? {}).map(([name, schema]) => ({
       name,
       in: 'query',
-      required: true,
+      required: !schema.safeParse(undefined).success,
       schema: jsonSchema(schema),
     })),
   ];
