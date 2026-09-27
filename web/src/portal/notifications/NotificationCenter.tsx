@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import './notification-center.css';
 
@@ -22,6 +23,7 @@ export function NotificationCenter({
 }: {
   orgId: string;
 }): React.JSX.Element {
+  const { t, i18n } = useTranslation('portal');
   const [page, setPage] = useState<InboxPage | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [preferences, setPreferences] = useState<Preference[]>([]);
@@ -46,7 +48,7 @@ export function NotificationCenter({
     ])
       .then(async ([inboxResponse, preferenceResponse]) => {
         if (!inboxResponse.ok || !preferenceResponse.ok)
-          throw new Error('Could not load notifications.');
+          throw new Error(t('notificationsLoadFailed'));
         return Promise.all([
           inboxResponse.json() as Promise<InboxPage>,
           preferenceResponse.json() as Promise<{ items: Preference[] }>,
@@ -58,13 +60,12 @@ export function NotificationCenter({
         setError('');
       })
       .catch(() => {
-        if (!controller.signal.aborted)
-          setError('Could not load notifications.');
+        if (!controller.signal.aborted) setError(t('notificationsLoadFailed'));
       });
     return () => {
       controller.abort();
     };
-  }, [base, cursor, revision]);
+  }, [base, cursor, revision, t]);
 
   useEffect(() => {
     const stream = new EventSource('/api/v1/stream', { withCredentials: true });
@@ -92,11 +93,10 @@ export function NotificationCenter({
           headers: { 'X-Athlentry-Request': '1' },
         },
       );
-      if (!response.ok)
-        throw new Error('Could not mark the notification read.');
+      if (!response.ok) throw new Error(t('notificationReadFailed'));
       setRevision((value) => value + 1);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Request failed.');
+      setError(cause instanceof Error ? cause.message : t('requestFailed'));
     } finally {
       setBusy('');
     }
@@ -124,12 +124,12 @@ export function NotificationCenter({
       if (!response.ok)
         throw new Error(
           response.status === 400
-            ? 'Operational and emergency alerts need an enabled channel.'
-            : 'Could not update the preference.',
+            ? t('preferenceRequired')
+            : t('preferenceUpdateFailed'),
         );
       setRevision((value) => value + 1);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Request failed.');
+      setError(cause instanceof Error ? cause.message : t('requestFailed'));
     } finally {
       setBusy('');
     }
@@ -138,23 +138,23 @@ export function NotificationCenter({
   return (
     <main className="notification-center">
       <header>
-        <h1>Notifications</h1>
+        <h1>{t('notifications')}</h1>
         <button
           type="button"
           onClick={() => {
             setRevision((value) => value + 1);
           }}
         >
-          Refresh
+          {t('refresh')}
         </button>
       </header>
       {error && <p role="alert">{error}</p>}
       <section aria-labelledby="inbox-title">
-        <h2 id="inbox-title">Inbox</h2>
+        <h2 id="inbox-title">{t('inbox')}</h2>
         {page === null ? (
-          <p role="status">Loading notifications…</p>
+          <p role="status">{t('loadingNotifications')}</p>
         ) : page.items.length === 0 ? (
-          <p>No notifications yet.</p>
+          <p>{t('noNotifications')}</p>
         ) : (
           <ul className="notification-center__inbox">
             {page.items.map((item) => (
@@ -162,9 +162,13 @@ export function NotificationCenter({
                 <div>
                   <strong>{item.title}</strong>
                   <time dateTime={item.createdAt}>
-                    {new Date(item.createdAt).toLocaleString()}
+                    {new Date(item.createdAt).toLocaleString(
+                      i18n.resolvedLanguage,
+                    )}
                   </time>
-                  {item.payload.href && <a href={item.payload.href}>Open</a>}
+                  {item.payload.href && (
+                    <a href={item.payload.href}>{t('open')}</a>
+                  )}
                 </div>
                 {!item.readAt && (
                   <button
@@ -172,7 +176,7 @@ export function NotificationCenter({
                     disabled={busy === item.id}
                     onClick={() => void markRead(item.id)}
                   >
-                    Mark read
+                    {t('markRead')}
                   </button>
                 )}
               </li>
@@ -186,7 +190,7 @@ export function NotificationCenter({
               setCursor(null);
             }}
           >
-            First page
+            {t('firstPage')}
           </button>
         )}
         {page?.nextCursor && (
@@ -196,12 +200,12 @@ export function NotificationCenter({
               setCursor(page.nextCursor);
             }}
           >
-            Next page
+            {t('nextPage')}
           </button>
         )}
       </section>
       <section aria-labelledby="preferences-title">
-        <h2 id="preferences-title">Delivery preferences</h2>
+        <h2 id="preferences-title">{t('deliveryPreferences')}</h2>
         <div className="notification-center__preferences">
           {preferences.map((preference) => {
             const key = `${preference.category}:${preference.channel}`;
@@ -213,8 +217,8 @@ export function NotificationCenter({
                   disabled={busy === key}
                   onChange={() => void togglePreference(preference)}
                 />
-                {preference.category} ·{' '}
-                {preference.channel === 'in_app' ? 'In app' : 'Email'}
+                {t(preference.category)} ·{' '}
+                {preference.channel === 'in_app' ? t('inApp') : t('email')}
               </label>
             );
           })}

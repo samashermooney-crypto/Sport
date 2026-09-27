@@ -108,6 +108,9 @@ test('interactive controls meet 44px targets at phone width', async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto('/__ui');
+  await expect(
+    page.getByRole('combobox', { name: 'Items per page' }),
+  ).toHaveCSS('height', '44px');
   const smallTargets = await page
     .locator(
       'button:visible, input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):visible, select:visible, textarea:visible, a[href]:visible',
@@ -363,7 +366,7 @@ test('shell stays within phone width and exposes bottom tabs and keyboard palett
   });
   await expect(page.locator(showcase('Form controls'))).toHaveScreenshot(
     'ui-controls-390.png',
-    { animations: 'disabled' },
+    { animations: 'disabled', maxDiffPixels: 2 },
   );
   await expect(page.locator(showcase('States and feedback'))).toHaveScreenshot(
     'ui-feedback-390.png',

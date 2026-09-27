@@ -2,7 +2,9 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 import authEn from '../i18n/en/auth.json';
+import portalEn from '../i18n/en/portal.json';
 import authEs from '../i18n/es/auth.json';
+import portalEs from '../i18n/es/portal.json';
 
 function savedLanguage(): string | null {
   try {
@@ -25,8 +27,8 @@ const initialLanguage =
 
 void i18n.use(initReactI18next).init({
   resources: {
-    en: { auth: authEn },
-    es: { auth: authEs },
+    en: { auth: authEn, portal: portalEn },
+    es: { auth: authEs, portal: portalEs },
   },
   lng: initialLanguage,
   fallbackLng: 'en',
