@@ -9,6 +9,9 @@ import { FakeEmailSender } from '../src/integrations/email/sender';
 import {
   acceptOrgInvitation,
   createOrgInvitation,
+  listOrgStaff,
+  resendOrgInvitation,
+  revokeOrgInvitation,
 } from '../src/modules/orgs/invitations';
 
 import { createTestFactories } from './factories';
@@ -152,5 +155,67 @@ describe('organization invitations', () => {
       { role: 'admin', pending_mfa: true },
       { role: 'registrar', pending_mfa: false },
     ]);
+  });
+  it('lists, resends and revokes invitations without exposing other organizations', async () => {
+    const inviteEmail = `resend-${randomUUID()}@example.invalid`;
+    const dependencies = {
+      database,
+      email: sender,
+      appUrl: 'https://127.0.0.1:5173',
+    };
+    const original = await createOrgInvitation(dependencies, {
+      orgId,
+      actorId: ownerId,
+      invitation: {
+        email: inviteEmail,
+        roles: ['reporter'],
+        scopeType: 'org',
+        scopeId: null,
+      },
+      idempotencyKey: newId(),
+      now,
+    });
+    const listed = await listOrgStaff(database, {
+      orgId,
+      actorId: ownerId,
+      now,
+    });
+    expect(listed.invitations).toContainEqual(
+      expect.objectContaining({ id: original.id, email: inviteEmail }),
+    );
+    await expect(
+      listOrgStaff(database, { orgId: otherOrgId, actorId: ownerId, now }),
+    ).rejects.toMatchObject({ status: 404 });
+    const resent = await resendOrgInvitation(dependencies, {
+      orgId,
+      actorId: ownerId,
+      invitationId: original.id,
+      idempotencyKey: newId(),
+      now: new Date(now.getTime() + 60_000),
+    });
+    expect(resent.id).not.toBe(original.id);
+    expect(sender.messages.at(-1)?.to).toBe(inviteEmail);
+    await expect(
+      revokeOrgInvitation(database, {
+        orgId: otherOrgId,
+        actorId: ownerId,
+        invitationId: resent.id,
+        now,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await revokeOrgInvitation(database, {
+      orgId,
+      actorId: ownerId,
+      invitationId: resent.id,
+      now,
+    });
+    const remaining = await listOrgStaff(database, {
+      orgId,
+      actorId: ownerId,
+      now,
+    });
+    expect(
+      remaining.invitations.find((item) => item.email === inviteEmail),
+    ).toBeUndefined();
   });
 });
