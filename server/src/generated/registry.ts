@@ -14,6 +14,7 @@ import { moduleDefinition as complianceModule } from '../modules/compliance/modu
 import { moduleDefinition as contestsModule } from '../modules/contests/module';
 import { moduleDefinition as disciplineModule } from '../modules/discipline/module';
 import { moduleDefinition as evaluationsModule } from '../modules/evaluations/module';
+import { moduleDefinition as federationModule } from '../modules/federation/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
 import { moduleDefinition as importsModule } from '../modules/imports/module';
@@ -38,6 +39,7 @@ export const serverModules: readonly ServerModule[] = [
   contestsModule,
   disciplineModule,
   evaluationsModule,
+  federationModule,
   filesModule,
   financeModule,
   importsModule,

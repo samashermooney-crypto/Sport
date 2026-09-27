@@ -3,6 +3,7 @@ import type { RouteObject } from 'react-router';
 import { consoleAuditRoutes } from '../console/audit/routes';
 import { consoleClassesRoutes } from '../console/classes/routes';
 import { consoleEvaluationsRoutes } from '../console/evaluations/routes';
+import { consoleFederationRoutes } from '../console/federation/routes';
 import { consoleMessagesRoutes } from '../console/messages/routes';
 import { consoleMoneyRoutes } from '../console/money/routes';
 import { consoleSafetyRoutes } from '../console/safety/routes';
@@ -19,6 +20,7 @@ export const webNestedRoutes: readonly RouteObject[] = [
   consoleAuditRoutes,
   consoleClassesRoutes,
   consoleEvaluationsRoutes,
+  consoleFederationRoutes,
   consoleMessagesRoutes,
   consoleMoneyRoutes,
   consoleSafetyRoutes,
