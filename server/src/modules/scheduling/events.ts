@@ -2477,7 +2477,7 @@ export function generatorInputFromConstraints(
   return {
     ...values,
     ...constraints,
-    divisions: constraints.divisions.map((division) => ({
+    divisions: (constraints.divisions ?? []).map((division) => ({
       id: division.divisionId,
       allowedWeekdays: division.allowedWeekdays,
       timeWindows: division.timeWindows,

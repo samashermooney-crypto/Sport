@@ -2384,6 +2384,22 @@ export interface TournamentEntries {
   version: Generated<number>;
 }
 
+export interface TournamentScheduleReservations {
+  away_placeholder: string | null;
+  bracket_id: string;
+  bracket_match_id: string | null;
+  created_at: Generated<Timestamp>;
+  event_id: string;
+  home_placeholder: string | null;
+  id: string;
+  org_id: string;
+  position: number;
+  round_index: number;
+  slot_type: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Transfers {
   created_at: Generated<Timestamp>;
   financial_treatment: string;
@@ -2611,6 +2627,7 @@ export interface DB {
   team_staff: TeamStaff;
   teams: Teams;
   tournament_entries: TournamentEntries;
+  tournament_schedule_reservations: TournamentScheduleReservations;
   transfers: Transfers;
   waitlist_entries: WaitlistEntries;
   waiver_documents: WaiverDocuments;

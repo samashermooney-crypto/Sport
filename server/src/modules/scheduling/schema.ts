@@ -248,31 +248,87 @@ export const rescheduleRequestSchema = z.strictObject({
     .max(10),
 });
 
-export const generatorConstraintsSchema = z.strictObject({
-  seed: z.number().int().min(0).max(2_147_483_647),
-  seasonStartsOn: z.iso.date(),
-  seasonEndsOn: z.iso.date(),
-  divisions: z
-    .array(
-      z.strictObject({
-        divisionId: z.uuid(),
-        gamesPerTeam: z.number().int().min(1).max(100).optional(),
-        roundRobin: z.enum(['once', 'twice']).optional(),
-        allowedWeekdays: z.array(z.number().int().min(1).max(7)).min(1).max(7),
-        timeWindows: z
-          .array(z.strictObject({ start: z.string(), end: z.string() }))
-          .min(1),
-        preferredStartMinutes: z.number().int().min(0).max(1439).optional(),
-        ageOrder: z.number().int().optional(),
-      }),
-    )
-    .min(1)
-    .max(100),
-  maxGamesPerTeamPerDay: z.number().int().min(1).max(4).default(1),
-  maxGamesPerTeamPerWeek: z.number().int().min(1).max(14).optional(),
-  minRestHours: z.number().min(0).max(240).default(18),
-  timeBudgetSeconds: z.number().int().min(1).max(120).default(45),
-});
+export const generatorConstraintsSchema = z
+  .strictObject({
+    seed: z.number().int().min(0).max(2_147_483_647),
+    seasonStartsOn: z.iso.date(),
+    seasonEndsOn: z.iso.date(),
+    divisions: z
+      .array(
+        z.strictObject({
+          divisionId: z.uuid(),
+          gamesPerTeam: z.number().int().min(1).max(100).optional(),
+          roundRobin: z.enum(['once', 'twice']).optional(),
+          allowedWeekdays: z
+            .array(z.number().int().min(1).max(7))
+            .min(1)
+            .max(7),
+          timeWindows: z
+            .array(z.strictObject({ start: z.string(), end: z.string() }))
+            .min(1),
+          preferredStartMinutes: z.number().int().min(0).max(1439).optional(),
+          ageOrder: z.number().int().optional(),
+        }),
+      )
+      .min(1)
+      .max(100)
+      .optional(),
+    tournament: z
+      .strictObject({
+        bracketId: z.uuid(),
+        poolDays: z.array(z.iso.date()).min(1).max(60),
+        poolTimeWindow: z.strictObject({
+          start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+          end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+        }),
+      })
+      .optional(),
+    maxGamesPerTeamPerDay: z.number().int().min(1).max(4).default(1),
+    maxGamesPerTeamPerWeek: z.number().int().min(1).max(14).optional(),
+    minRestHours: z.number().min(0).max(240).default(18),
+    timeBudgetSeconds: z.number().int().min(1).max(120).default(45),
+  })
+  .superRefine((constraints, context) => {
+    if (Boolean(constraints.tournament) === Boolean(constraints.divisions)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Choose division scheduling or tournament scheduling.',
+        path: ['tournament'],
+      });
+    }
+    if (constraints.tournament) {
+      if (
+        constraints.tournament.poolTimeWindow.end <=
+        constraints.tournament.poolTimeWindow.start
+      ) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Tournament pool time window must end after it starts.',
+          path: ['tournament', 'poolTimeWindow', 'end'],
+        });
+      }
+      const poolDays = constraints.tournament.poolDays;
+      if (new Set(poolDays).size !== poolDays.length) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Tournament pool dates must be unique.',
+          path: ['tournament', 'poolDays'],
+        });
+      }
+      if (
+        poolDays.some((day, index) => {
+          const previousDay = poolDays[index - 1];
+          return previousDay !== undefined && day < previousDay;
+        })
+      ) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Tournament pool dates must be in ascending order.',
+          path: ['tournament', 'poolDays'],
+        });
+      }
+    }
+  });
 
 export const generationRunResponseSchema = z.strictObject({
   id: z.uuid(),

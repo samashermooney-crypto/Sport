@@ -365,6 +365,58 @@ async function persistBracketMatches(
   }
 }
 
+async function bindEliminationReservations(
+  trx: OrgTransaction,
+  orgId: string,
+  bracketId: string,
+): Promise<void> {
+  const matchRows = await trx
+    .selectFrom('bracket_matches')
+    .select(['id', 'round', 'position', 'participant_a', 'participant_b'])
+    .where('org_id', '=', orgId)
+    .where('bracket_id', '=', bracketId)
+    .orderBy('round')
+    .orderBy('position')
+    .execute();
+  const poolOffset = matchRows.reduce((maximum, row) => {
+    const slot = (row.participant_a ?? {}) as SlotJson;
+    return slot.poolId ? Math.max(maximum, row.round) : maximum;
+  }, 0);
+  const reservations = await trx
+    .selectFrom('tournament_schedule_reservations')
+    .selectAll()
+    .where('org_id', '=', orgId)
+    .where('bracket_id', '=', bracketId)
+    .where('slot_type', '=', 'bracket')
+    .where('bracket_match_id', 'is', null)
+    .orderBy('round_index')
+    .orderBy('position')
+    .execute();
+  for (const reservation of reservations) {
+    const candidates = matchRows.filter((row) => {
+      const home = (row.participant_a ?? {}) as SlotJson;
+      const away = (row.participant_b ?? {}) as SlotJson;
+      return (
+        row.round === poolOffset + reservation.round_index &&
+        !home.finalized &&
+        !away.finalized
+      );
+    });
+    const match = candidates[reservation.position - 1];
+    if (!match) continue;
+    await trx
+      .updateTable('tournament_schedule_reservations')
+      .set({
+        bracket_match_id: match.id,
+        version: reservation.version + 1,
+      })
+      .where('org_id', '=', orgId)
+      .where('id', '=', reservation.id)
+      .where('bracket_match_id', 'is', null)
+      .execute();
+  }
+}
+
 export async function createBracket(
   context: OrgContext,
   input: {
@@ -489,7 +541,38 @@ export async function getBracket(context: OrgContext, bracketId: string) {
       .where('bracket_id', '=', bracketId)
       .orderBy('sort_order')
       .execute();
-    if (!pools.length) return { bracket, entries, matches, pools: [] };
+    const reservations = await trx
+      .selectFrom('tournament_schedule_reservations as reservation')
+      .innerJoin('events as event', (join) =>
+        join
+          .onRef('event.org_id', '=', 'reservation.org_id')
+          .onRef('event.id', '=', 'reservation.event_id'),
+      )
+      .select([
+        'reservation.id',
+        'reservation.slot_type',
+        'reservation.round_index',
+        'reservation.position',
+        'reservation.bracket_match_id',
+        'reservation.home_placeholder',
+        'reservation.away_placeholder',
+        'event.id as event_id',
+        'event.title',
+        'event.starts_at',
+        'event.ends_at',
+        'event.timezone',
+        'event.space_id',
+        'event.status',
+        'event.published',
+      ])
+      .where('reservation.org_id', '=', context.orgId)
+      .where('reservation.bracket_id', '=', bracketId)
+      .orderBy('reservation.slot_type')
+      .orderBy('reservation.round_index')
+      .orderBy('reservation.position')
+      .execute();
+    if (!pools.length)
+      return { bracket, entries, matches, pools: [], reservations };
     const poolMembers = await trx
       .selectFrom('pool_members')
       .selectAll()
@@ -654,7 +737,7 @@ export async function getBracket(context: OrgContext, bracketId: string) {
         }),
       };
     });
-    return { bracket, entries, matches, pools: poolSummaries };
+    return { bracket, entries, matches, pools: poolSummaries, reservations };
   });
 }
 
@@ -734,7 +817,30 @@ export async function getPublicBracketBySlug(
       .orderBy('round')
       .orderBy('position')
       .execute();
-    return { bracket, entries, matches };
+    const reservations = await trx
+      .selectFrom('tournament_schedule_reservations as reservation')
+      .innerJoin('events as event', (join) =>
+        join
+          .onRef('event.org_id', '=', 'reservation.org_id')
+          .onRef('event.id', '=', 'reservation.event_id'),
+      )
+      .select([
+        'reservation.slot_type',
+        'reservation.round_index',
+        'reservation.position',
+        'event.title',
+        'event.starts_at',
+        'event.timezone',
+      ])
+      .where('reservation.org_id', '=', context.orgId)
+      .where('reservation.bracket_id', '=', bracketId)
+      .where('event.published', '=', true)
+      .where('event.status', '=', 'scheduled')
+      .orderBy('reservation.slot_type')
+      .orderBy('reservation.round_index')
+      .orderBy('reservation.position')
+      .execute();
+    return { bracket, entries, matches, reservations };
   });
 }
 
@@ -1338,6 +1444,7 @@ export async function advanceBracketMatch(
       poolBracket,
       poolRoundOffset,
     );
+    await bindEliminationReservations(trx, orgId, bracketId);
     await trx
       .updateTable('brackets')
       .set({

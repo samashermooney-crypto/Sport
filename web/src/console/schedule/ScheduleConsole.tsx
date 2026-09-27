@@ -33,6 +33,19 @@ type Run = {
       awayTeamId: string;
       reasons: string[];
     }>;
+    bracketReservations?: Array<{
+      id: string;
+      round: number;
+      homePlaceholder: string;
+      awayPlaceholder: string;
+      startsAt: string;
+      spaceId: string;
+    }>;
+    unscheduledBracketSlots?: Array<{
+      round: number;
+      position: number;
+      reason: string;
+    }>;
   } | null;
 };
 type ImportRun = {
@@ -154,6 +167,9 @@ export function ScheduleConsole({
   const [selectedEvent, setSelectedEvent] = useState('');
   const [programId, setProgramId] = useState('');
   const [divisionId, setDivisionId] = useState('');
+  const [generationMode, setGenerationMode] = useState<'league' | 'tournament'>(
+    'league',
+  );
   const [timezone, setTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   );
@@ -398,29 +414,50 @@ export function ScheduleConsole({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     await perform(async () => {
+      const shared = {
+        seed: Number(form.get('seed')),
+        seasonStartsOn: formText(form, 'seasonStartsOn'),
+        seasonEndsOn: formText(form, 'seasonEndsOn'),
+        maxGamesPerTeamPerDay: 1,
+        minRestHours: 18,
+        timeBudgetSeconds: 45,
+      };
       const response = await api<{ id: string }>(
         `${base(orgId, 'scheduling')}/programs/${encodeURIComponent(programId)}/generation-runs`,
-        json({
-          seed: Number(form.get('seed')),
-          seasonStartsOn: formText(form, 'seasonStartsOn'),
-          seasonEndsOn: formText(form, 'seasonEndsOn'),
-          divisions: [
-            {
-              divisionId,
-              gamesPerTeam: Number(form.get('gamesPerTeam')),
-              allowedWeekdays: [6],
-              timeWindows: [
-                {
-                  start: formText(form, 'windowStart'),
-                  end: formText(form, 'windowEnd'),
+        json(
+          generationMode === 'tournament'
+            ? {
+                ...shared,
+                tournament: {
+                  bracketId: formText(form, 'bracketId').trim(),
+                  poolDays: formText(form, 'poolDays')
+                    .split(/[\s,]+/)
+                    .map((day) => day.trim())
+                    .filter(Boolean)
+                    .sort(),
+                  poolTimeWindow: {
+                    start: formText(form, 'windowStart'),
+                    end: formText(form, 'windowEnd'),
+                  },
                 },
-              ],
-            },
-          ],
-          maxGamesPerTeamPerDay: 1,
-          minRestHours: 18,
-          timeBudgetSeconds: 45,
-        }),
+              }
+            : {
+                ...shared,
+                divisions: [
+                  {
+                    divisionId,
+                    gamesPerTeam: Number(form.get('gamesPerTeam')),
+                    allowedWeekdays: [6],
+                    timeWindows: [
+                      {
+                        start: formText(form, 'windowStart'),
+                        end: formText(form, 'windowEnd'),
+                      },
+                    ],
+                  },
+                ],
+              },
+        ),
       );
       setRun({ id: response.id, status: 'queued', progress: 0, version: 1 });
     }, 'Generator run queued.');
@@ -988,6 +1025,23 @@ export function ScheduleConsole({
             className="schedule-form schedule-form--two"
             onSubmit={(event) => void createGeneration(event)}
           >
+            <Field label="Schedule type" required>
+              <Select
+                aria-label="Schedule type"
+                value={generationMode}
+                onChange={(event) => {
+                  setGenerationMode(
+                    event.target.value === 'tournament'
+                      ? 'tournament'
+                      : 'league',
+                  );
+                }}
+                options={[
+                  { value: 'league', label: 'Division schedule' },
+                  { value: 'tournament', label: 'Tournament pool and bracket' },
+                ]}
+              />
+            </Field>
             <Field label="Program ID" required>
               <Input
                 value={programId}
@@ -997,15 +1051,30 @@ export function ScheduleConsole({
                 required
               />
             </Field>
-            <Field label="Division ID" required>
-              <Input
-                value={divisionId}
-                onChange={(event) => {
-                  setDivisionId(event.target.value);
-                }}
-                required
-              />
-            </Field>
+            {generationMode === 'league' ? (
+              <Field label="Division ID" required>
+                <Input
+                  value={divisionId}
+                  onChange={(event) => {
+                    setDivisionId(event.target.value);
+                  }}
+                  required
+                />
+              </Field>
+            ) : (
+              <>
+                <Field label="Tournament bracket ID" required>
+                  <Input name="bracketId" required />
+                </Field>
+                <Field label="Pool dates (comma separated YYYY-MM-DD)" required>
+                  <Input
+                    name="poolDays"
+                    placeholder="2026-06-05, 2026-06-06"
+                    required
+                  />
+                </Field>
+              </>
+            )}
             <Field label="Season starts" required>
               <Input
                 name="seasonStartsOn"
@@ -1022,16 +1091,18 @@ export function ScheduleConsole({
                 required
               />
             </Field>
-            <Field label="Games per team" required>
-              <Input
-                name="gamesPerTeam"
-                type="number"
-                min={1}
-                max={100}
-                defaultValue={8}
-                required
-              />
-            </Field>
+            {generationMode === 'league' && (
+              <Field label="Games per team" required>
+                <Input
+                  name="gamesPerTeam"
+                  type="number"
+                  min={1}
+                  max={100}
+                  defaultValue={8}
+                  required
+                />
+              </Field>
+            )}
             <Field label="Random seed" required>
               <Input
                 name="seed"
@@ -1060,7 +1131,11 @@ export function ScheduleConsole({
             </Field>
             <Button
               type="submit"
-              disabled={loading || !programId || !divisionId}
+              disabled={
+                loading ||
+                !programId ||
+                (generationMode === 'league' && !divisionId)
+              }
             >
               Generate draft
             </Button>
@@ -1107,6 +1182,35 @@ export function ScheduleConsole({
                   <p>All requested games were placed.</p>
                 )
               )}
+              {run.result?.bracketReservations?.length ? (
+                <div>
+                  <h3>Reserved bracket slots</h3>
+                  <ul>
+                    {run.result.bracketReservations.map((slot) => (
+                      <li key={slot.id}>
+                        Round {String(slot.round)}: {slot.homePlaceholder} vs{' '}
+                        {slot.awayPlaceholder} at{' '}
+                        {new Date(slot.startsAt).toLocaleString()}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {run.result?.unscheduledBracketSlots?.length ? (
+                <div>
+                  <h3>Unreserved bracket games</h3>
+                  <ul>
+                    {run.result.unscheduledBracketSlots.map((slot) => (
+                      <li
+                        key={`${String(slot.round)}-${String(slot.position)}`}
+                      >
+                        Round {String(slot.round)}, game {String(slot.position)}
+                        : {slot.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               {run.status === 'succeeded' && (
                 <div className="schedule-actions">
                   <Button
@@ -2807,6 +2911,20 @@ type BracketView = {
       differential: number;
     }>;
   }>;
+  reservations: Array<{
+    id: string;
+    slot_type: 'pool' | 'bracket';
+    round_index: number;
+    position: number;
+    bracket_match_id: string | null;
+    title: string;
+    starts_at: string;
+    ends_at: string;
+    timezone: string;
+    space_id: string | null;
+    status: string;
+    published: boolean;
+  }>;
 };
 
 function TournamentPanel({
@@ -3056,6 +3174,45 @@ function TournamentPanel({
               </tbody>
             </table>
           </div>
+          {bracket.reservations.length > 0 && (
+            <>
+              <h3>Scheduled tournament slots</h3>
+              <div className="table-scroll">
+                <table className="ui-table">
+                  <thead>
+                    <tr>
+                      <th>Stage</th>
+                      <th>Round</th>
+                      <th>Game</th>
+                      <th>Matchup</th>
+                      <th>Start</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bracket.reservations.map((reservation) => (
+                      <tr key={reservation.id}>
+                        <td>{reservation.slot_type}</td>
+                        <td>{reservation.round_index}</td>
+                        <td>{reservation.position}</td>
+                        <td>{reservation.title}</td>
+                        <td>
+                          {Temporal.Instant.from(reservation.starts_at)
+                            .toZonedDateTimeISO(reservation.timezone)
+                            .toLocaleString()}
+                        </td>
+                        <td>
+                          {reservation.published
+                            ? 'Published'
+                            : `Draft · ${reservation.status}`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
           {bracket.pools.map((pool) => (
             <section key={pool.id} aria-labelledby={`pool-${pool.id}`}>
               <h3 id={`pool-${pool.id}`}>{pool.name} standings</h3>

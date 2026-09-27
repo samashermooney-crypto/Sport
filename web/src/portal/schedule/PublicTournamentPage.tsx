@@ -1,3 +1,4 @@
+import { Temporal } from '@js-temporal/polyfill';
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
@@ -30,10 +31,19 @@ type Match = {
   participant_a: unknown;
   participant_b: unknown;
 };
+type PublicReservation = {
+  slot_type: 'pool' | 'bracket';
+  round_index: number;
+  position: number;
+  title: string;
+  starts_at: string;
+  timezone: string;
+};
 type TournamentData = {
   bracket: { name: string; type: string; status: string; size: number };
   entries: Entry[];
   matches: Match[];
+  reservations: PublicReservation[];
 };
 
 function slot(value: unknown): Slot {
@@ -195,6 +205,41 @@ export function PublicTournamentPage({
         <section className="schedule-card">
           <h2>Matches</h2>
           <p>Matchups have not been generated yet.</p>
+        </section>
+      )}
+      {data.reservations.length > 0 && (
+        <section className="schedule-card" aria-labelledby="tournament-slots">
+          <h2 id="tournament-slots">Scheduled games</h2>
+          <div className="table-scroll">
+            <table className="ui-table">
+              <thead>
+                <tr>
+                  <th scope="col">Stage</th>
+                  <th scope="col">Round</th>
+                  <th scope="col">Game</th>
+                  <th scope="col">Matchup</th>
+                  <th scope="col">Start</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.reservations.map((reservation, index) => (
+                  <tr
+                    key={`${reservation.slot_type}-${String(reservation.round_index)}-${String(reservation.position)}-${String(index)}`}
+                  >
+                    <td>{reservation.slot_type}</td>
+                    <td>{reservation.round_index}</td>
+                    <td>{reservation.position}</td>
+                    <td>{reservation.title}</td>
+                    <td>
+                      {Temporal.Instant.from(reservation.starts_at)
+                        .toZonedDateTimeISO(reservation.timezone)
+                        .toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
     </main>

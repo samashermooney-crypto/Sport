@@ -1,7 +1,13 @@
-import { generateSchedule } from '@shared/algorithms/schedule-generator';
+import { Temporal } from '@js-temporal/polyfill';
+import {
+  circlePairings,
+  generateSchedule,
+  generateTournamentSchedule,
+} from '@shared/algorithms/schedule-generator';
 import type {
   GeneratorInput,
   GeneratorOutput,
+  TournamentOutput,
 } from '@shared/algorithms/schedule-generator';
 import { newId } from '@shared/ids';
 import { expand } from '@shared/recurrence';
@@ -32,6 +38,40 @@ import type {
 export const scheduleGenerationJob = 'scheduling.generate';
 export const scheduleSeriesHorizonJob = 'scheduling.extend-series';
 export const scheduleBatchEmitJob = 'scheduling.emit-change-batches';
+
+type TournamentGenerationPlan = {
+  bracketId: string;
+  divisionId: string | null;
+  poolDays: string[];
+  matchesPerBracketRound: number[];
+  participantTypes: Record<string, 'team' | 'external_team'>;
+  poolMatchIds: Record<string, { id: string; round: number; position: number }>;
+};
+
+type StoredGenerationInput =
+  | { kind: 'league'; input: GeneratorInput }
+  | {
+      kind: 'tournament';
+      input: GeneratorInput;
+      tournament: TournamentGenerationPlan;
+    };
+
+function pairKey(poolId: string, homeTeamId: string, awayTeamId: string) {
+  return [poolId, ...[homeTeamId, awayTeamId].sort()].join(':');
+}
+
+function generationSpec(value: unknown): StoredGenerationInput {
+  if (
+    value &&
+    typeof value === 'object' &&
+    'kind' in value &&
+    (value.kind === 'league' || value.kind === 'tournament') &&
+    'input' in value
+  )
+    return value as StoredGenerationInput;
+  // Existing queued runs store GeneratorInput directly.
+  return { kind: 'league', input: value as GeneratorInput };
+}
 
 let boss: PgBoss | undefined;
 let bossStarting: Promise<PgBoss> | undefined;
@@ -64,6 +104,13 @@ export async function sendSchedulingJob(
   data: unknown,
 ): Promise<string | null> {
   return (await queue()).send(name, data as Record<string, unknown>);
+}
+
+export async function stopSchedulingQueue(): Promise<void> {
+  const current = boss;
+  if (!current) return;
+  boss = undefined;
+  await current.stop();
 }
 
 function minutesBetween(start: string, end: string): number {
@@ -100,7 +147,10 @@ async function buildInput(
   orgId: string,
   programId: string,
   constraints: GeneratorConstraints,
-): Promise<GeneratorInput> {
+): Promise<{
+  input: GeneratorInput;
+  tournamentPlan?: TournamentGenerationPlan;
+}> {
   const program = await trx
     .selectFrom('programs')
     .innerJoin('sport_profiles', (join) =>
@@ -144,36 +194,231 @@ async function buildInput(
     .where('org_id', '=', orgId)
     .where('program_id', '=', programId)
     .execute();
+  const divisionSettings = constraints.divisions ?? [];
   const configured = new Map(
-    constraints.divisions.map((division) => [division.divisionId, division]),
+    divisionSettings.map((division) => [division.divisionId, division]),
   );
-  if (
-    configured.size !== constraints.divisions.length ||
-    constraints.divisions.some(
-      (division) => !divisions.some((item) => item.id === division.divisionId),
+  if (!constraints.tournament) {
+    if (
+      configured.size !== divisionSettings.length ||
+      divisionSettings.some(
+        (division) =>
+          !divisions.some((item) => item.id === division.divisionId),
+      )
     )
-  )
-    throw new SchedulingRuleError(
-      'Every generator division must belong to the selected program.',
+      throw new SchedulingRuleError(
+        'Every generator division must belong to the selected program.',
+      );
+  }
+
+  let tournamentPlan: TournamentGenerationPlan | undefined;
+  let generatorDivisionsInput: GeneratorInput['divisions'][number][];
+  let generatorTeamIds: string[];
+  if (constraints.tournament) {
+    const tournament = constraints.tournament;
+    const bracket = await trx
+      .selectFrom('brackets')
+      .select([
+        'id',
+        'program_id',
+        'division_id',
+        'type',
+        'status',
+        'third_place',
+      ])
+      .where('org_id', '=', orgId)
+      .where('id', '=', tournament.bracketId)
+      .executeTakeFirst();
+    if (!bracket || bracket.program_id !== programId)
+      throw new SchedulingRuleError(
+        'Tournament bracket must belong to the selected program.',
+        404,
+        'NOT_FOUND',
+      );
+    if (bracket.type !== 'pools_to_bracket' || bracket.status === 'draft')
+      throw new SchedulingRuleError(
+        'Generate pool-to-bracket fixtures before scheduling a tournament.',
+      );
+    const poolDays = [...tournament.poolDays];
+    const lastPoolDay = poolDays.at(-1);
+    if (
+      poolDays.some(
+        (day) =>
+          day < constraints.seasonStartsOn || day > constraints.seasonEndsOn,
+      ) ||
+      (lastPoolDay !== undefined && lastPoolDay >= constraints.seasonEndsOn)
+    )
+      throw new SchedulingRuleError(
+        'Pool dates must fit in the season and leave at least one later day for bracket play.',
+      );
+    const pools = await trx
+      .selectFrom('pools')
+      .select(['id', 'name'])
+      .where('org_id', '=', orgId)
+      .where('bracket_id', '=', bracket.id)
+      .orderBy('sort_order')
+      .orderBy('name')
+      .execute();
+    const poolMembers = pools.length
+      ? await trx
+          .selectFrom('pool_members')
+          .select(['id', 'pool_id', 'team_season_id', 'external_team_id'])
+          .where('org_id', '=', orgId)
+          .where(
+            'pool_id',
+            'in',
+            pools.map((pool) => pool.id),
+          )
+          .orderBy('seed')
+          .execute()
+      : [];
+    const entrants = await trx
+      .selectFrom('tournament_entries')
+      .select(['team_season_id', 'external_team_id'])
+      .where('org_id', '=', orgId)
+      .where('bracket_id', '=', bracket.id)
+      .where('status', 'in', ['entered', 'checked_in'])
+      .execute();
+    const entrantIds = entrants.map(
+      (entry) => entry.team_season_id ?? entry.external_team_id ?? '',
     );
-  const teamSeasons = await trx
-    .selectFrom('team_seasons')
-    .innerJoin('teams', (join) =>
-      join
-        .onRef('teams.org_id', '=', 'team_seasons.org_id')
-        .onRef('teams.id', '=', 'team_seasons.team_id'),
+    const memberIds = poolMembers.map(
+      (member) => member.team_season_id ?? member.external_team_id ?? '',
+    );
+    if (
+      !pools.length ||
+      entrants.length < 2 ||
+      memberIds.some((id) => !id) ||
+      new Set(memberIds).size !== memberIds.length ||
+      memberIds.length !== entrants.length ||
+      entrantIds.some((id) => !memberIds.includes(id)) ||
+      pools.some(
+        (pool) =>
+          poolMembers.filter((member) => member.pool_id === pool.id).length < 2,
+      )
     )
-    .select([
-      'team_seasons.id',
-      'team_seasons.division_id',
-      'team_seasons.home_facility_id',
-      'teams.id as team_id',
-    ])
-    .where('team_seasons.org_id', '=', orgId)
-    .where('team_seasons.program_id', '=', programId)
-    .where('team_seasons.status', '=', 'active')
-    .where('team_seasons.division_id', 'in', [...configured.keys()])
-    .execute();
+      throw new SchedulingRuleError(
+        'Every active tournament entry must belong to exactly one pool with at least two teams.',
+      );
+    const allPoolMatches = await trx
+      .selectFrom('bracket_matches')
+      .select(['id', 'round', 'position', 'participant_a', 'participant_b'])
+      .where('org_id', '=', orgId)
+      .where('bracket_id', '=', bracket.id)
+      .execute();
+    const poolMatchIds: TournamentGenerationPlan['poolMatchIds'] = {};
+    const expectedPoolPairKeys = new Set<string>();
+    const poolDayWeekdays = [
+      ...new Set(poolDays.map((day) => Temporal.PlainDate.from(day).dayOfWeek)),
+    ];
+    generatorDivisionsInput = pools.map((pool) => {
+      const teamIds = poolMembers
+        .filter((member) => member.pool_id === pool.id)
+        .map(
+          (member) => member.team_season_id ?? member.external_team_id ?? '',
+        );
+      const pairings = circlePairings({
+        id: pool.id,
+        teamIds,
+        allowedWeekdays: poolDayWeekdays,
+        timeWindows: [tournament.poolTimeWindow],
+        roundRobin: 'once',
+      });
+      for (const pairing of pairings)
+        expectedPoolPairKeys.add(
+          pairKey(pool.id, pairing.homeTeamId, pairing.awayTeamId),
+        );
+      return {
+        id: pool.id,
+        teamIds,
+        allowedWeekdays: poolDayWeekdays,
+        timeWindows: [tournament.poolTimeWindow],
+        roundRobin: 'once',
+      };
+    });
+    for (const match of allPoolMatches) {
+      const sideA = (match.participant_a ?? {}) as {
+        entrantId?: unknown;
+        poolId?: unknown;
+      };
+      const sideB = (match.participant_b ?? {}) as { entrantId?: unknown };
+      if (
+        typeof sideA.poolId !== 'string' ||
+        typeof sideA.entrantId !== 'string' ||
+        typeof sideB.entrantId !== 'string'
+      )
+        continue;
+      const key = pairKey(sideA.poolId, sideA.entrantId, sideB.entrantId);
+      if (expectedPoolPairKeys.has(key))
+        poolMatchIds[key] = {
+          id: match.id,
+          round: match.round,
+          position: match.position,
+        };
+    }
+    if (expectedPoolPairKeys.size !== Object.keys(poolMatchIds).length)
+      throw new SchedulingRuleError(
+        'Generate every pool round before creating a tournament schedule.',
+      );
+    const bracketSize = 2 ** Math.ceil(Math.log2(entrants.length));
+    const matchesPerBracketRound = [entrants.length - bracketSize / 2];
+    for (let remaining = bracketSize / 4; remaining >= 1; remaining /= 2)
+      matchesPerBracketRound.push(remaining);
+    if (bracket.third_place)
+      matchesPerBracketRound[matchesPerBracketRound.length - 1] =
+        (matchesPerBracketRound.at(-1) ?? 0) + 1;
+    const participantTypes: TournamentGenerationPlan['participantTypes'] = {};
+    for (const entry of entrants) {
+      if (entry.team_season_id) participantTypes[entry.team_season_id] = 'team';
+      else if (entry.external_team_id)
+        participantTypes[entry.external_team_id] = 'external_team';
+    }
+    tournamentPlan = {
+      bracketId: bracket.id,
+      divisionId: bracket.division_id,
+      poolDays,
+      matchesPerBracketRound,
+      participantTypes,
+      poolMatchIds,
+    };
+    generatorTeamIds = entrantIds;
+  } else {
+    generatorDivisionsInput = [];
+    generatorTeamIds = [];
+  }
+  const internalTeamSeasonIds = constraints.tournament
+    ? generatorTeamIds.filter(
+        (id) => tournamentPlan?.participantTypes[id] === 'team',
+      )
+    : undefined;
+  const teamSeasons =
+    internalTeamSeasonIds?.length === 0
+      ? []
+      : await trx
+          .selectFrom('team_seasons')
+          .innerJoin('teams', (join) =>
+            join
+              .onRef('teams.org_id', '=', 'team_seasons.org_id')
+              .onRef('teams.id', '=', 'team_seasons.team_id'),
+          )
+          .select([
+            'team_seasons.id',
+            'team_seasons.division_id',
+            'team_seasons.home_facility_id',
+            'teams.id as team_id',
+          ])
+          .where('team_seasons.org_id', '=', orgId)
+          .where('team_seasons.program_id', '=', programId)
+          .where('team_seasons.status', '=', 'active')
+          .$if(!constraints.tournament, (query) =>
+            query.where('team_seasons.division_id', 'in', [
+              ...configured.keys(),
+            ]),
+          )
+          .$if(Boolean(constraints.tournament), (query) =>
+            query.where('team_seasons.id', 'in', internalTeamSeasonIds ?? []),
+          )
+          .execute();
   const byDivision = new Map<string, typeof teamSeasons>();
   for (const team of teamSeasons) {
     if (!team.division_id) continue;
@@ -181,13 +426,40 @@ async function buildInput(
     current.push(team);
     byDivision.set(team.division_id, current);
   }
-  const teamIds = teamSeasons.map((team) => team.id);
-  const staffRows = teamIds.length
+  if (!constraints.tournament)
+    generatorDivisionsInput = divisionSettings.map((setting) => {
+      const teams = byDivision.get(setting.divisionId) ?? [];
+      if (teams.length < 2)
+        throw new SchedulingRuleError(
+          `Division ${setting.divisionId} needs at least two active teams.`,
+        );
+      return {
+        id: setting.divisionId,
+        teamIds: teams.map((team) => team.id),
+        allowedWeekdays: setting.allowedWeekdays,
+        timeWindows: setting.timeWindows,
+        ...(setting.gamesPerTeam === undefined
+          ? {}
+          : { gamesPerTeam: setting.gamesPerTeam }),
+        ...(setting.roundRobin === undefined
+          ? {}
+          : { roundRobin: setting.roundRobin }),
+        ...(setting.preferredStartMinutes === undefined
+          ? {}
+          : { preferredStartMinutes: setting.preferredStartMinutes }),
+        ...(setting.ageOrder === undefined
+          ? {}
+          : { ageOrder: setting.ageOrder }),
+      };
+    });
+  const teamSeasonIds = teamSeasons.map((team) => team.id);
+  const teamIds = constraints.tournament ? generatorTeamIds : teamSeasonIds;
+  const staffRows = teamSeasonIds.length
     ? await trx
         .selectFrom('team_staff')
         .select(['team_season_id', 'person_id'])
         .where('org_id', '=', orgId)
-        .where('team_season_id', 'in', teamIds)
+        .where('team_season_id', 'in', teamSeasonIds)
         .where('status', '=', 'active')
         .where('role', 'in', [
           'head_coach',
@@ -218,12 +490,12 @@ async function buildInput(
     );
     coachIds.set(row.team_season_id, ids);
   }
-  const rosterRows = teamIds.length
+  const rosterRows = teamSeasonIds.length
     ? await trx
         .selectFrom('roster_entries')
         .select(['team_season_id', 'person_id'])
         .where('org_id', '=', orgId)
-        .where('team_season_id', 'in', teamIds)
+        .where('team_season_id', 'in', teamSeasonIds)
         .where('status', 'in', ['active', 'injured', 'suspended'])
         .execute()
     : [];
@@ -248,34 +520,11 @@ async function buildInput(
     );
     householdIds.set(roster.team_season_id, ids);
   }
-  const divisionsInput = constraints.divisions.map((setting) => {
-    const teams = byDivision.get(setting.divisionId) ?? [];
-    if (teams.length < 2)
-      throw new SchedulingRuleError(
-        `Division ${setting.divisionId} needs at least two active teams.`,
-      );
-    return {
-      id: setting.divisionId,
-      teamIds: teams.map((team) => team.id),
-      allowedWeekdays: setting.allowedWeekdays,
-      timeWindows: setting.timeWindows,
-      ...(setting.gamesPerTeam === undefined
-        ? {}
-        : { gamesPerTeam: setting.gamesPerTeam }),
-      ...(setting.roundRobin === undefined
-        ? {}
-        : { roundRobin: setting.roundRobin }),
-      ...(setting.preferredStartMinutes === undefined
-        ? {}
-        : { preferredStartMinutes: setting.preferredStartMinutes }),
-      ...(setting.ageOrder === undefined ? {} : { ageOrder: setting.ageOrder }),
-    };
-  });
-  const teamsInputBase = teamSeasons.map((team) => ({
-    id: team.id,
-    coachIds: [...new Set(coachIds.get(team.id) ?? [])],
+  const teamsInputBase = teamIds.map((id) => ({
+    id,
+    coachIds: [...new Set(coachIds.get(id) ?? [])],
     blackoutDates: [] as string[],
-    householdIds: [...new Set(householdIds.get(team.id) ?? [])],
+    householdIds: [...new Set(householdIds.get(id) ?? [])],
   }));
 
   const spaces = await trx
@@ -308,12 +557,12 @@ async function buildInput(
       !childIds.has(space.id) &&
       (spaceKinds.length === 0 || spaceKinds.includes(space.kind)),
   );
-  const teamBlackouts = teamIds.length
+  const teamBlackouts = teamSeasonIds.length
     ? await trx
         .selectFrom('schedule_blackout_requests')
         .select(['team_season_id', 'starts_on', 'ends_on'])
         .where('org_id', '=', orgId)
-        .where('team_season_id', 'in', teamIds)
+        .where('team_season_id', 'in', teamSeasonIds)
         .where('status', '=', 'approved')
         .where(
           'starts_on',
@@ -485,7 +734,7 @@ async function buildInput(
       profile.sportProfileIds.length === 0 ||
       profile.sportProfileIds.includes(program.sport_profile_id);
     const suitable = sportSuitable
-      ? constraints.divisions.map((division) => division.divisionId)
+      ? generatorDivisionsInput.map((division) => division.id)
       : [];
     spaceInputs.push({
       id: leaf.id,
@@ -503,8 +752,8 @@ async function buildInput(
     throw new SchedulingRuleError(
       'No active spaces are suitable for this sport.',
     );
-  return {
-    divisions: divisionsInput,
+  const input: GeneratorInput = {
+    divisions: generatorDivisionsInput,
     teams: teamsInput,
     spaces: spaceInputs,
     seasonStartsOn: constraints.seasonStartsOn,
@@ -520,6 +769,10 @@ async function buildInput(
     seed: constraints.seed,
     timeBudgetSeconds: constraints.timeBudgetSeconds,
   };
+  return {
+    input,
+    ...(tournamentPlan ? { tournamentPlan } : {}),
+  };
 }
 
 export async function createGenerationRun(
@@ -531,7 +784,14 @@ export async function createGenerationRun(
     await assertSchedulePermission(trx, context, 'schedule.manage', {
       programId,
     });
-    const input = await buildInput(trx, context.orgId, programId, constraints);
+    const built = await buildInput(trx, context.orgId, programId, constraints);
+    const input: StoredGenerationInput = built.tournamentPlan
+      ? {
+          kind: 'tournament',
+          input: built.input,
+          tournament: built.tournamentPlan,
+        }
+      : { kind: 'league', input: built.input };
     const id = newId();
     await trx
       .insertInto('schedule_generation_runs')
@@ -614,7 +874,7 @@ export async function runScheduleGeneration(data: unknown): Promise<unknown> {
       return {
         createdBy: current.created_by,
         programId: current.program_id,
-        input: current.input as unknown as GeneratorInput,
+        generation: generationSpec(current.input),
         version: current.version + 1,
       };
     },
@@ -624,7 +884,14 @@ export async function runScheduleGeneration(data: unknown): Promise<unknown> {
     orgId,
     actor: { accountId: context.createdBy },
   };
-  const result = generateSchedule(context.input);
+  const result =
+    context.generation.kind === 'tournament'
+      ? generateTournamentSchedule(
+          context.generation.input,
+          context.generation.tournament.poolDays,
+          context.generation.tournament.matchesPerBracketRound,
+        )
+      : generateSchedule(context.generation.input);
   await withOrg(orgContext, async (trx) => {
     await trx
       .updateTable('schedule_generation_runs')
@@ -643,7 +910,16 @@ export async function runScheduleGeneration(data: unknown): Promise<unknown> {
       trx,
     );
   });
-  return { runId, unscheduled: result.unscheduled.length };
+  return {
+    runId,
+    unscheduled: result.unscheduled.length,
+    ...(context.generation.kind === 'tournament'
+      ? {
+          unscheduledBracketSlots: (result as TournamentOutput)
+            .unscheduledBracketSlots.length,
+        }
+      : {}),
+  };
 }
 
 export async function getGenerationRun(context: OrgContext, runId: string) {
@@ -665,6 +941,184 @@ export async function getGenerationRun(context: OrgContext, runId: string) {
     });
     return run;
   });
+}
+
+async function applyTournamentDraft(
+  trx: OrgTransaction,
+  context: OrgContext,
+  runId: string,
+  programId: string,
+  input: GeneratorInput,
+  plan: TournamentGenerationPlan,
+  result: TournamentOutput,
+): Promise<{ eventIds: string[]; reservationEventIds: string[] }> {
+  const eventIds: string[] = [];
+  const reservationEventIds: string[] = [];
+  const inputTeamIds = new Set(input.teams.map((team) => team.id));
+  const participantType = (teamId: string) => {
+    const type = plan.participantTypes[teamId];
+    if (!type || !inputTeamIds.has(teamId))
+      throw new SchedulingRuleError(
+        'Tournament draft references a team outside this bracket.',
+        409,
+        'SCHEDULE_CONFLICT',
+      );
+    return type;
+  };
+  const createEvent = async (args: {
+    title: string;
+    startsAt: string;
+    endsAt: string;
+    spaceId: string;
+    participants?: Array<{
+      id: string;
+      type: 'team' | 'external_team';
+      side: 'home' | 'away';
+    }>;
+  }) => {
+    const candidate = {
+      kind: 'tournament_game',
+      title: args.title,
+      startsAt: args.startsAt,
+      endsAt: args.endsAt,
+      programId,
+      divisionId: plan.divisionId,
+      spaceId: args.spaceId,
+      locationText: null,
+      notesHtml: null,
+      arrivalMinutesBefore: 0,
+      participants: args.participants ?? [],
+      published: false,
+    } as EventCreateWithOverrideInput;
+    const conflicts = await getConflicts(trx, context, candidate);
+    if (conflicts.length)
+      throw new SchedulingRuleError(
+        'The tournament draft contains a conflict and could not be applied.',
+        409,
+        'SCHEDULE_CONFLICT',
+        { conflicts },
+      );
+    const id = newId();
+    const { timezone, bufferMinutes } = await resolveTimezoneAndBuffer(
+      trx,
+      context.orgId,
+      args.spaceId,
+      programId,
+    );
+    const event = await trx
+      .insertInto('events')
+      .values({
+        id,
+        org_id: context.orgId,
+        program_id: programId,
+        division_id: plan.divisionId,
+        kind: 'tournament_game',
+        title: args.title,
+        starts_at: new Date(args.startsAt),
+        ends_at: new Date(args.endsAt),
+        timezone,
+        space_id: args.spaceId,
+        generation_run_id: runId,
+        published: false,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    for (const participant of args.participants ?? []) {
+      const type = participantType(participant.id);
+      await trx
+        .insertInto('event_participants')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          event_id: id,
+          team_season_id: type === 'team' ? participant.id : null,
+          external_team_id: type === 'external_team' ? participant.id : null,
+          side: participant.side,
+        })
+        .execute();
+    }
+    await insertSpaceBooking(
+      trx,
+      context.orgId,
+      args.spaceId,
+      event.starts_at,
+      event.ends_at,
+      bufferMinutes,
+      id,
+    );
+    eventIds.push(id);
+    return id;
+  };
+
+  for (const draft of result.draftEvents) {
+    const poolMatch =
+      plan.poolMatchIds[
+        pairKey(draft.divisionId, draft.homeTeamId, draft.awayTeamId)
+      ];
+    if (!poolMatch)
+      throw new SchedulingRuleError(
+        'Tournament draft references a pool match outside the generated bracket.',
+        409,
+        'SCHEDULE_CONFLICT',
+      );
+    const eventId = await createEvent({
+      title: 'Pool game',
+      startsAt: draft.startsAt,
+      endsAt: draft.endsAt,
+      spaceId: draft.spaceId,
+      participants: [
+        {
+          id: draft.homeTeamId,
+          type: participantType(draft.homeTeamId),
+          side: 'home',
+        },
+        {
+          id: draft.awayTeamId,
+          type: participantType(draft.awayTeamId),
+          side: 'away',
+        },
+      ],
+    });
+    await trx
+      .insertInto('tournament_schedule_reservations')
+      .values({
+        id: newId(),
+        org_id: context.orgId,
+        bracket_id: plan.bracketId,
+        bracket_match_id: poolMatch.id,
+        event_id: eventId,
+        slot_type: 'pool',
+        round_index: poolMatch.round,
+        position: poolMatch.position,
+      })
+      .execute();
+  }
+
+  for (const reservation of result.bracketReservations) {
+    const eventId = await createEvent({
+      title: `Round ${String(reservation.round)}: ${reservation.homePlaceholder} vs ${reservation.awayPlaceholder}`,
+      startsAt: reservation.startsAt,
+      endsAt: reservation.endsAt,
+      spaceId: reservation.spaceId,
+    });
+    await trx
+      .insertInto('tournament_schedule_reservations')
+      .values({
+        id: newId(),
+        org_id: context.orgId,
+        bracket_id: plan.bracketId,
+        bracket_match_id: null,
+        event_id: eventId,
+        slot_type: 'bracket',
+        round_index: reservation.round,
+        position: Number(reservation.id.split('-').at(-1)),
+        home_placeholder: reservation.homePlaceholder,
+        away_placeholder: reservation.awayPlaceholder,
+      })
+      .execute();
+    reservationEventIds.push(eventId);
+  }
+  return { eventIds, reservationEventIds };
 }
 
 export async function applyGenerationRun(
@@ -695,103 +1149,122 @@ export async function applyGenerationRun(
         409,
         'CONFLICT',
       );
-    const input = run.input as unknown as GeneratorInput;
-    const result = run.result as unknown as GeneratorOutput;
+    const generation = generationSpec(run.input);
+    const input = generation.input;
+    const result = run.result as unknown as GeneratorOutput | TournamentOutput;
     const ids: string[] = [];
-    for (const draft of result.draftEvents) {
-      const id = newId();
-      const proposed = {
-        id: draft.homeTeamId,
-        awayId: draft.awayTeamId,
-      };
-      const division = input.divisions.find(
-        (item) => item.id === draft.divisionId,
-      );
-      if (!division)
-        throw new SchedulingRuleError(
-          'Generator result references a missing division.',
-          409,
-          'SCHEDULE_CONFLICT',
-        );
-      const candidate = {
-        kind: 'game',
-        title: 'Game',
-        startsAt: draft.startsAt,
-        endsAt: draft.endsAt,
-        programId: run.program_id,
-        divisionId: draft.divisionId,
-        spaceId: draft.spaceId,
-        locationText: null,
-        notesHtml: null,
-        arrivalMinutesBefore: 0,
-        participants: [
-          { type: 'team' as const, id: proposed.id, side: 'home' as const },
-          { type: 'team' as const, id: proposed.awayId, side: 'away' as const },
-        ],
-        published: false,
-      } as EventCreateWithOverrideInput;
-      const conflicts = await getConflicts(trx, context, candidate);
-      if (conflicts.length)
-        throw new SchedulingRuleError(
-          'The draft contains a conflict and could not be applied.',
-          409,
-          'SCHEDULE_CONFLICT',
-          { conflicts },
-        );
-      const { timezone, bufferMinutes } = await resolveTimezoneAndBuffer(
+    let reservationEventIds: string[] = [];
+    if (generation.kind === 'tournament') {
+      const applied = await applyTournamentDraft(
         trx,
-        context.orgId,
-        draft.spaceId,
+        context,
+        runId,
         run.program_id,
+        input,
+        generation.tournament,
+        result as TournamentOutput,
       );
-      const event = await trx
-        .insertInto('events')
-        .values({
-          id,
-          org_id: context.orgId,
-          program_id: run.program_id,
-          division_id: draft.divisionId,
+      ids.push(...applied.eventIds);
+      reservationEventIds = applied.reservationEventIds;
+    } else
+      for (const draft of result.draftEvents) {
+        const id = newId();
+        const proposed = {
+          id: draft.homeTeamId,
+          awayId: draft.awayTeamId,
+        };
+        const division = input.divisions.find(
+          (item) => item.id === draft.divisionId,
+        );
+        if (!division)
+          throw new SchedulingRuleError(
+            'Generator result references a missing division.',
+            409,
+            'SCHEDULE_CONFLICT',
+          );
+        const candidate = {
           kind: 'game',
           title: 'Game',
-          starts_at: new Date(draft.startsAt),
-          ends_at: new Date(draft.endsAt),
-          timezone,
-          space_id: draft.spaceId,
-          generation_run_id: runId,
+          startsAt: draft.startsAt,
+          endsAt: draft.endsAt,
+          programId: run.program_id,
+          divisionId: draft.divisionId,
+          spaceId: draft.spaceId,
+          locationText: null,
+          notesHtml: null,
+          arrivalMinutesBefore: 0,
+          participants: [
+            { type: 'team' as const, id: proposed.id, side: 'home' as const },
+            {
+              type: 'team' as const,
+              id: proposed.awayId,
+              side: 'away' as const,
+            },
+          ],
           published: false,
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
-      await trx
-        .insertInto('event_participants')
-        .values([
-          {
-            id: newId(),
+        } as EventCreateWithOverrideInput;
+        const conflicts = await getConflicts(trx, context, candidate);
+        if (conflicts.length)
+          throw new SchedulingRuleError(
+            'The draft contains a conflict and could not be applied.',
+            409,
+            'SCHEDULE_CONFLICT',
+            { conflicts },
+          );
+        const { timezone, bufferMinutes } = await resolveTimezoneAndBuffer(
+          trx,
+          context.orgId,
+          draft.spaceId,
+          run.program_id,
+        );
+        const event = await trx
+          .insertInto('events')
+          .values({
+            id,
             org_id: context.orgId,
-            event_id: id,
-            team_season_id: proposed.id,
-            side: 'home',
-          },
-          {
-            id: newId(),
-            org_id: context.orgId,
-            event_id: id,
-            team_season_id: proposed.awayId,
-            side: 'away',
-          },
-        ])
-        .execute();
-      await insertSpaceBooking(
-        trx,
-        context.orgId,
-        draft.spaceId,
-        event.starts_at,
-        event.ends_at,
-        bufferMinutes,
-        id,
-      );
-      ids.push(id);
-    }
+            program_id: run.program_id,
+            division_id: draft.divisionId,
+            kind: 'game',
+            title: 'Game',
+            starts_at: new Date(draft.startsAt),
+            ends_at: new Date(draft.endsAt),
+            timezone,
+            space_id: draft.spaceId,
+            generation_run_id: runId,
+            published: false,
+          })
+          .returningAll()
+          .executeTakeFirstOrThrow();
+        await trx
+          .insertInto('event_participants')
+          .values([
+            {
+              id: newId(),
+              org_id: context.orgId,
+              event_id: id,
+              team_season_id: proposed.id,
+              side: 'home',
+            },
+            {
+              id: newId(),
+              org_id: context.orgId,
+              event_id: id,
+              team_season_id: proposed.awayId,
+              side: 'away',
+            },
+          ])
+          .execute();
+        await insertSpaceBooking(
+          trx,
+          context.orgId,
+          draft.spaceId,
+          event.starts_at,
+          event.ends_at,
+          bufferMinutes,
+          id,
+        );
+        ids.push(id);
+      }
     const updated = await trx
       .updateTable('schedule_generation_runs')
       .set({
@@ -812,7 +1285,18 @@ export async function applyGenerationRun(
       entityId: runId,
       changes: { eventCount: { tier: 'internal', after: ids.length } },
     });
-    return { runId, eventIds: ids, unscheduled: result.unscheduled };
+    return {
+      runId,
+      eventIds: ids,
+      unscheduled: result.unscheduled,
+      ...(generation.kind === 'tournament'
+        ? {
+            bracketReservationEventIds: reservationEventIds,
+            unscheduledBracketSlots: (result as TournamentOutput)
+              .unscheduledBracketSlots,
+          }
+        : {}),
+    };
   });
 }
 

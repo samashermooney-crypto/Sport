@@ -503,3 +503,11 @@
 - **Decision:** The public bracket endpoint returns only the bracket title, type, size, status, public team display names, seeds, match positions, contest links, and matchup slots.
 - **Why:** Visitors need match information, while internal configuration and aggregate metadata do not help them follow a tournament.
 - **Consequences / follow-ups:** Add any additional public-facing tournament content through an explicit allowlisted response shape.
+
+### DEC-066 — Persist tournament schedule reservations separately from bracket matches
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 9 tournament scheduling
+- **Context:** Pool games can be scheduled before their match rows are played, while elimination match rows for pool tournaments are not created until final pool standings are known.
+- **Decision:** Persist each scheduled pool game and reserved bracket slot in a tenant-scoped reservation table; attach bracket match IDs when they are available and retain event IDs for the full schedule history.
+- **Why:** The shared tournament generator can reserve real space and time before the bracket is seeded without inventing placeholder bracket rows or losing schedule-to-match links.
+- **Consequences / follow-ups:** Tournament event creation and match binding must run transactionally, and bracket views must expose reservation times only through the authorized tournament response.

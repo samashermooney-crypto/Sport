@@ -48,6 +48,11 @@ type ContestParticipant = {
   flight: number | null;
 };
 
+type BracketSlotSnapshot = {
+  entrantId?: string | null;
+  poolId?: string | null;
+};
+
 function numeric(value: unknown): number {
   const result = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(result))
@@ -195,7 +200,76 @@ export async function createContest(
         409,
         'CONFLICT',
       );
+    const reservation = await trx
+      .selectFrom('tournament_schedule_reservations')
+      .select(['bracket_id', 'bracket_match_id'])
+      .where('org_id', '=', context.orgId)
+      .where('event_id', '=', eventId)
+      .executeTakeFirst();
+    const scheduledMatch = reservation?.bracket_match_id
+      ? await trx
+          .selectFrom('bracket_matches')
+          .selectAll()
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', reservation.bracket_match_id)
+          .executeTakeFirst()
+      : undefined;
+    if (reservation && !scheduledMatch)
+      throw new SchedulingRuleError(
+        'This tournament slot is waiting for its bracket matchup to be seeded.',
+        409,
+        'CONFLICT',
+      );
+    if (scheduledMatch) {
+      const existingEventParticipants = await trx
+        .selectFrom('event_participants')
+        .select('id')
+        .where('org_id', '=', context.orgId)
+        .where('event_id', '=', eventId)
+        .executeTakeFirst();
+      if (!existingEventParticipants) {
+        for (const [snapshot, side] of [
+          [scheduledMatch.participant_a, 'home'],
+          [scheduledMatch.participant_b, 'away'],
+        ] as const) {
+          const entrantId = (snapshot as BracketSlotSnapshot | null)?.entrantId;
+          if (!entrantId) continue;
+          const entry = await trx
+            .selectFrom('tournament_entries')
+            .select(['team_season_id', 'external_team_id'])
+            .where('org_id', '=', context.orgId)
+            .where('bracket_id', '=', reservation?.bracket_id ?? '')
+            .where((eb) =>
+              eb.or([
+                eb('team_season_id', '=', entrantId),
+                eb('external_team_id', '=', entrantId),
+              ]),
+            )
+            .executeTakeFirst();
+          if (!entry)
+            throw new SchedulingRuleError(
+              'A seeded bracket participant could not be resolved.',
+              409,
+              'CONFLICT',
+            );
+          await trx
+            .insertInto('event_participants')
+            .values({
+              id: newId(),
+              org_id: context.orgId,
+              event_id: eventId,
+              team_season_id: entry.team_season_id,
+              external_team_id: entry.external_team_id,
+              side,
+            })
+            .execute();
+        }
+      }
+    }
     const contestId = newId();
+    const poolMatch = Boolean(
+      (scheduledMatch?.participant_a as BracketSlotSnapshot | null)?.poolId,
+    );
     await trx
       .insertInto('contests')
       .values({
@@ -206,8 +280,15 @@ export async function createContest(
         profile_version: sportProfile.version,
         format: format.format,
         format_config: format as unknown as import('../../db/types').Json,
-        stage: input.stage,
-        counts_for_standings: input.countsForStandings,
+        stage: scheduledMatch
+          ? poolMatch
+            ? 'pool'
+            : 'tournament'
+          : input.stage,
+        counts_for_standings: scheduledMatch
+          ? poolMatch
+          : input.countsForStandings,
+        bracket_match_id: scheduledMatch?.id ?? null,
       })
       .execute();
     const eventParticipants = await trx
@@ -235,6 +316,25 @@ export async function createContest(
           })
           .execute();
       }
+    }
+    if (scheduledMatch) {
+      const linked = await trx
+        .updateTable('bracket_matches')
+        .set({
+          contest_id: contestId,
+          version: scheduledMatch.version + 1,
+        })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', scheduledMatch.id)
+        .where('contest_id', 'is', null)
+        .returning('id')
+        .executeTakeFirst();
+      if (!linked)
+        throw new SchedulingRuleError(
+          'This tournament match already has a contest.',
+          409,
+          'CONFLICT',
+        );
     }
     await appendAuditEvent(trx, context, {
       action: 'contest.create',
