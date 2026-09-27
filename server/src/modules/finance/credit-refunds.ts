@@ -82,6 +82,16 @@ export class CreditRefundService {
         !(await this.approvals.isAuthorizedSecondApprover(
           input.orgId,
           input.approvedByAccountId,
+          {
+            orgId: input.orgId,
+            paymentId: input.paymentId,
+            operationKey: input.idempotencyKey,
+            destination: 'credit',
+            recipient: input.recipient,
+            cancellationDate: input.cancellationDate,
+            requestedByAccountId: input.requestedByAccountId,
+            proposal,
+          },
         ))
       )
         throw new RefundConflictError(

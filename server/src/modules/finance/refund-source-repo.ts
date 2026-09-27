@@ -98,6 +98,7 @@ export class PostgresRefundSourceReader implements RefundSourceReader {
         .select(['id', 'kind', 'amount_cents', 'refundable', 'parent_line_id'])
         .where('org_id', '=', orgId)
         .where('invoice_id', '=', row.invoice_id)
+        .orderBy('id')
         .execute();
       const serviceFees = lines.filter((line) => line.kind === 'service_fee');
       if (serviceFees.length > 1)

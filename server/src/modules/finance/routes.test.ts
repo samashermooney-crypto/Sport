@@ -16,7 +16,7 @@ import type { AuthDependencies } from '../auth/routes.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
-import { createFinanceRouter } from './routes.js';
+import { createFinanceRouter, refundResponseSchema } from './routes.js';
 
 const origin = 'http://127.0.0.1:5173';
 const now = new Date('2026-09-27T12:00:00Z');
@@ -221,5 +221,185 @@ describe('staff refund HTTP', () => {
     const replay = await request(key);
     expect(replay.status).toBe(201);
     expect(createRefund).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires a different stepped-up finance account for an above-threshold refund', async () => {
+    createRefund.mockResolvedValue({
+      id: 're_route_second',
+      status: 'pending',
+      amountCents: 500,
+    });
+    const requesterId = context.actor.accountId;
+    const approverId = newId();
+    const approverToken = randomBytes(32).toString('base64url');
+    await database
+      .insertInto('accounts')
+      .values({
+        id: approverId,
+        email: `refund-approver-${randomUUID()}@example.invalid`,
+        first_name: 'Second',
+        last_name: 'Approver',
+        date_of_birth: '1990-01-01',
+      })
+      .execute();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('org_memberships')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          account_id: approverId,
+          status: 'active',
+          joined_at: now,
+        })
+        .execute();
+      await trx
+        .insertInto('role_assignments')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          account_id: approverId,
+          role: 'finance',
+          scope_type: 'org',
+          pending_mfa: false,
+        })
+        .execute();
+    });
+    const approverSessionId = newId();
+    await database
+      .insertInto('sessions')
+      .values({
+        id: approverSessionId,
+        account_id: approverId,
+        token_hash: createHash('sha256').update(approverToken).digest(),
+        kind: 'cookie',
+        client: 'web',
+        privileged: false,
+        idle_expires_at: new Date(now.getTime() + 60 * 60 * 1000),
+        absolute_expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+      })
+      .execute();
+    const invoice = await new PostgresInvoiceRepository(
+      database,
+      context,
+    ).issue({
+      orgId: context.orgId,
+      accountId: requesterId,
+      source: 'checkout',
+      creationKey: randomUUID(),
+      refundTerms: {
+        policy: {
+          rules: [],
+          afterLastBps: 5000,
+          serviceFeeRefund: 'proportional',
+        },
+        approvalThresholdCents: 400,
+        refundApplicationFee: true,
+      },
+      lines: [
+        {
+          kind: 'registration',
+          description: 'Registration',
+          amountCents: 1000,
+          refundable: true,
+        },
+      ],
+    });
+    const checkoutId = newId();
+    const paymentIntentId = `pi_${randomUUID()}`;
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .insertInto('checkouts')
+        .values({
+          id: checkoutId,
+          org_id: context.orgId,
+          account_id: requesterId,
+          status: 'awaiting_payment',
+          expires_at: new Date('2027-01-01T00:00:00Z'),
+          pricing_snapshot: { totalCents: 1000 },
+        })
+        .execute(),
+    );
+    await new PostgresPaymentRecordStore(database, context).recordPending({
+      orgId: context.orgId,
+      checkoutId,
+      invoiceId: invoice.id,
+      accountId: requesterId,
+      paymentIntentId,
+      amountCents: 1000,
+      applicationFeeCents: 10,
+      idempotencyKey: randomUUID(),
+    });
+    await new PostgresPaymentEventRepository(database, requesterId, () =>
+      Temporal.Instant.from(now.toISOString()),
+    ).applyLatest({
+      orgId: context.orgId,
+      paymentIntentId,
+      latest: {
+        id: paymentIntentId,
+        clientSecret: null,
+        status: 'succeeded',
+        amountCents: 1000,
+        latestChargeId: `ch_${randomUUID()}`,
+        method: 'card',
+      },
+    });
+    const secondPaymentId = (
+      await createWithOrg(database)(context, (trx) =>
+        trx
+          .selectFrom('payments')
+          .select('id')
+          .where('org_id', '=', context.orgId)
+          .where('stripe_payment_intent_id', '=', paymentIntentId)
+          .executeTakeFirstOrThrow(),
+      )
+    ).id;
+    const key = randomUUID();
+    const body = JSON.stringify({
+      destination: 'original_method',
+      paymentId: secondPaymentId,
+      cancellationDate: '2026-09-27',
+    });
+    const post = (path: string, sessionToken: string, withBody = true) =>
+      fetch(`${baseUrl}/orgs/${context.orgId}/${path}`, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${sessionToken}`,
+          Origin: origin,
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': key,
+          'Content-Type': 'application/json',
+        },
+        ...(withBody ? { body } : {}),
+      });
+    expect((await post('refunds', token)).status).toBe(409);
+    const requested = await post('refund-approvals', token);
+    expect(requested.status).toBe(201);
+    const approval = (await requested.json()) as {
+      id: string;
+      status: string;
+      amountCents: number;
+    };
+    expect(approval).toMatchObject({ status: 'pending', amountCents: 500 });
+    const approvalPath = `refund-approvals/${approval.id}/approve`;
+    expect((await post(approvalPath, token, false)).status).toBe(403);
+    expect((await post(approvalPath, approverToken, false)).status).toBe(403);
+    await database
+      .updateTable('sessions')
+      .set({ elevated_until: new Date(now.getTime() + 15 * 60 * 1000) })
+      .where('id', '=', approverSessionId)
+      .execute();
+    expect((await post(approvalPath, approverToken, false)).status).toBe(200);
+    const executed = await post('refunds', token);
+    const executedBody = refundResponseSchema.parse(
+      (await executed.json()) as unknown,
+    );
+    expect(executed.status, JSON.stringify(executedBody)).toBe(201);
+    expect(executedBody).toMatchObject({
+      amountCents: 500,
+      refundId: 're_route_second',
+    });
+    expect((await post('refunds', token)).status).toBe(201);
+    expect(createRefund).toHaveBeenCalledTimes(2);
   });
 });

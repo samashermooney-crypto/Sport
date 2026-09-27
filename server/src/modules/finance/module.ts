@@ -6,6 +6,8 @@ import {
   offlinePaymentReceiptSchema,
   refundBodySchema,
   refundResponseSchema,
+  refundApprovalResponseSchema,
+  refundApprovalDecisionSchema,
 } from './routes.js';
 
 export const moduleDefinition = {
@@ -30,6 +32,19 @@ export const moduleDefinition = {
       summary: 'Create a policy-based refund to original method or credit',
       body: refundBodySchema,
       response: refundResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/refund-approvals',
+      summary: 'Request a second finance approval for a refund',
+      body: refundBodySchema,
+      response: refundApprovalResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/refund-approvals/{approvalId}/approve',
+      summary: 'Approve a refund with a separate stepped-up finance session',
+      response: refundApprovalDecisionSchema,
     },
   ],
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };

@@ -11,7 +11,6 @@ import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresOfflinePayments } from './offline-payments.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
-import { PostgresRefundApprovalPolicy } from './refund-approval-repo.js';
 import { FinanceAccessError, requireFinanceStaff } from './staff-access.js';
 
 let database: Kysely<DB>;
@@ -92,16 +91,9 @@ afterAll(async () => {
 
 describe('offline payments', () => {
   it('requires active finance access with completed MFA', async () => {
-    const approvals = new PostgresRefundApprovalPolicy(database);
     await expect(
       requireFinanceStaff(database, context),
     ).resolves.toBeUndefined();
-    expect(
-      await approvals.isAuthorizedSecondApprover(
-        context.orgId,
-        context.actor.accountId,
-      ),
-    ).toBe(true);
     await createWithOrg(database)(context, (trx) =>
       trx
         .updateTable('role_assignments')
@@ -113,12 +105,6 @@ describe('offline payments', () => {
     await expect(requireFinanceStaff(database, context)).rejects.toBeInstanceOf(
       FinanceAccessError,
     );
-    expect(
-      await approvals.isAuthorizedSecondApprover(
-        context.orgId,
-        context.actor.accountId,
-      ),
-    ).toBe(false);
     await createWithOrg(database)(context, (trx) =>
       trx
         .updateTable('role_assignments')

@@ -20,7 +20,11 @@ import { PostgresRefundApprovalPolicy } from './refund-approval-repo.js';
 import { PostgresRefundAttemptStore } from './refund-attempt-repo.js';
 import { PostgresRefundRecordStore } from './refund-record-repo.js';
 import { PostgresRefundSourceReader } from './refund-source-repo.js';
-import { RefundConflictError, StripeRefundService } from './refunds.js';
+import {
+  refundProposal,
+  RefundConflictError,
+  StripeRefundService,
+} from './refunds.js';
 import { FinanceAccessError, requireFinanceStaff } from './staff-access.js';
 
 export const offlinePaymentBodySchema = z.strictObject({
@@ -61,6 +65,14 @@ export const refundResponseSchema = z.discriminatedUnion('destination', [
     amountCents: z.number().int().positive(),
   }),
 ]);
+export const refundApprovalResponseSchema = z.strictObject({
+  id: z.uuid(),
+  status: z.enum(['pending', 'approved', 'rejected']),
+  amountCents: z.number().int().positive(),
+});
+export const refundApprovalDecisionSchema = z.strictObject({
+  approved: z.literal(true),
+});
 
 class FinanceDependencyError extends Error {
   readonly status = 503;
@@ -181,11 +193,17 @@ export function createFinanceRouter(
         context,
       );
       const approvals = new PostgresRefundApprovalPolicy(dependencies.database);
+      const approvedByAccountId = await approvals.approvedByKey(
+        orgId,
+        idempotencyKey,
+        session.accountId,
+      );
       const common = {
         orgId,
         paymentId: input.paymentId,
         cancellationDate: input.cancellationDate,
         requestedByAccountId: session.accountId,
+        ...(approvedByAccountId ? { approvedByAccountId } : {}),
         idempotencyKey,
       };
       if (input.destination === 'credit') {
@@ -228,5 +246,73 @@ export function createFinanceRouter(
       sendError(response, error);
     }
   });
+  router.post('/orgs/:orgId/refund-approvals', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const input = refundBodySchema.parse(request.body as unknown);
+      const operationKey = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const source = await new PostgresRefundSourceReader(
+        dependencies.database,
+        context,
+      ).load(orgId, input.paymentId);
+      if (!source) throw new RefundConflictError('Payment not found');
+      const proposal = refundProposal(source, input.cancellationDate);
+      if (proposal.totalCents <= source.approvalThresholdCents)
+        throw new RefundConflictError(
+          'Refund does not require second approval',
+        );
+      const result = await new PostgresRefundApprovalPolicy(
+        dependencies.database,
+      ).request({
+        orgId,
+        paymentId: input.paymentId,
+        operationKey,
+        destination: input.destination,
+        recipient: input.destination === 'credit' ? input.recipient : null,
+        cancellationDate: input.cancellationDate,
+        requestedByAccountId: session.accountId,
+        proposal,
+      });
+      response.status(201).json(refundApprovalResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/orgs/:orgId/refund-approvals/:approvalId/approve',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        if (
+          !session.elevatedUntil ||
+          session.elevatedUntil <= dependencies.clock()
+        )
+          throw new FinanceAccessError();
+        const orgId = z.uuid().parse(request.params.orgId);
+        const approvalId = z.uuid().parse(request.params.approvalId);
+        await new PostgresRefundApprovalPolicy(dependencies.database).approve(
+          orgId,
+          approvalId,
+          session.accountId,
+        );
+        response.json(refundApprovalDecisionSchema.parse({ approved: true }));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   return router;
 }

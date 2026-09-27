@@ -9,6 +9,8 @@ import {
 
 import type { PaymentsGateway } from '../../integrations/stripe/gateway.js';
 
+import type { RefundApprovalInput } from './refund-approval-repo.js';
+
 export interface RefundSource {
   orgId: string;
   paymentId: string;
@@ -39,6 +41,7 @@ export interface RefundApprovalPolicy {
   isAuthorizedSecondApprover(
     orgId: string,
     accountId: string,
+    input: RefundApprovalInput,
   ): Promise<boolean>;
 }
 
@@ -123,7 +126,6 @@ function hashRequest(input: RefundRequest): string {
         paymentId: input.paymentId,
         cancellationDate: input.cancellationDate,
         requestedByAccountId: input.requestedByAccountId,
-        approvedByAccountId: input.approvedByAccountId ?? null,
       }),
     )
     .digest('hex');
@@ -179,6 +181,16 @@ export class StripeRefundService {
           !(await this.approvals.isAuthorizedSecondApprover(
             input.orgId,
             input.approvedByAccountId,
+            {
+              orgId: input.orgId,
+              paymentId: input.paymentId,
+              operationKey: input.idempotencyKey,
+              destination: 'original_method',
+              recipient: null,
+              cancellationDate: input.cancellationDate,
+              requestedByAccountId: input.requestedByAccountId,
+              proposal,
+            },
           ))
         ) {
           throw new RefundConflictError(
