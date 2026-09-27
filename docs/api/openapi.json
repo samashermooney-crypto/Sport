@@ -297,7 +297,8 @@
                   },
                   "termsAccepted": { "type": "boolean", "const": true },
                   "privacyAccepted": { "type": "boolean", "const": true },
-                  "captchaToken": { "type": "string", "minLength": 1 }
+                  "captchaToken": { "type": "string", "minLength": 1 },
+                  "locale": { "type": "string", "enum": ["en", "es"] }
                 },
                 "required": [
                   "email",
