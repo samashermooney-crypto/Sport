@@ -76,3 +76,5 @@ Merge status: this WIP was not merged. At the last trunk check, `../Sport-trunk`
 Open ownership requests: Track C owns `server/src/app.ts`, `server/src/worker.ts`, route/registry wiring, generated OpenAPI freshness, hourly full gates, and `docs/codex/PROGRESS.md`. Track A should send C any generated API/registry work required by changed contracts rather than editing C-owned wiring. No owner question is pending.
 
 Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_a_identity`, `PORT_OFFSET=8000` (Postgres host port 13432). Test URLs: `DATABASE_ADMIN_URL=postgres://athlentry_admin@127.0.0.1:13432/athlentry_test` and `DATABASE_APP_URL=postgres://athlentry_app@127.0.0.1:13432/athlentry_test`.
+
+HANDED OFF 10:57
