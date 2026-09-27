@@ -29,6 +29,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Schedule console and portal routes export the names expected by the generated nested-route registry, so they mount in the app router.
 - [x] Family RSVP portal writes include the same-origin request marker; guardian RSVP persists for a rostered athlete and passes the Chromium/WebKit mobile browser journey.
 - [x] Coach game-day attendance and result writes include the same-origin request marker; offline attendance syncs while a concurrently changed result remains queued with a visible conflict.
+- [x] Coach game-day acceptance now verifies injured and suspended roster flags, allergy and emergency-contact details, minimum-play warnings, saved lineup entries, and the offline result-conflict flow. Fixed lineup persistence to encode entry arrays as JSONB rather than letting node-postgres treat them as SQL arrays.
 - [x] Lineup suspension checks now call Track F's discipline policy. The save transaction commits the policy's audit event before returning the 409 conflict; an integration test covers both the denial and durable audit record.
 - [x] `npm run registry` regenerated 20 server modules, 6 integrations, 7 web features and nested routes; `npm run openapi` documents the program-stat settings and leaderboard APIs.
 
@@ -63,6 +64,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Tournament browser journey passes on Chromium desktop and WebKit mobile with axe: the console generates a 13-team double-elimination bracket with three persisted opening byes, then the public route renders seeded teams and print controls.
 - [x] Season-end browser journey passes on Chromium desktop and WebKit mobile with axe: Spanish family response appears in survey results, certificate print contains the awarded athlete/title, coach rating persists, and completed season status becomes archived.
 - [x] Offline coach game-day journey passes on Chromium desktop and WebKit mobile with axe: attendance and score queue offline, attendance syncs after reconnect, and the newer server score is preserved while the score conflict remains visible.
+- [x] Expanded offline coach game-day journey passes on Chromium desktop and WebKit mobile with axe (2/2); the attendance service integration regression passes (1/1), and targeted ESLint passes after the JSONB lineup fix.
 - [x] All 12 G-owned schedule journeys pass together on Chromium desktop and WebKit mobile with axe: 24/24 tests, including UTC org-, facility-, and space-closure conversion checks and Chicago/Phoenix DST-spanning series edits.
 - [x] After the closure timezone fix, `npm run typecheck`, full `npm run lint`, and `npm run build` pass; the focused UTC stats/closure journey passes on both Chromium and WebKit.
 - [x] Chromium + WebKit mobile baseline E2E: 38 passed, 4 failed, 4 skipped; failures were unrelated sign-in, ownership-transfer and people journeys, and no G schedule journey ran.
