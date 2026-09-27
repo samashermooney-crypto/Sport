@@ -951,8 +951,10 @@ export interface Files {
 
 export interface FinanceNoticeOutbox {
   account_id: string;
+  attachment_pdf: Buffer | null;
   attempts: Generated<number>;
   created_at: Generated<Timestamp>;
+  delivery_email: string | null;
   id: string;
   kind: string;
   last_error: string | null;
