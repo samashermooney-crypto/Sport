@@ -87,6 +87,7 @@ import {
   staffMethodConsentResponseSchema,
   stripeClientConfigSchema,
 } from './routes.js';
+import { runFinanceStripeEventJob } from './stripe-event-job.js';
 import {
   taxRateBodySchema,
   taxRateListSchema,
@@ -100,6 +101,10 @@ export const moduleDefinition = {
   path: '/api/v1/finance',
   router: createFinanceRouter,
   jobs: [
+    {
+      name: 'stripe.event',
+      run: runFinanceStripeEventJob,
+    },
     {
       name: 'finance.deliver-notices',
       cron: '* * * * *',
