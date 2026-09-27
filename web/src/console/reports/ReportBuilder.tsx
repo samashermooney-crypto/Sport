@@ -50,6 +50,7 @@ type ReportPreset = {
   timeGrain?: TimeGrain;
   aggregate: { fn: 'count' | 'sum'; column: string };
   sortColumn: string;
+  filters?: ReportFilter[];
 };
 
 const reportPresets: readonly ReportPreset[] = [
@@ -150,6 +151,45 @@ const reportPresets: readonly ReportPreset[] = [
     groupBy: ['campaign_name'],
     aggregate: { fn: 'sum', column: 'amount_cents' },
     sortColumn: 'sum_amount_cents',
+  },
+  {
+    label: 'Volunteer completion by status',
+    dataset: 'volunteers',
+    columns: ['status'],
+    groupBy: ['status'],
+    aggregate: { fn: 'count', column: 'id' },
+    sortColumn: 'status',
+  },
+  {
+    label: 'Financial aid awarded by program',
+    dataset: 'aid_awards',
+    columns: ['program_name'],
+    filters: [
+      {
+        column: 'status',
+        op: 'in',
+        value: ['awarded', 'partially_awarded'],
+      },
+    ],
+    groupBy: ['program_name'],
+    aggregate: { fn: 'sum', column: 'award_cents' },
+    sortColumn: 'sum_award_cents',
+  },
+  {
+    label: 'Uniform quantities by size',
+    dataset: 'uniform_sizes',
+    columns: ['product_name', 'size'],
+    filters: [
+      { column: 'product_kind', op: 'eq', value: 'uniform' },
+      {
+        column: 'order_status',
+        op: 'in',
+        value: ['paid', 'fulfilling', 'fulfilled'],
+      },
+    ],
+    groupBy: ['product_name', 'size'],
+    aggregate: { fn: 'sum', column: 'quantity' },
+    sortColumn: 'product_name',
   },
 ];
 
@@ -276,6 +316,8 @@ function filterValue(filter: ReportFilter, column: DatasetColumn): unknown {
     const [first = '', second = ''] = raw.split('|', 2);
     return [parseScalar(first, column), parseScalar(second, column)];
   }
+  if (filter.op === 'in')
+    return raw.split('|').map((value) => parseScalar(value, column));
   return parseScalar(raw, column);
 }
 
@@ -700,6 +742,9 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
     if (
       !preset.columns.every((key) => availableColumns.has(key)) ||
       !preset.groupBy.every((key) => availableColumns.has(key)) ||
+      !(preset.filters ?? []).every((filter) =>
+        availableColumns.has(filter.column),
+      ) ||
       (preset.aggregate.fn !== 'count' &&
         !availableColumns.has(preset.aggregate.column))
     ) {
@@ -710,7 +755,7 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
     }
     setDatasetKey(source.key);
     setColumns(preset.columns);
-    setFilters([]);
+    setFilters(preset.filters ?? []);
     setGroupBy(preset.groupBy);
     setTimeGrain(preset.timeGrain ?? '');
     setAggregate(preset.aggregate.fn);
@@ -860,6 +905,9 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
                     return (
                       preset.columns.every((key) => available.has(key)) &&
                       preset.groupBy.every((key) => available.has(key)) &&
+                      (preset.filters ?? []).every((filter) =>
+                        available.has(filter.column),
+                      ) &&
                       (preset.aggregate.fn === 'count' &&
                       preset.aggregate.column === 'id'
                         ? true

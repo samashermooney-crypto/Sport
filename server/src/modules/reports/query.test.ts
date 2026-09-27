@@ -64,6 +64,64 @@ describe('report dataset access', () => {
     );
   });
 
+  it('limits aid awards to money roles and accepts award-state filters', () => {
+    const dataset = datasetForActor('aid_awards', ['finance']);
+    const visible = columnsForActor(dataset, ['finance']);
+    const award = dataset.columns.find(
+      (column) => column.key === 'award_cents',
+    );
+    const definition = reportDefinitionSchema.parse({
+      dataset: 'aid_awards',
+      columns: ['program_name'],
+      filters: [
+        {
+          column: 'status',
+          op: 'in',
+          value: ['awarded', 'partially_awarded'],
+        },
+      ],
+      groupBy: ['program_name'],
+      aggregates: [{ fn: 'sum', column: 'award_cents' }],
+    });
+
+    expect(award).toMatchObject({ tier: 'sensitive', type: 'money' });
+    expect(() => {
+      validateReportDefinition(dataset, visible, definition);
+    }).not.toThrow();
+    expect(() => datasetForActor('aid_awards', ['registrar'])).toThrow(
+      ReportError,
+    );
+  });
+
+  it('keeps uniform reporting aggregated to product, size, and quantity', () => {
+    const dataset = datasetForActor('uniform_sizes', ['finance']);
+    const visible = columnsForActor(dataset, ['finance']);
+    const definition = reportDefinitionSchema.parse({
+      dataset: 'uniform_sizes',
+      columns: ['product_name', 'size'],
+      filters: [
+        { column: 'product_kind', op: 'eq', value: 'uniform' },
+        {
+          column: 'order_status',
+          op: 'in',
+          value: ['paid', 'fulfilling', 'fulfilled'],
+        },
+      ],
+      groupBy: ['product_name', 'size'],
+      aggregates: [{ fn: 'sum', column: 'quantity' }],
+    });
+
+    expect(dataset.columns.map((column) => column.key)).not.toContain(
+      'person_name',
+    );
+    expect(() => {
+      validateReportDefinition(dataset, visible, definition);
+    }).not.toThrow();
+    expect(() => datasetForActor('uniform_sizes', ['registrar'])).toThrow(
+      ReportError,
+    );
+  });
+
   it('validates filter values against the selected column type', () => {
     const dataset = datasetForActor('people', ['registrar']);
     const visible = columnsForActor(dataset, ['registrar']);

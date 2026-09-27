@@ -27,6 +27,61 @@ describe('report dataset catalog', () => {
     ]);
   });
 
+  it('provides volunteer completion reporting without exposing household data', () => {
+    const dataset = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'volunteers',
+    );
+    expect(dataset?.requiredTables).toEqual([
+      'volunteer_signups',
+      'volunteer_shifts',
+      'volunteer_roles',
+      'people',
+    ]);
+    expect(dataset?.columns.map((column) => column.key)).toEqual([
+      'id',
+      'status',
+      'hours_credited',
+      'shift_starts_at',
+      'role_name',
+      'person_name',
+    ]);
+    expect(dataset?.columns.every((column) => column.tier === 'internal')).toBe(
+      true,
+    );
+  });
+
+  it('keeps aid details and uniform reports on the intended source fields', () => {
+    const aidAwards = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'aid_awards',
+    );
+    expect(aidAwards?.columns.map((column) => column.key)).toEqual([
+      'id',
+      'program_name',
+      'status',
+      'award_cents',
+      'requested_cents',
+      'created_at',
+    ]);
+    expect(
+      aidAwards?.columns.find((column) => column.key === 'award_cents'),
+    ).toMatchObject({ tier: 'sensitive', type: 'money' });
+
+    const uniformSizes = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'uniform_sizes',
+    );
+    expect(uniformSizes?.requiredTables).toContain('store_order_lines');
+    expect(uniformSizes?.columns.map((column) => column.key)).toEqual([
+      'id',
+      'product_name',
+      'product_kind',
+      'size',
+      'color',
+      'quantity',
+      'order_status',
+      'created_at',
+    ]);
+  });
+
   it('requires step-up for sensitive exports and blocks reporter exports', () => {
     expect(canExportTier(['finance'], 'sensitive', false)).toBe(false);
     expect(canExportTier(['finance'], 'sensitive', true)).toBe(true);
