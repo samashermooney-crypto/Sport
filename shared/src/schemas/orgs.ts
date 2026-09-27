@@ -102,6 +102,22 @@ export const createOrgResponseSchema = z.strictObject({
   status: z.literal('onboarding'),
 });
 
+export const myOrganizationsSchema = z.array(
+  z.strictObject({
+    id: z.uuid(),
+    name: z.string(),
+    slug: orgSlugSchema,
+  }),
+);
+
+export const orgWorkspaceSchema = z.strictObject({
+  id: z.uuid(),
+  name: z.string(),
+  slug: orgSlugSchema,
+  canManage: z.boolean(),
+  canAudit: z.boolean(),
+});
+
 export const orgCredentialSchema = z.strictObject({
   id: z.uuid(),
   key: z.string(),
