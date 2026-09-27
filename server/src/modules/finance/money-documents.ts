@@ -7,6 +7,7 @@ import { PDFDocument, rgb, type PDFPage } from 'pdf-lib';
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import { appendAuditEvent } from '../audit/service.js';
+import { systemWorkerActorId } from '../jobs/credentials-expiry.js';
 
 import { openSansRegularDeflatedBase64 } from './open-sans-font.js';
 
@@ -126,7 +127,13 @@ export class PostgresMoneyDocuments {
   constructor(
     database: Kysely<DB>,
     private readonly context: OrgContext,
+    private readonly payerAccountId = context.actor.accountId,
   ) {
+    if (
+      payerAccountId !== context.actor.accountId &&
+      context.actor.accountId !== systemWorkerActorId
+    )
+      throw new MoneyDocumentNotFoundError();
     this.withOrg = createWithOrg(database);
   }
 
@@ -143,7 +150,7 @@ export class PostgresMoneyDocuments {
           paid_cents, refunded_cents, credit_applied_cents,
           balance_cents, memo FROM invoices
         WHERE org_id = ${this.context.orgId}::uuid
-          AND account_id = ${this.context.actor.accountId}::uuid
+          AND account_id = ${this.payerAccountId}::uuid
           AND id = ${invoiceId}::uuid AND issued_at IS NOT NULL
       `.execute(trx);
       const row = invoice.rows[0];
@@ -207,7 +214,7 @@ export class PostgresMoneyDocuments {
       const payment = await sql<ReceiptRow>`
         SELECT id, amount_cents, method, succeeded_at, receipt_number
         FROM payments WHERE org_id = ${this.context.orgId}::uuid
-          AND account_id = ${this.context.actor.accountId}::uuid
+          AND account_id = ${this.payerAccountId}::uuid
           AND id = ${paymentId}::uuid AND status = 'succeeded'
       `.execute(trx);
       const row = payment.rows[0];
@@ -226,7 +233,7 @@ export class PostgresMoneyDocuments {
           AND il.id = pla.invoice_line_id
         WHERE pa.org_id = ${this.context.orgId}::uuid
           AND pa.payment_id = ${paymentId}::uuid
-          AND i.account_id = ${this.context.actor.accountId}::uuid
+          AND i.account_id = ${this.payerAccountId}::uuid
         GROUP BY i.number, pa.id, pa.amount_cents
         ORDER BY i.number
       `.execute(trx);
