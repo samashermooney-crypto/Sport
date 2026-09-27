@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { applicationFee, serviceFee } from '@shared/algorithms/fees';
 import { newId } from '@shared/ids';
 import { percentOf } from '@shared/money';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDatabase } from '../../db/kysely.js';
@@ -11,6 +11,7 @@ import type { DB, Json } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import { PostgresInvoiceRepository } from '../finance/invoice-repo.js';
 
+import { PostgresCheckoutInvoiceLinker } from './invoice-link-repo.js';
 import { PostgresCheckoutPricingRepository } from './pricing-repo.js';
 import { PostgresBasicCheckoutPricingSource } from './pricing-source-repo.js';
 import { CheckoutPricingService } from './pricing.js';
@@ -645,5 +646,300 @@ describe('basic checkout pricing source', () => {
     });
     expect(withPrior.snapshot.discountCents).toBe(500);
     expect(withPrior.snapshot.chargeNowCents).toBe(3498);
+  });
+
+  it('reserves the last code use, then redeems it exactly once at invoice linking', async () => {
+    const codeId = newId();
+    const checkoutIds = [newId(), newId()];
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .updateTable('automatic_discount_rules')
+        .set({ active: false })
+        .where('org_id', '=', context.orgId)
+        .execute();
+      await trx
+        .insertInto('discount_codes')
+        .values({
+          id: codeId,
+          org_id: context.orgId,
+          code: 'SAVE10',
+          kind: 'percent',
+          value: 1000,
+          max_redemptions: 1,
+          max_per_account: 1,
+          applies_to: { offeringIds: [offeringId] },
+        })
+        .execute();
+      for (const id of checkoutIds) {
+        const expiresAt = new Date(Date.now() + 1_200_000);
+        await trx
+          .insertInto('checkouts')
+          .values({
+            id,
+            org_id: context.orgId,
+            account_id: context.actor.accountId,
+            expires_at: expiresAt,
+            items: {
+              offerings: [
+                {
+                  lineId: newId(),
+                  offeringId,
+                  personId: athleteId,
+                  householdId,
+                },
+              ],
+              discountCodes: ['save10'],
+            },
+          })
+          .execute();
+        await trx
+          .insertInto('capacity_holds')
+          .values([
+            {
+              id: newId(),
+              org_id: context.orgId,
+              checkout_id: id,
+              subject_type: 'program',
+              subject_id: programId,
+              quantity: 1,
+              expires_at: expiresAt,
+            },
+            {
+              id: newId(),
+              org_id: context.orgId,
+              checkout_id: id,
+              subject_type: 'offering',
+              subject_id: offeringId,
+              quantity: 1,
+              expires_at: expiresAt,
+            },
+          ])
+          .execute();
+      }
+    });
+    const service = new CheckoutPricingService(
+      new PostgresCheckoutPricingRepository(
+        database,
+        context,
+        new PostgresBasicCheckoutPricingSource(),
+      ),
+    );
+    const outcomes = await Promise.allSettled(
+      checkoutIds.map((id) =>
+        service.freeze({
+          orgId: context.orgId,
+          checkoutId: id,
+          idempotencyKey: randomUUID(),
+        }),
+      ),
+    );
+    const successes = outcomes.filter(
+      (outcome) => outcome.status === 'fulfilled',
+    );
+    const failures = outcomes.filter(
+      (outcome) => outcome.status === 'rejected',
+    );
+    expect(successes).toHaveLength(1);
+    expect(failures).toHaveLength(1);
+    expect(String((failures[0] as PromiseRejectedResult).reason)).toContain(
+      'Discount code redemption limit reached',
+    );
+    const winner = (
+      successes[0] as PromiseFulfilledResult<
+        Awaited<ReturnType<typeof service.freeze>>
+      >
+    ).value;
+    expect(winner.snapshot.discountCents).toBe(200);
+    expect(winner.snapshot.chargeNowCents).toBe(1799);
+    const invoice = await new PostgresInvoiceRepository(
+      database,
+      context,
+    ).issue({
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      source: 'checkout',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'registration',
+          description: 'Registration',
+          amountCents: 1999,
+          refundable: true,
+        },
+        {
+          kind: 'discount',
+          description: 'SAVE10',
+          amountCents: -200,
+          parentLineIndex: 0,
+          refundable: false,
+        },
+      ],
+    });
+    const linker = new PostgresCheckoutInvoiceLinker(database, context);
+    await linker.link(winner.checkoutId, invoice.id);
+    await linker.link(winner.checkoutId, invoice.id);
+    const redemption = await createWithOrg(database)(context, async (trx) => {
+      const rows = await trx
+        .selectFrom('discount_redemptions')
+        .select([
+          'discount_code_id',
+          'account_id',
+          'invoice_id',
+          'amount_cents',
+        ])
+        .where('org_id', '=', context.orgId)
+        .where('discount_code_id', '=', codeId)
+        .execute();
+      return rows;
+    });
+    expect(redemption).toEqual([
+      {
+        discount_code_id: codeId,
+        account_id: context.actor.accountId,
+        invoice_id: invoice.id,
+        amount_cents: 200,
+      },
+    ]);
+  });
+
+  it('applies two stackable codes and rolls back invalid combinations', async () => {
+    const id = newId();
+    const codeA = newId();
+    const codeB = newId();
+    const codeIds = [codeA, codeB];
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('discount_codes')
+        .values([
+          {
+            id: codeA,
+            org_id: context.orgId,
+            code: 'STACKA',
+            kind: 'fixed',
+            value: 100,
+            stackable: true,
+          },
+          {
+            id: codeB,
+            org_id: context.orgId,
+            code: 'STACKB',
+            kind: 'fixed',
+            value: 100,
+            stackable: true,
+          },
+        ])
+        .execute();
+      const expiresAt = new Date(Date.now() + 1_200_000);
+      await trx
+        .insertInto('checkouts')
+        .values({
+          id,
+          org_id: context.orgId,
+          account_id: context.actor.accountId,
+          expires_at: expiresAt,
+          items: {
+            offerings: [
+              { lineId: newId(), offeringId, personId: athleteId, householdId },
+            ],
+            discountCodes: ['stackb', 'stacka'],
+          },
+        })
+        .execute();
+      await trx
+        .insertInto('capacity_holds')
+        .values([
+          {
+            id: newId(),
+            org_id: context.orgId,
+            checkout_id: id,
+            subject_type: 'program',
+            subject_id: programId,
+            quantity: 1,
+            expires_at: expiresAt,
+          },
+          {
+            id: newId(),
+            org_id: context.orgId,
+            checkout_id: id,
+            subject_type: 'offering',
+            subject_id: offeringId,
+            quantity: 1,
+            expires_at: expiresAt,
+          },
+        ])
+        .execute();
+    });
+    const service = new CheckoutPricingService(
+      new PostgresCheckoutPricingRepository(
+        database,
+        context,
+        new PostgresBasicCheckoutPricingSource(),
+      ),
+    );
+    const frozen = await service.freeze({
+      orgId: context.orgId,
+      checkoutId: id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(frozen.snapshot.discountCents).toBe(200);
+    expect(frozen.snapshot.chargeNowCents).toBe(1799);
+    expect(
+      frozen.snapshot.lines.filter((line) => line.kind === 'discount'),
+    ).toHaveLength(2);
+    const reservations = await createWithOrg(database)(context, (trx) =>
+      sql<{ discount_code_id: string }>`
+        SELECT discount_code_id FROM discount_code_reservations
+        WHERE org_id = ${context.orgId}::uuid AND checkout_id = ${id}::uuid
+      `.execute(trx),
+    );
+    expect(reservations.rows.map((row) => row.discount_code_id).sort()).toEqual(
+      [...codeIds].sort(),
+    );
+    const invoice = await new PostgresInvoiceRepository(
+      database,
+      context,
+    ).issue({
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      source: 'checkout',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'registration',
+          description: 'Registration',
+          amountCents: 1999,
+          refundable: true,
+        },
+        {
+          kind: 'discount',
+          description: 'STACKA',
+          amountCents: -100,
+          parentLineIndex: 0,
+          refundable: false,
+        },
+        {
+          kind: 'discount',
+          description: 'STACKB',
+          amountCents: -100,
+          parentLineIndex: 0,
+          refundable: false,
+        },
+      ],
+    });
+    await new PostgresCheckoutInvoiceLinker(database, context).link(
+      id,
+      invoice.id,
+    );
+    const redemptions = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('discount_redemptions')
+        .select('discount_code_id')
+        .where('org_id', '=', context.orgId)
+        .where('invoice_id', '=', invoice.id)
+        .execute(),
+    );
+    expect(redemptions.map((row) => row.discount_code_id).sort()).toEqual(
+      [...codeIds].sort(),
+    );
   });
 });
