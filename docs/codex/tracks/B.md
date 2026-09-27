@@ -87,3 +87,5 @@ Open requests:
 - QA: implement and run the Phase 3 Chromium and WebKit-mobile 390 px axe journey described above.
 
 Environment: `COMPOSE_PROJECT_NAME=athlentry_b`, `PORT_OFFSET=2500`, Postgres `127.0.0.1:7932`.
+
+HANDED OFF 12:51
