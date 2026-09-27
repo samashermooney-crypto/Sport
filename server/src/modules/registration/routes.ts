@@ -3,6 +3,8 @@ import { sql } from 'kysely';
 import { z } from 'zod';
 
 import { createWithOrg } from '../../db/withOrg.js';
+import type { PaymentsGateway } from '../../integrations/stripe/gateway.js';
+import { createStripeGateway } from '../../integrations/stripe/sdk.js';
 import { requestImpersonation } from '../../lib/tenant-guard.js';
 import { requireSession, type AuthDependencies } from '../auth/routes.js';
 
@@ -46,6 +48,18 @@ import {
   PostgresRegistrationRequirements,
   requirementsDiscoverySchema,
 } from './requirements.js';
+import { PostgresRegistrationTransferRefunds } from './transfer-refunds.js';
+
+function testGateway(): PaymentsGateway {
+  const secret = process.env.STRIPE_SECRET_KEY;
+  if (!secret?.startsWith('sk_test_'))
+    throw new RegistrationCheckoutError(
+      503,
+      'NOT_TRANSFERABLE',
+      'Stripe test gateway is unavailable',
+    );
+  return createStripeGateway(secret);
+}
 
 const catalogItemSchema = z.strictObject({
   programId: z.uuid(),
@@ -174,6 +188,7 @@ function sendError(response: express.Response, error: unknown): void {
 
 export function createRegistrationRouter(
   dependencies: AuthDependencies,
+  gatewayFactory: () => PaymentsGateway = testGateway,
 ): express.Router {
   const router = express.Router();
   const withOrg = createWithOrg(dependencies.database);
@@ -790,9 +805,20 @@ export function createRegistrationRouter(
         const registrationId = z.uuid().parse(request.params.registrationId);
         const body = transferBodySchema.parse(request.body);
         const idempotencyKey = z.uuid().parse(request.get('Idempotency-Key'));
+        const context = { orgId, actor: { accountId: session.accountId } };
+        const transferRefunds =
+          body.financialTreatment === 'refund_difference'
+            ? new PostgresRegistrationTransferRefunds(
+                dependencies.database,
+                context,
+                gatewayFactory(),
+              )
+            : undefined;
         const result = await new PostgresRegistrationLifecycle(
           dependencies.database,
-          { orgId, actor: { accountId: session.accountId } },
+          context,
+          () => new Date(),
+          transferRefunds,
         ).transfer({
           orgId,
           registrationId,

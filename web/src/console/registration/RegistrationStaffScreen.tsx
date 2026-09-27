@@ -68,7 +68,14 @@ const approvalResultSchema = z.strictObject({
 });
 const transferResultSchema = z.strictObject({
   toRegistrationId: z.uuid(),
-  differenceCents: z.number().int().nonnegative(),
+  differenceCents: z.number().int(),
+  refund: z
+    .strictObject({
+      refundId: z.string().startsWith('re_'),
+      status: z.string().min(1),
+      amountCents: z.number().int().positive(),
+    })
+    .optional(),
 });
 const waitlistOfferSchema = z.union([
   z.strictObject({ entryId: z.uuid(), expiresAt: z.iso.datetime() }),
@@ -301,7 +308,9 @@ export function RegistrationStaffScreen({
       );
       keys.current.delete(`transfer:${registrationId}`);
       setNotice(
-        `Transfer recorded. Price difference: ${formatMoney(result.differenceCents, i18n.language)}.`,
+        result.refund
+          ? `Transfer recorded. Refund ${result.refund.refundId} is ${result.refund.status} for ${formatMoney(result.refund.amountCents, i18n.language)}.`
+          : `Transfer recorded. Price difference: ${formatMoney(result.differenceCents, i18n.language)}.`,
       );
       setTransferIds((current) => ({ ...current, [registrationId]: '' }));
       await refresh();

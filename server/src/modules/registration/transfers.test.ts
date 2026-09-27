@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { newId } from '@shared/ids';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createDatabase } from '../../db/kysely.js';
 import { allocateOrgNumber } from '../../db/orgCounters.js';
@@ -199,6 +199,9 @@ async function fixture(destinationPriceCents: number) {
       .insertInto('capacity_counters')
       .values([
         ...[
+          ['program', sourceProgramId],
+          ['division', sourceDivisionId],
+          ['offering', sourceOfferingId],
           ['program', destinationProgramId],
           ['division', destinationDivisionId],
           ['offering', destinationOfferingId],
@@ -306,12 +309,87 @@ async function fixture(destinationPriceCents: number) {
     orgId,
     context,
     registrationId,
+    sourceProgramId,
+    sourceDivisionId,
+    sourceOfferingId,
     destinationOfferingId,
+    invoiceLineId,
     payerAccountId,
   };
 }
 
 describe('registration transfer money handling', () => {
+  it('records an exact-line refund before transferring and replays the result', async () => {
+    const data = await fixture(1500);
+    await createWithOrg(database)(data.context, async (trx) => {
+      await trx
+        .updateTable('registrations')
+        .set({ status: 'confirmed' })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.registrationId)
+        .execute();
+      await trx
+        .updateTable('capacity_counters')
+        .set({ confirmed: 1 })
+        .where('org_id', '=', data.orgId)
+        .where('subject_id', 'in', [
+          data.sourceProgramId,
+          data.sourceDivisionId,
+          data.sourceOfferingId,
+        ])
+        .execute();
+    });
+    const refundExactLine = vi.fn().mockResolvedValue({
+      refundId: 're_transfer_difference',
+      status: 'pending',
+      amountCents: 1030,
+    });
+    const lifecycle = new PostgresRegistrationLifecycle(
+      database,
+      data.context,
+      () => new Date('2026-09-27T17:00:00.000Z'),
+      { refundExactLine },
+    );
+    const request = {
+      orgId: data.orgId,
+      registrationId: data.registrationId,
+      toOfferingId: data.destinationOfferingId,
+      financialTreatment: 'refund_difference' as const,
+      idempotencyKey: randomUUID(),
+    };
+
+    const result = registrationTransferResponseSchema.parse(
+      await lifecycle.transfer(request),
+    );
+    expect(result).toMatchObject({
+      differenceCents: -1000,
+      refund: {
+        refundId: 're_transfer_difference',
+        status: 'pending',
+        amountCents: 1030,
+      },
+    });
+    expect(refundExactLine).toHaveBeenCalledWith({
+      orgId: data.orgId,
+      invoiceLineId: data.invoiceLineId,
+      amountCents: 1000,
+      cancellationDate: '2026-09-27',
+      requestedByAccountId: data.context.actor.accountId,
+      idempotencyKey: request.idempotencyKey,
+    });
+    expect(await lifecycle.transfer(request)).toEqual(result);
+    expect(refundExactLine).toHaveBeenCalledTimes(1);
+    const source = await createWithOrg(database)(data.context, (trx) =>
+      trx
+        .selectFrom('registrations')
+        .select('status')
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.registrationId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(source.status).toBe('transferred_out');
+  });
+
   it('bills an additional charge to the original payer and replays exactly', async () => {
     const data = await fixture(4000);
     const lifecycle = new PostgresRegistrationLifecycle(database, data.context);

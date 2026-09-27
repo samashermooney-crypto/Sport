@@ -169,7 +169,7 @@ function hashExactLineRequest(input: ExactLineRefundRequest): string {
     .digest('hex');
 }
 
-function exactLineRefundProposal(
+export function exactLineRefundProposal(
   source: RefundSource,
   invoiceLineId: string,
   amountCents: number,

@@ -20,9 +20,14 @@ import {
 } from '../../db/withOrg.js';
 import { appendAuditEvent } from '../audit/service.js';
 import { refundTermsSchema } from '../finance/refund-terms.js';
+import { RefundConflictError } from '../finance/refunds.js';
 
 import { RegistrationCheckoutError } from './checkout-start.js';
 import { enqueueRegistrationNotice } from './notices.js';
+import type {
+  RegistrationTransferRefunds,
+  RegistrationTransferRefundResult,
+} from './transfer-refunds.js';
 
 const programPolicySchema = z.looseObject({
   waitlistMode: z.enum(['auto', 'manual', 'off']).optional(),
@@ -151,6 +156,13 @@ export const transferBodySchema = z.strictObject({
 export const registrationTransferResponseSchema = z.strictObject({
   toRegistrationId: z.uuid(),
   differenceCents: z.number().int(),
+  refund: z
+    .strictObject({
+      refundId: z.string().startsWith('re_'),
+      status: z.string().min(1),
+      amountCents: z.number().int().positive(),
+    })
+    .optional(),
 });
 
 export const staffRegisterBodySchema = z.strictObject({
@@ -578,6 +590,7 @@ export class PostgresRegistrationLifecycle {
     database: Kysely<DB>,
     private readonly context: OrgContext,
     private readonly now: () => Date = () => new Date(),
+    private readonly transferRefunds?: RegistrationTransferRefunds,
   ) {
     this.withOrg = createWithOrg(database);
   }
@@ -2321,11 +2334,19 @@ export class PostgresRegistrationLifecycle {
         const priorResult = z
           .looseObject({
             differenceCents: z.number().int().optional(),
+            refund: z
+              .strictObject({
+                refundId: z.string().startsWith('re_'),
+                status: z.string().min(1),
+                amountCents: z.number().int().positive(),
+              })
+              .optional(),
           })
           .parse(prior.result);
         return {
           toRegistrationId: prior.to_registration_id,
           differenceCents: priorResult.differenceCents ?? 0,
+          ...(priorResult.refund ? { refund: priorResult.refund } : {}),
         };
       }
       if (
@@ -2386,28 +2407,36 @@ export class PostgresRegistrationLifecycle {
           'ALREADY_REGISTERED',
           'Participant already has a registration in the destination program',
         );
-      const counter = await trx
-        .selectFrom('capacity_counters')
-        .select(['id', 'capacity', 'confirmed', 'held'])
-        .where('org_id', '=', input.orgId)
-        .where('subject_type', '=', 'offering')
-        .where('subject_id', '=', destination.id)
-        .forUpdate()
-        .executeTakeFirst();
-      if (
-        counter?.capacity !== null &&
-        counter !== undefined &&
-        counter.confirmed + counter.held >= counter.capacity
-      )
-        throw new RegistrationCheckoutError(
-          409,
-          'CAPACITY_FULL',
-          'Destination offering is full',
-        );
+      // Lock every destination counter before any refund call so the price
+      // adjustment cannot be issued for a seat that another checkout takes.
+      for (const [subject, subjectId] of [
+        ['program', destination.program_id],
+        ['division', destination.division_id],
+        ['offering', destination.id],
+      ] as const) {
+        const counter = await trx
+          .selectFrom('capacity_counters')
+          .select(['capacity', 'confirmed', 'held'])
+          .where('org_id', '=', input.orgId)
+          .where('subject_type', '=', subject)
+          .where('subject_id', '=', subjectId)
+          .forUpdate()
+          .executeTakeFirst();
+        if (
+          counter?.capacity !== null &&
+          counter !== undefined &&
+          counter.confirmed + counter.held >= counter.capacity
+        )
+          throw new RegistrationCheckoutError(
+            409,
+            'CAPACITY_FULL',
+            'Destination is full',
+          );
+      }
       const sourceLine = source.invoice_line_id
         ? await trx
             .selectFrom('invoice_lines')
-            .select(['amount_cents', 'invoice_id'])
+            .select(['id', 'amount_cents', 'invoice_id'])
             .where('org_id', '=', input.orgId)
             .where('id', '=', source.invoice_line_id)
             .executeTakeFirst()
@@ -2417,17 +2446,87 @@ export class PostgresRegistrationLifecycle {
       const sourceInvoice = sourceLine
         ? await trx
             .selectFrom('invoices')
-            .select(['account_id', 'refund_terms'])
+            .select(['id', 'account_id', 'refund_terms'])
             .where('org_id', '=', input.orgId)
             .where('id', '=', sourceLine.invoice_id)
             .executeTakeFirst()
         : null;
-      if (input.financialTreatment === 'refund_difference')
-        throw new RegistrationCheckoutError(
-          409,
-          'NOT_TRANSFERABLE',
-          'The transfer was not applied because its refund must first be recorded through finance',
-        );
+      let refund: RegistrationTransferRefundResult | null = null;
+      if (input.financialTreatment === 'refund_difference') {
+        if (
+          difference >= 0 ||
+          !sourceLine ||
+          !sourceInvoice ||
+          !this.transferRefunds
+        )
+          throw new RegistrationCheckoutError(
+            409,
+            'NOT_TRANSFERABLE',
+            'A transfer refund requires a cheaper destination, a paid registration line, and the test-mode finance gateway',
+          );
+        if (source.status !== 'confirmed')
+          throw new RegistrationCheckoutError(
+            409,
+            'NOT_TRANSFERABLE',
+            'Only confirmed paid registrations can receive a transfer refund',
+          );
+        const unsupportedLines = await trx
+          .selectFrom('invoice_lines')
+          .select('id')
+          .where('org_id', '=', input.orgId)
+          .where('invoice_id', '=', sourceInvoice.id)
+          .where('kind', 'in', [
+            'add_on',
+            'discount',
+            'aid',
+            'tax',
+            'volunteer_buyout',
+          ])
+          .executeTakeFirst();
+        if (unsupportedLines)
+          throw new RegistrationCheckoutError(
+            409,
+            'NOT_TRANSFERABLE',
+            'This registration invoice has adjustments that require a finance-reviewed transfer quote',
+          );
+        const timezone = await trx
+          .selectFrom('organizations')
+          .select('timezone')
+          .where('id', '=', input.orgId)
+          .executeTakeFirstOrThrow();
+        const cancellationDate = Temporal.Instant.from(this.now().toISOString())
+          .toZonedDateTimeISO(timezone.timezone)
+          .toPlainDate()
+          .toString();
+        try {
+          refund = await this.transferRefunds.refundExactLine({
+            orgId: input.orgId,
+            invoiceLineId: sourceLine.id,
+            amountCents: -difference,
+            cancellationDate,
+            requestedByAccountId: this.context.actor.accountId,
+            idempotencyKey: key,
+          });
+        } catch (error) {
+          if (error instanceof RefundConflictError)
+            throw new RegistrationCheckoutError(
+              409,
+              'NOT_TRANSFERABLE',
+              error.message,
+            );
+          throw new RegistrationCheckoutError(
+            503,
+            'NOT_TRANSFERABLE',
+            'The transfer refund could not be confirmed; retry with the same idempotency key',
+          );
+        }
+        if (refund.amountCents < -difference)
+          throw new RegistrationCheckoutError(
+            503,
+            'NOT_TRANSFERABLE',
+            'Recorded transfer refund is below the approved price difference',
+          );
+      }
       if (
         input.financialTreatment === 'charge_difference' &&
         (difference <= 0 || !sourceLine || !sourceInvoice)
@@ -2613,6 +2712,7 @@ export class PostgresRegistrationLifecycle {
           result: {
             differenceCents: difference,
             invoiceId,
+            ...(refund ? { refund } : {}),
           } as unknown as Json,
         })
         .execute();
@@ -2644,9 +2744,29 @@ export class PostgresRegistrationLifecycle {
             after: input.financialTreatment,
           },
           differenceCents: { tier: 'internal', after: difference },
+          ...(refund
+            ? {
+                refund: {
+                  tier: 'internal' as const,
+                  after: refund,
+                },
+              }
+            : {}),
         },
       });
-      return { toRegistrationId: toId, differenceCents: difference };
+      return {
+        toRegistrationId: toId,
+        differenceCents: difference,
+        ...(refund
+          ? {
+              refund: {
+                refundId: refund.refundId,
+                status: refund.status,
+                amountCents: refund.amountCents,
+              },
+            }
+          : {}),
+      };
     });
   }
 }

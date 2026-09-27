@@ -144,6 +144,7 @@ import { PostgresRefundRecordStore } from './refund-record-repo.js';
 import { PostgresRefundSourceReader } from './refund-source-repo.js';
 import { refundTermsSchema } from './refund-terms.js';
 import {
+  exactLineRefundProposal,
   refundProposal,
   RefundConflictError,
   StripeRefundService,
@@ -367,6 +368,12 @@ export const refundBodySchema = z.discriminatedUnion('destination', [
     destination: z.literal('original_method'),
     paymentId: z.uuid(),
     cancellationDate: z.iso.date(),
+    exactLine: z
+      .strictObject({
+        invoiceLineId: z.uuid(),
+        amountCents: z.number().int().positive(),
+      })
+      .optional(),
   }),
   z.strictObject({
     destination: z.literal('credit'),
@@ -2039,7 +2046,12 @@ export function createFinanceRouter(
         gatewayFactory(),
         new PostgresRefundRecordStore(dependencies.database, context),
       );
-      const result = await service.refund(common);
+      const result = input.exactLine
+        ? await service.refundExactLine({
+            ...common,
+            ...input.exactLine,
+          })
+        : await service.refund(common);
       response.status(201).json(
         refundResponseSchema.parse({
           destination: 'original_method',
@@ -2070,7 +2082,14 @@ export function createFinanceRouter(
         context,
       ).load(orgId, input.paymentId);
       if (!source) throw new RefundConflictError('Payment not found');
-      const proposal = refundProposal(source, input.cancellationDate);
+      const proposal =
+        input.destination === 'original_method' && input.exactLine
+          ? exactLineRefundProposal(
+              source,
+              input.exactLine.invoiceLineId,
+              input.exactLine.amountCents,
+            )
+          : refundProposal(source, input.cancellationDate);
       if (proposal.totalCents <= source.approvalThresholdCents)
         throw new RefundConflictError(
           'Refund does not require second approval',
