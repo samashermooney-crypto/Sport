@@ -734,3 +734,19 @@
 - **Decision:** `recomputeStandingsForEvent` now skips scopes without an explicit or profile-default standings config, while `getStandings`/`refreshStandings` keep returning the 409 "not configured" response. Standings score inputs are normalized from numeric strings to numbers before computation.
 - **Why:** Result finalization is a required operation for every sport; standings only apply where configured. The numeric-string normalization matches the existing guard used for tournament scores.
 - **Consequences / follow-ups:** Covered by the new recompute test (finalization, correction, forfeit, stale-version conflict) and the per-sport format validation test over all 46 seeded templates.
+
+### DEC-103 — Keep generated team home/away totals within one
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 8 schedule generation
+- **Context:** Randomized schedule improvement could flip pairings past the required per-team home/away difference of one, and feasibility checks repeatedly rescanned the complete assignment list for daily and weekly counts.
+- **Decision:** After placement, orient each division's scheduled games deterministically by Euler tours, pairing odd-degree teams to a dummy vertex so each team's home/away difference is at most one. Count relevant team/day/week games in one pass during feasibility checks, and recompute the reported penalty after orientation.
+- **Why:** Home/away fairness is an acceptance invariant; eliminating nested full-list scans also keeps large schedules within the generation time bound.
+- **Consequences / follow-ups:** Orientation may change soft home-space preferences, so the penalty is recomputed on the returned schedule. Shared schedule-generator tests and the 48-team acceptance regression cover determinism, fairness, and runtime.
+
+### DEC-104 — Propagate resolved byes through both bracket paths
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 9 double-elimination tournaments
+- **Context:** A bye produces a finalized winners match with no loser. When its loser slot is later connected to the losers bracket, the empty outcome was not propagated, leaving loser-bracket rounds unresolved.
+- **Decision:** After bracket wiring and each finalized result, propagate settled winner/loser outcomes and automatically finalize non-final matches only when both source slots are resolved and at least one entrant remains. Also settle fully empty intermediate loser matches so their outcomes can advance.
+- **Why:** Top-seeded byes must preserve correct double-elimination progression through GF1 and the conditional GF2 without treating an unresolved source as an empty slot.
+- **Consequences / follow-ups:** A 13-team acceptance regression completes the losers path, GF1 upset and if-necessary GF2; championship finals are never auto-finalized as byes.

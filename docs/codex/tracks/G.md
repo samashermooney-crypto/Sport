@@ -17,7 +17,8 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Browser print/PDF output for schedules, results, standings and tournament brackets; safer CSV quoting/formula escaping and location round-trip; named standings rows plus visibility/config in staff UI; team-stat aggregation and public athlete personal-best views; and persistence/visibility regression tests.
 - [x] Closure recipient lookup includes accounts linked to active officials assigned to the closed event; access integration regression passes.
 - [x] Emergency closure batches become due immediately; routine schedule-change batches retain their 15-minute window.
-- [x] Added a 13-team double-elimination acceptance regression using the shared bracket generator and finalizer; it exposes a shared algorithm bye-progression failure before the if-necessary final.
+- [x] Added a 13-team double-elimination acceptance regression and fixed the shared bracket algorithm to propagate bye winners and empty loser outcomes until the if-necessary final is playable.
+- [x] Fixed the 48-team league schedule acceptance: candidate feasibility no longer rescans all assigned games inside each team check, and a deterministic Euler orientation keeps every scheduled team within one home/away game.
 - [x] Lineup suspension checks now call Track F's discipline policy. The save transaction commits the policy's audit event before returning the 409 conflict; an integration test covers both the denial and durable audit record.
 - [x] `npm run registry` regenerated 18 server modules, 6 integrations and 6 web features; `npm run openapi` regenerated API documentation, including the personal-best endpoint.
 
@@ -28,17 +29,19 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Current focused database regressions pass: officials crew/pay acceptance, timed-meet acceptance, ICS parser checks, scheduling integration (DST, closures, moved-game ICS) and access integration: 6 files / 11 tests green after the latest fixes.
 - [x] Reviewed and tested WIP commit `34ceaea`: contests/standings integration suites pass (4 files / 5 tests); all 50 seeded contest formats validate and finalize. The regression verifies configured templates persist program and division snapshots, while unconfigured sports finalize without snapshots and return a 409 for standings reads. Typecheck and full lint pass.
 - [x] Schedule export/calendar and public standings component tests: 3 files / 8 tests passed.
-- [x] Updated scheduling access integration passes, including official closure recipients and emergency batch timing; the focused 13-team bracket regression fails because the shared algorithm does not advance bye winners through the losers bracket to GF1.
+- [x] Shared algorithm tests pass: 14/14; focused G generator/bracket acceptance tests pass: 2/2. The 48-team case is below the 60-second acceptance bound.
+- [x] `npm run typecheck` and `npm run lint` pass after syncing `rebuild/trunk` through `af353fc` (merge `70b7c2d`).
+- [x] Updated scheduling access integration passes, including official closure recipients and emergency batch timing.
 - [x] Chromium + WebKit mobile baseline E2E: 38 passed, 4 failed, 4 skipped; failures were unrelated sign-in, ownership-transfer and people journeys, and no G schedule journey ran.
-- [ ] Latest lock-protected full merge gate: typecheck and lint passed; `heavy.sh npm test` reported 757 passed, 1 skipped, 2 failed. The 48-team generator completed in 58.5 seconds but failed home/away balance; the 13-team double-elimination regression still fails to advance losers-bracket byes through GF1. The merge was aborted and trunk was left at `9b5b430`.
+- [ ] Previous lock-protected full merge gate (before the latest algorithm fixes): typecheck/lint passed; `heavy.sh npm test` reported 757 passed, 1 skipped, 2 failed. Both failures are now fixed and pass in targeted suites; rerun the full gate before integration.
 - [ ] Phase 8/9 Chromium + WebKit mobile schedule journeys with axe remain outstanding. No G journeys currently exist and the registered schedule routes are not mounted into app routing.
-- [ ] Full gates remain blocked by generator fairness, 13-team double-elimination bye progression, missing Phase 8/9 browser journeys, discipline result/game-served integration and baseline WebKit failures. Do not mark ready until G journeys and all acceptance criteria pass.
+- [ ] Full gates remain blocked by missing Phase 8/9 browser journeys, discipline result/game-served integration, notification email fan-out, volunteer closure recipients, the facility image serving contract, and baseline WebKit failures. Do not mark ready until browser journeys and all acceptance criteria pass.
 
 ## Cross-track requests and blockers
 
 - **Track C (sprint wiring owner):** mount the registered schedule console/portal routes and navigation; coordinate Phase 8/9 Chromium + WebKit mobile journeys with axe; provide a safe public URL/serving contract for approved facility layout files. The public facility API currently returns a layout file ID and the page renders facility details, directions, parking and spaces, but cannot safely render the image without that contract.
 - **Track A:** investigate the four baseline Playwright failures in sign-in, ownership transfer and the people flow before the full browser gate.
-- **Track B:** repair the 48-team generator's home/away imbalance and shared double-elimination bye progression. The 13-team G acceptance fixture cannot complete GF1 because bye winners do not advance through the losers bracket. Also align shared `contestStageSchema` with `02-DATA-MODEL.md`: it accepts `tournament` (rejected by `contests_stage_check`) and omits `championship`/`consolation`/`exhibition`; G's service/routes now follow the data-model enum.
+- **Track B:** align shared `contestStageSchema` with `02-DATA-MODEL.md`: it accepts `tournament` (rejected by `contests_stage_check`) and omits `championship`/`consolation`/`exhibition`; G's service/routes now follow the data-model enum. Generator fairness and double-elimination bye progression fixes are in G's current branch and need review with the shared-algorithm owner before integration.
 - **Track H:** expose volunteer assignments by event so emergency closure notifications can reach affected volunteers. No volunteer assignment module or table is present on current trunk.
 - **Track F / discipline service owner:** expose the transaction-scoped result-to-discipline creation and finalized-game-served operation needed for automatic card/ejection suspensions. The current service provides `assertNotSuspendedForLineup`, which G calls, but does not provide `createFromContestResult` or automatic games-served counting. Result finalization therefore rejects card finalization with an explicit service-unavailable conflict instead of silently skipping discipline enforcement.
 - **Track B / C notifications integration:** connect emergency closure notification events to the notification fan-out contract. G batches changes and emits through Track B's notification service; that service currently marks only `in_app`, so the required Mailpit email journey is not yet evidenced. G must not implement a separate messaging pipeline.
@@ -46,6 +49,6 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 ## Decisions and review
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
-- G decisions are `DEC-082–102` in `docs/codex/DECISIONS.md`; the latest trunk decisions are preserved through `DEC-081`.
-- Last completed trunk syncs: `7bd217f` (through `9b5b430`), `925d8ff` (through `d991fee`) and `69bd7c9` (through `4660724`). The most recent lock-protected merge attempt failed the unit gate and was rolled back. All changes remain local on `track/g-schedule`; nothing was pushed.
-- Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys, generator acceptance and full gates pass.
+- G decisions are `DEC-082–104` in `docs/codex/DECISIONS.md`; the latest trunk decisions are preserved through `DEC-081`.
+- Last trunk sync: `70b7c2d` (through `af353fc`); earlier syncs were `7bd217f` (through `9b5b430`), `925d8ff` (through `d991fee`) and `69bd7c9` (through `4660724`). The latest lock-protected self-merge attempt failed before the algorithm fixes and was rolled back. All G changes remain local on `track/g-schedule`; nothing was pushed.
+- Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.

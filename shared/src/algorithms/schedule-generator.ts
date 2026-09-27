@@ -342,11 +342,9 @@ function hardAllowed(
   const maxDay = input.maxGamesPerTeamPerDay ?? 1;
   const maxWeek = input.maxGamesPerTeamPerWeek ?? Number.POSITIVE_INFINITY;
   const restMs = (input.minRestHours ?? 0) * 60 * minuteMs;
+  const sameDayGames = new Map(currentIds.map((teamId) => [teamId, 0]));
+  const sameWeekGames = new Map(currentIds.map((teamId) => [teamId, 0]));
   for (const event of assigned) {
-    const eventSlot = localParts(event.startsAt, input.timezone);
-    const sharedTeam =
-      currentIds.includes(event.homeTeamId) ||
-      currentIds.includes(event.awayTeamId);
     const existingSpace = spaceById.get(event.spaceId);
     const spaceConflict =
       event.spaceId === slot.spaceId ||
@@ -362,32 +360,23 @@ function hardAllowed(
       )
     )
       return false;
+    const eventTeams = [event.homeTeamId, event.awayTeamId];
+    const sharedTeams = currentIds.filter((id) => eventTeams.includes(id));
+    const sharedTeam = sharedTeams.length > 0;
     if (sharedTeam) {
-      if (
-        eventSlot.date === slot.localDate &&
-        currentIds.some(
-          (id) =>
-            assigned.filter(
-              (item) =>
-                item.localDate === slot.localDate &&
-                (id === item.homeTeamId || id === item.awayTeamId),
-            ).length >= maxDay,
-        )
-      )
-        return false;
-      if (
-        eventSlot.week === slot.weekKey &&
-        currentIds.some(
-          (id) =>
-            assigned.filter(
-              (item) =>
-                localParts(item.startsAt, input.timezone).week ===
-                  slot.weekKey &&
-                (id === item.homeTeamId || id === item.awayTeamId),
-            ).length >= maxWeek,
-        )
-      )
-        return false;
+      const eventSlot = localParts(event.startsAt, input.timezone);
+      for (const teamId of sharedTeams) {
+        if (eventSlot.date === slot.localDate) {
+          const count = (sameDayGames.get(teamId) ?? 0) + 1;
+          sameDayGames.set(teamId, count);
+          if (count >= maxDay) return false;
+        }
+        if (eventSlot.week === slot.weekKey) {
+          const count = (sameWeekGames.get(teamId) ?? 0) + 1;
+          sameWeekGames.set(teamId, count);
+          if (count >= maxWeek) return false;
+        }
+      }
       const gap = Math.max(
         Temporal.Instant.from(slot.startsAt).epochMilliseconds -
           Temporal.Instant.from(event.endsAt).epochMilliseconds,
@@ -605,6 +594,119 @@ function metrics(
   });
 }
 
+function balanceHomeAway(events: readonly DraftEvent[]): DraftEvent[] {
+  type Vertex = string | symbol;
+  type Edge = {
+    eventIndex: number;
+    from: Vertex;
+    to: Vertex;
+    virtual: boolean;
+  };
+  type Traversal = { from: Vertex; to: Vertex; edgeIndex: number };
+
+  const balanced = [...events];
+  const indexesByDivision = new Map<string, number[]>();
+  events.forEach((event, index) => {
+    const indexes = indexesByDivision.get(event.divisionId) ?? [];
+    indexes.push(index);
+    indexesByDivision.set(event.divisionId, indexes);
+  });
+
+  for (const indexes of indexesByDivision.values()) {
+    const edges: Edge[] = indexes.flatMap((eventIndex) => {
+      const event = events[eventIndex];
+      return event
+        ? [
+            {
+              eventIndex,
+              from: event.homeTeamId,
+              to: event.awayTeamId,
+              virtual: false,
+            },
+          ]
+        : [];
+    });
+    const degree = new Map<Vertex, number>();
+    for (const edge of edges) {
+      degree.set(edge.from, (degree.get(edge.from) ?? 0) + 1);
+      degree.set(edge.to, (degree.get(edge.to) ?? 0) + 1);
+    }
+    const oddTeams = [...degree.entries()]
+      .filter(([, count]) => count % 2 === 1)
+      .map(([teamId]) => teamId)
+      .filter((teamId): teamId is string => typeof teamId === 'string')
+      .sort();
+    // Pair odd-degree teams through a dummy vertex, then orient each Euler tour.
+    const dummy = Symbol('home-away-balance');
+    for (const teamId of oddTeams)
+      edges.push({
+        eventIndex: -1,
+        from: dummy,
+        to: teamId,
+        virtual: true,
+      });
+
+    const adjacency = new Map<Vertex, number[]>();
+    edges.forEach((edge, edgeIndex) => {
+      const from = adjacency.get(edge.from) ?? [];
+      from.push(edgeIndex);
+      adjacency.set(edge.from, from);
+      const to = adjacency.get(edge.to) ?? [];
+      to.push(edgeIndex);
+      adjacency.set(edge.to, to);
+    });
+
+    const used = new Set<number>();
+    const orientCircuit = (start: Vertex): void => {
+      const vertices: Vertex[] = [start];
+      const traversals: Traversal[] = [];
+      const circuit: Traversal[] = [];
+      while (vertices.length) {
+        const current = vertices.at(-1);
+        if (current === undefined) break;
+        const edgeIndex = (adjacency.get(current) ?? []).find(
+          (index) => !used.has(index),
+        );
+        if (edgeIndex !== undefined) {
+          const edge = edges[edgeIndex];
+          if (!edge) continue;
+          used.add(edgeIndex);
+          const other = edge.from === current ? edge.to : edge.from;
+          vertices.push(other);
+          traversals.push({ from: current, to: other, edgeIndex });
+        } else {
+          vertices.pop();
+          const traversal = traversals.pop();
+          if (traversal) circuit.push(traversal);
+        }
+      }
+      for (const traversal of circuit.reverse()) {
+        const edge = edges[traversal.edgeIndex];
+        if (
+          !edge ||
+          edge.virtual ||
+          typeof traversal.from !== 'string' ||
+          typeof traversal.to !== 'string'
+        )
+          continue;
+        const event = balanced[edge.eventIndex];
+        if (!event) continue;
+        balanced[edge.eventIndex] = {
+          ...event,
+          homeTeamId: traversal.from,
+          awayTeamId: traversal.to,
+        };
+      }
+    };
+
+    for (const [vertex, incidentEdges] of adjacency) {
+      if (incidentEdges.some((edgeIndex) => !used.has(edgeIndex)))
+        orientCircuit(vertex);
+    }
+  }
+  return balanced;
+}
+
 export function generateSchedule(input: GeneratorInput): GeneratorOutput {
   if (
     !Number.isSafeInteger(input.durationMinutes) ||
@@ -756,8 +858,9 @@ export function generateSchedule(input: GeneratorInput): GeneratorOutput {
   assigned.sort(
     (a, b) => a.startsAt.localeCompare(b.startsAt) || a.id.localeCompare(b.id),
   );
+  const balancedAssigned = balanceHomeAway(assigned);
   return {
-    draftEvents: assigned,
+    draftEvents: balancedAssigned,
     unscheduled: unscheduled.map((pairing) => ({
       ...pairing,
       reasons: feasible(pairing, []).length
@@ -768,8 +871,8 @@ export function generateSchedule(input: GeneratorInput): GeneratorOutput {
             'No suitable space and time window remains after availability and blackouts.',
           ],
     })),
-    totalPenalty: penalty(assigned, input, teamById, divisionById),
-    teamMetrics: metrics(assigned, input),
+    totalPenalty: penalty(balancedAssigned, input, teamById, divisionById),
+    teamMetrics: metrics(balancedAssigned, input),
   };
 }
 
