@@ -29,3 +29,19 @@ encryption_authentication: passed
 ```
 
 This validates encrypted dump/restore behavior and cleanup on the isolated schema; it is not evidence for full-size load performance or production recovery-time targets.
+
+## OPS isolated-stack rerun after Phase 11
+
+After syncing the current trunk through Phase 11, the isolated `athlentry_ops` stack at `PORT_OFFSET=1400` was migrated through `8010_phase11_foreign_key_indexes.sql`. The source was `athlentry_test` using the read-only backup role; scratch creation used the local `postgres` maintenance role. A new one-run encryption key was generated in memory and was not persisted.
+
+```text
+restore_drill: passed
+scratch_database: athlentry_ops_restore_1790544702633_14949a18
+scratch_database_cleanup: passed
+schema_migrations: 156
+latest_migration: 8010
+verified_row_counts: organizations=0, people=0, registrations=0, attendance=0, invoices=0, payments=0, audit_log=0
+encryption_authentication: passed
+```
+
+This verifies restore behavior against the latest merged schema with the least-privilege backup role. The scratch database was removed before the command completed.

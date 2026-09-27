@@ -4,6 +4,10 @@ Branch: `track/c-adapters`
 Current: merged the locally available `rebuild/trunk` at `af353fc`; Track C is resuming the trunk gates and wiring queue. Phase 15 remains owned by Track K.
 Ready for integration: no; trunk merge and current wiring changes need the required gates.
 Requests to other tracks: Track A — reconcile DEC-023 with verified-guardian restricted uploads and owner/compliance-only restricted downloads. Track E — registration module/route and checkout contracts are prerequisites for registration UI wiring.
+
+## Requests from OPS
+- Fix the client bundle size regression in C-owned web routes/chunks: a clean `npm run build && npm run size` measures `dist/web/assets/app-D8RaR_h0.js` at 304.93 KB gzip against the unchanged 200 KB budget. The earlier 149.38 KB result was stale because size ran concurrently with the build. Keep the budget/check intact; split or lazy-load client dependencies, then verify with a clean sequential build and size run (2026-09-27).
+
 ## Done by OPS
 - Added app-level `/readyz` and public `/status`, sanitized Express error reporting, structured API/worker startup logs, the `@sentry/node` PII-scrubbed hooks, heartbeat/queue/webhook/payment/email alert collection, key-generation/rotation plus backup/restore/replay npm commands, and web startup removal of the pre-deploy database admin variable (2026-09-27).
 Blocked on: GitHub access is currently unavailable from this environment; local gates remain available.

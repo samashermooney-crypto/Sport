@@ -1,10 +1,12 @@
 # Track H — communications and chat
 
-Status: ready-for-integration (H-owned work and gates are green; Phase 10 completion awaits the listed A/C/G work)
+Requests from OPS: Resolve the current Knip findings in Phase 11 ownership: wire or remove `web/src/site/sponsors/PublicSponsors.tsx` and wire or remove the 18 unused fundraising, sponsor, store, team-finance and volunteer exports; keep the generated route registry and API surface truthful (2026-09-27).
+
+Status: Phase 10 H-owned work is ready for integration; Phase 11 is complete and green on trunk; Phase 13 belongs to Track J
 Branch: `track/h-comms` (local only; no push)
-Merged trunk: `rebuild/trunk` at `96b2852` (including the dependency, finance and household integrations)
-Local range: `c577d62..HEAD` (includes the resolved trunk merge and H follow-ups)
-Migration range: `4000–4006`
+Merged trunk at sprint start: `rebuild/trunk` / `d991fee`; synchronized branch includes `rebuild/trunk` `f091afce`
+Current synchronized base: `rebuild/trunk` `d0385562`; sprint changes remain local and unpushed
+Migration ranges: Phase 10 `4000–4006`; Phase 11 `8000–8499` (Phase 13 is J's `6000–6999`)
 
 ## Delivered
 
@@ -36,4 +38,28 @@ Migration range: `4000–4006`
 
 Track B's catalog/preferences and Track C's provider-ID interface are on the merged trunk and wired by H. Track H-owned work is complete and ready for integration. Overall Phase 10 still awaits the A/C/G items above and their acceptance journeys.
 
-Track H complete
+## Phase 11 progress
+
+- Implemented volunteer operations, team ledgers and fee assessments, fundraising and encrypted nonprofit receipt settings, sponsor records and invoices, store inventory and uniform add-ons/reports, plus console, family portal and public fundraising flows. Existing invoice repositories handle team, sponsor and store billing.
+- Added shipping-address capture at store checkout and manager fulfillment display. Added migrations `8009_team_season_ledgers.sql` and `8010_phase11_foreign_key_indexes.sql`; the isolated database has applied both. Refreshed generated registry and OpenAPI output.
+- Targeted Phase 11 Postgres suites pass: 5 files, 13 tests. They cover volunteer and finance permission boundaries, donation receipts, sponsor invoicing/placements, shipping address snapshots, uniform add-on reporting, and concurrent inventory/idempotency behavior.
+- Phase 11 Playwright journeys pass: 8 runs across Chromium desktop and WebKit mobile, covering the three specified volunteer/team-finance/donation acceptance flows plus ship-to fulfillment. Axe reported no violations. A first parallel run had one donation receipt assertion miss the tax acknowledgment; the persisted settings assertion, isolated rerun and complete Phase 11 rerun all passed.
+- Full Chromium desktop Playwright suite passes on the merged trunk tree: 37 passed, 6 skipped. An earlier parallel run had a transient campaign-scheduling busy-state assertion; the isolated journey and full serial rerun passed.
+- `npm run typecheck`, `npm run lint`, and `npm run build` pass. Build reports existing Zod annotation, chunking and bundle-size advisories. Full Vitest passes on trunk: 245 files passed, 1 skipped; 873 tests passed, 1 skipped.
+- Track H sprint complete: the H/J trunk merge gate passed with typecheck, lint, Vitest and Chromium green.
+- Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_h`, `PORT_OFFSET=800`; Postgres `6232`, Mailpit API `8825`, Stripe mock `12911`. Tests use fake/preview providers; no real email, SMS, push or payment was sent.
+
+### Next steps
+
+- Track H Phase 11 is integrated. The other-track requests below remain with their owners.
+
+### Open requests
+
+- **E/C:** Production guest-donation checkout and signed payment-completion/failure dispatch for `server/src/modules/fundraising/checkout.ts`; dev/test preview checkout is implemented. Confirm registration add-on inventory reservation ownership with E.
+- **B:** Register Phase 11 notification catalog IDs/templates: `fundraising.donation_receipt`, `fundraising.campaign_update`, `sponsor.renewal_reminder`, `store.order_update`, `store.low_stock`, `volunteer.shift_reminder`, `volunteer.requirement_behind`, `team.fee_assessed`, and `team.reimbursement_decided`; provide volunteer administration picklists. H services currently skip catalog-gated notifications until those IDs exist.
+- **C/D:** Authorize safe public sponsor-logo delivery and confirm public sponsor/store page wiring through the website routes.
+- **A:** Phase 10 profile/history links, verified-phone consent, `athleteChatEnabled`, and conversation synchronization.
+- **C:** Phase 10 same-organization conversation-member attachment authorization.
+- **G:** Phase 10 schedule-change coalescing.
+- **J:** Owns Phase 13 federation; H does not merge `track/j-federation`.
+- **Phase 10 external work:** A still owns profile message-history links, verified-phone consent, `athleteChatEnabled`, and conversation synchronization; C owns chat attachment authorization; G owns schedule-change coalescing.

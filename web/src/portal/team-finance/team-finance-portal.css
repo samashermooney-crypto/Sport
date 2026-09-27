@@ -1,0 +1,23 @@
+.team-finance-portal {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.team-finance-portal__form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+}
+
+.team-finance-portal__requests {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.team-finance-portal__requests li {
+  display: grid;
+  gap: 0.35rem;
+  border-bottom: 1px solid var(--border);
+  padding-block: 0.75rem;
+}
