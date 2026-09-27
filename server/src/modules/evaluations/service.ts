@@ -8,6 +8,7 @@ import type {
   EvaluationScore,
 } from '@shared/algorithms/evaluation';
 import { balanceTeams } from '@shared/algorithms/team-balancer';
+import { rubricCriterionSchema } from '@shared/sport/schema';
 import { sql, type Kysely } from 'kysely';
 
 import type { DB } from '../../db/types';
@@ -142,6 +143,12 @@ export async function createEvaluationEvent(
         'NOT_FOUND',
         'Tryout and target programs were not found',
       );
+    if (!['club', 'league'].includes(target.mode))
+      throw new EvaluationError(
+        422,
+        'INVALID_TARGET_PROGRAM',
+        'Evaluation placements require a club or league target program',
+      );
     if (tryout.sport_profile_id !== target.sport_profile_id)
       throw new EvaluationError(
         422,
@@ -228,9 +235,21 @@ export async function createEvaluationSession(
         );
     }
     const id = randomUUID();
+    const calendarEventId = randomUUID();
+    let location: string | null = null;
+    if (input.facilityId) {
+      const facility = await sql<{ name: string }>`SELECT name FROM facilities
+        WHERE org_id=${context.orgId} AND id=${input.facilityId}`.execute(trx);
+      location = facility.rows[0]?.name ?? null;
+    }
+    await sql`INSERT INTO events
+      (id,org_id,program_id,kind,title,starts_at,ends_at,timezone,location_text,status,published,arrival_minutes_before)
+      VALUES (${calendarEventId},${context.orgId},${event.tryout_program_id},'evaluation_session',${input.name},${input.startsAt},${input.endsAt},${input.timezone},${location},'scheduled',false,0)`.execute(
+      trx,
+    );
     await sql`INSERT INTO evaluation_sessions
-      (id,org_id,evaluation_event_id,evaluation_group_id,name,starts_at,ends_at,timezone,facility_id,capacity)
-      VALUES (${id},${context.orgId},${eventId},${input.groupId},${input.name},${input.startsAt},${input.endsAt},${input.timezone},${input.facilityId},${input.capacity})`.execute(
+      (id,org_id,evaluation_event_id,evaluation_group_id,calendar_event_id,name,starts_at,ends_at,timezone,facility_id,capacity)
+      VALUES (${id},${context.orgId},${eventId},${input.groupId},${calendarEventId},${input.name},${input.startsAt},${input.endsAt},${input.timezone},${input.facilityId},${input.capacity})`.execute(
       trx,
     );
     await sql`UPDATE evaluation_events SET status='registration_open',version=version+1,updated_at=now()
@@ -242,7 +261,7 @@ export async function createEvaluationSession(
       entityType: 'evaluation_session',
       entityId: id,
     });
-    return { id, evaluationEventId: eventId, ...input };
+    return { id, evaluationEventId: eventId, calendarEventId, ...input };
   });
 }
 
@@ -346,9 +365,7 @@ export async function assignEvaluationParticipant(
         id: string;
       }>`SELECT id FROM registrations WHERE org_id=${context.orgId}
         AND id=${input.registrationId} AND person_id=${input.personId} AND program_id=${event.tryout_program_id}
-        AND status NOT IN ('canceled','withdrawn','transferred_out')`.execute(
-        trx,
-      );
+        AND status='confirmed'`.execute(trx);
       if (!registration.rows[0])
         throw new EvaluationError(
           404,
@@ -360,8 +377,9 @@ export async function assignEvaluationParticipant(
       const session = await sql<{
         id: string;
         group_id: string | null;
-      }>`SELECT id,evaluation_group_id AS group_id FROM evaluation_sessions
-        WHERE org_id=${context.orgId} AND id=${input.sessionId} AND evaluation_event_id=${eventId}`.execute(
+        capacity: number | null;
+      }>`SELECT id,evaluation_group_id AS group_id,capacity FROM evaluation_sessions
+        WHERE org_id=${context.orgId} AND id=${input.sessionId} AND evaluation_event_id=${eventId} FOR UPDATE`.execute(
         trx,
       );
       if (
@@ -374,6 +392,20 @@ export async function assignEvaluationParticipant(
           'NOT_FOUND',
           'Evaluation session not found for this group',
         );
+      const selectedSession = session.rows[0];
+      if (selectedSession.capacity !== null) {
+        const enrolled = await sql<{
+          count: number;
+        }>`SELECT count(*)::int AS count
+          FROM evaluation_participants WHERE org_id=${context.orgId} AND evaluation_session_id=${input.sessionId}
+            AND check_in_status <> 'withdrawn'`.execute(trx);
+        if ((enrolled.rows[0]?.count ?? 0) >= selectedSession.capacity)
+          throw new EvaluationError(
+            409,
+            'CAPACITY_EXCEEDED',
+            'Evaluation session has reached its capacity',
+          );
+      }
     }
     const mediaConsent = person.rows[0].media_consent === 'granted';
     let photoFileId: string | null = null;
@@ -842,11 +874,18 @@ export async function createPlacementBoard(
   return withOrg(context, async (trx) => {
     const program = await sql<{
       id: string;
-    }>`SELECT id FROM programs WHERE org_id=${context.orgId} AND id=${targetProgramId}`.execute(
+      mode: string;
+    }>`SELECT id,mode FROM programs WHERE org_id=${context.orgId} AND id=${targetProgramId}`.execute(
       trx,
     );
     if (!program.rows[0])
       throw new EvaluationError(404, 'NOT_FOUND', 'Target program not found');
+    if (!eventId && program.rows[0].mode !== 'league')
+      throw new EvaluationError(
+        422,
+        'INVALID_TARGET_PROGRAM',
+        'Rec-league boards require a league program',
+      );
     if (eventId) {
       const event = await eventRow(trx, context.orgId, eventId);
       if (!event || event.target_program_id !== targetProgramId)
@@ -875,9 +914,23 @@ export async function createPlacementBoard(
           'Target division not found',
         );
     }
+    if (eventId && input.evaluationGroupId) {
+      const evaluationGroup = await sql<{
+        id: string;
+      }>`SELECT id FROM evaluation_groups
+        WHERE org_id=${context.orgId} AND id=${input.evaluationGroupId} AND evaluation_event_id=${eventId}`.execute(
+        trx,
+      );
+      if (!evaluationGroup.rows[0])
+        throw new EvaluationError(
+          404,
+          'NOT_FOUND',
+          'Evaluation group not found for this event',
+        );
+    }
     const id = randomUUID();
     await sql`INSERT INTO placement_boards(id,org_id,evaluation_event_id,target_program_id,division_id,seed,options)
-      VALUES (${id},${context.orgId},${eventId},${targetProgramId},${input.divisionId},${input.seed},${JSON.stringify({ siblingsTogether: input.siblingsTogether, returningStay: input.returningStay })}::jsonb)`.execute(
+      VALUES (${id},${context.orgId},${eventId},${targetProgramId},${input.divisionId},${input.seed},${JSON.stringify({ siblingsTogether: input.siblingsTogether, returningStay: input.returningStay, evaluationGroupId: input.evaluationGroupId })}::jsonb)`.execute(
       trx,
     );
     const teams = await sql<{
@@ -915,13 +968,18 @@ export async function createPlacementBoard(
         school: string | null;
         household_id: string | null;
         group_name: string;
-      }>`SELECT p.person_id,r.composite::float8 AS composite,p.position_keys AS positions,pe.school_name AS school,hm.household_id,g.name AS group_name
+      }>`SELECT p.person_id,r.composite::float8 AS composite,p.position_keys AS positions,pe.school_name AS school,
+          (SELECT hm.household_id FROM household_members hm
+           WHERE hm.org_id=p.org_id AND hm.person_id=p.person_id
+           ORDER BY hm.is_primary_contact DESC,hm.created_at LIMIT 1) AS household_id,
+          g.name AS group_name
         FROM evaluation_participants p JOIN evaluation_groups g ON g.org_id=p.org_id AND g.id=p.evaluation_group_id
         LEFT JOIN evaluation_results r ON r.org_id=p.org_id AND r.evaluation_participant_id=p.id
         JOIN people pe ON pe.org_id=p.org_id AND pe.id=p.person_id
-        LEFT JOIN household_members hm ON hm.org_id=p.org_id AND hm.person_id=p.person_id
         WHERE p.org_id=${context.orgId} AND p.evaluation_event_id=${eventId}
-          AND (${input.divisionId}::uuid IS NULL OR g.name=(SELECT name FROM divisions WHERE org_id=${context.orgId} AND id=${input.divisionId}))
+          AND CASE WHEN ${input.evaluationGroupId}::uuid IS NULL
+            THEN (${input.divisionId}::uuid IS NULL OR g.name=(SELECT name FROM divisions WHERE org_id=${context.orgId} AND id=${input.divisionId}))
+            ELSE p.evaluation_group_id=${input.evaluationGroupId} END
           AND r.composite IS NOT NULL ORDER BY r.rank_in_group,p.id`.execute(
         trx,
       );
@@ -1048,8 +1106,7 @@ export async function createPlacementBoard(
       const returningTeamId = returningTeamByPerson.get(row.person_id);
       return {
         id: row.person_id,
-        rating:
-          row.composite === null ? null : row.composite - ratingFloor,
+        rating: row.composite === null ? null : row.composite - ratingFloor,
         positions: row.positions,
         ...(fixedTeamId ? { fixedTeamId } : {}),
         ...(input.siblingsTogether &&
@@ -1061,9 +1118,7 @@ export async function createPlacementBoard(
         ...(friendId && participantIds.has(friendId)
           ? { friendRequestId: friendId }
           : {}),
-        ...(input.returningStay && returningTeamId
-          ? { returningTeamId }
-          : {}),
+        ...(input.returningStay && returningTeamId ? { returningTeamId } : {}),
         ...(preference?.practice_location
           ? { location: preference.practice_location }
           : {}),
@@ -1133,7 +1188,8 @@ export async function movePlacement(
     const board = await sql<{
       status: string;
       target_program_id: string;
-    }>`SELECT status,target_program_id FROM placement_boards WHERE org_id=${context.orgId} AND id=${boardId} FOR UPDATE`.execute(
+      division_id: string | null;
+    }>`SELECT status,target_program_id,division_id FROM placement_boards WHERE org_id=${context.orgId} AND id=${boardId} FOR UPDATE`.execute(
       trx,
     );
     if (!board.rows[0] || board.rows[0].status !== 'draft')
@@ -1144,14 +1200,17 @@ export async function movePlacement(
       );
     const team = await sql<{
       id: string;
-    }>`SELECT id FROM team_seasons WHERE org_id=${context.orgId} AND id=${teamSeasonId} AND program_id=${board.rows[0].target_program_id} AND status IN ('forming','active')`.execute(
+      division_id: string | null;
+      roster_limit: number | null;
+    }>`SELECT id,division_id,roster_limit FROM team_seasons WHERE org_id=${context.orgId} AND id=${teamSeasonId} AND program_id=${board.rows[0].target_program_id} AND status IN ('forming','active')`.execute(
       trx,
     );
     const placement = await sql<{
       id: string;
       version: number;
       locked: boolean;
-    }>`SELECT id,version,locked FROM team_placements WHERE org_id=${context.orgId} AND placement_board_id=${boardId} AND person_id=${personId} FOR UPDATE`.execute(
+      team_season_id: string;
+    }>`SELECT id,version,locked,team_season_id FROM team_placements WHERE org_id=${context.orgId} AND placement_board_id=${boardId} AND person_id=${personId} FOR UPDATE`.execute(
       trx,
     );
     if (!team.rows[0] || !placement.rows[0])
@@ -1160,6 +1219,30 @@ export async function movePlacement(
         'NOT_FOUND',
         'Placement or team not found',
       );
+    if (
+      board.rows[0].division_id &&
+      team.rows[0].division_id !== board.rows[0].division_id
+    )
+      throw new EvaluationError(
+        404,
+        'NOT_FOUND',
+        'Placement team is outside the board division',
+      );
+    if (
+      placement.rows[0].team_season_id !== teamSeasonId &&
+      team.rows[0].roster_limit !== null
+    ) {
+      const roster = await sql<{ count: number }>`SELECT count(*)::int AS count
+        FROM team_placements WHERE org_id=${context.orgId} AND placement_board_id=${boardId} AND team_season_id=${teamSeasonId}`.execute(
+        trx,
+      );
+      if ((roster.rows[0]?.count ?? 0) >= team.rows[0].roster_limit)
+        throw new EvaluationError(
+          409,
+          'CAPACITY_EXCEEDED',
+          'Target team has reached its roster limit',
+        );
+    }
     if (placement.rows[0].locked)
       throw new EvaluationError(
         409,
@@ -1211,6 +1294,16 @@ export async function lockPlacement(
     );
   const withOrg = createWithOrg(dependencies.database);
   return withOrg(context, async (trx) => {
+    const board = await sql<{
+      status: string;
+    }>`SELECT status FROM placement_boards
+      WHERE org_id=${context.orgId} AND id=${boardId} FOR UPDATE`.execute(trx);
+    if (!board.rows[0] || board.rows[0].status !== 'draft')
+      throw new EvaluationError(
+        404,
+        'NOT_FOUND',
+        'Draft placement board not found',
+      );
     const row = await sql<{
       id: string;
       team_season_id: string;
@@ -1317,7 +1410,8 @@ export async function createTeamOffer(
       );
     const offering = await sql<{
       id: string;
-    }>`SELECT id FROM registration_offerings WHERE org_id=${context.orgId}
+      price_cents: number;
+    }>`SELECT id,price_cents::float8 AS price_cents FROM registration_offerings WHERE org_id=${context.orgId}
       AND id=${offeringId} AND program_id=${row.program_id} AND active=true`.execute(
       trx,
     );
@@ -1326,6 +1420,15 @@ export async function createTeamOffer(
         404,
         'NOT_FOUND',
         'Registration offering not found',
+      );
+    if (
+      !Number.isSafeInteger(amountCents) ||
+      offering.rows[0].price_cents !== amountCents
+    )
+      throw new EvaluationError(
+        422,
+        'OFFER_AMOUNT_MISMATCH',
+        'Offer amount must match the selected registration offering',
       );
     const id = randomUUID();
     await sql`INSERT INTO team_offers(id,org_id,placement_id,person_id,household_id,offering_id,team_season_id,amount_cents,deposit_cents,expires_at,message)
@@ -1663,6 +1766,122 @@ export async function listEvaluationEvents(
   });
 }
 
+export async function listEvaluationPrograms(
+  dependencies: EvaluationDependencies,
+  context: OrgContext,
+) {
+  const withOrg = createWithOrg(dependencies.database);
+  return withOrg(context, async (trx) => {
+    const programs = await sql<{
+      id: string;
+      name: string;
+      mode: string;
+      sport_profile_id: string;
+      sport_profile_name: string;
+      profile_rubric: unknown;
+    }>`SELECT p.id,p.name,p.mode,p.sport_profile_id,sp.name AS sport_profile_name,
+        sp.profile->'evaluationRubric' AS profile_rubric
+      FROM programs p JOIN sport_profiles sp ON sp.org_id=p.org_id AND sp.id=p.sport_profile_id
+      WHERE p.org_id=${context.orgId} AND p.status <> 'archived'
+      ORDER BY p.starts_on DESC,p.name`.execute(trx);
+    const divisions = await sql<{
+      id: string;
+      program_id: string;
+      name: string;
+    }>`SELECT id,program_id,name FROM divisions WHERE org_id=${context.orgId}
+      ORDER BY sort_order,name`.execute(trx);
+    const offerings = await sql<{
+      id: string;
+      program_id: string;
+      name: string;
+      price_cents: number;
+    }>`SELECT id,program_id,name,price_cents::float8 AS price_cents
+      FROM registration_offerings WHERE org_id=${context.orgId} AND active=true
+      ORDER BY name,id`.execute(trx);
+    return programs.rows.map((program) => {
+      const parsedRubric = rubricCriterionSchema
+        .array()
+        .safeParse(program.profile_rubric);
+      return {
+        id: program.id,
+        name: program.name,
+        mode: program.mode,
+        sportProfileId: program.sport_profile_id,
+        sportProfileName: program.sport_profile_name,
+        rubric: parsedRubric.success
+          ? parsedRubric.data.map((criterion) => ({
+              key: criterion.key,
+              label: criterion.label.en,
+              weight: criterion.weight,
+              scaleMin: criterion.scaleMin,
+              scaleMax: criterion.scaleMax,
+              positionSpecific: criterion.positionSpecific ?? false,
+              positionKeys: criterion.positionKeys ?? [],
+            }))
+          : [],
+        divisions: divisions.rows
+          .filter((division) => division.program_id === program.id)
+          .map((division) => ({ id: division.id, name: division.name })),
+        offerings: offerings.rows
+          .filter((offering) => offering.program_id === program.id)
+          .map((offering) => ({
+            id: offering.id,
+            name: offering.name,
+            priceCents: offering.price_cents,
+          })),
+      };
+    });
+  });
+}
+
+export async function listEvaluationEvaluatorCandidates(
+  dependencies: EvaluationDependencies,
+  context: OrgContext,
+) {
+  const withOrg = createWithOrg(dependencies.database);
+  return withOrg(context, async (trx) => {
+    const rows = await sql<
+      Record<string, unknown>
+    >`SELECT DISTINCT account.id AS "accountId",account.first_name AS "firstName",account.last_name AS "lastName"
+      FROM role_assignments role
+      JOIN org_memberships membership ON membership.org_id=role.org_id AND membership.account_id=role.account_id
+      JOIN accounts account ON account.id=role.account_id
+      JOIN person_account_links link ON link.org_id=role.org_id AND link.account_id=role.account_id AND link.relationship='self' AND link.revoked_at IS NULL
+      WHERE role.org_id=${context.orgId} AND role.role='evaluator' AND role.scope_type='org'
+        AND role.pending_mfa=false AND role.revoked_at IS NULL AND membership.status='active'
+      ORDER BY account.last_name,account.first_name,account.id`.execute(trx);
+    return rows.rows;
+  });
+}
+
+export async function listEvaluationRegistrants(
+  dependencies: EvaluationDependencies,
+  context: OrgContext,
+  eventId: string,
+) {
+  const withOrg = createWithOrg(dependencies.database);
+  return withOrg(context, async (trx) => {
+    const event = await eventRow(trx, context.orgId, eventId);
+    if (!event)
+      throw new EvaluationError(404, 'NOT_FOUND', 'Evaluation event not found');
+    const rows = await sql<{
+      registrationId: string;
+      personId: string;
+      firstName: string;
+      lastName: string;
+      assigned: boolean;
+    }>`SELECT r.id AS "registrationId",p.id AS "personId",p.first_name AS "firstName",
+        p.last_name AS "lastName",
+        EXISTS (SELECT 1 FROM evaluation_participants ep WHERE ep.org_id=r.org_id
+          AND ep.evaluation_event_id=${eventId} AND ep.person_id=r.person_id) AS assigned
+      FROM registrations r JOIN people p ON p.org_id=r.org_id AND p.id=r.person_id
+      WHERE r.org_id=${context.orgId} AND r.program_id=${event.tryout_program_id}
+        AND r.status='confirmed'
+      ORDER BY p.last_name,p.first_name,r.created_at,r.id`.execute(trx);
+    return rows.rows;
+  });
+}
+
 export async function getEvaluationSetup(
   dependencies: EvaluationDependencies,
   context: OrgContext,
@@ -1682,13 +1901,13 @@ export async function getEvaluationSetup(
       ),
       sql<
         Record<string, unknown>
-      >`SELECT id,evaluation_group_id AS "groupId",name,starts_at AS "startsAt",ends_at AS "endsAt",timezone,facility_id AS "facilityId",capacity,version
+      >`SELECT id,evaluation_group_id AS "groupId",calendar_event_id AS "calendarEventId",name,starts_at AS "startsAt",ends_at AS "endsAt",timezone,facility_id AS "facilityId",capacity,version
         FROM evaluation_sessions WHERE org_id=${context.orgId} AND evaluation_event_id=${eventId} ORDER BY starts_at`.execute(
         trx,
       ),
       sql<
         Record<string, unknown>
-      >`SELECT p.id,p.person_id AS "personId",p.evaluation_group_id AS "groupId",g.name AS "groupName",p.evaluation_session_id AS "sessionId",p.bib_number AS "bibNumber",p.check_in_status AS "checkInStatus",pe.first_name AS "firstName",pe.last_name AS "lastName"
+      >`SELECT p.id,p.person_id AS "personId",p.registration_id AS "registrationId",p.evaluation_group_id AS "groupId",g.name AS "groupName",p.evaluation_session_id AS "sessionId",p.bib_number AS "bibNumber",p.check_in_status AS "checkInStatus",pe.first_name AS "firstName",pe.last_name AS "lastName"
         FROM evaluation_participants p JOIN evaluation_groups g ON g.org_id=p.org_id AND g.id=p.evaluation_group_id JOIN people pe ON pe.org_id=p.org_id AND pe.id=p.person_id
         WHERE p.org_id=${context.orgId} AND p.evaluation_event_id=${eventId} ORDER BY g.sort_order,p.bib_number`.execute(
         trx,
@@ -1712,11 +1931,14 @@ export async function evaluationConsistency(
   return withOrg(context, async (trx) => {
     const rows = await sql<
       Record<string, unknown>
-    >`SELECT s.evaluator_account_id AS "evaluatorId",c.criterion_key AS "criterionKey",
+    >`SELECT s.evaluator_account_id AS "evaluatorId",
+      trim(concat_ws(' ',evaluator.first_name,evaluator.last_name)) AS "evaluatorName",
+      c.criterion_key AS "criterionKey",
       count(*)::int AS "scoreCount",avg(s.score)::float8 AS mean,stddev_pop(s.score)::float8 AS standard_deviation
       FROM evaluation_scores s JOIN evaluation_criteria c ON c.org_id=s.org_id AND c.id=s.evaluation_criterion_id
+      JOIN accounts evaluator ON evaluator.id=s.evaluator_account_id
       WHERE s.org_id=${context.orgId} AND s.evaluation_event_id=${eventId}
-      GROUP BY s.evaluator_account_id,c.criterion_key ORDER BY s.evaluator_account_id,c.criterion_key`.execute(
+      GROUP BY s.evaluator_account_id,evaluator.first_name,evaluator.last_name,c.criterion_key ORDER BY evaluator.last_name,evaluator.first_name,c.criterion_key`.execute(
       trx,
     );
     return rows.rows;
@@ -1780,7 +2002,7 @@ export async function upsertPlacementPreference(
       ON CONFLICT (org_id,program_id,person_id) DO UPDATE SET
         friend_request_person_id=EXCLUDED.friend_request_person_id,
         practice_location=EXCLUDED.practice_location,
-        coach_rating=EXCLUDED.coach_rating,
+        coach_rating=CASE WHEN EXCLUDED.source='family' THEN placement_preferences.coach_rating ELSE EXCLUDED.coach_rating END,
         note=EXCLUDED.note,source=EXCLUDED.source,
         version=placement_preferences.version+1,updated_at=now()
       RETURNING id,version`.execute(trx);
@@ -1796,7 +2018,12 @@ export async function upsertPlacementPreference(
       entityType: 'placement_preference',
       entityId: row.id,
     });
-    return { id: row.id, programId, personId: input.personId, version: row.version };
+    return {
+      id: row.id,
+      programId,
+      personId: input.personId,
+      version: row.version,
+    };
   });
 }
 
@@ -1831,6 +2058,102 @@ export async function listPlacementPreferences(
   });
 }
 
+export async function listMyPlacementPrograms(
+  dependencies: EvaluationDependencies,
+  context: OrgContext,
+) {
+  const withOrg = createWithOrg(dependencies.database);
+  return withOrg(context, async (trx) => {
+    const rows = await sql<
+      Record<string, unknown>
+    >`SELECT DISTINCT ON (r.program_id,r.person_id)
+        r.program_id AS "programId",program.name AS "programName",r.person_id AS "personId",
+        person.first_name AS "firstName",person.last_name AS "lastName",r.division_id AS "divisionId",division.name AS "divisionName",
+        preference.friend_request_person_id AS "friendRequestPersonId",preference.practice_location AS "practiceLocation"
+      FROM registrations r
+      JOIN programs program ON program.org_id=r.org_id AND program.id=r.program_id
+      JOIN people person ON person.org_id=r.org_id AND person.id=r.person_id
+      JOIN divisions division ON division.org_id=r.org_id AND division.id=r.division_id
+      JOIN person_account_links link ON link.org_id=r.org_id AND link.person_id=r.person_id
+      LEFT JOIN placement_preferences preference ON preference.org_id=r.org_id AND preference.program_id=r.program_id AND preference.person_id=r.person_id
+      WHERE r.org_id=${context.orgId} AND link.account_id=${context.actor.accountId}
+        AND link.relationship IN ('guardian','self') AND link.revoked_at IS NULL
+        AND r.status='confirmed' AND program.mode='league' AND program.status NOT IN ('archived','completed')
+      ORDER BY r.program_id,r.person_id,link.verified_at DESC`.execute(trx);
+    return rows.rows;
+  });
+}
+
+export async function upsertMyPlacementPreference(
+  dependencies: EvaluationDependencies,
+  context: OrgContext,
+  programId: string,
+  input: Pick<
+    PlacementPreferenceInput,
+    'personId' | 'friendRequestPersonId' | 'practiceLocation'
+  >,
+) {
+  const withOrg = createWithOrg(dependencies.database);
+  return withOrg(context, async (trx) => {
+    const athlete = await sql<{
+      id: string;
+    }>`SELECT r.person_id AS id FROM registrations r
+      JOIN person_account_links link ON link.org_id=r.org_id AND link.person_id=r.person_id
+      JOIN programs program ON program.org_id=r.org_id AND program.id=r.program_id
+      WHERE r.org_id=${context.orgId} AND r.program_id=${programId} AND r.person_id=${input.personId}
+        AND r.status='confirmed' AND program.mode='league' AND program.status NOT IN ('archived','completed')
+        AND link.account_id=${context.actor.accountId} AND link.relationship IN ('guardian','self') AND link.revoked_at IS NULL
+      LIMIT 1`.execute(trx);
+    if (!athlete.rows[0])
+      throw new EvaluationError(
+        404,
+        'NOT_FOUND',
+        'Registered athlete not found',
+      );
+    if (input.friendRequestPersonId) {
+      const friend = await sql<{ id: string }>`SELECT id FROM registrations
+        WHERE org_id=${context.orgId} AND program_id=${programId} AND person_id=${input.friendRequestPersonId}
+          AND status='confirmed'`.execute(trx);
+      if (!friend.rows[0])
+        throw new EvaluationError(
+          404,
+          'NOT_FOUND',
+          'Registered friend not found',
+        );
+    }
+    const id = randomUUID();
+    const saved = await sql<{
+      id: string;
+      version: number;
+    }>`INSERT INTO placement_preferences
+      (id,org_id,program_id,person_id,friend_request_person_id,practice_location,source)
+      VALUES (${id},${context.orgId},${programId},${input.personId},${input.friendRequestPersonId},${input.practiceLocation},'family')
+      ON CONFLICT (org_id,program_id,person_id) DO UPDATE SET
+        friend_request_person_id=EXCLUDED.friend_request_person_id,
+        practice_location=EXCLUDED.practice_location,source='family',
+        version=placement_preferences.version+1,updated_at=now()
+      RETURNING id,version`.execute(trx);
+    const row = saved.rows[0];
+    if (!row)
+      throw new EvaluationError(
+        409,
+        'PREFERENCE_CONFLICT',
+        'Placement preference could not be saved',
+      );
+    await appendAuditEvent(trx, context, {
+      action: 'placement.preference.saved',
+      entityType: 'placement_preference',
+      entityId: row.id,
+    });
+    return {
+      id: row.id,
+      programId,
+      personId: input.personId,
+      version: row.version,
+    };
+  });
+}
+
 export async function withdrawTeamOffer(
   dependencies: EvaluationDependencies,
   context: OrgContext,
@@ -1846,11 +2169,7 @@ export async function withdrawTeamOffer(
       RETURNING id,placement_id`.execute(trx);
     const row = updated.rows[0];
     if (!row)
-      throw new EvaluationError(
-        404,
-        'NOT_FOUND',
-        'Open offer not found',
-      );
+      throw new EvaluationError(404, 'NOT_FOUND', 'Open offer not found');
     await sql`UPDATE team_placements SET status='published',version=version+1,updated_at=now()
       WHERE org_id=${context.orgId} AND id=${row.placement_id} AND status='offer_sent'`.execute(
       trx,

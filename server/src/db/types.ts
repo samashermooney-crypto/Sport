@@ -954,6 +954,7 @@ export interface EvaluationSessionEvaluators {
 }
 
 export interface EvaluationSessions {
+  calendar_event_id: string;
   capacity: number | null;
   created_at: Generated<Timestamp>;
   ends_at: Timestamp;
@@ -1335,6 +1336,7 @@ export interface InvoiceLines {
   id: string;
   invoice_id: string;
   kind: string;
+  late_fee_installment_id: string | null;
   org_id: string;
   parent_line_id: string | null;
   person_id: string | null;

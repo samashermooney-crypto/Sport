@@ -20,9 +20,12 @@ import {
   createPlacementBoard,
   createTeamOffer,
   declineTeamOffer,
+  evaluationConsistency,
   expireTeamOffers,
   getPlacementBoard,
+  listEvaluationEvaluatorCandidates,
   listFamilyOffers,
+  listMyPlacementPrograms,
   listMyEvaluationResults,
   listOfferDashboard,
   listPlacementPreferences,
@@ -32,6 +35,7 @@ import {
   sendOfferReminders,
   upsertEvaluationScore,
   upsertPlacementPreference,
+  upsertMyPlacementPreference,
   withdrawTeamOffer,
 } from './service';
 import type { OfferCheckoutAdapter } from './service';
@@ -50,6 +54,8 @@ const seasonId = randomUUID();
 const priorSeasonId = randomUUID();
 const sportProfileId = randomUUID();
 const tryoutProgramId = randomUUID();
+const tryoutDivisionId = randomUUID();
+const tryoutOfferingId = randomUUID();
 const targetProgramId = randomUUID();
 const priorProgramId = randomUUID();
 const divisionId = randomUUID();
@@ -80,7 +86,10 @@ const outsiderContext: OrgContext = {
   orgId: orgA,
   actor: { accountId: outsiderAccount },
 };
-const orgBContext: OrgContext = { orgId: orgB, actor: { accountId: ownerAccount } };
+const orgBContext: OrgContext = {
+  orgId: orgB,
+  actor: { accountId: ownerAccount },
+};
 
 let clockNow = new Date('2026-09-27T15:00:00.000Z');
 let database: Kysely<DB>;
@@ -148,8 +157,16 @@ let participantC: string;
 let participantD: string;
 let participantE: string;
 let groupBId: string;
+let groupAId: string;
 let boardId: string;
 let offerId: string;
+const tryoutRegistrationIds = new Map<string, string>();
+
+function tryoutRegistrationFor(personId: string): string {
+  const registrationId = tryoutRegistrationIds.get(personId);
+  if (!registrationId) throw new Error('Missing confirmed tryout registration');
+  return registrationId;
+}
 
 beforeAll(async () => {
   admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
@@ -184,6 +201,12 @@ beforeAll(async () => {
      VALUES ($1, $2, $3, 'owner', 'org', $3, false)`,
     [randomUUID(), orgA, ownerAccount],
   );
+  for (const accountId of [evaluatorAccountA, evaluatorAccountB])
+    await admin.query(
+      `INSERT INTO role_assignments (id, org_id, account_id, role, scope_type, granted_by, pending_mfa)
+       VALUES ($1, $2, $3, 'evaluator', 'org', $4, false)`,
+      [randomUUID(), orgA, accountId, ownerAccount],
+    );
   await admin.query(
     `INSERT INTO sport_profiles (id, org_id, name, profile)
      VALUES ($1, $2, 'Soccer', '{}'::jsonb)`,
@@ -200,12 +223,31 @@ beforeAll(async () => {
      VALUES ($1, $2, $3, $4, 'tryout', 'Tryout', 'tryout-a', 'published', 'private', '2026-09-01', '2026-09-30'),
             ($5, $2, $3, $4, 'club', 'Competitive', 'competitive-a', 'published', 'private', '2026-10-01', '2026-12-31'),
             ($6, $2, $7, $4, 'club', 'Prior Comp', 'prior-comp', 'archived', 'private', '2025-09-01', '2025-12-31')`,
-    [tryoutProgramId, orgA, seasonId, sportProfileId, targetProgramId, priorProgramId, priorSeasonId],
+    [
+      tryoutProgramId,
+      orgA,
+      seasonId,
+      sportProfileId,
+      targetProgramId,
+      priorProgramId,
+      priorSeasonId,
+    ],
   );
   await admin.query(
     `INSERT INTO divisions (id, org_id, program_id, name)
      VALUES ($1, $2, $3, 'U10'), ($4, $2, $3, 'U10B'), ($5, $2, $6, 'U10')`,
-    [divisionId, orgA, targetProgramId, smallDivisionId, priorDivisionId, priorProgramId],
+    [
+      divisionId,
+      orgA,
+      targetProgramId,
+      smallDivisionId,
+      priorDivisionId,
+      priorProgramId,
+    ],
+  );
+  await admin.query(
+    `INSERT INTO divisions (id, org_id, program_id, name) VALUES ($1, $2, $3, 'Tryout U10')`,
+    [tryoutDivisionId, orgA, tryoutProgramId],
   );
   await admin.query(
     `INSERT INTO households (id, org_id, name) VALUES ($1, $2, 'Household A'), ($3, $2, 'Household B')`,
@@ -221,7 +263,17 @@ beforeAll(async () => {
             ($7, $2, 'Kid', 'Gamma', '2017-08-25', 'female', 'South'),
             ($8, $2, 'Kid', 'Delta', '2017-03-10', 'female', 'North'),
             ($9, $2, 'Kid', 'Echo', '2017-05-12', 'female', 'South')`,
-    [evaluatorPersonA, orgA, evaluatorPersonB, guardianPerson, childA, childB, childC, childD, childE],
+    [
+      evaluatorPersonA,
+      orgA,
+      evaluatorPersonB,
+      guardianPerson,
+      childA,
+      childB,
+      childC,
+      childD,
+      childE,
+    ],
   );
   await admin.query(
     `INSERT INTO household_members (id, org_id, household_id, person_id, role, is_primary_contact)
@@ -292,6 +344,29 @@ beforeAll(async () => {
      VALUES ($1, $2, $3, $4, 'Competitive fee', 'athlete', 25000, true)`,
     [offeringId, orgA, targetProgramId, divisionId],
   );
+  await admin.query(
+    `INSERT INTO registration_offerings (id, org_id, program_id, division_id, name, registrant_role, price_cents, active)
+     VALUES ($1, $2, $3, $4, 'Tryout fee', 'athlete', 0, true)`,
+    [tryoutOfferingId, orgA, tryoutProgramId, tryoutDivisionId],
+  );
+  for (const personId of [childA, childB, childC, childD, childE]) {
+    const registrationId = randomUUID();
+    tryoutRegistrationIds.set(personId, registrationId);
+    await admin.query(
+      `INSERT INTO registrations (id, org_id, program_id, division_id, offering_id, person_id, household_id, registered_by_account_id, source, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'staff', 'confirmed')`,
+      [
+        registrationId,
+        orgA,
+        tryoutProgramId,
+        tryoutDivisionId,
+        tryoutOfferingId,
+        personId,
+        personId === childA ? householdId : householdB,
+        guardianAccount,
+      ],
+    );
+  }
   database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
 });
 
@@ -309,50 +384,106 @@ describe('Phase 6 evaluations integration', () => {
       normalization: 'z_score_per_evaluator',
       shareResultsWithFamilies: false,
       criteria: [
-        { key: 'speed', label: 'Speed', weight: 1, scaleMin: 1, scaleMax: 5, positionSpecific: false, positionKeys: [] },
-        { key: 'skill', label: 'Skill', weight: 2, scaleMin: 1, scaleMax: 5, positionSpecific: false, positionKeys: [] },
+        {
+          key: 'speed',
+          label: 'Speed',
+          weight: 1,
+          scaleMin: 1,
+          scaleMax: 5,
+          positionSpecific: false,
+          positionKeys: [],
+        },
+        {
+          key: 'skill',
+          label: 'Skill',
+          weight: 2,
+          scaleMin: 1,
+          scaleMax: 5,
+          positionSpecific: false,
+          positionKeys: [],
+        },
       ],
       groups: [
-        { name: 'U10', ageMinMonths: 96, ageMaxMonths: 120, gender: 'female', positionKeys: [] },
-        { name: 'U10B', ageMinMonths: 96, ageMaxMonths: 120, gender: 'female', positionKeys: [] },
+        {
+          name: 'U10',
+          ageMinMonths: 96,
+          ageMaxMonths: 120,
+          gender: 'female',
+          positionKeys: [],
+        },
+        {
+          name: 'U10B',
+          ageMinMonths: 96,
+          ageMaxMonths: 120,
+          gender: 'female',
+          positionKeys: [],
+        },
       ],
     });
     if (!event) throw new Error('Expected an evaluation event');
     eventId = event.id;
     expect(event.status).toBe('draft');
 
-    const session = await createEvaluationSession(dependencies(), ownerContext, eventId, {
-      groupId: null,
-      name: 'Session 1',
-      startsAt: '2026-09-28T15:00:00.000Z',
-      endsAt: '2026-09-28T17:00:00.000Z',
-      timezone: 'America/Chicago',
-      facilityId: null,
-      capacity: null,
-    });
+    const session = await createEvaluationSession(
+      dependencies(),
+      ownerContext,
+      eventId,
+      {
+        groupId: null,
+        name: 'Session 1',
+        startsAt: '2026-09-28T15:00:00.000Z',
+        endsAt: '2026-09-28T17:00:00.000Z',
+        timezone: 'America/Chicago',
+        facilityId: null,
+        capacity: 5,
+      },
+    );
     sessionId = session.id;
+    const calendar = await admin.query<{ kind: string; title: string }>(
+      `SELECT kind, title FROM events WHERE org_id=$1 AND id=$2`,
+      [orgA, session.calendarEventId],
+    );
+    expect(calendar.rows[0]).toEqual({
+      kind: 'evaluation_session',
+      title: 'Session 1',
+    });
 
-    const first = await assignEvaluationParticipant(dependencies(), ownerContext, eventId, {
-      personId: childA,
-      groupId: null,
-      sessionId,
-      registrationId: null,
-      positionKeys: [],
-    });
-    const second = await assignEvaluationParticipant(dependencies(), ownerContext, eventId, {
-      personId: childB,
-      groupId: null,
-      sessionId,
-      registrationId: null,
-      positionKeys: [],
-    });
-    const third = await assignEvaluationParticipant(dependencies(), ownerContext, eventId, {
-      personId: childC,
-      groupId: null,
-      sessionId,
-      registrationId: null,
-      positionKeys: [],
-    });
+    const first = await assignEvaluationParticipant(
+      dependencies(),
+      ownerContext,
+      eventId,
+      {
+        personId: childA,
+        groupId: null,
+        sessionId,
+        registrationId: tryoutRegistrationFor(childA),
+        positionKeys: [],
+      },
+    );
+    const second = await assignEvaluationParticipant(
+      dependencies(),
+      ownerContext,
+      eventId,
+      {
+        personId: childB,
+        groupId: null,
+        sessionId,
+        registrationId: tryoutRegistrationFor(childB),
+        positionKeys: [],
+      },
+    );
+    const third = await assignEvaluationParticipant(
+      dependencies(),
+      ownerContext,
+      eventId,
+      {
+        personId: childC,
+        groupId: null,
+        sessionId,
+        registrationId: tryoutRegistrationFor(childC),
+        positionKeys: [],
+      },
+    );
     participantA = first.id;
     participantB = second.id;
     participantC = third.id;
@@ -367,12 +498,19 @@ describe('Phase 6 evaluations integration', () => {
     const smallGroupRow = smallGroup.rows[0];
     if (!smallGroupRow) throw new Error('Expected the U10B evaluation group');
     groupBId = smallGroupRow.id;
+    const mainGroup = await admin.query<{ id: string }>(
+      `SELECT id FROM evaluation_groups WHERE org_id=$1 AND evaluation_event_id=$2 AND name='U10'`,
+      [orgA, eventId],
+    );
+    const mainGroupRow = mainGroup.rows[0];
+    if (!mainGroupRow) throw new Error('Expected the U10 evaluation group');
+    groupAId = mainGroupRow.id;
     participantD = (
       await assignEvaluationParticipant(dependencies(), ownerContext, eventId, {
         personId: childD,
         groupId: groupBId,
         sessionId,
-        registrationId: null,
+        registrationId: tryoutRegistrationFor(childD),
         positionKeys: [],
       })
     ).id;
@@ -381,17 +519,27 @@ describe('Phase 6 evaluations integration', () => {
         personId: childE,
         groupId: groupBId,
         sessionId,
-        registrationId: null,
+        registrationId: tryoutRegistrationFor(childE),
         positionKeys: [],
       })
     ).id;
 
     await expect(
       assignEvaluationParticipant(dependencies(), ownerContext, eventId, {
+        personId: childA,
+        groupId: null,
+        sessionId,
+        registrationId: tryoutRegistrationFor(childA),
+        positionKeys: [],
+      }),
+    ).rejects.toMatchObject({ status: 409, code: 'CAPACITY_EXCEEDED' });
+
+    await expect(
+      assignEvaluationParticipant(dependencies(), ownerContext, eventId, {
         personId: guardianPerson,
         groupId: null,
         sessionId: null,
-        registrationId: null,
+        registrationId: randomUUID(),
         positionKeys: [],
       }),
     ).rejects.toMatchObject({ status: 422, code: 'GROUP_NOT_ELIGIBLE' });
@@ -402,18 +550,56 @@ describe('Phase 6 evaluations integration', () => {
         name: 'Cross-tenant',
         normalization: 'none',
         shareResultsWithFamilies: false,
-        criteria: [{ key: 'a', label: 'A', weight: 1, scaleMin: 1, scaleMax: 5, positionSpecific: false, positionKeys: [] }],
-        groups: [{ name: 'Open', ageMinMonths: null, ageMaxMonths: null, gender: 'open', positionKeys: [] }],
+        criteria: [
+          {
+            key: 'a',
+            label: 'A',
+            weight: 1,
+            scaleMin: 1,
+            scaleMax: 5,
+            positionSpecific: false,
+            positionKeys: [],
+          },
+        ],
+        groups: [
+          {
+            name: 'Open',
+            ageMinMonths: null,
+            ageMaxMonths: null,
+            gender: 'open',
+            positionKeys: [],
+          },
+        ],
       }),
     ).rejects.toMatchObject({ status: 404 });
   });
 
   it('checks participants in once and gates evaluator assignment through compliance', async () => {
-    const checked = await checkInEvaluationParticipant(dependencies(), ownerContext, participantA);
+    const checked = await checkInEvaluationParticipant(
+      dependencies(),
+      ownerContext,
+      participantA,
+    );
     expect(checked.check_in_status).toBe('checked_in');
-    const repeated = await checkInEvaluationParticipant(dependencies(), ownerContext, participantA);
+    const repeated = await checkInEvaluationParticipant(
+      dependencies(),
+      ownerContext,
+      participantA,
+    );
     expect(repeated.check_in_status).toBe('checked_in');
     expect(repeated.version).toBe(checked.version);
+
+    const candidates = await listEvaluationEvaluatorCandidates(
+      dependencies(),
+      ownerContext,
+    );
+    expect(candidates).toContainEqual(
+      expect.objectContaining({
+        accountId: evaluatorAccountA,
+        firstName: 'Acct3',
+        lastName: 'Phase6',
+      }),
+    );
 
     const assigned = await assignEvaluationEvaluator(
       dependencies(),
@@ -446,38 +632,66 @@ describe('Phase 6 evaluations integration', () => {
     criterionId = String(firstCriterion.id);
 
     const [one, two] = await Promise.all([
-      upsertEvaluationScore(dependencies(), ownerContext, eventId, evaluatorAccountA, {
-        participantId: participantA,
-        criterionId,
-        score: 5,
-        notes: null,
-        clientMutationId: randomUUID(),
-      }, true),
-      upsertEvaluationScore(dependencies(), ownerContext, eventId, evaluatorAccountB, {
-        participantId: participantA,
-        criterionId,
-        score: 3,
-        notes: 'harsher',
-        clientMutationId: randomUUID(),
-      }, true),
+      upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountA,
+        {
+          participantId: participantA,
+          criterionId,
+          score: 5,
+          notes: null,
+          clientMutationId: randomUUID(),
+        },
+        true,
+      ),
+      upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountB,
+        {
+          participantId: participantA,
+          criterionId,
+          score: 3,
+          notes: 'harsher',
+          clientMutationId: randomUUID(),
+        },
+        true,
+      ),
     ]);
     expect(one.id).not.toBe(two.id);
 
     const mutationId = randomUUID();
-    const saved = await upsertEvaluationScore(dependencies(), ownerContext, eventId, evaluatorAccountA, {
-      participantId: participantB,
-      criterionId,
-      score: 4,
-      notes: null,
-      clientMutationId: mutationId,
-    }, true);
-    const replay = await upsertEvaluationScore(dependencies(), ownerContext, eventId, evaluatorAccountA, {
-      participantId: participantB,
-      criterionId,
-      score: 4,
-      notes: null,
-      clientMutationId: mutationId,
-    }, true);
+    const saved = await upsertEvaluationScore(
+      dependencies(),
+      ownerContext,
+      eventId,
+      evaluatorAccountA,
+      {
+        participantId: participantB,
+        criterionId,
+        score: 4,
+        notes: null,
+        clientMutationId: mutationId,
+      },
+      true,
+    );
+    const replay = await upsertEvaluationScore(
+      dependencies(),
+      ownerContext,
+      eventId,
+      evaluatorAccountA,
+      {
+        participantId: participantB,
+        criterionId,
+        score: 4,
+        notes: null,
+        clientMutationId: mutationId,
+      },
+      true,
+    );
     expect(replay.id).toBe(saved.id);
 
     const withOrg = createWithOrg(database);
@@ -493,13 +707,20 @@ describe('Phase 6 evaluations integration', () => {
     expect(count).toBe(2);
 
     await expect(
-      upsertEvaluationScore(dependencies(), ownerContext, eventId, evaluatorAccountA, {
-        participantId: participantA,
-        criterionId,
-        score: 99,
-        notes: null,
-        clientMutationId: randomUUID(),
-      }, true),
+      upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountA,
+        {
+          participantId: participantA,
+          criterionId,
+          score: 99,
+          notes: null,
+          clientMutationId: randomUUID(),
+        },
+        true,
+      ),
     ).rejects.toMatchObject({ status: 422, code: 'INVALID_SCORE' });
   });
 
@@ -509,7 +730,7 @@ describe('Phase 6 evaluations integration', () => {
         personId: guardianPerson,
         groupId: null,
         sessionId: null,
-        registrationId: null,
+        registrationId: randomUUID(),
         positionKeys: [],
       }),
     ).rejects.toMatchObject({ status: 409, code: 'EVENT_LOCKED' });
@@ -532,65 +753,141 @@ describe('Phase 6 evaluations integration', () => {
       [participantD, 5, 4],
       [participantE, 3, 2],
     ] as const) {
-      await upsertEvaluationScore(dependencies(), ownerContext, eventId, evaluatorAccountA, {
-        participantId: participant,
-        criterionId,
-        score: speed,
-        notes: null,
-        clientMutationId: randomUUID(),
-      }, true);
-      await upsertEvaluationScore(dependencies(), ownerContext, eventId, evaluatorAccountA, {
-        participantId: participant,
-        criterionId: skillCriterionId,
-        score: skillScore,
-        notes: null,
-        clientMutationId: randomUUID(),
-      }, true);
-      await upsertEvaluationScore(dependencies(), ownerContext, eventId, evaluatorAccountB, {
-        participantId: participant,
-        criterionId,
-        score: Math.max(1, speed - 2),
-        notes: null,
-        clientMutationId: randomUUID(),
-      }, true);
-      await upsertEvaluationScore(dependencies(), ownerContext, eventId, evaluatorAccountB, {
-        participantId: participant,
-        criterionId: skillCriterionId,
-        score: Math.max(1, skillScore - 2),
-        notes: null,
-        clientMutationId: randomUUID(),
-      }, true);
+      await upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountA,
+        {
+          participantId: participant,
+          criterionId,
+          score: speed,
+          notes: null,
+          clientMutationId: randomUUID(),
+        },
+        true,
+      );
+      await upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountA,
+        {
+          participantId: participant,
+          criterionId: skillCriterionId,
+          score: skillScore,
+          notes: null,
+          clientMutationId: randomUUID(),
+        },
+        true,
+      );
+      await upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountB,
+        {
+          participantId: participant,
+          criterionId,
+          score: Math.max(1, speed - 2),
+          notes: null,
+          clientMutationId: randomUUID(),
+        },
+        true,
+      );
+      await upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountB,
+        {
+          participantId: participant,
+          criterionId: skillCriterionId,
+          score: Math.max(1, skillScore - 2),
+          notes: null,
+          clientMutationId: randomUUID(),
+        },
+        true,
+      );
     }
-    const results = await computeEvaluationResults(dependencies(), ownerContext, eventId);
+    const results = await computeEvaluationResults(
+      dependencies(),
+      ownerContext,
+      eventId,
+    );
     const alpha = results.find((row) => row.participantId === participantA);
     const gamma = results.find((row) => row.participantId === participantC);
     expect(alpha?.rankInGroup).toBe(1);
     expect(gamma?.rankInGroup).toBe(3);
     expect(alpha?.evaluatorCount).toBe(2);
+    const consistency = await evaluationConsistency(
+      dependencies(),
+      ownerContext,
+      eventId,
+    );
+    expect(consistency).toContainEqual(
+      expect.objectContaining({
+        evaluatorId: evaluatorAccountA,
+        evaluatorName: 'Acct3 Phase6',
+        criterionKey: 'speed',
+        scoreCount: 5,
+      }),
+    );
   });
 
   it('builds, locks, moves and publishes a placement board', async () => {
-    const board = await createPlacementBoard(dependencies(), ownerContext, eventId, targetProgramId, {
-      divisionId,
-      seed: 7,
-      siblingsTogether: false,
-      returningStay: false,
-      positionMinimums: {},
-    });
+    const board = await createPlacementBoard(
+      dependencies(),
+      ownerContext,
+      eventId,
+      targetProgramId,
+      {
+        divisionId,
+        evaluationGroupId: groupAId,
+        seed: 7,
+        siblingsTogether: false,
+        returningStay: false,
+        positionMinimums: {},
+      },
+    );
     boardId = board.id;
     expect(Object.keys(board.assignments)).toHaveLength(3);
     const destinationTeamSeason = teamSeasonIds[0];
     if (!destinationTeamSeason) throw new Error('Expected a team season');
     await expect(
-      movePlacement(dependencies(), ownerContext, boardId, childA, destinationTeamSeason, 99),
+      movePlacement(
+        dependencies(),
+        ownerContext,
+        boardId,
+        childA,
+        destinationTeamSeason,
+        99,
+      ),
     ).rejects.toMatchObject({ status: 409, code: 'VERSION_CONFLICT' });
-    const detail = await getPlacementBoard(dependencies(), ownerContext, boardId);
+    const detail = await getPlacementBoard(
+      dependencies(),
+      ownerContext,
+      boardId,
+    );
     const placed = detail.placements.find((row) => row.personId === childA);
     if (!placed) throw new Error('Expected childA placement');
-    const locked = await lockPlacement(dependencies(), ownerContext, boardId, childA, 'keeper');
+    const locked = await lockPlacement(
+      dependencies(),
+      ownerContext,
+      boardId,
+      childA,
+      'keeper',
+    );
     expect(locked.locked).toBe(true);
     await expect(
-      movePlacement(dependencies(), ownerContext, boardId, childA, destinationTeamSeason, placed.version),
+      movePlacement(
+        dependencies(),
+        ownerContext,
+        boardId,
+        childA,
+        destinationTeamSeason,
+        placed.version,
+      ),
     ).rejects.toMatchObject({ status: 409, code: 'PLACEMENT_LOCKED' });
     await publishPlacementBoard(dependencies(), ownerContext, boardId);
   });
@@ -634,14 +931,28 @@ describe('Phase 6 evaluations integration', () => {
     expect(outsider).toHaveLength(0);
 
     const checkout = new FakeCheckout(admin);
-    const accepted = await acceptTeamOffer(dependencies(), guardianContext, offerId, checkout);
+    const accepted = await acceptTeamOffer(
+      dependencies(),
+      guardianContext,
+      offerId,
+      checkout,
+    );
     expect(accepted.status).toBe('accepted');
     expect(checkout.calls).toBe(1);
-    const replay = await acceptTeamOffer(dependencies(), guardianContext, offerId, checkout);
+    const replay = await acceptTeamOffer(
+      dependencies(),
+      guardianContext,
+      offerId,
+      checkout,
+    );
     expect(replay.registrationId).toBe(accepted.registrationId);
     expect(checkout.calls).toBe(1);
 
-    const dashboard = await listOfferDashboard(dependencies(), ownerContext, boardId);
+    const dashboard = await listOfferDashboard(
+      dependencies(),
+      ownerContext,
+      boardId,
+    );
     const teamRow = dashboard.teams.find((row) => row.accepted > 0);
     expect(teamRow).toBeTruthy();
   });
@@ -675,7 +986,11 @@ describe('Phase 6 evaluations integration', () => {
     await expect(
       declineTeamOffer(dependencies(), guardianContext, offerB.id, 'no', 1),
     ).rejects.toMatchObject({ status: 404 });
-    const withdrawn = await withdrawTeamOffer(dependencies(), ownerContext, offerB.id);
+    const withdrawn = await withdrawTeamOffer(
+      dependencies(),
+      ownerContext,
+      offerB.id,
+    );
     expect(withdrawn.id).toBe(offerB.id);
 
     const placementC = await withOrg(ownerContext, async (trx) =>
@@ -710,13 +1025,19 @@ describe('Phase 6 evaluations integration', () => {
   });
 
   it('shares results with families only when the event allows it', async () => {
-    const hidden = await listMyEvaluationResults(dependencies(), guardianContext);
+    const hidden = await listMyEvaluationResults(
+      dependencies(),
+      guardianContext,
+    );
     expect(hidden.find((row) => row.personId === childA)).toBeUndefined();
     await admin.query(
       `UPDATE evaluation_events SET share_results_with_families=true WHERE id=$1`,
       [eventId],
     );
-    const visible = await listMyEvaluationResults(dependencies(), guardianContext);
+    const visible = await listMyEvaluationResults(
+      dependencies(),
+      guardianContext,
+    );
     const row = visible.find((item) => item.personId === childA);
     expect(row).toBeTruthy();
     if (!row) throw new Error('Expected a family-visible result');
@@ -768,8 +1089,20 @@ describe('Phase 6 evaluations integration', () => {
        VALUES ($1, $2, $3, $4, 'rostered', 'active', '2025-09-01')`,
       [randomUUID(), orgA, priorTeamSeasonId, childC],
     );
-    const extraKids = [randomUUID(), randomUUID(), randomUUID(), randomUUID(), randomUUID(), randomUUID()];
-    for (const [index, personId] of [childA, childB, childC, ...extraKids].entries()) {
+    const extraKids = [
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+    ];
+    for (const [index, personId] of [
+      childA,
+      childB,
+      childC,
+      ...extraKids,
+    ].entries()) {
       if (index >= 3)
         await admin.query(
           `INSERT INTO people (id, org_id, first_name, last_name, date_of_birth) VALUES ($1, $2, $3, 'Rec', '2017-01-01')`,
@@ -778,54 +1111,136 @@ describe('Phase 6 evaluations integration', () => {
       await admin.query(
         `INSERT INTO registrations (id, org_id, program_id, division_id, offering_id, person_id, household_id, registered_by_account_id, source, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'online', 'confirmed')`,
-        [randomUUID(), orgA, recProgramId, recDivisionId, recOffering, personId, householdId, guardianAccount],
+        [
+          randomUUID(),
+          orgA,
+          recProgramId,
+          recDivisionId,
+          recOffering,
+          personId,
+          householdId,
+          guardianAccount,
+        ],
       );
     }
     // Mutual friend request between childA and childB.
-    await upsertPlacementPreference(dependencies(), ownerContext, recProgramId, {
-      personId: childA,
-      friendRequestPersonId: childB,
-      practiceLocation: 'North',
+    await upsertPlacementPreference(
+      dependencies(),
+      ownerContext,
+      recProgramId,
+      {
+        personId: childA,
+        friendRequestPersonId: childB,
+        practiceLocation: 'North',
+        coachRating: 4.5,
+        note: null,
+        source: 'family',
+      },
+    );
+    await upsertMyPlacementPreference(
+      dependencies(),
+      guardianContext,
+      recProgramId,
+      {
+        personId: childA,
+        friendRequestPersonId: childB,
+        practiceLocation: 'North',
+      },
+    );
+    const familyPrograms = await listMyPlacementPrograms(
+      dependencies(),
+      guardianContext,
+    );
+    expect(familyPrograms).toContainEqual(
+      expect.objectContaining({
+        programId: recProgramId,
+        personId: childA,
+        programName: 'Rec League',
+      }),
+    );
+    await expect(
+      upsertMyPlacementPreference(
+        dependencies(),
+        outsiderContext,
+        recProgramId,
+        {
+          personId: childA,
+          friendRequestPersonId: childB,
+          practiceLocation: null,
+        },
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    await upsertPlacementPreference(
+      dependencies(),
+      ownerContext,
+      recProgramId,
+      {
+        personId: childB,
+        friendRequestPersonId: childA,
+        practiceLocation: null,
+        coachRating: 3,
+        note: null,
+        source: 'staff',
+      },
+    );
+    const prefs = await listPlacementPreferences(
+      dependencies(),
+      ownerContext,
+      recProgramId,
+    );
+    expect(prefs.length).toBe(2);
+    expect(prefs.find((row) => row.personId === childA)).toMatchObject({
       coachRating: 4.5,
-      note: null,
       source: 'family',
     });
-    await upsertPlacementPreference(dependencies(), ownerContext, recProgramId, {
-      personId: childB,
-      friendRequestPersonId: childA,
-      practiceLocation: null,
-      coachRating: 3,
-      note: null,
-      source: 'staff',
-    });
-    const prefs = await listPlacementPreferences(dependencies(), ownerContext, recProgramId);
-    expect(prefs.length).toBe(2);
 
-    const board = await createPlacementBoard(dependencies(), ownerContext, null, recProgramId, {
-      divisionId: recDivisionId,
-      seed: 11,
-      siblingsTogether: true,
-      returningStay: true,
-      positionMinimums: {},
-    });
+    const board = await createPlacementBoard(
+      dependencies(),
+      ownerContext,
+      null,
+      recProgramId,
+      {
+        divisionId: recDivisionId,
+        evaluationGroupId: null,
+        seed: 11,
+        siblingsTogether: true,
+        returningStay: true,
+        positionMinimums: {},
+      },
+    );
     expect(board.assignments[childA]).toBe(board.assignments[childB]);
     expect(board.assignments[childC]).toBe(returningTeamSeason);
     expect(Object.keys(board.assignments)).toHaveLength(9);
-    const detail = await getPlacementBoard(dependencies(), ownerContext, board.id);
+    const detail = await getPlacementBoard(
+      dependencies(),
+      ownerContext,
+      board.id,
+    );
     expect(detail.placements).toHaveLength(9);
   });
 
   it('caps a tryout board at roster capacity and surfaces next-in-line athletes', async () => {
-    const board = await createPlacementBoard(dependencies(), ownerContext, eventId, targetProgramId, {
-      divisionId: smallDivisionId,
-      seed: 5,
-      siblingsTogether: false,
-      returningStay: false,
-      positionMinimums: {},
-    });
+    const board = await createPlacementBoard(
+      dependencies(),
+      ownerContext,
+      eventId,
+      targetProgramId,
+      {
+        divisionId: smallDivisionId,
+        evaluationGroupId: groupBId,
+        seed: 5,
+        siblingsTogether: false,
+        returningStay: false,
+        positionMinimums: {},
+      },
+    );
     expect(Object.keys(board.assignments)).toHaveLength(1);
     expect(board.assignments[childD]).toBe(smallTeamSeasonId);
-    const dashboard = await listOfferDashboard(dependencies(), ownerContext, board.id);
+    const dashboard = await listOfferDashboard(
+      dependencies(),
+      ownerContext,
+      board.id,
+    );
     expect(dashboard.nextInLine).toHaveLength(1);
     const firstInLine = dashboard.nextInLine[0];
     if (!firstInLine) throw new Error('Expected a next-in-line suggestion');

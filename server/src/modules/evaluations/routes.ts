@@ -12,13 +12,17 @@ import {
 
 import {
   boardCreateSchema,
+  evaluationEvaluatorSchema,
   evaluationCreateSchema,
   evaluationSessionSchema,
+  familyPlacementPreferenceSchema,
   offerDeclineSchema,
   offerSchema,
   participantSchema,
   placementMoveSchema,
   placementPreferenceSchema,
+  participantCheckInSchema,
+  placementLockSchema,
   scoreSchema,
 } from './schemas';
 import {
@@ -37,10 +41,14 @@ import {
   getEvaluationSetup,
   getPlacementBoard,
   listEvaluationEvents,
+  listEvaluationEvaluatorCandidates,
   listEvaluationResults,
+  listEvaluationPrograms,
+  listEvaluationRegistrants,
   listFamilyOffers,
   listEvaluationScoringSheet,
   listMyEvaluationResults,
+  listMyPlacementPrograms,
   listOfferDashboard,
   listPlacementPreferences,
   lockPlacement,
@@ -48,6 +56,7 @@ import {
   publishPlacementBoard,
   upsertEvaluationScore,
   upsertPlacementPreference,
+  upsertMyPlacementPreference,
   withdrawTeamOffer,
 } from './service';
 import type { EvaluationDependencies } from './service';
@@ -72,14 +81,12 @@ export function createEvaluationsRouter(
       ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) &&
       !mutationOriginIsValid(request, dependencies.appUrl)
     ) {
-      response
-        .status(403)
-        .json({
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Request origin could not be verified',
-          },
-        });
+      response.status(403).json({
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Request origin could not be verified',
+        },
+      });
       return;
     }
     next();
@@ -130,11 +137,40 @@ export function createEvaluationsRouter(
     }),
   );
   router.get(
+    '/orgs/:orgId/programs',
+    endpoint(async (request, response) => {
+      const actor = await director(request);
+      response.json(await listEvaluationPrograms(evaluations, actor.context));
+    }),
+  );
+  router.get(
+    '/orgs/:orgId/evaluator-candidates',
+    endpoint(async (request, response) => {
+      const actor = await director(request);
+      response.json(
+        await listEvaluationEvaluatorCandidates(evaluations, actor.context),
+      );
+    }),
+  );
+  router.get(
     '/orgs/:orgId/events/:eventId/setup',
     endpoint(async (request, response) => {
       const actor = await director(request);
       response.json(
         await getEvaluationSetup(
+          evaluations,
+          actor.context,
+          uuid(request.params.eventId),
+        ),
+      );
+    }),
+  );
+  router.get(
+    '/orgs/:orgId/events/:eventId/registrants',
+    endpoint(async (request, response) => {
+      const actor = await director(request);
+      response.json(
+        await listEvaluationRegistrants(
           evaluations,
           actor.context,
           uuid(request.params.eventId),
@@ -177,9 +213,7 @@ export function createEvaluationsRouter(
     '/orgs/:orgId/events/:eventId/evaluators',
     endpoint(async (request, response) => {
       const actor = await director(request);
-      const body = z
-        .strictObject({ sessionId: z.uuid(), accountId: z.uuid() })
-        .parse(request.body);
+      const body = evaluationEvaluatorSchema.parse(request.body);
       response
         .status(201)
         .json(
@@ -212,9 +246,7 @@ export function createEvaluationsRouter(
     '/orgs/:orgId/participants/:participantId/check-in',
     endpoint(async (request, response) => {
       const actor = await director(request);
-      const body = z
-        .strictObject({ late: z.boolean().default(false) })
-        .parse(request.body);
+      const body = participantCheckInSchema.parse(request.body);
       response.json(
         await checkInEvaluationParticipant(
           evaluations,
@@ -350,9 +382,7 @@ export function createEvaluationsRouter(
     '/orgs/:orgId/boards/:boardId/placements/:personId/lock',
     endpoint(async (request, response) => {
       const actor = await director(request);
-      const body = z
-        .strictObject({ reason: z.string().trim().min(1).max(2000) })
-        .parse(request.body);
+      const body = placementLockSchema.parse(request.body);
       response.json(
         await lockPlacement(
           evaluations,
@@ -418,6 +448,27 @@ export function createEvaluationsRouter(
           actor.context,
           uuid(request.params.programId),
           placementPreferenceSchema.parse(request.body),
+        ),
+      );
+    }),
+  );
+  router.get(
+    '/orgs/:orgId/me/placement-programs',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      response.json(await listMyPlacementPrograms(evaluations, actor.context));
+    }),
+  );
+  router.put(
+    '/orgs/:orgId/me/programs/:programId/placement-preference',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      response.json(
+        await upsertMyPlacementPreference(
+          evaluations,
+          actor.context,
+          uuid(request.params.programId),
+          familyPlacementPreferenceSchema.parse(request.body),
         ),
       );
     }),

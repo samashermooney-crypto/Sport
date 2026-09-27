@@ -40,11 +40,24 @@ export const evaluationSessionSchema = z.strictObject({
   capacity: z.number().int().positive().nullable().default(null),
 });
 
+export const evaluationEvaluatorSchema = z.strictObject({
+  sessionId: uuid,
+  accountId: uuid,
+});
+
+export const participantCheckInSchema = z.strictObject({
+  late: z.boolean().default(false),
+});
+
+export const placementLockSchema = z.strictObject({
+  reason: z.string().trim().min(1).max(2000),
+});
+
 export const participantSchema = z.strictObject({
   personId: uuid,
   groupId: uuid.nullable().default(null),
   sessionId: uuid.nullable().default(null),
-  registrationId: uuid.nullable().default(null),
+  registrationId: uuid,
   positionKeys: z.array(z.string().trim().min(1).max(40)).max(30).default([]),
 });
 
@@ -58,10 +71,13 @@ export const scoreSchema = z.strictObject({
 
 export const boardCreateSchema = z.strictObject({
   divisionId: uuid.nullable().default(null),
+  evaluationGroupId: uuid.nullable().default(null),
   seed: z.number().int().min(0).max(2_147_483_647),
   siblingsTogether: z.boolean().default(false),
   returningStay: z.boolean().default(false),
-  positionMinimums: z.record(z.string().trim().min(1).max(40), z.number().int().min(0).max(30)).default({}),
+  positionMinimums: z
+    .record(z.string().trim().min(1).max(40), z.number().int().min(0).max(30))
+    .default({}),
 });
 
 export const placementMoveSchema = z.strictObject({
@@ -93,9 +109,17 @@ export const placementPreferenceSchema = z.strictObject({
   source: z.enum(['staff', 'family', 'import']).default('staff'),
 });
 
+export const familyPlacementPreferenceSchema = z.strictObject({
+  personId: uuid,
+  friendRequestPersonId: uuid.nullable().default(null),
+  practiceLocation: z.string().trim().min(1).max(160).nullable().default(null),
+});
+
 export type EvaluationCreate = z.infer<typeof evaluationCreateSchema>;
 export type EvaluationSessionInput = z.infer<typeof evaluationSessionSchema>;
 export type ParticipantInput = z.infer<typeof participantSchema>;
 export type ScoreInput = z.infer<typeof scoreSchema>;
 export type BoardCreateInput = z.infer<typeof boardCreateSchema>;
-export type PlacementPreferenceInput = z.infer<typeof placementPreferenceSchema>;
+export type PlacementPreferenceInput = z.infer<
+  typeof placementPreferenceSchema
+>;

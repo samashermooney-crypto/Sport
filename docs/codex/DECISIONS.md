@@ -550,3 +550,11 @@
 - **Decision:** The existing account `linked_org_ids` array remains an append-only candidate index. A trigger adds an org when a person-account link is inserted and a migration backfills existing links. The family reader starts from the authenticated global account, then checks active, verified links and active people separately inside `withOrg` for each candidate organization. Revocation does not remove the candidate ID.
 - **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
 - **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
+
+### DEC-080 — Scope family placement preferences to active registrations
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 6 team formation
+- **Context:** Families need to submit rec-league practice-location and mutual-friend preferences, while staff-only coach ratings and placement notes share the same backing record.
+- **Decision:** Family endpoints list and update only active league registrations linked to the signed-in guardian or athlete account. Friend requests must name another confirmed registrant in that program. Family responses never expose or overwrite staff notes or coach ratings; family endpoints do not collect free-text notes.
+- **Why:** This limits child-data exposure, prevents arbitrary person IDs from granting access, and keeps staff ratings intact when a family edits its own preferences.
+- **Consequences / follow-ups:** The team balancer consumes requests only when both athletes request one another. Staff preferences remain accessible through director-only routes.
