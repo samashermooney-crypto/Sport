@@ -4,7 +4,11 @@ import express from 'express';
 import Stripe from 'stripe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { StoredStripeEvent, StripeEventRepository } from './dispatch.js';
+import type {
+  ClaimedStripeEvent,
+  StoredStripeEvent,
+  StripeEventRepository,
+} from './dispatch.js';
 import { StripeSdkGateway } from './sdk.js';
 import { stripeEventFixture } from './webhook-fixtures.js';
 import { createStripeWebhookRouter } from './webhook-routes.js';
@@ -26,8 +30,11 @@ class Repository implements StripeEventRepository {
     this.events.set(event.id, event);
     return Promise.resolve('inserted');
   }
-  claim(eventId: string): Promise<StoredStripeEvent | null> {
-    return Promise.resolve(this.events.get(eventId) ?? null);
+  claim(eventId: string): Promise<ClaimedStripeEvent | null> {
+    const event = this.events.get(eventId);
+    return Promise.resolve(
+      event ? { ...event, claimToken: 'test-claim' } : null,
+    );
   }
   complete(eventId: string): Promise<void> {
     this.processed.add(eventId);
