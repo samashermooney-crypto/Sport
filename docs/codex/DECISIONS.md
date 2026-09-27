@@ -550,3 +550,11 @@
 - **Decision:** The existing account `linked_org_ids` array remains an append-only candidate index. A trigger adds an org when a person-account link is inserted and a migration backfills existing links. The family reader starts from the authenticated global account, then checks active, verified links and active people separately inside `withOrg` for each candidate organization. Revocation does not remove the candidate ID.
 - **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
 - **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
+
+### DEC-080 — Keep guest donation checkout behind the finance adapter
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 11 fundraising and federation sprint extension
+- **Context:** E's current payment service requires an account-bound customer and invoice, while a guest donor must not receive a synthetic Athlentry account or have a donation misrepresented as another payer's invoice. The direct owner assignment also adds Phase 13 federation to H although SPRINT.md assigns its module and migration range to J.
+- **Decision:** H exposes a `GuestDonationCheckoutPort` and signed-payment completion seam for E/C to implement through the Stripe adapter and webhook dispatcher. H keeps the explicitly assigned federation work in its own `8400–8499` migration range and records the collision with J before integration. Store orders use one active product-tax rate per invoice, matching E's invoice invariant of a single tax line.
+- **Why:** This preserves payer identity and accounting integrity, keeps provider details in E's adapter, and avoids colliding with J's migration range while honoring the explicit H assignment.
+- **Consequences / follow-ups:** Guest donation checkout remains unavailable on trunk until E/C wire the adapter and webhook; federation must be checked against J's work before merge. Orders containing products with different tax rates need separate invoices.
