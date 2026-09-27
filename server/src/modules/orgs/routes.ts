@@ -11,11 +11,13 @@ import {
   orgInvitationSchema,
   orgStaffResponseSchema,
   orgMemberRolesResponseSchema,
+  orgMemberStatusResponseSchema,
   orgSlugAvailabilitySchema,
   orgSlugSchema,
   sportTemplateCatalogSchema,
   updateOrgCredentialSchema,
   updateOrgMemberRolesSchema,
+  updateOrgMemberStatusSchema,
 } from '@shared/schemas/orgs';
 import express from 'express';
 import { z } from 'zod';
@@ -33,7 +35,11 @@ import {
   resendOrgInvitation,
   revokeOrgInvitation,
 } from './invitations';
-import { OrgMemberRolesError, setOrgMemberRoles } from './memberRoles';
+import {
+  OrgMemberRolesError,
+  setOrgMemberRoles,
+  setOrgMemberStatus,
+} from './memberRoles';
 import { isOrgSlugAvailable } from './slug';
 
 class OrgCredentialsError extends Error {
@@ -341,6 +347,39 @@ export function createOrgRouter(
       sendError(response, error);
     }
   });
+  router.patch(
+    '/:orgId/members/:memberId/status',
+    async (request, response) => {
+      try {
+        if (!mutationOriginIsValid(request, dependencies.appUrl))
+          throw new OrgMemberRolesError(
+            403,
+            'FORBIDDEN',
+            'Request origin could not be verified',
+          );
+        const { context, session } = await ownerContext(request);
+        if (
+          !session.elevatedUntil ||
+          session.elevatedUntil <= dependencies.clock()
+        )
+          throw new OrgMemberRolesError(
+            403,
+            'FORBIDDEN',
+            'Confirm your identity before changing membership',
+          );
+        const result = await setOrgMemberStatus(dependencies.database, {
+          orgId: context.orgId,
+          actorId: session.accountId,
+          targetId: z.uuid().parse(request.params.memberId),
+          changes: updateOrgMemberStatusSchema.parse(request.body),
+          now: dependencies.clock(),
+        });
+        response.json(orgMemberStatusResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   router.post('/:orgId/invitations', async (request, response) => {
     try {
       if (!mutationOriginIsValid(request, dependencies.appUrl)) {

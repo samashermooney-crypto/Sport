@@ -239,3 +239,11 @@
 - **Decision:** Require an active MFA-verified platform staff session, an active target organization, a valid unexpired impersonation ID, and an organization UUID in the tenant route. Permit GET/HEAD/OPTIONS only. Write the impersonation ID to platform and tenant audit ledgers before the read. Reject suspended-organization operations for active members and platform impersonators; reject unsupported unscoped tenant routes rather than inferring a tenant from a record ID.
 - **Why:** Explicit scope and read-only enforcement prevent a support session from silently gaining write or cross-tenant access. Auditing before the read preserves evidence even when a downstream route denies access.
 - **Consequences / follow-ups:** Future tenant routes without an organization ID need an explicit, tested impersonation policy before they can be accessed in this mode.
+
+### DEC-029 — Keep suspension reversible and removal auditable
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 users and roles
+- **Context:** The spec requires both suspension and removal of memberships but does not define whether role grants are retained for reactivation.
+- **Decision:** Suspension preserves role assignments while denying effective access through inactive membership status; reactivation restores those assignments. Removal keeps the membership and audit history, revokes all active assignments and sessions, and requires a new invitation to rejoin. Both operations use membership versions and the organization-row lock to protect the last active owner.
+- **Why:** A temporary safety or administrative hold can be reversed without reconstructing scoped access, while removal cannot silently reactivate old privileges.
+- **Consequences / follow-ups:** Future permission checks must require active membership as well as an active assignment; the staff UI shows suspended memberships and hides removed ones.

@@ -158,6 +158,17 @@ export const orgMemberRolesResponseSchema = z.strictObject({
   version: z.number().int().positive(),
 });
 
+export const updateOrgMemberStatusSchema = z.strictObject({
+  status: z.enum(['active', 'suspended', 'removed']),
+  expectedVersion: z.number().int().positive(),
+});
+
+export const orgMemberStatusResponseSchema = z.strictObject({
+  accountId: z.uuid(),
+  status: z.enum(['active', 'suspended', 'removed']),
+  version: z.number().int().positive(),
+});
+
 export const orgInvitationSchema = z
   .strictObject({
     email: z.email().max(254),
