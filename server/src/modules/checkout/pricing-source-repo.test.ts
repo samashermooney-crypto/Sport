@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../../db/kysely.js';
 import type { DB, Json } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
+import { PostgresInvoiceRepository } from '../finance/invoice-repo.js';
 
 import { PostgresCheckoutPricingRepository } from './pricing-repo.js';
 import { PostgresBasicCheckoutPricingSource } from './pricing-source-repo.js';
@@ -18,6 +19,9 @@ let database: Kysely<DB>;
 let context: OrgContext;
 let checkoutId: string;
 let athleteId: string;
+let programId: string;
+let offeringId: string;
+let householdId: string;
 
 beforeAll(async () => {
   database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
@@ -25,11 +29,11 @@ beforeAll(async () => {
   const orgId = newId();
   const seasonId = newId();
   const sportId = newId();
-  const programId = newId();
-  const offeringId = newId();
+  programId = newId();
+  offeringId = newId();
   const guardianId = newId();
   athleteId = newId();
-  const householdId = newId();
+  householdId = newId();
   checkoutId = newId();
   await database
     .insertInto('accounts')
@@ -245,7 +249,7 @@ describe('basic checkout pricing source', () => {
         checkoutId,
         idempotencyKey: randomUUID(),
       }),
-    ).rejects.toThrow('Active discounts');
+    ).rejects.toThrow('Sibling discount configuration is unsupported');
     await createWithOrg(database)(context, (trx) =>
       trx
         .updateTable('automatic_discount_rules')
@@ -399,5 +403,247 @@ describe('basic checkout pricing source', () => {
     await expect(freezeWithSetting({ unknownPricing: true })).rejects.toThrow(
       'Configured organization pricing needs a supported source loader',
     );
+  });
+
+  it('prices a sibling rule from the locked org source for one household', async () => {
+    const secondAthleteId = newId();
+    const siblingCheckoutId = newId();
+    const ruleId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .updateTable('organizations')
+        .set({ settings: {} })
+        .where('id', '=', context.orgId)
+        .execute();
+      await trx
+        .insertInto('people')
+        .values({
+          id: secondAthleteId,
+          org_id: context.orgId,
+          first_name: 'Sibling',
+          last_name: 'Example',
+          date_of_birth: '2016-01-01',
+        })
+        .execute();
+      await trx
+        .insertInto('household_members')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          household_id: householdId,
+          person_id: secondAthleteId,
+          role: 'athlete',
+        })
+        .execute();
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          person_id: secondAthleteId,
+          account_id: context.actor.accountId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute();
+      await trx
+        .insertInto('automatic_discount_rules')
+        .values({
+          id: ruleId,
+          org_id: context.orgId,
+          kind: 'sibling',
+          config: { second_bps: 1000, third_plus_bps: 1500 },
+          priority: 1,
+          active: true,
+        })
+        .execute();
+      await trx
+        .insertInto('checkouts')
+        .values({
+          id: siblingCheckoutId,
+          org_id: context.orgId,
+          account_id: context.actor.accountId,
+          expires_at: new Date(Date.now() + 1_200_000),
+          items: {
+            offerings: [
+              { lineId: newId(), offeringId, personId: athleteId, householdId },
+              {
+                lineId: newId(),
+                offeringId,
+                personId: secondAthleteId,
+                householdId,
+              },
+            ],
+          },
+        })
+        .execute();
+      await trx
+        .insertInto('capacity_holds')
+        .values([
+          {
+            id: newId(),
+            org_id: context.orgId,
+            checkout_id: siblingCheckoutId,
+            subject_type: 'program',
+            subject_id: programId,
+            quantity: 2,
+            expires_at: new Date(Date.now() + 1_200_000),
+          },
+          {
+            id: newId(),
+            org_id: context.orgId,
+            checkout_id: siblingCheckoutId,
+            subject_type: 'offering',
+            subject_id: offeringId,
+            quantity: 2,
+            expires_at: new Date(Date.now() + 1_200_000),
+          },
+        ])
+        .execute();
+    });
+    const service = new CheckoutPricingService(
+      new PostgresCheckoutPricingRepository(
+        database,
+        context,
+        new PostgresBasicCheckoutPricingSource(),
+      ),
+    );
+    const frozen = await service.freeze({
+      orgId: context.orgId,
+      checkoutId: siblingCheckoutId,
+      idempotencyKey: randomUUID(),
+    });
+    expect(frozen.snapshot.subtotalCents).toBe(3998);
+    expect(frozen.snapshot.discountCents).toBe(200);
+    expect(frozen.snapshot.chargeNowCents).toBe(3798);
+    expect(
+      frozen.snapshot.lines.filter((line) => line.kind === 'discount'),
+    ).toHaveLength(1);
+    const priorPersonId = newId();
+    const divisionId = newId();
+    const priorInvoice = await new PostgresInvoiceRepository(
+      database,
+      context,
+    ).issue({
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      source: 'staff',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'registration',
+          description: 'Earlier season price',
+          amountCents: 3000,
+          refundable: true,
+        },
+      ],
+    });
+    await createWithOrg(database)(context, async (trx) => {
+      const invoiceLine = await trx
+        .selectFrom('invoice_lines')
+        .select('id')
+        .where('org_id', '=', context.orgId)
+        .where('invoice_id', '=', priorInvoice.id)
+        .executeTakeFirstOrThrow();
+      await trx
+        .insertInto('people')
+        .values({
+          id: priorPersonId,
+          org_id: context.orgId,
+          first_name: 'Earlier',
+          last_name: 'Sibling',
+          date_of_birth: '2012-01-01',
+        })
+        .execute();
+      await trx
+        .insertInto('household_members')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          household_id: householdId,
+          person_id: priorPersonId,
+          role: 'athlete',
+        })
+        .execute();
+      await trx
+        .insertInto('divisions')
+        .values({
+          id: divisionId,
+          org_id: context.orgId,
+          program_id: programId,
+          name: 'Earlier',
+          level: 'open',
+        })
+        .execute();
+      await trx
+        .insertInto('registrations')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          program_id: programId,
+          division_id: divisionId,
+          offering_id: offeringId,
+          person_id: priorPersonId,
+          household_id: householdId,
+          registered_by_account_id: context.actor.accountId,
+          source: 'staff',
+          status: 'confirmed',
+          invoice_line_id: invoiceLine.id,
+        })
+        .execute();
+    });
+    const nextCheckoutId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('checkouts')
+        .values({
+          id: nextCheckoutId,
+          org_id: context.orgId,
+          account_id: context.actor.accountId,
+          expires_at: new Date(Date.now() + 1_200_000),
+          items: {
+            offerings: [
+              { lineId: newId(), offeringId, personId: athleteId, householdId },
+              {
+                lineId: newId(),
+                offeringId,
+                personId: secondAthleteId,
+                householdId,
+              },
+            ],
+          },
+        })
+        .execute();
+      await trx
+        .insertInto('capacity_holds')
+        .values([
+          {
+            id: newId(),
+            org_id: context.orgId,
+            checkout_id: nextCheckoutId,
+            subject_type: 'program',
+            subject_id: programId,
+            quantity: 2,
+            expires_at: new Date(Date.now() + 1_200_000),
+          },
+          {
+            id: newId(),
+            org_id: context.orgId,
+            checkout_id: nextCheckoutId,
+            subject_type: 'offering',
+            subject_id: offeringId,
+            quantity: 2,
+            expires_at: new Date(Date.now() + 1_200_000),
+          },
+        ])
+        .execute();
+    });
+    const withPrior = await service.freeze({
+      orgId: context.orgId,
+      checkoutId: nextCheckoutId,
+      idempotencyKey: randomUUID(),
+    });
+    expect(withPrior.snapshot.discountCents).toBe(500);
+    expect(withPrior.snapshot.chargeNowCents).toBe(3498);
   });
 });
