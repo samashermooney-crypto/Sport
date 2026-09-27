@@ -55,16 +55,14 @@ export class PostgresPaymentAttemptStore implements PaymentAttemptStore {
   }): Promise<PaymentAttemptReservation> {
     this.assertOrg(input.orgId);
     return this.withOrg(this.context, async (trx) => {
-      const inserted = await sql<{ id: string }>`
-        INSERT INTO payment_attempts
-          (id, org_id, checkout_id, idempotency_key, request_hash, status)
-        VALUES
-          (${newId()}, ${input.orgId}::uuid, ${input.checkoutId}::uuid,
-           ${input.key}::uuid, ${input.requestHash}, 'reserved')
-        ON CONFLICT (org_id, checkout_id, idempotency_key) DO NOTHING
-        RETURNING id
-      `.execute(trx);
-      if (inserted.rows.length) return { kind: 'reserved' };
+      const checkout = await trx
+        .selectFrom('checkouts')
+        .select('status')
+        .where('org_id', '=', input.orgId)
+        .where('id', '=', input.checkoutId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!checkout) throw new Error('Payment checkout is unavailable');
       const existing = await sql<AttemptRow>`
         SELECT request_hash, status, result FROM payment_attempts
         WHERE org_id = ${input.orgId}::uuid
@@ -73,12 +71,30 @@ export class PostgresPaymentAttemptStore implements PaymentAttemptStore {
         FOR UPDATE
       `.execute(trx);
       const row = existing.rows[0];
-      if (!row) throw new Error('Payment attempt reservation disappeared');
-      if (row.request_hash !== input.requestHash) return { kind: 'conflict' };
-      if (row.status === 'completed') {
+      if (row && row.request_hash !== input.requestHash)
+        return { kind: 'conflict' };
+      if (row?.status === 'completed') {
         return { kind: 'replay', result: resultSchema.parse(row.result) };
       }
-      if (row.status === 'failed_pre_external') {
+      if (row && row.status !== 'failed_pre_external') return { kind: 'busy' };
+      if (!['open', 'awaiting_payment'].includes(checkout.status))
+        return { kind: 'busy' };
+      const conflicting = await sql<{ active: boolean }>`
+        SELECT EXISTS (
+          SELECT 1 FROM payment_attempts
+          WHERE org_id = ${input.orgId}::uuid
+            AND checkout_id = ${input.checkoutId}::uuid
+            AND idempotency_key <> ${input.key}::uuid
+            AND status IN ('reserved', 'external_started')
+        ) OR EXISTS (
+          SELECT 1 FROM payments
+          WHERE org_id = ${input.orgId}::uuid
+            AND checkout_id = ${input.checkoutId}::uuid
+            AND status IN ('requires_action', 'processing', 'succeeded')
+        ) AS active
+      `.execute(trx);
+      if (conflicting.rows[0]?.active) return { kind: 'busy' };
+      if (row?.status === 'failed_pre_external') {
         await sql`
           UPDATE payment_attempts
           SET status = 'reserved', version = version + 1
@@ -88,7 +104,14 @@ export class PostgresPaymentAttemptStore implements PaymentAttemptStore {
         `.execute(trx);
         return { kind: 'reserved' };
       }
-      return { kind: 'busy' };
+      await sql`
+        INSERT INTO payment_attempts
+          (id, org_id, checkout_id, idempotency_key, request_hash, status)
+        VALUES
+          (${newId()}::uuid, ${input.orgId}::uuid, ${input.checkoutId}::uuid,
+           ${input.key}::uuid, ${input.requestHash}, 'reserved')
+      `.execute(trx);
+      return { kind: 'reserved' };
     });
   }
 

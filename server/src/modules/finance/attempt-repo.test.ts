@@ -10,6 +10,8 @@ import type { OrgContext } from '../../db/withOrg.js';
 import { createWithOrg } from '../../db/withOrg.js';
 
 import { PostgresPaymentAttemptStore } from './attempt-repo.js';
+import { PostgresInvoiceRepository } from './invoice-repo.js';
+import { PostgresPaymentRecordStore } from './payment-repo.js';
 
 let database: Kysely<DB>;
 let context: OrgContext;
@@ -118,5 +120,75 @@ describe('Postgres PaymentIntent attempt store', () => {
     await expect(
       store.reserve({ ...request(), orgId: newId() }),
     ).rejects.toThrow('organization mismatch');
+  });
+
+  it('fences a second key until the first checkout payment fails', async () => {
+    const competingCheckoutId = newId();
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .insertInto('checkouts')
+        .values({
+          id: competingCheckoutId,
+          org_id: context.orgId,
+          account_id: context.actor.accountId,
+          status: 'awaiting_payment',
+          expires_at: new Date('2027-01-01T00:00:00Z'),
+          pricing_snapshot: { totalCents: 1000 },
+        })
+        .execute(),
+    );
+    const invoice = await new PostgresInvoiceRepository(
+      database,
+      context,
+    ).issue({
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      source: 'checkout',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'registration',
+          description: 'Registration',
+          amountCents: 1000,
+          refundable: true,
+        },
+      ],
+    });
+    const first = { ...request(), checkoutId: competingCheckoutId };
+    const second = { ...request(), checkoutId: competingCheckoutId };
+    const concurrent = await Promise.all([
+      store.reserve(first),
+      store.reserve(second),
+    ]);
+    expect(concurrent.map((claim) => claim.kind).sort()).toEqual([
+      'busy',
+      'reserved',
+    ]);
+    const winner = concurrent[0].kind === 'reserved' ? first : second;
+    const loser = winner === first ? second : first;
+    await store.beginExternal(winner);
+    expect(await store.reserve(loser)).toEqual({ kind: 'busy' });
+    const paymentIntentId = `pi_${randomUUID()}`;
+    await new PostgresPaymentRecordStore(database, context).recordPending({
+      orgId: context.orgId,
+      checkoutId: competingCheckoutId,
+      invoiceId: invoice.id,
+      accountId: context.actor.accountId,
+      paymentIntentId,
+      amountCents: 1000,
+      applicationFeeCents: 10,
+      idempotencyKey: winner.key,
+    });
+    await store.complete({ ...winner, result });
+    expect(await store.reserve(loser)).toEqual({ kind: 'busy' });
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('payments')
+        .set({ status: 'failed' })
+        .where('org_id', '=', context.orgId)
+        .where('stripe_payment_intent_id', '=', paymentIntentId)
+        .execute(),
+    );
+    expect(await store.reserve(loser)).toEqual({ kind: 'reserved' });
   });
 });
