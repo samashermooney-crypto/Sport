@@ -10,14 +10,9 @@ import { accessibilityViolations } from './axe';
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 const dayMilliseconds = 24 * 60 * 60 * 1000;
 const timezone = 'America/Chicago';
+const phoenixTimezone = 'America/Phoenix';
 
-function upcomingSaturday(): string {
-  const date = new Date();
-  date.setUTCHours(0, 0, 0, 0);
-  const daysUntilSaturday = (6 - date.getUTCDay() + 7) % 7 || 7;
-  date.setUTCDate(date.getUTCDate() + daysUntilSaturday);
-  return date.toISOString().slice(0, 10);
-}
+test.use({ timezoneId: 'UTC' });
 
 function addDays(day: string, count: number): string {
   const date = new Date(`${day}T00:00:00.000Z`);
@@ -43,7 +38,7 @@ function zonedInputValue(value: Date, timeZone: string): string {
   return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`;
 }
 
-test('staff edits the following events in a recurring weekly series', async ({
+test('staff edits a recurring series across Chicago and Phoenix DST dates', async ({
   page,
 }, testInfo) => {
   test.setTimeout(90_000);
@@ -52,6 +47,14 @@ test('staff edits the following events in a recurring weekly series', async ({
   );
   try {
     const actor = await createTestFactories(database).actor();
+    await createWithOrg(database)(actor, (trx) =>
+      trx
+        .updateTable('organizations')
+        .set({ timezone })
+        .where('id', '=', actor.orgId)
+        .execute()
+        .then(() => undefined),
+    );
     await createWithOrg(database)(actor, (trx) =>
       trx
         .updateTable('role_assignments')
@@ -85,7 +88,7 @@ test('staff edits the following events in a recurring weekly series', async ({
       },
     ]);
 
-    const firstDate = upcomingSaturday();
+    const firstDate = '2026-10-31';
     const selectedDate = addDays(firstDate, 7);
     const lastDate = addDays(firstDate, 14);
     const originalTitle = 'Recurring acceptance practice';
@@ -103,6 +106,7 @@ test('staff edits the following events in a recurring weekly series', async ({
     await createForm.getByLabel('Weekday').selectOption('SA');
     await createForm.getByLabel('Start time').fill('18:00');
     await createForm.getByLabel('Duration (minutes)').fill('60');
+    await createForm.getByLabel('Timezone').fill(timezone);
     const createdResponse = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
@@ -137,8 +141,20 @@ test('staff edits the following events in a recurring weekly series', async ({
         .execute(),
     );
     expect(originalOccurrences).toHaveLength(3);
-    const selectedOccurrence = originalOccurrences[1];
-    if (!selectedOccurrence) throw new Error('Second occurrence is missing.');
+    const firstOccurrence = originalOccurrences[0];
+    const secondOccurrence = originalOccurrences[1];
+    const thirdOccurrence = originalOccurrences[2];
+    if (!firstOccurrence || !secondOccurrence || !thirdOccurrence)
+      throw new Error('Expected three DST-spanning Chicago occurrences.');
+    expect(
+      secondOccurrence.starts_at.getTime() -
+        firstOccurrence.starts_at.getTime(),
+    ).toBe(7 * dayMilliseconds + 60 * 60 * 1000);
+    expect(
+      thirdOccurrence.starts_at.getTime() -
+        secondOccurrence.starts_at.getTime(),
+    ).toBe(7 * dayMilliseconds);
+    const selectedOccurrence = secondOccurrence;
     expect(zonedInputValue(selectedOccurrence.starts_at, timezone)).toBe(
       `${selectedDate}T18:00`,
     );
@@ -235,6 +251,130 @@ test('staff edits the following events in a recurring weekly series', async ({
     expect(nextSeries.version).toBe(1);
     const nextRecurrence = nextSeries.recurrence as { startsOn?: string };
     expect(nextRecurrence.startsOn).toBe(selectedDate);
+
+    await createWithOrg(database)(actor, (trx) =>
+      trx
+        .updateTable('organizations')
+        .set({ timezone: phoenixTimezone })
+        .where('id', '=', actor.orgId)
+        .execute()
+        .then(() => undefined),
+    );
+    const phoenixTitle = 'Phoenix recurring acceptance practice';
+    await createForm.getByLabel('Title *').fill(phoenixTitle);
+    await createForm.getByLabel('First date *').fill(firstDate);
+    await createForm.getByLabel('Last date *').fill(lastDate);
+    await createForm.getByLabel('Weekday').selectOption('SA');
+    await createForm.getByLabel('Start time').fill('18:00');
+    await createForm.getByLabel('Timezone').fill(phoenixTimezone);
+    const phoenixSeriesResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().includes('/event-series'),
+    );
+    await createForm
+      .getByRole('button', { name: 'Create weekly series' })
+      .click();
+    const phoenixCreated = await phoenixSeriesResponse;
+    if (!phoenixCreated.ok())
+      throw new Error(
+        `Phoenix series creation failed (${String(phoenixCreated.status())}): ${await phoenixCreated.text()}`,
+      );
+    const phoenixOccurrences = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('events')
+        .select(['starts_at', 'ends_at', 'series_id'])
+        .where('org_id', '=', actor.orgId)
+        .where('title', '=', phoenixTitle)
+        .orderBy('starts_at')
+        .execute(),
+    );
+    expect(phoenixOccurrences).toHaveLength(3);
+    for (const [index, occurrence] of phoenixOccurrences.entries()) {
+      expect(zonedInputValue(occurrence.starts_at, phoenixTimezone)).toBe(
+        `${addDays(firstDate, index * 7)}T18:00`,
+      );
+      expect(
+        occurrence.ends_at.getTime() - occurrence.starts_at.getTime(),
+      ).toBe(60 * 60 * 1000);
+    }
+    for (let index = 1; index < phoenixOccurrences.length; index += 1) {
+      const previous = phoenixOccurrences[index - 1];
+      const current = phoenixOccurrences[index];
+      if (!previous || !current) continue;
+      expect(current.starts_at.getTime() - previous.starts_at.getTime()).toBe(
+        7 * dayMilliseconds,
+      );
+    }
+    const phoenixSeriesId = phoenixOccurrences[0]?.series_id;
+    const phoenixSelectedOccurrence = phoenixOccurrences[1];
+    if (!phoenixSeriesId || !phoenixSelectedOccurrence)
+      throw new Error('Phoenix series is missing its selected occurrence.');
+    const phoenixSeries = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('event_series')
+        .select('version')
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', phoenixSeriesId)
+        .executeTakeFirstOrThrow(),
+    );
+    await editForm.getByLabel('Series ID *').fill(phoenixSeriesId);
+    await editForm
+      .getByLabel('Series version *')
+      .fill(String(phoenixSeries.version));
+    await editForm
+      .getByLabel('Occurrence start (local) *')
+      .fill(
+        zonedInputValue(phoenixSelectedOccurrence.starts_at, phoenixTimezone),
+      );
+    await editForm.getByLabel('Edit scope').selectOption('following');
+    await editForm
+      .getByLabel('New title')
+      .fill('Updated Phoenix recurring acceptance practice');
+    await editForm.getByLabel('Future series start date').fill(selectedDate);
+    await editForm.getByLabel('Future series end date').fill(lastDate);
+    await editForm.getByLabel('Future series weekday').selectOption('SA');
+    await editForm.getByLabel('Future series start time').fill('19:30');
+    await editForm.getByLabel('Future series duration').fill('90');
+    const phoenixEditResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        response.url().includes(`/event-series/${phoenixSeriesId}`),
+    );
+    await editForm.getByRole('button', { name: 'Save series edit' }).click();
+    const phoenixEdited = await phoenixEditResponse;
+    if (!phoenixEdited.ok())
+      throw new Error(
+        `Phoenix series edit failed (${String(phoenixEdited.status())}): ${await phoenixEdited.text()}`,
+      );
+    const phoenixRescheduled = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('events')
+        .select(['starts_at', 'ends_at', 'series_id'])
+        .where('org_id', '=', actor.orgId)
+        .where('title', '=', 'Updated Phoenix recurring acceptance practice')
+        .where('status', '=', 'scheduled')
+        .orderBy('starts_at')
+        .execute(),
+    );
+    expect(phoenixRescheduled).toHaveLength(2);
+    for (const occurrence of phoenixRescheduled) {
+      expect(zonedInputValue(occurrence.starts_at, phoenixTimezone)).toMatch(
+        /^2026-11-(07|14)T19:30$/,
+      );
+      expect(
+        occurrence.ends_at.getTime() - occurrence.starts_at.getTime(),
+      ).toBe(90 * 60 * 1000);
+      expect(occurrence.series_id).not.toBe(phoenixSeriesId);
+    }
+    const firstPhoenixRescheduled = phoenixRescheduled[0];
+    const secondPhoenixRescheduled = phoenixRescheduled[1];
+    if (!firstPhoenixRescheduled || !secondPhoenixRescheduled)
+      throw new Error('Expected two edited Phoenix occurrences.');
+    expect(
+      secondPhoenixRescheduled.starts_at.getTime() -
+        firstPhoenixRescheduled.starts_at.getTime(),
+    ).toBe(7 * dayMilliseconds);
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
     await database.destroy();
