@@ -82,6 +82,38 @@ function input(key = randomUUID()): IssueInvoiceInput {
 }
 
 describe('invoice issuance', () => {
+  it('accepts only exact discounted-product tax on an order', () => {
+    const order = input();
+    expect(invoiceTotals(order).taxCents).toBe(45);
+    expect(() =>
+      invoiceTotals({
+        ...order,
+        lines: order.lines.map((line) =>
+          line.kind === 'tax' ? { ...line, amountCents: 50 } : line,
+        ),
+      }),
+    ).toThrow('does not match');
+    expect(() =>
+      invoiceTotals({
+        ...order,
+        lines: [
+          {
+            kind: 'registration',
+            description: 'Registration',
+            amountCents: 1000,
+            refundable: true,
+          },
+          {
+            kind: 'tax',
+            description: 'Sales tax',
+            amountCents: 50,
+            refundable: true,
+            taxRateBps: 500,
+          },
+        ],
+      }),
+    ).toThrow('requires a positive rate and product');
+  });
   it('assigns one number and reconciles header and lines at commit', async () => {
     const request = input();
     expect(invoiceTotals(request)).toEqual({
@@ -247,6 +279,45 @@ describe('invoice issuance', () => {
         ),
       ).toBe('open');
     });
+    const unsettledPaymentId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('payments')
+        .values({
+          id: unsettledPaymentId,
+          org_id: context.orgId,
+          account_id: context.actor.accountId,
+          method: 'card',
+          status: 'processing',
+          amount_cents: 100,
+        })
+        .execute();
+      await trx
+        .insertInto('payment_allocations')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          payment_id: unsettledPaymentId,
+          invoice_id: invoice.id,
+          amount_cents: 100,
+        })
+        .execute();
+    });
+    await expect(
+      repository.void({
+        orgId: context.orgId,
+        invoiceId: invoice.id,
+        reason: 'Duplicate assessment',
+      }),
+    ).rejects.toThrow('unsettled payment');
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('payments')
+        .set({ status: 'failed' })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', unsettledPaymentId)
+        .execute(),
+    );
     await repository.void({
       orgId: context.orgId,
       invoiceId: invoice.id,
@@ -272,6 +343,7 @@ describe('invoice issuance', () => {
         .execute(),
     );
     expect(events.map((event) => event.action).sort()).toEqual([
+      'finance.notice_queued',
       'invoice.issued',
       'invoice.voided',
     ]);

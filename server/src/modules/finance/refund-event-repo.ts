@@ -88,12 +88,13 @@ export class PostgresRefundEventRepository implements RefundEventRepository {
         refund.amount_cents
       )
         throw new Error('Refund allocations do not reconcile');
-      await trx
-        .updateTable('refunds')
-        .set({ status: target, version: sql`version + 1` })
-        .where('org_id', '=', input.orgId)
-        .where('id', '=', refund.id)
-        .execute();
+      await sql`
+        UPDATE refunds SET status = ${target}, version = version + 1,
+          succeeded_at = CASE WHEN ${target} = 'succeeded'
+            THEN ${new Date(this.now().toString())}::timestamptz
+            ELSE succeeded_at END
+        WHERE org_id = ${input.orgId}::uuid AND id = ${refund.id}::uuid
+      `.execute(trx);
       if (target === 'succeeded') {
         const org = await trx
           .selectFrom('organizations')

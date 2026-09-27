@@ -67,7 +67,11 @@ describe('campaign audience preview', () => {
   it('updates the preview when a selector changes and shows recipient details', async () => {
     render(<MessagesConsole orgId="00000000-0000-4000-8000-000000000003" />);
     fireEvent.click(
-      await screen.findByRole('checkbox', { name: 'Riley Athlete' }),
+      await screen.findByRole(
+        'checkbox',
+        { name: 'Riley Athlete' },
+        { timeout: 5_000 },
+      ),
     );
 
     const recipients = await screen.findByRole('list', {

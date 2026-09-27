@@ -33,6 +33,9 @@ interface DebitRow {
   invoice_id: string | null;
 }
 
+export class CreditAccessError extends Error {}
+export class CreditLedgerConflictError extends Error {}
+
 /** Account credit source balances and invoice applications are serialized in withOrg. */
 export class PostgresCreditLedger {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
@@ -53,6 +56,7 @@ export class PostgresCreditLedger {
     expiresOn?: string | null;
     note?: string;
     operationKey: string;
+    requireOrgRecipient?: boolean;
   }): Promise<string> {
     this.assertOrg(input.orgId);
     if (
@@ -78,6 +82,56 @@ export class PostgresCreditLedger {
       note: input.note ?? null,
     });
     return this.withOrg(this.context, async (trx) => {
+      const prior = await sql<IssueRow>`
+        SELECT id, account_id, household_id, amount_cents,
+          expires_on::text, request_hash FROM credits
+        WHERE org_id = ${input.orgId}::uuid
+          AND operation_key = ${input.operationKey}::uuid
+          AND operation_line = 0
+      `.execute(trx);
+      if (prior.rows[0]) {
+        const existing = prior.rows[0];
+        if (
+          existing.request_hash !== requestHash ||
+          existing.account_id !== (input.accountId ?? null) ||
+          existing.household_id !== (input.householdId ?? null)
+        )
+          throw new CreditLedgerConflictError(
+            'Credit issuance key conflicts with a different request',
+          );
+        return existing.id;
+      }
+      if (input.requireOrgRecipient) {
+        if (input.accountId) {
+          const access = await sql<{ allowed: boolean }>`
+            SELECT EXISTS (
+              SELECT 1 FROM person_account_links
+              WHERE org_id = ${input.orgId}::uuid
+                AND account_id = ${input.accountId}::uuid
+                AND revoked_at IS NULL
+              UNION ALL
+              SELECT 1 FROM org_memberships
+              WHERE org_id = ${input.orgId}::uuid
+                AND account_id = ${input.accountId}::uuid
+                AND status = 'active'
+            ) AS allowed
+          `.execute(trx);
+          if (!access.rows[0]?.allowed)
+            throw new CreditAccessError(
+              'Credit account is not linked to the organization',
+            );
+        } else {
+          const household = await trx
+            .selectFrom('households')
+            .select('id')
+            .where('org_id', '=', input.orgId)
+            .where('id', '=', input.householdId ?? '')
+            .where('status', '=', 'active')
+            .executeTakeFirst();
+          if (!household)
+            throw new CreditAccessError('Credit household is unavailable');
+        }
+      }
       const inserted = await sql<{ id: string }>`
         INSERT INTO credits
           (id, org_id, account_id, household_id, amount_cents, kind, source, expires_on,
@@ -113,7 +167,7 @@ export class PostgresCreditLedger {
         row.account_id !== (input.accountId ?? null) ||
         row.household_id !== (input.householdId ?? null)
       )
-        throw new Error(
+        throw new CreditLedgerConflictError(
           'Credit issuance key conflicts with a different request',
         );
       return row.id;
@@ -126,8 +180,9 @@ export class PostgresCreditLedger {
     householdId?: string;
     invoiceId: string;
     amountCents: number;
-    todayLocal: string;
+    todayLocal?: string;
     operationKey: string;
+    payerAccountId?: string;
   }): Promise<void> {
     this.assertOrg(input.orgId);
     if (
@@ -140,7 +195,9 @@ export class PostgresCreditLedger {
       throw new Error(
         'Credit needs exactly one account or household recipient',
       );
-    const todayLocal = Temporal.PlainDate.from(input.todayLocal).toString();
+    const providedToday = input.todayLocal
+      ? Temporal.PlainDate.from(input.todayLocal).toString()
+      : null;
     const requestHash = hash({
       accountId: input.accountId ?? null,
       householdId: input.householdId ?? null,
@@ -148,6 +205,37 @@ export class PostgresCreditLedger {
       amountCents: input.amountCents,
     });
     await this.withOrg(this.context, async (trx) => {
+      if (input.payerAccountId) {
+        if (input.payerAccountId !== this.context.actor.accountId)
+          throw new CreditAccessError('Payer actor mismatch');
+        if (input.accountId) {
+          if (input.accountId !== input.payerAccountId)
+            throw new CreditAccessError(
+              'Account credit belongs to another payer',
+            );
+        } else {
+          const access = await sql<{ id: string }>`
+            SELECT pal.id FROM households h
+            JOIN household_members hm ON hm.org_id = h.org_id
+              AND hm.household_id = h.id
+            JOIN person_account_links pal ON pal.org_id = hm.org_id
+              AND pal.person_id = hm.person_id
+            WHERE h.org_id = ${input.orgId}::uuid
+              AND h.id = ${input.householdId ?? null}::uuid
+              AND h.status = 'active'
+              AND hm.financially_responsible = true
+              AND hm.role IN ('guardian', 'other_adult')
+              AND pal.account_id = ${input.payerAccountId}::uuid
+              AND pal.relationship = 'self'
+              AND pal.revoked_at IS NULL
+            FOR SHARE OF h, hm, pal
+          `.execute(trx);
+          if (!access.rows.length)
+            throw new CreditAccessError(
+              'Household credit belongs to another payer',
+            );
+        }
+      }
       await sql`SELECT pg_advisory_xact_lock(hashtext(${input.operationKey}))`.execute(
         trx,
       );
@@ -166,14 +254,37 @@ export class PostgresCreditLedger {
           -replay.rows.reduce((sum, row) => sum + row.amount_cents, 0) !==
             input.amountCents
         )
-          throw new Error(
+          throw new CreditLedgerConflictError(
             'Credit application key conflicts with a different request',
           );
         return;
       }
+      const todayLocal =
+        providedToday ??
+        (await (async () => {
+          const clock = await sql<{ timezone: string; instant: Date }>`
+          SELECT timezone, transaction_timestamp() AS instant
+          FROM organizations WHERE id = ${input.orgId}::uuid
+        `.execute(trx);
+          const row = clock.rows[0];
+          if (!row)
+            throw new CreditLedgerConflictError(
+              'Credit organization unavailable',
+            );
+          return Temporal.Instant.from(row.instant.toISOString())
+            .toZonedDateTimeISO(row.timezone)
+            .toPlainDate()
+            .toString();
+        })());
       const invoice = await trx
         .selectFrom('invoices')
-        .select(['account_id', 'household_id', 'balance_cents', 'status'])
+        .select([
+          'account_id',
+          'household_id',
+          'balance_cents',
+          'disputed_cents',
+          'status',
+        ])
         .where('org_id', '=', input.orgId)
         .where('id', '=', input.invoiceId)
         .forUpdate()
@@ -185,10 +296,23 @@ export class PostgresCreditLedger {
           : invoice.household_id !== input.householdId) ||
         invoice.balance_cents === null ||
         input.amountCents > invoice.balance_cents ||
+        invoice.disputed_cents > 0 ||
         invoice.status === 'draft' ||
         invoice.status === 'void'
       )
-        throw new Error('Invoice cannot accept this credit');
+        throw new CreditLedgerConflictError(
+          'Invoice cannot accept this credit',
+        );
+      const unsettled = await sql<{ id: string }>`
+        SELECT p.id FROM payment_allocations pa
+        JOIN payments p ON p.org_id = pa.org_id AND p.id = pa.payment_id
+        WHERE pa.org_id = ${input.orgId}::uuid
+          AND pa.invoice_id = ${input.invoiceId}::uuid
+          AND p.status IN ('requires_action', 'processing')
+        LIMIT 1
+      `.execute(trx);
+      if (unsettled.rows.length)
+        throw new CreditLedgerConflictError('Invoice has an unsettled payment');
       const issues = await sql<IssueRow>`
         SELECT id, account_id, household_id, amount_cents, expires_on::text, request_hash
         FROM credits
@@ -227,7 +351,9 @@ export class PostgresCreditLedger {
         if (remaining === 0) break;
       }
       if (remaining !== 0)
-        throw new Error('Insufficient unexpired credit balance');
+        throw new CreditLedgerConflictError(
+          'Insufficient unexpired credit balance',
+        );
       await trx
         .updateTable('invoices')
         .set({

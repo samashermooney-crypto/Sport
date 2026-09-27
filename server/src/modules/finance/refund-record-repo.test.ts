@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Temporal } from '@js-temporal/polyfill';
 import { newId } from '@shared/ids';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDatabase } from '../../db/kysely.js';
@@ -236,6 +236,16 @@ describe('pending Stripe refund records', () => {
       refunded_cents: 500,
       balance_cents: 500,
     });
+    const refundClock = await createWithOrg(database)(context, (trx) =>
+      sql<{ succeeded_at: Date }>`
+        SELECT succeeded_at FROM refunds
+        WHERE org_id = ${context.orgId}::uuid
+          AND stripe_refund_id = ${input.refundId}
+      `.execute(trx),
+    );
+    expect(refundClock.rows[0]?.succeeded_at.toISOString()).toBe(
+      '2026-09-26T12:00:00.000Z',
+    );
     expect(await sourceReader.load(context.orgId, paymentId)).toMatchObject({
       previouslyRefundedServiceFeeCents: 50,
       lines: [
@@ -314,6 +324,16 @@ describe('pending Stripe refund records', () => {
         .executeTakeFirstOrThrow(),
     );
     expect(invoice).toEqual({ refunded_cents: 1000, balance_cents: 1000 });
+    const creditRefundClock = await createWithOrg(database)(context, (trx) =>
+      sql<{ succeeded_at: Date }>`
+        SELECT succeeded_at FROM refunds
+        WHERE org_id = ${context.orgId}::uuid
+          AND credit_id = ${result.creditId}::uuid
+      `.execute(trx),
+    );
+    expect(creditRefundClock.rows[0]?.succeeded_at.toISOString()).toBe(
+      '2026-09-26T12:00:00.000Z',
+    );
     expect(
       await new PostgresCreditLedger(database, context).balance({
         orgId: context.orgId,

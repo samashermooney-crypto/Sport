@@ -5,6 +5,7 @@ const editablePersonSchema = z.strictObject({
   lastName: z.string().trim().min(1).max(120),
   preferredName: z.string().trim().max(120).nullable(),
   dateOfBirth: z.iso.date(),
+  graduationYear: z.int().min(1900).max(2200).nullable(),
   gender: z.enum(['female', 'male', 'nonbinary', 'unspecified']),
   email: z.email().nullable(),
   phoneE164: z
@@ -15,6 +16,7 @@ const editablePersonSchema = z.strictObject({
 });
 
 export const personCreateSchema = editablePersonSchema.extend({
+  graduationYear: editablePersonSchema.shape.graduationYear.default(null),
   preferredName: editablePersonSchema.shape.preferredName.default(null),
   gender: editablePersonSchema.shape.gender.default('unspecified'),
   email: editablePersonSchema.shape.email.default(null),
@@ -33,6 +35,9 @@ export const personResponseSchema = z.strictObject({
   lastName: z.string(),
   preferredName: z.string().nullable(),
   dateOfBirth: z.iso.date(),
+  graduationYear: z.int().min(1900).max(2200).nullable(),
+  age: z.int().nonnegative(),
+  grade: z.string().nullable(),
   gender: z.enum(['female', 'male', 'nonbinary', 'unspecified']),
   email: z.string().nullable(),
   phoneE164: z.string().nullable(),
@@ -51,6 +56,10 @@ export const peopleQuerySchema = z.strictObject({
   status: z
     .enum(['active', 'archived', 'merged', 'anonymized'])
     .default('active'),
+  gender: z.enum(['female', 'male', 'nonbinary', 'unspecified']).optional(),
+  minAge: z.coerce.number().int().min(0).max(120).optional(),
+  maxAge: z.coerce.number().int().min(0).max(120).optional(),
+  grade: z.coerce.number().int().min(-1).max(12).optional(),
   cursor: z.uuid().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
 });

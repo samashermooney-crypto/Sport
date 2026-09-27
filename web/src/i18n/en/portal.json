@@ -3,6 +3,7 @@
   "navigate": "Navigate",
   "messages": "Messages",
   "notifications": "Notifications",
+  "money": "Payments",
   "account": "Account",
   "notificationsLoadFailed": "Could not load notifications.",
   "notificationReadFailed": "Could not mark the notification read.",
