@@ -12,6 +12,7 @@ import type {
   InstallmentChargeClaim,
   InstallmentChargeRepository,
 } from './installment-dunning.js';
+import { allocatePaymentLines } from './payment-line-allocations.js';
 
 interface AttemptRow {
   id: string;
@@ -363,6 +364,12 @@ export class PostgresInstallmentChargeRepository implements InstallmentChargeRep
           amount_cents: input.amountCents,
         })
         .execute();
+      await allocatePaymentLines(trx, {
+        orgId: input.orgId,
+        invoiceId: input.invoiceId,
+        paymentId,
+        amountCents: input.amountCents,
+      });
       await sql`
         UPDATE installment_charge_attempts
         SET status = 'recorded', stripe_payment_intent_id = ${paymentIntentId}

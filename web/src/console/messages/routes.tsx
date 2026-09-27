@@ -1,14 +1,29 @@
+import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
-import { HouseholdMessageHistory } from './HouseholdMessageHistory';
-import { MessagesConsole } from './MessagesConsole';
-import { PersonMessageHistory } from './PersonMessageHistory';
+const MessagesConsole = lazy(() =>
+  import('./MessagesConsole').then(({ MessagesConsole: Component }) => ({
+    default: Component,
+  })),
+);
+const PersonMessageHistory = lazy(() =>
+  import('./PersonMessageHistory').then(
+    ({ PersonMessageHistory: Component }) => ({ default: Component }),
+  ),
+);
+const HouseholdMessageHistory = lazy(() =>
+  import('./HouseholdMessageHistory').then(
+    ({ HouseholdMessageHistory: Component }) => ({ default: Component }),
+  ),
+);
 
 function MessagesRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
   return orgId ? (
-    <MessagesConsole orgId={orgId} />
+    <Suspense fallback={<main role="status">Loading messages…</main>}>
+      <MessagesConsole orgId={orgId} />
+    </Suspense>
   ) : (
     <main>Organization not found.</main>
   );
@@ -17,7 +32,9 @@ function MessagesRoute(): React.JSX.Element {
 function PersonMessageHistoryRoute(): React.JSX.Element {
   const { orgId, personId } = useParams<{ orgId: string; personId: string }>();
   return orgId && personId ? (
-    <PersonMessageHistory orgId={orgId} personId={personId} />
+    <Suspense fallback={<main role="status">Loading messages…</main>}>
+      <PersonMessageHistory orgId={orgId} personId={personId} />
+    </Suspense>
   ) : (
     <main>Person not found.</main>
   );
@@ -29,7 +46,9 @@ function HouseholdMessageHistoryRoute(): React.JSX.Element {
     householdId: string;
   }>();
   return orgId && householdId ? (
-    <HouseholdMessageHistory orgId={orgId} householdId={householdId} />
+    <Suspense fallback={<main role="status">Loading messages…</main>}>
+      <HouseholdMessageHistory orgId={orgId} householdId={householdId} />
+    </Suspense>
   ) : (
     <main>Household not found.</main>
   );

@@ -1667,6 +1667,15 @@ small {
   .ui-pagination {
     flex-wrap: wrap;
   }
+  .ui-pagination select {
+    min-width: var(--control-height-44);
+    min-height: var(--control-height-44);
+  }
+  .ui-showcase-inline > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--control-height-44);
+  }
   .ui-print-layout {
     margin: 0;
     padding: var(--space-16);

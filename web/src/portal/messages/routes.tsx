@@ -1,12 +1,19 @@
+import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
-import { MessagesPortal } from './MessagesPortal';
+const MessagesPortal = lazy(() =>
+  import('./MessagesPortal').then(({ MessagesPortal: Component }) => ({
+    default: Component,
+  })),
+);
 
 function PortalMessagesRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
   return orgId ? (
-    <MessagesPortal orgId={orgId} />
+    <Suspense fallback={<main role="status">Loading messages…</main>}>
+      <MessagesPortal orgId={orgId} />
+    </Suspense>
   ) : (
     <main>Organization not found.</main>
   );

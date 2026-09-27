@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import type { DB } from '../../db/types';
 import type { EmailSender } from '../../integrations/email/sender';
+import { createAuthEmail } from '../../integrations/email/templates/auth';
 
 import { AuthDomainError } from './domain-error';
 import { hashPassword, verifyPassword } from './password';
@@ -29,7 +30,7 @@ export async function requestPasswordReset(
   const address = z.email().parse(email).toLowerCase();
   const account = await dependencies.database
     .selectFrom('accounts')
-    .select(['id', 'status'])
+    .select(['id', 'status', 'locale'])
     .where('email', '=', address)
     .executeTakeFirst();
   if (account?.status === 'active') {
@@ -42,11 +43,14 @@ export async function requestPasswordReset(
           dependencies.clock(),
         ),
       );
-    await dependencies.email.send({
-      to: address,
-      subject: 'Reset your Athlentry password',
-      text: `Reset your password by opening ${dependencies.appUrl}/reset/${token}. This link expires in 1 hour.`,
-    });
+    await dependencies.email.send(
+      createAuthEmail({
+        kind: 'password-reset',
+        to: address,
+        url: `${dependencies.appUrl}/reset/${token}`,
+        locale: account.locale === 'es' ? 'es' : 'en',
+      }),
+    );
   }
   return resetNotice;
 }
@@ -74,7 +78,7 @@ export async function resetPassword(
         .where('id', '=', token.accountId)
         .where('email', '=', token.email)
         .where('status', '=', 'active')
-        .returning('email')
+        .returning(['email', 'locale'])
         .executeTakeFirst();
       if (!updated) return null;
       await revokeSessions(trx, token.accountId, now);
@@ -86,14 +90,16 @@ export async function resetPassword(
           action: 'password.reset',
         })
         .execute();
-      return updated.email;
+      return updated;
     });
   if (!email) return false;
-  await dependencies.email.send({
-    to: email,
-    subject: 'Your Athlentry password was reset',
-    text: 'Your password was reset. If you did not make this change, contact Athlentry support immediately.',
-  });
+  await dependencies.email.send(
+    createAuthEmail({
+      kind: 'password-reset-confirmed',
+      to: email.email,
+      locale: email.locale === 'es' ? 'es' : 'en',
+    }),
+  );
   return true;
 }
 
@@ -105,7 +111,7 @@ export async function changePassword(
 ): Promise<void> {
   const account = await dependencies.database
     .selectFrom('accounts')
-    .select(['password_hash', 'email'])
+    .select(['password_hash', 'email', 'locale'])
     .where('id', '=', session.accountId)
     .where('status', '=', 'active')
     .executeTakeFirst();
@@ -145,11 +151,13 @@ export async function changePassword(
       })
       .execute();
   });
-  await dependencies.email.send({
-    to: account.email,
-    subject: 'Your Athlentry password changed',
-    text: 'Your password was changed. If you did not make this change, contact Athlentry support immediately.',
-  });
+  await dependencies.email.send(
+    createAuthEmail({
+      kind: 'password-changed',
+      to: account.email,
+      locale: account.locale === 'es' ? 'es' : 'en',
+    }),
+  );
 }
 
 export async function requestEmailChange(
@@ -167,7 +175,7 @@ export async function requestEmailChange(
   const nextEmail = z.email().parse(proposedEmail).toLowerCase();
   const account = await dependencies.database
     .selectFrom('accounts')
-    .select('email')
+    .select(['email', 'locale'])
     .where('id', '=', session.accountId)
     .executeTakeFirstOrThrow();
   if (account.email === nextEmail)
@@ -199,16 +207,21 @@ export async function requestEmailChange(
         now,
       );
     });
-  await dependencies.email.send({
-    to: nextEmail,
-    subject: 'Verify your new Athlentry email',
-    text: `Confirm your new email by opening ${dependencies.appUrl}/verify-email-change/${token}. This link expires in 1 hour.`,
-  });
-  await dependencies.email.send({
-    to: account.email,
-    subject: 'Athlentry email change requested',
-    text: 'A change to your account email was requested. If this was not you, contact Athlentry support immediately.',
-  });
+  await dependencies.email.send(
+    createAuthEmail({
+      kind: 'email-change-verification',
+      to: nextEmail,
+      url: `${dependencies.appUrl}/verify-email-change/${token}`,
+      locale: account.locale === 'es' ? 'es' : 'en',
+    }),
+  );
+  await dependencies.email.send(
+    createAuthEmail({
+      kind: 'email-change-requested',
+      to: account.email,
+      locale: account.locale === 'es' ? 'es' : 'en',
+    }),
+  );
 }
 
 export async function confirmEmailChange(
@@ -232,7 +245,7 @@ export async function confirmEmailChange(
         .where('id', '=', token.accountId)
         .where('email', '=', token.payload.oldEmail)
         .where('status', '=', 'active')
-        .returning('id')
+        .returning(['id', 'locale'])
         .executeTakeFirst();
       if (!updated) return null;
       await revokeSessions(trx, token.accountId, now);
@@ -244,14 +257,16 @@ export async function confirmEmailChange(
           action: 'email.changed',
         })
         .execute();
-      return token.payload.oldEmail;
+      return { email: token.payload.oldEmail, locale: updated.locale };
     });
   if (!oldEmail) return false;
-  await dependencies.email.send({
-    to: oldEmail,
-    subject: 'Your Athlentry email changed',
-    text: 'Your account email changed. If you did not make this change, contact Athlentry support immediately.',
-  });
+  await dependencies.email.send(
+    createAuthEmail({
+      kind: 'email-changed',
+      to: oldEmail.email,
+      locale: oldEmail.locale === 'es' ? 'es' : 'en',
+    }),
+  );
   return true;
 }
 

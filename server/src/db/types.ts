@@ -625,6 +625,11 @@ export interface Disputes {
   amount_cents: number;
   created_at: Generated<Timestamp>;
   evidence_due_by: Timestamp | null;
+  evidence_packet: Json | null;
+  evidence_packet_hash: string | null;
+  evidence_response_status: string | null;
+  evidence_submission_key: string | null;
+  evidence_submission_state: Generated<string>;
   evidence_submitted_at: Timestamp | null;
   fee_cents: Generated<number>;
   funds_reinstated: Generated<boolean>;
@@ -1339,6 +1344,17 @@ export interface PaymentAttempts {
   status: string;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
+}
+
+export interface PaymentLineAllocations {
+  amount_cents: number;
+  created_at: Generated<Timestamp>;
+  id: string;
+  invoice_id: string;
+  invoice_line_id: string;
+  org_id: string;
+  payment_id: string;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface PaymentMethods {
@@ -2338,6 +2354,7 @@ export interface DB {
   payment_accounts: PaymentAccounts;
   payment_allocations: PaymentAllocations;
   payment_attempts: PaymentAttempts;
+  payment_line_allocations: PaymentLineAllocations;
   payment_methods: PaymentMethods;
   payments: Payments;
   payouts: Payouts;

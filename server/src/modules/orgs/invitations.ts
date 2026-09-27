@@ -12,6 +12,7 @@ import type { DB, Json } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgTransaction } from '../../db/withOrg';
 import type { EmailSender } from '../../integrations/email/sender';
+import { createAuthEmail } from '../../integrations/email/templates/auth';
 import { idempotencyHash, parseIdempotencyKey } from '../../lib/idempotency';
 import { consumeAuthToken, issueAuthToken } from '../auth/tokens';
 
@@ -360,11 +361,33 @@ export async function createOrgInvitation(
   );
   if (result.token) {
     try {
+      const presentation = await withOrg(
+        { orgId: input.orgId, actor: { accountId: input.actorId } },
+        async (trx) => {
+          const org = await trx
+            .selectFrom('organizations')
+            .select(['name', 'default_locale'])
+            .where('id', '=', input.orgId)
+            .executeTakeFirstOrThrow();
+          const account = await trx
+            .selectFrom('accounts')
+            .select('locale')
+            .where('email', '=', email)
+            .executeTakeFirst();
+          return {
+            name: org.name,
+            locale: account?.locale ?? org.default_locale,
+          };
+        },
+      );
       await dependencies.email.send({
-        to: email,
-        subject: 'Join your Athlentry organization',
-        text: `Open ${dependencies.appUrl}/invitations/${input.orgId}/${result.token} to accept your organization invitation. This link expires in 7 days.`,
-        kind: 'security',
+        ...createAuthEmail({
+          kind: 'invitation',
+          to: email,
+          url: `${dependencies.appUrl}/invitations/${input.orgId}/${result.token}`,
+          locale: presentation.locale === 'es' ? 'es' : 'en',
+          branding: { organizationName: presentation.name },
+        }),
         idempotencyKey: key,
       });
     } catch (error) {

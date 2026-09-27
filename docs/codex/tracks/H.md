@@ -1,40 +1,39 @@
 # Track H — communications and chat
 
-Status: ready-for-integration (H slice green; Phase 10 acceptance remains blocked on A/B/C/G integration)
+Status: ready-for-integration (H slice and merged-tree gates green; Phase 10 acceptance awaits cross-track work)
 Branch: `track/h-comms` (local only; no push)
-Base: `rebuild/trunk` at `82b9cb0`, merged by `c621562`
-Ready range: `c621562..HEAD`
+Base: `rebuild/trunk` at `59960a6`, merged locally into this branch
+Ready range: `c577d62..HEAD`
 Migration range: `4000–4004`
 
 ## Delivered
 
-- Campaign APIs and composer for person/team/program/role targeting, registration and payer-only past-due filters, merge fields, English/Spanish content, test send, schedule/cancel, delivery statistics and emergency broadcasts.
-- Live unsaved-audience preview uses the same recipient and channel-eligibility calculation as saved campaign preview. Emergency preview requires owner/admin authorization. DEC-048 records this behavior.
-- Email/SMS/push/in-app delivery wiring, dedupe, guardian routing, suppression, consent, shared quiet-hours checks, bounded retries, provider callbacks and campaign statistics. Development and test sends use fake/preview adapters.
-- SMS consent evidence and tokenized email unsubscribe. The portal uses Track B's notification inbox and preferences APIs rather than duplicating them.
-- Team and staff chat with the shared SafeSport policy, guardian inclusion, minor DM restrictions, read receipts, mute, edit/soft delete, moderation and report-to-compliance. SSE events use Track B's service.
-- Person and household communication history APIs and internal attachment references. Family-only attachment actions remain unavailable under the current Track C Files authorization.
-- Bilingual Phase 10 notification templates are defined and exported in the communications module descriptor; Track B's static catalog does not yet register them.
-- Ran `npm run gen:module communications`; it refused to overwrite the existing module. Refreshed registries and OpenAPI through their generators.
+- Campaign APIs and composer for person/team/program/role selectors, registration and payer-only past-due filters, merge fields, English/Spanish variants, test send, scheduling/canceling, statistics and emergency broadcast.
+- A read-only draft audience-preview endpoint powers a debounced live recipient count and recipient list before save. Saved and unsaved previews share resolver and channel eligibility rules; emergency preview requires owner/admin access. `campaignPreviewSchema` accepts counts for selected channels only. DEC-054 records this behavior.
+- Email/SMS/push/in-app delivery, guardian routing, dedupe, suppression, SMS consent, shared quiet-hours checks, bounded retries and delivery statistics. Signed provider callbacks are processed; Resend delivery correlation still needs the provider IDs returned by Track C's email sender. Development/test sends use fake or preview adapters.
+- SMS consent evidence and tokenized email unsubscribe. The portal uses Track B's notification inbox/preferences APIs.
+- Team and staff chat with the shared SafeSport policy, guardian inclusion, adult/minor DM safeguards, read receipts, mute, edit/soft delete, moderation, report-to-compliance and Track B SSE integration.
+- Person and household communication history APIs and internal attachment references. The console and portal route arrays are now mounted by merged Track A changes; profile-page links and household conversation attachment authorization remain pending.
+- Bilingual Phase 10 notification templates are defined and exported in the communications module. Track B's catalog/preference changes are ready on its branch but are not yet in `rebuild/trunk`; H still needs to use those types and the Track B preferences-center link helper after integration.
+- Ran `npm run gen:module communications`; it refused to overwrite the existing module. Refreshed generated registries and OpenAPI.
 
 ## Verification
 
-- `npm run typecheck` — passed.
-- `npm run lint` — passed.
-- Targeted `MessagesConsole` UI test — 1 passed; verifies selector changes call the live preview and display recipient locale/channels.
-- Targeted communications service integration — 4 passed, including cross-tenant preview scoping and emergency-role enforcement.
-- Full `npm test` on the isolated `COMPOSE_PROJECT_NAME=athlentry_h`, `PORT_OFFSET=800` Postgres stack — 149 files passed, 1 skipped; 563 tests passed, 1 skipped.
-- Full `npm run test:e2e` on the isolated stack — 26 passed, 4 skipped. The existing sign-in journey had one parallel-run locator failure and passed alone and on the full rerun. No Phase 10 message/chat journeys are currently in the Playwright suite.
-- `npm run build`, `npm run registry`, `npm run openapi` and `git diff --check` — passed.
+- `npm run typecheck` and `npm run lint` — passed after the latest trunk merge.
+- Targeted `MessagesConsole` UI test — 1 passed; covers live preview and displayed recipient locale/channels.
+- Targeted communications service integration — 4 passed; covers tenant scoping, eligible counts and emergency-role enforcement.
+- Full `npm test` on the isolated `COMPOSE_PROJECT_NAME=athlentry_h`, `PORT_OFFSET=800` Postgres stack — 152 files passed, 1 skipped; 570 tests passed, 1 skipped.
+- Full `npm run test:e2e` on the isolated stack — 28 passed, 4 skipped across Chromium and WebKit mobile. One initial WebKit parity run failed the 44px control check; that case passed alone and the full rerun passed. The Playwright suite still has no Phase 10 communications/chat journeys.
+- `npm run build`, `npm run registry`, `npm run openapi`, `npm run db:migrate`, `npm run db:codegen` and `git diff --check` — passed; codegen introspected 147 tables.
 - No live email, SMS or push was sent. No branch was pushed.
 
 ## Integration dependencies
 
-- **A:** Mount H's console and portal route arrays in the runtime router; add person/household history to profile screens; capture SMS consent when a verified phone is entered; expose `programs.settings.communications.athleteChatEnabled`; invoke H team/staff conversation synchronization after roster, staff, guardian-link and setting changes; add the Phase 10 Chromium and WebKit mobile Playwright journeys with axe, including coach-to-16-year-old guardian copies; surface bounce suppressions in Action Center.
-- **B:** Register H's en/es Phase 10 notification catalog entries with the notification types, category, default channel and preference metadata; expose SMS/push preferences; implement 10-minute per-conversation chat batching and unread push/email fallback using preferences. Track B currently recognizes only its generic Phase 1 catalog and `in_app`/`email` preference channels.
-- **C:** Return provider IDs from `EmailSender` and persist Resend IDs so signed delivery webhooks correlate to H deliveries. Extend Files upload/download authorization to active same-organization conversation members for approved chat image/PDF attachments.
-- **G:** Batch five schedule changes within 15 minutes into one family communication.
+- **A — partially integrated:** Route mounting is complete. Still needed: add H history links to person/household profiles; capture consent when a verified phone is entered; expose `programs.settings.communications.athleteChatEnabled`; call H conversation sync after roster, staff, guardian-link and setting changes; add coach-to-16-year-old guardian-copy and other Phase 10 Chromium/WebKit mobile journeys with axe; surface bounce suppressions in Action Center.
+- **B — ready on `track/b-logic`, not in trunk:** Commit `5751eb2` adds the 47 Phase 10 notification types and SMS/push preference channels. After it lands, H must send the Phase 10 notification type IDs and use `preferencesCenterPath(orgId)` after tokenized unsubscribe. Ten-minute per-conversation chat batching and unread push/email fallback remain unimplemented.
+- **C — ready on `track/c-adapters`, not in trunk:** The branch range `fd229db..0011b8b` returns provider IDs from `EmailSender`; after integration, correlate Resend callbacks to H deliveries. C still needs active same-organization conversation-member authorization for approved chat image/PDF upload and download.
+- **G:** Five schedule changes within 15 minutes must become one family communication. No G implementation or track readiness file is present on `rebuild/trunk`.
 
 ## Completion boundary
 
-The H-owned slice is ready for integration, but Phase 10 is not complete until the integration dependencies above land and the Phase 10 browser journeys pass in Chromium and WebKit mobile with axe. The current full browser gate covers other product areas only.
+The H slice is ready for integration, but Phase 10 is not complete until the remaining A/B/C/G work lands and the Phase 10 Playwright journeys pass in Chromium and WebKit mobile with axe. `Track H complete` is intentionally not recorded while those acceptance criteria remain outstanding.

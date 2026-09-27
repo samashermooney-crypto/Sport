@@ -9,8 +9,10 @@ import type { SignUpInput } from '@shared/schemas/auth';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 
 import { apiGet, apiPost } from '../api/client';
+import { i18n } from '../lib/i18n';
 import {
   AuthFrame,
   AuthLink,
@@ -24,6 +26,7 @@ import {
 import { TurnstileWidget } from './TurnstileWidget';
 
 export function SignUp(): React.JSX.Element {
+  const { t } = useTranslation('auth');
   const legal = useQuery({
     queryKey: ['auth', 'legal'],
     queryFn: () => apiGet('/auth/legal', authLegalResponseSchema),
@@ -64,15 +67,15 @@ export function SignUp(): React.JSX.Element {
   async function submit(values: SignUpInput): Promise<void> {
     setError('');
     try {
-      const result = await apiPost(
+      await apiPost(
         '/auth/sign-up',
-        values,
+        { ...values, locale: i18n.resolvedLanguage === 'es' ? 'es' : 'en' },
         authMessageResponseSchema,
       );
-      setMessage(result.message);
+      setMessage(t('accountCreated'));
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : 'Account creation failed.',
+        caught instanceof Error ? caught.message : t('createAccountFailed'),
       );
       if (captcha.data?.mode === 'turnstile') {
         setValue('captchaToken', '');
@@ -82,24 +85,19 @@ export function SignUp(): React.JSX.Element {
   }
 
   return (
-    <AuthFrame
-      footer={<AuthLink to="/">Already have an account? Sign in</AuthLink>}
-    >
-      <h1>Create your account</h1>
+    <AuthFrame footer={<AuthLink to="/">{t('alreadyHaveAccount')}</AuthLink>}>
+      <h1>{t('createYourAccount')}</h1>
       {message ? (
         <p role="status">{message}</p>
       ) : (
         <>
-          <p>
-            You must be at least 13. A parent or guardian manages younger
-            athletes.
-          </p>
+          <p>{t('minimumAge')}</p>
           <ErrorBox error={error} />
           {(legal.isPending || captcha.isPending) && (
-            <p role="status">Loading account requirements…</p>
+            <p role="status">{t('loadingRequirements')}</p>
           )}
           {(legal.isError || captcha.isError) && (
-            <ErrorBox error="Account requirements could not be loaded. Try again later." />
+            <ErrorBox error={t('requirementsFailed')} />
           )}
           {legal.isSuccess && captcha.isSuccess && (
             <form
@@ -107,21 +105,21 @@ export function SignUp(): React.JSX.Element {
               noValidate
             >
               <Field
-                label="First name"
+                label={t('firstName')}
                 required
                 error={errors.firstName?.message}
               >
                 <Input autoComplete="given-name" {...register('firstName')} />
               </Field>
               <Field
-                label="Last name"
+                label={t('lastName')}
                 required
                 error={errors.lastName?.message}
               >
                 <Input autoComplete="family-name" {...register('lastName')} />
               </Field>
               <Field
-                label="Email address"
+                label={t('emailAddress')}
                 required
                 error={errors.email?.message}
               >
@@ -132,7 +130,7 @@ export function SignUp(): React.JSX.Element {
                 />
               </Field>
               <Field
-                label="Date of birth"
+                label={t('dateOfBirth')}
                 required
                 error={errors.dateOfBirth?.message}
               >
@@ -142,7 +140,11 @@ export function SignUp(): React.JSX.Element {
                   {...register('dateOfBirth')}
                 />
               </Field>
-              <Field label="Password" required error={errors.password?.message}>
+              <Field
+                label={t('password')}
+                required
+                error={errors.password?.message}
+              >
                 <Input
                   type="password"
                   autoComplete="new-password"
@@ -150,29 +152,32 @@ export function SignUp(): React.JSX.Element {
                 />
               </Field>
               <details className="legal-text">
-                <summary>Terms of service ({legal.data.terms.version})</summary>
+                <summary>
+                  {t('termsTitle', { version: legal.data.terms.version })}
+                </summary>
                 <p>{legal.data.terms.text}</p>
               </details>
               <label className="consent">
-                <Checkbox {...register('termsAccepted')} /> I have read and
-                accept the Terms of service.
+                <Checkbox {...register('termsAccepted')} /> {t('acceptTerms')}
               </label>
               {errors.termsAccepted && (
                 <small className="field-error" role="alert">
-                  Accept the Terms to continue.
+                  {t('termsRequired')}
                 </small>
               )}
               <details className="legal-text">
-                <summary>Privacy notice ({legal.data.privacy.version})</summary>
+                <summary>
+                  {t('privacyTitle', { version: legal.data.privacy.version })}
+                </summary>
                 <p>{legal.data.privacy.text}</p>
               </details>
               <label className="consent">
-                <Checkbox {...register('privacyAccepted')} /> I have read and
-                accept the Privacy notice.
+                <Checkbox {...register('privacyAccepted')} />{' '}
+                {t('acceptPrivacy')}
               </label>
               {errors.privacyAccepted && (
                 <small className="field-error" role="alert">
-                  Accept the Privacy notice to continue.
+                  {t('privacyRequired')}
                 </small>
               )}
               {captcha.data.mode === 'turnstile' && (
@@ -186,11 +191,11 @@ export function SignUp(): React.JSX.Element {
               <input type="hidden" {...register('captchaToken')} />
               {errors.captchaToken && (
                 <small className="field-error" role="alert">
-                  Complete the bot protection challenge.
+                  {t('captchaRequired')}
                 </small>
               )}
               <Button type="submit" disabled={isSubmitting || !captchaToken}>
-                {isSubmitting ? 'Creating account…' : 'Create account'}
+                {isSubmitting ? t('creatingAccount') : t('createAccountAction')}
               </Button>
             </form>
           )}

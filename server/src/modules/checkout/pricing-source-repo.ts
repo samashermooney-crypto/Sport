@@ -1,9 +1,11 @@
+import type { ServiceFeeConfig } from '@shared/algorithms/fees';
 import type { PricingInput } from '@shared/algorithms/pricing';
 import { sql } from 'kysely';
 import { z } from 'zod';
 
 import type { Json } from '../../db/types.js';
 import type { OrgTransaction } from '../../db/withOrg.js';
+import { frozenPaymentTermsSchema } from '../finance/frozen-charge-repo.js';
 
 import type { CheckoutPricingSourceLoader } from './pricing-repo.js';
 
@@ -31,6 +33,40 @@ const emptyObject = (value: Json): boolean =>
   typeof value === 'object' &&
   !Array.isArray(value) &&
   Object.keys(value).length === 0;
+
+const orgSettingsSchema = z
+  .object({
+    confirmOnAchProcessing: z.boolean().optional(),
+    serviceFee: z
+      .discriminatedUnion('enabled', [
+        z.object({ enabled: z.literal(false) }).strict(),
+        z.discriminatedUnion('mode', [
+          z
+            .object({
+              enabled: z.literal(true),
+              mode: z.literal('cover_costs'),
+            })
+            .strict(),
+          z
+            .object({
+              enabled: z.literal(true),
+              mode: z.literal('custom'),
+              custom_bps: z.number().int().nonnegative().max(10_000),
+              custom_fixed_cents: z.number().int().nonnegative(),
+            })
+            .strict(),
+        ]),
+      ])
+      .optional(),
+  })
+  .strict();
+
+const siblingRuleSchema = z
+  .object({
+    second_bps: z.number().int().min(0).max(10_000),
+    third_plus_bps: z.number().int().min(0).max(10_000),
+  })
+  .strict();
 
 interface OfferingRow {
   id: string;
@@ -65,10 +101,7 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
     },
   ): Promise<{
     pricing: PricingInput;
-    paymentTerms: {
-      applicationRate: { bps: number; fixedCents: number };
-      serviceFee: { enabled: false };
-    };
+    paymentTerms: z.output<typeof frozenPaymentTermsSchema>;
   }> {
     const cart = cartSchema.parse(checkout.items);
     if (
@@ -90,7 +123,8 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
       .where('id', '=', checkout.orgId)
       .forUpdate()
       .executeTakeFirstOrThrow();
-    if (!emptyObject(organization.settings))
+    const settings = orgSettingsSchema.safeParse(organization.settings);
+    if (!settings.success)
       throw new Error(
         'Configured organization pricing needs a supported source loader',
       );
@@ -198,7 +232,7 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
     );
     const rules = await trx
       .selectFrom('automatic_discount_rules')
-      .select('id')
+      .select(['id', 'kind', 'config', 'season_id'])
       .where('org_id', '=', checkout.orgId)
       .where('active', '=', true)
       .where((eb) =>
@@ -206,8 +240,68 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
       )
       .forUpdate()
       .execute();
-    if (rules.length)
-      throw new Error('Active discounts need a supported source loader');
+    let siblingRule: PricingInput['siblingRule'];
+    let existingConfirmed: PricingInput['existingConfirmed'] = [];
+    if (rules.length) {
+      if (
+        rules.length !== 1 ||
+        rules[0]?.kind !== 'sibling' ||
+        (rules[0].season_id &&
+          seasonIds.some((id) => id !== rules[0]?.season_id)) ||
+        new Set(rows.map((row) => row.household_id)).size !== 1
+      )
+        throw new Error('Active discounts need a supported source loader');
+      const config = siblingRuleSchema.safeParse(rules[0].config);
+      if (!config.success)
+        throw new Error('Sibling discount configuration is unsupported');
+      siblingRule = {
+        secondBps: config.data.second_bps,
+        thirdPlusBps: config.data.third_plus_bps,
+      };
+      const householdId = rows[0]?.household_id;
+      if (!householdId)
+        throw new Error('Sibling discount household is missing');
+      const currentPeople = [...new Set(rows.map((row) => row.person_id))];
+      await sql`LOCK TABLE registrations IN SHARE MODE`.execute(trx);
+      const prior = await sql<{
+        id: string;
+        person_id: string;
+        season_id: string;
+        base_price_cents: number | null;
+      }>`
+        SELECT r.id, r.person_id, p.season_id,
+          il.amount_cents AS base_price_cents
+        FROM registrations r JOIN programs p
+          ON p.org_id = r.org_id AND p.id = r.program_id
+        LEFT JOIN invoice_lines il
+          ON il.org_id = r.org_id AND il.id = r.invoice_line_id
+            AND il.kind = 'registration'
+        WHERE r.org_id = ${checkout.orgId}::uuid
+          AND r.household_id = ${householdId}::uuid
+          AND r.status = 'confirmed'
+          AND p.season_id = ANY(${sql`ARRAY[${sql.join(seasonIds.map((id) => sql`${id}::uuid`))}]`})
+        FOR UPDATE OF r
+      `.execute(trx);
+      if (
+        prior.rows.some(
+          (item) =>
+            currentPeople.includes(item.person_id) ||
+            item.base_price_cents === null ||
+            !Number.isSafeInteger(item.base_price_cents) ||
+            item.base_price_cents < 0,
+        ) ||
+        new Set(prior.rows.map((item) => `${item.person_id}:${item.season_id}`))
+          .size !== prior.rows.length
+      )
+        throw new Error(
+          'Existing sibling registrations need a supported source loader',
+        );
+      existingConfirmed = prior.rows.map((item) => ({
+        id: item.id,
+        seasonId: item.season_id,
+        basePriceCents: item.base_price_cents ?? 0,
+      }));
+    }
     const aid = await trx
       .selectFrom('aid_applications as a')
       .innerJoin('financial_aid_programs as p', (join) =>
@@ -254,6 +348,38 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
     })
       .format(now)
       .replace(' ', 'T');
+    const applicationRate = {
+      bps: organization.application_fee_bps,
+      fixedCents: organization.application_fee_fixed_cents,
+    };
+    const configuredFee = settings.data.serviceFee ?? {
+      enabled: false as const,
+    };
+    const frozenFee =
+      configuredFee.enabled && configuredFee.mode === 'custom'
+        ? {
+            enabled: true as const,
+            mode: 'custom' as const,
+            custom: {
+              bps: configuredFee.custom_bps,
+              fixedCents: configuredFee.custom_fixed_cents,
+            },
+          }
+        : configuredFee;
+    const paymentTerms = frozenPaymentTermsSchema.parse({
+      applicationRate,
+      serviceFee: frozenFee,
+    });
+    const serviceFee: ServiceFeeConfig = !frozenFee.enabled
+      ? { enabled: false }
+      : frozenFee.mode === 'custom'
+        ? { enabled: true, mode: 'custom', custom: frozenFee.custom }
+        : {
+            enabled: true,
+            mode: 'cover_costs',
+            application: applicationRate,
+            processing: { bps: 290, fixedCents: 30 },
+          };
     return {
       pricing: {
         nowLocal,
@@ -265,21 +391,16 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
           priceCents: row.price_cents,
         })),
         addOns: [],
-        existingConfirmed: [],
+        existingConfirmed,
+        siblingRule,
         automaticRules: [],
         codes: [],
         aid: [],
         applyCreditCents: 0,
-        serviceFee: { enabled: false },
+        serviceFee,
         productTaxBps: 0,
       },
-      paymentTerms: {
-        applicationRate: {
-          bps: organization.application_fee_bps,
-          fixedCents: organization.application_fee_fixed_cents,
-        },
-        serviceFee: { enabled: false },
-      },
+      paymentTerms,
     };
   }
 }

@@ -26,6 +26,7 @@ export const signUpSchema = z.strictObject({
   termsAccepted: z.literal(true),
   privacyAccepted: z.literal(true),
   captchaToken: z.string().min(1),
+  locale: z.enum(['en', 'es']).optional(),
 });
 
 export type SignUpInput = z.infer<typeof signUpSchema>;

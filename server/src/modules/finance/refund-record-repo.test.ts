@@ -15,6 +15,7 @@ import { PostgresCreditLedger } from './credits.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
+import { PostgresRefundAttemptStore } from './refund-attempt-repo.js';
 import { PostgresRefundEventRepository } from './refund-event-repo.js';
 import { PostgresRefundRecordStore } from './refund-record-repo.js';
 import { PostgresRefundSourceReader } from './refund-source-repo.js';
@@ -60,7 +61,7 @@ beforeAll(async () => {
     refundTerms: {
       policy: {
         rules: [],
-        afterLastBps: 5000,
+        afterLastBps: 10_000,
         serviceFeeRefund: 'proportional',
       },
       approvalThresholdCents: 1000,
@@ -152,7 +153,7 @@ function request(refundId = `re_${randomUUID()}`) {
       lines: [{ lineId: registrationLineId, amountCents: 450 }],
       serviceFeeCents: 50,
       totalCents: 500,
-      refundBps: 5000,
+      refundBps: 10_000,
     },
     requestedByAccountId: context.actor.accountId,
     approvedByAccountId: null,
@@ -277,9 +278,27 @@ describe('pending Stripe refund records', () => {
       lines: [{ lineId: registrationLineId, amountCents: 450 }],
       serviceFeeCents: 50,
       totalCents: 500,
-      refundBps: 5000,
+      refundBps: 10_000,
     };
     const requestHash = 'a'.repeat(64);
+    const attemptStore = new PostgresRefundAttemptStore(database, context);
+    const attemptKey = randomUUID();
+    expect(
+      await attemptStore.reserve({
+        orgId: context.orgId,
+        paymentId,
+        key: attemptKey,
+        requestHash: 'c'.repeat(64),
+      }),
+    ).toEqual({ kind: 'reserved' });
+    await expect(credits.apply(input, requestHash, proposal)).rejects.toThrow(
+      'Original-method refund is in progress',
+    );
+    await attemptStore.fail({
+      orgId: context.orgId,
+      paymentId,
+      key: attemptKey,
+    });
     const result = await credits.apply(input, requestHash, proposal);
     expect(result.amountCents).toBe(500);
     expect(await credits.replay(input, requestHash)).toEqual(result);

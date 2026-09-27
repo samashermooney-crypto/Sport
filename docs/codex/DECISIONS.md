@@ -344,7 +344,7 @@
 - **Why:** A choice made on the sign-in screen should survive navigation, while private-browsing storage failures must not block access.
 - **Consequences / follow-ups:** Account preference synchronization and complete auth/portal/site translations remain part of Task 16.
 
-### DEC-042 — Preserve SMS consent evidence and global STOP state
+### DEC-046 — Preserve SMS consent evidence and global STOP state
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 10 communications consent
 - **Context:** The spine stores account/phone data and tenant suppressions, but it has no versioned SMS consent evidence and its suppression policy permits global reads but not global signed STOP writes.
@@ -352,7 +352,7 @@
 - **Why:** SMS delivery must fail closed without explicit, auditable consent, and STOP must take effect across every organization immediately.
 - **Consequences / follow-ups:** Restrict global suppression writes to signed SMS webhook code; keep all tenant reads/writes inside `withOrg`; apply shared quiet-hours policy at delivery time.
 
-### DEC-043 — Treat registration and balance as audience refinements
+### DEC-047 — Treat registration and balance as audience refinements
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 10 campaign audience
 - **Context:** `AudienceSpec` defines include/exclude selectors but does not define how registration status and balance combine with a team, program or role selection.
@@ -360,7 +360,7 @@
 - **Why:** This gives predictable U10-plus-past-due targeting and protects household financial privacy when an athlete has multiple guardians.
 - **Consequences / follow-ups:** Keep filters inside the tenant-scoped audience resolver and cover payer-only routing with database-backed tests.
 
-### DEC-044 — Link in-app campaign deliveries to their inbox notification
+### DEC-048 — Link in-app campaign deliveries to their inbox notification
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 10 in-app delivery
 - **Context:** A campaign's in-app channel creates a Track B inbox notification, while the delivery spine requires exactly one of `campaign_id` or `notification_id`; storing both links would fail the existing constraint.
@@ -368,7 +368,7 @@
 - **Why:** The one-row link preserves campaign stats and retry idempotency while reusing Track B's inbox and stream service.
 - **Consequences / follow-ups:** The allowed dual link is constrained to `in_app` and covered by a database-backed integration test.
 
-### DEC-045 — Require an explicit program setting for athlete team chat
+### DEC-049 — Require an explicit program setting for athlete team chat
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 10 team conversations
 - **Context:** The Phase 10 team roster includes athletes aged 13+ only "if enabled," but the schema and UX do not name a setting or default.
@@ -376,7 +376,7 @@
 - **Why:** Youth accounts should not become visible in a staff/family communication channel until an authorized organization setting explicitly enables that audience.
 - **Consequences / follow-ups:** Track A must expose this setting in program/team communication settings. H's team conversation service reads the setting and is covered by a database-backed membership test.
 
-### DEC-046 — Soft-revoke chat membership when team eligibility changes
+### DEC-050 — Soft-revoke chat membership when team eligibility changes
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 10 team conversation membership
 - **Context:** Roster, staff assignment, guardian link, or athlete-chat setting changes can make a previously included account ineligible, while chat history must remain retained.
@@ -384,7 +384,7 @@
 - **Why:** Removed families and staff immediately lose access without erasing retained messages or compliance evidence.
 - **Consequences / follow-ups:** Track A must invoke the H synchronization functions after roster and staff assignment changes; the service reconciles the active membership set.
 
-### DEC-047 — Show attachment actions only for current Files access
+### DEC-051 — Show attachment actions only for current Files access
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 10 chat attachments
 - **Context:** Track C's Files routes currently require active organization membership for all access and owner/admin/registrar for upload, while household portal access can come from person-account links alone.
@@ -392,7 +392,23 @@
 - **Why:** A family-facing button that predictably receives 403 is not a working feature, and membership must not grant file access outside the Files policy.
 - **Consequences / follow-ups:** Track C must extend Files upload/download authorization to active same-organization conversation members for approved chat image/PDF attachments; then remove any stale capability duplication if Files exposes an authorization API.
 
-### DEC-048 — Preview draft audiences without persisting campaign state
+### DEC-052 — Measure the web entry chunk separately from lazy area chunks
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 bundle budget and Track H integration
+- **Context:** The build generated an entry chunk and a separate lazy shared UI chunk, both named `index-*.js`. The existing size-limit glob summed them as one entry after message routes were mounted.
+- **Decision:** Name the actual Vite entry `app-*.js`, keep lazy chunks separately named, and apply the 200 KB gzip entry budget to `app-*.js`. Lazy message screens load on their routes.
+- **Why:** This measures the specification's entry budget without treating route-level code as initial JavaScript.
+- **Consequences / follow-ups:** The merged entry is 173 KB gzip; area chunks remain below their 250 KB gzip budget and must continue to be checked as new routes land.
+
+### DEC-053 — Localize generic account request confirmations in the browser
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 auth i18n
+- **Context:** Password-reset, magic-link and sign-up endpoints deliberately return generic confirmations to prevent account enumeration. Their English message bodies would remain untranslated when a user selects Spanish.
+- **Decision:** Show a fixed, translated generic confirmation for each successful request in the browser. Keep the server's generic response behavior and preserve error details for diagnosis.
+- **Why:** Both languages communicate the same privacy-preserving outcome without leaking whether an address has an account.
+- **Consequences / follow-ups:** Localize remaining auth screens and server-provided legal text before Task 16 acceptance.
+
+### DEC-054 — Preview draft audiences without persisting campaign state
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 10 campaign composer
 - **Context:** The composer needs a live recipient count and preview while users change selectors, categories and channels, before saving a campaign.
