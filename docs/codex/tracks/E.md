@@ -276,3 +276,5 @@ Stripe replay worker: `stripe.replay` scans up to 100 stored unprocessed events 
 - Known failing tests: none confirmed. ESLint/Prettier and typecheck hooks ran for commit `01cd434`. The focused 6-test Postgres lifecycle suite and family screen test passed before the very latest staff waitlist/screen changes; rerun them. Full `npm test`, Chromium E2E, and build have not passed for `01cd434`.
 - Open requests: Track C to mount registration API routes and regenerate OpenAPI/registry/DB types, then mount portal and console route wrappers. Track A to expose validated `settings.refundTerms` and `settings.lateFeeCents` in org settings. Track C also owns any remaining raw Stripe webhook and `stripe.event` wiring requests recorded above.
 - Local services: `COMPOSE_PROJECT_NAME=athlentry_e`; `PORT_OFFSET=500`.
+
+HANDED OFF 11:45
