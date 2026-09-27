@@ -7,6 +7,7 @@ import {
   householdsQuerySchema,
 } from '@shared/schemas/households';
 import {
+  guardianLinkCreateSchema,
   peopleFilterOptionsQuerySchema,
   peopleQuerySchema,
   personCreateSchema,
@@ -20,6 +21,7 @@ import { requestImpersonation } from '../../lib/tenant-guard';
 import type { AuthDependencies } from '../auth/routes';
 import { requireSession } from '../auth/routes';
 
+import { createGuardianLinksRepository } from './guardianLinks';
 import { createHouseholdsRepository } from './households';
 import { createPeopleRepository, PeopleError } from './repo';
 
@@ -75,6 +77,7 @@ export function createPeopleRouter(
   const router = express.Router();
   const people = createPeopleRepository(dependencies.database);
   const households = createHouseholdsRepository(dependencies.database);
+  const guardianLinks = createGuardianLinksRepository(dependencies.database);
   router.use(express.json({ limit: '32kb' }));
   router.use((_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
@@ -134,6 +137,68 @@ export function createPeopleRouter(
       sendError(response, error);
     }
   });
+
+  router.get('/orgs/:orgId/:personId/guardians', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      response.json(
+        await guardianLinks.list(
+          z.uuid().parse(request.params.orgId),
+          session.accountId,
+          z.uuid().parse(request.params.personId),
+          Boolean(requestImpersonation(request)),
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.post('/orgs/:orgId/:personId/guardians', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+      if (!validWriteOrigin(request, dependencies.appUrl))
+        throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+      const { email } = guardianLinkCreateSchema.parse(request.body);
+      response
+        .status(201)
+        .json(
+          await guardianLinks.linkExisting(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            z.uuid().parse(request.params.personId),
+            email.trim().toLowerCase(),
+          ),
+        );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.post(
+    '/orgs/:orgId/:personId/guardians/:linkId/revoke',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        response.json(
+          await guardianLinks.revoke(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            z.uuid().parse(request.params.personId),
+            z.uuid().parse(request.params.linkId),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
 
   router.post('/orgs/:orgId', async (request, response) => {
     try {

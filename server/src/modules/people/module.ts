@@ -8,6 +8,8 @@ import {
   householdUpdateSchema,
 } from '@shared/schemas/households';
 import {
+  guardianLinkCreateSchema,
+  guardianLinksResponseSchema,
   peopleFilterOptionsSchema,
   peopleListSchema,
   personCreateSchema,
@@ -95,6 +97,25 @@ export const moduleDefinition = {
       path: '/api/v1/people/orgs/{orgId}/{personId}',
       summary: 'Read a person',
       response: personResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/guardians',
+      summary: 'List verified guardian links for a person',
+      response: guardianLinksResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/guardians',
+      summary: 'Link an existing verified adult account as guardian',
+      body: guardianLinkCreateSchema,
+      response: guardianLinksResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/guardians/{linkId}/revoke',
+      summary: 'Revoke a guardian link while preserving minor supervision',
+      response: guardianLinksResponseSchema,
     },
     {
       method: 'post',

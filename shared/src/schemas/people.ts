@@ -57,6 +57,22 @@ export const personPhotoUpdateSchema = z.strictObject({
   fileId: z.uuid().nullable(),
 });
 
+export const guardianLinkCreateSchema = z.strictObject({
+  email: z.email().max(254),
+});
+
+export const guardianLinkResponseSchema = z.strictObject({
+  id: z.uuid(),
+  accountId: z.uuid(),
+  email: z.email(),
+  name: z.string(),
+  verifiedAt: z.iso.datetime(),
+});
+
+export const guardianLinksResponseSchema = z.strictObject({
+  items: z.array(guardianLinkResponseSchema),
+});
+
 export const peopleQuerySchema = z.strictObject({
   q: z.string().trim().max(120).optional(),
   status: z

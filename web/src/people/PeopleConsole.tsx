@@ -24,6 +24,7 @@ import {
 } from '../ui/primitives';
 import { AppShell } from '../ui/shell';
 
+import { GuardianLinks } from './GuardianLinks';
 import { PersonPhoto } from './PersonPhoto';
 
 type Person = z.output<typeof personResponseSchema>;
@@ -792,6 +793,13 @@ export function PersonDetail(): React.JSX.Element {
               Restore person
             </Button>
           </Card>
+        )}
+        {current.status === 'active' && (
+          <GuardianLinks
+            orgId={orgId}
+            personId={personId}
+            readOnly={Boolean(impersonationId)}
+          />
         )}
       </main>
     </PeopleShell>

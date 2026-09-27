@@ -534,3 +534,11 @@
 - **Decision:** Offer exact credential-record states (`pending_review`, `verified`, `rejected`, `expired`, `revoked`) plus no record. A person can match more than one state. Label the control “Compliance credential status,” and continue to use the Phase 7 role policy for activation decisions.
 - **Why:** Staff can find records needing review without treating a verified credential as proof that all role requirements are satisfied.
 - **Consequences / follow-ups:** The Phase 2 task remains open until the role-aware compliance view and remaining acceptance criteria are complete.
+
+### DEC-076 — Verify adult guardian accounts before direct staff linking
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 guardian links
+- **Context:** Staff may link an existing account to a person by email, which immediately grants access to protected child records. A shared, unverified, suspended or minor account must not gain guardian access.
+- **Decision:** Direct linking resolves only an active, email-verified account whose date of birth proves age 18 or older in the organization's timezone. The person must be active and belong to that organization. A duplicate active link is rejected, every link/revocation is audited, and revoking the final verified guardian of a minor with a self account is blocked.
+- **Why:** Staff linking is an explicit authorization action, but account control, adult status, tenant scope and continuing supervision must still be checked at the time of change.
+- **Consequences / follow-ups:** Guardian invitation redemption must repeat these checks and bind its token to the intended person and email. This initial slice does not complete Phase 2 task 3; invitation, athlete and adult self-claim flows remain.
