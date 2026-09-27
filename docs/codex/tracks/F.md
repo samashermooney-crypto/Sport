@@ -19,3 +19,4 @@ Next steps in order: (1) fix the syntax error at `server/src/modules/evaluations
 Known failing checks: `npm run typecheck` fails with TS1009 at `server/src/modules/evaluations/service.ts:177` (trailing comma). Lint, module tests, Playwright, and full gate have not been run for this WIP.
 Open requests: C — update generator ownership config, discover nested evaluation/class routes, wire jobs and regenerate route/OpenAPI output; E/C — provide the offer-to-checkout acceptance contract and class tuition collection/autopay integration; C/QA — add the Phase 6/12 Playwright journeys; A — provide or confirm the scoped family household-selection contract if deriving households within classes is insufficient; H — provide guardian notification delivery for offers, class promotions, and tuition events.
 Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_f`, `PORT_OFFSET=600` (PostgreSQL mapped to port 6032).
+HANDED OFF 08:20
