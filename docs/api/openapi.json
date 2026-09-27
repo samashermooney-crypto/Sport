@@ -4189,7 +4189,15 @@
             "required": true,
             "schema": { "type": "string", "format": "uuid" }
           }
-        ]
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": { "type": "string", "format": "binary" }
+            }
+          }
+        }
       }
     },
     "/api/v1/files/{id}/download": {

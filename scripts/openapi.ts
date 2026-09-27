@@ -28,6 +28,8 @@ export type OpenApiRoute = {
   idempotencyKey?: boolean;
   contentType?: string;
   binary?: boolean;
+  requestContentType?: string;
+  requestBinary?: boolean;
   permission?: string;
   resource?: string;
   scope?: ApiScope;
@@ -276,6 +278,7 @@ const fileRoutes: OpenApiRoute[] = [
     summary: 'Upload local file content',
     response: z.null(),
     status: 204,
+    requestBinary: true,
     binary: true,
   },
   {
@@ -715,7 +718,16 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
   if (metadata.tenancyFixture)
     result['x-athlentry-tenancy-fixture'] = metadata.tenancyFixture;
   if (parameters.length) result.parameters = parameters;
-  if (route.body)
+  if (route.requestBinary)
+    result.requestBody = {
+      required: true,
+      content: {
+        [route.requestContentType ?? 'application/octet-stream']: {
+          schema: { type: 'string', format: 'binary' },
+        },
+      },
+    };
+  else if (route.body)
     result.requestBody = {
       required: true,
       content: { 'application/json': { schema: jsonSchema(route.body) } },
