@@ -102,6 +102,66 @@
 - **Request:** reserve/decrement remaining units before issuing the invoice, or compensate by voiding the invoice if the locked recheck fails; add a Postgres concurrency regression that asserts the losing request creates no invoice.
 - **Status:** high-confidence financial correctness race from static transaction ordering; execution awaits the isolated QA Postgres stack.
 
+### QA-ACC-040 — Volunteer coach-count setting does not affect household progress
+
+- **Owner:** Track H
+- **Phase:** 11 task 1
+- **Evidence:** `createVolunteerRequirement()` stores `counts_coach_roles` and `listVolunteerRequirements()` returns it, but `householdVolunteerLedger()` calculates completed units only from `volunteer_signups` with `status = 'completed'`. No ledger query joins active coach/team-parent assignments.
+- **Reproduce:** create a requirement with `countsCoachRoles: true`, assign a household member an active coach/team-parent role for a registered team, and read the household ledger; the coach role contributes no completed units.
+- **Expected:** when enabled, qualifying coach/team-parent service is included in the household or athlete requirement according to the configured scope; when disabled, it is excluded.
+- **Request:** include eligible team staff roles in requirement progress only when `countsCoachRoles` is true, and add real-Postgres tests for both setting values.
+- **Status:** open Phase 11 behavior gap; source review found no counting path, but database execution is pending the isolated QA stack.
+
+### QA-ACC-041 — Volunteer shortfall invoice settings are stored but never enforced
+
+- **Owner:** Track H
+- **Phase:** 11 task 1
+- **Evidence:** volunteer requirements persist and return `auto_invoice_shortfall` and `notice_days`, but `server/src/modules/volunteers/module.ts` registers no jobs and no production code reads those values to notify households or issue shortfall invoices.
+- **Reproduce:** create a requirement with `autoInvoiceShortfall: true` and a nonzero `noticeDays`, leave a household short, and inspect registered jobs and service call sites; no notice or invoice enforcement path exists.
+- **Expected:** with the default-off setting enabled, affected households receive the configured advance notice and an invoice for the remaining buyout shortfall at the deadline; disabled requirements create no automatic invoice.
+- **Request:** add an idempotent scheduled enforcement job that honors `noticeDays`, `autoInvoiceShortfall`, current credits, and buyout prices, with fake-clock and duplicate-run integration tests.
+- **Status:** open Phase 11 behavior gap; the configuration is currently inert.
+
+### QA-ACC-042 — Volunteer shifts have no event-block generation or reminder job
+
+- **Owner:** Track H
+- **Phase:** 11 task 1
+- **Evidence:** the only shift creation path inserts one `volunteer_shifts` row at a time; `event_id` is optional metadata and the volunteer module registers `jobs: []`. The shift-reminder template is declared but no service schedules or emits it.
+- **Reproduce:** inspect `createVolunteerShift()` and the volunteer module job registry; there is no event-block expansion or 24-hour reminder producer.
+- **Expected:** coordinators can generate shifts from a selected event block or series and signed-up households receive the shift reminder through the configured preview/provider adapters.
+- **Request:** implement event-based shift generation and a deduplicated reminder job; test that a multi-event block produces the expected shifts and only due signups receive a reminder.
+- **Status:** open Phase 11 task gap; no generation or reminder execution path is present.
+
+### QA-ACC-043 — Store fulfillment updates do not notify the purchaser
+
+- **Owner:** Track H (coordinate notification catalog registration with Track B)
+- **Phase:** 11 task 5
+- **Evidence:** `updateFulfillment()` changes fulfillment and order status but never creates an order-update notification. `store.order_update` is declared by the module but has no delivery call from fulfillment transitions; the H track note also records the central notification catalog dependency as outstanding.
+- **Reproduce:** mark a paid ship order `shipped` or a pickup order `ready`; the service response and database state change, but no notification is enqueued for `store_orders.account_id`.
+- **Expected:** the purchaser receives an order-status notification after meaningful fulfillment transitions, with no message for stale or rejected updates.
+- **Request:** register the notification type/template and enqueue a deduplicated purchaser notification from the successful fulfillment transaction; add an integration assertion using the notification outbox.
+- **Status:** open Phase 11 behavior gap; static service review found no notification call.
+
+### QA-SEC-010 — Revoked guardians retain access to class waitlist entries
+
+- **Owner:** Track I
+- **Phase:** 12; guardian access revocation and household privacy
+- **Evidence:** `/me/waitlist` calls `waitlistForAccount()` with only the signed-in account ID, which returns waitlist entries without checking whether the linked guardian/self relationship is still verified and active. The accept/decline routes also rely on the stored `entry.account_id`; waitlist creation can outlive a later link revocation. `e2e/security/class-waitlist-revoked-guardian.spec.ts` records the expected no-data response as `test.fixme`.
+- **Reproduce:** create an offered class waitlist entry for a verified guardian account, revoke its `person_account_links` row, then GET `/api/v1/classes/orgs/:orgId/me/waitlist`; the current query still returns the child's name and entry identifiers.
+- **Expected:** revoking the link immediately removes access to that child's waitlist data and blocks accepting or declining its offer; the response must contain no child or waitlist identifiers.
+- **Request:** revalidate active verified self/guardian access for every child-specific waitlist list/read/mutation, including `waitlistForAccount()`, accept and decline; add a real-Postgres regression for link revocation after offer creation.
+- **Status:** high-confidence authorization/privacy defect from the route and query predicates; execution awaits the isolated QA Postgres stack.
+
+### QA-SEC-011 — Class portal booking actions bypass household ownership
+
+- **Owner:** Track I
+- **Phase:** 12; class portal privacy and authorization
+- **Evidence:** `GET /me/punch-cards` filters by the stored purchaser account but does not require an active verified link to the card's person. `POST /me/bookings/:bookingId/cancel` and `POST /me/punch-cards/:punchCardId/book` require only active organization membership; `cancelBooking()` and `bookPunchCard()` select records by organization and ID without checking the actor, purchaser, or an active guardian/self link.
+- **Reproduce:** revoke the purchaser's guardian link after a child receives a punch card and booked class session. The former guardian still sees the card; any other active organization member who knows the booking or card UUID can cancel the booking or consume a punch.
+- **Expected:** private class cards are hidden and member portal actions are denied unless the caller is the current verified guardian/self for the person and is authorized for the purchaser-owned record; denied calls leave bookings and remaining punches unchanged.
+- **Request:** enforce current person-link and account ownership in the portal list, booking-cancel and punch-redemption paths (retaining separate authorized staff actions); add a real-Postgres regression asserting 404/no data and no mutation for a revoked guardian and unrelated active member.
+- **Status:** high-confidence authorization/privacy defect from endpoint and service predicates; regression is marked `test.fixme` in `e2e/security/class-booking-guardian-idor.spec.ts`, with execution pending the isolated QA stack.
+
 ### QA-OPS-001 — Render health probes have no `/readyz` handler and public status is missing
 
 - **Owner:** Track C

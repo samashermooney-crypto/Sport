@@ -5,7 +5,7 @@ Branch: `track/qa`
 
 ## Ready for integration ranges
 
-- None yet. The five original QA commits and follow-up audits remain unmerged. Latest sync merge `74e8a30` includes `rebuild/trunk` `0ca39573`. Typecheck and lint pass, 15 isolated security unit tests pass, and Playwright lists 24 Chromium tests across seven QA specs. Full PostgreSQL and browser execution remain blocked while Track I owns the prescribed QA offset 1500.
+- None yet. The five original QA commits and follow-up audits remain unmerged. Latest sync merge `74e8a30` includes `rebuild/trunk` `0ca39573`. Typecheck passes, 15 isolated security unit tests pass, and wrapped Playwright collection lists 68 Chromium tests across 34 files; this is collection only. Full PostgreSQL and browser execution remain blocked while Track I owns the prescribed QA offset 1500.
 
 ## Requests to other tracks
 
@@ -31,6 +31,12 @@ Branch: `track/qa`
 - H — QA-SEC-009: restrict household volunteer ledger reads to a verified guardian of that household or an authorized volunteer oversight role; the current service grants any active organization membership access. A scoped-director regression is marked `test.fixme` in `e2e/security/volunteer-household-ledger.spec.ts`.
 - H/E — QA-ACC-038: link family uniform orders to the selected athlete's registration/team and reject forged team attribution so paid purchases feed accurate size reports. The portal-to-report regression is marked `test.fixme` in `e2e/phase11-uniform-report.spec.ts`.
 - H — QA-ACC-039: make volunteer buyout unit reservation and invoice issuance concurrency-safe; a late conflicting request currently leaves an invoice behind. Regression is marked `test.fixme` in `e2e/phase11-buyout-race.spec.ts`.
+- H — QA-ACC-040: honor the volunteer requirement's `countsCoachRoles` setting when calculating progress; the ledger currently counts completed volunteer signups only.
+- H — QA-ACC-041: implement notice and auto-invoice shortfall enforcement; `autoInvoiceShortfall` and `noticeDays` are persisted without any job consuming them.
+- H — QA-ACC-042: add event-block shift generation and 24-hour reminders; the module currently has no jobs and only creates single shifts.
+- H/B — QA-ACC-043: enqueue purchaser order-status notifications on successful fulfillment transitions and register the `store.order_update` catalog type.
+- I — QA-SEC-010: revalidate verified guardian/self links for class waitlist listing and offer actions; a revoked guardian currently retains account-bound waitlist access. Regression is marked `test.fixme` in `e2e/security/class-waitlist-revoked-guardian.spec.ts`.
+- I — QA-SEC-011: check active guardian/self links and record ownership for class punch-card listing, redemption, and booking cancellation. Revoked guardians retain card visibility, and any active org member can mutate records by ID. Regression is marked `test.fixme` in `e2e/security/class-booking-guardian-idor.spec.ts`.
 - I — QA-ACC-024: extend the academy browser flow to cover monthly tuition/proration and level promotion in addition to its current make-up booking and attendance coverage. Details are in `docs/codex/qa/DEFECTS.md`.
 - I — release or move the active `athlentry_i` stack from the QA-required `PORT_OFFSET=1500`; its Postgres, Mailpit, and Stripe mock mappings collide with ports `6932`, `2525/9525`, and `13611`. Do not stop the other track's containers from QA.
 
@@ -50,6 +56,9 @@ Branch: `track/qa`
 - Audited the newly integrated Phase 13 federation slice: journey 25 exists and covers entries, shared-field schedule, result and standings, but the QA browser run is pending; filed QA-ACC-033, QA-ACC-034, and QA-SEC-007 for navigation discoverability and missing revocation/RLS regression evidence. Added a focused `test.fixme` navigation assertion for C to enable after wiring.
 - Filed QA-ACC-035 after finding that `federation_sharing_guard()` allows camelCase `teamEntries`/`complianceStatus` while the shared schema and service persist snake_case. Existing tests exercise those keys, but runtime behavior remains unverified until QA Postgres is available.
 - Filed QA-ACC-036: Phase 13 journey 25 submits both field windows but schedules one game only, so it cannot prove both clubs' availability affects the generated schedule.
+- Phase 11 task audit found QA-ACC-040–043: volunteer coach credits, shortfall enforcement, event-generated shifts/reminders, and store fulfillment notifications have no implementation paths; filed precise requests with H (and B for notification registration).
+- Phase 12 access review found QA-SEC-010: waitlist listing and offer actions trust the stored account ID after a guardian link is revoked. Added an isolated-stack `test.fixme` regression and routed the request to Track I.
+- Extended the Phase 12 access review as QA-SEC-011: punch-card listing trusts the stale purchaser account and portal redemption/cancellation trust any in-org record ID. Added an isolated-stack `test.fixme` covering list leakage, cross-member cancellation and cross-member punch redemption; routed the request to Track I.
 - Audited the integrated Phase 11 journeys: journey 23 now records its volunteer acceptance flow as covered but awaiting QA execution; QA-ACC-037 asks H to exercise the donation acceptance path without the setup session.
 - Static privacy audit found QA-SEC-009: a scoped director with an active org membership can read unrelated household volunteer ledger data because the ledger service checks membership but not role scope. Added a focused `test.fixme` request test; runtime verification is blocked by the QA stack collision.
 - Phase 11 store audit found QA-ACC-038: the family store omits registration/team identifiers that the report requires, while the service trusts arbitrary caller-supplied team IDs. Added a paid family-order-to-report `test.fixme`; execution is pending the isolated database/browser stack.
@@ -59,3 +68,4 @@ Branch: `track/qa`
 - Filed QA-SEC-008: `readMemberCompliance` has no real-Postgres test for the status-only allow-list, denied-sharing response, or dual-org audit.
 - Re-ran `npm run knip` on the post-Phase 13 tree: 8 unused files, 44 exports, 28 types, and 1 duplicate. The new federation dead exports and demo helper are routed through the Track C quality-gate request.
 - Post-Phase 13 `npm run typecheck`, `npm run lint`, and `npm run build` pass; build warns that the 1.35 MB app entry chunk exceeds Vite's 500 KB warning threshold. `npm run size` measures 404.93 KB gzip against a 200 KB limit. Targeted federation/crawler Chromium exits before test collection because its configured web server cannot start; the stack conflict remains with Track I.
+- Re-ran QA branch `npm run typecheck` and `npm run lint` after Phase 11 sync; both pass. Wrapped Playwright collection lists 68 Chromium tests across 34 files, including both new Phase 12 regressions; this is collection only, while real browser/database execution remains blocked by Track I's occupied offset.

@@ -23,6 +23,8 @@ Owns: `server/src/modules/classes/**`, `web/src/console/classes/**`, `web/src/po
 ## Requests from QA
 
 - QA test-stack unblock (2026-09-27): release or move I's active Docker stack from `PORT_OFFSET=1500` so QA can run its required database and Chromium gates on its assigned offset. QA confirmed its Playwright web server exits before test collection while I owns Postgres `6932`, Mailpit `2525/9525`, and Stripe mock `13611`; QA will not stop I's containers.
+- QA-SEC-010 (2026-09-27): revalidate the active verified guardian/self link when listing, accepting, or declining class waitlist entries; account-bound entries remain visible after a child link is revoked. Regression: `e2e/security/class-waitlist-revoked-guardian.spec.ts` (`test.fixme` pending the authorization fix).
+- QA-SEC-011 (2026-09-27): enforce current verified person links and record ownership on `GET /me/punch-cards`, booking cancellation, and punch-card redemption. Those paths can expose a revoked guardian's child/card or let any active org member mutate a known booking/card UUID. Regression: `e2e/security/class-booking-guardian-idor.spec.ts` (`test.fixme` pending the authorization fix).
 
 ## Requests from SEC
 

@@ -73,3 +73,7 @@ Track B's catalog/preferences and Track C's provider-ID interface are on the mer
 - **QA-SEC-009:** limit household volunteer ledger reads to the verified guardian of that household or an authorized volunteer-oversight role; active program-scoped memberships currently pass the service access check.
 - **QA-ACC-038 (coordinate E):** connect family uniform orders to the selected athlete's registration/team for size reporting, and reject unrelated team-season IDs. The current store portal omits both attribution fields that the report requires.
 - **QA-ACC-039:** make volunteer buyout reservation and invoice issuance atomic under concurrency; a late conflicting request currently leaves its issued invoice behind.
+- **QA-ACC-040:** make `countsCoachRoles` affect household requirement credits; it is persisted but the ledger only counts completed volunteer signups.
+- **QA-ACC-041:** implement idempotent notice and shortfall-invoice enforcement for enabled volunteer requirements; `autoInvoiceShortfall` and `noticeDays` are stored but no job consumes them.
+- **QA-ACC-042:** add event-block shift generation and a deduplicated shift-reminder job; the volunteer module has no jobs and creates shifts one at a time.
+- **QA-ACC-043 (coordinate B):** register and emit purchaser order-status notifications after fulfillment transitions; `updateFulfillment()` currently changes state without enqueuing a notification.
