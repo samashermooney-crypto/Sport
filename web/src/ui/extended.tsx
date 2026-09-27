@@ -277,6 +277,7 @@ export function Calendar({
     () => new Date(`${initialDate ?? toDateKey(new Date())}T00:00:00`),
   );
   const [localView, setLocalView] = useState(view);
+  const calendarGridRef = useRef<HTMLDivElement>(null);
   const activeView = onViewChange ? view : localView;
   const monthHeading = cursor.toLocaleDateString('en-US', {
     month: 'long',
@@ -328,6 +329,28 @@ export function Calendar({
     else next.setMonth(cursor.getMonth() + direction);
     setCursor(next);
   };
+  const moveGridFocus = (
+    event: React.KeyboardEvent<HTMLDivElement>,
+    day: Date,
+  ) => {
+    const dayDelta: Record<string, number> = {
+      ArrowLeft: -1,
+      ArrowRight: 1,
+      ArrowUp: -7,
+      ArrowDown: 7,
+    };
+    const delta = dayDelta[event.key];
+    if (delta === undefined) return;
+    event.preventDefault();
+    const next = new Date(day);
+    next.setDate(day.getDate() + delta);
+    setCursor(next);
+    requestAnimationFrame(() => {
+      calendarGridRef.current
+        ?.querySelector<HTMLElement>(`[data-date="${toDateKey(next)}"]`)
+        ?.focus();
+    });
+  };
   const views = [
     'month',
     'week',
@@ -338,11 +361,9 @@ export function Calendar({
   const firstDay = days[0];
   const lastDay = days[days.length - 1];
   const visibleEvents = events.filter((event) => {
+    if (activeView === 'resource') return event.date === toDateKey(cursor);
     const date = new Date(`${event.date}T00:00:00`);
-    return (
-      (activeView === 'resource' && event.date === toDateKey(cursor)) ||
-      (firstDay && lastDay && date >= firstDay && date <= lastDay)
-    );
+    return firstDay && lastDay && date >= firstDay && date <= lastDay;
   });
   return (
     <section className={`ui-calendar ui-calendar-${activeView}`}>
@@ -395,7 +416,7 @@ export function Calendar({
       {activeView === 'resource' && resources ? (
         <div
           className="ui-resource-calendar"
-          role="grid"
+          role="table"
           aria-label={`Resource schedule for ${heading}`}
         >
           <div className="ui-resource-time" role="row">
@@ -411,7 +432,12 @@ export function Calendar({
           {resources.map((resource) => (
             <div className="ui-resource-row" role="row" key={resource}>
               <strong role="rowheader">{resource}</strong>
-              <div className="ui-resource-slots" role="presentation">
+              <div
+                className="ui-resource-slots"
+                role="cell"
+                aria-colspan={16}
+                aria-label={`${resource} time slots`}
+              >
                 {Array.from({ length: 16 }, (_, index) => (
                   <span aria-hidden="true" key={index} />
                 ))}
@@ -481,32 +507,67 @@ export function Calendar({
           className={`ui-month-grid ui-grid-${activeView}`}
           role="grid"
           aria-label={heading}
+          ref={calendarGridRef}
         >
-          {activeView !== 'day' &&
-            ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-              <strong role="columnheader" key={day}>
-                {day}
-              </strong>
-            ))}
-          {days.map((day) => (
+          {activeView !== 'day' && (
+            <div className="ui-calendar-grid-row" role="row">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                <strong role="columnheader" key={day}>
+                  {day}
+                </strong>
+              ))}
+            </div>
+          )}
+          {(activeView === 'month'
+            ? Array.from({ length: 6 }, (_, index) =>
+                days.slice(index * 7, index * 7 + 7),
+              )
+            : [days]
+          ).map((week) => (
             <div
-              role="gridcell"
-              key={day.toISOString()}
-              className={
-                activeView === 'month' && day.getMonth() !== cursor.getMonth()
-                  ? 'outside'
-                  : ''
-              }
+              className="ui-calendar-grid-row"
+              role="row"
+              key={week[0] ? toDateKey(week[0]) : 'empty'}
             >
-              <time dateTime={toDateKey(day)}>{day.getDate()}</time>
-              {visibleEvents
-                .filter((event) => event.date === toDateKey(day))
-                .map((event) => (
-                  <span className="ui-calendar-event" key={event.id}>
-                    {event.time && `${event.time} · `}
-                    {event.title}
-                  </span>
-                ))}
+              {week.map((day) => {
+                const dateKey = toDateKey(day);
+                return (
+                  <div
+                    role="gridcell"
+                    aria-label={day.toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                    aria-selected={dateKey === toDateKey(cursor)}
+                    tabIndex={dateKey === toDateKey(cursor) ? 0 : -1}
+                    data-date={dateKey}
+                    key={dateKey}
+                    className={
+                      activeView === 'month' &&
+                      day.getMonth() !== cursor.getMonth()
+                        ? 'outside'
+                        : ''
+                    }
+                    onKeyDown={(event) => {
+                      moveGridFocus(event, day);
+                    }}
+                    onFocus={() => {
+                      if (dateKey !== toDateKey(cursor)) setCursor(day);
+                    }}
+                  >
+                    <time dateTime={dateKey}>{day.getDate()}</time>
+                    {visibleEvents
+                      .filter((event) => event.date === dateKey)
+                      .map((event) => (
+                        <span className="ui-calendar-event" key={event.id}>
+                          {event.time && `${event.time} · `}
+                          {event.title}
+                        </span>
+                      ))}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>

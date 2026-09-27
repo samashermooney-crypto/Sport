@@ -215,3 +215,11 @@
 - **Decision:** Owners with completed MFA and recent step-up can edit the name, validity, activation blocking and active state with a version check. Show the verification method as read-only until a working provider workflow exists. Audit each change and hide another tenant's credential identifiers with 404.
 - **Why:** This lets an owner control every default requirement while preventing a setting that claims to verify credentials through an unavailable provider.
 - **Consequences / follow-ups:** Add selectable verification methods only with their complete review or provider workflow in a later phase.
+
+### DEC-026 — Meet contrast minimums in calendar and pagination text
+- **Date:** 2026-09-26
+- **Phase / area:** Track D shared design system
+- **Context:** The legacy muted text colors for outside-month dates and pagination details fall below the required 4.5:1 contrast on their backgrounds.
+- **Decision:** Use the existing `--muted` token for those two text treatments while leaving the token palette unchanged.
+- **Why:** Accessibility is the only permitted visual adjustment under `01 §11a`; using the existing muted hue is the smallest passing change.
+- **Consequences / follow-ups:** These two labels are slightly darker than legacy; all remaining captured token values and component styling stay unchanged.

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
+import { Link } from 'react-router';
 
 import {
   Avatar,
@@ -79,6 +81,88 @@ const calendarEvents = [
   },
 ];
 
+type ShowcaseIconName =
+  | 'manage'
+  | 'messaging'
+  | 'calendar'
+  | 'reporting'
+  | 'website'
+  | 'settings'
+  | 'home'
+  | 'money'
+  | 'chevron';
+
+function ShowcaseIcon({
+  name,
+  size = 18,
+}: {
+  name: ShowcaseIconName;
+  size?: number;
+}): React.JSX.Element {
+  const paths: Record<ShowcaseIconName, ReactNode> = {
+    manage: (
+      <>
+        <rect x="4" y="4" width="16" height="18" rx="2" />
+        <rect x="8" y="2" width="8" height="4" rx="1" />
+        <path d="M8 11h8M8 15h8" />
+      </>
+    ),
+    messaging: (
+      <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 8.7 3.9a8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z" />
+    ),
+    calendar: (
+      <>
+        <rect x="3" y="4" width="18" height="17" rx="2" />
+        <path d="M16 2v4M8 2v4M3 10h18" />
+      </>
+    ),
+    reporting: (
+      <>
+        <path d="M3 3v18h18" />
+        <path d="m7 14 4-4 4 3 6-7" />
+      </>
+    ),
+    website: (
+      <>
+        <rect x="2" y="3" width="20" height="14" rx="2" />
+        <path d="M8 21h8M12 17v4" />
+      </>
+    ),
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8 8 0 0 1-1.8 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.8-1l-1.7.6-1.4-2.4 1.4-1.1a7 7 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.6a8 8 0 0 1 1.8-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.8 1l1.7-.6 1.4 2.4-1.4 1.1a7 7 0 0 1 0 2z" />
+      </>
+    ),
+    home: (
+      <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-6v-7h-4v7H4a1 1 0 0 1-1-1z" />
+    ),
+    money: (
+      <>
+        <rect x="2" y="5" width="20" height="15" rx="2" />
+        <path d="M2 9h20M16 15h2" />
+      </>
+    ),
+    chevron: <path d="m7 10 5 5 5-5" />,
+  };
+
+  return (
+    <svg
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
+
 export function Showcase(): React.JSX.Element {
   const [tab, setTab] = useState('Overview');
   const [dialog, setDialog] = useState(false);
@@ -138,24 +222,84 @@ export function Showcase(): React.JSX.Element {
 
   return (
     <AppShell
-      orgName="Athlentry Demo Club"
+      orgName="Northstar Youth Sports"
+      orgSwitcher={
+        <>
+          <Link to="/__ui" className="org-name">
+            Northstar Youth Sports <ShowcaseIcon name="chevron" size={13} />
+          </Link>
+          <Link to="/__ui" className="site-link">
+            Site
+          </Link>
+        </>
+      }
+      actions={
+        <span className="ui-account-label">
+          Hi, Alex! <ShowcaseIcon name="chevron" size={13} />
+        </span>
+      }
       navigation={[
         {
           label: 'Manage',
+          icon: <ShowcaseIcon name="manage" />,
           items: [
             { label: 'Design system', to: '/__ui', current: true },
             { label: 'Programs', to: '/__ui' },
           ],
         },
-        { label: 'Schedule', items: [{ label: 'Calendar', to: '/__ui' }] },
-        { label: 'Money', items: [{ label: 'Invoices', to: '/__ui' }] },
+        {
+          label: 'Messaging',
+          icon: <ShowcaseIcon name="messaging" />,
+          items: [{ label: 'Messages', to: '/__ui' }],
+        },
+        {
+          label: 'Calendar',
+          icon: <ShowcaseIcon name="calendar" />,
+          items: [{ label: 'Schedule', to: '/__ui' }],
+        },
+        {
+          label: 'Reporting',
+          icon: <ShowcaseIcon name="reporting" />,
+          items: [{ label: 'Reports', to: '/__ui' }],
+        },
+        {
+          label: 'Website',
+          icon: <ShowcaseIcon name="website" />,
+          items: [{ label: 'Content pages', to: '/__ui' }],
+        },
+        {
+          label: 'Settings',
+          icon: <ShowcaseIcon name="settings" />,
+          items: [{ label: 'Organization settings', to: '/__ui' }],
+        },
       ]}
       mobileTabs={[
-        { label: 'Home', to: '/__ui', current: true },
-        { label: 'Programs', to: '/__ui' },
-        { label: 'Schedule', to: '/__ui' },
-        { label: 'Money', to: '/__ui' },
-        { label: 'More', to: '/__ui' },
+        {
+          label: 'Home',
+          to: '/__ui',
+          current: true,
+          icon: <ShowcaseIcon name="home" size={16} />,
+        },
+        {
+          label: 'Programs',
+          to: '/__ui',
+          icon: <ShowcaseIcon name="manage" size={16} />,
+        },
+        {
+          label: 'Schedule',
+          to: '/__ui',
+          icon: <ShowcaseIcon name="calendar" size={16} />,
+        },
+        {
+          label: 'Money',
+          to: '/__ui',
+          icon: <ShowcaseIcon name="money" size={16} />,
+        },
+        {
+          label: 'More',
+          to: '/__ui',
+          icon: <ShowcaseIcon name="settings" size={16} />,
+        },
       ]}
     >
       <main className="ui-showcase">
