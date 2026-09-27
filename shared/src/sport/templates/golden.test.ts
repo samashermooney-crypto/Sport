@@ -18,11 +18,13 @@ describe('built-in sport templates', () => {
     '$key matches its reviewed golden file',
     (profile) => {
       expect(sportProfileSchema.safeParse(profile).success).toBe(true);
-      const golden = readFileSync(
-        new URL(`./__golden__/${profile.key}.json`, import.meta.url),
-        'utf8',
+      const golden: unknown = JSON.parse(
+        readFileSync(
+          new URL(`./__golden__/${profile.key}.json`, import.meta.url),
+          'utf8',
+        ),
       );
-      expect(`${JSON.stringify(profile, null, 2)}\n`).toBe(golden);
+      expect(profile).toEqual(golden);
     },
   );
 });
