@@ -22,7 +22,9 @@ export const evaluationCreateSchema = z.strictObject({
   tryoutProgramId: uuid,
   targetProgramId: uuid,
   name: z.string().trim().min(1).max(160),
-  normalization: z.enum(['none', 'z_score_per_evaluator']).default('z_score_per_evaluator'),
+  normalization: z
+    .enum(['none', 'z_score_per_evaluator'])
+    .default('z_score_per_evaluator'),
   shareResultsWithFamilies: z.boolean().default(false),
   criteria: z.array(criterion).min(1).max(50),
   groups: z.array(group).min(1).max(100),
@@ -49,7 +51,7 @@ export const participantSchema = z.strictObject({
 export const scoreSchema = z.strictObject({
   participantId: uuid,
   criterionId: uuid,
-  score: z.number().finite(),
+  score: z.number(),
   notes: z.string().max(4000).nullable().default(null),
   clientMutationId: uuid,
 });
