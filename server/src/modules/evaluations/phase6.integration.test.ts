@@ -100,6 +100,7 @@ const dependencies = () => ({ database, clock: () => clockNow });
 
 class FakeCheckout implements OfferCheckoutAdapter {
   calls: number = 0;
+  inputs: Array<Parameters<OfferCheckoutAdapter['accept']>[0]> = [];
   private readonly results = new Map<string, Promise<AcceptedOfferCheckout>>();
   private readonly concurrentCalls: Promise<void>;
   private releaseConcurrentCalls!: () => void;
@@ -116,6 +117,7 @@ class FakeCheckout implements OfferCheckoutAdapter {
 
   async accept(input: Parameters<OfferCheckoutAdapter['accept']>[0]) {
     this.calls += 1;
+    this.inputs.push(input);
     if (this.waitForConcurrentCalls > 0) {
       if (this.calls >= this.waitForConcurrentCalls)
         this.releaseConcurrentCalls();
@@ -1002,7 +1004,7 @@ describe('Phase 6 evaluations integration', () => {
     const placementA = await withOrg(ownerContext, async (trx) =>
       trx
         .selectFrom('team_placements')
-        .select('id')
+        .select(['id', 'team_season_id'])
         .where('placement_board_id', '=', boardId)
         .where('person_id', '=', childA)
         .executeTakeFirstOrThrow(),
@@ -1045,6 +1047,32 @@ describe('Phase 6 evaluations integration', () => {
     expect(concurrentReplay.registrationId).toBe(accepted.registrationId);
     expect(concurrentReplay.checkoutId).toBe(accepted.checkoutId);
     expect(checkout.calls).toBe(2);
+    expect(checkout.inputs).toEqual([
+      {
+        orgId: orgA,
+        offerId,
+        accountId: guardianAccount,
+        householdId,
+        personId: childA,
+        offeringId,
+        teamSeasonId: placementA.team_season_id,
+        amountCents: 25000,
+        depositCents: 5000,
+        idempotencyKey: offerId,
+      },
+      {
+        orgId: orgA,
+        offerId,
+        accountId: guardianAccount,
+        householdId,
+        personId: childA,
+        offeringId,
+        teamSeasonId: placementA.team_season_id,
+        amountCents: 25000,
+        depositCents: 5000,
+        idempotencyKey: offerId,
+      },
+    ]);
     const acceptanceAudit = await admin.query<{ count: number }>(
       `SELECT count(*)::int AS count FROM audit_log
        WHERE org_id=$1 AND entity_type='team_offer' AND entity_id=$2
