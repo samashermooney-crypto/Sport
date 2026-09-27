@@ -83,7 +83,7 @@ export const registrationAddOnBodySchema = z.strictObject({
   active: z.boolean().default(true),
   expectedVersion: z.number().int().positive().optional(),
 });
-export const registrationAddOnSchema = z.strictObject({
+const registrationAddOnSchema = z.strictObject({
   id: uuid,
   productId: uuid,
   productName: z.string(),

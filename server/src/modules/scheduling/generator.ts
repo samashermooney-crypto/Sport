@@ -35,9 +35,9 @@ import type {
   GeneratorConstraints,
 } from './schema';
 
-export const scheduleGenerationJob = 'scheduling.generate';
-export const scheduleSeriesHorizonJob = 'scheduling.extend-series';
-export const scheduleBatchEmitJob = 'scheduling.emit-change-batches';
+const scheduleGenerationJob = 'scheduling.generate';
+const scheduleSeriesHorizonJob = 'scheduling.extend-series';
+const scheduleBatchEmitJob = 'scheduling.emit-change-batches';
 
 type TournamentGenerationPlan = {
   bracketId: string;
@@ -1350,7 +1350,7 @@ export async function discardGenerationRun(
   });
 }
 
-export async function extendRecurringSeries(): Promise<{
+async function extendRecurringSeries(): Promise<{
   extended: number;
   skippedConflicts: number;
 }> {

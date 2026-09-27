@@ -14,4 +14,18 @@ verified_row_counts: organizations=1, people=0, registrations=0, attendance=0, i
 encryption_authentication: passed
 ```
 
-The drill was rerun after trunk migrations `0503` and `0900`–`0903` were applied to the isolated database; role grants were refreshed first. Post-run query confirmed there were zero databases matching `athlentry_ops_restore_%`. The counts matched the source snapshot exactly. This validates encrypted dump/restore behavior and cleanup on the isolated schema; it is not evidence for full-size load performance or production recovery-time targets.
+## Current trunk rerun
+
+After syncing current trunk and applying migrations through `6002` to the isolated database, the drill was rerun with a newly generated ephemeral encryption key. The source still contained only the one synthetic organization. The backup/restore counts matched exactly; a post-run query confirmed zero databases matching `athlentry_ops_restore_%`.
+
+```text
+restore_drill: passed
+scratch_database: athlentry_ops_restore_1790539820161_696f0d8c
+scratch_database_cleanup: passed
+schema_migrations: 145
+latest_migration: 6002
+verified_row_counts: organizations=1, people=0, registrations=0, attendance=0, invoices=0, payments=0, audit_log=0
+encryption_authentication: passed
+```
+
+This validates encrypted dump/restore behavior and cleanup on the isolated schema; it is not evidence for full-size load performance or production recovery-time targets.
