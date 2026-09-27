@@ -200,6 +200,51 @@ test('new account verifies its preview email and signs in', async ({
   await expect(page.getByRole('button', { name: 'Revoke device' })).toHaveCount(
     0,
   );
+  await page.goto('/start');
+  await expect(
+    page.getByRole('heading', { name: 'Start an organization' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('checkbox', { name: 'Soccer', exact: true }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  const orgSlug = `e2e-${Date.now().toString()}`;
+  await page
+    .getByRole('textbox', { name: 'Organization name' })
+    .fill('E2E Youth Club');
+  await page.getByRole('textbox', { name: 'Organization URL' }).fill(orgSlug);
+  await expect(page.getByRole('status')).toContainText('URL available');
+  await page
+    .getByRole('textbox', { name: 'Street address' })
+    .fill('1 Main Street');
+  await page.getByRole('textbox', { name: 'City' }).fill('Chicago');
+  await page.getByRole('textbox', { name: 'State' }).fill('IL');
+  await page.getByRole('textbox', { name: 'ZIP code' }).fill('60601');
+  await page.getByRole('checkbox', { name: 'Soccer', exact: true }).check();
+  await page.getByRole('button', { name: 'Create organization' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'E2E Youth Club is ready for setup' }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('link', { name: 'Review safety requirements' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Safety requirements' }),
+  ).toBeVisible();
+  const backgroundCheck = page.getByRole('region', {
+    name: 'Background check',
+  });
+  await expect(
+    backgroundCheck.getByRole('checkbox', { name: 'Requirement active' }),
+  ).toBeChecked();
+  await backgroundCheck
+    .getByRole('checkbox', { name: 'Requirement active' })
+    .uncheck();
+  await backgroundCheck
+    .getByRole('button', { name: 'Save requirement' })
+    .click();
+  await expect(backgroundCheck.getByRole('status')).toContainText('saved');
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('link', { name: 'account security' }).click();
   await page.getByRole('button', { name: 'Revoke' }).click();
   await expect(
     page.getByRole('heading', { name: 'Welcome back.' }),

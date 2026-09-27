@@ -64,7 +64,7 @@ type FieldProps = PropsWithChildren<{
   label: ReactNode;
   required?: boolean;
   hint?: ReactNode;
-  error?: string;
+  error?: string | undefined;
   className?: string;
 }>;
 export function Field({
