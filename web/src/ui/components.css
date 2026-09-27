@@ -1670,6 +1670,7 @@ small {
   .ui-pagination select {
     min-width: var(--control-height-44);
     min-height: var(--control-height-44);
+    height: var(--control-height-44);
   }
   .ui-showcase-inline > a {
     display: inline-flex;

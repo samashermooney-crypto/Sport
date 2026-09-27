@@ -457,7 +457,9 @@ test('new account verifies its preview email and signs in', async ({
   expect(await accessibilityViolations(page)).toEqual([]);
   await page.getByRole('link', { name: 'account security' }).click();
   await page.getByRole('button', { name: 'Request deletion review' }).click();
-  await expect(page.getByRole('status')).toContainText('privacy review', {
+  await expect(
+    page.getByRole('status').filter({ hasText: 'privacy review' }),
+  ).toBeVisible({
     timeout: 10_000,
   });
   const changedEmail = `changed-${email}`;
