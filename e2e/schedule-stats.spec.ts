@@ -127,6 +127,7 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
           name: 'North Park Fields',
           ownership: 'owned',
           timezone: 'America/Chicago',
+          public: true,
         })
         .execute();
       await trx
@@ -376,6 +377,9 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
       .getByLabel('Ends')
       .fill(zonedInputValue(closureEndsAt, 'America/Chicago'));
     await closureForm.getByLabel('Reason').selectOption('weather');
+    await closureForm
+      .getByLabel('Portal message')
+      .fill('North Park fields closed due to heavy rain.');
     let closureDialog = '';
     page.once('dialog', async (dialog) => {
       closureDialog = dialog.message();
@@ -440,6 +444,25 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
       href: '/me/schedule',
     });
     await expect(page.getByRole('alert')).toHaveCount(0);
+    expect(await accessibilityViolations(page)).toEqual([]);
+    const organization = await database
+      .selectFrom('organizations')
+      .select('slug')
+      .where('id', '=', actor.orgId)
+      .executeTakeFirstOrThrow();
+    await page.goto(`/orgs/${organization.slug}/facilities/${facilityId}`);
+    await expect(
+      page.getByRole('heading', { name: 'North Park Fields' }),
+    ).toBeVisible();
+    const closureNotices = page.getByRole('region', {
+      name: 'Facility closures',
+    });
+    await expect(closureNotices).toContainText('weather');
+    await expect(closureNotices).toContainText(
+      'North Park fields closed due to heavy rain.',
+    );
+    const publicEvents = page.getByRole('table').getByRole('row');
+    await expect(publicEvents.filter({ hasText: 'postponed' })).toHaveCount(24);
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
     await database.destroy();
