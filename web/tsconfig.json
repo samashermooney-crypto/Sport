@@ -8,5 +8,5 @@
     "tsBuildInfoFile": "../dist/types/web.tsbuildinfo"
   },
   "references": [{ "path": "../shared" }],
-  "include": ["src"]
+  "include": ["src", "src/**/*.json"]
 }
