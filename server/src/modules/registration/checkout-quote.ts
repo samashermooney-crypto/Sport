@@ -37,6 +37,7 @@ import { enqueueRegistrationNotice } from './notices.js';
 import { refundTermsHash } from './policy-acceptance.js';
 import { PostgresRegistrationPricingSource } from './registration-pricing-source.js';
 import {
+  addOnListSchema,
   parseCheckoutRequirements,
   type CheckoutRequirements,
   waiverDocumentHash,
@@ -1069,7 +1070,7 @@ export class PostgresRegistrationCheckoutQuote {
         const confirmed = await new PostgresCheckoutHoldRepository(
           this.database,
           this.context,
-        ).confirm({
+        ).confirmInTransaction(trx, {
           orgId: input.orgId,
           checkoutId: input.checkoutId,
           honorProcessingHold: true,
@@ -1192,15 +1193,9 @@ export class PostgresRegistrationCheckoutQuote {
       .where('org_id', '=', orgId)
       .where('id', '=', offeringId)
       .executeTakeFirstOrThrow();
-    const definitions = z
-      .array(
-        z.strictObject({
-          key: z.string(),
-          name: z.string(),
-          priceCents: z.number().int().nonnegative(),
-        }),
-      )
-      .parse(Array.isArray(offering.add_ons) ? offering.add_ons : []);
+    const definitions = addOnListSchema.parse(
+      Array.isArray(offering.add_ons) ? offering.add_ons : [],
+    );
     const found = definitions.find((entry) => entry.key === key);
     if (!found) throw new Error('Selected add-on is not offered');
     return { name: found.name, unitCents: found.priceCents };
