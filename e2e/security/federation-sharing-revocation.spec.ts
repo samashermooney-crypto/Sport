@@ -119,7 +119,18 @@ test.fixme('QA-SEC-012 / Track J: revoked roster sharing hides the league entry 
       },
     });
     expect(entryResponse.status()).toBe(201);
-    const entry = (await entryResponse.json()) as { id: string };
+    const entry = (await entryResponse.json()) as {
+      id: string;
+      version: number;
+    };
+    const reviewResponse = await request.post(
+      `${leagueApi}/entries/${entry.id}/review`,
+      {
+        headers: authHeaders(leagueSession, true),
+        data: { action: 'accept', version: entry.version },
+      },
+    );
+    expect(reviewResponse.status()).toBe(200);
 
     const activeRelationship = await withOrg(club, (trx) =>
       trx
@@ -151,6 +162,20 @@ test.fixme('QA-SEC-012 / Track J: revoked roster sharing hides the league entry 
     expect(
       (savedAgreement.data_sharing as { rosters?: boolean }).rosters,
     ).not.toBe(true);
+
+    const memberTeamsResponse = await request.get(
+      `${leagueApi}/members/${club.orgId}/teams`,
+      { headers: authHeaders(leagueSession) },
+    );
+    expect(memberTeamsResponse.status()).toBe(200);
+    const memberTeams = (await memberTeamsResponse.json()) as {
+      teams: Array<Record<string, unknown>>;
+    };
+    const visibleTeam = memberTeams.teams.find(
+      (candidate) => candidate.teamSeasonId === team.teamSeasonId,
+    );
+    expect(visibleTeam).toBeDefined();
+    expect(visibleTeam).not.toHaveProperty('rosterSize');
 
     const listResponse = await request.get(`${leagueApi}/entries`, {
       headers: authHeaders(leagueSession),

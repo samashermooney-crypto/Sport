@@ -186,10 +186,10 @@
 
 - **Owner:** Track J
 - **Phase:** 13; federation roster privacy and immediate sharing revocation
-- **Evidence:** `GET /organizations/:orgId/entries` calls `listLeagueEntries()`, which loads the stored `federation_roster_snapshots` row without checking the current relationship or `rosters` sharing key; `GET /organizations/:orgId/entries/:entryId` calls `getLeagueEntry()` and returns every allow-listed player field from the same snapshot without either check. The child side can immediately revoke `rosters` while retaining `team_entries`, but these league-side endpoints continue returning the cached roster and its player count. `e2e/security/federation-sharing-revocation.spec.ts` records the expected redaction as `test.fixme`.
-- **Reproduce:** accept a relationship with `{ rosters: true, team_entries: true }`, submit a team entry, then have the member club revoke `rosters` while leaving `team_entries` enabled. As a league user, GET `/api/v1/federation/organizations/:leagueOrgId/entries` and `/entries/:entryId`; the current implementation still returns `snapshot.playerCount` and the full roster including player names and person references.
-- **Expected:** each response re-evaluates the current active relationship and sharing keys. Keep team-entry metadata when `team_entries` remains enabled, but omit roster-derived counts and return no roster players after `rosters` is revoked. Suspension or ending the relationship must stop the league from reading the stored roster immediately.
-- **Request:** update `listLeagueEntries()` and `getLeagueEntry()` to gate cached snapshot fields on the current relationship status and `rosters` grant; add real-Postgres/API coverage for child-side immediate revocation and relationship suspension/end.
+- **Evidence:** `GET /organizations/:orgId/entries` calls `listLeagueEntries()`, which loads stored roster snapshots without checking the current relationship or `rosters` key; `GET /organizations/:orgId/entries/:entryId` calls `getLeagueEntry()` and returns all snapshot player fields without either check. `GET /organizations/:orgId/members/:memberOrgId/teams` calls `readMemberTeams()`, which requires only `team_entries` sharing but returns `rosterSize` from the snapshot even when `rosters` is not shared. The child side can immediately revoke `rosters` while retaining `team_entries`, but all three reads continue exposing roster-derived data. `e2e/security/federation-sharing-revocation.spec.ts` records the expected redaction as `test.fixme`.
+- **Reproduce:** accept a relationship with `{ rosters: true, team_entries: true }`, submit and accept a team entry, then have the member club revoke `rosters` while leaving `team_entries` enabled. As a league user, GET `/api/v1/federation/organizations/:leagueOrgId/entries`, `/entries/:entryId`, and `/members/:memberOrgId/teams`; the current implementation returns `snapshot.playerCount`, the full roster (including player names and person references), and per-team `rosterSize`.
+- **Expected:** each response re-evaluates the current active relationship and sharing keys. Keep team-entry metadata when `team_entries` remains enabled, but omit roster-derived counts and player fields after `rosters` is revoked. Suspension or ending the relationship must stop the league from reading the stored roster immediately.
+- **Request:** update `listLeagueEntries()`, `getLeagueEntry()`, and `readMemberTeams()` to gate cached snapshot fields on the current relationship status and `rosters` grant; add real-Postgres/API coverage for child-side immediate revocation and relationship suspension/end.
 - **Status:** confirmed authorization/privacy defect by source inspection; runtime reproduction awaits the isolated QA stack.
 
 ### QA-SEC-013 — Class browse infers an unlinked child's age band
@@ -201,6 +201,16 @@
 - **Expected:** a supplied `personId` is accepted only when the signed-in account has a current verified self/guardian link; otherwise return the standard authorization denial without age-filtered results.
 - **Request:** call `requireLinkedPerson()` before passing `personId` from `/me/browse` into the service and add the real-Postgres/API regression in the new security spec.
 - **Status:** confirmed personal-data inference path by source inspection; runtime reproduction awaits the isolated QA stack.
+
+### QA-ACC-046 — Rejected federation invoice void leaves the assessment marked void
+
+- **Owner:** Track J
+- **Phase:** 13; federation fee cancellation and financial correctness
+- **Evidence:** `voidFeeAssessment()` commits `federation_fee_assessments.status = 'void'` in one transaction, then calls `PostgresInvoiceRepository.void()` in another. The finance service rejects voids when an invoice has an active installment, net payment, credit, or dispute; on that rejection, the assessment remains void while its invoice remains payable. `e2e/phase13-fee-void-atomicity.spec.ts` records the active-installment case as `test.fixme`.
+- **Reproduce:** issue a league fee invoice to a member-club payer, add a scheduled installment to that invoice, and POST the fee assessment void action. The request correctly receives 409 from invoice validation, but a subsequent read shows the assessment is `void` and the invoice is still open with its full balance.
+- **Expected:** a rejected invoice void leaves the fee assessment in `invoiced` state and preserves the payable invoice state; successful voids update both records consistently.
+- **Request:** reorder or transact the assessment and invoice state changes so failed invoice validation cannot commit an assessment void; add real-Postgres regression coverage for active installments and net paid balances.
+- **Status:** confirmed partial-write defect by transaction boundaries and invoice validation; runtime reproduction awaits the isolated QA stack.
 
 ### QA-OPS-001 — Render health probes have no `/readyz` handler and public status is missing
 
