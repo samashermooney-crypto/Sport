@@ -14,11 +14,11 @@ import { PostgresInstallmentTemplates } from '../finance/installment-templates';
 import { PostgresInvoiceRepository } from '../finance/invoice-repo';
 import { systemWorkerActorId } from '../jobs/credentials-expiry';
 
-export class TeamFinanceNotFoundError extends Error {
+class TeamFinanceNotFoundError extends Error {
   readonly status = 404;
   readonly code = 'NOT_FOUND';
 }
-export class TeamFinanceConflictError extends Error {
+class TeamFinanceConflictError extends Error {
   readonly status = 409;
   readonly code = 'CONFLICT';
 }

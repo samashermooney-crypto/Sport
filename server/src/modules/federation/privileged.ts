@@ -42,6 +42,12 @@ export function resetFederationAdminDatabase(): void {
   federationAdminDatabase = undefined;
 }
 
+export async function closeFederationAdminDatabase(): Promise<void> {
+  const database = federationAdminDatabase;
+  federationAdminDatabase = undefined;
+  await database?.destroy();
+}
+
 export interface FederationRelationshipRow {
   id: string;
   parent_org_id: string;

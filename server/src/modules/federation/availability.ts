@@ -36,7 +36,7 @@ export interface FederationSpace {
  * Expand the spine's structured recurrence into concrete instants for the
  * federation adapter using the same timezone rules as Track G.
  */
-export function expandAvailabilityWindows(input: {
+function expandAvailabilityWindows(input: {
   recurrence: unknown;
   startsOn: string;
   endsOn: string;

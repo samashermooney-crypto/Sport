@@ -34,7 +34,7 @@ const route = (
   ...(body ? { body } : {}),
 });
 
-export const teamFinanceNotificationTemplates = {
+const teamFinanceNotificationTemplates = {
   'team.fee_assessed': {
     category: 'operational',
     defaultChannels: ['in_app', 'email'],

@@ -28,7 +28,6 @@ export const reimbursementDecisionSchema = z.strictObject({
   reason: z.string().trim().max(2000).nullable().optional(),
   expectedVersion: z.number().int().positive(),
 });
-export const teamSeasonParamSchema = z.strictObject({ teamSeasonId: uuid });
 export const teamFeeAssessmentSchema = teamFeeAssessmentBodySchema.extend({
   id: uuid,
   status: z.enum(['draft', 'issued', 'canceled']),
