@@ -325,6 +325,13 @@ const orgRoutes: OpenApiRoute[] = [
     response: orgs.orgMemberStatusResponseSchema,
   },
   {
+    method: 'patch',
+    path: `${orgsBase}/{orgId}/members/{memberId}/scoped-role`,
+    summary: 'Grant or revoke a scoped organization role',
+    body: orgs.updateScopedRoleSchema,
+    response: orgs.scopedRoleResponseSchema,
+  },
+  {
     method: 'post',
     path: `${orgsBase}/{orgId}/invitations`,
     summary: 'Invite organization member',

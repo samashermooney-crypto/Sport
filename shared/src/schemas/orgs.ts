@@ -169,6 +169,20 @@ export const orgMemberStatusResponseSchema = z.strictObject({
   version: z.number().int().positive(),
 });
 
+export const updateScopedRoleSchema = z.strictObject({
+  role: orgRoleSchema.exclude(['owner']),
+  scopeType: z.enum(['season', 'program', 'division', 'team_season']),
+  scopeId: z.uuid(),
+  enabled: z.boolean(),
+  expectedVersion: z.number().int().positive(),
+});
+
+export const scopedRoleResponseSchema = z.strictObject({
+  accountId: z.uuid(),
+  version: z.number().int().positive(),
+  pendingMfa: z.boolean(),
+});
+
 export const orgInvitationSchema = z
   .strictObject({
     email: z.email().max(254),

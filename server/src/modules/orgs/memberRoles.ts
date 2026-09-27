@@ -2,6 +2,8 @@ import { newId } from '@shared/ids';
 import {
   orgMemberRolesResponseSchema,
   orgMemberStatusResponseSchema,
+  scopedRoleResponseSchema,
+  updateScopedRoleSchema,
   updateOrgMemberRolesSchema,
   updateOrgMemberStatusSchema,
 } from '@shared/schemas/orgs';
@@ -20,6 +22,164 @@ export class OrgMemberRolesError extends Error {
   ) {
     super(message);
   }
+}
+
+export async function setScopedRole(
+  database: Kysely<DB>,
+  input: {
+    orgId: string;
+    actorId: string;
+    targetId: string;
+    changes: z.input<typeof updateScopedRoleSchema>;
+    now: Date;
+  },
+): Promise<z.output<typeof scopedRoleResponseSchema>> {
+  const change = updateScopedRoleSchema.parse(input.changes);
+  return createWithOrg(database)(
+    { orgId: input.orgId, actor: { accountId: input.actorId } },
+    async (trx) => {
+      await trx
+        .selectFrom('organizations')
+        .select('id')
+        .where('id', '=', input.orgId)
+        .forUpdate()
+        .executeTakeFirstOrThrow();
+      const actor = await trx
+        .selectFrom('org_memberships')
+        .innerJoin('role_assignments', (join) =>
+          join
+            .onRef('role_assignments.org_id', '=', 'org_memberships.org_id')
+            .onRef(
+              'role_assignments.account_id',
+              '=',
+              'org_memberships.account_id',
+            ),
+        )
+        .select('org_memberships.id')
+        .where('org_memberships.org_id', '=', input.orgId)
+        .where('org_memberships.account_id', '=', input.actorId)
+        .where('org_memberships.status', '=', 'active')
+        .where('role_assignments.role', '=', 'owner')
+        .where('role_assignments.scope_type', '=', 'org')
+        .where('role_assignments.pending_mfa', '=', false)
+        .where('role_assignments.revoked_at', 'is', null)
+        .executeTakeFirst();
+      if (!actor)
+        throw new OrgMemberRolesError(
+          404,
+          'NOT_FOUND',
+          'Organization not found',
+        );
+      const member = await trx
+        .selectFrom('org_memberships')
+        .select(['id', 'version'])
+        .where('org_id', '=', input.orgId)
+        .where('account_id', '=', input.targetId)
+        .where('status', '=', 'active')
+        .forUpdate()
+        .executeTakeFirst();
+      if (!member)
+        throw new OrgMemberRolesError(404, 'NOT_FOUND', 'Member not found');
+      if (member.version !== change.expectedVersion)
+        throw new OrgMemberRolesError(
+          409,
+          'CONFLICT',
+          'Member changed; reload before saving',
+        );
+      const table = {
+        season: 'seasons',
+        program: 'programs',
+        division: 'divisions',
+        team_season: 'team_seasons',
+      } as const;
+      const scope = await trx
+        .selectFrom(table[change.scopeType])
+        .select('id')
+        .where('org_id', '=', input.orgId)
+        .where('id', '=', change.scopeId)
+        .executeTakeFirst();
+      if (!scope)
+        throw new OrgMemberRolesError(404, 'NOT_FOUND', 'Scope not found');
+      const current = await trx
+        .selectFrom('role_assignments')
+        .select(['id', 'pending_mfa'])
+        .where('org_id', '=', input.orgId)
+        .where('account_id', '=', input.targetId)
+        .where('role', '=', change.role)
+        .where('scope_type', '=', change.scopeType)
+        .where('scope_id', '=', change.scopeId)
+        .where('revoked_at', 'is', null)
+        .executeTakeFirst();
+      if (Boolean(current) === change.enabled)
+        return scopedRoleResponseSchema.parse({
+          accountId: input.targetId,
+          version: member.version,
+          pendingMfa: current?.pending_mfa ?? false,
+        });
+      const hasMfa = Boolean(
+        await trx
+          .selectFrom('mfa_factors')
+          .select('id')
+          .where('account_id', '=', input.targetId)
+          .where('confirmed_at', 'is not', null)
+          .executeTakeFirst(),
+      );
+      if (change.enabled) {
+        await trx
+          .insertInto('role_assignments')
+          .values({
+            id: newId(),
+            org_id: input.orgId,
+            account_id: input.targetId,
+            role: change.role,
+            scope_type: change.scopeType,
+            scope_id: change.scopeId,
+            granted_by: input.actorId,
+            granted_at: input.now,
+            pending_mfa: !hasMfa && ['admin', 'finance'].includes(change.role),
+          })
+          .execute();
+      } else if (current) {
+        await trx
+          .updateTable('role_assignments')
+          .set({ revoked_at: input.now })
+          .where('id', '=', current.id)
+          .execute();
+      }
+      await trx
+        .updateTable('org_memberships')
+        .set({ version: member.version + 1 })
+        .where('id', '=', member.id)
+        .execute();
+      await trx
+        .insertInto('audit_log')
+        .values({
+          id: newId(),
+          org_id: input.orgId,
+          actor_account_id: input.actorId,
+          action: change.enabled
+            ? 'membership.scoped_role_granted'
+            : 'membership.scoped_role_revoked',
+          entity_type: 'org_membership',
+          entity_id: member.id,
+          changes: {
+            role: change.role,
+            scopeType: change.scopeType,
+            scopeId: change.scopeId,
+          },
+        })
+        .execute();
+      await revokeSessions(trx, input.targetId, input.now);
+      return scopedRoleResponseSchema.parse({
+        accountId: input.targetId,
+        version: member.version + 1,
+        pendingMfa:
+          change.enabled &&
+          !hasMfa &&
+          ['admin', 'finance'].includes(change.role),
+      });
+    },
+  );
 }
 
 export async function setOrgMemberRoles(
