@@ -1,1 +1,4 @@
-export const moduleErrorCodes = [] as const;
+export const moduleErrorCodes = [
+  'SCHEDULE_CONFLICT',
+  'SCHEDULE_INVALID',
+] as const;
