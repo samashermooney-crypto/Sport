@@ -45,3 +45,20 @@ encryption_authentication: passed
 ```
 
 This verifies restore behavior against the latest merged schema with the least-privilege backup role. The scratch database was removed before the command completed.
+
+## Nonzero latest-schema rerun — 2026-09-27
+
+To verify restored data as well as the schema, one synthetic organization row was inserted into isolated `athlentry_test` with the admin role. Tenant-table counts are collected inside `withOrg` transactions for each organization; only the migration ledger and global organization directory are read outside that helper. The drill ran with `athlentry_backup` as its source, a one-run AES-256 key generated in memory, and the local `postgres` maintenance role. It removed its scratch database, and the synthetic source row was then deleted.
+
+```text
+restore_drill: passed
+scratch_database: athlentry_ops_restore_1790549270296_d71603c5
+scratch_database_cleanup: passed
+schema_migrations: 156
+latest_migration: 8010
+verified_row_counts: organizations=1, people=0, registrations=0, attendance=0, invoices=0, payments=0, audit_log=0
+encryption_authentication: passed
+synthetic_restore_fixture_cleanup: passed
+```
+
+No family data or credentials were used or persisted.

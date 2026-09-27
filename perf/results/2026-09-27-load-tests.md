@@ -2,6 +2,8 @@
 
 Status: **acceptance not run; blocked on parallel-track contracts and the load seed.** The `grafana/k6:latest` runner was pulled and verified as k6 v2.3.0 on 2026-09-27. The checkout has no synthetic load fixture files or reference-size deployment, and `db/seeds/index.ts` supports only `e2e` and `demo`, not the required 100-organization `load` profile. No performance result is inferred from local typechecks, unit tests or the migrated database.
 
+Script validation: `k6 inspect` loaded all four scenario configurations with disposable empty fixture files in a read-only, network-isolated container. No requests were sent; this confirms script parsing and configured thresholds only, not load-test acceptance.
+
 | Scenario                                                          | Status  | Outstanding input                                                                                            |
 | ----------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
 | Registration-open: 2,000 families / 10 capacity-limited offerings | Not run | Track E stable checkout route, synthetic fixture and capacity-counter verification query; Track A load seed. |
