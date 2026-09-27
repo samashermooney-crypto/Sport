@@ -1,0 +1,65 @@
+.public-fundraiser {
+  display: grid;
+  gap: 2rem;
+  width: min(100% - 2rem, 72rem);
+  margin-inline: auto;
+  padding-block: 3rem;
+}
+
+.public-fundraiser__hero {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 52rem;
+}
+
+.public-fundraiser__hero h1 {
+  margin: 0;
+}
+
+.public-fundraiser__progress {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 42rem;
+}
+
+.public-fundraiser__progress progress {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.public-fundraiser__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.public-fundraiser__layout form {
+  display: grid;
+  gap: 1rem;
+}
+
+.public-fundraiser__check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.public-fundraiser__donors {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding-left: 1.3rem;
+}
+
+.public-fundraiser__donors li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+@media (max-width: 44rem) {
+  .public-fundraiser__layout {
+    grid-template-columns: 1fr;
+  }
+}
