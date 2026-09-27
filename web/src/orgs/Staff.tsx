@@ -2,6 +2,7 @@ import {
   orgInvitationResponseSchema,
   orgMemberRolesResponseSchema,
   orgMemberStatusResponseSchema,
+  scopedRoleResponseSchema,
   orgRoleSchema,
   orgStaffResponseSchema,
 } from '@shared/schemas/orgs';
@@ -33,6 +34,12 @@ function MemberEditor({
       .filter((role) => role.scopeType === 'org')
       .map((role) => role.role),
   );
+  const [scopedRole, setScopedRole] =
+    useState<(typeof roleOptions)[number]>('registrar');
+  const [scopeType, setScopeType] = useState<
+    'season' | 'program' | 'division' | 'team_season'
+  >('program');
+  const [scopeId, setScopeId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -99,6 +106,42 @@ function MemberEditor({
       setBusy(false);
     }
   }
+  async function changeScopedRole(
+    role: (typeof roleOptions)[number],
+    type: typeof scopeType,
+    id: string,
+    enabled: boolean,
+  ): Promise<void> {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await apiPatch(
+        `/orgs/${orgId}/members/${member.accountId}/scoped-role`,
+        {
+          role,
+          scopeType: type,
+          scopeId: id,
+          enabled,
+          expectedVersion: member.version,
+        },
+        scopedRoleResponseSchema,
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ['orgs', orgId, 'staff'],
+      });
+      setNotice(enabled ? 'Scoped role granted.' : 'Scoped role revoked.');
+      if (enabled) setScopeId('');
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Scoped role could not be changed.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <section
       className="start-credential-card"
@@ -111,14 +154,80 @@ function MemberEditor({
       {member.roles.some((role) => role.pendingMfa) && (
         <p role="status">MFA enrollment pending</p>
       )}
-      {member.roles.some((role) => role.scopeType !== 'org') && (
-        <p>
-          Scoped roles:{' '}
-          {member.roles
-            .filter((role) => role.scopeType !== 'org')
-            .map((role) => `${role.role} (${role.scopeType})`)
-            .join(', ')}
-        </p>
+      {member.roles
+        .filter((role) => role.scopeType !== 'org')
+        .map((assignment) => (
+          <p
+            key={`${assignment.role}:${assignment.scopeType}:${String(assignment.scopeId)}`}
+          >
+            {assignment.role} · {assignment.scopeType} · {assignment.scopeId}
+            {assignment.pendingMfa ? ' · MFA pending' : ''}{' '}
+            {member.status === 'active' && (
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void changeScopedRole(
+                    assignment.role as (typeof roleOptions)[number],
+                    assignment.scopeType as typeof scopeType,
+                    String(assignment.scopeId),
+                    false,
+                  )
+                }
+              >
+                Revoke scoped role
+              </Button>
+            )}
+          </p>
+        ))}
+      {member.status === 'active' && (
+        <fieldset>
+          <legend>Grant scoped role</legend>
+          <Field label="Role">
+            <Select
+              value={scopedRole}
+              onChange={(event) => {
+                setScopedRole(event.target.value as typeof scopedRole);
+              }}
+            >
+              {roleOptions.map((role) => (
+                <option key={role} value={role}>
+                  {role.replaceAll('_', ' ')}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Scope">
+            <Select
+              value={scopeType}
+              onChange={(event) => {
+                setScopeType(event.target.value as typeof scopeType);
+              }}
+            >
+              <option value="season">Season</option>
+              <option value="program">Program</option>
+              <option value="division">Division</option>
+              <option value="team_season">Team season</option>
+            </Select>
+          </Field>
+          <Field label="Scope ID" required>
+            <Input
+              value={scopeId}
+              onChange={(event) => {
+                setScopeId(event.target.value);
+              }}
+            />
+          </Field>
+          <Button
+            type="button"
+            disabled={busy || !z.uuid().safeParse(scopeId).success}
+            onClick={() =>
+              void changeScopedRole(scopedRole, scopeType, scopeId, true)
+            }
+          >
+            Grant scoped role
+          </Button>
+        </fieldset>
       )}
       {member.status === 'active' && (
         <fieldset>

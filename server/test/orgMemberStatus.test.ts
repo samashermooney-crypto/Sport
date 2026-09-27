@@ -6,7 +6,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../src/db/kysely';
 import { createWithOrg } from '../src/db/withOrg';
 import { issueSession, resolveSession } from '../src/modules/auth/sessions';
-import { setOrgMemberStatus } from '../src/modules/orgs/memberRoles';
+import {
+  setOrgMemberStatus,
+  setScopedRole,
+} from '../src/modules/orgs/memberRoles';
 
 import { createTestFactories } from './factories';
 
@@ -80,6 +83,77 @@ async function addMember(
 }
 
 describe('organization membership status', () => {
+  it('grants and revokes a role only within a valid tenant scope', async () => {
+    const actor = await activeOwner();
+    const other = await activeOwner();
+    const program = await createTestFactories(database).program(actor);
+    const foreign = await createTestFactories(database).program(other);
+    const member = await addMember(actor.orgId, actor.accountId, 'registrar');
+    const base = {
+      orgId: actor.orgId,
+      actorId: actor.accountId,
+      targetId: member,
+      now,
+    };
+    await expect(
+      setScopedRole(database, {
+        ...base,
+        changes: {
+          role: 'scheduler',
+          scopeType: 'program',
+          scopeId: foreign.programId,
+          enabled: true,
+          expectedVersion: 1,
+        },
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(
+      await setScopedRole(database, {
+        ...base,
+        changes: {
+          role: 'scheduler',
+          scopeType: 'program',
+          scopeId: program.programId,
+          enabled: true,
+          expectedVersion: 1,
+        },
+      }),
+    ).toMatchObject({ version: 2, pendingMfa: false });
+    await expect(
+      setScopedRole(database, {
+        ...base,
+        changes: {
+          role: 'scheduler',
+          scopeType: 'program',
+          scopeId: program.programId,
+          enabled: false,
+          expectedVersion: 1,
+        },
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(
+      await setScopedRole(database, {
+        ...base,
+        changes: {
+          role: 'scheduler',
+          scopeType: 'program',
+          scopeId: program.programId,
+          enabled: false,
+          expectedVersion: 2,
+        },
+      }),
+    ).toMatchObject({ version: 3 });
+    const rows = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('role_assignments')
+        .select('revoked_at')
+        .where('account_id', '=', member)
+        .where('role', '=', 'scheduler')
+        .execute(),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.revoked_at).not.toBeNull();
+  });
   it('suspends, reactivates and removes without deleting records or retaining sessions', async () => {
     const actor = await activeOwner();
     const other = await activeOwner();
