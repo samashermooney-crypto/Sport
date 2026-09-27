@@ -99,6 +99,32 @@ test('owner creates, edits and archives a person from the console', async ({
       .selectOption({ label: 'Alex Rivera' });
     await page.getByRole('button', { name: 'Add member' }).click();
     await expect(page.getByRole('link', { name: 'Alex Rivera' })).toBeVisible();
+    await page.getByText('Edit Alex Rivera').click();
+    const memberEditor = page
+      .locator('details')
+      .filter({ hasText: 'Edit Alex Rivera' });
+    await memberEditor.getByRole('checkbox', { name: 'Can pick up' }).check();
+    const savedMember = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        response.url().includes('/members/'),
+    );
+    const refreshedMember = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes('/people/households/orgs/') &&
+        response.url().endsWith(page.url().split('/').at(-1) ?? ''),
+    );
+    await page.getByRole('button', { name: 'Save member' }).click();
+    expect((await savedMember).ok()).toBe(true);
+    await refreshedMember;
+    await page.getByText('Edit Alex Rivera').click();
+    await expect(
+      memberEditor.getByRole('checkbox', { name: 'Can pick up' }),
+    ).toBeChecked();
+    page.once('dialog', (dialog) => dialog.accept());
+    await memberEditor.getByRole('button', { name: 'Remove member' }).click();
+    await expect(page.getByText('No members yet.')).toBeVisible();
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
     await database.destroy();

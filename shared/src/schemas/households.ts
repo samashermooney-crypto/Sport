@@ -31,7 +31,12 @@ export const householdMemberCreateSchema = z.strictObject({
 
 export const householdMemberUpdateSchema = householdMemberCreateSchema
   .omit({ personId: true })
-  .partial();
+  .partial()
+  .extend({ expectedVersion: z.int().positive() });
+
+export const householdMemberRemoveSchema = z.strictObject({
+  expectedVersion: z.int().positive(),
+});
 
 export const householdMemberResponseSchema = z.strictObject({
   id: z.uuid(),
