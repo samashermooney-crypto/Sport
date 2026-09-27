@@ -226,7 +226,25 @@ test('new account verifies its preview email and signs in', async ({
     page.getByRole('heading', { name: 'E2E Youth Club is ready for setup' }),
   ).toBeVisible();
   expect(await accessibilityViolations(page)).toEqual([]);
-  await page.getByRole('link', { name: 'Set up account security' }).click();
+  await page.getByRole('link', { name: 'Review safety requirements' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Safety requirements' }),
+  ).toBeVisible();
+  const backgroundCheck = page.getByRole('region', {
+    name: 'Background check',
+  });
+  await expect(
+    backgroundCheck.getByRole('checkbox', { name: 'Requirement active' }),
+  ).toBeChecked();
+  await backgroundCheck
+    .getByRole('checkbox', { name: 'Requirement active' })
+    .uncheck();
+  await backgroundCheck
+    .getByRole('button', { name: 'Save requirement' })
+    .click();
+  await expect(backgroundCheck.getByRole('status')).toContainText('saved');
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('link', { name: 'account security' }).click();
   await page.getByRole('button', { name: 'Revoke' }).click();
   await expect(
     page.getByRole('heading', { name: 'Welcome back.' }),

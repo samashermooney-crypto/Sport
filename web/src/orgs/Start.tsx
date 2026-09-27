@@ -42,9 +42,11 @@ export function Start(): React.JSX.Element {
   });
   const [sportSearch, setSportSearch] = useState('');
   const [submitError, setSubmitError] = useState('');
-  const [created, setCreated] = useState<{ name: string; slug: string } | null>(
-    null,
-  );
+  const [created, setCreated] = useState<{
+    id: string;
+    name: string;
+    slug: string;
+  } | null>(null);
   const {
     register,
     handleSubmit,
@@ -85,7 +87,7 @@ export function Start(): React.JSX.Element {
     }
     try {
       const result = await apiPost('/orgs', values, createOrgResponseSchema);
-      setCreated({ name: values.name, slug: result.slug });
+      setCreated({ id: result.id, name: values.name, slug: result.slug });
     } catch (error) {
       setSubmitError(
         error instanceof Error
@@ -117,6 +119,11 @@ export function Start(): React.JSX.Element {
           </p>
           <p>
             <AuthLink to="/me/security">Set up account security</AuthLink>
+          </p>
+          <p>
+            <AuthLink to={`/orgs/${created.id}/credentials`}>
+              Review safety requirements
+            </AuthLink>
           </p>
         </>
       )}

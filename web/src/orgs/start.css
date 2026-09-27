@@ -3,6 +3,36 @@
   max-width: none;
 }
 
+.login-card:has(.start-credential-list) {
+  width: min(680px, calc(100vw - 32px));
+  max-width: none;
+}
+
+.start-credential-list {
+  display: grid;
+  gap: var(--space-16);
+}
+
+.start-credential-card {
+  display: grid;
+  gap: var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-6);
+  padding: var(--space-16);
+}
+
+.start-credential-card h2 {
+  margin: 0;
+  font-family: var(--font-display);
+}
+
+.start-credential-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: var(--control-height-44);
+}
+
 .start-form {
   display: grid;
   gap: var(--space-16);

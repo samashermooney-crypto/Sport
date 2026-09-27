@@ -101,3 +101,29 @@ export const createOrgResponseSchema = z.strictObject({
   slug: orgSlugSchema,
   status: z.literal('onboarding'),
 });
+
+export const orgCredentialSchema = z.strictObject({
+  id: z.uuid(),
+  key: z.string(),
+  name: z.string(),
+  verification: z.enum([
+    'document_upload',
+    'attestation',
+    'provider',
+    'manual_staff',
+  ]),
+  validityMonths: z.number().int().min(1).max(120),
+  blocksActivation: z.boolean(),
+  active: z.boolean(),
+  version: z.number().int().positive(),
+});
+
+export const orgCredentialsResponseSchema = z.array(orgCredentialSchema);
+
+export const updateOrgCredentialSchema = z.strictObject({
+  name: z.string().trim().min(2).max(120),
+  validityMonths: orgCredentialSchema.shape.validityMonths,
+  blocksActivation: z.boolean(),
+  active: z.boolean(),
+  version: z.number().int().positive(),
+});
