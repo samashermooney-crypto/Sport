@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- M0 is on `main` at `d0f59a1`. The spine, ready B/C/D/E ranges, Phase 1 task 6 and Track B's platform/notification range are integrated on `rebuild/trunk`. Track A continues tasks 4–5, 7–8 and 16–17 plus account-notification API aliases; Track C owns 11–12. Inspect E/F/G/H readiness at every task boundary and keep Phase 1 open until every acceptance criterion passes.
+- M0 is on `main` at `d0f59a1`. The spine, ready B/C/D/E ranges, Phase 1 task 6 and Track B's platform/notification range are integrated on `rebuild/trunk`. Track A continues tasks 4–5, 7–8 and 16–17; Track C owns 11–12. Inspect E/F/G/H readiness at every task boundary and keep Phase 1 open until every acceptance criterion passes.
 
 ## Phase status
 
@@ -97,7 +97,7 @@
 - [x] 10. pg-boss setup, job registry, worker heartbeat, failed-job visibility. Migration 0600, registered worker with graceful stop, heartbeat and redacted failed-job health reader pass the merged local gate.
 - [ ] 11. **Track C:** Files module (`01 §7`) with S3, local-disk and memory adapters; image processing with EXIF stripping; permission-checked download links.
 - [ ] 12. **Track C:** Email module: React Email layout with org branding, `EmailSender` adapters (Resend, Mailpit SMTP via `nodemailer`, Fake), preview mode; send auth emails (verification, magic link, reset, invitations, security alerts) in en/es.
-- [ ] 13. Notifications core: `notification_types` catalog in code, `notifications` table, in-app inbox API + SSE stream (`01 §5`), preferences API. (Channels other than in-app/email wired in Phase 10.) Track B's org-scoped inbox/preferences and account-filtered PostgreSQL SSE are integrated; stream and portal route are mounted. A browser test confirms `/api/v1/stream` is mounted and rejects unauthenticated requests. Account/organization API aliases remain.
+- [x] 13. Notifications core: `notification_types` catalog in code, `notifications` table, in-app inbox API + SSE stream (`01 §5`), preferences API. Track B's org-scoped inbox/preferences and account-filtered PostgreSQL SSE are integrated. Shared handlers expose account paths under `/api/v1/me/notifications/orgs/:orgId/*` and organization paths under `/api/v1/orgs/:orgId/notifications/*`, alongside the original module path; all are documented in OpenAPI. The portal uses the account path. Chromium/WebKit tests confirm both authenticated aliases, mounted portal, axe, and unauthenticated SSE rejection. Channels beyond in-app/email remain in Phase 10.
 - [x] 14. Audit module with redaction; audit viewer component. Append-only service, Restricted-field redaction/read audit, role-scoped cursor API and functional console viewer pass merged tests; route is mounted through the web registry.
 - [x] 15. OpenAPI generation, error code enum, pagination helpers, idempotency middleware, version-check helpers. The generated OpenAPI document covers current auth, org, files and audit operations; route coverage check, helper tests and merged full gate pass.
 
