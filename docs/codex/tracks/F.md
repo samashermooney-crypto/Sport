@@ -50,4 +50,3 @@ Known failing/unrun verification: the attempted `e2e/evaluation-offline.spec.ts`
 Open requests: C — nested evaluation route registry discovery; E — offer checkout adapter wired to registration/invoice/deposit/installments and family continuation. Existing Phase 7 follow-ups remain: A — Phase 7 Chromium/WebKit mobile journeys with axe; C — linked-guardian restricted uploads and owner/compliance restricted evidence downloads; C/B — register `credentials.expiry` and provide notification delivery; H — consume `server/src/modules/safety/safesport.ts` for message/conversation checks. Phase 12 is not started here; Track I's removed draft commit `a929006` is reference-only until inspected.
 
 Environment: `COMPOSE_PROJECT_NAME=athlentry_f PORT_OFFSET=600` (PostgreSQL `127.0.0.1:6032`, stripe-mock `12711`, mailpit `8625/1625`).
-HANDED OFF 10:47
