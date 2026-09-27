@@ -5,6 +5,7 @@ Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
 Current: Schema spine merged; Phase 4 and Phase 5 money core continue with expanded checkout pricing sources, dispute evidence and remaining family/staff money flows.
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
+Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
 Ready for integration: local `5e14320..385d96a` — frozen checkout persistence and fail-closed database offering source; queue work continues.
 Ready for integration: local `385d96a..d63eaba` — payer-owned PaymentIntent HTTP API, replay guard and portal Payment Element binding; queue work continues.
@@ -23,6 +24,11 @@ Requests to other tracks: A: mount E's `CheckoutPaymentScreen` only after A/B ch
 Requests to other tracks: A: provide a durable system actor account ID for finance worker jobs and mount Stripe raw webhook router before JSON parsing; E handlers require that actor for org-scoped audit and will register jobs after the contract lands (2026-09-26).
 Requests to other tracks: A: record invoice refund terms at issuance as a policy snapshot in DECISIONS.md; changing org/program settings must not reprice a historical refund (2026-09-27).
 Blocked on: None; schema spine and test factories are on `rebuild/trunk`.
+Luna finance: Build checkout flow by calling `CheckoutPricingService` with `PostgresCheckoutPricingRepository`, then `PostgresInvoiceRepository.issue`, then `CheckoutPaymentService` with `PostgresFrozenChargeReader`/attempt/record stores; never calculate or trust client-provided prices or create a Stripe intent before a frozen invoice reconciles.
+Luna finance: Use `shared/src/algorithms/{pricing,fees,installments,invoice-state,dunning-schedule}.ts` and `shared/src/policies/refund-policy.ts`; keep cents as safe integers, use only `withOrg` for tenant rows, and make every external money call pass a durable idempotency claim before Stripe.
+Luna finance: Read payer access from active `person_account_links` to the exact participant; household roles are descriptive; require session, same-origin write header, non-impersonation and the relevant active role before staff money actions.
+Luna finance: Mirror Stripe webhooks through raw-body verification and `StripeEventDispatcher`; handlers fetch latest Stripe state and apply invoice/allocation changes once, while ACH `processing` remains unpaid and refunds/disputes preserve append-only ledger history.
+Luna finance: Before readiness, prove card/3DS/ACH/refund/dispute lifecycle fixtures, duplicate webhook and key replay, 300-way capacity contention, derived invoice balances and reconciliation, plus typecheck, lint, tests, affected Chromium/WebKit screens and build with test-only Stripe keys.
 Next: reconcile ambiguous dispute movements and add evidence workflow; register finance jobs/handlers once Track A provides the worker actor and webhook mount.
 Gateway: Stripe SDK 22.6.2 dependency-only commit `cf83f4c`; real SDK adapter covers Connect, Customers, payment methods, intents, refunds, reversals, disputes, payouts, Billing and domains.
 Gateway tests: 36 passed, including stripe-mock Express account and destination PaymentIntent; typecheck and targeted lint green.
