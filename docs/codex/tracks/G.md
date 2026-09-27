@@ -65,3 +65,38 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - G decisions are `DEC-082–096` and `DEC-100–108` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
 - Latest integration: G passed the lock-protected merge gate and was merged into `rebuild/trunk` on 2026-09-27; local only, not pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.
+
+## HANDOFF
+
+**State:** Track G remains in progress. Base work through `eafd228` is integrated into local `rebuild/trunk`; follow-up commit `f22babe` is committed on `track/g-schedule` but not merged because the latest full-suite gate timed out.
+
+**Done in the latest edit:** The standings table is a keyboard-focusable named scroll region. The stats/results/closure/leaderboard/standings journey passes focused Chromium desktop and WebKit mobile with axe; targeted ESLint and `npm run typecheck` pass. The full suite had 818 passes and 1 skip, with one unrelated officials test timing out; that test passed when run alone.
+
+**Current paths:**
+
+- `web/src/console/schedule/ScheduleConsole.tsx` — accessible standings scroll region, committed in `f22babe`, awaiting integration.
+- `e2e/schedule-stats.spec.ts` — standings snapshot browser assertions, committed in `f22babe`, awaiting integration.
+- `docs/codex/tracks/G.md` — acceptance status, gate result, and outstanding cross-track requests.
+
+**Next steps, in order:**
+
+1. Rerun `npm run typecheck`, `npm run lint`, `heavy.sh npm test`, and the full Chromium desktop Playwright suite on the current branch. The latest merge gate is not green yet.
+2. If all merge-gate checks pass, use the lock-protected self-merge protocol to integrate `track/g-schedule` into `rebuild/trunk`; if the gate remains red, keep the follow-up unmerged and record the failing test.
+3. Complete the missing Phase 8/9 acceptance journeys and cross-track wiring below; run the required Chromium and WebKit mobile journeys with axe, then the full gate before marking Track G ready.
+4. Update this file with final verification and write “Track G sprint complete” only after all acceptance criteria pass on trunk; then take the next open item in `SPRINT.md`.
+
+**Known failing checks:**
+
+- Latest full `npm test`: `server/src/modules/officials/service.integration.test.ts` → “crews ten games, handles a decline and totals the pay batch” timed out at 5 seconds. The focused file retry passed 1/1 in 2.44 seconds.
+- Existing combined Chromium + WebKit baseline: 38 passed, 4 failed, 4 skipped. Failures were sign-in, ownership transfer, and people journeys; no G schedule journey ran in that baseline.
+- Latest follow-up has no successful full merge gate; the prior full Chromium gate was 30 passed and 4 skipped before `f22babe`.
+
+**Open requests:**
+
+- Track C: verify schedule route navigation/wiring and provide a safe public serving contract for approved facility layout images; the facility API currently returns a file ID only.
+- Track A: fix the baseline sign-in, ownership-transfer, and people Playwright failures.
+- Track B: align `contestStageSchema` with the data-model enum and complete notification email fan-out for G's emitted closure/change events; G must keep using the shared notification service.
+- Track H: expose event volunteer assignments so emergency closure notifications can include affected volunteers.
+- Track F: provide transaction-scoped result-to-discipline creation and automatic games-served handling; G currently calls the lineup suspension policy but cannot finalize card discipline without those operations.
+
+**Isolated stack:** `COMPOSE_PROJECT_NAME=athlentry_g PORT_OFFSET=700` (Postgres host port 6132).
