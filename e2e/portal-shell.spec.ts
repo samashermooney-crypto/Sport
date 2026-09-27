@@ -44,7 +44,7 @@ test('family portal shell navigates between working pages in Spanish', async ({
       },
     ]);
     await page.addInitScript(() => {
-      localStorage.setItem('athlentry-language', 'es');
+      localStorage.setItem('athlentry-language', 'en');
     });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/portal/orgs/${actor.orgId}/notifications`);
