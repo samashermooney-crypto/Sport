@@ -22,6 +22,7 @@ import {
   personClaimAcceptSchema,
   personClaimInvitationSchema,
   personCreateSchema,
+  personMergeCreateSchema,
   personPhotoUpdateSchema,
   personUpdateSchema,
 } from '@shared/schemas/people';
@@ -38,6 +39,7 @@ import { listFamily } from './family';
 import { createGuardianLinksRepository } from './guardianLinks';
 import { createHouseholdsRepository } from './households';
 import { createMedicalRepository } from './medical';
+import { createMergesRepository } from './merges';
 import { createPeopleRepository, PeopleError } from './repo';
 import { createSelfClaimsRepository } from './selfClaims';
 
@@ -83,6 +85,9 @@ function sendError(response: express.Response, error: unknown): void {
           : error instanceof Error
             ? error.message
             : 'Request failed',
+      ...(error instanceof PeopleError && error.details !== undefined
+        ? { details: error.details }
+        : {}),
     },
   });
 }
@@ -103,6 +108,7 @@ export function createPeopleRouter(
     dependencies.database,
   );
   const athleteLinks = createAthleteLinksRepository(dependencies.database);
+  const merges = createMergesRepository(dependencies.database);
   router.use(express.json({ limit: '32kb' }));
   router.use((_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
@@ -282,6 +288,47 @@ export function createPeopleRouter(
           Boolean(requestImpersonation(request)),
         ),
       );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/orgs/:orgId/duplicates', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new PeopleError(404, 'NOT_FOUND', 'Duplicates not found');
+      response.json(
+        await merges.duplicates(
+          z.uuid().parse(request.params.orgId),
+          session.accountId,
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.post('/orgs/:orgId/merges', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+      if (!validWriteOrigin(request, dependencies.appUrl))
+        throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+      const { survivorId, mergedId } = personMergeCreateSchema.parse(
+        request.body,
+      );
+      response
+        .status(201)
+        .json(
+          await merges.merge(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            survivorId,
+            mergedId,
+          ),
+        );
     } catch (error) {
       sendError(response, error);
     }
