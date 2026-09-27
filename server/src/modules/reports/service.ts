@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 import type { DataTier, Dataset } from '@shared/reports/datasets';
 import { canExportTier } from '@shared/reports/datasets';
-import { REPORT_DATASETS } from '@shared/reports/datasets';
 import { orgRoleSchema } from '@shared/schemas/orgs';
 import {
   reportDefinitionSchema,
@@ -30,6 +29,7 @@ import {
   datasetAvailable,
   datasetForActor,
   reportUsesRestrictedColumns,
+  reportDatasetCatalog,
   runDatasetQuery,
   validateReportDefinition,
 } from './query';
@@ -149,7 +149,7 @@ export async function listReportDatasets(
       context.actor.accountId,
     );
     const items = [];
-    for (const dataset of REPORT_DATASETS) {
+    for (const dataset of reportDatasetCatalog) {
       if (!dataset.roles.some((role) => access.roles.includes(role))) continue;
       const available = await datasetAvailable(trx, dataset);
       items.push({

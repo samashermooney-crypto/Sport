@@ -11,6 +11,19 @@ import {
 } from './query';
 
 describe('report dataset access', () => {
+  it('exposes invoice aging buckets only through the finance dataset role', () => {
+    const invoices = datasetForActor('invoices', ['finance']);
+    const aging = invoices.columns.find(
+      (column) => column.key === 'aging_bucket',
+    );
+    expect(aging?.type).toBe('enum');
+    expect(aging?.source).toContain('CURRENT_DATE - 90');
+    expect(aging?.source).toContain("ELSE '90+ days overdue'");
+    expect(() => datasetForActor('invoices', ['registrar'])).toThrow(
+      ReportError,
+    );
+  });
+
   it('keeps medical columns out of the registrar report catalog', () => {
     const dataset = datasetForActor('people', ['registrar']);
     const visible = columnsForActor(dataset, ['registrar']);

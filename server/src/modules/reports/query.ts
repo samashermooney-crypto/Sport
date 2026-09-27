@@ -1,10 +1,36 @@
-import { datasetByKey, tierAllowed } from '@shared/reports/datasets';
+import { REPORT_DATASETS, tierAllowed } from '@shared/reports/datasets';
 import type { Dataset, DatasetColumn } from '@shared/reports/datasets';
 import type { ReportDefinition, ReportFilter } from '@shared/schemas/reports';
 import { sql } from 'kysely';
 import type { RawBuilder } from 'kysely';
 
 import type { OrgTransaction } from '../../db/withOrg';
+
+const receivablesAging: DatasetColumn = {
+  key: 'aging_bucket',
+  label: 'Receivables age',
+  type: 'enum',
+  tier: 'internal',
+  source: `CASE
+    WHEN t.balance_cents <= 0 THEN 'Settled'
+    WHEN t.due_on IS NULL THEN 'No due date'
+    WHEN t.due_on >= CURRENT_DATE THEN 'Not due'
+    WHEN t.due_on >= CURRENT_DATE - 30 THEN '1–30 days overdue'
+    WHEN t.due_on >= CURRENT_DATE - 60 THEN '31–60 days overdue'
+    WHEN t.due_on >= CURRENT_DATE - 90 THEN '61–90 days overdue'
+    ELSE '90+ days overdue'
+  END`,
+};
+
+export const reportDatasetCatalog: readonly Dataset[] = REPORT_DATASETS.map(
+  (dataset) =>
+    dataset.key === 'invoices'
+      ? { ...dataset, columns: [...dataset.columns, receivablesAging] }
+      : dataset,
+);
+const datasetsByKey = new Map(
+  reportDatasetCatalog.map((dataset) => [dataset.key, dataset]),
+);
 
 export class ReportError extends Error {
   constructor(
@@ -26,7 +52,7 @@ export function datasetForActor(
   key: string,
   roles: readonly string[],
 ): Dataset {
-  const dataset = datasetByKey.get(key);
+  const dataset = datasetsByKey.get(key);
   if (!dataset) throw new ReportError(404, 'NOT_FOUND', 'Unknown dataset');
   if (!dataset.roles.some((role) => roles.includes(role)))
     throw new ReportError(404, 'NOT_FOUND', 'Unknown dataset');

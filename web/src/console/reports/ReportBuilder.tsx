@@ -70,6 +70,47 @@ const reportPresets: readonly ReportPreset[] = [
     aggregate: { fn: 'sum', column: 'amount_cents' },
     sortColumn: 'sum_amount_cents',
   },
+  {
+    label: 'Registration by division',
+    dataset: 'registrations',
+    columns: ['division_name'],
+    groupBy: ['division_name'],
+    aggregate: { fn: 'count', column: 'id' },
+    sortColumn: 'count_id',
+  },
+  {
+    label: 'Aging receivables',
+    dataset: 'invoices',
+    columns: ['aging_bucket'],
+    groupBy: ['aging_bucket'],
+    aggregate: { fn: 'sum', column: 'balance_cents' },
+    sortColumn: 'aging_bucket',
+  },
+  {
+    label: 'Credential compliance status',
+    dataset: 'credentials',
+    columns: ['status'],
+    groupBy: ['status'],
+    aggregate: { fn: 'count', column: 'id' },
+    sortColumn: 'status',
+  },
+  {
+    label: 'Installment forecast',
+    dataset: 'installments',
+    columns: ['due_on'],
+    groupBy: ['due_on'],
+    timeGrain: 'month',
+    aggregate: { fn: 'sum', column: 'amount_cents' },
+    sortColumn: 'due_on',
+  },
+  {
+    label: 'Attendance by event status',
+    dataset: 'attendance',
+    columns: ['status'],
+    groupBy: ['status'],
+    aggregate: { fn: 'count', column: 'id' },
+    sortColumn: 'status',
+  },
 ];
 
 const filterOperators = [
@@ -768,9 +809,23 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
               <h3 id="report-presets-title">Standard reports</h3>
               <div>
                 {reportPresets
-                  .filter((preset) =>
-                    datasets.some((item) => item.key === preset.dataset),
-                  )
+                  .filter((preset) => {
+                    const source = datasets.find(
+                      (item) => item.key === preset.dataset,
+                    );
+                    if (!source?.available) return false;
+                    const available = new Set(
+                      source.columns.map((column) => column.key),
+                    );
+                    return (
+                      preset.columns.every((key) => available.has(key)) &&
+                      preset.groupBy.every((key) => available.has(key)) &&
+                      (preset.aggregate.fn === 'count' &&
+                      preset.aggregate.column === 'id'
+                        ? true
+                        : available.has(preset.aggregate.column))
+                    );
+                  })
                   .map((preset) => (
                     <Button
                       key={preset.label}
