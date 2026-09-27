@@ -193,14 +193,18 @@ export function HouseholdsList(): React.JSX.Element {
   const client = useQueryClient();
   const navigate = useNavigate();
   const [name, setName] = useState('');
+  const [search, setSearch] = useState('');
   const [cursor, setCursor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const list = useQuery({
-    queryKey: ['households', orgId, cursor],
+    queryKey: ['households', orgId, search, cursor],
     queryFn: () =>
       apiGet(
-        `/people/households/orgs/${String(orgId)}${cursor ? `?cursor=${cursor}` : ''}`,
+        `/people/households/orgs/${String(orgId)}?${new URLSearchParams({
+          ...(search ? { q: search } : {}),
+          ...(cursor ? { cursor } : {}),
+        })}`,
         householdListSchema,
       ),
     enabled: Boolean(orgId),
@@ -221,6 +225,16 @@ export function HouseholdsList(): React.JSX.Element {
         />
         <Card>
           <h2>Households</h2>
+          <Field label="Search households">
+            <Input
+              type="search"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
           {list.isPending && <p role="status">Loading households…</p>}
           {list.isError && <ErrorBox error="Households could not be loaded." />}
           {list.data && (

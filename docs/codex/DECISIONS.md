@@ -494,3 +494,11 @@
 - **Decision:** Set `removed_at` on removal and retain the row. Re-adding the same person creates a new active membership. Every family, chat, checkout and finance authorization query ignores removed memberships. Removing the last primary contact while other members remain requires another adult to be assigned first.
 - **Why:** Historical contact decisions remain reviewable while access ends immediately.
 - **Consequences / follow-ups:** New membership consumers must filter on `removed_at IS NULL`; membership removal and reassignment are covered by PostgreSQL and browser tests.
+
+### DEC-072 — Keep People balance filtering tied to direct invoice lines
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People directory
+- **Context:** A person may belong to several households, while a household invoice can contain charges for several people. The directory's `has balance` filter does not define whether a family debt belongs to every member.
+- **Decision:** Count a person as having a balance only when an outstanding, non-draft, non-void invoice contains a line assigned to that person. Household filtering uses active membership only; a removed membership does not appear in results.
+- **Why:** This avoids attributing a sibling's or guardian's debt to a child and prevents a removed relationship from keeping someone in a household result.
+- **Consequences / follow-ups:** Unassigned invoice lines do not make every member appear indebted. The People directory can still show household-wide balances separately in the household view.

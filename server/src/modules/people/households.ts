@@ -22,6 +22,9 @@ type Member = z.output<
 type MemberUpdate = z.output<
   typeof import('@shared/schemas/households').householdMemberUpdateSchema
 >;
+type ListQuery = z.output<
+  typeof import('@shared/schemas/households').householdsQuerySchema
+>;
 
 async function view(
   trx: OrgTransaction,
@@ -139,7 +142,7 @@ export function createHouseholdsRepository(database: Kysely<DB>) {
     async list(
       orgId: string,
       actorId: string,
-      cursor?: string,
+      filters: ListQuery = {},
       impersonating = false,
     ) {
       return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
@@ -149,7 +152,11 @@ export function createHouseholdsRepository(database: Kysely<DB>) {
           .select('id')
           .where('org_id', '=', orgId)
           .where('status', '=', 'active');
-        if (cursor) query = query.where('id', '>', cursor);
+        if (filters.cursor) query = query.where('id', '>', filters.cursor);
+        if (filters.q) {
+          const term = `%${filters.q.replaceAll('%', '\\%').replaceAll('_', '\\_')}%`;
+          query = query.where('name', 'ilike', term);
+        }
         const rows = await query.orderBy('id').limit(31).execute();
         const page = rows.slice(0, 30);
         return {

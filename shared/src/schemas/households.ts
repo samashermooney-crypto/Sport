@@ -76,3 +76,8 @@ export const householdListSchema = z.strictObject({
   items: z.array(householdResponseSchema),
   nextCursor: z.uuid().nullable(),
 });
+
+export const householdsQuerySchema = z.strictObject({
+  q: z.string().trim().max(120).optional(),
+  cursor: z.uuid().optional(),
+});

@@ -1,3 +1,4 @@
+import { householdListSchema } from '@shared/schemas/households';
 import { orgWorkspaceSchema } from '@shared/schemas/orgs';
 import { peopleListSchema, personResponseSchema } from '@shared/schemas/people';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -270,6 +271,18 @@ export function PeopleList(): React.JSX.Element {
   const [minAge, setMinAge] = useState('');
   const [maxAge, setMaxAge] = useState('');
   const [grade, setGrade] = useState('');
+  const [householdSearch, setHouseholdSearch] = useState('');
+  const [householdId, setHouseholdId] = useState('');
+  const [hasBalance, setHasBalance] = useState('');
+  const households = useQuery({
+    queryKey: ['households', orgId, 'people-filter', householdSearch],
+    queryFn: () =>
+      apiGet(
+        `/people/households/orgs/${String(orgId)}${householdSearch ? `?q=${encodeURIComponent(householdSearch)}` : ''}`,
+        householdListSchema,
+      ),
+    enabled: Boolean(orgId),
+  });
   const people = useQuery({
     queryKey: [
       'people',
@@ -280,6 +293,8 @@ export function PeopleList(): React.JSX.Element {
       minAge,
       maxAge,
       grade,
+      householdId,
+      hasBalance,
       cursor,
     ],
     queryFn: () =>
@@ -291,6 +306,8 @@ export function PeopleList(): React.JSX.Element {
           ...(minAge ? { minAge } : {}),
           ...(maxAge ? { maxAge } : {}),
           ...(grade ? { grade } : {}),
+          ...(householdId ? { householdId } : {}),
+          ...(hasBalance ? { hasBalance } : {}),
           ...(cursor ? { cursor } : {}),
         })}`,
         peopleListSchema,
@@ -390,6 +407,47 @@ export function PeopleList(): React.JSX.Element {
               ]}
               onChange={(event) => {
                 setGrade(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Find household">
+            <Input
+              type="search"
+              value={householdSearch}
+              onChange={(event) => {
+                setHouseholdSearch(event.target.value);
+                setHouseholdId('');
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Household">
+            <Select
+              value={householdId}
+              options={[
+                { value: '', label: 'Any household' },
+                ...(households.data?.items.map((household) => ({
+                  value: household.id,
+                  label: household.name,
+                })) ?? []),
+              ]}
+              onChange={(event) => {
+                setHouseholdId(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Balance">
+            <Select
+              value={hasBalance}
+              options={[
+                { value: '', label: 'Any balance' },
+                { value: 'true', label: 'Has outstanding balance' },
+                { value: 'false', label: 'No outstanding balance' },
+              ]}
+              onChange={(event) => {
+                setHasBalance(event.target.value);
                 setCursor(null);
               }}
             />

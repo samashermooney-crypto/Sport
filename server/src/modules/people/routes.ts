@@ -4,6 +4,7 @@ import {
   householdMemberRemoveSchema,
   householdMemberUpdateSchema,
   householdUpdateSchema,
+  householdsQuerySchema,
 } from '@shared/schemas/households';
 import {
   peopleQuerySchema,
@@ -207,15 +208,12 @@ export function createPeopleRouter(
     try {
       const session = await requireSession(dependencies, request);
       const orgId = z.uuid().parse(request.params.orgId);
-      const cursor =
-        request.query.cursor === undefined
-          ? undefined
-          : z.uuid().parse(request.query.cursor);
+      const filters = householdsQuerySchema.parse(request.query);
       response.json(
         await households.list(
           orgId,
           session.accountId,
-          cursor,
+          filters,
           Boolean(requestImpersonation(request)),
         ),
       );
