@@ -22,6 +22,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Added versioned program `statsEnabled` settings, staff-only configuration, stat entry fields, program/division leaderboards, and enabled/public filtering for team summaries and athlete personal bests; stat corrections replace the contest's stat lines.
 - [x] Schedule mutations now include the required same-origin request marker, and the season-end award list qualifies tenant columns after joining people and teams.
 - [x] Schedule console and portal routes export the names expected by the generated nested-route registry, so they mount in the app router.
+- [x] Family RSVP portal writes include the same-origin request marker; guardian RSVP persists for a rostered athlete and passes the Chromium/WebKit mobile browser journey.
 - [x] Lineup suspension checks now call Track F's discipline policy. The save transaction commits the policy's audit event before returning the 409 conflict; an integration test covers both the denial and durable audit record.
 - [x] `npm run registry` regenerated 20 server modules, 6 integrations, 7 web features and nested routes; `npm run openapi` documents the program-stat settings and leaderboard APIs.
 
@@ -38,9 +39,10 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Program statistic settings, leaderboard aggregation, enabled/public filters, private-stat staff access, and optimistic-concurrency integration regression pass against the isolated Postgres stack.
 - [x] Season-award listing query regression passes against isolated Postgres after qualifying joined table columns.
 - [x] Statistics configuration, contest creation, finalized score with persisted per-team stats, facility closure preview and postponement, and public leaderboard Playwright journey passes on Chromium desktop and WebKit mobile with axe and no schedule-page alerts.
+- [x] Family guardian RSVP browser journey passes on Chromium desktop and WebKit mobile with axe; it caught and fixed the portal's missing same-origin request marker.
 - [x] Chromium + WebKit mobile baseline E2E: 38 passed, 4 failed, 4 skipped; failures were unrelated sign-in, ownership-transfer and people journeys, and no G schedule journey ran.
 - [x] Lock-protected merge gate against `rebuild/trunk` through `2ac58d6`: typecheck and full lint passed; `heavy.sh npm test` passed 803 tests (1 skipped); full Chromium desktop Playwright passed 28 tests (4 skipped).
-- [ ] Most Phase 8/9 schedule journeys remain outstanding; only the combined statistics/result/facility-closure/leaderboard journey currently runs in Chromium and WebKit mobile. The console and portal routes mount via the generated nested-route registry.
+- [ ] Most Phase 8/9 schedule journeys remain outstanding; two G-owned browser journeys currently cover statistics/results/facility closure and family RSVP on Chromium and WebKit mobile. The console and portal routes mount via the generated nested-route registry.
 - [ ] Full gates remain blocked by missing Phase 8/9 browser journeys, discipline result/game-served integration, notification email fan-out, volunteer closure recipients, the facility image serving contract, and baseline WebKit failures. Do not mark ready until browser journeys and all acceptance criteria pass.
 
 ## Cross-track requests and blockers
