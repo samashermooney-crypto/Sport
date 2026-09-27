@@ -219,9 +219,23 @@ test('family member reviews, signs, and retrieves the signed waiver evidence', a
         body: '%PDF-1.4 test',
       }),
   );
-  const downloadPromise = page.waitForEvent('download');
+  const pdfResponse = page.waitForResponse(
+    (response) =>
+      response
+        .url()
+        .includes(
+          `/api/v1/waivers/orgs/${orgId}/signatures/${signatureId}/pdf`,
+        ) && response.status() === 200,
+  );
   await page.getByRole('link', { name: 'Download signed PDF' }).click();
-  expect((await downloadPromise).suggestedFilename()).toBe('signed-waiver.pdf');
+  const response = await pdfResponse;
+  expect(response.status()).toBe(200);
+  expect(await response.headerValue('content-type')).toContain(
+    'application/pdf',
+  );
+  expect(await response.headerValue('content-disposition')).toContain(
+    'signed-waiver.pdf',
+  );
   expect(await accessibilityViolations(page)).toEqual([]);
 });
 
