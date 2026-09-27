@@ -1,0 +1,12 @@
+import type { RouteObject } from 'react-router';
+import { OrgsList } from './List';
+import { OrgsDetail } from './Detail';
+import { OrgsForm } from './Form';
+
+// Replace loaders/actions with the versioned API client and enforce permissions
+// before activating these routes in the generated registry.
+export const __camel__Routes: RouteObject[] = [
+  { path: 'orgs', element: <OrgsList items={[]} /> },
+  { path: 'orgs/new', element: <OrgsForm save={async () => { throw new Error('API client required'); }} /> },
+  { path: 'orgs/:id', element: <OrgsDetail item={{ id: '', name: '' }} /> },
+];

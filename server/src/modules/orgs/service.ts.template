@@ -1,0 +1,10 @@
+import type { CreateOrgsInput } from '../../../../shared/src/schemas/orgs.js';
+import type { OrgsRepository } from './repo.js';
+
+export function createOrgsService(repository: OrgsRepository) {
+  return {
+    list: () => repository.list(),
+    get: (id: string) => repository.get(id),
+    create: (input: CreateOrgsInput) => repository.create(input),
+  };
+}
