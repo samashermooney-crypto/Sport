@@ -6,6 +6,13 @@ const PeopleList = lazy(() =>
     default: Component,
   })),
 );
+const AcceptGuardianInvitation = lazy(() =>
+  import('./AcceptGuardianInvitation').then(
+    ({ AcceptGuardianInvitation: Component }) => ({
+      default: Component,
+    }),
+  ),
+);
 const PersonDetail = lazy(() =>
   import('./PeopleConsole').then(({ PersonDetail: Component }) => ({
     default: Component,
@@ -23,6 +30,14 @@ const HouseholdDetail = lazy(() =>
 );
 
 export const peopleRoutes: readonly RouteObject[] = [
+  {
+    path: '/guardian-invitations/:orgId/:token',
+    element: (
+      <Suspense fallback={<main role="status">Loading invitation…</main>}>
+        <AcceptGuardianInvitation />
+      </Suspense>
+    ),
+  },
   {
     path: '/console/orgs/:orgId/households',
     element: (
