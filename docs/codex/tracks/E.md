@@ -3,7 +3,9 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Sprint assignment: finish Phase 4 acceptance, then own Phase 5 registration and checkout end to end; Connect onboarding now returns to a mounted staff route.
+Current: Sprint Phase 5 paid family registration path now has catalog/cart, direct participant checks, atomic holds, exact refund-policy acceptance, frozen quote/invoice/pending registrations and Payment Element handoff; forms, approval, waitlists and free carts remain in queue.
+Requests to other tracks: A: expose strict `settings.refundTerms` in org finance settings using E's `refundTermsSchema`; paid registration fails closed without a published policy and saves the accepted snapshot/hash (2026-09-27).
+Requests to other tracks: C: mount `web/src/portal/registration/routes.tsx` and a portal nav link alongside the registration API module; register its OpenAPI routes, and regenerate DB types for E migrations 1055–1057 (2026-09-27).
 Requests to other tracks: C: discover `server/src/modules/registration/module.ts` in the generated API registry/OpenAPI and mount its portal/console routes as E adds them; E owns registration code and migrations 1055+ under the sprint assignment (2026-09-27).
 Requests to other tracks: A: expose `settings.lateFeeCents` in org finance settings (integer 0–10000 cents, absent/zero disables); E's late-fee and checkout readers fail closed on malformed amounts. C: record this protective cap in DECISIONS and regenerate DB types after merging migrations 1052–1053 (2026-09-27).
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).

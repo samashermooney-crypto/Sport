@@ -11,7 +11,9 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg } from '../../db/withOrg.js';
 import type { AuthDependencies } from '../auth/routes.js';
 
+import { PostgresRegistrationCheckoutQuote } from './checkout-quote.js';
 import { PostgresRegistrationCheckoutStart } from './checkout-start.js';
+import { PostgresCheckoutPolicyAcceptance } from './policy-acceptance.js';
 import { createRegistrationRouter } from './routes.js';
 
 let database: Kysely<DB>;
@@ -250,6 +252,13 @@ describe('registration checkout start', () => {
       items: { offeringId: string; status: string }[];
     };
     expect(body.items).toMatchObject([{ offeringId, status: 'open' }]);
+    const family = await fetch(`${baseUrl}/orgs/${orgId}/participants`, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(family.status).toBe(200);
+    expect(await family.json()).toMatchObject({
+      people: [{ personId, householdId }],
+    });
   });
 
   it('reserves one seat for an eligible child and replays an exact cart key', async () => {
@@ -331,5 +340,103 @@ describe('registration checkout start', () => {
     });
     expect(full.status).toBe(409);
     expect(await full.json()).toMatchObject({ error: { code: 'INELIGIBLE' } });
+  });
+
+  it('freezes one paid quote with a reconciled invoice and pending registration', async () => {
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .updateTable('programs')
+        .set({ eligibility: {} })
+        .where('org_id', '=', orgId)
+        .where('id', '=', programId)
+        .execute();
+      await trx
+        .updateTable('organizations')
+        .set({
+          settings: {
+            refundTerms: {
+              policy: {
+                rules: [],
+                afterLastBps: 10_000,
+                serviceFeeRefund: 'proportional',
+              },
+              approvalThresholdCents: 10_000,
+              refundApplicationFee: true,
+            },
+          },
+        })
+        .where('id', '=', orgId)
+        .execute();
+    });
+    const quote = new PostgresRegistrationCheckoutQuote(database, context);
+    const input = {
+      orgId,
+      checkoutId: startedCheckoutId,
+      quoteKey: randomUUID(),
+    };
+    const policy = new PostgresCheckoutPolicyAcceptance(database, context);
+    const review = await policy.review(startedCheckoutId);
+    expect(review.accepted).toBe(false);
+    await expect(quote.quote(input)).rejects.toMatchObject({
+      code: 'REFUND_TERMS_UNACCEPTED',
+    });
+    await expect(
+      policy.accept(startedCheckoutId, 'a'.repeat(64), 'Vitest'),
+    ).rejects.toMatchObject({ code: 'REFUND_POLICY_CHANGED' });
+    expect(
+      await policy.accept(startedCheckoutId, review.termsHash, 'Vitest'),
+    ).toMatchObject({ accepted: true, termsHash: review.termsHash });
+    expect((await policy.review(startedCheckoutId)).accepted).toBe(true);
+    const first = await quote.quote(input);
+    expect(first).toMatchObject({ totalCents: 2500, chargeNowCents: 2500 });
+    expect(await quote.quote(input)).toEqual(first);
+    const replay = await fetch(
+      `${baseUrl}/orgs/${orgId}/checkouts/${startedCheckoutId}/quote`,
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: 'http://127.0.0.1:5173',
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': input.quoteKey,
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+      },
+    );
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toEqual(first);
+    const state = await createWithOrg(database)(context, async (trx) => ({
+      invoice: await trx
+        .selectFrom('invoices')
+        .select(['total_cents', 'balance_cents', 'source'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', first.invoiceId)
+        .executeTakeFirstOrThrow(),
+      registrations: await trx
+        .selectFrom('registrations')
+        .select(['status', 'checkout_id', 'invoice_line_id'])
+        .where('org_id', '=', orgId)
+        .where('checkout_id', '=', startedCheckoutId)
+        .execute(),
+      checkout: await trx
+        .selectFrom('checkouts')
+        .select('status')
+        .where('org_id', '=', orgId)
+        .where('id', '=', startedCheckoutId)
+        .executeTakeFirstOrThrow(),
+    }));
+    expect(state.invoice).toEqual({
+      total_cents: 2500,
+      balance_cents: 2500,
+      source: 'checkout',
+    });
+    expect(state.registrations).toHaveLength(1);
+    expect(state.registrations[0]).toMatchObject({
+      status: 'pending_payment',
+      checkout_id: startedCheckoutId,
+    });
+    expect(state.registrations[0]?.invoice_line_id).toBeTruthy();
+    expect(state.checkout.status).toBe('awaiting_payment');
   });
 });

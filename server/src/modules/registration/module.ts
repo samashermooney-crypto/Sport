@@ -1,12 +1,15 @@
 import type { ServerModule } from '../../lib/module-contract.js';
 
+import { checkoutQuoteSchema } from './checkout-quote.js';
 import {
   registrationCartSchema,
   startedCheckoutSchema,
 } from './checkout-start.js';
+import { checkoutPolicyReviewSchema } from './policy-acceptance.js';
 import {
   createRegistrationRouter,
   registrationCatalogSchema,
+  registrationParticipantsSchema,
   checkoutViewSchema,
 } from './routes.js';
 
@@ -26,6 +29,12 @@ export const moduleDefinition = {
       response: registrationCatalogSchema,
     },
     {
+      method: 'get',
+      path: '/api/v1/registration/orgs/{orgId}/participants',
+      summary: 'List directly linked family participants for a cart',
+      response: registrationParticipantsSchema,
+    },
+    {
       method: 'post',
       path: '/api/v1/registration/orgs/{orgId}/checkouts',
       summary: 'Start an eligibility-checked family checkout',
@@ -37,6 +46,25 @@ export const moduleDefinition = {
       path: '/api/v1/registration/orgs/{orgId}/checkouts/{checkoutId}',
       summary: 'Resume the payer-owned checkout',
       response: checkoutViewSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/registration/orgs/{orgId}/checkouts/{checkoutId}/quote',
+      summary: 'Freeze pricing and issue the checkout invoice',
+      response: checkoutQuoteSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/registration/orgs/{orgId}/checkouts/{checkoutId}/refund-terms',
+      summary: 'Review the exact refund terms for this checkout',
+      response: checkoutPolicyReviewSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/registration/orgs/{orgId}/checkouts/{checkoutId}/refund-terms/accept',
+      summary: 'Record payer acceptance of the current refund terms',
+      body: checkoutPolicyReviewSchema.pick({ termsHash: true }),
+      response: checkoutPolicyReviewSchema,
     },
   ],
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };

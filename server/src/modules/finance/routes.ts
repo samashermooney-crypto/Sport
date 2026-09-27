@@ -1543,6 +1543,28 @@ export function createFinanceRouter(
         const input = checkoutPaymentBodySchema.parse(request.body as unknown);
         const idempotencyKey = z.uuid().parse(request.get('Idempotency-Key'));
         const context = { orgId, actor: { accountId: session.accountId } };
+        const payerCheckout = await createWithOrg(dependencies.database)(
+          context,
+          (trx) =>
+            trx
+              .selectFrom('checkouts')
+              .select('id')
+              .where('org_id', '=', orgId)
+              .where('id', '=', input.checkoutId)
+              .where('account_id', '=', session.accountId)
+              .where('status', '=', 'awaiting_payment')
+              .executeTakeFirst(),
+        );
+        if (!payerCheckout) throw new FinanceAccessError();
+        const payerAccount = await dependencies.database
+          .selectFrom('accounts')
+          .select('email')
+          .where('id', '=', session.accountId)
+          .executeTakeFirstOrThrow();
+        await payerMethods().ensureCustomer(
+          session.accountId,
+          payerAccount.email,
+        );
         const result = await new CheckoutPaymentService(
           new PostgresFrozenChargeReader(dependencies.database, context),
           new PostgresPaymentAttemptStore(dependencies.database, context),

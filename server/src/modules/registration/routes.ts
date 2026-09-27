@@ -7,11 +7,19 @@ import { requestImpersonation } from '../../lib/tenant-guard.js';
 import { requireSession, type AuthDependencies } from '../auth/routes.js';
 
 import {
+  checkoutQuoteSchema,
+  PostgresRegistrationCheckoutQuote,
+} from './checkout-quote.js';
+import {
   PostgresRegistrationCheckoutStart,
   registrationCartSchema,
   RegistrationCheckoutError,
   startedCheckoutSchema,
 } from './checkout-start.js';
+import {
+  checkoutPolicyReviewSchema,
+  PostgresCheckoutPolicyAcceptance,
+} from './policy-acceptance.js';
 
 const catalogItemSchema = z.strictObject({
   programId: z.uuid(),
@@ -28,6 +36,17 @@ const catalogItemSchema = z.strictObject({
 
 export const registrationCatalogSchema = z.strictObject({
   items: z.array(catalogItemSchema),
+});
+
+export const registrationParticipantsSchema = z.strictObject({
+  people: z.array(
+    z.strictObject({
+      personId: z.uuid(),
+      householdId: z.uuid(),
+      name: z.string().min(1),
+      householdName: z.string().min(1),
+    }),
+  ),
 });
 
 export const checkoutViewSchema = startedCheckoutSchema.extend({
@@ -177,6 +196,58 @@ export function createRegistrationRouter(
     }
   });
 
+  router.get('/orgs/:orgId/participants', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Impersonation is unavailable',
+        );
+      const orgId = z.uuid().parse(request.params.orgId);
+      const rows = await withOrg(
+        { orgId, actor: { accountId: session.accountId } },
+        async (trx) => {
+          const result = await sql<{
+            person_id: string;
+            household_id: string;
+            name: string;
+            household_name: string;
+          }>`
+          SELECT DISTINCT person.id AS person_id, h.id AS household_id,
+            person.first_name || ' ' || person.last_name AS name,
+            h.name AS household_name
+          FROM person_account_links link
+          JOIN people person ON person.org_id = link.org_id AND person.id = link.person_id
+          JOIN household_members member ON member.org_id = link.org_id
+            AND member.person_id = link.person_id AND member.removed_at IS NULL
+          JOIN households h ON h.org_id = member.org_id AND h.id = member.household_id
+          WHERE link.org_id = ${orgId}::uuid
+            AND link.account_id = ${session.accountId}::uuid
+            AND link.relationship IN ('self', 'guardian')
+            AND link.revoked_at IS NULL AND link.verified_at IS NOT NULL
+            AND person.status = 'active' AND h.status = 'active'
+          ORDER BY name, household_name, person_id, household_id
+        `.execute(trx);
+          return result.rows;
+        },
+      );
+      response.json(
+        registrationParticipantsSchema.parse({
+          people: rows.map((row) => ({
+            personId: row.person_id,
+            householdId: row.household_id,
+            name: row.name,
+            householdName: row.household_name,
+          })),
+        }),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
   router.post('/orgs/:orgId/checkouts', async (request, response) => {
     try {
       if (
@@ -243,6 +314,85 @@ export function createRegistrationRouter(
             cart: row.items,
           }),
         );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post(
+    '/orgs/:orgId/checkouts/:checkoutId/quote',
+    async (request, response) => {
+      try {
+        if (
+          !validWriteOrigin(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Checkout quote is unavailable',
+          );
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const checkoutId = z.uuid().parse(request.params.checkoutId);
+        const quoteKey = z.uuid().parse(request.get('Idempotency-Key'));
+        const result = await new PostgresRegistrationCheckoutQuote(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).quote({ orgId, checkoutId, quoteKey });
+        response.json(checkoutQuoteSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/checkouts/:checkoutId/refund-terms',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Impersonation is unavailable',
+          );
+        const orgId = z.uuid().parse(request.params.orgId);
+        const checkoutId = z.uuid().parse(request.params.checkoutId);
+        const result = await new PostgresCheckoutPolicyAcceptance(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).review(checkoutId);
+        response.json(checkoutPolicyReviewSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post(
+    '/orgs/:orgId/checkouts/:checkoutId/refund-terms/accept',
+    async (request, response) => {
+      try {
+        if (
+          !validWriteOrigin(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Refund terms acceptance is unavailable',
+          );
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const checkoutId = z.uuid().parse(request.params.checkoutId);
+        const body = z
+          .strictObject({ termsHash: z.string().regex(/^[0-9a-f]{64}$/) })
+          .parse(request.body);
+        const result = await new PostgresCheckoutPolicyAcceptance(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).accept(checkoutId, body.termsHash, request.get('User-Agent') ?? null);
+        response.json(checkoutPolicyReviewSchema.parse(result));
       } catch (error) {
         sendError(response, error);
       }

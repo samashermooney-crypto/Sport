@@ -59,6 +59,7 @@ interface Candidate {
   program_visibility: string;
   offering_visibility: string;
   active: boolean;
+  registrant_role: string;
   registration_opens_at: Date | null;
   registration_closes_at: Date | null;
   season_starts_on: string;
@@ -199,6 +200,7 @@ export class PostgresRegistrationCheckoutStart {
             candidate.program_visibility !== 'public' ||
             candidate.offering_visibility !== 'public' ||
             !candidate.active ||
+            candidate.registrant_role !== 'athlete' ||
             !candidate.division_id ||
             (candidate.registration_opens_at &&
               candidate.registration_opens_at > now) ||
@@ -390,7 +392,8 @@ export class PostgresRegistrationCheckoutStart {
     item: z.output<typeof registrationCartSchema>['offerings'][number],
   ): Promise<Candidate | null> {
     const result = await sql<Candidate>`
-      SELECT o.program_id, o.division_id, p.status AS program_status,
+      SELECT o.program_id, o.division_id, o.registrant_role,
+        p.status AS program_status,
         p.visibility AS program_visibility, o.visibility AS offering_visibility,
         o.active, p.registration_opens_at, p.registration_closes_at,
         s.starts_on::text AS season_starts_on, s.ends_on::text AS season_ends_on,
