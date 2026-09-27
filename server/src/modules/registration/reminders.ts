@@ -4,6 +4,7 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg } from '../../db/withOrg.js';
 import { systemWorkerActorId } from '../jobs/credentials-expiry.js';
 
+import { PostgresRegistrationLifecycle } from './lifecycle.js';
 import { enqueueRegistrationNotice } from './notices.js';
 
 export interface RegistrationReminderDependencies {
@@ -30,6 +31,22 @@ export async function enqueueRegistrationReminders(
   for (const orgId of organizationIds) {
     const context = { orgId, actor: { accountId: systemWorkerActorId } };
     queued += await withOrg(context, async (trx) => {
+      const expiredOffers = await sql<{ offering_id: string }>`
+        SELECT offering_id FROM waitlist_entries
+        WHERE org_id = ${orgId}::uuid AND status = 'offered'
+          AND offer_expires_at <= now()
+        ORDER BY offering_id, id
+        FOR UPDATE SKIP LOCKED LIMIT 100
+      `.execute(trx);
+      const lifecycle = new PostgresRegistrationLifecycle(
+        dependencies.database,
+        context,
+      );
+      for (const offeringId of new Set(
+        expiredOffers.rows.map(({ offering_id }) => offering_id),
+      ))
+        await lifecycle.advanceWaitlist(trx, orgId, offeringId);
+
       const offers = await sql<{
         id: string;
         account_id: string;

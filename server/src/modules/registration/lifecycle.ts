@@ -1843,6 +1843,21 @@ export class PostgresRegistrationLifecycle {
     entryId?: string;
     idempotencyKey: string;
   }): Promise<{ entryId: string; expiresAt: string } | 'full' | 'empty'> {
+    return this.withOrg(this.context, (trx) =>
+      this.offerWaitlistInTransaction(trx, input, true),
+    );
+  }
+
+  private async offerWaitlistInTransaction(
+    trx: OrgTransaction,
+    input: {
+      orgId: string;
+      offeringId: string;
+      entryId?: string;
+      idempotencyKey: string;
+    },
+    requireStaff: boolean,
+  ): Promise<{ entryId: string; expiresAt: string } | 'full' | 'empty'> {
     const reservationKey = z.uuid().parse(input.idempotencyKey);
     const requestHash = createHash('sha256')
       .update(
@@ -1853,22 +1868,22 @@ export class PostgresRegistrationLifecycle {
         }),
       )
       .digest('hex');
-    return this.withOrg(this.context, async (trx) => {
-      const offering = await trx
-        .selectFrom('registration_offerings')
-        .select([
-          'id',
-          'program_id',
-          'division_id',
-          'capacity',
-          'name',
-          'waitlist_enabled',
-          'active',
-        ])
-        .where('org_id', '=', input.orgId)
-        .where('id', '=', input.offeringId)
-        .forUpdate()
-        .executeTakeFirstOrThrow();
+    const offering = await trx
+      .selectFrom('registration_offerings')
+      .select([
+        'id',
+        'program_id',
+        'division_id',
+        'capacity',
+        'name',
+        'waitlist_enabled',
+        'active',
+      ])
+      .where('org_id', '=', input.orgId)
+      .where('id', '=', input.offeringId)
+      .forUpdate()
+      .executeTakeFirstOrThrow();
+    if (requireStaff)
       await requireRegistrationStaff(
         trx,
         this.context,
@@ -1879,78 +1894,78 @@ export class PostgresRegistrationLifecycle {
           offering.division_id,
         ),
       );
-      const replay = await trx
-        .selectFrom('waitlist_entries')
-        .select(['id', 'offer_expires_at', 'offer_request_hash'])
-        .where('org_id', '=', input.orgId)
-        .where('offer_idempotency_key', '=', reservationKey)
-        .executeTakeFirst();
-      if (replay) {
-        if (replay.offer_request_hash?.toString('hex') !== requestHash)
-          throw new RegistrationCheckoutError(
-            409,
-            'IDEMPOTENCY_CONFLICT',
-            'Waitlist offer key was used for a different request',
-          );
-        if (!replay.offer_expires_at)
-          throw new Error('Waitlist offer replay has no expiry');
-        return {
-          entryId: replay.id,
-          expiresAt: replay.offer_expires_at.toISOString(),
-        };
-      }
-      const program = await trx
-        .selectFrom('programs')
-        .select(['settings', 'name'])
-        .where('org_id', '=', input.orgId)
-        .where('id', '=', offering.program_id)
-        .forUpdate()
-        .executeTakeFirstOrThrow();
-      const policy = programPolicySchema.parse(program.settings ?? {});
-      const organization = await trx
-        .selectFrom('organizations')
-        .select('timezone')
-        .where('id', '=', input.orgId)
-        .executeTakeFirstOrThrow();
-      const counter = await trx
-        .selectFrom('capacity_counters')
-        .select(['capacity', 'confirmed', 'held'])
-        .where('org_id', '=', input.orgId)
-        .where('subject_type', '=', 'offering')
-        .where('subject_id', '=', input.offeringId)
-        .forUpdate()
-        .executeTakeFirst();
-      const capacity = counter?.capacity ?? offering.capacity ?? null;
-      if (
-        capacity !== null &&
-        (counter?.confirmed ?? 0) + (counter?.held ?? 0) >= capacity
-      )
-        return 'full';
-      const entry = input.entryId
-        ? await trx
+    const replay = await trx
+      .selectFrom('waitlist_entries')
+      .select(['id', 'offer_expires_at', 'offer_request_hash'])
+      .where('org_id', '=', input.orgId)
+      .where('offer_idempotency_key', '=', reservationKey)
+      .executeTakeFirst();
+    if (replay) {
+      if (replay.offer_request_hash?.toString('hex') !== requestHash)
+        throw new RegistrationCheckoutError(
+          409,
+          'IDEMPOTENCY_CONFLICT',
+          'Waitlist offer key was used for a different request',
+        );
+      if (!replay.offer_expires_at)
+        throw new Error('Waitlist offer replay has no expiry');
+      return {
+        entryId: replay.id,
+        expiresAt: replay.offer_expires_at.toISOString(),
+      };
+    }
+    const program = await trx
+      .selectFrom('programs')
+      .select(['settings', 'name'])
+      .where('org_id', '=', input.orgId)
+      .where('id', '=', offering.program_id)
+      .forUpdate()
+      .executeTakeFirstOrThrow();
+    const policy = programPolicySchema.parse(program.settings ?? {});
+    const organization = await trx
+      .selectFrom('organizations')
+      .select('timezone')
+      .where('id', '=', input.orgId)
+      .executeTakeFirstOrThrow();
+    const counter = await trx
+      .selectFrom('capacity_counters')
+      .select(['capacity', 'confirmed', 'held'])
+      .where('org_id', '=', input.orgId)
+      .where('subject_type', '=', 'offering')
+      .where('subject_id', '=', input.offeringId)
+      .forUpdate()
+      .executeTakeFirst();
+    const capacity = counter?.capacity ?? offering.capacity ?? null;
+    if (
+      capacity !== null &&
+      (counter?.confirmed ?? 0) + (counter?.held ?? 0) >= capacity
+    )
+      return 'full';
+    const entry = input.entryId
+      ? await trx
+          .selectFrom('waitlist_entries')
+          .select(['id', 'person_id', 'household_id', 'status'])
+          .where('org_id', '=', input.orgId)
+          .where('id', '=', input.entryId)
+          .where('offering_id', '=', input.offeringId)
+          .forUpdate()
+          .executeTakeFirst()
+      : (
+          await trx
             .selectFrom('waitlist_entries')
             .select(['id', 'person_id', 'household_id', 'status'])
             .where('org_id', '=', input.orgId)
-            .where('id', '=', input.entryId)
             .where('offering_id', '=', input.offeringId)
+            .where('status', '=', 'waiting')
+            .orderBy('position')
+            .orderBy('created_at')
+            .limit(1)
             .forUpdate()
-            .executeTakeFirst()
-        : (
-            await trx
-              .selectFrom('waitlist_entries')
-              .select(['id', 'person_id', 'household_id', 'status'])
-              .where('org_id', '=', input.orgId)
-              .where('offering_id', '=', input.offeringId)
-              .where('status', '=', 'waiting')
-              .orderBy('position')
-              .orderBy('created_at')
-              .limit(1)
-              .forUpdate()
-              .execute()
-          )[0];
-      if (!entry || entry.status !== 'waiting') return 'empty';
-      // One active offer per participant per program.
-      const conflicting = await sql<{ exists: boolean }>`
+            .execute()
+        )[0];
+    if (!entry || entry.status !== 'waiting') return 'empty';
+    // One active offer per participant per program.
+    const conflicting = await sql<{ exists: boolean }>`
         SELECT EXISTS (
           SELECT 1 FROM waitlist_entries w
           JOIN registration_offerings o ON o.org_id = w.org_id AND o.id = w.offering_id
@@ -1958,118 +1973,117 @@ export class PostgresRegistrationLifecycle {
             AND w.person_id = ${entry.person_id}::uuid AND w.status = 'offered'
         ) AS exists
       `.execute(trx);
-      if (conflicting.rows[0]?.exists) return 'empty';
-      const accountId = await this.payerAccount(trx, {
-        person_id: entry.person_id,
-      } as RegistrationRow);
-      if (!accountId) return 'empty';
-      const quiet = quietHoursDecision(
-        this.now().toISOString(),
-        organization.timezone,
-        'push',
-        false,
-      );
-      const sendAt = quiet.sendNow
-        ? this.now()
-        : new Date(quiet.nextSendAt ?? this.now().toISOString());
-      const expiryHours = policy.offerExpiryHours ?? 48;
-      const expiresAt = new Date(sendAt.getTime() + expiryHours * 3_600_000);
-      const checkoutId = newId();
-      const cart = {
-        offerings: [
-          {
-            lineId: newId(),
-            offeringId: input.offeringId,
-            personId: entry.person_id,
-            householdId: entry.household_id,
-          },
-        ],
-      };
-      await trx
-        .insertInto('checkouts')
-        .values({
-          id: checkoutId,
-          org_id: input.orgId,
-          account_id: accountId,
-          status: 'open',
-          expires_at: expiresAt,
-          items: cart as unknown as Json,
-          creation_key: reservationKey,
-          creation_hash: requestHash,
-          source: 'waitlist_offer',
-        })
-        .execute();
-      for (const subject of ['program', 'division', 'offering'] as const) {
-        const subjectId =
-          subject === 'program'
-            ? offering.program_id
-            : subject === 'division'
-              ? offering.division_id
-              : offering.id;
-        if (!subjectId) continue;
-        const counterRow = await trx
-          .selectFrom('capacity_counters')
-          .select(['id'])
-          .where('org_id', '=', input.orgId)
-          .where('subject_type', '=', subject)
-          .where('subject_id', '=', subjectId)
-          .forUpdate()
-          .executeTakeFirst();
-        if (counterRow) {
-          await trx
-            .updateTable('capacity_counters')
-            .set({ held: sql`held + 1`, version: sql`version + 1` })
-            .where('org_id', '=', input.orgId)
-            .where('id', '=', counterRow.id)
-            .execute();
-        }
+    if (conflicting.rows[0]?.exists) return 'empty';
+    const accountId = await this.payerAccount(trx, {
+      person_id: entry.person_id,
+    } as RegistrationRow);
+    if (!accountId) return 'empty';
+    const quiet = quietHoursDecision(
+      this.now().toISOString(),
+      organization.timezone,
+      'push',
+      false,
+    );
+    const sendAt = quiet.sendNow
+      ? this.now()
+      : new Date(quiet.nextSendAt ?? this.now().toISOString());
+    const expiryHours = policy.offerExpiryHours ?? 48;
+    const expiresAt = new Date(sendAt.getTime() + expiryHours * 3_600_000);
+    const checkoutId = newId();
+    const cart = {
+      offerings: [
+        {
+          lineId: newId(),
+          offeringId: input.offeringId,
+          personId: entry.person_id,
+          householdId: entry.household_id,
+        },
+      ],
+    };
+    await trx
+      .insertInto('checkouts')
+      .values({
+        id: checkoutId,
+        org_id: input.orgId,
+        account_id: accountId,
+        status: 'open',
+        expires_at: expiresAt,
+        items: cart as unknown as Json,
+        creation_key: reservationKey,
+        creation_hash: requestHash,
+        source: 'waitlist_offer',
+      })
+      .execute();
+    for (const subject of ['program', 'division', 'offering'] as const) {
+      const subjectId =
+        subject === 'program'
+          ? offering.program_id
+          : subject === 'division'
+            ? offering.division_id
+            : offering.id;
+      if (!subjectId) continue;
+      const counterRow = await trx
+        .selectFrom('capacity_counters')
+        .select(['id'])
+        .where('org_id', '=', input.orgId)
+        .where('subject_type', '=', subject)
+        .where('subject_id', '=', subjectId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (counterRow) {
         await trx
-          .insertInto('capacity_holds')
-          .values({
-            id: newId(),
-            org_id: input.orgId,
-            checkout_id: checkoutId,
-            subject_type: subject,
-            subject_id: subjectId,
-            quantity: 1,
-            expires_at: expiresAt,
-            reservation_key: reservationKey,
-          })
+          .updateTable('capacity_counters')
+          .set({ held: sql`held + 1`, version: sql`version + 1` })
+          .where('org_id', '=', input.orgId)
+          .where('id', '=', counterRow.id)
           .execute();
       }
       await trx
-        .updateTable('waitlist_entries')
-        .set({
-          status: 'offered',
-          offered_at: sendAt,
-          offer_expires_at: expiresAt,
+        .insertInto('capacity_holds')
+        .values({
+          id: newId(),
+          org_id: input.orgId,
           checkout_id: checkoutId,
-          offer_idempotency_key: reservationKey,
-          offer_request_hash: Buffer.from(requestHash, 'hex'),
-          version: sql`version + 1`,
+          subject_type: subject,
+          subject_id: subjectId,
+          quantity: 1,
+          expires_at: expiresAt,
+          reservation_key: reservationKey,
         })
-        .where('org_id', '=', input.orgId)
-        .where('id', '=', entry.id)
         .execute();
-      await enqueueRegistrationNotice(trx, this.context, {
-        kind: 'waitlist_offer',
-        sourceId: entry.id,
-        accountId,
-        payload: {
-          offeringId: input.offeringId,
-          expiresAt: expiresAt.toISOString(),
-        },
-      });
-      await appendAuditEvent(trx, this.context, {
-        action: 'waitlist.offered',
-        entityType: 'waitlist_entry',
-        entityId: entry.id,
-        changes: {
-          expiresAt: { tier: 'internal', after: expiresAt.toISOString() },
-        },
-      });
-      return { entryId: entry.id, expiresAt: expiresAt.toISOString() };
+    }
+    await trx
+      .updateTable('waitlist_entries')
+      .set({
+        status: 'offered',
+        offered_at: sendAt,
+        offer_expires_at: expiresAt,
+        checkout_id: checkoutId,
+        offer_idempotency_key: reservationKey,
+        offer_request_hash: Buffer.from(requestHash, 'hex'),
+        version: sql`version + 1`,
+      })
+      .where('org_id', '=', input.orgId)
+      .where('id', '=', entry.id)
+      .execute();
+    await enqueueRegistrationNotice(trx, this.context, {
+      kind: 'waitlist_offer',
+      sourceId: entry.id,
+      accountId,
+      payload: {
+        offeringId: input.offeringId,
+        expiresAt: expiresAt.toISOString(),
+      },
     });
+    await appendAuditEvent(trx, this.context, {
+      action: 'waitlist.offered',
+      entityType: 'waitlist_entry',
+      entityId: entry.id,
+      changes: {
+        expiresAt: { tier: 'internal', after: expiresAt.toISOString() },
+      },
+    });
+    return { entryId: entry.id, expiresAt: expiresAt.toISOString() };
   }
 
   /** The family accepts an offer — its checkout resumes through quote+pay. */
@@ -2236,20 +2250,6 @@ export class PostgresRegistrationLifecycle {
       .executeTakeFirstOrThrow();
     const policy = programPolicySchema.parse(settings.settings ?? {});
     if ((policy.waitlistMode ?? 'auto') !== 'auto') return;
-    const counter = await trx
-      .selectFrom('capacity_counters')
-      .select(['capacity', 'confirmed', 'held'])
-      .where('org_id', '=', orgId)
-      .where('subject_type', '=', 'offering')
-      .where('subject_id', '=', offeringId)
-      .forUpdate()
-      .executeTakeFirst();
-    if (
-      counter &&
-      counter.capacity !== null &&
-      counter.confirmed + counter.held >= counter.capacity
-    )
-      return;
     const waiting = await trx
       .selectFrom('waitlist_entries')
       .select('id')
@@ -2260,12 +2260,16 @@ export class PostgresRegistrationLifecycle {
       .limit(1)
       .executeTakeFirst();
     if (!waiting) return;
-    await this.offerWaitlist({
-      orgId,
-      offeringId,
-      entryId: waiting.id,
-      idempotencyKey: newId(),
-    });
+    await this.offerWaitlistInTransaction(
+      trx,
+      {
+        orgId,
+        offeringId,
+        entryId: waiting.id,
+        idempotencyKey: newId(),
+      },
+      false,
+    );
   }
 
   /**
