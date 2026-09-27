@@ -8,10 +8,12 @@ import type { IntegrationConfig, ServerModule } from '../lib/module-contract';
 import { moduleDefinition as attendanceModule } from '../modules/attendance/module';
 import { moduleDefinition as auditModule } from '../modules/audit/module';
 import { moduleDefinition as authModule } from '../modules/auth/module';
+import { moduleDefinition as classesModule } from '../modules/classes/module';
 import { moduleDefinition as communicationsModule } from '../modules/communications/module';
 import { moduleDefinition as complianceModule } from '../modules/compliance/module';
 import { moduleDefinition as contestsModule } from '../modules/contests/module';
 import { moduleDefinition as disciplineModule } from '../modules/discipline/module';
+import { moduleDefinition as federationModule } from '../modules/federation/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
 import { moduleDefinition as importsModule } from '../modules/imports/module';
@@ -30,10 +32,12 @@ export const serverModules: readonly ServerModule[] = [
   attendanceModule,
   auditModule,
   authModule,
+  classesModule,
   communicationsModule,
   complianceModule,
   contestsModule,
   disciplineModule,
+  federationModule,
   filesModule,
   financeModule,
   importsModule,

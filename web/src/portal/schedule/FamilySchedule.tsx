@@ -26,7 +26,17 @@ type FamilyPersonalBest = {
 };
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { credentials: 'include', ...init });
+  const headers = new Headers(init?.headers);
+  if (
+    init?.method &&
+    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(init.method.toUpperCase())
+  )
+    headers.set('X-Athlentry-Request', '1');
+  const response = await fetch(url, {
+    credentials: 'include',
+    ...init,
+    headers,
+  });
   const value =
     response.status === 204
       ? null
