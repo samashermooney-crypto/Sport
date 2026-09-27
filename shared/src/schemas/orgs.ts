@@ -241,6 +241,13 @@ export const orgInvitationResponseSchema = z.strictObject({
 });
 
 export const orgStaffResponseSchema = z.strictObject({
+  scopes: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      name: z.string(),
+      scopeType: z.enum(['season', 'program', 'division', 'team_season']),
+    }),
+  ),
   members: z.array(
     z.strictObject({
       accountId: z.uuid(),
