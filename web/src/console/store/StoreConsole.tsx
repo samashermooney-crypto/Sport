@@ -77,6 +77,16 @@ const ordersSchema = z.strictObject({
       taxCents: z.number().int().nonnegative(),
       createdAt: z.iso.datetime({ offset: true }),
       buyerEmail: z.string().nullable(),
+      shippingAddress: z
+        .strictObject({
+          line1: z.string(),
+          line2: z.string().optional(),
+          city: z.string(),
+          region: z.string(),
+          postalCode: z.string(),
+          country: z.literal('US'),
+        })
+        .nullable(),
       fulfillment: z
         .strictObject({
           orderId: z.uuid(),
@@ -842,6 +852,18 @@ export function StoreConsole({ orgId }: { orgId: string }): React.JSX.Element {
                   {order.fulfillment?.method ?? '—'} ·{' '}
                   {order.fulfillment?.status ?? 'pending'}
                 </span>
+                {order.fulfillment?.method === 'ship' &&
+                order.shippingAddress ? (
+                  <span>
+                    Ship to: {order.shippingAddress.line1}
+                    {order.shippingAddress.line2
+                      ? `, ${order.shippingAddress.line2}`
+                      : ''}
+                    , {order.shippingAddress.city},{' '}
+                    {order.shippingAddress.region}{' '}
+                    {order.shippingAddress.postalCode}
+                  </span>
+                ) : null}
               </div>
               {(order.status === 'paid' || order.status === 'fulfilling') &&
               order.fulfillment ? (

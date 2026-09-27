@@ -17,11 +17,13 @@ import {
   volunteerLedgerSchema,
   volunteerRequirementBodySchema,
   volunteerRequirementListSchema,
+  volunteerRequirementSchema,
   volunteerRoleBodySchema,
   volunteerRoleListSchema,
   volunteerRoleSchema,
   volunteerShiftBodySchema,
   volunteerShiftListSchema,
+  volunteerShiftSchema,
   volunteerSignupBodySchema,
   volunteerSignupSchema,
   volunteerStatusBodySchema,
@@ -158,15 +160,17 @@ export function createVolunteersRouter(
     endpoint(async (request, response) => {
       const actor = await orgActor(dependencies, request);
       requireAnyRole(actor.roles, managementRoles);
-      response
-        .status(201)
-        .json(
-          await createVolunteerRequirement(
-            dependencies.database,
-            actor.context,
-            volunteerRequirementBodySchema.parse(request.body as unknown),
-          ),
-        );
+      const created = await createVolunteerRequirement(
+        dependencies.database,
+        actor.context,
+        volunteerRequirementBodySchema.parse(request.body as unknown),
+      );
+      const requirement = (
+        await listVolunteerRequirements(dependencies.database, actor.context)
+      ).find((item) => item.id === created.id);
+      if (!requirement)
+        throw new Error('Created requirement could not be read');
+      response.status(201).json(volunteerRequirementSchema.parse(requirement));
     }),
   );
   router.get(
@@ -197,15 +201,16 @@ export function createVolunteersRouter(
     endpoint(async (request, response) => {
       const actor = await orgActor(dependencies, request);
       requireAnyRole(actor.roles, managementRoles);
-      response
-        .status(201)
-        .json(
-          await createVolunteerShift(
-            dependencies.database,
-            actor.context,
-            volunteerShiftBodySchema.parse(request.body as unknown),
-          ),
-        );
+      const created = await createVolunteerShift(
+        dependencies.database,
+        actor.context,
+        volunteerShiftBodySchema.parse(request.body as unknown),
+      );
+      const shift = (
+        await listVolunteerShifts(actor.context, dependencies.database)
+      ).find((item) => item.id === created.id);
+      if (!shift) throw new Error('Created shift could not be read');
+      response.status(201).json(volunteerShiftSchema.parse(shift));
     }),
   );
   router.post(

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
 import { apiGet, apiPost } from '../../api/client';
-import { Button, Card, Field, PageHeader, Select } from '../../ui';
+import { Button, Card, Field, Input, PageHeader, Select } from '../../ui';
 
 import './store-portal.css';
 
@@ -92,6 +92,13 @@ export function StorePortal({ orgId }: { orgId: string }): React.JSX.Element {
   const [fulfillmentMethod, setFulfillmentMethod] = useState<'pickup' | 'ship'>(
     'pickup',
   );
+  const [shippingAddress, setShippingAddress] = useState({
+    line1: '',
+    line2: '',
+    city: '',
+    region: '',
+    postalCode: '',
+  });
   const [variants, setVariants] = useState<Record<string, string>>({});
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
@@ -150,6 +157,16 @@ export function StorePortal({ orgId }: { orgId: string }): React.JSX.Element {
 
   async function placeOrder(): Promise<void> {
     if (!householdId || !personId || !cart.length) return;
+    if (
+      fulfillmentMethod === 'ship' &&
+      (!shippingAddress.line1.trim() ||
+        !shippingAddress.city.trim() ||
+        !/^[A-Z]{2}$/.test(shippingAddress.region) ||
+        !/^\d{5}(?:-\d{4})?$/.test(shippingAddress.postalCode.trim()))
+    ) {
+      setError('Enter a valid US shipping address before ordering.');
+      return;
+    }
     const selected = new Map(products.map((product) => [product.id, product]));
     const lines = cart.map((item) => ({
       variantId: item.variantId,
@@ -181,6 +198,15 @@ export function StorePortal({ orgId }: { orgId: string }): React.JSX.Element {
         {
           householdId,
           fulfillmentMethod,
+          ...(fulfillmentMethod === 'ship'
+            ? {
+                shippingAddress: {
+                  ...shippingAddress,
+                  line2: shippingAddress.line2.trim() || undefined,
+                  country: 'US' as const,
+                },
+              }
+            : {}),
           idempotencyKey,
           lines,
         },
@@ -258,6 +284,78 @@ export function StorePortal({ orgId }: { orgId: string }): React.JSX.Element {
             <option value="ship">Ship</option>
           </Select>
         </Field>
+        {fulfillmentMethod === 'ship' ? (
+          <>
+            <Field label="Shipping address line 1">
+              <Input
+                autoComplete="address-line1"
+                required
+                value={shippingAddress.line1}
+                onChange={(event) => {
+                  setShippingAddress((current) => ({
+                    ...current,
+                    line1: event.target.value,
+                  }));
+                }}
+              />
+            </Field>
+            <Field label="Shipping address line 2">
+              <Input
+                autoComplete="address-line2"
+                value={shippingAddress.line2}
+                onChange={(event) => {
+                  setShippingAddress((current) => ({
+                    ...current,
+                    line2: event.target.value,
+                  }));
+                }}
+              />
+            </Field>
+            <Field label="Shipping city">
+              <Input
+                autoComplete="address-level2"
+                required
+                value={shippingAddress.city}
+                onChange={(event) => {
+                  setShippingAddress((current) => ({
+                    ...current,
+                    city: event.target.value,
+                  }));
+                }}
+              />
+            </Field>
+            <Field label="Shipping state">
+              <Input
+                autoComplete="address-level1"
+                required
+                minLength={2}
+                maxLength={2}
+                pattern="[A-Z]{2}"
+                value={shippingAddress.region}
+                onChange={(event) => {
+                  setShippingAddress((current) => ({
+                    ...current,
+                    region: event.target.value.toUpperCase(),
+                  }));
+                }}
+              />
+            </Field>
+            <Field label="Shipping ZIP code">
+              <Input
+                autoComplete="postal-code"
+                required
+                pattern="[0-9]{5}(-[0-9]{4})?"
+                value={shippingAddress.postalCode}
+                onChange={(event) => {
+                  setShippingAddress((current) => ({
+                    ...current,
+                    postalCode: event.target.value,
+                  }));
+                }}
+              />
+            </Field>
+          </>
+        ) : null}
       </Card>
       <section className="store-portal__grid" aria-label="Available products">
         {products.map((product) => {
@@ -368,7 +466,17 @@ export function StorePortal({ orgId }: { orgId: string }): React.JSX.Element {
           .
         </p>
         <Button
-          disabled={busy || !householdId || !personId || !cart.length}
+          disabled={
+            busy ||
+            !householdId ||
+            !personId ||
+            !cart.length ||
+            (fulfillmentMethod === 'ship' &&
+              (!shippingAddress.line1.trim() ||
+                !shippingAddress.city.trim() ||
+                !/^[A-Z]{2}$/.test(shippingAddress.region) ||
+                !/^\d{5}(?:-\d{4})?$/.test(shippingAddress.postalCode.trim())))
+          }
           onClick={() => {
             void placeOrder();
           }}

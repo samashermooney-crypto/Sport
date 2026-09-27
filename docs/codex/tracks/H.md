@@ -2,10 +2,10 @@
 
 Requests from OPS: Confirm the campaign enqueue/status API contract for a 20,000-recipient fan-out using only preview/fake delivery adapters, including a durable completed-recipient count for the k6 scenario (2026-09-27).
 
-Status: Phase 10 H-owned work is ready for integration; Phase 11 is in progress; Phase 13 belongs to Track J
+Status: Phase 10 H-owned work is ready for integration; Phase 11 is implemented and locally green, pending the required trunk merge gate; Phase 13 belongs to Track J
 Branch: `track/h-comms` (local only; no push)
 Merged trunk at sprint start: `rebuild/trunk` / `d991fee`; synchronized branch includes `rebuild/trunk` `f091afce`
-Sprint local range: `f091afce..HEAD` (local only; no push)
+Current synchronized base: `rebuild/trunk` `d0385562`; sprint changes remain local and unpushed
 Migration ranges: Phase 10 `4000–4006`; Phase 11 `8000–8499` (Phase 13 is J's `6000–6999`)
 
 ## Delivered
@@ -40,27 +40,29 @@ Track B's catalog/preferences and Track C's provider-ID interface are on the mer
 
 ## Phase 11 progress
 
-- WIP checkpoint commits: `c2eaee1`, `19c5290`, `02ea74a`. Current branch is `track/h-comms`; Phase 11 has not passed acceptance or been merged to trunk.
-- Implemented volunteer, team-finance, fundraising, sponsor, store, family portal, console and public fundraising/sponsor surfaces in H-owned paths. Store shipping migration `8008` was applied on the isolated dev database; `server/src/db/types.ts` regenerated with 188 tables.
-- Targeted Phase 11 database suites now pass: 5 files, 12 tests (volunteers, team finance, fundraising, sponsors and store), including shipping-address validation/snapshot and sponsor invoice/placement checks.
-- On the synchronized tree, `npm run typecheck`, `npm run lint`, `npm run registry` and `npm run openapi` pass. The isolated dev database has migrations through `3017` and `8008`; type generation reports 203 tables. Phase 11 Playwright journeys and the merge gate remain incomplete.
-- Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_h`, `PORT_OFFSET=800`; Postgres `6232`, Mailpit API `8825`, Stripe mock `12911`. No real email, SMS, push or payment was sent.
+- Implemented volunteer operations, team ledgers and fee assessments, fundraising and encrypted nonprofit receipt settings, sponsor records and invoices, store inventory and uniform add-ons/reports, plus console, family portal and public fundraising flows. Existing invoice repositories handle team, sponsor and store billing.
+- Added shipping-address capture at store checkout and manager fulfillment display. Added migrations `8009_team_season_ledgers.sql` and `8010_phase11_foreign_key_indexes.sql`; the isolated database has applied both. Refreshed generated registry and OpenAPI output.
+- Targeted Phase 11 Postgres suites pass: 5 files, 13 tests. They cover volunteer and finance permission boundaries, donation receipts, sponsor invoicing/placements, shipping address snapshots, uniform add-on reporting, and concurrent inventory/idempotency behavior.
+- Phase 11 Playwright journeys pass: 8 runs across Chromium desktop and WebKit mobile, covering the three specified volunteer/team-finance/donation acceptance flows plus ship-to fulfillment. Axe reported no violations. A first parallel run had one donation receipt assertion miss the tax acknowledgment; the persisted settings assertion, isolated rerun and complete Phase 11 rerun all passed.
+- Full Chromium desktop Playwright suite passes: 32 passed, 4 skipped.
+- `npm run typecheck`, `npm run lint`, and `npm run build` pass. Build reports existing Zod annotation, chunking and bundle-size advisories. Full Vitest passes: 240 files passed, 1 skipped; 832 tests passed, 1 skipped.
+- Completion marker: Track H sprint complete after this committed branch passes the locked trunk merge gate; local validation is green.
+- Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_h`, `PORT_OFFSET=800`; Postgres `6232`, Mailpit API `8825`, Stripe mock `12911`. Tests use fake/preview providers; no real email, SMS, push or payment was sent.
 
 ### Next steps
 
-1. Finish syncing `track/h-comms` with latest `rebuild/trunk` (`f091afce`) and review generated registries/routes and migrations through `8008`.
-2. Run and extend targeted tenant/permission DB tests for volunteers, team finance, fundraising, sponsors, store inventory/add-ons and immutable shipping-address snapshots.
-3. Complete Phase 11 acceptance flows and integrate E's invoice/payment contracts; build only with `web/src/ui`.
-4. Add Chromium and WebKit mobile Phase 11 journeys with axe; use `~/athlentry-sprint/heavy.sh` for Playwright and full suites.
-5. Run the SPRINT.md merge gate. Merge to trunk only after the gate is green using the trunk lock and `--no-ff --no-commit` protocol.
+1. Acquire `/tmp/athlentry-trunk.lock` when the current owner releases it and follow the self-merge gate in `SPRINT.md`.
+2. Run the full merge gate on trunk; track completion is effective only after trunk is green.
 
 ### Open requests
 
 - **OPS:** Confirm the campaign enqueue/status API contract for 20,000-recipient fan-out using preview/fake adapters and expose a durable completed-recipient count for k6.
-- **E:** Implement the guest donation payment completion contract used by `server/src/modules/fundraising/checkout.ts`; provide sponsor billing-account semantics and registration add-on inventory reservation integration.
-- **B:** Register Phase 11 catalog IDs: `fundraising.donation_receipt`, `fundraising.campaign_update`, `sponsor.renewal_reminder`, `store.order_update`, `store.low_stock`, `volunteer.shift_reminder`, `volunteer.requirement_behind`, `team.fee_assessed`, and `team.reimbursement_decided`; provide volunteer administration picklists.
-- **C:** Dispatch signed payment completion/failure webhooks, mount generated server/web registries and H routes, and wire jobs.
-- **D/C:** Provide safe public sponsor-logo delivery and mount public fundraising/store/sponsor pages.
-- **A:** Household address capture UI and Phase 10 profile/history integrations remain upstream work.
+- **E/C:** Production guest-donation checkout and signed payment-completion/failure dispatch for `server/src/modules/fundraising/checkout.ts`; dev/test preview checkout is implemented. Confirm registration add-on inventory reservation ownership with E.
+- **B:** Register Phase 11 notification catalog IDs/templates: `fundraising.donation_receipt`, `fundraising.campaign_update`, `sponsor.renewal_reminder`, `store.order_update`, `store.low_stock`, `volunteer.shift_reminder`, `volunteer.requirement_behind`, `team.fee_assessed`, and `team.reimbursement_decided`; provide volunteer administration picklists. H services currently skip catalog-gated notifications until those IDs exist.
+- **C/D:** Authorize safe public sponsor-logo delivery and confirm public sponsor/store page wiring through the website routes.
+- **A:** Phase 10 profile/history links, verified-phone consent, `athleteChatEnabled`, and conversation synchronization.
+- **C:** Phase 10 same-organization conversation-member attachment authorization.
+- **G:** Phase 10 schedule-change coalescing.
+- **OPS:** Confirm the 20,000-recipient campaign enqueue/status contract and durable completed-recipient count.
 - **J:** Owns Phase 13 federation; H does not merge `track/j-federation`.
 - **Phase 10 external work:** A still owns profile message-history links, verified-phone consent, `athleteChatEnabled`, and conversation synchronization; C owns chat attachment authorization; G owns schedule-change coalescing.

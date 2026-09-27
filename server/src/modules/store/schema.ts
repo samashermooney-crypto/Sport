@@ -109,11 +109,27 @@ export const stockBodySchema = z.strictObject({
   quantity: z.number().int().min(1).max(10000),
   memo: z.string().trim().max(500).optional(),
 });
+export const shippingAddressSchema = z.strictObject({
+  line1: z.string().trim().min(1).max(160),
+  line2: z.string().trim().max(160).optional(),
+  city: z.string().trim().min(1).max(100),
+  region: z
+    .string()
+    .trim()
+    .length(2)
+    .regex(/^[A-Z]{2}$/),
+  postalCode: z
+    .string()
+    .trim()
+    .regex(/^\d{5}(?:-\d{4})?$/),
+  country: z.literal('US'),
+});
 export const orderBodySchema = z.strictObject({
   householdId: uuid.nullable().optional(),
   registrationId: uuid.nullable().optional(),
   teamSeasonId: uuid.nullable().optional(),
   fulfillmentMethod: z.enum(['pickup', 'ship']),
+  shippingAddress: shippingAddressSchema.optional(),
   lines: z
     .array(
       z.strictObject({
@@ -168,6 +184,7 @@ export const adminOrderListSchema = z.strictObject({
     orderSchema.extend({
       createdAt: z.iso.datetime({ offset: true }),
       buyerEmail: z.string().nullable(),
+      shippingAddress: shippingAddressSchema.nullable(),
       fulfillment: fulfillmentSchema.nullable(),
     }),
   ),

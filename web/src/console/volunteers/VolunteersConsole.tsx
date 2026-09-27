@@ -125,6 +125,7 @@ export function VolunteersConsole({
   );
   const [buyout, setBuyout] = useState('');
   const [autoInvoice, setAutoInvoice] = useState(false);
+  const [countsCoachRoles, setCountsCoachRoles] = useState(false);
   const [noticeDays, setNoticeDays] = useState('14');
   const [roleId, setRoleId] = useState('');
   const [requirementId, setRequirementId] = useState('');
@@ -234,7 +235,7 @@ export function VolunteersConsole({
           deadline,
           autoInvoiceShortfall: autoInvoice,
           noticeDays: Number(noticeDays),
-          countsCoachRoles: false,
+          countsCoachRoles,
         },
         requirementSchema,
       );
@@ -322,7 +323,7 @@ export function VolunteersConsole({
             ? { hoursCredited: shift.creditHours }
             : {}),
         },
-        signupSchema,
+        signupSchema.omit({ personName: true }),
       );
       setNotice(`${signup.personName} marked ${status.replaceAll('_', ' ')}.`);
       await loadSignups(shift);
@@ -488,6 +489,16 @@ export function VolunteersConsole({
               />{' '}
               Automatically invoice remaining buyout after notice
             </label>
+            <label className="volunteer-console__check">
+              <input
+                type="checkbox"
+                checked={countsCoachRoles}
+                onChange={(event) => {
+                  setCountsCoachRoles(event.target.checked);
+                }}
+              />{' '}
+              Count coach and team-parent shifts toward requirements
+            </label>
             <Button disabled={busy || !scopeId}>Create requirement</Button>
           </form>
         </Card>
@@ -515,6 +526,7 @@ export function VolunteersConsole({
             </Field>
             <Field label="Requirement">
               <Select
+                aria-label="Shift requirement"
                 value={requirementId}
                 onChange={(event) => {
                   setRequirementId(event.target.value);

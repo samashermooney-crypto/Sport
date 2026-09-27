@@ -4,16 +4,23 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDatabase } from '../../../src/db/kysely';
 import { createWithOrg } from '../../../src/db/withOrg';
+import { bindFixtureInvoice } from '../../../src/modules/checkout/test-fixtures';
+import { PostgresPaymentEventRepository } from '../../../src/modules/finance/payment-event-repo';
+import { PostgresPaymentRecordStore } from '../../../src/modules/finance/payment-repo';
+import { systemWorkerActorId } from '../../../src/modules/jobs/credentials-expiry';
 import {
   createProduct,
   createProductCategory,
   listProductCategories,
   listProducts,
   listRegistrationAddOns,
+  listStoreOrders,
   placeStoreOrder,
+  reconcilePaidStoreOrders,
   receiveStock,
   saveRegistrationAddOn,
   updateProductCategory,
+  uniformSizeReport,
 } from '../../../src/modules/store/service';
 import { createTestFactories } from '../../../test/factories';
 
@@ -333,7 +340,7 @@ describe('store inventory ledger', () => {
         idempotencyKey: randomUUID(),
         lines: [{ variantId, quantity: 1, personId }],
       }),
-    ).rejects.toThrow('Add a valid US shipping address');
+    ).rejects.toThrow('Enter a valid US shipping address');
 
     const originalAddress = {
       line1: '12 Field Road',
@@ -374,5 +381,207 @@ describe('store inventory ledger', () => {
     );
 
     expect(savedOrder.shipping_address).toEqual(originalAddress);
+
+    const checkoutAddress = {
+      line1: '44 Tournament Way',
+      line2: 'Unit 5',
+      city: 'Madison',
+      region: 'WI',
+      postalCode: '53704',
+      country: 'US' as const,
+    };
+    const shippedOrder = await placeStoreOrder(database, actor, {
+      householdId,
+      fulfillmentMethod: 'ship',
+      shippingAddress: checkoutAddress,
+      idempotencyKey: randomUUID(),
+      lines: [{ variantId, quantity: 1, personId }],
+    });
+    expect(
+      (await listStoreOrders(database, actor)).find(
+        (item) => item.id === shippedOrder.id,
+      ),
+    ).toMatchObject({ shippingAddress: checkoutAddress });
+  });
+
+  it('reports paid uniform add-on selections by team and size', async () => {
+    const factories = createTestFactories(database);
+    const actor = await factories.actor();
+    const program = await factories.program(actor);
+    const team = await factories.team(actor, program);
+    const householdId = await factories.household(actor);
+    const playerOneId = await factories.person(actor, {
+      firstName: 'Riley',
+      lastName: 'Uniform',
+    });
+    const playerTwoId = await factories.person(actor, {
+      firstName: 'Sam',
+      lastName: 'Uniform',
+    });
+    const registrationOneId = await factories.registration(
+      actor,
+      program,
+      playerOneId,
+      householdId,
+    );
+    const registrationTwoId = await factories.registration(
+      actor,
+      program,
+      playerTwoId,
+      householdId,
+    );
+    await factories.scoped(actor, async (trx) => {
+      for (const personId of [playerOneId, playerTwoId]) {
+        await trx
+          .insertInto('household_members')
+          .values({
+            id: randomUUID(),
+            org_id: actor.orgId,
+            household_id: householdId,
+            person_id: personId,
+            role: 'athlete',
+            financially_responsible: true,
+          })
+          .execute();
+        await trx
+          .insertInto('person_account_links')
+          .values({
+            id: randomUUID(),
+            org_id: actor.orgId,
+            person_id: personId,
+            account_id: actor.accountId,
+            relationship: 'guardian',
+            verified_at: new Date(),
+          })
+          .execute();
+      }
+      await trx
+        .updateTable('registrations')
+        .set({ team_season_id: team.teamSeasonId })
+        .where('org_id', '=', actor.orgId)
+        .where('id', 'in', [registrationOneId, registrationTwoId])
+        .execute();
+    });
+
+    const productId = await createProduct(database, actor, {
+      name: 'Team game uniform',
+      kind: 'uniform',
+      requiredForRegistration: true,
+      variants: [
+        {
+          sku: `UNIFORM-S-${randomUUID().slice(0, 8)}`,
+          size: 'Youth Small',
+          priceCents: 4_500,
+        },
+        {
+          sku: `UNIFORM-M-${randomUUID().slice(0, 8)}`,
+          size: 'Youth Medium',
+          priceCents: 4_500,
+        },
+      ],
+    });
+    const product = (await listProducts(database, actor)).find(
+      (item) => item.id === productId,
+    );
+    const small = product?.variants.find(
+      (variant) => variant.size === 'Youth Small',
+    );
+    const medium = product?.variants.find(
+      (variant) => variant.size === 'Youth Medium',
+    );
+    if (!small || !medium) throw new Error('Uniform sizes were not created');
+    await receiveStock(database, actor, small.id, 5);
+    await receiveStock(database, actor, medium.id, 5);
+    await saveRegistrationAddOn(database, actor, {
+      offeringId: program.offeringId,
+      productId,
+      required: true,
+      quantity: 1,
+      active: true,
+    });
+
+    const orders = await Promise.all([
+      placeStoreOrder(database, actor, {
+        householdId,
+        registrationId: registrationOneId,
+        teamSeasonId: team.teamSeasonId,
+        fulfillmentMethod: 'pickup',
+        idempotencyKey: randomUUID(),
+        lines: [{ variantId: small.id, quantity: 2, personId: playerOneId }],
+      }),
+      placeStoreOrder(database, actor, {
+        householdId,
+        registrationId: registrationTwoId,
+        teamSeasonId: team.teamSeasonId,
+        fulfillmentMethod: 'pickup',
+        idempotencyKey: randomUUID(),
+        lines: [{ variantId: medium.id, quantity: 1, personId: playerTwoId }],
+      }),
+    ]);
+    for (const order of orders) {
+      const checkoutId = randomUUID();
+      const amountCents = order.subtotalCents + order.taxCents;
+      await createWithOrg(database)(actor, (trx) =>
+        trx
+          .insertInto('checkouts')
+          .values({
+            id: checkoutId,
+            org_id: actor.orgId,
+            account_id: actor.accountId,
+            status: 'awaiting_payment',
+            expires_at: new Date(Date.now() + 86_400_000),
+            pricing_snapshot: { totalCents: amountCents },
+          })
+          .execute(),
+      );
+      await bindFixtureInvoice(database, actor, checkoutId, order.invoiceId);
+      const paymentIntentId = `pi_${randomUUID()}`;
+      await new PostgresPaymentRecordStore(database, actor).recordPending({
+        orgId: actor.orgId,
+        checkoutId,
+        invoiceId: order.invoiceId,
+        accountId: actor.accountId,
+        paymentIntentId,
+        amountCents,
+        applicationFeeCents: 0,
+        idempotencyKey: randomUUID(),
+      });
+      await new PostgresPaymentEventRepository(
+        database,
+        systemWorkerActorId,
+      ).applyLatest({
+        orgId: actor.orgId,
+        paymentIntentId,
+        latest: {
+          id: paymentIntentId,
+          clientSecret: null,
+          status: 'succeeded',
+          amountCents,
+          latestChargeId: `ch_${randomUUID()}`,
+          method: 'card',
+        },
+      });
+    }
+    expect(await reconcilePaidStoreOrders(database, actor)).toBe(2);
+
+    await expect(
+      uniformSizeReport(database, actor, {
+        teamSeasonId: team.teamSeasonId,
+        programId: program.programId,
+      }),
+    ).resolves.toEqual([
+      {
+        teamSeasonId: team.teamSeasonId,
+        productName: 'Team game uniform',
+        size: 'Youth Medium',
+        quantity: 1,
+      },
+      {
+        teamSeasonId: team.teamSeasonId,
+        productName: 'Team game uniform',
+        size: 'Youth Small',
+        quantity: 2,
+      },
+    ]);
   });
 });

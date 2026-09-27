@@ -14,21 +14,7 @@ import { systemWorkerActorId } from '../jobs/credentials-expiry';
 import { isNotificationType } from '../notifications/catalog';
 import { createNotification } from '../notifications/service';
 
-const shippingAddressSchema = z.strictObject({
-  line1: z.string().trim().min(1).max(160),
-  line2: z.string().trim().max(160).optional(),
-  city: z.string().trim().min(1).max(100),
-  region: z
-    .string()
-    .trim()
-    .length(2)
-    .regex(/^[A-Z]{2}$/),
-  postalCode: z
-    .string()
-    .trim()
-    .regex(/^\d{5}(?:-\d{4})?$/),
-  country: z.literal('US'),
-});
+import { shippingAddressSchema } from './schema';
 
 export class StoreConflictError extends Error {
   readonly status = 409;
@@ -677,6 +663,7 @@ export async function placeStoreOrder(
     registrationId?: string | null | undefined;
     teamSeasonId?: string | null | undefined;
     fulfillmentMethod: 'pickup' | 'ship';
+    shippingAddress?: z.output<typeof shippingAddressSchema> | undefined;
     idempotencyKey: string;
     lines: {
       variantId: string;
@@ -696,6 +683,7 @@ export async function placeStoreOrder(
         registrationId: input.registrationId ?? null,
         teamSeasonId: input.teamSeasonId ?? null,
         fulfillmentMethod: input.fulfillmentMethod,
+        shippingAddress: input.shippingAddress ?? null,
         lines: input.lines.map((line) => ({
           variantId: line.variantId,
           quantity: line.quantity,
@@ -798,12 +786,16 @@ export async function placeStoreOrder(
           .where('id', '=', input.householdId)
           .where('status', '=', 'active')
           .executeTakeFirst();
+        if (!household)
+          throw new StoreConflictError(
+            'Choose an active household before ordering',
+          );
         const parsedAddress = shippingAddressSchema.safeParse(
-          household?.address,
+          input.shippingAddress ?? household.address,
         );
         if (!parsedAddress.success)
           throw new StoreConflictError(
-            'Add a valid US shipping address to this household before ordering',
+            'Enter a valid US shipping address before ordering',
           );
         shippingAddress = parsedAddress.data;
       }
@@ -1077,11 +1069,13 @@ export async function reconcilePaidStoreOrders(
       variant_id: string;
       quantity: number;
     }>`
-      SELECT order.id AS order_id, line.id AS line_id, line.product_variant_id AS variant_id, line.quantity
-      FROM store_orders order JOIN invoices invoice ON invoice.org_id = order.org_id AND invoice.id = order.invoice_id
-      JOIN store_order_lines line ON line.org_id = order.org_id AND line.order_id = order.id
-      WHERE order.org_id = ${context.orgId} AND order.status = 'awaiting_payment' AND invoice.status = 'paid'
-      ORDER BY order.created_at FOR UPDATE OF order SKIP LOCKED`.execute(trx);
+      SELECT store_order.id AS order_id, line.id AS line_id, line.product_variant_id AS variant_id, line.quantity
+      FROM store_orders store_order JOIN invoices invoice ON invoice.org_id = store_order.org_id AND invoice.id = store_order.invoice_id
+      JOIN store_order_lines line ON line.org_id = store_order.org_id AND line.order_id = store_order.id
+      WHERE store_order.org_id = ${context.orgId} AND store_order.status = 'awaiting_payment' AND invoice.status = 'paid'
+      ORDER BY store_order.created_at FOR UPDATE OF store_order SKIP LOCKED`.execute(
+      trx,
+    );
     for (const row of rows.rows) {
       await trx
         .insertInto('inventory_movements')
@@ -1176,30 +1170,31 @@ export async function listStoreOrders(
 ) {
   return createWithOrg(database)(context, async (trx) => {
     const rows = await trx
-      .selectFrom('store_orders as order')
+      .selectFrom('store_orders as store_order')
       .leftJoin('store_fulfillments as fulfillment', (join) =>
         join
-          .onRef('fulfillment.org_id', '=', 'order.org_id')
-          .onRef('fulfillment.order_id', '=', 'order.id'),
+          .onRef('fulfillment.org_id', '=', 'store_order.org_id')
+          .onRef('fulfillment.order_id', '=', 'store_order.id'),
       )
       .leftJoin('accounts as account', (join) =>
-        join.on('account.id', '=', 'order.account_id'),
+        join.onRef('account.id', '=', 'store_order.account_id'),
       )
       .select([
-        'order.id',
-        'order.status',
-        'order.invoice_id',
-        'order.subtotal_cents',
-        'order.tax_cents',
-        'order.created_at',
+        'store_order.id',
+        'store_order.status',
+        'store_order.invoice_id',
+        'store_order.subtotal_cents',
+        'store_order.tax_cents',
+        'store_order.created_at',
+        'store_order.shipping_address',
         'account.email as buyer_email',
         'fulfillment.method',
         'fulfillment.status as fulfillment_status',
         'fulfillment.tracking_number',
         'fulfillment.version as fulfillment_version',
       ])
-      .where('order.org_id', '=', context.orgId)
-      .orderBy('order.created_at', 'desc')
+      .where('store_order.org_id', '=', context.orgId)
+      .orderBy('store_order.created_at', 'desc')
       .limit(200)
       .execute();
     return rows.map((row) => ({
@@ -1210,8 +1205,10 @@ export async function listStoreOrders(
       taxCents: row.tax_cents,
       createdAt: row.created_at.toISOString(),
       buyerEmail: row.buyer_email,
+      shippingAddress: row.shipping_address,
       fulfillment: row.method
         ? {
+            orderId: row.id,
             method: row.method,
             status: row.fulfillment_status,
             trackingNumber: row.tracking_number,
@@ -1228,25 +1225,25 @@ export async function listMyStoreOrders(
 ) {
   return createWithOrg(database)(context, async (trx) => {
     const rows = await trx
-      .selectFrom('store_orders as order')
+      .selectFrom('store_orders as store_order')
       .leftJoin('store_fulfillments as fulfillment', (join) =>
         join
-          .onRef('fulfillment.org_id', '=', 'order.org_id')
-          .onRef('fulfillment.order_id', '=', 'order.id'),
+          .onRef('fulfillment.org_id', '=', 'store_order.org_id')
+          .onRef('fulfillment.order_id', '=', 'store_order.id'),
       )
       .select([
-        'order.id',
-        'order.status',
-        'order.invoice_id',
-        'order.subtotal_cents',
-        'order.tax_cents',
+        'store_order.id',
+        'store_order.status',
+        'store_order.invoice_id',
+        'store_order.subtotal_cents',
+        'store_order.tax_cents',
         'fulfillment.method',
         'fulfillment.status as fulfillment_status',
         'fulfillment.tracking_number',
       ])
-      .where('order.org_id', '=', context.orgId)
-      .where('order.account_id', '=', context.actor.accountId)
-      .orderBy('order.created_at', 'desc')
+      .where('store_order.org_id', '=', context.orgId)
+      .where('store_order.account_id', '=', context.actor.accountId)
+      .orderBy('store_order.created_at', 'desc')
       .limit(100)
       .execute();
     return rows.map((row) => ({
@@ -1350,11 +1347,11 @@ export async function uniformSizeReport(
       quantity: number;
     }>`
       SELECT line.team_season_id, product.name, variant.size, sum(line.quantity)::int AS quantity
-      FROM store_order_lines line JOIN store_orders order ON order.org_id = line.org_id AND order.id = line.order_id
+      FROM store_order_lines line JOIN store_orders store_order ON store_order.org_id = line.org_id AND store_order.id = line.order_id
       JOIN products product ON product.org_id = line.org_id AND product.id = line.product_id
       JOIN product_variants variant ON variant.org_id = line.org_id AND variant.id = line.product_variant_id
       LEFT JOIN registrations registration ON registration.org_id = line.org_id AND registration.id = line.registration_id
-      WHERE line.org_id = ${context.orgId} AND product.kind = 'uniform' AND order.status IN ('paid', 'fulfilling', 'fulfilled')
+      WHERE line.org_id = ${context.orgId} AND product.kind = 'uniform' AND store_order.status IN ('paid', 'fulfilling', 'fulfilled')
         AND (${input.teamSeasonId ?? null}::uuid IS NULL OR line.team_season_id = ${input.teamSeasonId ?? null}::uuid)
         AND (${input.programId ?? null}::uuid IS NULL OR registration.program_id = ${input.programId ?? null}::uuid)
       GROUP BY line.team_season_id, product.name, variant.size ORDER BY product.name, variant.size`.execute(
