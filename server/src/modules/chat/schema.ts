@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const conversationKindSchema = z.enum([
+const conversationKindSchema = z.enum([
   'team',
   'team_staff',
   'announcement',
@@ -33,10 +33,6 @@ export const chatReportSchema = z.strictObject({
 export const chatModerationUpdateSchema = z.strictObject({
   status: z.enum(['reviewing', 'resolved', 'dismissed']),
   expectedVersion: z.number().int().positive(),
-});
-export const readReceiptSchema = z.strictObject({
-  updatedAt: z.iso.datetime({ offset: true }),
-  readByCount: z.number().int().nonnegative(),
 });
 export const chatMessageSchema = z.strictObject({
   id: z.uuid(),

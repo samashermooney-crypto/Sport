@@ -446,7 +446,7 @@ export const setupIntentResponseSchema = z.strictObject({
   id: z.string().startsWith('seti_'),
   clientSecret: z.string().min(1),
 });
-export const savedPaymentMethodSchema = z.strictObject({
+const savedPaymentMethodSchema = z.strictObject({
   id: z.string().startsWith('pm_'),
   type: z.enum(['card', 'us_bank_account', 'link']),
   brand: z.string().nullable(),

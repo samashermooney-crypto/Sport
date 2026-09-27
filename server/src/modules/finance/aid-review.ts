@@ -6,7 +6,7 @@ import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import { decodeCursor, pageFromRows } from '../../lib/pagination.js';
 import { appendAuditEvent } from '../audit/service.js';
 
-export const aidQueueItemSchema = z.strictObject({
+const aidQueueItemSchema = z.strictObject({
   id: z.uuid(),
   aidProgramId: z.uuid(),
   householdId: z.uuid(),

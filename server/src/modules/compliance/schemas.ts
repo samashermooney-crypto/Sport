@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const credentialRoleSchema = z.enum([
+const credentialRoleSchema = z.enum([
   'head_coach',
   'assistant_coach',
   'team_manager',

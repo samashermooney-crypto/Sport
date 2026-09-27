@@ -8,7 +8,7 @@ import { appendAuditEvent } from '../audit/service.js';
 
 import { MoneyDocumentUnavailableError } from './money-documents.js';
 
-export const payerReceiptSchema = z.strictObject({
+const payerReceiptSchema = z.strictObject({
   paymentId: z.uuid(),
   amountCents: z.number().int().positive(),
   method: z.string(),
