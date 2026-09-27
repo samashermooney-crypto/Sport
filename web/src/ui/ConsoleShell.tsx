@@ -22,7 +22,8 @@ export function ConsoleShell({
   const location = useLocation();
   const navigate = useNavigate();
   const impersonationId = useImpersonationId();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [search, setSearch] = useState({ orgId, query: '' });
+  const searchQuery = search.orgId === orgId ? search.query : '';
   const workspace = useQuery({
     queryKey: ['orgs', orgId, 'workspace'],
     queryFn: () => apiGet(`/orgs/${orgId}/workspace`, orgWorkspaceSchema),
@@ -90,6 +91,7 @@ export function ConsoleShell({
   });
   return (
     <AppShell
+      key={orgId}
       orgName={workspace.data?.name ?? 'Athlentry'}
       orgSwitcher={
         organizations.data && organizations.data.length > 1 ? (
@@ -147,7 +149,9 @@ export function ConsoleShell({
         item('Messages'),
         item('Account'),
       ]}
-      onGlobalSearch={setSearchQuery}
+      onGlobalSearch={(query) => {
+        setSearch({ orgId, query });
+      }}
       searchResults={globalSearchResults}
       searchLoading={peopleSearch.isFetching || householdSearch.isFetching}
       searchError={
