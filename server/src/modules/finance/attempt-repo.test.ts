@@ -8,6 +8,7 @@ import { createDatabase } from '../../db/kysely.js';
 import type { DB } from '../../db/types.js';
 import type { OrgContext } from '../../db/withOrg.js';
 import { createWithOrg } from '../../db/withOrg.js';
+import { bindFixtureInvoice } from '../checkout/test-fixtures.js';
 
 import { PostgresPaymentAttemptStore } from './attempt-repo.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
@@ -193,6 +194,12 @@ describe('Postgres PaymentIntent attempt store', () => {
     await store.beginExternal(winner);
     expect(await store.reserve(loser)).toEqual({ kind: 'busy' });
     const paymentIntentId = `pi_${randomUUID()}`;
+    await bindFixtureInvoice(
+      database,
+      context,
+      competingCheckoutId,
+      invoice.id,
+    );
     await new PostgresPaymentRecordStore(database, context).recordPending({
       orgId: context.orgId,
       checkoutId: competingCheckoutId,

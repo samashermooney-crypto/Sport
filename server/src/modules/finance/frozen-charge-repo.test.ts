@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../../db/kysely.js';
 import type { DB, Json } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
+import { PostgresCheckoutInvoiceLinker } from '../checkout/invoice-link-repo.js';
 
 import { PostgresFrozenChargeReader } from './frozen-charge-repo.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
@@ -111,6 +112,10 @@ beforeAll(async () => {
   const profiles = new PostgresPayerProfileRepository(database);
   expect(await profiles.reserve(accountId)).toEqual({ kind: 'reserved' });
   await profiles.save(accountId, 'cus_frozen');
+  await new PostgresCheckoutInvoiceLinker(database, context).link(
+    checkoutId,
+    invoiceId,
+  );
 });
 
 afterAll(async () => {
@@ -136,6 +141,46 @@ describe('frozen checkout charge reader', () => {
     });
     if (!charge) throw new Error('Frozen charge is missing');
     expect(quoteCharge(charge).amountCents).toBe(1050);
+  });
+
+  it('rejects a different payer-owned invoice with identical cents', async () => {
+    const sameCents = await new PostgresInvoiceRepository(
+      database,
+      context,
+    ).issue({
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      source: 'checkout',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'registration',
+          description: 'Other registration',
+          amountCents: 1000,
+          refundable: true,
+        },
+        {
+          kind: 'service_fee',
+          description: 'Service fee',
+          amountCents: 50,
+          refundable: true,
+        },
+      ],
+    });
+    await expect(
+      new PostgresFrozenChargeReader(database, context).load({
+        orgId: context.orgId,
+        checkoutId,
+        invoiceId: sameCents.id,
+        accountId: context.actor.accountId,
+      }),
+    ).rejects.toThrow('Checkout is not payable');
+    await expect(
+      new PostgresCheckoutInvoiceLinker(database, context).link(
+        checkoutId,
+        sameCents.id,
+      ),
+    ).rejects.toThrow('already linked');
   });
 
   it('fails closed when a frozen amount differs from the invoice', async () => {

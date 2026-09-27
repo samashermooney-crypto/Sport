@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../../db/kysely.js';
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
+import { bindFixtureInvoice } from '../checkout/test-fixtures.js';
 
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
@@ -73,6 +74,7 @@ beforeAll(async () => {
       .execute(),
   );
   records = new PostgresPaymentRecordStore(database, context);
+  await bindFixtureInvoice(database, context, checkoutId, invoiceId);
 });
 
 afterAll(async () => {
@@ -124,5 +126,28 @@ describe('pending checkout payment records', () => {
     await expect(
       records.recordPending({ ...pending(500), orgId: newId() }),
     ).rejects.toThrow('organization mismatch');
+  });
+
+  it('does not record money against an unbound checkout invoice', async () => {
+    const otherCheckoutId = newId();
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .insertInto('checkouts')
+        .values({
+          id: otherCheckoutId,
+          org_id: context.orgId,
+          account_id: context.actor.accountId,
+          status: 'awaiting_payment',
+          expires_at: new Date('2027-01-01T00:00:00Z'),
+          pricing_snapshot: { totalCents: 1000 },
+        })
+        .execute(),
+    );
+    await expect(
+      records.recordPending({
+        ...pending(100),
+        checkoutId: otherCheckoutId,
+      }),
+    ).rejects.toThrow('unavailable');
   });
 });

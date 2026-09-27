@@ -11,6 +11,7 @@ Ready for integration: local `5e14320..385d96a` — frozen checkout persistence 
 Ready for integration: local `385d96a..d63eaba` — payer-owned PaymentIntent HTTP API, replay guard and portal Payment Element binding; queue work continues.
 Ready for integration: local `d63eaba..c609ac2` — ambiguous Stripe confirmation resubmission guard; queue work continues.
 Ready for integration: local `d47d120..409f99c` — direct participant access fix and versioned installment-template finance API; queue work continues.
+Ready for integration: local `409f99c..189e0e9` — Luna finance handoff and idempotent `account.updated` Connect sync handler; queue work continues.
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
@@ -21,8 +22,10 @@ Requests to other tracks: A: run registry/OpenAPI generation after merging E's `
 Requests to other tracks: A: include the new `/api/v1/finance/orgs/{orgId}/checkout-payment-intents` route in generated registry/OpenAPI after merging E; E owns the route and payer authorization (2026-09-27).
 Requests to other tracks: A: mount E's `ConnectScreen`, `ConnectReturn`, and `ConnectRefresh` at the console money route and `/orgs/{orgId}/money/connect/{return,refresh}` targets in A-owned app router; E's Connect API supplies onboarding, continue, status and dashboard links (2026-09-27).
 Requests to other tracks: A: mount E's `CheckoutPaymentScreen` only after A/B checkout flow supplies payer-owned checkout/invoice IDs and the frozen quote; E's screen posts the stable key to its PaymentIntent route and validates returned cents before rendering Stripe (2026-09-27).
+Requests to other tracks: A: checkout flow must call E's `PostgresCheckoutInvoiceLinker.link(checkoutId, invoiceId)` after issuing the frozen checkout invoice and before presenting a PaymentIntent; migration 1022 enforces one invoice per checkout, and generated DB types need regeneration (2026-09-27).
 Requests to other tracks: A: provide a durable system actor account ID for finance worker jobs and mount Stripe raw webhook router before JSON parsing; E handlers require that actor for org-scoped audit and will register jobs after the contract lands (2026-09-26).
 Requests to other tracks: A: include E's `connectAccountHandlers` in the `stripe.event` dispatcher when wiring the worker; it verifies Connect endpoint account identity and fresh Stripe metadata before withOrg sync (2026-09-27).
+Requests to other tracks: A: block opening a priced registration offering until its organization's `payment_accounts.charges_enabled` is true, using E's Connect account state (2026-09-27).
 Requests to other tracks: A: record invoice refund terms at issuance as a policy snapshot in DECISIONS.md; changing org/program settings must not reprice a historical refund (2026-09-27).
 Blocked on: None; schema spine and test factories are on `rebuild/trunk`.
 Luna finance: Build checkout flow by calling `CheckoutPricingService` with `PostgresCheckoutPricingRepository`, then `PostgresInvoiceRepository.issue`, then `CheckoutPaymentService` with `PostgresFrozenChargeReader`/attempt/record stores; never calculate or trust client-provided prices or create a Stripe intent before a frozen invoice reconciles.
@@ -37,7 +40,7 @@ Gateway review: test-only keys and events enforced; raw webhook bytes verified; 
 Gateway review: no live keys, no real payment or email sent; test-mode smoke script needs operator test credentials and onboarding.
 Gateway gate: 83 tests, typecheck, lint, build, registry/OpenAPI/codegen freshness green; no gateway screens for Playwright.
 Additional gate: 267 tests passed/1 skipped against isolated Postgres, typecheck, lint and build green; no affected mounted Playwright screens or generated inputs.
-Current gate: 533 tests passed/1 skipped with isolated Postgres and stripe-mock; typecheck, lint, build, and Playwright 24 passed/4 skipped on Chromium/WebKit mobile. A-owned registry/OpenAPI/codegen regeneration remains for integration.
+Current gate: 535 tests passed/1 skipped with isolated Postgres and stripe-mock; typecheck, lint, build, and Playwright 24 passed/4 skipped on Chromium/WebKit mobile. A-owned registry/OpenAPI/codegen regeneration remains for integration.
 Current review: Refund approval hashes bind requester, proposal, destination and key; checkout attempts serialize different keys before Stripe, and payout exports require exact reconciliation.
 Current review: Tenant finance data uses `withOrg`; account-wide payer methods use the authenticated account; no live keys, real charges or external messages were used.
 Current review: Frozen charge terms must be persisted with the checkout snapshot before the payment route is mounted; multi-payment refund allocation and dispute evidence remain in the queue.
@@ -64,6 +67,7 @@ Money idempotency: PaymentIntent and refund attempts set a durable external-star
 Checkout payment fence: `payment_attempts` now serializes each checkout before reservation and blocks different keys while an attempt is reserved/external-started or a payment is active; a new key opens only after failure/cancellation. Concurrent-key and failed-payment Postgres test passes.
 Payment attempts: migration 1002 and `finance/attempt-repo.ts` persist scoped request-hash conflicts, pre-external retries, external fences and replayed results; 3 real-Postgres tests pass.
 Payment HTTP: authenticated payer-only `/api/v1/finance/orgs/{orgId}/checkout-payment-intents` creates a destination PaymentIntent from a reconciled frozen checkout and invoice, records the pending allocation before returning its secret, and replays the exact key; HTTP/Postgres/fake-Stripe and cross-payer replay tests pass.
+Checkout invoice binding: migration 1022 adds a unique org-scoped checkout invoice FK; `PostgresCheckoutInvoiceLinker` verifies frozen checkout/invoice cents before linking, and charge reader/payment recorder reject unlinked or substituted invoices; 12 focused Postgres suites pass.
 Installment quotes: `finance/installment-quotes.ts` uses Track B schedule and fee algorithms to show per-charge service/application fees and reconcile the plan total; 2 targeted tests pass.
 Installment templates: `finance/installment-templates.ts` provides active list and audited, version-checked create/replace/archive for monthly and fixed-date plans; finance HTTP writes require active finance access, and direct participant links or membership gate reads; 2 Postgres and 1 HTTP lifecycle tests pass; weekly awaits Track B's shared algorithm.
 Connect core: `finance/connect.ts` defines withOrg reservation/persistence, org-stable Stripe account creation, onboarding/dashboard links and latest-state refresh; 5 targeted tests pass; unresolved Stripe creation keeps its reservation for reconciliation.

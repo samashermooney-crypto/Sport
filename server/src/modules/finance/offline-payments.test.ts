@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../../db/kysely.js';
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
+import { bindFixtureInvoice } from '../checkout/test-fixtures.js';
 
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresOfflinePayments } from './offline-payments.js';
@@ -164,6 +165,7 @@ describe('offline payments', () => {
         })
         .execute(),
     );
+    await bindFixtureInvoice(database, context, checkoutId, invoiceId);
     await new PostgresPaymentRecordStore(database, context).recordPending({
       orgId: context.orgId,
       checkoutId,
