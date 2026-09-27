@@ -19,8 +19,8 @@ export interface SessionOptions {
   client: 'web' | 'ios' | 'android';
   privileged: boolean;
   mfaVerifiedAt?: Date;
-  ip?: string;
-  userAgent?: string;
+  ip?: string | undefined;
+  userAgent?: string | undefined;
 }
 
 export interface IssuedSession {
@@ -66,6 +66,7 @@ export async function issueSession(
       account_id: options.accountId,
       kind: options.kind,
       client: options.client,
+      privileged: options.privileged,
       idle_expires_at: idleExpiresAt,
       absolute_expires_at: absoluteExpiresAt,
       mfa_verified_at: options.mfaVerifiedAt ?? null,
@@ -92,6 +93,7 @@ export interface ActiveSession {
   accountId: string;
   kind: 'cookie' | 'bearer';
   client: 'web' | 'ios' | 'android';
+  privileged: boolean;
   elevatedUntil: Date | null;
   mfaVerifiedAt: Date | null;
 }
@@ -112,6 +114,7 @@ export async function resolveSession(
       'sessions.client',
       'sessions.elevated_until',
       'sessions.mfa_verified_at',
+      'sessions.privileged',
       'sessions.absolute_expires_at',
     ])
     .where('sessions.token_hash', '=', digest(raw))
@@ -122,7 +125,7 @@ export async function resolveSession(
     .executeTakeFirst();
   if (!row) return null;
 
-  const idleWindow = row.mfa_verified_at ? privilegedIdle : 14 * day;
+  const idleWindow = row.privileged ? privilegedIdle : 14 * day;
   const idleExpiresAt = new Date(
     Math.min(now.getTime() + idleWindow, row.absolute_expires_at.getTime()),
   );
@@ -141,6 +144,7 @@ export async function resolveSession(
     accountId: row.account_id,
     kind: row.kind as ActiveSession['kind'],
     client: row.client as ActiveSession['client'],
+    privileged: row.privileged,
     elevatedUntil: row.elevated_until,
     mfaVerifiedAt: row.mfa_verified_at,
   };

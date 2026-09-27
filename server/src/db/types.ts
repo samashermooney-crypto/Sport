@@ -44,6 +44,7 @@ export interface Accounts {
   id: string;
   last_name: string;
   last_sign_in_at: Timestamp | null;
+  linked_org_ids: Generated<string[]>;
   locale: Generated<string>;
   password_hash: string | null;
   phone_e164: string | null;
@@ -189,6 +190,16 @@ export interface Plans {
   updated_at: Generated<Timestamp>;
 }
 
+export interface PrivacyRequests {
+  account_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  kind: string;
+  reason: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface RoleAssignments {
   account_id: string;
   created_at: Generated<Timestamp>;
@@ -233,6 +244,7 @@ export interface Sessions {
   ip: string | null;
   kind: string;
   mfa_verified_at: Timestamp | null;
+  privileged: Generated<boolean>;
   revoked_at: Timestamp | null;
   token_hash: Buffer;
   updated_at: Generated<Timestamp>;
@@ -252,6 +264,7 @@ export interface DB {
   org_memberships: OrgMemberships;
   organizations: Organizations;
   plans: Plans;
+  privacy_requests: PrivacyRequests;
   role_assignments: RoleAssignments;
   schema_migrations: SchemaMigrations;
   security_events: SecurityEvents;

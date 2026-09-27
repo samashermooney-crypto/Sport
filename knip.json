@@ -23,6 +23,7 @@
   "ignoreExportsUsedInFile": { "type": true, "interface": true },
   "ignoreIssues": {
     "server/src/db/types.ts": ["exports", "types"],
-    "server/src/db/withOrg.ts": ["exports"]
+    "server/src/db/withOrg.ts": ["exports"],
+    "server/src/integrations/email/sender.ts": ["exports"]
   }
 }

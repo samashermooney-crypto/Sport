@@ -20,6 +20,7 @@ const lifetimeMilliseconds: Record<AuthTokenPurpose, number> = {
   athlete_account_invitation: 7 * 24 * 60 * 60 * 1_000,
   claim_person: 7 * 24 * 60 * 60 * 1_000,
   email_change: 60 * 60 * 1_000,
+  mfa_challenge: 5 * 60 * 1_000,
 };
 
 function digest(raw: string): Buffer {

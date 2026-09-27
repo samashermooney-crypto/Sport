@@ -79,3 +79,19 @@
 - **Decision:** Verification links expire after 24 hours; password-reset and email-change links after 1 hour; invitations and person-claim links after 7 days. Every token is one use and a resend revokes the previous live token for the same subject.
 - **Why:** Limits the useful lifetime of a leaked link while allowing families enough time to accept invitations.
 - **Consequences / follow-ups:** Email templates and UI must show the relevant expiry and offer a working resend path.
+
+### DEC-009 — Account organization index for authentication
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 sign-in authorization
+- **Context:** Global sign-in must detect elevated roles across organizations, while every membership and role query must run through `withOrg`. The specification does not provide a global locator for an account's organizations.
+- **Decision:** A database trigger maintains `accounts.linked_org_ids` when a membership is created. Sign-in reads this account-level index, then checks memberships and roles separately inside `withOrg` for each linked organization.
+- **Why:** Preserves tenant isolation without giving the sign-in service broad admin-role access to tenant rows.
+- **Consequences / follow-ups:** Membership migrations and repair tools must preserve or rebuild the index; role policies must independently require MFA for elevated actions even if an index is stale.
+
+### DEC-010 — Local legal drafts for consent capture
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 sign-up
+- **Context:** Sign-up must capture the exact Terms and Privacy text accepted, while `13` schedules full legal drafts for Phase 16 and production requires legal review.
+- **Decision:** Local sign-up uses versioned, clearly marked draft text now and stores its exact text in append-only consent rows. Production remains blocked until approved legal documents replace the drafts.
+- **Why:** Allows the complete consent flow to be tested without presenting draft terms as approved production policy.
+- **Consequences / follow-ups:** Phase 16 must replace the drafts with reviewable full documents and preserve older consent versions for evidence.
