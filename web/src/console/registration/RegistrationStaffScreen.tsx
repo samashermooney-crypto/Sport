@@ -46,6 +46,28 @@ const waitlistSchema = z.strictObject({
     }),
   ),
 });
+const teamEntriesSchema = z.strictObject({
+  entries: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      teamName: z.string(),
+      programId: z.uuid(),
+      programName: z.string(),
+      divisionId: z.uuid(),
+      divisionName: z.string(),
+      offeringId: z.uuid(),
+      offeringName: z.string(),
+      captainPersonId: z.uuid().nullable(),
+      status: z.string(),
+      seedHint: z.number().int().nullable(),
+      createdAt: z.iso.datetime(),
+      inviteCount: z.number().int().nonnegative(),
+    }),
+  ),
+});
+const teamDecisionSchema = z.strictObject({
+  status: z.enum(['accepted', 'declined']),
+});
 
 const refundPreviewSchema = z
   .strictObject({
@@ -142,6 +164,9 @@ export function RegistrationStaffScreen({
   const [reportStatus, setReportStatus] = useState('');
   const [showReports, setShowReports] = useState(false);
   const [note, setNote] = useState('');
+  const [teamDecisionNotes, setTeamDecisionNotes] = useState<
+    Record<string, string>
+  >({});
   const [cancelReason, setCancelReason] = useState('');
   const [cancelId, setCancelId] = useState('');
   const [transferIds, setTransferIds] = useState<Record<string, string>>({});
@@ -160,6 +185,10 @@ export function RegistrationStaffScreen({
         `${base}/registrations${status ? `?status=${encodeURIComponent(status)}` : ''}`,
         registrationsSchema,
       ),
+  });
+  const teamEntries = useQuery({
+    queryKey: ['registration', orgId, 'staff-team-entries'],
+    queryFn: () => apiGet(`${base}/team-entries`, teamEntriesSchema),
   });
   const waitlist = useQuery({
     queryKey: ['registration', orgId, 'staff-waitlist', loadedOfferingId],
@@ -215,7 +244,44 @@ export function RegistrationStaffScreen({
       queryClient.invalidateQueries({
         queryKey: ['registration', orgId, 'staff-waitlist'],
       }),
+      queryClient.invalidateQueries({
+        queryKey: ['registration', orgId, 'staff-team-entries'],
+      }),
     ]);
+  };
+  const decideTeamEntry = async (
+    entryId: string,
+    decision: 'approved' | 'declined',
+    reason: string,
+  ): Promise<void> => {
+    if (decision === 'declined' && !reason.trim()) {
+      setActionError('Add a reason before declining this team entry.');
+      return;
+    }
+    setBusy(entryId);
+    setActionError('');
+    setNotice('');
+    try {
+      await apiPost(
+        `${base}/team-entries/${encodeURIComponent(entryId)}/approval`,
+        { decision, ...(reason.trim() ? { note: reason.trim() } : {}) },
+        teamDecisionSchema,
+      );
+      setNotice(
+        decision === 'approved'
+          ? 'Team entry approved.'
+          : 'Team entry declined.',
+      );
+      await refresh();
+    } catch (caught) {
+      setActionError(
+        caught instanceof Error
+          ? caught.message
+          : 'The team entry decision could not be saved.',
+      );
+    } finally {
+      setBusy('');
+    }
   };
   const decide = async (
     registrationId: string,
@@ -574,6 +640,78 @@ export function RegistrationStaffScreen({
           ) : null}
         </article>
       ))}
+      <section aria-labelledby="staff-team-entries-title">
+        <h2 id="staff-team-entries-title">Team entries</h2>
+        {teamEntries.isLoading ? (
+          <p role="status">Loading team entries…</p>
+        ) : null}
+        {teamEntries.error ? (
+          <p role="alert" className="money-error">
+            Team entries are unavailable.
+          </p>
+        ) : null}
+        {teamEntries.data?.entries.length === 0 ? (
+          <p>No external team entries yet.</p>
+        ) : null}
+        {teamEntries.data?.entries.map((entry) => (
+          <article className="money-panel" key={entry.id}>
+            <div className="money-invoice-heading">
+              <strong>{entry.teamName}</strong>
+              <span>{entry.status.replaceAll('_', ' ')}</span>
+            </div>
+            <p>
+              {entry.programName} · {entry.divisionName} · {entry.offeringName}
+            </p>
+            <p>{entry.inviteCount} player invitations</p>
+            {entry.status === 'pending_approval' ? (
+              <>
+                <label htmlFor={`team-entry-decision-note-${entry.id}`}>
+                  Decision note (required to decline)
+                </label>
+                <input
+                  id={`team-entry-decision-note-${entry.id}`}
+                  value={teamDecisionNotes[entry.id] ?? ''}
+                  maxLength={400}
+                  onChange={(event) => {
+                    setTeamDecisionNotes((current) => ({
+                      ...current,
+                      [entry.id]: event.currentTarget.value,
+                    }));
+                  }}
+                />{' '}
+                <button
+                  className="button"
+                  type="button"
+                  disabled={Boolean(busy)}
+                  onClick={() => {
+                    void decideTeamEntry(
+                      entry.id,
+                      'approved',
+                      teamDecisionNotes[entry.id] ?? '',
+                    );
+                  }}
+                >
+                  Approve team
+                </button>{' '}
+                <button
+                  className="button secondary"
+                  type="button"
+                  disabled={Boolean(busy)}
+                  onClick={() => {
+                    void decideTeamEntry(
+                      entry.id,
+                      'declined',
+                      teamDecisionNotes[entry.id] ?? '',
+                    );
+                  }}
+                >
+                  Decline team
+                </button>
+              </>
+            ) : null}
+          </article>
+        ))}
+      </section>
       <section aria-labelledby="staff-waitlist-title">
         <h2 id="staff-waitlist-title">Waitlist offers</h2>
         <label htmlFor="waitlist-offering-id">Offering ID</label>{' '}

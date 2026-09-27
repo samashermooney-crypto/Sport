@@ -3049,6 +3049,8 @@ export interface TeamEntries {
   captain_person_id: string | null;
   contact_account_id: string | null;
   created_at: Generated<Timestamp>;
+  creation_hash: Buffer | null;
+  creation_key: string | null;
   division_id: string;
   entrant_org_id: string | null;
   external_team_id: string | null;
@@ -3066,6 +3068,7 @@ export interface TeamEntries {
 
 export interface TeamEntryInvites {
   accepted_registration_id: string | null;
+  checkout_id: string | null;
   created_at: Generated<Timestamp>;
   email: string;
   expires_at: Timestamp;

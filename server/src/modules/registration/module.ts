@@ -36,6 +36,17 @@ import {
   registrationParticipantsSchema,
   checkoutViewSchema,
 } from './routes.js';
+import {
+  acceptTeamEntryInviteSchema,
+  createTeamEntrySchema,
+  inviteTeamPlayersSchema,
+  teamEntryDecisionSchema,
+  teamEntryInviteListSchema,
+  teamEntryInvitePreviewSchema,
+  teamEntryListSchema,
+  teamEntryOptionsSchema,
+  teamEntrySchema,
+} from './team-entries.js';
 
 export const moduleDefinition = {
   name: 'registration',
@@ -66,6 +77,7 @@ export const moduleDefinition = {
     'NOT_TRANSFERABLE',
     'DESTINATION_UNAVAILABLE',
     'IDEMPOTENCY_CONFLICT',
+    'TEAM_ENTRY_UNAVAILABLE',
   ],
   openapiRoutes: [
     {
@@ -208,6 +220,76 @@ export const moduleDefinition = {
       summary: 'Transfer a registration with explicit financial treatment',
       body: transferBodySchema,
       response: registrationTransferResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/registration/orgs/{orgId}/me/team-entries',
+      summary: 'List team entries owned by the authenticated captain',
+      response: teamEntryListSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/registration/orgs/{orgId}/team-entry-options',
+      summary: 'List open zero-fee team offerings and verified adult captains',
+      response: teamEntryOptionsSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/registration/orgs/{orgId}/team-entries',
+      summary: 'List team entries in the registrar role scope',
+      response: teamEntryListSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/registration/orgs/{orgId}/team-entries',
+      summary: 'Register an external adult team as its verified captain',
+      body: createTeamEntrySchema,
+      response: teamEntrySchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/registration/orgs/{orgId}/team-entries/{entryId}/invites',
+      summary: 'List captain and staff-visible player invitations',
+      response: teamEntryInviteListSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/registration/orgs/{orgId}/team-entries/{entryId}/invites',
+      summary: 'Invite players by verified account email',
+      body: inviteTeamPlayersSchema,
+      response: z.strictObject({
+        invites: z.array(
+          z.strictObject({
+            id: z.uuid(),
+            email: z.email(),
+            expiresAt: z.iso.datetime(),
+            inviteUrl: z.url(),
+          }),
+        ),
+      }),
+    },
+    {
+      method: 'post',
+      path: '/api/v1/registration/orgs/{orgId}/team-entries/{entryId}/approval',
+      summary: 'Approve or decline an external team entry',
+      body: z.strictObject({
+        decision: z.enum(['approved', 'declined']),
+        note: z.string().trim().max(400).optional(),
+      }),
+      response: teamEntryDecisionSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/registration/orgs/{orgId}/team-entry-invites/{token}',
+      summary: 'Read a team invitation for the authenticated invited player',
+      response: teamEntryInvitePreviewSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/registration/orgs/{orgId}/team-entry-invites/{token}/accept',
+      summary: 'Accept an invitation and open the normal player checkout',
+      body: acceptTeamEntryInviteSchema,
+      response: z.strictObject({ checkoutId: z.uuid() }),
     },
     {
       method: 'get',

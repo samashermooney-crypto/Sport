@@ -73,7 +73,7 @@ export async function enqueueRegistrationNotice(
     await createNotification(trx, context, {
       accountId: input.accountId,
       type: notificationType,
-      payload: { href: noticePath(input.kind, context.orgId) },
+      payload: { href: noticePath(input.kind, context.orgId, input.payload) },
     });
   }
   await appendAuditEvent(trx, context, {
@@ -111,12 +111,20 @@ const TITLES: Record<RegistrationNoticeKind, string> = {
   team_entry_status: 'Team entry update',
 };
 
-function noticePath(kind: RegistrationNoticeKind, orgId: string): string {
+function noticePath(
+  kind: RegistrationNoticeKind,
+  orgId: string,
+  payload?: Record<string, unknown>,
+): string {
   switch (kind) {
     case 'waitlist_offer':
     case 'waitlist_offer_expiring':
     case 'waitlist_joined':
       return `/portal/orgs/${orgId}/registrations`;
+    case 'team_entry_invite':
+      return typeof payload?.token === 'string'
+        ? `/portal/orgs/${orgId}/team-entry-invites/${encodeURIComponent(payload.token)}`
+        : `/portal/orgs/${orgId}/registrations`;
     case 'payment_link':
       return `/portal/orgs/${orgId}/register`;
     case 'registration_confirmed':
@@ -128,9 +136,8 @@ function noticePath(kind: RegistrationNoticeKind, orgId: string): string {
       return `/portal/orgs/${orgId}/registrations`;
     case 'checkout_reminder':
       return `/portal/orgs/${orgId}/register`;
-    case 'team_entry_invite':
     case 'team_entry_status':
-      return `/portal/orgs/${orgId}/registrations`;
+      return `/portal/orgs/${orgId}/team-entry`;
   }
 }
 
@@ -179,8 +186,26 @@ export class PostgresRegistrationNoticeDelivery {
       return 'suppressed';
     }
     const title = TITLES[notice.kind];
+    const payload =
+      notice.payload &&
+      typeof notice.payload === 'object' &&
+      !Array.isArray(notice.payload)
+        ? (notice.payload as Record<string, unknown>)
+        : undefined;
+    if (
+      notice.kind === 'team_entry_invite' &&
+      typeof payload?.token !== 'string'
+    ) {
+      await this.finish(
+        notice,
+        'suppressed',
+        null,
+        'invite token is unavailable',
+      );
+      return 'suppressed';
+    }
     const url = new URL(
-      noticePath(notice.kind, this.context.orgId),
+      noticePath(notice.kind, this.context.orgId, payload),
       this.appUrl,
     ).toString();
     try {

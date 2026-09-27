@@ -163,6 +163,8 @@ export function RegistrationScreen({
           <Link to={`/portal/orgs/${orgId}/registrations`}>
             My registrations
           </Link>
+          {' · '}
+          <Link to={`/portal/orgs/${orgId}/team-entry`}>Register a team</Link>
         </p>
         {(catalog.isLoading || participants.isLoading) && (
           <p role="status">Loading programs…</p>

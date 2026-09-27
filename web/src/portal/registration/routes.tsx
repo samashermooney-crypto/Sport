@@ -22,6 +22,16 @@ const MyRegistrations = lazy(() =>
     ({ MyRegistrationsScreen: component }) => ({ default: component }),
   ),
 );
+const TeamEntries = lazy(() =>
+  import('./TeamEntriesScreen').then(({ TeamEntriesScreen: component }) => ({
+    default: component,
+  })),
+);
+const TeamEntryInvite = lazy(() =>
+  import('./TeamEntryInviteScreen').then(
+    ({ TeamEntryInviteScreen: component }) => ({ default: component }),
+  ),
+);
 
 function CatalogRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
@@ -69,11 +79,39 @@ function MyRegistrationsRoute(): React.JSX.Element {
   );
 }
 
+function TeamEntriesRoute(): React.JSX.Element {
+  const { orgId } = useParams<{ orgId: string }>();
+  if (!orgId) return <main>Organization not found.</main>;
+  return (
+    <Suspense fallback={<p role="status">Loading team registration…</p>}>
+      <TeamEntries orgId={orgId} />
+    </Suspense>
+  );
+}
+
+function TeamEntryInviteRoute(): React.JSX.Element {
+  const { orgId, token } = useParams<{ orgId: string; token: string }>();
+  if (!orgId || !token) return <main>Team invitation not found.</main>;
+  return (
+    <Suspense fallback={<p role="status">Loading team invitation…</p>}>
+      <TeamEntryInvite orgId={orgId} token={token} />
+    </Suspense>
+  );
+}
+
 export const portalRegistrationRoutes: readonly RouteObject[] = [
   { path: '/portal/orgs/:orgId/register', element: <CatalogRoute /> },
   {
     path: '/portal/orgs/:orgId/registrations',
     element: <MyRegistrationsRoute />,
+  },
+  {
+    path: '/portal/orgs/:orgId/team-entry',
+    element: <TeamEntriesRoute />,
+  },
+  {
+    path: '/portal/orgs/:orgId/team-entry-invites/:token',
+    element: <TeamEntryInviteRoute />,
   },
   {
     path: '/portal/orgs/:orgId/register/checkouts/:checkoutId/requirements',

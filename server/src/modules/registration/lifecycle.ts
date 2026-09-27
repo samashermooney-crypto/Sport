@@ -226,7 +226,7 @@ async function loadRegistration(
   return registration;
 }
 
-async function requireRegistrationStaff(
+export async function requireRegistrationStaff(
   trx: OrgTransaction,
   context: OrgContext,
   scope: {
@@ -311,7 +311,7 @@ async function requireRegistrationStaff(
     );
 }
 
-async function staffScopeForProgram(
+export async function staffScopeForProgram(
   trx: OrgTransaction,
   orgId: string,
   programId: string,

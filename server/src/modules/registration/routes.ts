@@ -48,6 +48,16 @@ import {
   PostgresRegistrationRequirements,
   requirementsDiscoverySchema,
 } from './requirements.js';
+import {
+  acceptTeamEntryInviteSchema,
+  createTeamEntrySchema,
+  inviteTeamPlayersSchema,
+  PostgresTeamEntries,
+  teamEntryDecisionSchema,
+  teamEntryInvitePreviewSchema,
+  teamEntryListSchema,
+  teamEntryOptionsSchema,
+} from './team-entries.js';
 import { PostgresRegistrationTransferRefunds } from './transfer-refunds.js';
 
 function testGateway(): PaymentsGateway {
@@ -888,6 +898,245 @@ export function createRegistrationRouter(
       sendError(response, error);
     }
   });
+
+  router.get('/orgs/:orgId/me/team-entries', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Team entries are unavailable while impersonating',
+        );
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await new PostgresTeamEntries(dependencies.database, {
+        orgId,
+        actor: { accountId: session.accountId },
+      }).listMine(orgId);
+      response.json(teamEntryListSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/orgs/:orgId/team-entry-options', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Team entry options are unavailable while impersonating',
+        );
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await new PostgresTeamEntries(dependencies.database, {
+        orgId,
+        actor: { accountId: session.accountId },
+      }).options(orgId);
+      response.json(teamEntryOptionsSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/orgs/:orgId/team-entries', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Team entries are unavailable while impersonating',
+        );
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await new PostgresTeamEntries(dependencies.database, {
+        orgId,
+        actor: { accountId: session.accountId },
+      }).listStaff(orgId);
+      response.json(teamEntryListSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.post('/orgs/:orgId/team-entries', async (request, response) => {
+    try {
+      if (
+        !validWriteOrigin(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Team entry registration is unavailable',
+        );
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await new PostgresTeamEntries(dependencies.database, {
+        orgId,
+        actor: { accountId: session.accountId },
+      }).create({
+        orgId,
+        accountId: session.accountId,
+        idempotencyKey: z.uuid().parse(request.get('Idempotency-Key')),
+        details: createTeamEntrySchema.parse(request.body),
+      });
+      response.status(201).json(result);
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get(
+    '/orgs/:orgId/team-entries/:entryId/invites',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Team invitations are unavailable while impersonating',
+          );
+        const orgId = z.uuid().parse(request.params.orgId);
+        const entryId = z.uuid().parse(request.params.entryId);
+        const result = await new PostgresTeamEntries(dependencies.database, {
+          orgId,
+          actor: { accountId: session.accountId },
+        }).listInvites(orgId, entryId);
+        response.json(result);
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/team-entries/:entryId/invites',
+    async (request, response) => {
+      try {
+        if (
+          !validWriteOrigin(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Team invitations are unavailable',
+          );
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const entryId = z.uuid().parse(request.params.entryId);
+        const created = await new PostgresTeamEntries(dependencies.database, {
+          orgId,
+          actor: { accountId: session.accountId },
+        }).invitePlayers(
+          orgId,
+          entryId,
+          inviteTeamPlayersSchema.parse(request.body),
+        );
+        response.status(201).json({
+          invites: created.invites.map((invite) => ({
+            id: invite.id,
+            email: invite.email,
+            expiresAt: invite.expiresAt,
+            inviteUrl: new URL(
+              `/portal/orgs/${orgId}/team-entry-invites/${encodeURIComponent(invite.token)}`,
+              dependencies.appUrl,
+            ).toString(),
+          })),
+        });
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/team-entries/:entryId/approval',
+    async (request, response) => {
+      try {
+        if (
+          !validWriteOrigin(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Team entry decision is unavailable',
+          );
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const entryId = z.uuid().parse(request.params.entryId);
+        const body = z
+          .strictObject({
+            decision: z.enum(['approved', 'declined']),
+            note: z.string().trim().max(400).optional(),
+          })
+          .parse(request.body);
+        const result = await new PostgresTeamEntries(dependencies.database, {
+          orgId,
+          actor: { accountId: session.accountId },
+        }).decide(orgId, entryId, body.decision, body.note);
+        response.json(teamEntryDecisionSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.get(
+    '/orgs/:orgId/team-entry-invites/:token',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Team invitation is unavailable while impersonating',
+          );
+        const orgId = z.uuid().parse(request.params.orgId);
+        const result = await new PostgresTeamEntries(dependencies.database, {
+          orgId,
+          actor: { accountId: session.accountId },
+        }).previewInvite(orgId, z.string().parse(request.params.token));
+        response.json(teamEntryInvitePreviewSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/team-entry-invites/:token/accept',
+    async (request, response) => {
+      try {
+        if (
+          !validWriteOrigin(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Team invitation acceptance is unavailable',
+          );
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const result = await new PostgresTeamEntries(dependencies.database, {
+          orgId,
+          actor: { accountId: session.accountId },
+        }).acceptInvite({
+          orgId,
+          token: z.string().parse(request.params.token),
+          details: acceptTeamEntryInviteSchema.parse(request.body),
+        });
+        response.json(result);
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
 
   router.get(
     '/orgs/:orgId/checkouts/:checkoutId',

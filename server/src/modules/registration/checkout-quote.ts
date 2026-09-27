@@ -767,6 +767,15 @@ export class PostgresRegistrationCheckoutQuote {
             actor_account_id: this.context.actor.accountId,
           })
           .execute();
+        await trx
+          .updateTable('team_entry_invites')
+          .set({ accepted_registration_id: registrationId })
+          .where('org_id', '=', input.orgId)
+          .where('checkout_id', '=', input.checkoutId)
+          .where('person_id', '=', item.personId)
+          .where('status', '=', 'accepted')
+          .where('accepted_registration_id', 'is', null)
+          .execute();
       }
       // Persist the frozen requirement evidence: versioned form answers,
       // waiver signatures bound to the exact document hash, and add-on/size
