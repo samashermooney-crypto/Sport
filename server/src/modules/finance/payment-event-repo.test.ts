@@ -8,10 +8,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../../db/kysely.js';
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
+import { stripeEventFixture } from '../../integrations/stripe/webhook-fixtures.js';
+import { parseStripeWebhookEvent } from '../../integrations/stripe/webhooks.js';
 import { bindFixtureInvoice } from '../checkout/test-fixtures.js';
 
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
+import { PaymentIntentEventService } from './payment-events.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
 
 let database: Kysely<DB>;
@@ -222,5 +225,105 @@ describe('Stripe PaymentIntent settlement', () => {
       }),
     ).rejects.toThrow('amount differs');
     expect((await state(firstPaymentId)).invoice.paid_cents).toBe(1000);
+  });
+
+  it('handles card 3DS challenge, failure, recovery and duplicate success without double payment', async () => {
+    const cardCheckoutId = newId();
+    const invoice = await new PostgresInvoiceRepository(
+      database,
+      context,
+    ).issue({
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      source: 'checkout',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'registration',
+          description: 'Card registration',
+          amountCents: 500,
+          refundable: true,
+        },
+      ],
+    });
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .insertInto('checkouts')
+        .values({
+          id: cardCheckoutId,
+          org_id: context.orgId,
+          account_id: context.actor.accountId,
+          status: 'awaiting_payment',
+          expires_at: new Date('2027-01-01T00:00:00Z'),
+          pricing_snapshot: { totalCents: 500 },
+        })
+        .execute(),
+    );
+    await bindFixtureInvoice(database, context, cardCheckoutId, invoice.id);
+    const id = `pi_${randomUUID()}`;
+    await records.recordPending({
+      orgId: context.orgId,
+      checkoutId: cardCheckoutId,
+      invoiceId: invoice.id,
+      accountId: context.actor.accountId,
+      paymentIntentId: id,
+      amountCents: 500,
+      applicationFeeCents: 5,
+      idempotencyKey: randomUUID(),
+    });
+    let current = {
+      ...latest(id, 500, 'requires_action'),
+      method: 'card' as const,
+    };
+    const service = new PaymentIntentEventService(events, {
+      retrievePaymentIntent: () => Promise.resolve(current),
+    });
+    const webhook = (
+      type:
+        | 'payment_intent.requires_action'
+        | 'payment_intent.payment_failed'
+        | 'payment_intent.succeeded',
+    ) =>
+      parseStripeWebhookEvent({
+        ...stripeEventFixture(type),
+        data: {
+          object: {
+            id,
+            object: 'payment_intent',
+            metadata: { org_id: context.orgId },
+          },
+        },
+      });
+    expect(
+      await service.handle(webhook('payment_intent.requires_action')),
+    ).toBe('applied');
+    current = { ...current, status: 'requires_payment_method' };
+    expect(await service.handle(webhook('payment_intent.payment_failed'))).toBe(
+      'applied',
+    );
+    current = {
+      ...current,
+      status: 'succeeded',
+      latestChargeId: `ch_${randomUUID()}`,
+    };
+    expect(await service.handle(webhook('payment_intent.succeeded'))).toBe(
+      'applied',
+    );
+    expect(await service.handle(webhook('payment_intent.succeeded'))).toBe(
+      'unchanged',
+    );
+    const settled = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('invoices')
+        .select(['paid_cents', 'balance_cents', 'status'])
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', invoice.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(settled).toEqual({
+      paid_cents: 500,
+      balance_cents: 0,
+      status: 'paid',
+    });
   });
 });

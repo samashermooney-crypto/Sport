@@ -4,7 +4,7 @@
 
 ## Next steps
 - M0 is on `main` at `d0f59a1`. The spine, ready B/C/D/E/F/H ranges, Phase 1 tasks 5–9, 11–13 and 17, and Track B's infrastructure are integrated on `rebuild/trunk`. Track A continues tasks 4 and 16. Track E's ready finance and test-mode Billing range through migration 1049 is integrated and trunk green. Track H's chat notification batching through migration 4006 is integrated and trunk green. Track F's Phase 7 foundation is integrated with 46 documented HTTP operations and mounted safety screens. Phase 7 acceptance remains open for coach/official/volunteer gating, the concussion roster journey, QR privacy, Checkr fixture behavior, and detailed response contracts. Inspect E/F/G/H readiness at every task boundary and keep each phase open until every acceptance criterion passes.
-- Track A's Phase 2 People and household foundation is on trunk through membership removal, derived age/grade, balances, program/team filters and consent-aware photos. The staff existing-account guardian link and revocation slice is integrated. The merged trunk gate passed typecheck, lint, 716 tests (one operator smoke skipped), 40 browser tests (four guarded design skips), build, size and generated-file freshness. Continue guardian invitations and role-aware compliance; keep Phase 2 acceptance open.
+- Track A's Phase 2 People and household foundation is on trunk through membership removal, derived age/grade, balances, program/team filters and consent-aware photos. The guardian direct-link and person-bound invitation flow is integrated. The latest merged trunk gate passed typecheck, lint, 721 tests (one operator smoke skipped), 42 browser tests (four guarded design skips), build, size and generated-file freshness. Continue athlete self links, adult self claims and role-aware compliance; keep Phase 2 acceptance open.
 
 ## Phase status
 
@@ -12,7 +12,7 @@
 |---|---|---|---|
 | 0 | Repository reset and tooling | complete | Local gate green; [GitHub Actions run 36279198481](https://github.com/samashermooney-crypto/Sport/actions/runs/36279198481) passed all 9 jobs on `rebuild/phase-0`. |
 | 1 | Platform core | in progress | Branch `rebuild/phase-1` created from green Phase 0. |
-| 2 | People, households, forms, imports | in progress on Track A | People CRUD, age/grade, household, program/team, credential-record, photo and existing-account guardian flows have green trunk gates; task 1, task 3 and phase acceptance remain open. |
+| 2 | People, households, forms, imports | in progress on Track A | People CRUD, age/grade, household, program/team, credential-record, photo and guardian invitation flows have green trunk gates; task 1, task 3 and phase acceptance remain open. |
 | 3 | Sport engine, programs, teams, facilities | not started | |
 | 4 | Payments and finance | in progress | Test-mode Stripe gateway and finance migrations 1000–1049 integrated; full phase acceptance remains. |
 | 5 | Registration | in progress | Checkout capacity, frozen pricing, payment terms, unique invoice binding and the payer-owned PaymentIntent API from Track E are integrated; registration flows and acceptance remain. |
@@ -87,6 +87,8 @@
 - [x] Integrated Track D's later auth restyle and parity range through `d184ced`. The merged trunk passed typecheck, lint, 447 tests (one operator-credential smoke skipped), 22 browser tests (4 guarded WebKit/Chromium design skips), build, registry/OpenAPI freshness and Knip. The shell chrome now compares with the captured legacy desktop and phone headers, and showcase controls pass axe and 44px phone target checks. Phase 1 task 16 remains open for app-wide shells, org switching, i18n and end-to-end design parity.
 
 - [x] Integrated Track A existing-account guardian links through `c3e1b86` and Track E's ready installment charge worker and frozen money notice PDFs through `9001eeb`; applied migrations 1048–1049 and regenerated Kysely types for 164 tables. PostgreSQL covers guardian tenant, age, verification, audit and final-supervision checks. The merged trunk gate passed typecheck, lint, 716 tests (one operator smoke skipped), 40 browser tests (four guarded design skips), build, size and generated-file freshness. Phase 2 and Phase 4/5 acceptance remain open.
+
+- [x] Integrated Track A guardian invitations through `674a9c4` and Track E's ready Stripe replay/card-recovery range through `eaf5f1d`. A person-bound seven-day invite now accepts once for a verified adult matching the invited email. PostgreSQL covers wrong org/account, reuse, archived-person redemption and delivery failure; Chromium/WebKit mobile covers staff invitation, Mailpit delivery, acceptance and axe. The merged trunk gate passed typecheck, lint, 721 tests (one operator smoke skipped), 42 browser tests (four guarded design skips), build, size and generated-file freshness. Phase 2 and Phase 4/5 acceptance remain open.
 
 ## Phase checklists
 

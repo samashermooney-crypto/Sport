@@ -88,7 +88,10 @@ import {
   staffMethodConsentResponseSchema,
   stripeClientConfigSchema,
 } from './routes.js';
-import { runFinanceStripeEventJob } from './stripe-event-job.js';
+import {
+  runFinanceStripeEventJob,
+  runFinanceStripeReplayJob,
+} from './stripe-event-job.js';
 import {
   taxRateBodySchema,
   taxRateListSchema,
@@ -110,6 +113,11 @@ export const moduleDefinition = {
     {
       name: 'stripe.event',
       run: runFinanceStripeEventJob,
+    },
+    {
+      name: 'stripe.replay',
+      cron: '* * * * *',
+      run: runFinanceStripeReplayJob,
     },
     {
       name: 'finance.deliver-notices',
