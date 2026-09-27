@@ -1,9 +1,10 @@
 # Track B — sport logic and policies
 
-Status: ready-for-integration
+Status: sprint-build-in-progress
 Model: GPT-6 Sol
 Branch: `track/b-logic`
-Current: Track B complete; E/F/H cross-track requests are committed locally and the integration branch passes the full gate.
+Current: Phase 3 sprint build in progress: sport profiles, seasons/rollover, programs/divisions, offerings, teams/rosters, facilities, and matching console screens. Phase 16 §1 security begins at 13:30.
+Requests to Track C (sprint wiring): mount `web/src/console/programs/routes.tsx`, `web/src/console/teams/routes.tsx`, and `web/src/console/facilities/routes.tsx` from `web/src/console/routes.tsx` when available; add Programs, Teams and Facilities links to the console home/navigation. Track C owns the web router and home shell under SPRINT.md.
 Ready: Age/eligibility — `shared/src/sport/{age,eligibility}.ts`; 11 targeted tests, typecheck and lint green.
 Ready: Recurrence — `shared/src/recurrence.ts`; 11 targeted tests across four timezones, typecheck and lint green.
 Ready: Sport schema/results/stats/standings — 19 targeted tests, typecheck and lint green; template goldens still pending.
