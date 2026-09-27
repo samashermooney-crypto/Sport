@@ -3,6 +3,8 @@ import { z } from 'zod';
 
 import { apiGet } from '../../api/client';
 
+import { CreditApplyPanel } from './CreditApplyPanel';
+
 import './money.css';
 
 const balanceSchema = z.strictObject({
@@ -36,6 +38,7 @@ export function CreditBalanceScreen({
   const [balance, setBalance] = useState<Balance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError('');
@@ -70,6 +73,7 @@ export function CreditBalanceScreen({
           {error}
         </p>
       ) : null}
+      {notice ? <p role="status">{notice}</p> : null}
       {!loading && error ? (
         <button className="button" type="button" onClick={() => void refresh()}>
           Retry
@@ -101,6 +105,17 @@ export function CreditBalanceScreen({
             <p>No available credit.</p>
           ) : null}
           <p>As of {balance.asOfLocalDate}</p>
+          {balance.totalAvailableCents > 0 ? (
+            <CreditApplyPanel
+              orgId={orgId}
+              accountBalanceCents={balance.accountBalanceCents}
+              householdBalances={balance.householdBalances}
+              onApplied={() => {
+                setNotice('Credit applied to the invoice.');
+                void refresh();
+              }}
+            />
+          ) : null}
         </>
       ) : null}
     </section>

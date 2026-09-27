@@ -80,3 +80,28 @@
   flex-wrap: wrap;
   gap: var(--space-8);
 }
+
+.money-credit-apply {
+  display: grid;
+  gap: var(--space-8);
+  margin-top: var(--space-20);
+  padding-top: var(--space-20);
+  border-top: 1px solid var(--line-2);
+}
+
+.money-credit-apply h3 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--font-size-20);
+  font-weight: 600;
+}
+
+.money-credit-apply select,
+.money-credit-apply button {
+  min-height: var(--control-height-44);
+}
+
+.money-credit-apply label {
+  font-weight: 600;
+}
