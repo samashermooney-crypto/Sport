@@ -121,6 +121,13 @@ export const authLegalResponseSchema = z.strictObject({
   terms: z.strictObject({ version: z.string(), text: z.string() }),
   privacy: z.strictObject({ version: z.string(), text: z.string() }),
 });
+export const authCaptchaConfigResponseSchema = z.discriminatedUnion('mode', [
+  z.strictObject({ mode: z.literal('preview') }),
+  z.strictObject({ mode: z.literal('turnstile'), siteKey: z.string().min(1) }),
+]);
+export const authPushConfigResponseSchema = z.strictObject({
+  publicKey: z.string().regex(/^[A-Za-z0-9_-]+$/),
+});
 export const authMeResponseSchema = z.strictObject({
   id: z.uuid(),
   email: z.email(),

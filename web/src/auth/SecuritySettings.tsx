@@ -13,7 +13,10 @@ import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router';
 
 import { apiDelete, apiGet, apiPost } from '../api/client';
+import { disconnectBrowserPush } from '../push/browser';
 import { AuthFrame, AuthLink, Button, ErrorBox, Field } from '../ui/auth';
+
+import { BrowserPush } from './BrowserPush';
 
 interface PasswordFields {
   currentPassword: string;
@@ -152,6 +155,7 @@ export function SecuritySettings(): React.JSX.Element {
 
   async function revoke(id: string, current: boolean): Promise<void> {
     await perform(async () => {
+      if (current) await disconnectBrowserPush();
       await apiDelete(`/auth/sessions/${id}`, authStatusResponseSchema);
       if (current) {
         queryClient.removeQueries({ queryKey: ['auth'] });
@@ -448,6 +452,7 @@ export function SecuritySettings(): React.JSX.Element {
           Request deletion review
         </Button>
       </section>
+      <BrowserPush />
     </AuthFrame>
   );
 }

@@ -1,32 +1,57 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   authLegalResponseSchema,
+  authCaptchaConfigResponseSchema,
   authMessageResponseSchema,
   signUpSchema,
 } from '@shared/schemas/auth';
 import type { SignUpInput } from '@shared/schemas/auth';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { apiGet, apiPost } from '../api/client';
 import { AuthFrame, AuthLink, Button, ErrorBox, Field } from '../ui/auth';
+
+import { TurnstileWidget } from './TurnstileWidget';
 
 export function SignUp(): React.JSX.Element {
   const legal = useQuery({
     queryKey: ['auth', 'legal'],
     queryFn: () => apiGet('/auth/legal', authLegalResponseSchema),
   });
+  const captcha = useQuery({
+    queryKey: ['auth', 'captcha-config'],
+    queryFn: () =>
+      apiGet('/auth/captcha-config', authCaptchaConfigResponseSchema),
+  });
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [challengeAttempt, setChallengeAttempt] = useState(0);
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<SignUpInput>({
     resolver: zodResolver(signUpSchema),
-    defaultValues: { captchaToken: 'local-preview' },
+    defaultValues: { captchaToken: '' },
   });
+  const captchaToken = watch('captchaToken');
+  useEffect(() => {
+    if (captcha.data?.mode === 'preview')
+      setValue('captchaToken', 'local-preview');
+  }, [captcha.data, setValue]);
+  const onToken = useCallback(
+    (token: string) => {
+      setValue('captchaToken', token, { shouldValidate: true });
+    },
+    [setValue],
+  );
+  const onChallengeError = useCallback((message: string) => {
+    setError(message);
+  }, []);
 
   async function submit(values: SignUpInput): Promise<void> {
     setError('');
@@ -41,6 +66,10 @@ export function SignUp(): React.JSX.Element {
       setError(
         caught instanceof Error ? caught.message : 'Account creation failed.',
       );
+      if (captcha.data?.mode === 'turnstile') {
+        setValue('captchaToken', '');
+        setChallengeAttempt((previous) => previous + 1);
+      }
     }
   }
 
@@ -58,13 +87,13 @@ export function SignUp(): React.JSX.Element {
             athletes.
           </p>
           <ErrorBox error={error} />
-          {legal.isPending && (
-            <p role="status">Loading terms and privacy text…</p>
+          {(legal.isPending || captcha.isPending) && (
+            <p role="status">Loading account requirements…</p>
           )}
-          {legal.isError && (
-            <ErrorBox error="Terms and privacy text could not be loaded. Try again later." />
+          {(legal.isError || captcha.isError) && (
+            <ErrorBox error="Account requirements could not be loaded. Try again later." />
           )}
-          {legal.isSuccess && (
+          {legal.isSuccess && captcha.isSuccess && (
             <form
               onSubmit={(event) => void handleSubmit(submit)(event)}
               noValidate
@@ -138,8 +167,21 @@ export function SignUp(): React.JSX.Element {
                   Accept the Privacy notice to continue.
                 </small>
               )}
+              {captcha.data.mode === 'turnstile' && (
+                <TurnstileWidget
+                  key={challengeAttempt}
+                  siteKey={captcha.data.siteKey}
+                  onToken={onToken}
+                  onError={onChallengeError}
+                />
+              )}
               <input type="hidden" {...register('captchaToken')} />
-              <Button type="submit" disabled={isSubmitting}>
+              {errors.captchaToken && (
+                <small className="field-error" role="alert">
+                  Complete the bot protection challenge.
+                </small>
+              )}
+              <Button type="submit" disabled={isSubmitting || !captchaToken}>
                 {isSubmitting ? 'Creating account…' : 'Create account'}
               </Button>
             </form>

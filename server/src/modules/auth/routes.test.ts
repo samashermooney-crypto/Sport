@@ -37,6 +37,8 @@ beforeAll(() => {
     email,
     encryption,
     captcha: new AlwaysPassCaptcha(),
+    captchaWidget: { mode: 'preview' },
+    pushPublicKey: 'test-public-key',
     appUrl: origin,
     clock: () => now,
   }).listen(0);
@@ -88,6 +90,11 @@ function emailToken(index: number, path: string): string {
 
 describe('auth HTTP contract', () => {
   it('enforces origin, validates input and completes verification, MFA and session flows', async () => {
+    const captchaConfig = await fetch(`${baseUrl}/captcha-config`);
+    expect(captchaConfig.status).toBe(200);
+    expect(await captchaConfig.json()).toEqual({ mode: 'preview' });
+    const pushConfig = await fetch(`${baseUrl}/push-config`);
+    expect(await pushConfig.json()).toEqual({ publicKey: 'test-public-key' });
     const input = {
       email: 'http-owner@example.invalid',
       password,

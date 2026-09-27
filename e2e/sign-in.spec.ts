@@ -40,6 +40,48 @@ test('new account verifies its preview email and signs in', async ({
 }, testInfo) => {
   const email = `e2e-${testInfo.project.name}-${Date.now().toString()}@example.test`;
   const password = 'Pinecones!7348Ridge';
+  await page.addInitScript(() => {
+    let subscription: {
+      endpoint: string;
+      toJSON: () => object;
+      unsubscribe: () => Promise<boolean>;
+    } | null = null;
+    const registration = {
+      pushManager: {
+        getSubscription: () => Promise.resolve(subscription),
+        subscribe: () => {
+          const endpoint = `https://push.example.test/${crypto.randomUUID()}`;
+          subscription = {
+            endpoint,
+            toJSON: () => ({
+              endpoint,
+              keys: { p256dh: 'test-public-key', auth: 'test-auth-key' },
+            }),
+            unsubscribe: () => {
+              subscription = null;
+              return Promise.resolve(true);
+            },
+          };
+          return Promise.resolve(subscription);
+        },
+      },
+    };
+    Object.defineProperty(window, 'PushManager', {
+      configurable: true,
+      value: Symbol('PushManager'),
+    });
+    Object.defineProperty(window, 'Notification', {
+      configurable: true,
+      value: { requestPermission: () => Promise.resolve('granted') },
+    });
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: {
+        register: () => Promise.resolve(registration),
+        getRegistration: () => Promise.resolve(registration),
+      },
+    });
+  });
   await page.goto('/sign-up');
   await expect(
     page.getByRole('heading', { name: 'Create your account' }),
@@ -127,6 +169,20 @@ test('new account verifies its preview email and signs in', async ({
   await page.getByRole('button', { name: 'Regenerate recovery codes' }).click();
   await expect(page.locator('.recovery-codes li')).toHaveCount(10);
   await page.getByRole('button', { name: 'I saved these codes' }).click();
+  await page
+    .getByRole('button', { name: 'Enable browser notifications' })
+    .click();
+  await expect(
+    page.getByText('Browser notifications enabled on this device.'),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Revoke device' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Revoke device' }).click();
+  await expect(page.getByText('Notification device revoked.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Revoke device' })).toHaveCount(
+    0,
+  );
   await page.getByRole('button', { name: 'Revoke' }).click();
   await expect(
     page.getByRole('heading', { name: 'Welcome back.' }),

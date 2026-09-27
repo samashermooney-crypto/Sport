@@ -1,7 +1,7 @@
 import { apiErrorSchema } from '@shared/schemas/errors';
 import type { z } from 'zod';
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,

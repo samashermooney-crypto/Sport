@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createECDH, randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
@@ -13,6 +13,39 @@ import { createAuthRateLimits } from './modules/auth/rate-limits';
 import type { AuthDependencies } from './modules/auth/routes';
 
 const localKeyFile = resolve('data/dev-encryption-key.json');
+const localVapidFile = resolve('data/dev-vapid.json');
+
+async function localVapidPublicKey(): Promise<string> {
+  try {
+    const saved: unknown = JSON.parse(await readFile(localVapidFile, 'utf8'));
+    return z
+      .strictObject({ publicKey: z.string(), privateKey: z.string() })
+      .parse(saved).publicKey;
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT'))
+      throw error;
+  }
+  await mkdir(resolve('data'), { recursive: true });
+  const key = createECDH('prime256v1');
+  key.generateKeys();
+  const value = JSON.stringify({
+    publicKey: key
+      .getPublicKey(undefined, 'uncompressed')
+      .toString('base64url'),
+    privateKey: key.getPrivateKey().toString('base64url'),
+  });
+  try {
+    await writeFile(localVapidFile, value, { flag: 'wx', mode: 0o600 });
+    return z.strictObject({ publicKey: z.string() }).parse(JSON.parse(value))
+      .publicKey;
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST'))
+      throw error;
+    return z
+      .strictObject({ publicKey: z.string() })
+      .parse(JSON.parse(await readFile(localVapidFile, 'utf8'))).publicKey;
+  }
+}
 
 async function localEncryptionKeys(): Promise<EncryptionKeys> {
   try {
@@ -83,6 +116,8 @@ export async function createLocalAuthDependencies(): Promise<AuthDependencies> {
     ),
     email: createMailpitEmailSender(),
     captcha: new AlwaysPassCaptcha(),
+    captchaWidget: { mode: 'preview' },
+    pushPublicKey: await localVapidPublicKey(),
     encryption,
     appUrl: runtime.appUrl,
     clock: () => new Date(),

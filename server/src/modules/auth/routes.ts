@@ -1,5 +1,7 @@
 import {
   authLegalResponseSchema,
+  authCaptchaConfigResponseSchema,
+  authPushConfigResponseSchema,
   authMeResponseSchema,
   authMessageResponseSchema,
   authSignInResponseSchema,
@@ -73,7 +75,11 @@ import type { SignUpDependencies } from './signup';
 export type AuthDependencies = SignUpDependencies &
   SignInDependencies &
   CredentialsDependencies &
-  SecurityDependencies & { rateLimits: AuthRateLimits };
+  SecurityDependencies & {
+    rateLimits: AuthRateLimits;
+    captchaWidget: { mode: 'preview' } | { mode: 'turnstile'; siteKey: string };
+    pushPublicKey: string;
+  };
 
 const cookieName = '__Host-athlentry_session';
 
@@ -220,6 +226,18 @@ export function createAuthRouter(
 
   router.get('/legal', (_request, response) => {
     response.json(authLegalResponseSchema.parse(localLegalDocuments));
+  });
+  router.get('/captcha-config', (_request, response) => {
+    response.json(
+      authCaptchaConfigResponseSchema.parse(dependencies.captchaWidget),
+    );
+  });
+  router.get('/push-config', (_request, response) => {
+    response.json(
+      authPushConfigResponseSchema.parse({
+        publicKey: dependencies.pushPublicKey,
+      }),
+    );
   });
   router.get('/me', async (request, response) => {
     const session = await requireSession(dependencies, request);

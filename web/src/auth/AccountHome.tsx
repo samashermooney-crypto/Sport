@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { apiGet, apiPost } from '../api/client';
+import { disconnectBrowserPush } from '../push/browser';
 import { AuthFrame, AuthLink, Button, ErrorBox } from '../ui/auth';
 
 export function AccountHome(): React.JSX.Element {
@@ -24,6 +25,7 @@ export function AccountHome(): React.JSX.Element {
     setBusy(true);
     setError('');
     try {
+      await disconnectBrowserPush();
       await apiPost('/auth/sign-out', {}, authStatusResponseSchema);
       queryClient.removeQueries({ queryKey: ['auth'] });
       void navigate('/', { replace: true });
