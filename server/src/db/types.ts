@@ -996,6 +996,8 @@ export interface GameReports {
 export interface GlCodes {
   code: string;
   created_at: Generated<Timestamp>;
+  creation_hash: string | null;
+  creation_key: string | null;
   id: string;
   kind: string;
   name: string;
@@ -1590,6 +1592,18 @@ export interface Payments {
   stripe_charge_id: string | null;
   stripe_payment_intent_id: string | null;
   succeeded_at: Timestamp | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface PayoutJournalMappings {
+  bank: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  org_id: string;
+  processing_fees: string;
+  stripe_clearing: string;
+  transaction_types: Json;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -2573,6 +2587,7 @@ export interface DB {
   payment_line_allocations: PaymentLineAllocations;
   payment_methods: PaymentMethods;
   payments: Payments;
+  payout_journal_mappings: PayoutJournalMappings;
   payouts: Payouts;
   people: People;
   person_account_links: PersonAccountLinks;
