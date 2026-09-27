@@ -93,12 +93,14 @@ test('platform staff and portal notifications work accessibly', async ({
     await expect(
       page.getByRole('heading', { name: 'Platform', exact: true }),
     ).toBeVisible();
+    await expect(page.locator('.ui-topbar')).toBeVisible();
+    await expect(page.locator('.ui-mobile-tabs a[href="/me"]')).toHaveCount(1);
     await expect(
       page.getByRole('heading', { name: 'Organizations' }),
     ).toBeVisible();
     expect(await accessibilityViolations(page)).toEqual([]);
     await page.getByRole('textbox', { name: 'Search' }).fill(orgName);
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     await page.getByRole('button', { name: orgName }).click();
     await expect(page.getByText('Not connected')).toBeVisible();
     await page.getByRole('button', { name: 'Suspend' }).click();
