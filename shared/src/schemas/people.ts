@@ -69,6 +69,16 @@ export const peopleQuerySchema = z.strictObject({
   householdId: z.uuid().optional(),
   programId: z.uuid().optional(),
   teamSeasonId: z.uuid().optional(),
+  credentialStatus: z
+    .enum([
+      'pending_review',
+      'verified',
+      'rejected',
+      'expired',
+      'revoked',
+      'none',
+    ])
+    .optional(),
   hasBalance: z
     .enum(['true', 'false'])
     .transform((value) => value === 'true')

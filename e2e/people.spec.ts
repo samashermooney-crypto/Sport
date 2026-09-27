@@ -121,7 +121,7 @@ test('owner creates, edits and archives a person from the console', async ({
       page.getByText('No active people match this search.'),
     ).toBeVisible();
     await page
-      .getByRole('combobox', { name: 'Status' })
+      .getByRole('combobox', { name: 'Status', exact: true })
       .selectOption('archived');
     await expect(page.getByRole('link', { name: 'Alex Rivera' })).toBeVisible();
     await page.getByRole('link', { name: 'Alex Rivera' }).click();
@@ -180,6 +180,16 @@ test('owner creates, edits and archives a person from the console', async ({
       .getByRole('combobox', { name: 'Team' })
       .selectOption({ label: 'Fixture Team — Fixture League' });
     await expect(page.getByRole('link', { name: 'Alex Rivera' })).toBeVisible();
+    await page
+      .getByRole('combobox', { name: 'Compliance credential status' })
+      .selectOption('none');
+    await expect(page.getByRole('link', { name: 'Alex Rivera' })).toBeVisible();
+    await page
+      .getByRole('combobox', { name: 'Compliance credential status' })
+      .selectOption('pending_review');
+    await expect(
+      page.getByText('No active people match this search.'),
+    ).toBeVisible();
     await page.goto(householdUrl);
     await expect(
       page.getByRole('heading', { name: 'Rivera household' }),
