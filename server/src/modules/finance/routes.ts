@@ -152,6 +152,7 @@ import { PostgresConnectAccountRepository } from './repo.js';
 import { CheckoutPaymentService, PaymentConflictError } from './service.js';
 import {
   FinanceAccessError,
+  FinanceResourceNotFoundError,
   requireAidStaff,
   requireBillingOwner,
   requireFinanceStaff,
@@ -543,6 +544,7 @@ function sendError(response: Response, error: unknown): void {
           error instanceof MoneyDocumentGlyphError
         ? 409
         : error instanceof InvoiceNotFoundError ||
+            error instanceof FinanceResourceNotFoundError ||
             error instanceof AutopayAuthorizationNotFoundError ||
             error instanceof InstallmentStaffNotFoundError ||
             error instanceof MoneyDocumentNotFoundError ||
@@ -1343,7 +1345,7 @@ export function createFinanceRouter(
             return Boolean(link);
           },
         );
-        if (!allowed) throw new FinanceAccessError();
+        if (!allowed) throw new FinanceResourceNotFoundError();
         const templates = await new PostgresInstallmentTemplates(
           dependencies.database,
           context,

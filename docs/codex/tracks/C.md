@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
 Status: working
 Branch: `track/c-adapters`
-Current: local trunk integration `27c2826` is green; continuing the wiring queue. Phase 15 remains owned by Track K.
-Ready for integration: no; the gitleaks CI change and remaining wiring work need their gates.
+Current: trunk test/Knip repair `9b5b430` is reported green; Track D owns the remaining design-parity job. SEC-002 metadata/fuzzer work is committed as `a981e0d`; membership-concealment fixes and full gates are in progress. Phase 15 remains owned by Track K.
+Ready for integration: no; finish the permission matrix and run the branch and trunk gates before integration.
 Requests to other tracks: Track A — reconcile DEC-023 with verified-guardian restricted uploads and owner/compliance-only restricted downloads. Track E — registration module/route and checkout contracts are prerequisites for registration UI wiring.
 Blocked on: GitHub access is currently unavailable from this environment; local gates remain available.
 
@@ -18,7 +18,7 @@ Blocked on: GitHub access is currently unavailable from this environment; local 
 ## Wiring queue
 
 - SEC-001: **implemented** — security headers are mounted before API/static routes; production security.txt requires configured staffed contact/policy values; Stripe/Turnstile and configured storage origins remain allowed and HSTS stays production-only.
-- SEC-002: add generated permission/resource/scope metadata to API operations and expose it to OpenAPI and route tests. ID-bearing org-scoped reads/writes need tenancy-fuzzer fixtures; mutations need schema-valid synthetic bodies.
+- SEC-002: **in progress** — `a981e0d` generates permission/resource/scope metadata for every API operation, publishes it through OpenAPI and the registry, and supplies schema-valid query/path/body fixtures. Route metadata and tenant-fuzz browser tests are enabled; the remaining permission-matrix coverage test and full gates are open.
 - SEC-003: **verified** — raw Stripe and Connect ingress is mounted before feature routers; the webhook router consumes raw bytes for signature verification.
 - SEC-004: **implemented** — `/.well-known/security.txt` is served, production contact/policy values fail closed until configured, and CI scans full git history with gitleaks without posting PR comments.
 - Track B: mount Programs, Teams, and Facilities route arrays and navigation when their module paths land; move file and B module contracts to shared Zod, use version helpers for mutable org routes, and align `FILE_INVALID` with the shared error envelope.
@@ -26,11 +26,12 @@ Blocked on: GitHub access is currently unavailable from this environment; local 
 - Track OPS: wire `/readyz` and public `/status`; initialize structured logger/Sentry in web and worker; add key-generation scripts and health/queue/payment/email alert checks; remove `DATABASE_ADMIN_URL` from web runtime after pre-deploy.
 - Track H: wire `installment.failed` and `installment.final_notice` fanout to consented push/SMS when comms workers and event contracts are available.
 - Review requests addressed to Track A across all `docs/codex/tracks/*.md` for wiring ownership and record completion here.
+- SEC-002 follow-up: nonmembers now receive concealed 404s for chat history/conversation/moderation and finance staff/template routes; active members without the required finance role still receive 403.
 
 ## Verification and environment
 
 - Use real PostgreSQL integration tests; do not skip or weaken DB tests. Run full tests and Playwright only through `~/athlentry-sprint/heavy.sh`.
 - C stack uses `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=510` (Postgres `127.0.0.1:5942`). It was moved from offset 900, preserving its volume; after the K revert, the disposable test/template databases were recreated with the `db/init/001-roles.sql` app defaults and migrations through `4006` were applied. Kysely types were regenerated.
-- Focused verification: app wiring, Files/RLS, chat attachment and security-header suites passed (4 files, 24 tests) against real PostgreSQL. Full Vitest passes (203 files, 1 skipped; 745 tests, 1 skipped); Chromium desktop passes (24 passed, 4 pre-existing SEC-002 fixmes skipped); typecheck, lint, build, Knip, registry and OpenAPI generation pass.
+- Focused verification: the three SEC-001/002 Chromium checks pass (headers, route metadata, tenant fuzzer); chat and finance real-Postgres integration suites pass (2 files, 15 tests). Typecheck, lint, OpenAPI and registry generation pass after `a981e0d`; full branch/trunk gates are pending.
 - Local trunk is now `27c2826`, 27 commits ahead of its remote; GitHub DNS/network access previously failed. The trunk lock is released.
 - The corrected full C run with K's migration present had only two schema failures: missing FK indexes in migration `8500_phase15_growth.sql` and `mapping_presets.org_id` nullability. C reverted that merge and left Phase 15 with K; the post-revert full Vitest suite passed.

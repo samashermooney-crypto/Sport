@@ -11,11 +11,19 @@ export class FinanceAccessError extends Error {
   }
 }
 
+export class FinanceResourceNotFoundError extends Error {
+  readonly status = 404;
+  constructor() {
+    super('Finance resource not found');
+    this.name = 'FinanceResourceNotFoundError';
+  }
+}
+
 export async function requireFinanceStaff(
   database: Kysely<DB>,
   context: OrgContext,
 ): Promise<void> {
-  const allowed = await createWithOrg(database)(context, async (trx) => {
+  const result = await createWithOrg(database)(context, async (trx) => {
     const membership = await trx
       .selectFrom('org_memberships')
       .select('id')
@@ -23,7 +31,7 @@ export async function requireFinanceStaff(
       .where('account_id', '=', context.actor.accountId)
       .where('status', '=', 'active')
       .executeTakeFirst();
-    if (!membership) return false;
+    if (!membership) return { member: false, allowed: false };
     const role = await trx
       .selectFrom('role_assignments')
       .select('id')
@@ -34,9 +42,10 @@ export async function requireFinanceStaff(
       .where('pending_mfa', '=', false)
       .where('revoked_at', 'is', null)
       .executeTakeFirst();
-    return Boolean(role);
+    return { member: true, allowed: Boolean(role) };
   });
-  if (!allowed) throw new FinanceAccessError();
+  if (!result.member) throw new FinanceResourceNotFoundError();
+  if (!result.allowed) throw new FinanceAccessError();
 }
 
 /** Platform subscription changes are reserved for an active org owner. */
@@ -44,7 +53,7 @@ export async function requireBillingOwner(
   database: Kysely<DB>,
   context: OrgContext,
 ): Promise<void> {
-  const allowed = await createWithOrg(database)(context, async (trx) => {
+  const result = await createWithOrg(database)(context, async (trx) => {
     const membership = await trx
       .selectFrom('org_memberships')
       .select('id')
@@ -52,7 +61,7 @@ export async function requireBillingOwner(
       .where('account_id', '=', context.actor.accountId)
       .where('status', '=', 'active')
       .executeTakeFirst();
-    if (!membership) return false;
+    if (!membership) return { member: false, allowed: false };
     const owner = await trx
       .selectFrom('role_assignments')
       .select('id')
@@ -63,9 +72,10 @@ export async function requireBillingOwner(
       .where('pending_mfa', '=', false)
       .where('revoked_at', 'is', null)
       .executeTakeFirst();
-    return Boolean(owner);
+    return { member: true, allowed: Boolean(owner) };
   });
-  if (!allowed) throw new FinanceAccessError();
+  if (!result.member) throw new FinanceResourceNotFoundError();
+  if (!result.allowed) throw new FinanceAccessError();
 }
 
 /** Aid decisions expose Restricted household finances to owner/finance only. */
@@ -73,7 +83,7 @@ export async function requireAidStaff(
   database: Kysely<DB>,
   context: OrgContext,
 ): Promise<void> {
-  const allowed = await createWithOrg(database)(context, async (trx) => {
+  const result = await createWithOrg(database)(context, async (trx) => {
     const membership = await trx
       .selectFrom('org_memberships')
       .select('id')
@@ -81,7 +91,7 @@ export async function requireAidStaff(
       .where('account_id', '=', context.actor.accountId)
       .where('status', '=', 'active')
       .executeTakeFirst();
-    if (!membership) return false;
+    if (!membership) return { member: false, allowed: false };
     const role = await trx
       .selectFrom('role_assignments')
       .select('id')
@@ -92,7 +102,8 @@ export async function requireAidStaff(
       .where('pending_mfa', '=', false)
       .where('revoked_at', 'is', null)
       .executeTakeFirst();
-    return Boolean(role);
+    return { member: true, allowed: Boolean(role) };
   });
-  if (!allowed) throw new FinanceAccessError();
+  if (!result.member) throw new FinanceResourceNotFoundError();
+  if (!result.allowed) throw new FinanceAccessError();
 }

@@ -12,11 +12,18 @@ const tenantScopes = new Set(['org', 'organization', 'tenant']);
 
 interface OpenApiOperation {
   operationId?: string;
+  parameters?: Array<{
+    name: string;
+    in: string;
+    schema?: Record<string, unknown>;
+  }>;
   'x-athlentry-permission'?: string;
   'x-athlentry-resource'?: string;
   'x-athlentry-scope'?: string;
   'x-athlentry-tenancy-fixture'?: {
-    body?: Record<string, unknown>;
+    body?: unknown;
+    query?: Record<string, string>;
+    pathResource?: 'file';
   };
 }
 
@@ -24,11 +31,33 @@ interface OpenApiDocument {
   paths: Record<string, Record<string, OpenApiOperation>>;
 }
 
-function operationPath(path: string, foreignOrgId: string): string {
+function operationPath(
+  path: string,
+  foreignOrgId: string,
+  pathResource?: 'file',
+  foreignFileId?: string,
+  parameters: OpenApiOperation['parameters'] = [],
+): string {
+  const pathParameters = new Map(
+    parameters
+      .filter((parameter) => parameter.in === 'path')
+      .map((parameter) => [parameter.name, parameter.schema ?? {}]),
+  );
   return path.replace(/\{([^}]+)\}/g, (_placeholder, name: string) => {
     const normalized = name.toLowerCase();
+    if (pathResource === 'file' && normalized === 'id' && foreignFileId)
+      return foreignFileId;
     if (['orgid', 'organizationid', 'tenantid'].includes(normalized))
       return foreignOrgId;
+    if (normalized === 'year') return '2026';
+    const schema = pathParameters.get(name);
+    if (Array.isArray(schema?.enum) && typeof schema.enum[0] === 'string')
+      return schema.enum[0];
+    if (typeof schema?.pattern === 'string' && schema.pattern.includes('po_'))
+      return 'po_tenant_fuzz';
+    if (schema?.type === 'integer' || schema?.type === 'number')
+      return String(typeof schema.minimum === 'number' ? schema.minimum : 2026);
+    if (schema?.format === 'uuid') return randomUUID();
     if (normalized.includes('slug'))
       return `security-${randomUUID().slice(0, 8)}`;
     if (normalized.endsWith('id')) return randomUUID();
@@ -36,7 +65,7 @@ function operationPath(path: string, foreignOrgId: string): string {
   });
 }
 
-test.fixme('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, and DELETE with a foreign org ID and require 404', async ({
+test('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, and DELETE with a foreign org ID and require 404', async ({
   request,
 }) => {
   const document = JSON.parse(
@@ -49,7 +78,10 @@ test.fixme('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, an
   const organizationOperations: Array<{
     path: string;
     method: 'get' | 'patch' | 'delete';
-    body?: Record<string, unknown>;
+    body?: unknown;
+    query?: Record<string, string>;
+    pathResource?: 'file';
+    parameters?: OpenApiOperation['parameters'];
   }> = [];
 
   for (const [path, methods] of Object.entries(document.paths)) {
@@ -70,7 +102,10 @@ test.fixme('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, an
         uncovered.push(`${method.toUpperCase()} ${path}`);
       }
       if (tenantScoped) {
-        if (!/\{(?:orgId|organizationId|tenantId)\}/i.test(path)) {
+        if (
+          !/\{(?:orgId|organizationId|tenantId)\}/i.test(path) &&
+          fixture?.pathResource !== 'file'
+        ) {
           uncovered.push(
             `${method.toUpperCase()} ${path}: missing tenant path parameter`,
           );
@@ -80,6 +115,11 @@ test.fixme('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, an
           path,
           method: method as 'get' | 'patch' | 'delete',
           ...(fixture?.body ? { body: fixture.body } : {}),
+          ...(fixture?.query ? { query: fixture.query } : {}),
+          ...(fixture?.pathResource
+            ? { pathResource: fixture.pathResource }
+            : {}),
+          ...(operation.parameters ? { parameters: operation.parameters } : {}),
         });
       }
     }
@@ -94,6 +134,35 @@ test.fixme('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, an
     const factories = createTestFactories(database);
     const ownOrganization = await factories.actor();
     const foreignOrganization = await factories.actor();
+    await factories.row(ownOrganization, 'role_assignments', {
+      id: randomUUID(),
+      org_id: ownOrganization.orgId,
+      account_id: ownOrganization.accountId,
+      role: 'communications',
+      scope_type: 'org',
+      scope_id: null,
+      granted_by: ownOrganization.accountId,
+      revoked_at: null,
+      pending_mfa: false,
+    });
+    const foreignFileId = randomUUID();
+    await factories.row(foreignOrganization, 'files', {
+      id: foreignFileId,
+      org_id: foreignOrganization.orgId,
+      purpose: 'document',
+      owner_type: null,
+      owner_id: null,
+      storage_key: `security-fuzz/${foreignFileId}`,
+      mime: 'application/pdf',
+      bytes: 1,
+      sha256: null,
+      width: null,
+      height: null,
+      sensitivity: 'internal',
+      created_by: foreignOrganization.accountId,
+      upload_state: 'complete',
+      deleted_at: null,
+    });
     const session = await database.transaction().execute((trx) =>
       issueSession(
         trx,
@@ -112,21 +181,47 @@ test.fixme('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, an
       'X-Athlentry-Request': '1',
     };
     const apiBase = `http://127.0.0.1:${String(3001 + offset)}`;
+    const violations: string[] = [];
 
-    for (const { path, method, body } of organizationOperations) {
-      const target = operationPath(path, foreignOrganization.orgId);
-      const url = `${apiBase}${target}`;
+    for (const {
+      path,
+      method,
+      body,
+      query,
+      pathResource,
+      parameters,
+    } of organizationOperations) {
+      const target = operationPath(
+        path,
+        foreignOrganization.orgId,
+        pathResource,
+        foreignFileId,
+        parameters,
+      );
+      const queryString = new URLSearchParams(query ?? {}).toString();
+      const url = `${apiBase}${target}${queryString ? `?${queryString}` : ''}`;
+      const operationHeaders =
+        pathResource === 'file'
+          ? { ...headers, 'X-Athlentry-Org': ownOrganization.orgId }
+          : headers;
       const response =
         method === 'get'
-          ? await request.get(url, { headers })
+          ? await request.get(url, { headers: operationHeaders })
           : method === 'patch'
-            ? await request.patch(url, { headers, data: body })
-            : await request.delete(url, { headers, data: body });
-      expect(
-        response.status(),
-        `${path} must hide a foreign organization from ${ownOrganization.orgId}`,
-      ).toBe(404);
+            ? await request.patch(url, {
+                headers: operationHeaders,
+                data: body,
+              })
+            : await request.delete(url, {
+                headers: operationHeaders,
+                data: body,
+              });
+      if (response.status() !== 404)
+        violations.push(
+          `${method.toUpperCase()} ${path}: ${String(response.status())} ${await response.text()}`,
+        );
     }
+    expect(violations).toEqual([]);
   } finally {
     await database.destroy();
   }
