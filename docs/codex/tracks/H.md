@@ -133,3 +133,83 @@ Status: WIP — Phase 11 services drafted; federation removed per owner reassign
 - **C:** Dispatch signed payment completion/failure webhooks to fundraising handlers; wire generated server/web registries and feature routes.
 - **J:** Review and merge `track/j-federation` (`c7a9561`) after Phase 11, then complete Phase 13 on H as directed by the owner.
 - **A/C (Phase 10 follow-ups):** Profile message-history links, verified-phone consent capture, `athleteChatEnabled`, conversation sync calls, and chat attachment authorization remain external dependencies listed above.
+
+## HANDOFF
+
+This latest checkpoint supersedes the older handoff blocks above. Owner-directed engine transition; no external messages or real provider sends were made.
+
+### Done
+
+- Branch `track/h-comms` contains the prior Phase 11 checkpoint commits and latest WIP commit `c2eaee1` (`wip(phase11): checkpoint store and finance flows`); no push.
+- Added Store shipping address snapshot migration `8008`; applied migrations through `8008` on the isolated H dev database and regenerated `server/src/db/types.ts` (188 tables).
+- Latest commit hooks passed ESLint/Prettier and `npm run typecheck`. The previously run targeted DB suite passed 4 files / 10 tests before the newest sponsor test and shipping-snapshot changes; those tests need a fresh run.
+- The checkout was clean after `c2eaee1`. Merge base with `rebuild/trunk` was `af353fc14339355d654ac3d7a81d3c085856eb37`. No self-merge: the sprint note says trunk `test` and `knip` are red while C fixes them, and H has not passed its merge gate.
+- Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_h`, `PORT_OFFSET=800`; Postgres `6232`, Mailpit API `8825`, Stripe mock `12911`.
+
+### In progress (acceptance is not complete)
+
+The latest Phase 11 WIP implementation is committed in `c2eaee1`; these exact files need review/verification as part of completing acceptance:
+
+- `db/migrations/8008_store_shipping_address_snapshot.sql`
+- `server/src/db/types.ts`
+- `server/src/modules/fundraising/service.ts`
+- `server/src/modules/store/service.ts`
+- `server/src/modules/team-finance/module.ts`
+- `server/src/modules/team-finance/routes.ts`
+- `server/src/modules/team-finance/schema.ts`
+- `server/src/modules/team-finance/service.ts`
+- `server/test/modules/fundraising/service.integration.test.ts`
+- `server/test/modules/sponsors/service.integration.test.ts`
+- `server/test/modules/team-finance/service.integration.test.ts`
+- `web/src/api/client.ts`
+- `web/src/console/fundraising/FundraisingConsole.tsx`
+- `web/src/console/fundraising/fundraising.css`
+- `web/src/console/fundraising/routes.tsx`
+- `web/src/console/sponsors/SponsorsConsole.tsx`
+- `web/src/console/sponsors/routes.tsx`
+- `web/src/console/sponsors/sponsors.css`
+- `web/src/console/store/StoreConsole.tsx`
+- `web/src/console/store/store.css`
+- `web/src/console/team-finance/TeamFinanceConsole.tsx`
+- `web/src/console/team-finance/routes.tsx`
+- `web/src/console/team-finance/team-finance.css`
+- `web/src/console/volunteers/VolunteersConsole.tsx`
+- `web/src/console/volunteers/routes.tsx`
+- `web/src/console/volunteers/volunteers-console.css`
+- `web/src/portal/store/StorePortal.tsx`
+- `web/src/portal/store/routes.tsx`
+- `web/src/portal/store/store-portal.css`
+- `web/src/portal/team-finance/TeamFinancePortal.tsx`
+- `web/src/portal/team-finance/routes.tsx`
+- `web/src/portal/team-finance/team-finance-portal.css`
+- `web/src/site/fundraising/PublicFundraiser.tsx`
+- `web/src/site/fundraising/public-fundraiser.css`
+- `web/src/site/fundraising/routes.tsx`
+- `web/src/site/sponsors/PublicSponsors.tsx`
+- `web/src/site/sponsors/public-sponsors.css`
+
+### Known test state
+
+- No failing test is confirmed at this checkpoint. Two pre-commit lint errors and one type error were corrected before `c2eaee1`; do not treat those as current failures.
+- Latest `npm run typecheck` passed in the commit hook. The last targeted DB run passed 4 files / 10 tests before `c2eaee1`; the new sponsor test and shipping snapshot behavior have not been run yet.
+- Phase 11 Playwright journeys, WebKit mobile + axe, and the sprint full gate have not been run. The current sprint plan reports trunk `test` and `knip` failures assigned to C.
+- No real email, SMS, push, or payment was sent or processed.
+
+### Exact next steps
+
+1. Read the current `/Users/sammooney/athlentry-sprint/SPRINT.md`; H owns Phase 11 only and J owns Phase 13. Merge `rebuild/trunk` into `track/h-comms` only if trunk has advanced past the recorded merge base; resolve conflicts without editing C-owned routers/registries.
+2. Review the committed Phase 11 services and migration `8008`; confirm all migrations through `8008` apply on the isolated test/template database as well as the dev database.
+3. Run targeted DB and tenancy/permission tests on the isolated H stack. In particular, add/verify shipping-address requiredness and immutable order snapshot, sponsor invoice/placement isolation, donation completion/receipt, volunteer compliance/shift credit/buyout, finance installments/reimbursement approval, and store inventory/add-on reporting.
+4. Complete missing Phase 11 acceptance behavior in H-owned modules and screens, including volunteer shift reminders/QR/check-in and the complete family/staff flows; use E's invoice/payment interfaces and fake/preview adapters only.
+5. Resolve cross-track requests below through their existing interfaces; C owns server/web route and webhook wiring, and B owns the notification catalog. Do not duplicate their systems or edit central router/catalog ownership paths.
+6. Add the Phase 11 Playwright journeys possible on trunk: Chromium desktop and WebKit mobile, with axe. Run Playwright/full suites through `~/athlentry-sprint/heavy.sh`.
+7. Run targeted checks after changes, then the full sprint merge gate after trunk CI is green. Fix failures without weakening tests. Self-merge only when the gate passes, using the trunk lock and the no-commit merge protocol in SPRINT.md.
+
+### Open requests / dependencies
+
+- **E:** Implement the guest `GuestDonationCheckoutPort`/payment completion contract for `server/src/modules/fundraising/checkout.ts`; clarify/use the sponsor billing-account invoice interface and registration add-on inventory reservation integration.
+- **B:** Register Phase 11 catalog IDs: `fundraising.donation_receipt`, `fundraising.campaign_update`, `sponsor.renewal_reminder`, `store.order_update`, `store.low_stock`, `volunteer.shift_reminder`, `volunteer.requirement_behind`, `team.fee_assessed`, and `team.reimbursement_decided`; provide season/program/facility/team picklists for volunteer administration.
+- **C:** Dispatch signed payment completion/failure webhooks to fundraising handlers; mount generated server/web registries and H routes; wire jobs. Do not modify C-owned central wiring here.
+- **D/C:** Provide safe public sponsor-logo delivery and mount the public sponsor/fundraising/store pages.
+- **A:** Household address capture UI and profile/history links remain upstream integrations; H's shipping path requires a saved household address.
+- **J:** Current SPRINT.md assigns Phase 13 federation to J, not H. Older notes in this file suggesting H merge or complete Phase 13 are stale.
