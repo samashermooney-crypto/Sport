@@ -680,6 +680,27 @@ export interface Facilities {
   version: Generated<number>;
 }
 
+export interface Files {
+  bytes: number;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  deleted_at: Timestamp | null;
+  expires_at: Generated<Timestamp>;
+  height: number | null;
+  id: Generated<string>;
+  mime: string;
+  org_id: string;
+  owner_id: string | null;
+  owner_type: string | null;
+  purpose: string;
+  sensitivity: Generated<string>;
+  sha256: string | null;
+  storage_key: string;
+  updated_at: Generated<Timestamp>;
+  upload_state: Generated<string>;
+  width: number | null;
+}
+
 export interface FinancialAidPrograms {
   application_form_id: string | null;
   awarded_cents: Generated<number>;
@@ -1981,6 +2002,7 @@ export interface DB {
   events: Events;
   external_teams: ExternalTeams;
   facilities: Facilities;
+  files: Files;
   financial_aid_programs: FinancialAidPrograms;
   form_definitions: FormDefinitions;
   form_responses: FormResponses;
