@@ -50,7 +50,20 @@ export async function loadReportActorAccess(
 }
 
 export function canManageSavedReports(roles: readonly string[]): boolean {
-  return roles.some((role) => role !== 'reporter');
+  return roles.some((role) =>
+    [
+      'owner',
+      'admin',
+      'registrar',
+      'finance',
+      'scheduler',
+      'compliance',
+      'communications',
+      'director',
+      'evaluator',
+      'volunteer_coordinator',
+    ].includes(role),
+  );
 }
 
 export function canViewSavedReport(
@@ -61,5 +74,17 @@ export function canViewSavedReport(
   return (
     report.created_by === accountId ||
     report.shared_roles.some((role) => roles.includes(role))
+  );
+}
+
+export function canEditSavedReport(
+  accountId: string,
+  roles: readonly string[],
+  report: { created_by: string },
+): boolean {
+  return (
+    report.created_by === accountId ||
+    roles.includes('owner') ||
+    roles.includes('admin')
   );
 }

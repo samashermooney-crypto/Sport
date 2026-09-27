@@ -24,7 +24,7 @@ export const reportFilterSchema = z.strictObject({
       z.number(),
       z.boolean(),
       z
-        .array(z.union([z.string().max(500), z.number()]))
+        .array(z.union([z.string().max(500), z.number(), z.boolean()]))
         .min(1)
         .max(200),
     ])
@@ -60,6 +60,7 @@ export const savedReportBodySchema = z.strictObject({
   sharedRoles: z
     .array(z.string().regex(/^[a-z_]{1,40}$/))
     .max(20)
+    .refine((roles) => new Set(roles).size === roles.length, 'Duplicate role')
     .default([]),
 });
 
@@ -69,6 +70,7 @@ export const savedReportUpdateSchema = z.strictObject({
   sharedRoles: z
     .array(z.string().regex(/^[a-z_]{1,40}$/))
     .max(20)
+    .refine((roles) => new Set(roles).size === roles.length, 'Duplicate role')
     .optional(),
   expectedVersion: z.number().int().positive(),
 });
@@ -99,6 +101,11 @@ export const reportExportQuerySchema = z.strictObject({
 
 export const reportPreviewBodySchema = z.strictObject({
   definition: reportDefinitionSchema,
+});
+
+export const reportExportBodySchema = z.strictObject({
+  definition: reportDefinitionSchema,
+  format: z.enum(['csv', 'xlsx']).default('csv'),
 });
 
 export const reportDatasetColumnSchema = z.strictObject({
@@ -153,4 +160,27 @@ export const savedReportListSchema = z.strictObject({
 
 export const savedReportCreateResponseSchema = z.strictObject({
   report: savedReportResponseSchema,
+});
+
+export const reportScheduleResponseSchema = z.strictObject({
+  id: z.uuid(),
+  savedReportId: z.uuid(),
+  cadence: z.enum(['daily', 'weekly', 'monthly']),
+  recipientAccountIds: z.array(z.uuid()),
+  delivery: z.enum(['link', 'csv_attachment']),
+  format: z.enum(['csv', 'xlsx']),
+  runAtMinute: z.number().int().min(0).max(1439),
+  status: z.enum(['active', 'paused']),
+  nextRunAt: z.iso.datetime(),
+  lastRunAt: z.iso.datetime().nullable(),
+  version: z.number().int().positive(),
+  createdAt: z.iso.datetime(),
+});
+
+export const reportScheduleListSchema = z.strictObject({
+  items: z.array(reportScheduleResponseSchema),
+});
+
+export const reportScheduleCreateResponseSchema = z.strictObject({
+  schedule: reportScheduleResponseSchema,
 });

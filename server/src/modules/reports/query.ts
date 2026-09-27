@@ -58,7 +58,7 @@ export function resolveColumns(
       const exists = dataset.columns.some((column) => column.key === key);
       throw new ReportError(
         403,
-        'COLUMN_FORBIDDEN',
+        'FORBIDDEN',
         exists
           ? `Column "${key}" is above your data tier`
           : `Unknown column "${key}"`,
@@ -85,11 +85,15 @@ function filterValueMatches(
     case 'boolean':
       return typeof value === 'boolean';
     case 'date':
-      return (
-        typeof value === 'string' &&
-        /^\d{4}-\d{2}-\d{2}$/.test(value) &&
-        !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
-      );
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+        return false;
+      {
+        const parsed = new Date(`${value}T00:00:00.000Z`);
+        return (
+          !Number.isNaN(parsed.valueOf()) &&
+          parsed.toISOString().slice(0, 10) === value
+        );
+      }
     case 'datetime':
       return typeof value === 'string' && !Number.isNaN(Date.parse(value));
     case 'enum':
@@ -110,6 +114,25 @@ function validateFilter(filter: ReportFilter, column: DatasetColumn): void {
   }
   if (filter.value === undefined)
     throw new ReportError(400, 'VALIDATION_ERROR', 'Filter value is required');
+  if (
+    Array.isArray(filter.value) &&
+    filter.op !== 'in' &&
+    filter.op !== 'between'
+  )
+    throw new ReportError(
+      400,
+      'VALIDATION_ERROR',
+      'Only in and between filters accept multiple values',
+    );
+  if (
+    ['lt', 'lte', 'gt', 'gte', 'between'].includes(filter.op) &&
+    !['number', 'money', 'date', 'datetime'].includes(column.type)
+  )
+    throw new ReportError(
+      400,
+      'VALIDATION_ERROR',
+      'Range filters require a number or date column',
+    );
   if (
     (filter.op === 'contains' || filter.op === 'starts_with') &&
     column.type !== 'text' &&
@@ -194,7 +217,7 @@ function filterExpression(
   filter: ReportFilter,
   column: DatasetColumn,
 ): RawBuilder<unknown> {
-  const expr = sql.raw(column.source);
+  const expr = columnExpression(column);
   const value = filter.value;
   switch (filter.op) {
     case 'is_null':
@@ -213,10 +236,20 @@ function filterExpression(
       return sql`${expr} > ${value}`;
     case 'gte':
       return sql`${expr} >= ${value}`;
-    case 'contains':
-      return sql`${expr}::text ILIKE ${'%' + String(value ?? '') + '%'}`;
-    case 'starts_with':
-      return sql`${expr}::text ILIKE ${String(value ?? '') + '%'}`;
+    case 'contains': {
+      const escaped = String(value ?? '')
+        .replaceAll('\\', '\\\\')
+        .replaceAll('%', '\\%')
+        .replaceAll('_', '\\_');
+      return sql`${expr}::text ILIKE ${'%' + escaped + '%'} ESCAPE ${'\\'}`;
+    }
+    case 'starts_with': {
+      const escaped = String(value ?? '')
+        .replaceAll('\\', '\\\\')
+        .replaceAll('%', '\\%')
+        .replaceAll('_', '\\_');
+      return sql`${expr}::text ILIKE ${escaped + '%'} ESCAPE ${'\\'}`;
+    }
     case 'in': {
       const items = Array.isArray(value) ? value : [value];
       return sql`${expr} IN (${sql.join(items.map((item) => sql`${item}`))})`;
@@ -253,7 +286,7 @@ function tierCheck(
     const exists = dataset.columns.some((c) => c.key === key);
     throw new ReportError(
       exists ? 403 : 400,
-      exists ? 'COLUMN_FORBIDDEN' : 'VALIDATION_ERROR',
+      exists ? 'FORBIDDEN' : 'VALIDATION_ERROR',
       exists
         ? `${what} column "${key}" is above your data tier`
         : `Unknown ${what} column "${key}"`,
