@@ -126,11 +126,24 @@ test('platform staff and portal notifications work accessibly', async ({
     );
     expect(impersonation.rows).toMatchObject([{ expires_in_seconds: 3600 }]);
     const impersonationId = impersonation.rows[0]?.id;
-    expect(impersonationId).toBeTruthy();
+    if (!impersonationId)
+      throw new Error('Impersonation record was not created');
+    const guardedInbox = page.waitForRequest(
+      (request) =>
+        request.url().includes(`/notifications/orgs/${orgId}/inbox`) &&
+        request.headers()['x-athlentry-impersonation'] === impersonationId,
+    );
     await page.goto(`/portal/orgs/${orgId}/notifications`);
+    await guardedInbox;
     await expect(
       page.getByText(`Read-only impersonation for organization ${orgId}`),
     ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Mark read' })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByRole('checkbox', { name: 'marketing · Email' }),
+    ).toBeDisabled();
     await page.getByRole('button', { name: 'End impersonation' }).click();
     await expect(
       page.getByText(`Read-only impersonation for organization ${orgId}`),

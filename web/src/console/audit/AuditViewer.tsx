@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
 
+import {
+  impersonationHeaders,
+  useImpersonationId,
+} from '../../platform/impersonation';
+
 import './audit-viewer.css';
 
 type AuditEntry = {
@@ -21,6 +26,7 @@ export function AuditViewer({ orgId }: { orgId: string }): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
+  const impersonationId = useImpersonationId();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -31,6 +37,7 @@ export function AuditViewer({ orgId }: { orgId: string }): React.JSX.Element {
     setError('');
     void fetch(`/api/v1/audit/orgs/${encodeURIComponent(orgId)}?${query}`, {
       credentials: 'include',
+      headers: impersonationHeaders(impersonationId),
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -59,7 +66,7 @@ export function AuditViewer({ orgId }: { orgId: string }): React.JSX.Element {
     return () => {
       controller.abort();
     };
-  }, [orgId, entityType, cursor, revision]);
+  }, [orgId, entityType, cursor, impersonationId, revision]);
 
   return (
     <main className="audit-viewer">

@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
 
+import {
+  currentImpersonationId,
+  impersonationHeaders,
+  useImpersonationId,
+} from '../../platform/impersonation';
+
 import './notification-center.css';
 
 type Notification = {
@@ -28,6 +34,7 @@ export function NotificationCenter({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
   const [revision, setRevision] = useState(0);
+  const impersonationId = useImpersonationId();
   const base = `/api/v1/notifications/orgs/${encodeURIComponent(orgId)}`;
 
   useEffect(() => {
@@ -37,10 +44,12 @@ export function NotificationCenter({
     void Promise.all([
       fetch(`${base}/inbox?${query}`, {
         credentials: 'include',
+        headers: impersonationHeaders(impersonationId),
         signal: controller.signal,
       }),
       fetch(`${base}/preferences`, {
         credentials: 'include',
+        headers: impersonationHeaders(impersonationId),
         signal: controller.signal,
       }),
     ])
@@ -64,7 +73,7 @@ export function NotificationCenter({
     return () => {
       controller.abort();
     };
-  }, [base, cursor, revision]);
+  }, [base, cursor, impersonationId, revision]);
 
   useEffect(() => {
     const stream = new EventSource('/api/v1/stream', { withCredentials: true });
@@ -82,6 +91,10 @@ export function NotificationCenter({
   }, []);
 
   async function markRead(id: string): Promise<void> {
+    if (currentImpersonationId()) {
+      setError('Read-only impersonation cannot change notifications.');
+      return;
+    }
     setBusy(id);
     try {
       const response = await fetch(
@@ -89,7 +102,10 @@ export function NotificationCenter({
         {
           method: 'PATCH',
           credentials: 'include',
-          headers: { 'X-Athlentry-Request': '1' },
+          headers: {
+            'X-Athlentry-Request': '1',
+            ...impersonationHeaders(currentImpersonationId()),
+          },
         },
       );
       if (!response.ok)
@@ -103,6 +119,10 @@ export function NotificationCenter({
   }
 
   async function togglePreference(preference: Preference): Promise<void> {
+    if (currentImpersonationId()) {
+      setError('Read-only impersonation cannot change preferences.');
+      return;
+    }
     const key = `${preference.category}:${preference.channel}`;
     setBusy(key);
     try {
@@ -114,6 +134,7 @@ export function NotificationCenter({
           headers: {
             'Content-Type': 'application/json',
             'X-Athlentry-Request': '1',
+            ...impersonationHeaders(currentImpersonationId()),
           },
           body: JSON.stringify({
             enabled: !preference.enabled,
@@ -166,7 +187,7 @@ export function NotificationCenter({
                   </time>
                   {item.payload.href && <a href={item.payload.href}>Open</a>}
                 </div>
-                {!item.readAt && (
+                {!item.readAt && !impersonationId && (
                   <button
                     type="button"
                     disabled={busy === item.id}
@@ -210,7 +231,7 @@ export function NotificationCenter({
                 <input
                   type="checkbox"
                   checked={preference.enabled}
-                  disabled={busy === key}
+                  disabled={busy === key || Boolean(impersonationId)}
                   onChange={() => void togglePreference(preference)}
                 />
                 {preference.category} ·{' '}
