@@ -343,10 +343,7 @@ export function RegistrationScreen({
                           <button
                             className="button"
                             type="button"
-                            disabled={
-                              !choice ||
-                              busyWaitlistOffering === item.offeringId
-                            }
+                            disabled={!choice || Boolean(busyWaitlistOffering)}
                             onClick={() => void joinWaitlist(item)}
                           >
                             {busyWaitlistOffering === item.offeringId
