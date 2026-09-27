@@ -5,9 +5,9 @@ import * as ts from 'typescript';
 import { z } from 'zod';
 
 import { serverModules } from '../server/src/generated/registry';
-import { uploadBody } from '../server/src/modules/files/routes';
 import * as auth from '../shared/src/schemas/auth';
 import { apiErrorSchema } from '../shared/src/schemas/errors';
+import * as files from '../shared/src/schemas/files';
 import { healthResponseSchema } from '../shared/src/schemas/health';
 import * as orgs from '../shared/src/schemas/orgs';
 
@@ -255,36 +255,20 @@ const authRoutes: OpenApiRoute[] = [
     status: 202,
   },
 ];
-const fileRecordSchema = z.strictObject({
-  id: z.uuid(),
-  orgId: z.uuid(),
-  purpose: z.enum(['image', 'document', 'import', 'website_asset']),
-  ownerType: z.string().nullable(),
-  ownerId: z.uuid().nullable(),
-  storageKey: z.string(),
-  mime: z.string(),
-  bytes: z.number().int(),
-  sha256: z.string().nullable(),
-  width: z.number().int().nullable(),
-  height: z.number().int().nullable(),
-  sensitivity: z.string(),
-  createdBy: z.uuid().nullable(),
-  uploadState: z.string(),
-});
 const fileRoutes: OpenApiRoute[] = [
   {
     method: 'post',
     path: `${filesBase}/uploads`,
     summary: 'Begin file upload',
-    body: uploadBody,
-    response: z.strictObject({ fileId: z.uuid(), uploadUrl: z.string() }),
+    body: files.fileUploadRequestSchema,
+    response: files.fileUploadResultSchema,
     status: 201,
   },
   {
     method: 'post',
     path: `${filesBase}/uploads/{id}/complete`,
     summary: 'Complete file upload',
-    response: fileRecordSchema,
+    response: files.fileRecordResponseSchema,
   },
   {
     method: 'put',
@@ -298,10 +282,7 @@ const fileRoutes: OpenApiRoute[] = [
     method: 'get',
     path: `${filesBase}/{id}/download`,
     summary: 'Issue permission-checked file download link',
-    response: z.strictObject({
-      url: z.string(),
-      expiresInSeconds: z.number().int(),
-    }),
+    response: files.fileDownloadLinkSchema,
   },
   {
     method: 'get',

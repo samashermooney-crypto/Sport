@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { apiErrorSchema } from '@shared/schemas/errors';
 import express from 'express';
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
@@ -288,10 +289,14 @@ function createMountedFilesRouter(
         (request.get('Origin') !== new URL(dependencies.appUrl).origin &&
           !(bearer && !request.get('Origin'))))
     ) {
-      response.status(403).json({
-        error: 'FORBIDDEN',
-        message: 'Request origin could not be verified',
-      });
+      response.status(403).json(
+        apiErrorSchema.parse({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Request origin could not be verified',
+          },
+        }),
+      );
       return;
     }
     next();
@@ -346,7 +351,7 @@ export const moduleDefinition = {
   path: '/api/v1/files',
   router: createMountedFilesRouter,
   permissions: [],
-  errorCodes: [],
+  errorCodes: ['FILE_INVALID'],
 } satisfies ServerModule;
 
 export { createFilesRouter };

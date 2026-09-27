@@ -1,3 +1,10 @@
+import { apiErrorSchema } from '@shared/schemas/errors';
+import {
+  fileDownloadLinkSchema,
+  fileRecordResponseSchema,
+  fileUploadRequestSchema,
+  fileUploadResultSchema,
+} from '@shared/schemas/files';
 import express from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -10,16 +17,7 @@ import {
   FilesService,
 } from './service';
 
-export const uploadBody = z.strictObject({
-  purpose: z.enum(['image', 'document', 'import', 'website_asset']),
-  mime: z.string().min(1).max(200),
-  bytes: z.number().int().positive(),
-  ownerType: z.string().max(80).optional(),
-  ownerId: z.uuid().optional(),
-  sensitivity: z
-    .enum(['public', 'internal', 'sensitive', 'restricted'])
-    .optional(),
-});
+export const uploadBody = fileUploadRequestSchema;
 export interface FilesRoutesDependencies {
   files: FilesService;
   context(request: Request): Promise<OrgContext>;
@@ -71,15 +69,17 @@ export function createFilesRouter(dependencies: FilesRoutesDependencies) {
   router.post('/uploads', async (request, response, next) => {
     try {
       const body = uploadBody.parse(request.body);
-      const result = await dependencies.files.beginUpload({
-        context: await dependencies.context(request),
-        purpose: body.purpose,
-        mime: body.mime,
-        bytes: body.bytes,
-        ...(body.ownerType ? { ownerType: body.ownerType } : {}),
-        ...(body.ownerId ? { ownerId: body.ownerId } : {}),
-        ...(body.sensitivity ? { sensitivity: body.sensitivity } : {}),
-      });
+      const result = fileUploadResultSchema.parse(
+        await dependencies.files.beginUpload({
+          context: await dependencies.context(request),
+          purpose: body.purpose,
+          mime: body.mime,
+          bytes: body.bytes,
+          ...(body.ownerType ? { ownerType: body.ownerType } : {}),
+          ...(body.ownerId ? { ownerId: body.ownerId } : {}),
+          ...(body.sensitivity ? { sensitivity: body.sensitivity } : {}),
+        }),
+      );
       response.status(201).json(result);
     } catch (error) {
       next(error);
@@ -87,10 +87,24 @@ export function createFilesRouter(dependencies: FilesRoutesDependencies) {
   });
   router.post('/uploads/:id/complete', async (request, response, next) => {
     try {
-      const result = await dependencies.files.completeUpload(
+      const completed = await dependencies.files.completeUpload(
         await dependencies.context(request),
         z.uuid().parse(request.params.id),
       );
+      const result = fileRecordResponseSchema.parse({
+        id: completed.id,
+        orgId: completed.orgId,
+        purpose: completed.purpose,
+        ownerType: completed.ownerType,
+        ownerId: completed.ownerId,
+        mime: completed.mime,
+        bytes: completed.bytes,
+        sha256: completed.sha256,
+        width: completed.width,
+        height: completed.height,
+        sensitivity: completed.sensitivity,
+        uploadState: completed.uploadState,
+      });
       response.json(result);
     } catch (error) {
       next(error);
@@ -116,11 +130,14 @@ export function createFilesRouter(dependencies: FilesRoutesDependencies) {
   );
   router.get('/:id/download', async (request, response, next) => {
     try {
-      const url = await dependencies.files.download(
-        await dependencies.context(request),
-        z.uuid().parse(request.params.id),
-      );
-      response.json({ url, expiresInSeconds: 300 });
+      const link = fileDownloadLinkSchema.parse({
+        url: await dependencies.files.download(
+          await dependencies.context(request),
+          z.uuid().parse(request.params.id),
+        ),
+        expiresInSeconds: 300,
+      });
+      response.json(link);
     } catch (error) {
       next(error);
     }
@@ -147,21 +164,40 @@ export function createFilesRouter(dependencies: FilesRoutesDependencies) {
       next: express.NextFunction,
     ) => {
       if (error instanceof FilePermissionError) {
-        response
-          .status(403)
-          .json({ error: 'FORBIDDEN', message: error.message });
+        response.status(403).json(
+          apiErrorSchema.parse({
+            error: { code: 'FORBIDDEN', message: error.message },
+          }),
+        );
         return;
       }
       if (error instanceof FileValidationError) {
-        response
-          .status(error.message === 'File not found' ? 404 : 400)
-          .json({ error: 'FILE_INVALID', message: error.message });
+        const notFound = error.message === 'File not found';
+        response.status(notFound ? 404 : 400).json(
+          apiErrorSchema.parse({
+            error: {
+              code: notFound ? 'NOT_FOUND' : 'FILE_INVALID',
+              message: error.message,
+            },
+          }),
+        );
         return;
       }
       if (error instanceof z.ZodError) {
-        response
-          .status(400)
-          .json({ error: 'VALIDATION_ERROR', issues: error.issues });
+        const fields = Object.fromEntries(
+          error.issues.flatMap((issue) =>
+            issue.path.length ? [[issue.path.join('.'), issue.message]] : [],
+          ),
+        );
+        response.status(400).json(
+          apiErrorSchema.parse({
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Request validation failed',
+              ...(Object.keys(fields).length ? { fields } : {}),
+            },
+          }),
+        );
         return;
       }
       next(error);

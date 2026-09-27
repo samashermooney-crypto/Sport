@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 
+import {
+  fileRecordResponseSchema,
+  fileUploadResultSchema,
+} from '@shared/schemas/files';
 import express from 'express';
 import pg from 'pg';
 import sharp from 'sharp';
@@ -247,6 +251,69 @@ afterAll(async () => {
 });
 
 describe('files tenancy and lifecycle', () => {
+  it('uses shared file route contracts without returning storage metadata', async () => {
+    const app = express();
+    app.use(
+      createFilesRouter({
+        files: service,
+        context: () => Promise.resolve(contextA),
+        publicFacilityLayout: () => Promise.resolve(null),
+      }),
+    );
+    const server = createServer(app);
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const address = server.address();
+    if (!address || typeof address === 'string')
+      throw new Error('Files route test server did not bind to a TCP port');
+    const baseUrl = `http://127.0.0.1:${String(address.port)}`;
+    const bytes = Buffer.from('%PDF-1.7\nroute-contract\n');
+    try {
+      const started = await fetch(`${baseUrl}/uploads`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          purpose: 'document',
+          mime: 'application/pdf',
+          bytes: bytes.byteLength,
+        }),
+      });
+      expect(started.status).toBe(201);
+      const { fileId } = fileUploadResultSchema.parse(await started.json());
+
+      const uploaded = await fetch(`${baseUrl}/uploads/${fileId}/content`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/pdf' },
+        body: new Uint8Array(bytes),
+      });
+      expect(uploaded.status).toBe(204);
+
+      const completed = await fetch(`${baseUrl}/uploads/${fileId}/complete`, {
+        method: 'POST',
+      });
+      expect(completed.status).toBe(200);
+      const record = fileRecordResponseSchema.parse(await completed.json());
+      expect(record).toMatchObject({
+        id: fileId,
+        orgId: orgA,
+        purpose: 'document',
+        mime: 'application/pdf',
+        uploadState: 'complete',
+      });
+      expect(record).not.toHaveProperty('storageKey');
+      expect(record).not.toHaveProperty('createdBy');
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+    }
+  });
+
   it.each(['image', 'document'] as const)(
     'strips GPS and EXIF from %s images and every stored size',
     async (purpose) => {
@@ -430,6 +497,14 @@ describe('files tenancy and lifecycle', () => {
       expect(visible.headers.get('content-type')).toBe('image/webp');
       expect(visible.headers.get('cache-control')).toBe('no-store');
       expect(Buffer.from(await visible.arrayBuffer())).toEqual(bytes);
+
+      const absentFile = await fetch(
+        `${new URL(url).origin}/${randomUUID()}/content`,
+      );
+      expect(absentFile.status).toBe(404);
+      expect(await absentFile.json()).toEqual({
+        error: { code: 'NOT_FOUND', message: 'File not found' },
+      });
 
       expect((await fetch(url.replace(orgASlug, orgBSlug))).status).toBe(404);
       await createWithOrg(database)(contextA, (trx) =>
