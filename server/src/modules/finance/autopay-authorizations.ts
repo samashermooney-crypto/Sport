@@ -40,7 +40,7 @@ export class AutopayAuthorizationNotFoundError extends Error {
 }
 export class AutopayAuthorizationConflictError extends Error {}
 export const STAFF_METHOD_CONSENT_VERSION = 'staff-method-consent-v1';
-export const STAFF_METHOD_CONSENT_TEXT =
+const STAFF_METHOD_CONSENT_TEXT =
   'I authorize this organization to charge my selected saved payment method for future unpaid installments of this invoice. I may stop future automatic charges at any time. A charge already in progress may still complete.';
 
 interface AuthorizationRow {
