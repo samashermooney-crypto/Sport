@@ -33,7 +33,7 @@ export const inboxPageSchema = z.strictObject({
 });
 export const preferenceSchema = z.strictObject({
   category: z.enum(['operational', 'announcement', 'marketing', 'emergency']),
-  channel: z.enum(['in_app', 'email']),
+  channel: z.enum(['in_app', 'email', 'sms', 'push']),
   enabled: z.boolean(),
   version: z.number().int().nonnegative(),
 });

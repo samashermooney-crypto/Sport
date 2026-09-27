@@ -131,12 +131,33 @@ export async function listInbox(
       items: page.items.map((row) => {
         if (!isNotificationType(row.type))
           throw new RangeError('Unknown stored notification type');
+        const storedPayload =
+          row.payload &&
+          typeof row.payload === 'object' &&
+          !Array.isArray(row.payload)
+            ? (row.payload as Record<string, unknown>)
+            : {};
+        const visiblePayload = Object.fromEntries(
+          Object.entries(storedPayload).filter(([key]) =>
+            [
+              'resourceType',
+              'resourceId',
+              'personId',
+              'credentialId',
+              'assignmentId',
+              'role',
+              'daysBefore',
+              'expiresOn',
+              'href',
+            ].includes(key),
+          ),
+        );
         return notificationSchema.parse({
           id: row.id,
           orgId: row.org_id,
           type: row.type,
           title: notificationCatalog[row.type].title,
-          payload: row.payload,
+          payload: visiblePayload,
           readAt: row.read_at?.toISOString() ?? null,
           createdAt: row.created_at.toISOString(),
         });
@@ -189,8 +210,17 @@ const categories = [
   'marketing',
   'emergency',
 ] as const;
-const channels = ['in_app', 'email'] as const;
+const channels = ['in_app', 'email', 'sms', 'push'] as const;
 export type PreferenceChannel = (typeof channels)[number];
+
+function defaultPreferenceEnabled(
+  category: NotificationCategory,
+  channel: PreferenceChannel,
+): boolean {
+  return (
+    category !== 'marketing' && (channel === 'in_app' || channel === 'email')
+  );
+}
 
 export async function listPreferences(
   context: OrgContext,
@@ -214,7 +244,8 @@ export async function listPreferences(
           return preferenceSchema.parse({
             category,
             channel,
-            enabled: current?.enabled ?? category !== 'marketing',
+            enabled:
+              current?.enabled ?? defaultPreferenceEnabled(category, channel),
             version: current?.version ?? 0,
           });
         }),
@@ -249,14 +280,17 @@ export async function updatePreference(
     const current = {
       category: input.category,
       channel: input.channel,
-      enabled: existing?.enabled ?? input.category !== 'marketing',
+      enabled:
+        existing?.enabled ??
+        defaultPreferenceEnabled(input.category, input.channel),
       version: existing?.version ?? 0,
     };
     if (current.version !== input.expectedVersion)
       throw new VersionConflictError(current);
     if (
       !input.enabled &&
-      (input.category === 'operational' || input.category === 'emergency')
+      (input.category === 'operational' || input.category === 'emergency') &&
+      (input.channel === 'in_app' || input.channel === 'email')
     ) {
       const otherChannel = input.channel === 'in_app' ? 'email' : 'in_app';
       const other = await trx

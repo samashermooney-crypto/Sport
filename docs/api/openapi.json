@@ -1735,7 +1735,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -1922,7 +1922,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       },
@@ -2107,7 +2107,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -2845,7 +2845,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -2926,7 +2926,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -4339,7 +4339,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       },
@@ -4492,7 +4492,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -4759,13 +4759,13 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "templateId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -4917,13 +4917,13 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "templateId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -5005,7 +5005,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -5187,7 +5187,7 @@
             "name": "paymentMethodId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -5229,7 +5229,7 @@
             "name": "paymentMethodId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -5275,7 +5275,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -5321,7 +5321,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -5367,7 +5367,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -5429,7 +5429,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -5485,7 +5485,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -5609,7 +5609,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -5728,7 +5728,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -5834,13 +5834,13 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "approvalId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -5888,13 +5888,13 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "payoutId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -5981,6 +5981,58 @@
                               "finance.payment_failed",
                               "schedule.changed",
                               "compliance.expiring",
+                              "compliance.credential_expiry_reminder",
+                              "compliance.credential_expired",
+                              "compliance.credential_rejected",
+                              "compliance.credential_revoked",
+                              "compliance.credential_verified",
+                              "compliance.role_activated",
+                              "compliance.role_demoted",
+                              "compliance.background_check_adverse_notice",
+                              "registration.waitlisted",
+                              "registration.offered",
+                              "registration.approved",
+                              "registration.declined",
+                              "registration.canceled",
+                              "registration.transferred",
+                              "checkout.abandoned",
+                              "invoice.issued",
+                              "payment.succeeded",
+                              "payment.failed",
+                              "installment.upcoming",
+                              "installment.failed",
+                              "installment.final_notice",
+                              "refund.issued",
+                              "autopay.card_expiring",
+                              "credential.expiring",
+                              "credential.expired",
+                              "credential.approved",
+                              "credential.rejected",
+                              "background_check.invitation",
+                              "background_check.result_pending",
+                              "staff.activated",
+                              "staff.pending_compliance",
+                              "team.placement_published",
+                              "offer.sent",
+                              "offer.expiring",
+                              "schedule.published",
+                              "event.canceled",
+                              "event.postponed",
+                              "event.closure",
+                              "rsvp.reminder",
+                              "result.posted",
+                              "official_assignment.offered",
+                              "official_assignment.changed",
+                              "volunteer_shift.reminder",
+                              "volunteer_requirement.behind",
+                              "injury.reported",
+                              "communications.chat_message",
+                              "incident.assigned",
+                              "export.ready",
+                              "privacy_request.updated",
+                              "organization.invitation",
+                              "communications.campaign",
+                              "communications.emergency",
                               "organization.announcement",
                               "organization.marketing",
                               "safety.emergency"
@@ -5999,6 +6051,32 @@
                                 "type": "string",
                                 "format": "uuid",
                                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "personId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "credentialId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "assignmentId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "role": { "type": "string", "maxLength": 80 },
+                              "daysBefore": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 365
+                              },
+                              "expiresOn": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
                               },
                               "href": {
                                 "type": "string",
@@ -6174,7 +6252,7 @@
                           },
                           "channel": {
                             "type": "string",
-                            "enum": ["in_app", "email"]
+                            "enum": ["in_app", "email", "sms", "push"]
                           },
                           "enabled": { "type": "boolean" },
                           "version": {
@@ -6244,7 +6322,7 @@
                     },
                     "channel": {
                       "type": "string",
-                      "enum": ["in_app", "email"]
+                      "enum": ["in_app", "email", "sms", "push"]
                     },
                     "enabled": { "type": "boolean" },
                     "version": {
@@ -6380,6 +6458,58 @@
                               "finance.payment_failed",
                               "schedule.changed",
                               "compliance.expiring",
+                              "compliance.credential_expiry_reminder",
+                              "compliance.credential_expired",
+                              "compliance.credential_rejected",
+                              "compliance.credential_revoked",
+                              "compliance.credential_verified",
+                              "compliance.role_activated",
+                              "compliance.role_demoted",
+                              "compliance.background_check_adverse_notice",
+                              "registration.waitlisted",
+                              "registration.offered",
+                              "registration.approved",
+                              "registration.declined",
+                              "registration.canceled",
+                              "registration.transferred",
+                              "checkout.abandoned",
+                              "invoice.issued",
+                              "payment.succeeded",
+                              "payment.failed",
+                              "installment.upcoming",
+                              "installment.failed",
+                              "installment.final_notice",
+                              "refund.issued",
+                              "autopay.card_expiring",
+                              "credential.expiring",
+                              "credential.expired",
+                              "credential.approved",
+                              "credential.rejected",
+                              "background_check.invitation",
+                              "background_check.result_pending",
+                              "staff.activated",
+                              "staff.pending_compliance",
+                              "team.placement_published",
+                              "offer.sent",
+                              "offer.expiring",
+                              "schedule.published",
+                              "event.canceled",
+                              "event.postponed",
+                              "event.closure",
+                              "rsvp.reminder",
+                              "result.posted",
+                              "official_assignment.offered",
+                              "official_assignment.changed",
+                              "volunteer_shift.reminder",
+                              "volunteer_requirement.behind",
+                              "injury.reported",
+                              "communications.chat_message",
+                              "incident.assigned",
+                              "export.ready",
+                              "privacy_request.updated",
+                              "organization.invitation",
+                              "communications.campaign",
+                              "communications.emergency",
                               "organization.announcement",
                               "organization.marketing",
                               "safety.emergency"
@@ -6398,6 +6528,32 @@
                                 "type": "string",
                                 "format": "uuid",
                                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "personId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "credentialId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "assignmentId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "role": { "type": "string", "maxLength": 80 },
+                              "daysBefore": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 365
+                              },
+                              "expiresOn": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
                               },
                               "href": {
                                 "type": "string",
@@ -6573,7 +6729,7 @@
                           },
                           "channel": {
                             "type": "string",
-                            "enum": ["in_app", "email"]
+                            "enum": ["in_app", "email", "sms", "push"]
                           },
                           "enabled": { "type": "boolean" },
                           "version": {
@@ -6643,7 +6799,7 @@
                     },
                     "channel": {
                       "type": "string",
-                      "enum": ["in_app", "email"]
+                      "enum": ["in_app", "email", "sms", "push"]
                     },
                     "enabled": { "type": "boolean" },
                     "version": {
@@ -6750,6 +6906,58 @@
                               "finance.payment_failed",
                               "schedule.changed",
                               "compliance.expiring",
+                              "compliance.credential_expiry_reminder",
+                              "compliance.credential_expired",
+                              "compliance.credential_rejected",
+                              "compliance.credential_revoked",
+                              "compliance.credential_verified",
+                              "compliance.role_activated",
+                              "compliance.role_demoted",
+                              "compliance.background_check_adverse_notice",
+                              "registration.waitlisted",
+                              "registration.offered",
+                              "registration.approved",
+                              "registration.declined",
+                              "registration.canceled",
+                              "registration.transferred",
+                              "checkout.abandoned",
+                              "invoice.issued",
+                              "payment.succeeded",
+                              "payment.failed",
+                              "installment.upcoming",
+                              "installment.failed",
+                              "installment.final_notice",
+                              "refund.issued",
+                              "autopay.card_expiring",
+                              "credential.expiring",
+                              "credential.expired",
+                              "credential.approved",
+                              "credential.rejected",
+                              "background_check.invitation",
+                              "background_check.result_pending",
+                              "staff.activated",
+                              "staff.pending_compliance",
+                              "team.placement_published",
+                              "offer.sent",
+                              "offer.expiring",
+                              "schedule.published",
+                              "event.canceled",
+                              "event.postponed",
+                              "event.closure",
+                              "rsvp.reminder",
+                              "result.posted",
+                              "official_assignment.offered",
+                              "official_assignment.changed",
+                              "volunteer_shift.reminder",
+                              "volunteer_requirement.behind",
+                              "injury.reported",
+                              "communications.chat_message",
+                              "incident.assigned",
+                              "export.ready",
+                              "privacy_request.updated",
+                              "organization.invitation",
+                              "communications.campaign",
+                              "communications.emergency",
                               "organization.announcement",
                               "organization.marketing",
                               "safety.emergency"
@@ -6768,6 +6976,32 @@
                                 "type": "string",
                                 "format": "uuid",
                                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "personId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "credentialId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "assignmentId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "role": { "type": "string", "maxLength": 80 },
+                              "daysBefore": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 365
+                              },
+                              "expiresOn": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
                               },
                               "href": {
                                 "type": "string",
@@ -6943,7 +7177,7 @@
                           },
                           "channel": {
                             "type": "string",
-                            "enum": ["in_app", "email"]
+                            "enum": ["in_app", "email", "sms", "push"]
                           },
                           "enabled": { "type": "boolean" },
                           "version": {
@@ -7013,7 +7247,7 @@
                     },
                     "channel": {
                       "type": "string",
-                      "enum": ["in_app", "email"]
+                      "enum": ["in_app", "email", "sms", "push"]
                     },
                     "enabled": { "type": "boolean" },
                     "version": {
@@ -7120,6 +7354,58 @@
                               "finance.payment_failed",
                               "schedule.changed",
                               "compliance.expiring",
+                              "compliance.credential_expiry_reminder",
+                              "compliance.credential_expired",
+                              "compliance.credential_rejected",
+                              "compliance.credential_revoked",
+                              "compliance.credential_verified",
+                              "compliance.role_activated",
+                              "compliance.role_demoted",
+                              "compliance.background_check_adverse_notice",
+                              "registration.waitlisted",
+                              "registration.offered",
+                              "registration.approved",
+                              "registration.declined",
+                              "registration.canceled",
+                              "registration.transferred",
+                              "checkout.abandoned",
+                              "invoice.issued",
+                              "payment.succeeded",
+                              "payment.failed",
+                              "installment.upcoming",
+                              "installment.failed",
+                              "installment.final_notice",
+                              "refund.issued",
+                              "autopay.card_expiring",
+                              "credential.expiring",
+                              "credential.expired",
+                              "credential.approved",
+                              "credential.rejected",
+                              "background_check.invitation",
+                              "background_check.result_pending",
+                              "staff.activated",
+                              "staff.pending_compliance",
+                              "team.placement_published",
+                              "offer.sent",
+                              "offer.expiring",
+                              "schedule.published",
+                              "event.canceled",
+                              "event.postponed",
+                              "event.closure",
+                              "rsvp.reminder",
+                              "result.posted",
+                              "official_assignment.offered",
+                              "official_assignment.changed",
+                              "volunteer_shift.reminder",
+                              "volunteer_requirement.behind",
+                              "injury.reported",
+                              "communications.chat_message",
+                              "incident.assigned",
+                              "export.ready",
+                              "privacy_request.updated",
+                              "organization.invitation",
+                              "communications.campaign",
+                              "communications.emergency",
                               "organization.announcement",
                               "organization.marketing",
                               "safety.emergency"
@@ -7138,6 +7424,32 @@
                                 "type": "string",
                                 "format": "uuid",
                                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "personId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "credentialId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "assignmentId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "role": { "type": "string", "maxLength": 80 },
+                              "daysBefore": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 365
+                              },
+                              "expiresOn": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
                               },
                               "href": {
                                 "type": "string",
@@ -7313,7 +7625,7 @@
                           },
                           "channel": {
                             "type": "string",
-                            "enum": ["in_app", "email"]
+                            "enum": ["in_app", "email", "sms", "push"]
                           },
                           "enabled": { "type": "boolean" },
                           "version": {
@@ -7383,7 +7695,7 @@
                     },
                     "channel": {
                       "type": "string",
-                      "enum": ["in_app", "email"]
+                      "enum": ["in_app", "email", "sms", "push"]
                     },
                     "enabled": { "type": "boolean" },
                     "version": {
@@ -7490,6 +7802,58 @@
                               "finance.payment_failed",
                               "schedule.changed",
                               "compliance.expiring",
+                              "compliance.credential_expiry_reminder",
+                              "compliance.credential_expired",
+                              "compliance.credential_rejected",
+                              "compliance.credential_revoked",
+                              "compliance.credential_verified",
+                              "compliance.role_activated",
+                              "compliance.role_demoted",
+                              "compliance.background_check_adverse_notice",
+                              "registration.waitlisted",
+                              "registration.offered",
+                              "registration.approved",
+                              "registration.declined",
+                              "registration.canceled",
+                              "registration.transferred",
+                              "checkout.abandoned",
+                              "invoice.issued",
+                              "payment.succeeded",
+                              "payment.failed",
+                              "installment.upcoming",
+                              "installment.failed",
+                              "installment.final_notice",
+                              "refund.issued",
+                              "autopay.card_expiring",
+                              "credential.expiring",
+                              "credential.expired",
+                              "credential.approved",
+                              "credential.rejected",
+                              "background_check.invitation",
+                              "background_check.result_pending",
+                              "staff.activated",
+                              "staff.pending_compliance",
+                              "team.placement_published",
+                              "offer.sent",
+                              "offer.expiring",
+                              "schedule.published",
+                              "event.canceled",
+                              "event.postponed",
+                              "event.closure",
+                              "rsvp.reminder",
+                              "result.posted",
+                              "official_assignment.offered",
+                              "official_assignment.changed",
+                              "volunteer_shift.reminder",
+                              "volunteer_requirement.behind",
+                              "injury.reported",
+                              "communications.chat_message",
+                              "incident.assigned",
+                              "export.ready",
+                              "privacy_request.updated",
+                              "organization.invitation",
+                              "communications.campaign",
+                              "communications.emergency",
                               "organization.announcement",
                               "organization.marketing",
                               "safety.emergency"
@@ -7508,6 +7872,32 @@
                                 "type": "string",
                                 "format": "uuid",
                                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "personId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "credentialId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "assignmentId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "role": { "type": "string", "maxLength": 80 },
+                              "daysBefore": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 365
+                              },
+                              "expiresOn": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
                               },
                               "href": {
                                 "type": "string",
@@ -7693,7 +8083,7 @@
                           },
                           "channel": {
                             "type": "string",
-                            "enum": ["in_app", "email"]
+                            "enum": ["in_app", "email", "sms", "push"]
                           },
                           "enabled": { "type": "boolean" },
                           "version": {
@@ -7768,7 +8158,7 @@
                     },
                     "channel": {
                       "type": "string",
-                      "enum": ["in_app", "email"]
+                      "enum": ["in_app", "email", "sms", "push"]
                     },
                     "enabled": { "type": "boolean" },
                     "version": {

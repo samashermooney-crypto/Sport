@@ -18,7 +18,7 @@ type Notification = {
 type InboxPage = { items: Notification[]; nextCursor: string | null };
 type Preference = {
   category: 'operational' | 'announcement' | 'marketing' | 'emergency';
-  channel: 'in_app' | 'email';
+  channel: 'in_app' | 'email' | 'sms' | 'push';
   enabled: boolean;
   version: number;
 };
@@ -221,8 +221,12 @@ export function NotificationCenter({
           </button>
         )}
       </section>
-      <section aria-labelledby="preferences-title">
+      <section id="preferences" aria-labelledby="preferences-title">
         <h2 id="preferences-title">Delivery preferences</h2>
+        <p>
+          SMS delivery also requires separate phone consent. Push delivery
+          requires a browser subscription.
+        </p>
         <div className="notification-center__preferences">
           {preferences.map((preference) => {
             const key = `${preference.category}:${preference.channel}`;
@@ -235,7 +239,13 @@ export function NotificationCenter({
                   onChange={() => void togglePreference(preference)}
                 />
                 {preference.category} ·{' '}
-                {preference.channel === 'in_app' ? 'In app' : 'Email'}
+                {preference.channel === 'in_app'
+                  ? 'In app'
+                  : preference.channel === 'email'
+                    ? 'Email'
+                    : preference.channel === 'sms'
+                      ? 'SMS'
+                      : 'Push'}
               </label>
             );
           })}

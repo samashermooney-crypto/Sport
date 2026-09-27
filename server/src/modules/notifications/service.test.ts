@@ -160,6 +160,33 @@ describe('notification inbox and preferences', () => {
         type: 'compliance.credential_expiry_reminder',
         payload: { personId, credentialId },
       });
+      const adverseId = randomUUID();
+      await runWithOrg(context, (trx) =>
+        trx
+          .insertInto('notifications')
+          .values({
+            id: adverseId,
+            org_id: orgId,
+            account_id: accountId,
+            type: 'compliance.background_check_adverse_notice',
+            payload: {
+              orderId: randomUUID(),
+              noticeText: 'private background-check details',
+              portalUrl: 'https://example.invalid/private',
+            },
+          })
+          .execute(),
+      );
+      const filtered = await listInbox(context, { limit: 50 }, runWithOrg);
+      expect(
+        filtered.items.find((item) => item.id === adverseId),
+      ).toMatchObject({
+        title: 'Background check notice',
+        payload: {},
+      });
+      expect(JSON.stringify(filtered)).not.toContain(
+        'private background-check details',
+      );
     } finally {
       await listener.end();
     }
@@ -168,14 +195,38 @@ describe('notification inbox and preferences', () => {
   it('keeps at least one operational channel and applies version checks', async () => {
     const runWithOrg = createWithOrg(database);
     const defaults = await listPreferences(context, runWithOrg);
-    expect(defaults.items).toHaveLength(8);
+    expect(defaults.items).toHaveLength(16);
     expect(
       defaults.items.every(
         (item) =>
           item.version === 0 &&
-          item.enabled === (item.category !== 'marketing'),
+          item.enabled ===
+            (item.category !== 'marketing' &&
+              (item.channel === 'in_app' || item.channel === 'email')),
       ),
     ).toBe(true);
+    const sms = await updatePreference(
+      context,
+      {
+        category: 'announcement',
+        channel: 'sms',
+        enabled: true,
+        expectedVersion: 0,
+      },
+      runWithOrg,
+    );
+    expect(sms).toMatchObject({ enabled: true, version: 1 });
+    const push = await updatePreference(
+      context,
+      {
+        category: 'emergency',
+        channel: 'push',
+        enabled: true,
+        expectedVersion: 0,
+      },
+      runWithOrg,
+    );
+    expect(push).toMatchObject({ enabled: true, version: 1 });
     const email = await updatePreference(
       context,
       {

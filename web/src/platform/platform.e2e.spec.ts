@@ -188,6 +188,13 @@ test('platform staff and portal notifications work accessibly', async ({
     await expect(
       page.getByRole('heading', { name: 'Notifications', exact: true }),
     ).toBeVisible();
+    await expect(page.locator('#preferences')).toBeVisible();
+    await expect(
+      page.getByRole('checkbox', { name: 'announcement · SMS' }),
+    ).not.toBeChecked();
+    await expect(
+      page.getByRole('checkbox', { name: 'announcement · Push' }),
+    ).not.toBeChecked();
     await expect(page.getByText('Registration confirmed')).toBeVisible();
     await page.getByRole('button', { name: 'Mark read' }).click();
     await expect(page.getByRole('button', { name: 'Mark read' })).toHaveCount(
