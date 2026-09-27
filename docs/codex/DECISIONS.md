@@ -854,3 +854,11 @@
 - **Decision:** Resolve event-linked volunteer signups in `signed_up`, `confirmed` or `checked_in` status through active, verified guardian/self account links. Exclude canceled signups and shifts that are completed or canceled; deduplicate recipients before writing the emergency batch.
 - **Why:** A facility closure must reach volunteers already assigned to the affected event while respecting revoked or unverified family links and avoiding notices to canceled assignments.
 - **Consequences / follow-ups:** One recipient receives one emergency batch containing all affected event changes. Track B's notification service emits the in-app notice; email fan-out remains a Track B integration request.
+
+### DEC-116 — Stream public contest snapshots by contest version
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 9 public live results
+- **Context:** The public live-results JSON endpoint exposed finalized snapshots but public pages did not receive score changes while a contest was in progress.
+- **Decision:** Add a public EventSource page and a `text/event-stream` endpoint that emits the existing privacy-filtered contest snapshot when its version changes, heartbeats while active, and closes after finalization or ten minutes.
+- **Why:** Viewers can see live format-specific scores without exposing staff result controls or adding participant profile fields to the public response.
+- **Consequences / follow-ups:** The stream only opens for published events and uses the same result snapshot as the public JSON endpoint; the page is covered by Chromium/WebKit accessibility journeys and the endpoint by generated OpenAPI.

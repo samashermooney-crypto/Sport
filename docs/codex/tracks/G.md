@@ -52,6 +52,8 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Season-award listing query regression passes against isolated Postgres after qualifying joined table columns.
 - [x] Statistics configuration, contest creation, finalized score with persisted per-team stats, facility closure preview and postponement, public leaderboard, and public standings snapshot Playwright journey passes on Chromium desktop and WebKit mobile with axe and no schedule-page alerts.
 - [x] North Park mass-closure journey closes 24 published games, resolves 24 event-linked volunteer signups to one recipient, persists one immediate 24-change emergency batch, emits its notification through Track B's notification service, and shows the rainout banner with all 24 postponed events on the public facility page; Chromium and WebKit mobile with axe pass. The notification service currently records the in-app channel only.
+- [x] Public live contest page consumes a versioned SSE route; the Phase 9 journey opens a scheduled contest, finalizes its format-specific result, and observes the public score/status update in Chromium and WebKit mobile with axe. The SSE endpoint is documented as `text/event-stream` in the OpenAPI output.
+- [x] Full Vitest suite on the G-isolated stack after volunteer closure integration: 246 files passed, 1 skipped; 876 tests passed, 1 skipped.
 - [x] Latest standings table follow-up adds a keyboard-focusable named scroll region; focused schedule-stats journey passes Chromium desktop and WebKit mobile, and targeted ESLint plus `npm run typecheck` pass.
 - [x] After the Phase 9 additions and export cleanup, all six G-owned server-module suites pass (14 files / 22 tests); typecheck, full lint, and production build pass.
 - [x] Family guardian RSVP browser journey passes on Chromium desktop and WebKit mobile with axe; it caught and fixed the portal's missing same-origin request marker.
@@ -68,6 +70,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [ ] Prior lock-protected merge attempt stopped because `server/src/modules/officials/service.integration.test.ts` timed out at five seconds; the independent assignment/response operations are now concurrent and three focused default-timeout runs passed. Retry the full merge gate after syncing trunk.
 - [x] Twelve G-owned schedule journeys cover recurrence-series edits, schedule tools/manual changes/CSV/reschedules, public facility pages, statistics/results/24-game facility closure with volunteer notification, generator apply/discard and explanations, coach allocation requests, family RSVP, offline game-day sync, officials assignment/pay, swim meets, tournaments, and season end; Chromium desktop and WebKit mobile with axe pass 24/24. The console and portal routes mount via the generated nested-route registry.
 - [ ] Full acceptance remains blocked on email fan-out for emergency notices, discipline result/game-served integration, the facility image serving contract, schedule navigation wiring, and the unrelated baseline WebKit failures documented below. Do not mark ready until the remaining cross-track contracts and full gates pass.
+- [ ] The shared `Sport-trunk` checkout currently contains staged and unstaged work across other tracks, including G-owned files. I released the trunk lock without merging; retry integration when the shared checkout is clean.
 
 ## Cross-track requests and blockers
 
@@ -86,5 +89,5 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
 - G decisions are `DEC-082–096` and `DEC-100–108` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
-- Latest G integration: the earlier G slice passed the lock-protected merge gate and was merged into `rebuild/trunk` on 2026-09-27; trunk subsequently integrated Track H as `0ca39573`, which is an ancestor of this branch. Current G commits remain local and are not pushed.
+- Latest G integration: the earlier G slice passed the lock-protected merge gate and was merged into `rebuild/trunk` on 2026-09-27; trunk subsequently integrated Track H as `0ca39573`, which is an ancestor of this branch. Current G commits remain local and are not pushed. The latest self-merge attempt found a dirty shared checkout and made no trunk changes.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.

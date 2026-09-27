@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
 import { FamilySchedule } from './FamilySchedule';
+import { LiveContestPage } from './LiveContestPage';
 import { OfficialAssignmentsPortal } from './OfficialAssignmentsPortal';
 import { PracticeSlotPicker } from './PracticeSlotPicker';
 import { PublicFacilityPage } from './PublicFacilityPage';
@@ -71,6 +72,15 @@ function PublicTournamentRoute(): React.JSX.Element {
   );
 }
 
+function LiveContestRoute(): React.JSX.Element {
+  const { slug, contestId } = useParams<{ slug: string; contestId: string }>();
+  return slug && contestId ? (
+    <LiveContestPage slug={slug} contestId={contestId} />
+  ) : (
+    <main className="schedule-page">Contest not found.</main>
+  );
+}
+
 function PublicProgramStandingsRoute(): React.JSX.Element {
   const { slug, programId } = useParams<{ slug: string; programId: string }>();
   return slug && programId ? (
@@ -116,6 +126,10 @@ export const portalScheduleRoutes: readonly RouteObject[] = [
   {
     path: '/orgs/:slug/tournaments/:bracketId',
     element: <PublicTournamentRoute />,
+  },
+  {
+    path: '/orgs/:slug/contests/:contestId/live',
+    element: <LiveContestRoute />,
   },
   {
     path: '/orgs/:slug/programs/:programId/standings',

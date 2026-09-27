@@ -52,6 +52,7 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     const facilityId = newId();
     const spaceId = newId();
     const volunteerRoleId = newId();
+    const eventId = newId();
     const closureEventIds = Array.from({ length: 24 }, () => newId());
     const volunteerShiftIds = closureEventIds.map(() => newId());
     const closureEventStartsAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
@@ -162,7 +163,6 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
           created_by: actor.accountId,
         })
         .execute();
-      const eventId = newId();
       const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await trx
         .insertInto('events')
@@ -296,6 +296,36 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     await expect(
       page.getByText(/head_to_head_score|head-to-head-score/i),
     ).toBeVisible();
+    const contestId = await createWithOrg(database)(
+      actor,
+      async (trx) =>
+        (
+          await trx
+            .selectFrom('contests')
+            .select('id')
+            .where('org_id', '=', actor.orgId)
+            .where('event_id', '=', eventId)
+            .executeTakeFirstOrThrow()
+        ).id,
+    );
+    const organization = await database
+      .selectFrom('organizations')
+      .select('slug')
+      .where('id', '=', actor.orgId)
+      .executeTakeFirstOrThrow();
+    const livePage = await page.context().newPage();
+    await livePage.goto(
+      `/orgs/${organization.slug}/contests/${contestId}/live`,
+    );
+    await expect(
+      livePage.getByRole('heading', { name: 'Live score' }),
+    ).toBeVisible();
+    await expect(livePage.getByRole('status')).toHaveText(
+      'Live score updates connected.',
+    );
+    await expect(
+      livePage.getByText('scheduled', { exact: true }),
+    ).toBeVisible();
     await page.getByLabel(`Goals for ${home.teamSeasonId}`).fill('3');
     await page.getByLabel(`Goals for ${away.teamSeasonId}`).fill('1');
     await page
@@ -304,6 +334,14 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     await page.getByLabel('Finalize result and update standings').check();
     await page.getByRole('button', { name: 'Submit result' }).click();
     await expect(page.getByRole('status')).toHaveText('Result submitted.');
+    const liveScoreboard = livePage.getByRole('region', {
+      name: 'Live scoreboard',
+    });
+    await expect(livePage.getByText('final', { exact: true })).toBeVisible();
+    await expect(liveScoreboard.getByText('2', { exact: true })).toBeVisible();
+    await expect(liveScoreboard.getByText('1', { exact: true })).toBeVisible();
+    expect(await accessibilityViolations(livePage)).toEqual([]);
+    await livePage.close();
     const savedStats = await createWithOrg(database)(actor, (trx) =>
       trx
         .selectFrom('stat_lines')
@@ -445,11 +483,6 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     });
     await expect(page.getByRole('alert')).toHaveCount(0);
     expect(await accessibilityViolations(page)).toEqual([]);
-    const organization = await database
-      .selectFrom('organizations')
-      .select('slug')
-      .where('id', '=', actor.orgId)
-      .executeTakeFirstOrThrow();
     await page.goto(`/orgs/${organization.slug}/facilities/${facilityId}`);
     await expect(
       page.getByRole('heading', { name: 'North Park Fields' }),
