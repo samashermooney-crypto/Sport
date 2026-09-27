@@ -75,6 +75,12 @@ import {
   payoutJournalLines,
 } from './journal-export.js';
 import {
+  manualInstallmentIntentSchema,
+  manualInstallmentListSchema,
+  ManualInstallmentConflictError,
+  PostgresManualInstallmentPayments,
+} from './manual-installment-pay.js';
+import {
   MoneyDocumentGlyphError,
   MoneyDocumentNotFoundError,
   MoneyDocumentUnavailableError,
@@ -141,6 +147,9 @@ export const staffMethodConsentBodySchema = z.strictObject({
 export const staffMethodConsentResponseSchema = z.strictObject({
   id: z.uuid(),
   paymentMethodId: z.uuid(),
+});
+export const stripeClientConfigSchema = z.strictObject({
+  publishableKey: z.string().startsWith('pk_test_'),
 });
 
 export const offlinePaymentBodySchema = z.strictObject({
@@ -452,6 +461,7 @@ function sendError(response: Response, error: unknown): void {
           error instanceof InstallmentTemplateConflictError ||
           error instanceof InstallmentStaffConflictError ||
           error instanceof AutopayAuthorizationConflictError ||
+          error instanceof ManualInstallmentConflictError ||
           error instanceof InvoiceConflictError ||
           error instanceof AidAwardConflictError ||
           error instanceof AidProgramConflictError ||
@@ -534,6 +544,17 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.get('/stripe-client-config', async (request, response) => {
+    try {
+      await requireSession(dependencies, request);
+      const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+      if (!publishableKey?.startsWith('pk_test_'))
+        throw new FinanceDependencyError('Stripe test client is unavailable');
+      response.json(stripeClientConfigSchema.parse({ publishableKey }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
   router.get('/orgs/:orgId/me/autopay', async (request, response) => {
     try {
       if (requestImpersonation(request)) throw new FinanceAccessError();
@@ -1196,6 +1217,44 @@ export function createFinanceRouter(
           context,
         ).list(true);
         response.json(installmentTemplateListSchema.parse({ templates }));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get('/orgs/:orgId/me/installments', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await new PostgresManualInstallmentPayments(
+        dependencies.database,
+        { orgId, actor: { accountId: session.accountId } },
+      ).listPayable();
+      response.json(manualInstallmentListSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/orgs/:orgId/me/installments/:installmentId/payment-intents',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const installmentId = z.uuid().parse(request.params.installmentId);
+        const key = z.uuid().parse(request.get('Idempotency-Key'));
+        const result = await new PostgresManualInstallmentPayments(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+          gatewayFactory(),
+        ).create(installmentId, key);
+        response.status(201).json(manualInstallmentIntentSchema.parse(result));
       } catch (error) {
         sendError(response, error);
       }

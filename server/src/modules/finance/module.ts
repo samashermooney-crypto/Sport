@@ -28,6 +28,10 @@ import {
   installmentTemplateSchema,
   installmentTemplateListSchema,
 } from './installment-templates.js';
+import {
+  manualInstallmentIntentSchema,
+  manualInstallmentListSchema,
+} from './manual-installment-pay.js';
 import { payerReceiptListSchema } from './payer-receipts.js';
 import {
   createFinanceRouter,
@@ -61,6 +65,7 @@ import {
   autopayRevocationResponseSchema,
   staffMethodConsentBodySchema,
   staffMethodConsentResponseSchema,
+  stripeClientConfigSchema,
 } from './routes.js';
 import {
   taxRateBodySchema,
@@ -238,6 +243,26 @@ export const moduleDefinition = {
       summary: 'Void an unpaid invoice at an exact version',
       body: voidInvoiceBodySchema,
       response: voidInvoiceResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/stripe-client-config',
+      summary:
+        'Read the test-mode Stripe publishable key for authenticated payers',
+      response: stripeClientConfigSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/me/installments',
+      summary:
+        'List payer-owned outstanding installments available for payment',
+      response: manualInstallmentListSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/me/installments/{installmentId}/payment-intents',
+      summary: 'Reserve a payer-owned manual installment PaymentIntent',
+      response: manualInstallmentIntentSchema,
     },
     {
       method: 'get',

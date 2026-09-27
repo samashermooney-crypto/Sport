@@ -195,44 +195,60 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
         allocation.installment_id &&
         (target === 'failed' || target === 'canceled')
       ) {
-        const installment = await trx
-          .selectFrom('installments')
-          .select(['attempt_count', 'status'])
-          .where('org_id', '=', input.orgId)
-          .where('id', '=', allocation.installment_id)
-          .forUpdate()
-          .executeTakeFirstOrThrow();
-        if (installment.status !== 'paid') {
-          const retry =
-            target === 'failed'
-              ? nextInstallmentAttempt(
-                  this.now().toString(),
-                  installment.attempt_count,
-                  failureCode ?? 'unknown',
-                  org.timezone,
-                )
-              : { retry: false, nextAttemptAt: null, finalFailure: true };
-          await trx
-            .updateTable('installments')
-            .set({
-              status: 'failed',
-              autopay: retry.retry,
-              next_attempt_at: retry.nextAttemptAt
-                ? new Date(retry.nextAttemptAt)
-                : null,
-              last_failure_code: failureCode,
-              last_failure_message: failureMessage,
-              version: sql`version + 1`,
-            })
-            .where('org_id', '=', input.orgId)
-            .where('id', '=', allocation.installment_id)
-            .execute();
+        const manual = await sql<{ exists: boolean }>`
+          SELECT EXISTS (
+            SELECT 1 FROM manual_installment_payment_attempts
+            WHERE org_id = ${input.orgId}::uuid
+              AND payment_id = ${payment.id}::uuid
+          ) AS exists
+        `.execute(trx);
+        if (manual.rows[0]?.exists) {
           await recomputeInvoiceStatus(
             trx,
             input.orgId,
             allocation.invoice_id,
             todayLocal,
           );
+        } else {
+          const installment = await trx
+            .selectFrom('installments')
+            .select(['attempt_count', 'status'])
+            .where('org_id', '=', input.orgId)
+            .where('id', '=', allocation.installment_id)
+            .forUpdate()
+            .executeTakeFirstOrThrow();
+          if (installment.status !== 'paid') {
+            const retry =
+              target === 'failed'
+                ? nextInstallmentAttempt(
+                    this.now().toString(),
+                    installment.attempt_count,
+                    failureCode ?? 'unknown',
+                    org.timezone,
+                  )
+                : { retry: false, nextAttemptAt: null, finalFailure: true };
+            await trx
+              .updateTable('installments')
+              .set({
+                status: 'failed',
+                autopay: retry.retry,
+                next_attempt_at: retry.nextAttemptAt
+                  ? new Date(retry.nextAttemptAt)
+                  : null,
+                last_failure_code: failureCode,
+                last_failure_message: failureMessage,
+                version: sql`version + 1`,
+              })
+              .where('org_id', '=', input.orgId)
+              .where('id', '=', allocation.installment_id)
+              .execute();
+            await recomputeInvoiceStatus(
+              trx,
+              input.orgId,
+              allocation.invoice_id,
+              todayLocal,
+            );
+          }
         }
       }
       await appendAuditEvent(trx, context, {
