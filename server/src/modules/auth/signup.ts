@@ -11,7 +11,7 @@ import type { EmailSender } from '../../integrations/email/sender';
 import { createAuthEmail } from '../../integrations/email/templates/auth';
 
 import { AuthDomainError } from './domain-error';
-import { localLegalDocuments } from './legal';
+import { legalDocumentsForLocale } from './legal';
 import { hashPassword } from './password';
 import { consumeAuthToken, issueAuthToken } from './tokens';
 
@@ -62,6 +62,7 @@ export async function signUp(
   if (existing) return notice;
 
   const accountId = newId();
+  const legalDocuments = legalDocumentsForLocale(parsed.locale ?? 'en');
   let rawToken: string;
   try {
     rawToken = await dependencies.database
@@ -86,8 +87,8 @@ export async function signUp(
               id: newId(),
               account_id: accountId,
               kind: 'terms',
-              document_version: localLegalDocuments.terms.version,
-              document_text: localLegalDocuments.terms.text,
+              document_version: legalDocuments.terms.version,
+              document_text: legalDocuments.terms.text,
               accepted_at: now,
               ip: meta.ip ?? null,
               user_agent: meta.userAgent ?? null,
@@ -96,8 +97,8 @@ export async function signUp(
               id: newId(),
               account_id: accountId,
               kind: 'privacy',
-              document_version: localLegalDocuments.privacy.version,
-              document_text: localLegalDocuments.privacy.text,
+              document_version: legalDocuments.privacy.version,
+              document_text: legalDocuments.privacy.text,
               accepted_at: now,
               ip: meta.ip ?? null,
               user_agent: meta.userAgent ?? null,

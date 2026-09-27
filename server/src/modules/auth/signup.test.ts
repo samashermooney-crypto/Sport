@@ -6,7 +6,7 @@ import type { DB } from '../../db/types';
 import { AlwaysPassCaptcha } from '../../integrations/captcha/provider';
 import { FakeEmailSender } from '../../integrations/email/sender';
 
-import { localLegalDocuments } from './legal';
+import { localLegalDocuments, localLegalDocumentsEs } from './legal';
 import { signUp, Under13Error, verifyEmail } from './signup';
 
 const now = new Date('2026-09-26T18:00:00Z');
@@ -102,10 +102,28 @@ describe('signup and email verification', () => {
     );
     const account = await database
       .selectFrom('accounts')
-      .select('locale')
+      .select(['id', 'locale'])
       .where('email', '=', address)
       .executeTakeFirstOrThrow();
     expect(account.locale).toBe('es');
+    const consents = await database
+      .selectFrom('account_consents')
+      .select(['kind', 'document_version', 'document_text'])
+      .where('account_id', '=', account.id)
+      .orderBy('kind')
+      .execute();
+    expect(consents).toEqual([
+      {
+        kind: 'privacy',
+        document_version: localLegalDocumentsEs.privacy.version,
+        document_text: localLegalDocumentsEs.privacy.text,
+      },
+      {
+        kind: 'terms',
+        document_version: localLegalDocumentsEs.terms.version,
+        document_text: localLegalDocumentsEs.terms.text,
+      },
+    ]);
     const message = email.messages.find((sent) => sent.to === address);
     expect(message?.subject).toBe('Verifique su correo electrónico');
     expect(message?.html).toContain('<html lang="es">');
