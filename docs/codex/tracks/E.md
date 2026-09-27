@@ -6,9 +6,10 @@ Branch: `track/e-finance`
 Current: Schema spine merged; Phase 4 persistence in progress, starting with durable Stripe event ingress.
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
-Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired (2026-09-26).
+Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1003 merge (2026-09-26).
 Requests to other tracks: B: confirm whether `generateInstallments` must support `weekly` from `02 §L` (current `20 §3` algorithm and shared function cover fixed dates/monthly only) (2026-09-26).
 Blocked on: None; schema spine and test factories are on `rebuild/trunk`.
+Next: wire PaymentIntent webhook handlers to scoped payment/invoice/checkout writes, then implement saved-method sync, installment dunning, credits and reconciliation on the spine.
 Gateway: Stripe SDK 22.6.2 dependency-only commit `cf83f4c`; real SDK adapter covers Connect, Customers, payment methods, intents, refunds, reversals, disputes, payouts, Billing and domains.
 Gateway tests: 36 passed, including stripe-mock Express account and destination PaymentIntent; typecheck and targeted lint green.
 Gateway review: test-only keys and events enforced; raw webhook bytes verified; exact destination fee and idempotency key asserted.
