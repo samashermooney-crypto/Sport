@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   StripeEventDispatcher,
+  type ClaimedStripeEvent,
   type StoredStripeEvent,
   type StripeEventRepository,
 } from './dispatch.js';
@@ -26,16 +27,21 @@ class MemoryRepository implements StripeEventRepository {
     this.states.set(event.id, 'pending');
     return Promise.resolve('inserted');
   }
-  claim(eventId: string): Promise<StoredStripeEvent | null> {
+  claim(eventId: string): Promise<ClaimedStripeEvent | null> {
     if (this.states.get(eventId) !== 'pending') return Promise.resolve(null);
     this.states.set(eventId, 'claimed');
-    return Promise.resolve(this.events.get(eventId) ?? null);
+    const event = this.events.get(eventId);
+    return Promise.resolve(
+      event ? { ...event, claimToken: 'claim-test' } : null,
+    );
   }
-  complete(eventId: string): Promise<void> {
+  complete(eventId: string, claimToken: string): Promise<void> {
+    if (claimToken !== 'claim-test') throw new Error('Stale claim');
     this.states.set(eventId, 'processed');
     return Promise.resolve();
   }
-  fail(eventId: string): Promise<void> {
+  fail(eventId: string, claimToken: string): Promise<void> {
+    if (claimToken !== 'claim-test') throw new Error('Stale claim');
     this.failures += 1;
     this.states.set(eventId, 'pending');
     return Promise.resolve();

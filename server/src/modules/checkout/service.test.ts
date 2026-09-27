@@ -129,6 +129,7 @@ describe('checkout capacity service', () => {
     });
     expect(result.kind).toBe('refund_initiated');
     expect(createRefund).toHaveBeenCalledWith({
+      orgId: 'org_1',
       paymentIntentId: 'pi_test',
       amountCents: 1000,
       reverseTransfer: true,

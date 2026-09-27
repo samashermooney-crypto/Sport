@@ -26,6 +26,9 @@ function harness() {
       return Promise.resolve();
     }),
     load: vi.fn(() => Promise.resolve(customerId)),
+    findAccountByCustomer: vi.fn((id: string) =>
+      Promise.resolve(id === customerId ? 'account-1' : null),
+    ),
   } satisfies PayerProfileRepository;
   const gateway = {
     createCustomer: vi.fn<PaymentsGateway['createCustomer']>(() =>
@@ -36,6 +39,12 @@ function harness() {
     ),
     listPaymentMethods: vi.fn<PaymentsGateway['listPaymentMethods']>(() =>
       Promise.resolve([]),
+    ),
+    detachPaymentMethod: vi.fn<PaymentsGateway['detachPaymentMethod']>(() =>
+      Promise.resolve(),
+    ),
+    setDefaultPaymentMethod: vi.fn<PaymentsGateway['setDefaultPaymentMethod']>(
+      () => Promise.resolve(),
     ),
   };
   return {
@@ -111,5 +120,36 @@ describe('payer method setup', () => {
       }),
     ).rejects.toThrow('UUID');
     expect(gateway.createCustomer).not.toHaveBeenCalled();
+  });
+
+  it('checks account ownership before detaching or changing the default', async () => {
+    const { service, gateway } = harness();
+    await service.createSetupIntent({
+      accountId: 'account-1',
+      email: 'family@example.test',
+      idempotencyKey: randomUUID(),
+    });
+    await expect(service.remove('account-1', 'pm_other')).rejects.toThrow(
+      'not attached',
+    );
+    expect(gateway.detachPaymentMethod).not.toHaveBeenCalled();
+    gateway.listPaymentMethods.mockResolvedValue([
+      {
+        id: 'pm_owned',
+        type: 'card',
+        brand: 'visa',
+        last4: '4242',
+        expMonth: 12,
+        expYear: 2030,
+        bankName: null,
+      },
+    ]);
+    await service.setDefault('account-1', 'pm_owned');
+    await service.remove('account-1', 'pm_owned');
+    expect(gateway.setDefaultPaymentMethod).toHaveBeenCalledWith(
+      'cus_test_1',
+      'pm_owned',
+    );
+    expect(gateway.detachPaymentMethod).toHaveBeenCalledWith('pm_owned');
   });
 });

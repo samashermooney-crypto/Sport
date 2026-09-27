@@ -12,6 +12,10 @@ export interface StoredStripeEvent {
   event: StripeWebhookEvent;
 }
 
+export interface ClaimedStripeEvent extends StoredStripeEvent {
+  claimToken: string;
+}
+
 /**
  * Implementations must atomically dedupe by Stripe event ID and atomically claim
  * a pending event. A claimed event must not be returned to another worker until
@@ -21,9 +25,9 @@ export interface StripeEventRepository {
   store(
     event: StoredStripeEvent,
   ): Promise<'inserted' | 'pending' | 'processed'>;
-  claim(eventId: string): Promise<StoredStripeEvent | null>;
-  complete(eventId: string): Promise<void>;
-  fail(eventId: string, message: string): Promise<void>;
+  claim(eventId: string): Promise<ClaimedStripeEvent | null>;
+  complete(eventId: string, claimToken: string): Promise<void>;
+  fail(eventId: string, claimToken: string, message: string): Promise<void>;
 }
 
 export type StripeEventHandler = (event: StripeWebhookEvent) => Promise<void>;
@@ -48,10 +52,14 @@ export class StripeEventDispatcher {
         }
         await handler(stored.event);
       }
-      await this.repository.complete(eventId);
+      await this.repository.complete(eventId, stored.claimToken);
       return 'processed';
     } catch (error) {
-      await this.repository.fail(eventId, 'STRIPE_DISPATCH_FAILED');
+      await this.repository.fail(
+        eventId,
+        stored.claimToken,
+        'STRIPE_DISPATCH_FAILED',
+      );
       throw error;
     }
   }

@@ -18,6 +18,7 @@ export interface PaymentsGateway {
   createExpressLoginLink(accountId: string): Promise<{ url: string }>;
   retrieveAccount(accountId: string): Promise<{
     id: string;
+    orgId?: string | null;
     chargesEnabled: boolean;
     payoutsEnabled: boolean;
     detailsSubmitted: boolean;
@@ -35,6 +36,17 @@ export interface PaymentsGateway {
     id: string;
     clientSecret: string;
   }>;
+  retrieveSetupIntent(setupIntentId: string): Promise<{
+    id: string;
+    status: string;
+    customerId: string | null;
+    paymentMethodId: string | null;
+  }>;
+  retrievePaymentMethod(paymentMethodId: string): Promise<
+    GatewayPaymentMethod & {
+      customerId: string | null;
+    }
+  >;
   listPaymentMethods(customerId: string): Promise<GatewayPaymentMethod[]>;
   detachPaymentMethod(paymentMethodId: string): Promise<void>;
   setDefaultPaymentMethod(
@@ -50,15 +62,31 @@ export interface PaymentsGateway {
     idempotencyKey: string,
   ): Promise<GatewayPaymentIntent>;
   createRefund(input: {
+    orgId?: string;
     paymentIntentId: string;
     amountCents: number;
     reverseTransfer: boolean;
     refundApplicationFee: boolean;
     idempotencyKey: string;
   }): Promise<{ id: string; status: string; amountCents: number }>;
+  retrieveRefund(refundId: string): Promise<GatewayRefund>;
+  listRefundsForCharge(chargeId: string): Promise<GatewayRefund[]>;
   reverseTransfer(input: {
     transferId: string;
     amountCents: number;
+    idempotencyKey: string;
+  }): Promise<{ id: string; amountCents: number }>;
+  retrieveDispute(disputeId: string): Promise<GatewayDispute>;
+  retrieveTransfer(transferId: string): Promise<{
+    id: string;
+    amountCents: number;
+    amountReversedCents: number;
+    destinationAccountId: string;
+  }>;
+  createTransfer(input: {
+    destinationAccountId: string;
+    amountCents: number;
+    disputeId: string;
     idempotencyKey: string;
   }): Promise<{ id: string; amountCents: number }>;
   submitDisputeEvidence(input: {
@@ -70,9 +98,11 @@ export interface PaymentsGateway {
     accountId: string,
     startingAfter?: string,
   ): Promise<GatewayPage<GatewayPayout>>;
+  retrievePayout(accountId: string, payoutId: string): Promise<GatewayPayout>;
   listBalanceTransactions(
     accountId: string,
     payoutId: string,
+    startingAfter?: string,
   ): Promise<GatewayPage<GatewayBalanceTransaction>>;
   createBillingCheckout(input: {
     customerId: string;
@@ -98,6 +128,7 @@ export interface DestinationPaymentInput {
   orgId: string;
   invoiceId: string;
   checkoutId?: string;
+  installmentId?: string;
   idempotencyKey: string;
   saveForAutopay: boolean;
   statementDescriptorSuffix?: string;
@@ -111,6 +142,34 @@ export interface GatewayPaymentIntent {
   status: string;
   amountCents: number;
   latestChargeId: string | null;
+  method?:
+    'card' | 'us_bank_account' | 'link' | 'apple_pay' | 'google_pay' | null;
+  failureCode?: string | null;
+  failureMessage?: string | null;
+  orgId?: string | null;
+}
+
+export interface GatewayRefund {
+  id: string;
+  status: string;
+  amountCents: number;
+  paymentIntentId: string | null;
+  orgId: string | null;
+}
+
+export interface GatewayDispute {
+  id: string;
+  chargeId: string;
+  paymentIntentId: string | null;
+  transferId: string | null;
+  status: string;
+  amountCents: number;
+  feeCents: number;
+  reason: string;
+  evidenceDueBy: number | null;
+  fundsWithdrawn: boolean;
+  fundsReinstated: boolean;
+  reinstatedNetCents: number;
 }
 
 export interface GatewayPaymentMethod {

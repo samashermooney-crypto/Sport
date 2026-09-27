@@ -311,3 +311,19 @@
 - **Decision:** Read only the signed-in account's global `linked_org_ids` index, then enter `withOrg` separately for each ID and include only active memberships in active or onboarding organizations. A workspace summary also reads roles inside `withOrg` and exposes only actions that the account can actually use.
 - **Why:** Account-specific discovery does not bypass tenant RLS or expose a removed, suspended or unrelated organization.
 - **Consequences / follow-ups:** The console switcher uses this list; every newly linked organization continues to update the account index through the existing membership trigger.
+
+### DEC-038 — Cap transfer reversals at recoverable Stripe funds
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 4 disputes and transfer reversals
+- **Context:** A disputed charge plus dispute fee may exceed the connected transfer amount that Stripe permits reversing.
+- **Decision:** Reverse only the remaining unreversed transfer amount and record any shortfall as unrecovered platform liability. A later dispute win restores only funds actually reversed.
+- **Why:** The ledger must never claim that Stripe moved money it could not reverse.
+- **Consequences / follow-ups:** Reconciliation and payout reports must show the outstanding liability until a real recovery is recorded.
+
+### DEC-039 — Freeze refund terms when an invoice is issued
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 4 invoice refunds
+- **Context:** Organization or program refund settings can change after an invoice is issued.
+- **Decision:** Persist the applicable refund policy, approval threshold and fee terms with the invoice at issuance. Refund calculations use that immutable snapshot.
+- **Why:** A later setting edit must not retroactively change a family's refund rights or the finance ledger.
+- **Consequences / follow-ups:** Historical invoices need an explicit policy snapshot before staff refund actions are enabled; unsupported mixed-payment allocations fail closed.
