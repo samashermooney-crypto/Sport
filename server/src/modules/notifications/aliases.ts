@@ -21,6 +21,13 @@ export function createOrgNotificationRouter(
   const handlers = createNotificationHandlers(dependencies);
   router.get('/:orgId/notifications', handlers.inbox);
   router.patch('/:orgId/notifications/:id/read', handlers.markRead);
+  router.get('/:orgId/notifications/inbox', handlers.inbox);
+  router.patch('/:orgId/notifications/inbox/:id/read', handlers.markRead);
+  router.get('/:orgId/notifications/preferences', handlers.preferences);
+  router.put(
+    '/:orgId/notifications/preferences/:category/:channel',
+    handlers.updatePreference,
+  );
   router.get('/:orgId/notification-preferences', handlers.preferences);
   router.put(
     '/:orgId/notification-preferences/:category/:channel',

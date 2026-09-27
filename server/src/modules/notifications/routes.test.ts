@@ -201,6 +201,12 @@ describe('notification HTTP tenancy', () => {
     expect(await accountInbox.json()).toMatchObject({
       items: [{ id: ownNotificationId }],
     });
+    expect(
+      (await aliasRequest(`/me/notifications/orgs/${ownOrgId}/inbox`)).status,
+    ).toBe(200);
+    expect(
+      (await aliasRequest(`/orgs/${ownOrgId}/notifications/inbox`)).status,
+    ).toBe(200);
     expect((await aliasRequest('/me/notifications')).status).toBe(400);
     expect(
       (await aliasRequest(`/me/notifications?orgId=${otherOrgId}`)).status,
