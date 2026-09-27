@@ -20,7 +20,7 @@ Ready: Logic edge review — refund rule validation and date parsing; bracket, f
 Ready: Scoring variants — swim relay points, diving difficulty, cross-country/golf team totals, rugby bonuses and cricket net run rate; 46 golden files checked.
 Ready: Property invariants — brackets, capacity, schedule, dunning, waitlist, evaluation, sport engine and all five policies.
 Ready: Phase 1 task 10 core — pg-boss schema, executable job descriptors, 30-second worker heartbeat and redacted failed-job listing; isolated Postgres job completed.
-Ready: Phase 1 task 15 core — OpenAPI 3.1 for 75 current operations with primary/extra-router coverage and freshness check; closed error schema on auth/orgs, cursor pagination, transactional Idempotency-Key and version checks.
+Ready: Phase 1 task 15 core — OpenAPI 3.1 for 75 current operations with primary/extra-router coverage, required invitation Idempotency-Key headers and freshness check; closed error schema on auth/orgs, cursor pagination, transactional idempotency and version checks.
 Ready: Phase 1 task 14 — append-only audit service, fail-closed Restricted-field redaction/read helper, role-scoped cursor API and functional console viewer.
 Ready: Phase 1 task 13 — code-defined catalog, account/organization-scoped inbox and preferences aliases, audited writes, Postgres LISTEN/NOTIFY SSE, and portal notification center; 10 targeted server tests pass including mounted SSE, tenancy and suspended-org aliases.
 Ready: Phase 1 task 9 — global platform staff/flags/impersonation/audit schema, org and plan controls, guarded read-only 60-minute impersonation, health API, functional `/platform` console and hidden-password bootstrap script; Postgres/HTTP and Chromium/WebKit acceptance pass.

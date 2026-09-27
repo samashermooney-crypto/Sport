@@ -1751,7 +1751,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -1829,13 +1829,13 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "credentialId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -1944,13 +1944,13 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "memberId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -2047,7 +2047,13 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -2180,7 +2186,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -2405,7 +2411,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -2461,13 +2467,19 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "invitationId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -2509,13 +2521,13 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "invitationId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -3126,7 +3138,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "limit",
@@ -3296,7 +3308,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "limit",
@@ -3370,7 +3382,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "id",
@@ -3451,7 +3463,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -3511,7 +3523,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "category",
@@ -3695,7 +3707,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "limit",
@@ -3769,7 +3781,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "id",
@@ -3850,7 +3862,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -3910,7 +3922,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           },
           {
             "name": "category",
@@ -4592,7 +4604,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ]
       }
@@ -4642,7 +4654,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -4717,7 +4729,7 @@
             "name": "orgId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
@@ -5314,7 +5326,7 @@
             "name": "accountId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {

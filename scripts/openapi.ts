@@ -22,6 +22,7 @@ export type OpenApiRoute = {
   tags?: string[];
   public?: boolean;
   query?: Record<string, z.ZodType>;
+  idempotencyKey?: boolean;
   contentType?: string;
   binary?: boolean;
 };
@@ -325,6 +326,7 @@ const orgRoutes: OpenApiRoute[] = [
     body: orgs.orgInvitationSchema,
     response: orgs.orgInvitationResponseSchema,
     status: 201,
+    idempotencyKey: true,
   },
   {
     method: 'post',
@@ -345,6 +347,7 @@ const orgRoutes: OpenApiRoute[] = [
     summary: 'Resend organization invitation',
     response: orgs.orgInvitationResponseSchema,
     status: 201,
+    idempotencyKey: true,
   },
   {
     method: 'delete',
@@ -383,7 +386,9 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
       in: 'path',
       required: true,
       schema:
-        name === 'id' ? { type: 'string', format: 'uuid' } : { type: 'string' },
+        name === 'id' || name.endsWith('Id')
+          ? { type: 'string', format: 'uuid' }
+          : { type: 'string' },
     })),
     ...Object.entries(route.query ?? {}).map(([name, schema]) => ({
       name,
@@ -391,6 +396,16 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
       required: !schema.safeParse(undefined).success,
       schema: jsonSchema(schema),
     })),
+    ...(route.idempotencyKey
+      ? [
+          {
+            name: 'Idempotency-Key',
+            in: 'header',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ]
+      : []),
   ];
   const status = String(route.status ?? 200);
   const result: Record<string, unknown> = {
