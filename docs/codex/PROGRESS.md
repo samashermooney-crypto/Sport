@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- M0 is on `main` at `d0f59a1`. The spine, ready B/C/D ranges and Phase 1 task 6 are integrated on `rebuild/trunk`. Track B’s jobs, API conventions and audit range is merged and green locally, pending publication. Track A continues tasks 3–5, 7–8 and 16–17; Track B owns tasks 9 and 13, while Track C owns 11–12. Keep Phase 1 open until every task and acceptance criterion passes.
+- M0 is on `main` at `d0f59a1`. The spine, ready B/C/D ranges and Phase 1 task 6 are integrated on `rebuild/trunk`. Track B’s jobs, API conventions and audit range is published. Track E’s webhook, Connect, checkout and payer contracts are merged and green locally, pending publication. Track A continues tasks 3–5, 7–8 and 16–17; Track B owns tasks 9 and 13, while Track C owns 11–12. Keep Phase 1 open until every task and acceptance criterion passes.
 
 ## Phase status
 
@@ -13,7 +13,7 @@
 | 1 | Platform core | in progress | Branch `rebuild/phase-1` created from green Phase 0. |
 | 2 | People, households, forms, imports | not started | |
 | 3 | Sport engine, programs, teams, facilities | not started | |
-| 4 | Payments and finance | not started | |
+| 4 | Payments and finance | in progress | Test-mode Stripe gateway and ready finance contracts integrated; durable persistence and phase acceptance remain. |
 | 5 | Registration | not started | |
 | 6 | Evaluations and team formation | not started | |
 | 7 | Compliance and safety | not started | |
@@ -35,7 +35,7 @@
 | B | Sport engine, algorithms, policies; platform infrastructure | GPT-6 Sol | logic queue and Phase 1 tasks 10, 14–15 integrated; tasks 9 and 13 in progress | `track/b-logic` |
 | C | Files and provider adapters | GPT-6 Luna | complete adapter queue integrated; files API mounted, acceptance still open | `track/c-adapters` |
 | D | Design system | GPT-6 Luna | shared primitives, extended controls, shell and dev showcase integrated; auth restyle still open | `track/d-design` |
-| E | Stripe and finance | GPT-6 Sol | test-mode gateway ready slice integrated; money core awaiting trunk spine | `track/e-finance` |
+| E | Stripe and finance | GPT-6 Sol | test-mode gateway and ready finance contracts integrated; durable money persistence in progress | `track/e-finance` |
 
 ## Cross-phase schema spine checkpoint
 
@@ -48,6 +48,7 @@
 - [x] Integrated Track B's complete logic queue through `5c01024`; merged trunk passed typecheck, lint and 310 tests. Track B's new infrastructure queue is separate and remains open.
 - [x] Integrated Track C's adapter queue through `d47dc0f`. Added the files module to the generated registry, local tenant/role authorization, Sharp/Web Push dependencies, migration 0502 for the `files.created_by` FK index, and generated types for 127 tables. Isolated-port browser tests pass with Track C's SMTP offset support; 337 unit/integration tests pass. Task 11 and 12 acceptance remains open pending full API/provider checks.
 - [x] Integrated Track B's ready Phase 1 infrastructure range through `727cfe9`: pg-boss worker and heartbeat, redacted audit API/viewer, OpenAPI route coverage, pagination, idempotency and version helpers. Registered the worker and audit route, reconciled files/onboarding API paths, and passed typecheck, lint, 359 tests (one operator-credential smoke skipped), 9 browser tests (3 guarded WebKit design skips), build and knip.
+- [x] Integrated Track E's second ready range through `c7dd637`: verified webhook and Connect contracts, checkout holds/pricing, refund and installment policies, payer method orchestration and Payment Element components. The merged trunk passed typecheck, lint, 410 tests (one operator-credential smoke skipped), 9 browser tests (3 guarded WebKit design skips), build, registry/OpenAPI freshness and knip. Phase 4 remains open while durable payment writes and acceptance are built.
 - [x] Integrated Track D's ready design range through `a0a20f2`, including frozen tokens, primitives, extended controls, shell and development-only `/__ui` through the feature registry. The merged app passed typecheck, lint, 342 tests, 9 browser e2e tests (3 WebKit design cases intentionally skipped), build and a zero-advisory production audit. Auth restyle and the full Phase 1 design acceptance remain open.
 
 ## Phase checklists
