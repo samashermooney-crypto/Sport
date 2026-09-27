@@ -13,6 +13,10 @@ import {
 } from '../../integrations/email/sender.js';
 
 import { PostgresInvoiceRepository } from './invoice-repo.js';
+import {
+  MoneyDocumentNotFoundError,
+  PostgresMoneyDocuments,
+} from './money-documents.js';
 import { deliverFinanceNotices } from './money-notice-job.js';
 import {
   enqueueFinanceNotice,
@@ -104,6 +108,17 @@ it('queues one notice per money event and delivers through the fake adapter', as
   expect(await delivery.deliverOne()).toBe('sent');
   expect(await delivery.deliverOne()).toBe('empty');
   expect(sender.messages).toHaveLength(2);
+  expect(
+    sender.messages.every(
+      (message) =>
+        Buffer.from(message.attachments?.[0]?.content ?? '')
+          .subarray(0, 5)
+          .toString() === '%PDF-',
+    ),
+  ).toBe(true);
+  expect(
+    sender.messages.map((message) => message.attachments?.[0]?.filename),
+  ).toEqual(['invoice.pdf', 'receipt.pdf']);
   expect(sender.messages[0]?.text).toContain(
     `/portal/orgs/${context.orgId}/money/invoices`,
   );
@@ -174,6 +189,12 @@ it('refuses a finance notice addressed to another account', async () => {
   ).rejects.toThrow('does not own source');
 });
 
+it("does not let a payer render another account's PDF", () => {
+  expect(() => new PostgresMoneyDocuments(database, context, newId())).toThrow(
+    MoneyDocumentNotFoundError,
+  );
+});
+
 it('retries an ambiguous delivery with the original provider key', async () => {
   await new PostgresInvoiceRepository(database, context).issue({
     orgId: context.orgId,
@@ -190,9 +211,11 @@ it('retries an ambiguous delivery with the original provider key', async () => {
     ],
   });
   const keys: string[] = [];
+  const pdfs: Buffer[] = [];
   const sender: EmailSender = {
     send(message) {
       keys.push(message.idempotencyKey ?? '');
+      pdfs.push(Buffer.from(message.attachments?.[0]?.content ?? ''));
       if (keys.length === 1)
         return Promise.reject(new Error('Ambiguous network result'));
       return Promise.resolve({ providerId: 'fake-retry' });
@@ -208,4 +231,45 @@ it('retries an ambiguous delivery with the original provider key', async () => {
   expect(await delivery.deliverOne()).toBe('sent');
   expect(keys).toHaveLength(2);
   expect(keys[0]).toBe(keys[1]);
+  expect(pdfs[0]).toEqual(pdfs[1]);
+});
+
+it('suppresses a frozen PDF retry after the verified email changes', async () => {
+  await new PostgresInvoiceRepository(database, context).issue({
+    orgId: context.orgId,
+    accountId: context.actor.accountId,
+    source: 'staff',
+    creationKey: randomUUID(),
+    lines: [
+      {
+        kind: 'tuition',
+        description: 'Email change invoice',
+        amountCents: 300,
+        refundable: true,
+      },
+    ],
+  });
+  let sends = 0;
+  const delivery = new PostgresFinanceNoticeDelivery(
+    database,
+    context,
+    {
+      send: () => {
+        sends += 1;
+        return Promise.reject(new Error('Ambiguous send'));
+      },
+    },
+    'http://127.0.0.1:5173',
+  );
+  await expect(delivery.deliverOne()).rejects.toThrow('Ambiguous send');
+  await database
+    .updateTable('accounts')
+    .set({
+      email: `changed-${randomUUID()}@example.invalid`,
+      email_verified_at: new Date(),
+    })
+    .where('id', '=', context.actor.accountId)
+    .execute();
+  expect(await delivery.deliverOne()).toBe('suppressed');
+  expect(sends).toBe(1);
 });
