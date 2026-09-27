@@ -1,9 +1,11 @@
+import type { ServiceFeeConfig } from '@shared/algorithms/fees';
 import type { PricingInput } from '@shared/algorithms/pricing';
 import { sql } from 'kysely';
 import { z } from 'zod';
 
 import type { Json } from '../../db/types.js';
 import type { OrgTransaction } from '../../db/withOrg.js';
+import { frozenPaymentTermsSchema } from '../finance/frozen-charge-repo.js';
 
 import type { CheckoutPricingSourceLoader } from './pricing-repo.js';
 
@@ -31,6 +33,33 @@ const emptyObject = (value: Json): boolean =>
   typeof value === 'object' &&
   !Array.isArray(value) &&
   Object.keys(value).length === 0;
+
+const orgSettingsSchema = z
+  .object({
+    confirmOnAchProcessing: z.boolean().optional(),
+    serviceFee: z
+      .discriminatedUnion('enabled', [
+        z.object({ enabled: z.literal(false) }).strict(),
+        z.discriminatedUnion('mode', [
+          z
+            .object({
+              enabled: z.literal(true),
+              mode: z.literal('cover_costs'),
+            })
+            .strict(),
+          z
+            .object({
+              enabled: z.literal(true),
+              mode: z.literal('custom'),
+              custom_bps: z.number().int().nonnegative().max(10_000),
+              custom_fixed_cents: z.number().int().nonnegative(),
+            })
+            .strict(),
+        ]),
+      ])
+      .optional(),
+  })
+  .strict();
 
 interface OfferingRow {
   id: string;
@@ -65,10 +94,7 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
     },
   ): Promise<{
     pricing: PricingInput;
-    paymentTerms: {
-      applicationRate: { bps: number; fixedCents: number };
-      serviceFee: { enabled: false };
-    };
+    paymentTerms: z.output<typeof frozenPaymentTermsSchema>;
   }> {
     const cart = cartSchema.parse(checkout.items);
     if (
@@ -90,7 +116,8 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
       .where('id', '=', checkout.orgId)
       .forUpdate()
       .executeTakeFirstOrThrow();
-    if (!emptyObject(organization.settings))
+    const settings = orgSettingsSchema.safeParse(organization.settings);
+    if (!settings.success)
       throw new Error(
         'Configured organization pricing needs a supported source loader',
       );
@@ -254,6 +281,38 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
     })
       .format(now)
       .replace(' ', 'T');
+    const applicationRate = {
+      bps: organization.application_fee_bps,
+      fixedCents: organization.application_fee_fixed_cents,
+    };
+    const configuredFee = settings.data.serviceFee ?? {
+      enabled: false as const,
+    };
+    const frozenFee =
+      configuredFee.enabled && configuredFee.mode === 'custom'
+        ? {
+            enabled: true as const,
+            mode: 'custom' as const,
+            custom: {
+              bps: configuredFee.custom_bps,
+              fixedCents: configuredFee.custom_fixed_cents,
+            },
+          }
+        : configuredFee;
+    const paymentTerms = frozenPaymentTermsSchema.parse({
+      applicationRate,
+      serviceFee: frozenFee,
+    });
+    const serviceFee: ServiceFeeConfig = !frozenFee.enabled
+      ? { enabled: false }
+      : frozenFee.mode === 'custom'
+        ? { enabled: true, mode: 'custom', custom: frozenFee.custom }
+        : {
+            enabled: true,
+            mode: 'cover_costs',
+            application: applicationRate,
+            processing: { bps: 290, fixedCents: 30 },
+          };
     return {
       pricing: {
         nowLocal,
@@ -270,16 +329,10 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
         codes: [],
         aid: [],
         applyCreditCents: 0,
-        serviceFee: { enabled: false },
+        serviceFee,
         productTaxBps: 0,
       },
-      paymentTerms: {
-        applicationRate: {
-          bps: organization.application_fee_bps,
-          fixedCents: organization.application_fee_fixed_cents,
-        },
-        serviceFee: { enabled: false },
-      },
+      paymentTerms,
     };
   }
 }
