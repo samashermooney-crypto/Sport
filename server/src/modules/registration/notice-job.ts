@@ -10,6 +10,7 @@ import {
 import { systemWorkerActorId } from '../jobs/credentials-expiry.js';
 
 import { PostgresRegistrationNoticeDelivery } from './notices.js';
+import { enqueueRegistrationReminders } from './reminders.js';
 
 export interface RegistrationNoticeJobDependencies {
   database: Kysely<DB>;
@@ -56,7 +57,8 @@ function required(key: string): string {
   return value;
 }
 
-export function runRegistrationNoticeJob(): Promise<{
+export async function runRegistrationNoticeJob(): Promise<{
+  queued: number;
   sent: number;
   suppressed: number;
 }> {
@@ -72,9 +74,12 @@ export function runRegistrationNoticeJob(): Promise<{
         from: required('EMAIL_FROM'),
       })
     : createMailpitEmailSender();
-  return deliverRegistrationNotices({
-    database: getDatabase(),
+  const database = getDatabase();
+  const queued = await enqueueRegistrationReminders({ database });
+  const delivered = await deliverRegistrationNotices({
+    database,
     sender,
     appUrl,
   });
+  return { queued, ...delivered };
 }
