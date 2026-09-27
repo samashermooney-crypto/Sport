@@ -5,6 +5,7 @@ import { integrationConfig as pushConfig } from '../integrations/push/config';
 import { integrationConfig as smsConfig } from '../integrations/sms/config';
 import { integrationConfig as storageConfig } from '../integrations/storage/config';
 import type { IntegrationConfig, ServerModule } from '../lib/module-contract';
+import { moduleDefinition as aiModule } from '../modules/ai/module';
 import { moduleDefinition as auditModule } from '../modules/audit/module';
 import { moduleDefinition as authModule } from '../modules/auth/module';
 import { moduleDefinition as communicationsModule } from '../modules/communications/module';
@@ -12,15 +13,18 @@ import { moduleDefinition as complianceModule } from '../modules/compliance/modu
 import { moduleDefinition as disciplineModule } from '../modules/discipline/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
+import { moduleDefinition as helpModule } from '../modules/help/module';
 import { moduleDefinition as importsModule } from '../modules/imports/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
 import { moduleDefinition as notificationsModule } from '../modules/notifications/module';
+import { moduleDefinition as onboardingModule } from '../modules/onboarding/module';
 import { moduleDefinition as orgsModule } from '../modules/orgs/module';
 import { moduleDefinition as peopleModule } from '../modules/people/module';
 import { moduleDefinition as platformModule } from '../modules/platform/module';
 import { moduleDefinition as safetyModule } from '../modules/safety/module';
 
 export const serverModules: readonly ServerModule[] = [
+  aiModule,
   auditModule,
   authModule,
   communicationsModule,
@@ -28,9 +32,11 @@ export const serverModules: readonly ServerModule[] = [
   disciplineModule,
   filesModule,
   financeModule,
+  helpModule,
   importsModule,
   jobsModule,
   notificationsModule,
+  onboardingModule,
   orgsModule,
   peopleModule,
   platformModule,

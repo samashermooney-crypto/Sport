@@ -590,3 +590,26 @@
 - **Decision:** Migration 0900 adds `removed_at` and `version` after the spine and changes the priority constraint to apply only to active rows. Contacts are removed by timestamp, never deleted. The last active contact cannot be removed while a person has an active registration. Guardian, adult self, owner/admin/compliance and registrar editors may manage contacts; active team staff may read them. Minor self accounts may read but not edit. All permitted reads and writes are audited without copying phone numbers into audit changes.
 - **Why:** Teams retain an emergency contact for active participants, concurrent edits cannot silently overwrite, and replacement does not erase the safety record.
 - **Consequences / follow-ups:** 0900 is an unused post-spine migration slot outside the original A range because a pre-spine ALTER cannot apply. The emergency-contact API and editor are shared by staff and family screens.
+
+### DEC-100 — Keep Phase 15 imports additive and tenant-scoped
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 imports and onboarding
+- **Context:** Track A owns the Phase 2 import tables and routes while Phase 15 adds additional import kinds and reversible processing. Preset privacy and financial rollback behavior were not specified for the extension.
+- **Decision:** Store Phase 15 batches, rows, and mapping presets in separate tenant-scoped tables and mount them as additive adapters. Keep saved mapping presets within one organization. Historical payments use the external method and are never re-charged; rollback cancels external payments, voids only untouched paid invoices, revokes imported credentials, and retains financial evidence.
+- **Why:** This avoids overwriting Track A's import engine, prevents cross-organization preset leakage, and preserves financial and compliance records.
+- **Consequences / follow-ups:** Reconcile the additive route/job mount with Track A whenever trunk is merged. Volunteer-hours rows use the Phase 11 table contract and remain subject to H's final schema review.
+### DEC-101 — Reverse imported operations with status changes
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 imports
+- **Context:** Normal tenant tables intentionally do not grant DELETE to the application role, and automatic review rejected a proposed migration that broadened this privilege. Operational records still need an import rollback path.
+- **Decision:** Roll back records through the domain's inactive state when one exists: retire teams, withdraw team seasons and registrations, release roster entries, remove team staff, archive facilities/spaces, cancel schedules, and revoke credentials. Preserve relationship, participant, financial, file, compliance, audit and safety evidence; report records without a safe inactive state as retained.
+- **Why:** This keeps rollback inside the existing withOrg/update permissions while preserving evidence needed for child safety and financial reconciliation.
+- **Consequences / follow-ups:** Verify every importer kind has a supported reversal state before committing; retained records must be visible in the rollback summary for staff review.
+
+### DEC-102 — Use the organization website URL for onboarding publication state
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 onboarding
+- **Context:** The current schema has `organizations.website_url`, but the website tables and publish state are being added by another track. The checklist must still detect persisted website setup without editing another track's migration range.
+- **Decision:** Treat a non-empty organization website URL as completed website setup. When the website module adds an authoritative publication state, switch checklist detection to that state after reconciling the generated schema and routes from trunk.
+- **Why:** This gives organizations a durable automatic completion signal using the field already exposed in the organization profile API.
+- **Consequences / follow-ups:** Track D should confirm the canonical published-site state before final Phase 15 integration.

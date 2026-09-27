@@ -68,6 +68,27 @@ export interface Accounts {
   version: Generated<number>;
 }
 
+export interface AiConversationMessages {
+  citations: Generated<Json>;
+  content: string;
+  conversation_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  org_id: string;
+  role: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface AiConversations {
+  account_id: string | null;
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  id: string;
+  org_id: string;
+  updated_at: Generated<Timestamp>;
+  visitor_key: string | null;
+}
+
 export interface AidApplications {
   answers: Generated<Json>;
   award_bps: number | null;
@@ -88,6 +109,35 @@ export interface AidApplications {
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
+}
+
+export interface AiDrafts {
+  applied_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  draft: Json;
+  id: string;
+  kind: string;
+  org_id: string;
+  redactions: Generated<number>;
+  source_file_name: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface AiUsageEvents {
+  actor_account_id: string | null;
+  completion_tokens: Generated<number>;
+  created_at: Generated<Timestamp>;
+  detail: string | null;
+  feature: string;
+  id: string;
+  model: string;
+  org_id: string;
+  prompt_tokens: Generated<number>;
+  redactions: Generated<number>;
+  status: string;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface Allocations {
@@ -1594,6 +1644,18 @@ export interface OrgMemberships {
   version: Generated<number>;
 }
 
+export interface OrgOnboardingItems {
+  completed_at: Timestamp | null;
+  completed_by_event: string | null;
+  created_at: Generated<Timestamp>;
+  dismissed_at: Timestamp | null;
+  dismissed_by: string | null;
+  id: string;
+  key: string;
+  org_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface OrgSubscriptions {
   created_at: Generated<Timestamp>;
   current_period_end: Timestamp | null;
@@ -1879,6 +1941,55 @@ export interface PgbossSubscription {
 export interface PgbossVersion {
   cron_on: Timestamp | null;
   version: number;
+}
+
+export interface Phase15ImportBatches {
+  committed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  error_count: Generated<number>;
+  file_bytes: number;
+  file_id: string | null;
+  file_name: string;
+  id: string;
+  kind: string;
+  mapping: Json | null;
+  mapping_preset_id: string | null;
+  org_id: string;
+  progress: Generated<Json>;
+  rolled_back_at: Timestamp | null;
+  row_count: Generated<number>;
+  status: Generated<string>;
+  summary: Json | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface Phase15ImportMappingPresets {
+  builtin: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  id: string;
+  kind: string;
+  mapping: Json;
+  name: string;
+  org_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface Phase15ImportRows {
+  action: Generated<string>;
+  batch_id: string;
+  created_at: Generated<Timestamp>;
+  duplicates: Generated<Json>;
+  id: string;
+  issues: Generated<Json>;
+  normalized: Json | null;
+  org_id: string;
+  raw: Json;
+  row_number: number;
+  target_id: string | null;
+  target_version: number | null;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface Plans {
@@ -2442,6 +2553,21 @@ export interface StripeEvents {
   updated_at: Generated<Timestamp>;
 }
 
+export interface SupportRequests {
+  body: string;
+  contact_email: string | null;
+  context: Generated<Json>;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  id: string;
+  kind: string;
+  notified_at: Timestamp | null;
+  org_id: string;
+  status: Generated<string>;
+  subject: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface Suppressions {
   address: string;
   channel: string;
@@ -2610,6 +2736,10 @@ export interface WorkerHeartbeats {
 export interface DB {
   account_consents: AccountConsents;
   accounts: Accounts;
+  ai_conversation_messages: AiConversationMessages;
+  ai_conversations: AiConversations;
+  ai_drafts: AiDrafts;
+  ai_usage_events: AiUsageEvents;
   aid_applications: AidApplications;
   allocations: Allocations;
   athlete_cards: AthleteCards;
@@ -2703,6 +2833,7 @@ export interface DB {
   org_billing_invoices: OrgBillingInvoices;
   org_counters: OrgCounters;
   org_memberships: OrgMemberships;
+  org_onboarding_items: OrgOnboardingItems;
   org_subscriptions: OrgSubscriptions;
   organizations: Organizations;
   payer_profiles: PayerProfiles;
@@ -2723,6 +2854,9 @@ export interface DB {
   'pgboss.schedule': PgbossSchedule;
   'pgboss.subscription': PgbossSubscription;
   'pgboss.version': PgbossVersion;
+  phase15_import_batches: Phase15ImportBatches;
+  phase15_import_mapping_presets: Phase15ImportMappingPresets;
+  phase15_import_rows: Phase15ImportRows;
   plans: Plans;
   platform_audit_log: PlatformAuditLog;
   platform_feature_flags: PlatformFeatureFlags;
@@ -2764,6 +2898,7 @@ export interface DB {
   standings_snapshots: StandingsSnapshots;
   stat_lines: StatLines;
   stripe_events: StripeEvents;
+  support_requests: SupportRequests;
   suppressions: Suppressions;
   tax_rates: TaxRates;
   team_entries: TeamEntries;
