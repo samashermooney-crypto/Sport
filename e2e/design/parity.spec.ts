@@ -1,7 +1,171 @@
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import sharp from 'sharp';
 
 const showcase = (label: string) =>
   `.ui-showcase-section[aria-label="${label}"]`;
+
+async function headerDifferenceRatio(
+  actual: Buffer,
+  referenceName: string,
+  width: number,
+  height: number,
+): Promise<number> {
+  const reference = await readFile(
+    resolve('e2e/visual-reference', referenceName),
+  );
+  const expected = await sharp(reference)
+    .extract({ left: 0, top: 0, width, height })
+    .removeAlpha()
+    .raw()
+    .toBuffer();
+  const rendered = await sharp(actual)
+    .extract({ left: 0, top: 0, width, height })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  expect(rendered.info.width).toBe(width);
+  expect(rendered.info.height).toBe(height);
+  let differentPixels = 0;
+  for (let offset = 0; offset < expected.length; offset += 3) {
+    if (
+      Math.max(
+        Math.abs((expected[offset] ?? 0) - (rendered.data[offset] ?? 0)),
+        Math.abs(
+          (expected[offset + 1] ?? 0) - (rendered.data[offset + 1] ?? 0),
+        ),
+        Math.abs(
+          (expected[offset + 2] ?? 0) - (rendered.data[offset + 2] ?? 0),
+        ),
+        // Ignore small per-channel differences from Chromium text-edge rasterization.
+      ) > 32
+    ) {
+      differentPixels += 1;
+    }
+  }
+  return differentPixels / (width * height);
+}
+
+test('shell chrome compares against the legacy captures at desktop and phone widths', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName === 'webkit', 'Reference captures use Chromium.');
+  await page.goto('/__ui');
+  await expect(
+    page.getByRole('heading', { name: 'Design system' }),
+  ).toBeVisible();
+  for (const [width, height, reference] of [
+    [1440, 68, 'dashboard-1440.png'],
+    [390, 52, 'dashboard-390.png'],
+  ] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    const rendered = await page.locator('.ui-topbar').screenshot({
+      animations: 'disabled',
+    });
+    const difference = await headerDifferenceRatio(
+      rendered,
+      reference,
+      width,
+      height,
+    );
+    expect(
+      difference,
+      `${String(width)}px legacy shell mismatch: ${(difference * 100).toFixed(
+        2,
+      )}% of pixels differ`,
+    ).toBeLessThan(0.065);
+  }
+});
+
+test('the showcase is axe-clean at desktop and phone widths', async ({
+  page,
+}) => {
+  await page.goto('/__ui');
+  await expect(
+    page.getByRole('heading', { name: 'Design system' }),
+  ).toBeVisible();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(
+      results.violations.map(({ id, impact, description, nodes }) => ({
+        id,
+        impact,
+        description,
+        targets: nodes.map(({ target }) => target),
+      })),
+      `axe violations at ${String(width)}px`,
+    ).toEqual([]);
+  }
+});
+
+test('interactive controls meet 44px targets at phone width', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto('/__ui');
+  const smallTargets = await page
+    .locator(
+      'button:visible, input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):visible, select:visible, textarea:visible, a[href]:visible',
+    )
+    .evaluateAll((elements) =>
+      elements.flatMap((element) => {
+        const rect = element.getBoundingClientRect();
+        if (rect.width >= 44 && rect.height >= 44) return [];
+        const name = (
+          element.getAttribute('aria-label') ||
+          element.textContent ||
+          element.tagName
+        ).trim();
+        const width = String(Math.round(rect.width));
+        const height = String(Math.round(rect.height));
+        return [
+          `${element.tagName.toLowerCase()} "${name}" ${width}×${height}`,
+        ];
+      }),
+    );
+  expect(smallTargets).toEqual([]);
+
+  const smallChoiceLabels = await page
+    .locator(
+      'label:has(input[type="checkbox"]), label:has(input[type="radio"])',
+    )
+    .evaluateAll((elements) =>
+      elements.flatMap((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width >= 44 && rect.height >= 44
+          ? []
+          : [
+              `${element.textContent.trim() || 'choice'} ${String(Math.round(rect.width))}×${String(Math.round(rect.height))}`,
+            ];
+      }),
+    );
+  expect(smallChoiceLabels).toEqual([]);
+
+  for (const [trigger, name] of [
+    ['Open dialog', 'Example dialog'],
+    ['Open drawer', 'Example drawer'],
+    ['Open sheet', 'Example sheet'],
+  ] as const) {
+    await page.getByRole('button', { name: trigger }).click();
+    const overlay = page.getByRole('dialog', { name });
+    await expect(overlay).toBeVisible();
+    const closeSize = await overlay
+      .getByRole('button', { name: 'Close dialog' })
+      .evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      });
+    expect(closeSize.width).toBeGreaterThanOrEqual(44);
+    expect(closeSize.height).toBeGreaterThanOrEqual(44);
+    await page.keyboard.press('Escape');
+    await expect(overlay).toBeHidden();
+  }
+});
 
 test('shared components preserve the frozen desktop design', async ({
   page,
@@ -23,6 +187,7 @@ test('shared components preserve the frozen desktop design', async ({
 
   for (const [label, snapshot] of [
     ['Core components', 'ui-core-1440.png'],
+    ['States and feedback', 'ui-feedback-1440.png'],
     ['Form controls', 'ui-controls-1440.png'],
     ['Scheduling', 'ui-scheduling-1440.png'],
     ['Team and tournament views', 'ui-team-1440.png'],
@@ -71,6 +236,26 @@ test('shared components preserve the frozen desktop design', async ({
   await expect(sheet).toBeHidden();
 });
 
+test('tabs support arrow and boundary-key navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/__ui');
+  const tabs = page.getByRole('tablist', { name: 'Sections' });
+  const overview = tabs.getByRole('tab', { name: 'Overview' });
+  const components = tabs.getByRole('tab', { name: 'Components' });
+  const states = tabs.getByRole('tab', { name: 'States' });
+
+  await overview.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(components).toBeFocused();
+  await expect(
+    page.getByText('Selected tab: Components', { exact: false }),
+  ).toBeVisible();
+  await page.keyboard.press('End');
+  await expect(states).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(overview).toBeFocused();
+});
+
 test('calendar supports all schedule views and the resource time grid', async ({
   page,
   browserName,
@@ -91,14 +276,29 @@ test('calendar supports all schedule views and the resource time grid', async ({
   await expect(calendar.getByText('Falcons vs. Rockets')).toBeVisible();
   await page.getByRole('button', { name: 'resource' }).click();
   await expect(
-    calendar.getByRole('grid', {
+    calendar.getByRole('table', {
       name: 'Resource schedule for Wednesday, January 14, 2026',
     }),
   ).toBeVisible();
   await expect(calendar.getByText('Falcons vs. Rockets')).toBeVisible();
+  await expect(calendar.getByText('Rockets practice')).toHaveCount(0);
   await expect(
     calendar.getByRole('columnheader', { name: '9 AM' }),
   ).toBeVisible();
+});
+
+test('calendar grid supports keyboard date navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/__ui');
+  const calendar = page.locator('.ui-calendar');
+  const currentDay = calendar.getByRole('gridcell', {
+    name: 'January 14, 2026',
+  });
+  await currentDay.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(
+    calendar.getByRole('gridcell', { name: 'January 15, 2026' }),
+  ).toBeFocused();
 });
 
 test('team board has a keyboard move path and global search returns results', async ({
@@ -165,6 +365,10 @@ test('shell stays within phone width and exposes bottom tabs and keyboard palett
     'ui-controls-390.png',
     { animations: 'disabled' },
   );
+  await expect(page.locator(showcase('States and feedback'))).toHaveScreenshot(
+    'ui-feedback-390.png',
+    { animations: 'disabled' },
+  );
 
   await page.keyboard.press('/');
   await expect(
@@ -174,6 +378,11 @@ test('shell stays within phone width and exposes bottom tabs and keyboard palett
   await expect(
     page.getByRole('dialog', { name: 'Command palette' }),
   ).toBeHidden();
+  await page.keyboard.press('Control+k');
+  await expect(
+    page.getByRole('dialog', { name: 'Command palette' }),
+  ).toBeVisible();
+  await page.keyboard.press('Escape');
   await page.evaluate(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   });

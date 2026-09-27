@@ -4,7 +4,14 @@ import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router';
 
 import { apiPost } from '../api/client';
-import { AuthFrame, AuthLink, Button, ErrorBox, Field } from '../ui/auth';
+import {
+  AuthFrame,
+  AuthLink,
+  Button,
+  ErrorBox,
+  Field,
+  Input,
+} from '../ui/auth';
 
 interface Credentials {
   email: string;
@@ -47,7 +54,7 @@ export function SignIn(): React.JSX.Element {
       <ErrorBox error={error} />
       <form onSubmit={(event) => void handleSubmit(submit)(event)} noValidate>
         <Field label="Email address" required error={errors.email?.message}>
-          <input
+          <Input
             type="email"
             autoComplete="username"
             {...register('email', {
@@ -60,7 +67,7 @@ export function SignIn(): React.JSX.Element {
           />
         </Field>
         <Field label="Password" required error={errors.password?.message}>
-          <input
+          <Input
             type="password"
             autoComplete="current-password"
             {...register('password', {

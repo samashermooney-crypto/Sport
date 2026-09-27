@@ -1,12 +1,16 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
+import { Link as RouterLink } from 'react-router';
 
 import {
   Avatar,
+  Banner,
   Badge,
   Board,
   Bracket,
   Button,
   Calendar,
+  Checkbox,
   ChatThread,
   Chart,
   Combobox,
@@ -15,28 +19,38 @@ import {
   DataTable,
   DateInput,
   DateRangeInput,
+  EmptyState,
+  ErrorState,
   Field,
+  FieldGroup,
   FileUpload,
   GlobalSearch,
+  IconButton,
   Input,
+  Link,
   MoneyInput,
   PageHeader,
   Pagination,
   PhoneInput,
   PrintLayout,
   QRCode,
+  Radio,
   RichTextEditor,
   Select,
   SignaturePad,
+  Skeleton,
   StatTile,
+  StatusPill,
   Stepper,
+  Switch,
   Tag,
   Textarea,
+  Toast,
   TimeInput,
   Timeline,
   Tabs,
 } from '../index';
-import { Dialog, Drawer, Sheet } from '../overlays';
+import { Dialog, Drawer, Sheet, ToastRegion } from '../overlays';
 import { AppShell } from '../shell';
 
 type DemoRow = { id: string; program: string; season: string; status: string };
@@ -79,6 +93,88 @@ const calendarEvents = [
   },
 ];
 
+type ShowcaseIconName =
+  | 'manage'
+  | 'messaging'
+  | 'calendar'
+  | 'reporting'
+  | 'website'
+  | 'settings'
+  | 'home'
+  | 'money'
+  | 'chevron';
+
+function ShowcaseIcon({
+  name,
+  size = 18,
+}: {
+  name: ShowcaseIconName;
+  size?: number;
+}): React.JSX.Element {
+  const paths: Record<ShowcaseIconName, ReactNode> = {
+    manage: (
+      <>
+        <rect x="4" y="4" width="16" height="18" rx="2" />
+        <rect x="8" y="2" width="8" height="4" rx="1" />
+        <path d="M8 11h8M8 15h8" />
+      </>
+    ),
+    messaging: (
+      <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 8.7 3.9a8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z" />
+    ),
+    calendar: (
+      <>
+        <rect x="3" y="4" width="18" height="17" rx="2" />
+        <path d="M16 2v4M8 2v4M3 10h18" />
+      </>
+    ),
+    reporting: (
+      <>
+        <path d="M3 3v18h18" />
+        <path d="m7 14 4-4 4 3 6-7" />
+      </>
+    ),
+    website: (
+      <>
+        <rect x="2" y="3" width="20" height="14" rx="2" />
+        <path d="M8 21h8M12 17v4" />
+      </>
+    ),
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8 8 0 0 1-1.8 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.8-1l-1.7.6-1.4-2.4 1.4-1.1a7 7 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.6a8 8 0 0 1 1.8-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.8 1l1.7-.6 1.4 2.4-1.4 1.1a7 7 0 0 1 0 2z" />
+      </>
+    ),
+    home: (
+      <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-6v-7h-4v7H4a1 1 0 0 1-1-1z" />
+    ),
+    money: (
+      <>
+        <rect x="2" y="5" width="20" height="15" rx="2" />
+        <path d="M2 9h20M16 15h2" />
+      </>
+    ),
+    chevron: <path d="m7 10 5 5 5-5" />,
+  };
+
+  return (
+    <svg
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
+
 export function Showcase(): React.JSX.Element {
   const [tab, setTab] = useState('Overview');
   const [dialog, setDialog] = useState(false);
@@ -116,6 +212,12 @@ export function Showcase(): React.JSX.Element {
   const [search, setSearch] = useState('');
   const [searchSubmitted, setSearchSubmitted] = useState('');
   const [selectedFile, setSelectedFile] = useState('');
+  const [emailUpdates, setEmailUpdates] = useState(true);
+  const [scheduleAlerts, setScheduleAlerts] = useState(true);
+  const [contactMethod, setContactMethod] = useState('email');
+  const [retryCount, setRetryCount] = useState(0);
+  const [extraSample, setExtraSample] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
 
   const boardColumns = columnDefinitions.map((column) => ({
     ...column,
@@ -138,24 +240,84 @@ export function Showcase(): React.JSX.Element {
 
   return (
     <AppShell
-      orgName="Athlentry Demo Club"
+      orgName="Northstar Youth Sports"
+      orgSwitcher={
+        <>
+          <RouterLink to="/__ui" className="org-name">
+            Northstar Youth Sports <ShowcaseIcon name="chevron" size={13} />
+          </RouterLink>
+          <RouterLink to="/__ui" className="site-link">
+            Site
+          </RouterLink>
+        </>
+      }
+      actions={
+        <span className="ui-account-label">
+          Hi, Alex! <ShowcaseIcon name="chevron" size={13} />
+        </span>
+      }
       navigation={[
         {
           label: 'Manage',
+          icon: <ShowcaseIcon name="manage" />,
           items: [
             { label: 'Design system', to: '/__ui', current: true },
             { label: 'Programs', to: '/__ui' },
           ],
         },
-        { label: 'Schedule', items: [{ label: 'Calendar', to: '/__ui' }] },
-        { label: 'Money', items: [{ label: 'Invoices', to: '/__ui' }] },
+        {
+          label: 'Messaging',
+          icon: <ShowcaseIcon name="messaging" />,
+          items: [{ label: 'Messages', to: '/__ui' }],
+        },
+        {
+          label: 'Calendar',
+          icon: <ShowcaseIcon name="calendar" />,
+          items: [{ label: 'Schedule', to: '/__ui' }],
+        },
+        {
+          label: 'Reporting',
+          icon: <ShowcaseIcon name="reporting" />,
+          items: [{ label: 'Reports', to: '/__ui' }],
+        },
+        {
+          label: 'Website',
+          icon: <ShowcaseIcon name="website" />,
+          items: [{ label: 'Content pages', to: '/__ui' }],
+        },
+        {
+          label: 'Settings',
+          icon: <ShowcaseIcon name="settings" />,
+          items: [{ label: 'Organization settings', to: '/__ui' }],
+        },
       ]}
       mobileTabs={[
-        { label: 'Home', to: '/__ui', current: true },
-        { label: 'Programs', to: '/__ui' },
-        { label: 'Schedule', to: '/__ui' },
-        { label: 'Money', to: '/__ui' },
-        { label: 'More', to: '/__ui' },
+        {
+          label: 'Home',
+          to: '/__ui',
+          current: true,
+          icon: <ShowcaseIcon name="home" size={16} />,
+        },
+        {
+          label: 'Programs',
+          to: '/__ui',
+          icon: <ShowcaseIcon name="manage" size={16} />,
+        },
+        {
+          label: 'Schedule',
+          to: '/__ui',
+          icon: <ShowcaseIcon name="calendar" size={16} />,
+        },
+        {
+          label: 'Money',
+          to: '/__ui',
+          icon: <ShowcaseIcon name="money" size={16} />,
+        },
+        {
+          label: 'More',
+          to: '/__ui',
+          icon: <ShowcaseIcon name="settings" size={16} />,
+        },
       ]}
     >
       <main className="ui-showcase">
@@ -245,6 +407,133 @@ export function Showcase(): React.JSX.Element {
             selected={selected}
             onSelectionChange={setSelected}
           />
+        </section>
+
+        <section
+          className="ui-showcase-section"
+          aria-label="States and feedback"
+        >
+          <h2>States, choices and feedback</h2>
+          <div className="ui-showcase-grid ui-showcase-state-grid">
+            <Card>
+              <h3>Choices and links</h3>
+              <FieldGroup label="Notification preferences">
+                <label className="ui-showcase-choice">
+                  <Checkbox
+                    checked={emailUpdates}
+                    onChange={(event) => {
+                      setEmailUpdates(event.target.checked);
+                    }}
+                  />
+                  Email updates
+                </label>
+                <label className="ui-showcase-choice">
+                  <Radio
+                    name="showcase-contact-method"
+                    value="email"
+                    checked={contactMethod === 'email'}
+                    onChange={(event) => {
+                      setContactMethod(event.target.value);
+                    }}
+                  />
+                  Email contact
+                </label>
+                <label className="ui-showcase-choice">
+                  <Radio
+                    name="showcase-contact-method"
+                    value="phone"
+                    checked={contactMethod === 'phone'}
+                    onChange={(event) => {
+                      setContactMethod(event.target.value);
+                    }}
+                  />
+                  Phone contact
+                </label>
+                <Switch
+                  label="Allow schedule alerts"
+                  checked={scheduleAlerts}
+                  onChange={(event) => {
+                    setScheduleAlerts(event.target.checked);
+                  }}
+                />
+              </FieldGroup>
+              <div className="ui-showcase-inline">
+                <Badge tone="confirmed">Confirmed</Badge>
+                <StatusPill tone="pending">Needs review</StatusPill>
+                <IconButton
+                  label="Reset notification preferences"
+                  onClick={() => {
+                    setEmailUpdates(true);
+                    setScheduleAlerts(true);
+                    setContactMethod('email');
+                  }}
+                >
+                  ↺
+                </IconButton>
+                <Link to="/__ui">View this design system</Link>
+              </div>
+            </Card>
+            <Card>
+              <h3>Message and loading states</h3>
+              <Banner tone="info" title="Preview environment">
+                This sample shows the organization’s current state.
+              </Banner>
+              <ErrorState
+                title="Sample request failed"
+                onRetry={() => {
+                  setRetryCount((count) => count + 1);
+                }}
+              >
+                {retryCount
+                  ? `Retry attempted ${retryCount.toString()} times.`
+                  : 'The sample is ready to retry.'}
+              </ErrorState>
+              <EmptyState
+                title={extraSample ? 'Sample added' : 'No extra samples'}
+                action={
+                  !extraSample && (
+                    <Button
+                      type="button"
+                      secondary
+                      onClick={() => {
+                        setExtraSample(true);
+                      }}
+                    >
+                      Add sample
+                    </Button>
+                  )
+                }
+              >
+                {extraSample
+                  ? 'The added sample is available in this showcase.'
+                  : 'Add one to preview the populated state.'}
+              </EmptyState>
+              <div className="ui-showcase-skeleton-sample">
+                <span>Loading state</span>
+                <Skeleton aria-label="Loading sample" />
+              </div>
+              <Button
+                type="button"
+                onClick={() => {
+                  setToastVisible(true);
+                }}
+              >
+                Show notification
+              </Button>
+            </Card>
+          </div>
+          <ToastRegion>
+            {toastVisible && (
+              <Toast
+                tone="success"
+                onDismiss={() => {
+                  setToastVisible(false);
+                }}
+              >
+                Sample notification shown.
+              </Toast>
+            )}
+          </ToastRegion>
         </section>
 
         <section className="ui-showcase-section" aria-label="Form controls">

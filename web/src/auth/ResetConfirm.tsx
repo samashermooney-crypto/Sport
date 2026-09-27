@@ -4,7 +4,14 @@ import { useForm } from 'react-hook-form';
 import { useParams } from 'react-router';
 
 import { apiPost } from '../api/client';
-import { AuthFrame, AuthLink, Button, ErrorBox, Field } from '../ui/auth';
+import {
+  AuthFrame,
+  AuthLink,
+  Button,
+  ErrorBox,
+  Field,
+  Input,
+} from '../ui/auth';
 
 interface ResetFields {
   newPassword: string;
@@ -57,7 +64,7 @@ export function ResetConfirm(): React.JSX.Element {
               required
               error={errors.newPassword?.message}
             >
-              <input
+              <Input
                 type="password"
                 autoComplete="new-password"
                 {...register('newPassword', {
@@ -74,7 +81,7 @@ export function ResetConfirm(): React.JSX.Element {
               required
               error={errors.confirmPassword?.message}
             >
-              <input
+              <Input
                 type="password"
                 autoComplete="new-password"
                 {...register('confirmPassword', {
