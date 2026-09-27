@@ -1,6 +1,6 @@
 # Track G — schedule
 
-Implementation commits: `10dde5b` plus the current local changes on `track/g-schedule` (not pushed).
+Track G implementation commits: `10dde5b`, `c4454b4`, and `e26dee4` on `track/g-schedule` (local only; not pushed). The branch includes merge `8d47c08` from `rebuild/trunk`.
 Status: working
 Ready for integration: pending — Phase 8/9 acceptance and full gates are not yet met.
 Requests to other tracks: A: compose schedule console/portal routes and nav, add Phase 8/9 Chromium + WebKit mobile journeys with axe, and expose approved facility layout images publicly; B: add official assignment notification types/payloads to the notification catalog and fix the 48-team generator's home/away balance while keeping its runtime below 60 seconds; D: expose resource-calendar drag/drop and keyboard move callbacks; F: integrate the discipline service contract used by result finalization.
