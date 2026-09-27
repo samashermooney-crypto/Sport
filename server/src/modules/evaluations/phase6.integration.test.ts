@@ -22,8 +22,10 @@ import {
   declineTeamOffer,
   evaluationConsistency,
   expireTeamOffers,
+  getEvaluationSetup,
   getPlacementBoard,
   listEvaluationEvaluatorCandidates,
+  listEvaluationRegistrants,
   listFamilyOffers,
   listMyPlacementPrograms,
   listMyEvaluationResults,
@@ -423,6 +425,9 @@ describe('Phase 6 evaluations integration', () => {
     if (!event) throw new Error('Expected an evaluation event');
     eventId = event.id;
     expect(event.status).toBe('draft');
+    await admin.query(`UPDATE people SET media_consent='granted' WHERE id=$1`, [
+      childA,
+    ]);
 
     const session = await createEvaluationSession(
       dependencies(),
@@ -490,6 +495,23 @@ describe('Phase 6 evaluations integration', () => {
     expect(first.bibNumber).toBe(1);
     expect(second.bibNumber).toBe(2);
     expect(third.bibNumber).toBe(3);
+
+    const registrantRows = await listEvaluationRegistrants(
+      dependencies(),
+      ownerContext,
+      eventId,
+    );
+    expect(registrantRows.find((row) => row.personId === childA)).toMatchObject(
+      { mediaConsent: true, personVersion: 1 },
+    );
+    const setup = await getEvaluationSetup(
+      dependencies(),
+      ownerContext,
+      eventId,
+    );
+    expect(
+      setup.participants.find((row) => row.personId === childA),
+    ).toMatchObject({ mediaConsent: true, personVersion: 1 });
 
     const smallGroup = await admin.query<{ id: string }>(
       `SELECT id FROM evaluation_groups WHERE org_id=$1 AND evaluation_event_id=$2 AND name='U10B'`,
@@ -1207,7 +1229,10 @@ describe('Phase 6 evaluations integration', () => {
       ownerContext,
       recProgramId,
     );
-    expect(prefs.length).toBe(2);
+    expect(prefs).toHaveLength(9);
+    expect(prefs.some((row) => row.personId === waitlistedPersonId)).toBe(
+      false,
+    );
     expect(prefs.find((row) => row.personId === childA)).toMatchObject({
       coachRating: 4.5,
       source: 'family',

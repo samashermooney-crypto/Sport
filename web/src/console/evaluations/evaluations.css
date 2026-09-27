@@ -82,6 +82,14 @@
   border-bottom: 1px solid var(--line);
 }
 
+.evaluation-placement[draggable='true'] {
+  cursor: grab;
+}
+
+.evaluation-placement[draggable='true']:active {
+  cursor: grabbing;
+}
+
 .evaluation-event-list p,
 .evaluation-card-heading p,
 .evaluation-console .field-hint {

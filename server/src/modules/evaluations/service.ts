@@ -607,7 +607,7 @@ export async function listEvaluationScoringSheet(
       >`SELECT p.id,p.person_id,p.bib_number,p.evaluation_group_id AS group_id,
           g.name AS group_name,p.position_keys,p.check_in_status,
           pe.first_name,pe.last_name,
-          CASE WHEN pe.media_consent='granted' AND p.media_consent THEN p.photo_file_id ELSE NULL END AS photo_file_id
+          CASE WHEN pe.media_consent='granted' THEN pe.photo_file_id ELSE NULL END AS photo_file_id
         FROM evaluation_participants p
         JOIN evaluation_groups g ON g.org_id=p.org_id AND g.id=p.evaluation_group_id
         JOIN people pe ON pe.org_id=p.org_id AND pe.id=p.person_id
@@ -1973,9 +1973,11 @@ export async function listEvaluationRegistrants(
       personId: string;
       firstName: string;
       lastName: string;
+      mediaConsent: boolean;
+      personVersion: number;
       assigned: boolean;
     }>`SELECT r.id AS "registrationId",p.id AS "personId",p.first_name AS "firstName",
-        p.last_name AS "lastName",
+        p.last_name AS "lastName",(p.media_consent='granted') AS "mediaConsent",p.version AS "personVersion",
         EXISTS (SELECT 1 FROM evaluation_participants ep WHERE ep.org_id=r.org_id
           AND ep.evaluation_event_id=${eventId} AND ep.person_id=r.person_id) AS assigned
       FROM registrations r JOIN people p ON p.org_id=r.org_id AND p.id=r.person_id
@@ -2011,7 +2013,7 @@ export async function getEvaluationSetup(
       ),
       sql<
         Record<string, unknown>
-      >`SELECT p.id,p.person_id AS "personId",p.registration_id AS "registrationId",p.evaluation_group_id AS "groupId",g.name AS "groupName",p.evaluation_session_id AS "sessionId",p.bib_number AS "bibNumber",p.check_in_status AS "checkInStatus",pe.first_name AS "firstName",pe.last_name AS "lastName"
+      >`SELECT p.id,p.person_id AS "personId",p.registration_id AS "registrationId",p.evaluation_group_id AS "groupId",g.name AS "groupName",p.evaluation_session_id AS "sessionId",p.bib_number AS "bibNumber",p.check_in_status AS "checkInStatus",pe.first_name AS "firstName",pe.last_name AS "lastName",(pe.media_consent='granted') AS "mediaConsent",pe.version AS "personVersion"
         FROM evaluation_participants p JOIN evaluation_groups g ON g.org_id=p.org_id AND g.id=p.evaluation_group_id JOIN people pe ON pe.org_id=p.org_id AND pe.id=p.person_id
         WHERE p.org_id=${context.orgId} AND p.evaluation_event_id=${eventId} ORDER BY g.sort_order,p.bib_number`.execute(
         trx,
@@ -2150,14 +2152,18 @@ export async function listPlacementPreferences(
       note: string | null;
       source: string;
       version: number;
-    }>`SELECT pref.person_id AS "personId",p.first_name AS "firstName",p.last_name AS "lastName",
+    }>`WITH roster AS (
+      SELECT DISTINCT ON (p.id) p.id AS "personId",p.first_name AS "firstName",p.last_name AS "lastName",
       pref.friend_request_person_id AS "friendRequestPersonId",friend.first_name AS "friendFirstName",friend.last_name AS "friendLastName",
-      pref.practice_location AS "practiceLocation",pref.coach_rating::float8 AS "coachRating",pref.note,pref.source,pref.version
-      FROM placement_preferences pref
-      JOIN people p ON p.org_id=pref.org_id AND p.id=pref.person_id
+      pref.practice_location AS "practiceLocation",pref.coach_rating::float8 AS "coachRating",pref.note,
+      COALESCE(pref.source,'staff') AS source,COALESCE(pref.version,1) AS version
+      FROM registrations r
+      JOIN people p ON p.org_id=r.org_id AND p.id=r.person_id
+      LEFT JOIN placement_preferences pref ON pref.org_id=r.org_id AND pref.program_id=r.program_id AND pref.person_id=r.person_id
       LEFT JOIN people friend ON friend.org_id=pref.org_id AND friend.id=pref.friend_request_person_id
-      WHERE pref.org_id=${context.orgId} AND pref.program_id=${programId}
-      ORDER BY p.last_name,p.first_name`.execute(trx);
+      WHERE r.org_id=${context.orgId} AND r.program_id=${programId} AND r.status='confirmed'
+      ORDER BY p.id,r.created_at,r.id
+    ) SELECT * FROM roster ORDER BY "lastName","firstName"`.execute(trx);
     return rows.rows;
   });
 }

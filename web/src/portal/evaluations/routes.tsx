@@ -7,7 +7,7 @@ import {
   FamilyResults,
 } from './EvaluationPortal';
 
-export const portalEvaluationRoutes: readonly RouteObject[] = [
+export const portalEvaluationsRoutes: readonly RouteObject[] = [
   {
     path: '/portal/orgs/:orgId/evaluations/:eventId/score',
     element: <EvaluationScoringSheet />,

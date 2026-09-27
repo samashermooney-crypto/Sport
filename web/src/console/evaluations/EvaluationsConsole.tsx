@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { z } from 'zod';
 
-import { apiGet, apiPost } from '../../api/client';
+import { apiGet, apiPost, apiPut } from '../../api/client';
 import {
   Badge,
   Button,
@@ -15,6 +15,7 @@ import {
 } from '../../ui';
 import { AppShell } from '../../ui/shell';
 
+import { captureEvaluationParticipantPhoto } from './evaluation-photo';
 import './evaluations.css';
 
 const eventSchema = z.object({
@@ -65,6 +66,8 @@ const registrantsSchema = z.array(
     personId: z.uuid(),
     firstName: z.string(),
     lastName: z.string(),
+    mediaConsent: z.boolean(),
+    personVersion: z.number(),
     assigned: z.boolean(),
   }),
 );
@@ -75,7 +78,21 @@ const evaluatorCandidatesSchema = z.array(
     lastName: z.string(),
   }),
 );
+const placementPreferencesSchema = z.array(
+  z.object({
+    personId: z.uuid(),
+    firstName: z.string(),
+    lastName: z.string(),
+    friendRequestPersonId: z.uuid().nullable(),
+    practiceLocation: z.string().nullable(),
+    coachRating: z.number().nullable(),
+    note: z.string().nullable(),
+    source: z.string(),
+    version: z.number(),
+  }),
+);
 const setupSchema = z.object({
+  canManagePhotos: z.boolean(),
   event: z.looseObject({
     id: z.uuid(),
     name: z.string(),
@@ -116,6 +133,8 @@ const setupSchema = z.object({
       checkInStatus: z.string(),
       firstName: z.string(),
       lastName: z.string(),
+      mediaConsent: z.boolean(),
+      personVersion: z.number(),
     }),
   ),
 });
@@ -297,6 +316,7 @@ function OrgLayout({
 export function EvaluationList(): React.JSX.Element {
   const { orgId = '' } = useParams();
   const queryClient = useQueryClient();
+  const draggedPlacementPerson = useRef<string | null>(null);
   const [name, setName] = useState('');
   const [tryoutProgramId, setTryoutProgramId] = useState('');
   const [targetProgramId, setTargetProgramId] = useState('');
@@ -326,6 +346,9 @@ export function EvaluationList(): React.JSX.Element {
   const [recMoveTargets, setRecMoveTargets] = useState<Record<string, string>>(
     {},
   );
+  const [coachRatingDrafts, setCoachRatingDrafts] = useState<
+    Record<string, string>
+  >({});
   const [recError, setRecError] = useState('');
   const programs = useQuery({
     queryKey: ['evaluation-programs', orgId],
@@ -358,6 +381,15 @@ export function EvaluationList(): React.JSX.Element {
         offerDashboardSchema,
       ),
     enabled: Boolean(recBoardId),
+  });
+  const recPlacementPreferences = useQuery({
+    queryKey: ['rec-placement-preferences', orgId, recProgramId],
+    queryFn: () =>
+      apiGet(
+        `/evaluations/orgs/${orgId}/programs/${recProgramId}/placement-preferences`,
+        placementPreferencesSchema,
+      ),
+    enabled: Boolean(recProgramId),
   });
   const tryoutProgram = programs.data?.find(
     (program) => program.id === tryoutProgramId,
@@ -457,6 +489,38 @@ export function EvaluationList(): React.JSX.Element {
         cause instanceof Error
           ? cause.message
           : 'Rec-league placement board could not be built.',
+      );
+    },
+  });
+  const saveCoachRating = useMutation({
+    mutationFn: (input: {
+      personId: string;
+      friendRequestPersonId: string | null;
+      practiceLocation: string | null;
+      coachRating: number | null;
+      note: string | null;
+    }) =>
+      apiPut(
+        `/evaluations/orgs/${orgId}/programs/${recProgramId}/placement-preferences`,
+        { ...input, source: 'staff' },
+        responseSchema,
+      ),
+    onSuccess: async (_, input) => {
+      setRecError('');
+      await queryClient.invalidateQueries({
+        queryKey: ['rec-placement-preferences', orgId, recProgramId],
+      });
+      setCoachRatingDrafts((current) => ({
+        ...current,
+        [input.personId]:
+          input.coachRating === null ? '' : String(input.coachRating),
+      }));
+    },
+    onError: (cause) => {
+      setRecError(
+        cause instanceof Error
+          ? cause.message
+          : 'Coach rating could not be saved.',
       );
     },
   });
@@ -1035,10 +1099,100 @@ export function EvaluationList(): React.JSX.Element {
             {recError}
           </p>
         )}
+        {recProgramId && (
+          <section className="evaluation-coach-ratings">
+            <h3>Prior-season coach ratings</h3>
+            <p>
+              Record optional coach-supplied 1–5 ratings for confirmed players.
+              A rating helps the rec-league board balance teams.
+            </p>
+            {recPlacementPreferences.isPending ? (
+              <p role="status">Loading confirmed players…</p>
+            ) : recPlacementPreferences.isError ? (
+              <p role="alert">{recPlacementPreferences.error.message}</p>
+            ) : recPlacementPreferences.data.length ? (
+              recPlacementPreferences.data.map((row) => {
+                const draft =
+                  coachRatingDrafts[row.personId] ??
+                  (row.coachRating === null ? '' : String(row.coachRating));
+                const current =
+                  row.coachRating === null ? '' : String(row.coachRating);
+                const value = draft === '' ? null : Number(draft);
+                const invalid =
+                  value !== null &&
+                  (!Number.isInteger(value) || value < 1 || value > 5);
+                return (
+                  <div
+                    className="evaluation-placement"
+                    key={row.personId}
+                    role="group"
+                    aria-label={`Prior-season rating for ${row.firstName} ${row.lastName}`}
+                  >
+                    <span>
+                      {row.firstName} {row.lastName}
+                    </span>
+                    <div className="evaluation-move-controls">
+                      <Field
+                        label={`Coach rating for ${row.firstName} ${row.lastName}`}
+                      >
+                        <Input
+                          type="number"
+                          min="1"
+                          max="5"
+                          step="1"
+                          value={draft}
+                          onChange={(event) => {
+                            setCoachRatingDrafts((currentDrafts) => ({
+                              ...currentDrafts,
+                              [row.personId]: event.target.value,
+                            }));
+                          }}
+                        />
+                      </Field>
+                      <Button
+                        type="button"
+                        disabled={
+                          saveCoachRating.isPending ||
+                          invalid ||
+                          draft === current
+                        }
+                        onClick={() => {
+                          if (invalid) return;
+                          saveCoachRating.mutate({
+                            personId: row.personId,
+                            friendRequestPersonId: row.friendRequestPersonId,
+                            practiceLocation: row.practiceLocation,
+                            coachRating: value,
+                            note: row.note,
+                          });
+                        }}
+                      >
+                        Save rating
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p>No confirmed players to rate yet.</p>
+            )}
+          </section>
+        )}
         {recBoard.data && (
           <>
             <h3>Draft assignments</h3>
-            <div className="evaluation-table-wrap">
+            {recBoard.data.status === 'draft' && (
+              <p>
+                Drag a player onto a teammate to move them to that team, or use
+                the team selector and Move button with a keyboard.
+              </p>
+            )}
+            <div
+              className="evaluation-table-wrap"
+              role="region"
+              aria-label="Placement team balance"
+              tabIndex={0}
+            >
               <table>
                 <thead>
                   <tr>
@@ -1067,7 +1221,45 @@ export function EvaluationList(): React.JSX.Element {
               </table>
             </div>
             {recBoard.data.placements.map((row) => (
-              <div className="evaluation-placement" key={row.personId}>
+              <div
+                className="evaluation-placement"
+                key={row.personId}
+                draggable={recBoard.data.status === 'draft' && !row.locked}
+                onDragStart={(event) => {
+                  draggedPlacementPerson.current = row.personId;
+                  event.dataTransfer.effectAllowed = 'move';
+                  event.dataTransfer.setData('text/plain', row.personId);
+                }}
+                onDragEnd={() => {
+                  draggedPlacementPerson.current = null;
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const personId =
+                    draggedPlacementPerson.current ||
+                    event.dataTransfer.getData('text/plain');
+                  draggedPlacementPerson.current = null;
+                  const source = recBoard.data.placements.find(
+                    (placement) => placement.personId === personId,
+                  );
+                  if (
+                    !source ||
+                    source.locked ||
+                    source.personId === row.personId ||
+                    source.teamSeasonId === row.teamSeasonId
+                  )
+                    return;
+                  moveRecPlacement.mutate({
+                    personId,
+                    teamSeasonId: row.teamSeasonId,
+                    version: source.version,
+                  });
+                }}
+              >
                 <span>
                   {row.firstName} {row.lastName} → {row.teamName}
                 </span>
@@ -1172,6 +1364,11 @@ export function EvaluationOperations(): React.JSX.Element {
   const [checkInSearch, setCheckInSearch] = useState('');
   const [registrationQr, setRegistrationQr] = useState('');
   const [notice, setNotice] = useState('');
+  const [participantPhotos, setParticipantPhotos] = useState<
+    Record<string, File | null>
+  >({});
+  const [photoInputVersion, setPhotoInputVersion] = useState(0);
+  const draggedPlacementPerson = useRef<string | null>(null);
   const setup = useQuery({
     queryKey: ['evaluation-setup', orgId, eventId],
     queryFn: () =>
@@ -1348,6 +1545,30 @@ export function EvaluationOperations(): React.JSX.Element {
       await queryClient.invalidateQueries({
         queryKey: ['evaluation-setup', orgId, eventId],
       });
+    },
+  });
+  const capturePhoto = useMutation({
+    mutationFn: (input: {
+      personId: string;
+      personVersion: number;
+      mediaConsent: boolean;
+      file: File;
+    }) => captureEvaluationParticipantPhoto({ orgId, ...input }),
+    onSuccess: async (_, input) => {
+      setParticipantPhotos((current) => ({
+        ...current,
+        [input.personId]: null,
+      }));
+      setPhotoInputVersion((current) => current + 1);
+      setNotice('Consented athlete photo saved.');
+      await queryClient.invalidateQueries({
+        queryKey: ['evaluation-setup', orgId, eventId],
+      });
+    },
+    onError: (cause) => {
+      setNotice(
+        cause instanceof Error ? cause.message : 'Photo could not be saved.',
+      );
     },
   });
   const checkInRegistration = (value: string) => {
@@ -1789,7 +2010,12 @@ export function EvaluationOperations(): React.JSX.Element {
               </form>
             </div>
             {visibleParticipants.length ? (
-              <div className="evaluation-table-wrap">
+              <div
+                className="evaluation-table-wrap"
+                role="region"
+                aria-label="Participant check-in list"
+                tabIndex={0}
+              >
                 <table>
                   <thead>
                     <tr>
@@ -1810,19 +2036,67 @@ export function EvaluationOperations(): React.JSX.Element {
                         <td>{row.groupName}</td>
                         <td>{row.checkInStatus}</td>
                         <td>
-                          {row.checkInStatus === 'expected' ? (
-                            <Button
-                              type="button"
-                              secondary
-                              onClick={() => {
-                                checkIn.mutate(row.id);
-                              }}
-                            >
-                              Check in
-                            </Button>
-                          ) : (
-                            <Badge tone="ok">Checked in</Badge>
-                          )}
+                          <div className="evaluation-move-controls">
+                            {row.checkInStatus === 'expected' ? (
+                              <Button
+                                type="button"
+                                secondary
+                                onClick={() => {
+                                  checkIn.mutate(row.id);
+                                }}
+                              >
+                                Check in
+                              </Button>
+                            ) : (
+                              <Badge tone="ok">Checked in</Badge>
+                            )}
+                            {setup.data.canManagePhotos &&
+                              (row.mediaConsent ? (
+                                <>
+                                  <Field
+                                    label={`Capture photo for ${row.firstName} ${row.lastName}`}
+                                  >
+                                    <Input
+                                      key={`${row.personId}-${String(photoInputVersion)}`}
+                                      type="file"
+                                      accept="image/jpeg,image/png,image/webp"
+                                      capture="environment"
+                                      disabled={capturePhoto.isPending}
+                                      onChange={(event) => {
+                                        setParticipantPhotos((current) => ({
+                                          ...current,
+                                          [row.personId]:
+                                            event.target.files?.[0] ?? null,
+                                        }));
+                                      }}
+                                    />
+                                  </Field>
+                                  {participantPhotos[row.personId] && (
+                                    <Button
+                                      type="button"
+                                      disabled={capturePhoto.isPending}
+                                      onClick={() => {
+                                        const file =
+                                          participantPhotos[row.personId];
+                                        if (!file) return;
+                                        capturePhoto.mutate({
+                                          personId: row.personId,
+                                          personVersion: row.personVersion,
+                                          mediaConsent: row.mediaConsent,
+                                          file,
+                                        });
+                                      }}
+                                    >
+                                      Save photo
+                                    </Button>
+                                  )}
+                                </>
+                              ) : (
+                                <span>
+                                  Photo withheld: media consent required.
+                                </span>
+                              ))}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1849,7 +2123,12 @@ export function EvaluationOperations(): React.JSX.Element {
                 Compute normalized results
               </Button>
               {sortedResults.length > 0 && (
-                <div className="evaluation-table-wrap">
+                <div
+                  className="evaluation-table-wrap"
+                  role="region"
+                  aria-label="Evaluation rankings"
+                  tabIndex={0}
+                >
                   <table>
                     <thead>
                       <tr>
@@ -1898,7 +2177,12 @@ export function EvaluationOperations(): React.JSX.Element {
                 ) : consistency.isError ? (
                   <p role="alert">{consistency.error.message}</p>
                 ) : consistency.data.length ? (
-                  <div className="evaluation-table-wrap">
+                  <div
+                    className="evaluation-table-wrap"
+                    role="region"
+                    aria-label="Evaluator consistency"
+                    tabIndex={0}
+                  >
                     <table>
                       <thead>
                         <tr>
@@ -2039,8 +2323,52 @@ export function EvaluationOperations(): React.JSX.Element {
                   Board <code>{boardId}</code>
                 </p>
               )}
+              {board.data?.status === 'draft' && (
+                <p>
+                  Drag a player onto a teammate to move them to that team, or
+                  use the team selector and Move button with a keyboard.
+                </p>
+              )}
               {board.data?.placements.map((row) => (
-                <div className="evaluation-placement" key={row.personId}>
+                <div
+                  className="evaluation-placement"
+                  key={row.personId}
+                  draggable={board.data.status === 'draft' && !row.locked}
+                  onDragStart={(event) => {
+                    draggedPlacementPerson.current = row.personId;
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', row.personId);
+                  }}
+                  onDragEnd={() => {
+                    draggedPlacementPerson.current = null;
+                  }}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const personId =
+                      draggedPlacementPerson.current ||
+                      event.dataTransfer.getData('text/plain');
+                    draggedPlacementPerson.current = null;
+                    const source = board.data.placements.find(
+                      (placement) => placement.personId === personId,
+                    );
+                    if (
+                      !source ||
+                      source.locked ||
+                      source.personId === row.personId ||
+                      source.teamSeasonId === row.teamSeasonId
+                    )
+                      return;
+                    move.mutate({
+                      personId,
+                      teamSeasonId: row.teamSeasonId,
+                      version: source.version,
+                    });
+                  }}
+                >
                   <span>
                     {row.firstName} {row.lastName} → {row.teamName}
                   </span>
@@ -2186,7 +2514,12 @@ export function EvaluationOperations(): React.JSX.Element {
           {dashboard.data && (
             <Card>
               <h2>Offer status and next in line</h2>
-              <div className="evaluation-table-wrap">
+              <div
+                className="evaluation-table-wrap"
+                role="region"
+                aria-label="Team offer status"
+                tabIndex={0}
+              >
                 <table>
                   <thead>
                     <tr>

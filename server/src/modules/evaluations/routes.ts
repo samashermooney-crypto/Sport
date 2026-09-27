@@ -156,13 +156,17 @@ export function createEvaluationsRouter(
     '/orgs/:orgId/events/:eventId/setup',
     endpoint(async (request, response) => {
       const actor = await director(request);
-      response.json(
-        await getEvaluationSetup(
-          evaluations,
-          actor.context,
-          uuid(request.params.eventId),
-        ),
+      const setup = await getEvaluationSetup(
+        evaluations,
+        actor.context,
+        uuid(request.params.eventId),
       );
+      response.json({
+        ...setup,
+        canManagePhotos: actor.roles.some((role) =>
+          ['owner', 'admin', 'registrar'].includes(role),
+        ),
+      });
     }),
   );
   router.get(
