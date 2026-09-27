@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, getDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
+import { getStandings } from '../standings/service';
 
 import { createContest, submitContestResult } from './service';
 
@@ -169,6 +170,7 @@ describe('result entry validates every seeded sport format', () => {
       });
 
       let checked = 0;
+      let unconfiguredProfiles = 0;
       for (const profile of builtInSportTemplates) {
         const profileId = newId();
         const programId = newId();
@@ -331,8 +333,26 @@ describe('result entry validates every seeded sport format', () => {
           expect(submitted.status).toBe('final');
           checked += 1;
         }
+
+        if (!profile.defaultStandings) {
+          unconfiguredProfiles += 1;
+          await expect(
+            getStandings(actor, { programId }),
+          ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+          const snapshots = await withOrg(actor, (trx) =>
+            trx
+              .selectFrom('standings_snapshots')
+              .select(['scope_type', 'scope_id'])
+              .where('org_id', '=', orgId)
+              .where('scope_type', '=', 'program')
+              .where('scope_id', '=', programId)
+              .execute(),
+          );
+          expect(snapshots).toHaveLength(0);
+        }
       }
       expect(checked).toBe(50);
+      expect(unconfiguredProfiles).toBeGreaterThan(0);
     },
   );
 });
