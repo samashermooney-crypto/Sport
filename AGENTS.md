@@ -5,8 +5,10 @@ You are building **Athlentry**, a production-grade, multi-sport, multi-tenant ma
 ## Read before doing anything
 
 1. `docs/codex/00-START-HERE.md` — mission, definition of done, decisions already made, working rules.
-2. `docs/codex/PROGRESS.md` — where the previous session stopped. Resume from the first unchecked item.
-3. The spec file for the phase you are working on (listed in 00-START-HERE).
+2. `docs/codex/50-PARALLEL-PLAN.md` — **work is split across parallel tracks.** It defines your track, the paths you own, branches, integration and efficiency rules. It overrides "phases strictly in order" and the per-phase branch rule below.
+3. `docs/codex/15-SPEC-CLARIFICATIONS.md` — binding clarifications that win over `02`/`10`/`11`.
+4. Your track file `docs/codex/tracks/<LETTER>.md` (Track A/integrator also reads `docs/codex/PROGRESS.md` and new files in `docs/codex/reviews/`).
+5. The spec sections your current task cites.
 
 The specification in `docs/codex/` is authoritative. Where it says **MUST**, do it exactly. Where it is silent, choose the option that is most protective of (in order) child safety, financial correctness, data privacy, and then simplicity; record the choice in `docs/codex/DECISIONS.md`. Do not stop to ask the owner questions; the owner has delegated all product and engineering decisions to this specification.
 
@@ -44,4 +46,4 @@ npm run openapi        # regenerate docs/api/openapi.json
 
 ## Commit discipline
 
-Small, focused commits using Conventional Commits (`feat(registration): ...`). One logical change per commit. Update `docs/codex/PROGRESS.md` in the same commit that completes an item. Work on branch `rebuild/phase-N` per phase; merge to `main` only when the phase gate passes.
+Small, focused commits using Conventional Commits (`feat(registration): ...`). One logical change per commit. Branches, integration into `rebuild/trunk`, milestone merges to `main`, and who may edit `PROGRESS.md` are defined in `docs/codex/50-PARALLEL-PLAN.md`. Per task run targeted tests; run the full gate before marking work ready for integration (50 §6). Keep progress notes to one line per item.

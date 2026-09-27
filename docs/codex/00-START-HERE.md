@@ -74,7 +74,8 @@ Some launch steps need the owner's accounts, money, signatures or lawyers. You M
 
 ## 6. Working method
 
-1. Work phases strictly in order: `10-PHASES-FOUNDATION.md` (Phases 0–2) → `11-PHASES-OPERATIONS.md` (Phases 3–9) → `12-PHASES-EXPANSION.md` (Phases 10–15) → `13-PHASE-PRODUCTION.md` (Phase 16). Later phases depend on earlier data models.
+0. **Parallel execution:** `50-PARALLEL-PLAN.md` assigns phases to parallel tracks with dependency-based waves and replaces the strict ordering in item 1. Binding spec clarifications are in `15-SPEC-CLARIFICATIONS.md`.
+1. (Superseded by item 0 for ordering; dependencies still apply.) Work phases in order: `10-PHASES-FOUNDATION.md` (Phases 0–2) → `11-PHASES-OPERATIONS.md` (Phases 3–9) → `12-PHASES-EXPANSION.md` (Phases 10–15) → `13-PHASE-PRODUCTION.md` (Phase 16). Later phases depend on earlier data models.
 2. At the start of each phase, copy its task list into `PROGRESS.md` as checkboxes. Check items off only when implemented, tested and committed.
 3. For each task: schema migration → shared Zod schemas → service with domain tests → routes with HTTP tests (including permission and tenancy tests) → UI → Playwright journey where the phase requires one → docs.
 4. A phase gate passes only when every acceptance criterion in its section is demonstrably true and all commands in `AGENTS.md` pass. Record the evidence (test names, e2e specs) in `PROGRESS.md`.
@@ -112,6 +113,8 @@ Discard: LeagueApps navigation taxonomy ("Site Level Calendar", "Other Offerings
 | `03-SPORT-ENGINE.md` | Sport profile schema, result formats, age-group methods, built-in sport templates |
 | `04-PERMISSIONS-AND-PRIVACY.md` | Roles, scopes, permission matrix, data-sensitivity tiers, child-safety rules, retention |
 | `05-UX-AND-NAVIGATION.md` | Information architecture, screen inventory, UX rules, action center, mobile rules |
+| `15-SPEC-CLARIFICATIONS.md` | Binding clarifications that override `02`/`10`/`11` where they conflict |
+| `50-PARALLEL-PLAN.md` | Parallel tracks, ownership, waves, integration, milestones, kickoff prompts |
 | `10-PHASES-FOUNDATION.md` | Phases 0–2: tooling, platform core, identity, people |
 | `11-PHASES-OPERATIONS.md` | Phases 3–9: sports/programs/teams, payments, registration, evaluations, compliance, scheduling, game day/results/tournaments/officials |
 | `12-PHASES-EXPANSION.md` | Phases 10–15: communications, volunteers/team finance/fundraising/store, academy mode, federation, reporting/website, onboarding/import |
