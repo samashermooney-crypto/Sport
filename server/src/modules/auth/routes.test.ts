@@ -197,5 +197,113 @@ describe('auth HTTP contract', () => {
         })
       ).status,
     ).toBe(200);
+    const native = await fetch(`${baseUrl}/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Athlentry-Request': '1',
+      },
+      body: JSON.stringify({ email: input.email, password, client: 'ios' }),
+    });
+    expect(native.status).toBe(200);
+    expect(native.headers.get('set-cookie')).toBeNull();
+    const nativeChallenge = (await native.json()) as {
+      status: string;
+      challengeToken: string;
+    };
+    expect(nativeChallenge.status).toBe('mfa_required');
+    const nativeMfa = await fetch(`${baseUrl}/token/mfa`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Athlentry-Request': '1',
+      },
+      body: JSON.stringify({
+        challengeToken: nativeChallenge.challengeToken,
+        code: recoveryCodes[1],
+        method: 'recovery',
+        client: 'ios',
+      }),
+    });
+    expect(nativeMfa.status).toBe(200);
+    const bearer = ((await nativeMfa.json()) as { token: string }).token;
+    expect(bearer).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    const bearerHeaders = {
+      Authorization: `Bearer ${bearer}`,
+      'X-Athlentry-Request': '1',
+    };
+    expect(
+      (await fetch(`${baseUrl}/sessions`, { headers: bearerHeaders })).status,
+    ).toBe(200);
+
+    const wrongOrigin = await fetch(`${baseUrl}/devices`, {
+      method: 'POST',
+      headers: {
+        ...bearerHeaders,
+        Origin: 'https://attacker.invalid',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ platform: 'apns', token: 'a'.repeat(64) }),
+    });
+    expect(wrongOrigin.status).toBe(403);
+    const deviceRequest = () =>
+      fetch(`${baseUrl}/devices`, {
+        method: 'POST',
+        headers: { ...bearerHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: 'apns', token: 'a'.repeat(64) }),
+      });
+    const device = await deviceRequest();
+    expect(device.status).toBe(200);
+    const deviceId = ((await device.json()) as { id: string }).id;
+    const repeated = await deviceRequest();
+    expect(((await repeated.json()) as { id: string }).id).toBe(deviceId);
+    const mismatched = await fetch(`${baseUrl}/devices`, {
+      method: 'POST',
+      headers: { ...bearerHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform: 'webpush',
+        subscription: {
+          endpoint: 'https://push.example.invalid/123',
+          keys: { p256dh: 'key', auth: 'secret' },
+        },
+      }),
+    });
+    expect(mismatched.status).toBe(403);
+    const listed = await fetch(`${baseUrl}/devices`, {
+      headers: bearerHeaders,
+    });
+    expect(
+      ((await listed.json()) as { devices: unknown[] }).devices,
+    ).toHaveLength(1);
+    const revoked = await fetch(`${baseUrl}/devices/${deviceId}`, {
+      method: 'DELETE',
+      headers: bearerHeaders,
+    });
+    expect(revoked.status).toBe(200);
+    const afterRevoke = await fetch(`${baseUrl}/devices`, {
+      headers: bearerHeaders,
+    });
+    expect(
+      ((await afterRevoke.json()) as { devices: unknown[] }).devices,
+    ).toHaveLength(0);
+    const webPush = await post(
+      '/devices',
+      {
+        platform: 'webpush',
+        subscription: {
+          endpoint: 'https://push.example.invalid/123',
+          keys: { p256dh: 'key', auth: 'secret' },
+        },
+      },
+      secondCookie,
+    );
+    expect(webPush.status).toBe(200);
+    const webPushId = ((await webPush.json()) as { id: string }).id;
+    const webPushList = await fetch(`${baseUrl}/devices`, {
+      headers: { Cookie: secondCookie },
+    });
+    expect(
+      ((await webPushList.json()) as { devices: { id: string }[] }).devices,
+    ).toEqual([expect.objectContaining({ id: webPushId })]);
   });
 });

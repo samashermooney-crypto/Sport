@@ -45,6 +45,12 @@ export type SignInResult =
   | { status: 'mfa_required'; challengeToken: string }
   | { status: 'enrollment_required'; session: IssuedSession };
 
+export type SignInClient = 'web' | 'ios' | 'android';
+
+function sessionKind(client: SignInClient): 'cookie' | 'bearer' {
+  return client === 'web' ? 'cookie' : 'bearer';
+}
+
 export class InvalidCredentialsError extends Error {
   constructor() {
     super('Invalid credentials');
@@ -116,6 +122,7 @@ async function finishPrimaryAuth(
   accountId: string,
   email: string,
   meta: SignInMeta,
+  client: SignInClient,
 ): Promise<SignInResult> {
   const now = dependencies.clock();
   const privileged = await hasPrivilegedRole(dependencies.database, accountId);
@@ -131,7 +138,7 @@ async function finishPrimaryAuth(
       .execute((trx) =>
         issueAuthToken(
           trx,
-          { purpose: 'mfa_challenge', email, accountId },
+          { purpose: 'mfa_challenge', email, accountId, payload: { client } },
           now,
         ),
       );
@@ -144,8 +151,8 @@ async function finishPrimaryAuth(
         trx,
         {
           accountId,
-          kind: 'cookie',
-          client: 'web',
+          kind: sessionKind(client),
+          client,
           privileged: false,
           ip: meta.ip,
           userAgent: meta.userAgent,
@@ -164,6 +171,7 @@ export async function signInWithPassword(
   dependencies: SignInDependencies,
   input: { email: string; password: string },
   meta: SignInMeta = {},
+  client: SignInClient = 'web',
 ): Promise<SignInResult> {
   const parsed = credentialSchema.parse(input);
   const account = await dependencies.database
@@ -184,7 +192,13 @@ export async function signInWithPassword(
     throw new InvalidCredentialsError();
   }
   if (!account.email_verified_at) throw new EmailVerificationRequiredError();
-  return finishPrimaryAuth(dependencies, account.id, account.email, meta);
+  return finishPrimaryAuth(
+    dependencies,
+    account.id,
+    account.email,
+    meta,
+    client,
+  );
 }
 
 export async function requestMagicLink(
@@ -235,7 +249,13 @@ export async function signInWithMagicLink(
   if (!account || account.status !== 'active' || !account.email_verified_at) {
     throw new InvalidCredentialsError();
   }
-  return finishPrimaryAuth(dependencies, account.id, account.email, meta);
+  return finishPrimaryAuth(
+    dependencies,
+    account.id,
+    account.email,
+    meta,
+    'web',
+  );
 }
 
 export async function completeMfaChallenge(
@@ -244,6 +264,7 @@ export async function completeMfaChallenge(
   code: string,
   method: 'totp' | 'recovery',
   meta: SignInMeta = {},
+  client: SignInClient = 'web',
 ): Promise<IssuedSession> {
   const now = dependencies.clock();
   const consumed = await dependencies.database
@@ -251,7 +272,8 @@ export async function completeMfaChallenge(
     .execute((trx) =>
       consumeAuthToken(trx, 'mfa_challenge', challengeToken, now),
     );
-  if (!consumed?.accountId) throw new InvalidCredentialsError();
+  if (!consumed?.accountId || consumed.payload.client !== client)
+    throw new InvalidCredentialsError();
   const accountId = consumed.accountId;
   const privileged = await hasPrivilegedRole(dependencies.database, accountId);
   return dependencies.database.transaction().execute(async (trx) => {
@@ -276,8 +298,8 @@ export async function completeMfaChallenge(
       trx,
       {
         accountId,
-        kind: 'cookie',
-        client: 'web',
+        kind: sessionKind(client),
+        client,
         privileged,
         mfaVerifiedAt: now,
         ip: meta.ip,

@@ -35,10 +35,16 @@ export const signInBodySchema = z.strictObject({
   email: z.email(),
   password: z.string(),
 });
+export const nativeTokenBodySchema = signInBodySchema.extend({
+  client: z.enum(['ios', 'android']),
+});
 export const mfaChallengeBodySchema = z.strictObject({
   challengeToken: z.string().min(1),
   code: z.string().min(1),
   method: z.enum(['totp', 'recovery']),
+});
+export const nativeMfaChallengeBodySchema = mfaChallengeBodySchema.extend({
+  client: z.enum(['ios', 'android']),
 });
 export const resetPasswordBodySchema = z.strictObject({
   token: z.string().min(1),
@@ -72,6 +78,45 @@ export const authSignInResponseSchema = z.discriminatedUnion('status', [
     challengeToken: z.string(),
   }),
 ]);
+export const nativeTokenResponseSchema = z.discriminatedUnion('status', [
+  z.strictObject({
+    status: z.enum(['session', 'enrollment_required']),
+    token: z.string(),
+    absoluteExpiresAt: z.iso.datetime(),
+  }),
+  z.strictObject({
+    status: z.literal('mfa_required'),
+    challengeToken: z.string(),
+  }),
+]);
+export const deviceRegistrationBodySchema = z.discriminatedUnion('platform', [
+  z.strictObject({
+    platform: z.literal('webpush'),
+    subscription: z.strictObject({
+      endpoint: z.url().startsWith('https://').max(2048),
+      keys: z.strictObject({
+        p256dh: z.string().min(1).max(512),
+        auth: z.string().min(1).max(512),
+      }),
+    }),
+  }),
+  z.strictObject({
+    platform: z.literal('apns'),
+    token: z.string().regex(/^[0-9a-fA-F]{64}$/),
+  }),
+  z.strictObject({
+    platform: z.literal('fcm'),
+    token: z.string().min(32).max(4096),
+  }),
+]);
+export const deviceResponseSchema = z.strictObject({
+  id: z.uuid(),
+  platform: z.enum(['webpush', 'apns', 'fcm']),
+  lastSeenAt: z.iso.datetime(),
+});
+export const devicesResponseSchema = z.strictObject({
+  devices: z.array(deviceResponseSchema),
+});
 export const authLegalResponseSchema = z.strictObject({
   terms: z.strictObject({ version: z.string(), text: z.string() }),
   privacy: z.strictObject({ version: z.string(), text: z.string() }),

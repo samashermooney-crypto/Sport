@@ -93,6 +93,7 @@ export interface DeviceTokens {
   last_seen_at: Generated<Timestamp>;
   platform: string;
   revoked_at: Timestamp | null;
+  token_hash: Buffer | null;
   token_or_subscription: Json;
   updated_at: Generated<Timestamp>;
 }

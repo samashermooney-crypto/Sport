@@ -6,10 +6,16 @@ import {
   changePasswordBodySchema,
   deletionRequestBodySchema,
   deletionRequestResponseSchema,
+  deviceRegistrationBodySchema,
+  deviceResponseSchema,
+  devicesResponseSchema,
   emailBodySchema,
   mfaChallengeBodySchema,
   mfaCodeBodySchema,
   mfaEnrollmentResponseSchema,
+  nativeMfaChallengeBodySchema,
+  nativeTokenBodySchema,
+  nativeTokenResponseSchema,
   recoveryCodesResponseSchema,
   requestEmailChangeBodySchema,
   resetPasswordBodySchema,
@@ -34,6 +40,7 @@ import {
   resetPassword,
 } from './credentials';
 import type { CredentialsDependencies } from './credentials';
+import { listDevices, registerDevice, revokeDevice } from './devices';
 import { AuthDomainError } from './domain-error';
 import { localLegalDocuments } from './legal';
 import {
@@ -84,6 +91,13 @@ function sessionToken(request: Request): string | null {
   return token && /^[A-Za-z0-9_-]{43}$/.test(token) ? token : null;
 }
 
+function bearerToken(request: Request): string | null {
+  const authorization = request.get('Authorization');
+  if (!authorization) return null;
+  const match = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(authorization);
+  return match?.[1] ?? null;
+}
+
 function setSessionCookie(
   response: Response,
   session: IssuedSession,
@@ -102,13 +116,19 @@ async function requireSession(
   dependencies: AuthDependencies,
   request: Request,
 ): Promise<ActiveSession> {
-  const token = sessionToken(request);
+  const cookie = sessionToken(request);
+  const bearer = bearerToken(request);
+  if (request.get('Authorization') && !bearer)
+    throw new AuthHttpError(401, 'UNAUTHENTICATED', 'Sign in to continue');
+  if (cookie && bearer)
+    throw new AuthHttpError(401, 'UNAUTHENTICATED', 'Use one session method');
+  const token = cookie ?? bearer;
   if (!token)
     throw new AuthHttpError(401, 'UNAUTHENTICATED', 'Sign in to continue');
   const session = await dependencies.database
     .transaction()
     .execute((trx) => resolveSession(trx, token, dependencies.clock()));
-  if (!session || session.kind !== 'cookie') {
+  if (!session || session.kind !== (cookie ? 'cookie' : 'bearer')) {
     throw new AuthHttpError(401, 'UNAUTHENTICATED', 'Sign in to continue');
   }
   return session;
@@ -134,17 +154,48 @@ function sendSignInResult(
   response.json(authSignInResponseSchema.parse({ status: result.status }));
 }
 
+function sendNativeSignInResult(
+  response: Response,
+  result: SignInResult,
+): void {
+  if (result.status === 'mfa_required') {
+    response.json(nativeTokenResponseSchema.parse(result));
+    return;
+  }
+  response.json(
+    nativeTokenResponseSchema.parse({
+      status: result.status,
+      token: result.session.token,
+      absoluteExpiresAt: result.session.absoluteExpiresAt.toISOString(),
+    }),
+  );
+}
+
 export function createAuthRouter(
   dependencies: AuthDependencies,
 ): express.Router {
   const router = express.Router();
   const origin = new URL(dependencies.appUrl).origin;
   router.use(express.json({ limit: '32kb' }));
+  router.use((_request, response, next) => {
+    response.setHeader('Cache-Control', 'no-store');
+    response.setHeader('Referrer-Policy', 'no-referrer');
+    next();
+  });
   router.use((request, _response, next) => {
+    const requestOrigin = request.get('Origin');
+    const nativeTokenRequest =
+      request.path === '/token' || request.path === '/token/mfa';
+    const bearerRequest =
+      bearerToken(request) !== null && !request.headers.cookie;
     if (
       ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) &&
       (request.get('X-Athlentry-Request') !== '1' ||
-        request.get('Origin') !== origin)
+        (requestOrigin !== origin &&
+          !(
+            requestOrigin === undefined &&
+            (nativeTokenRequest || bearerRequest)
+          )))
     ) {
       next(
         new AuthHttpError(
@@ -192,6 +243,30 @@ export function createAuthRouter(
       authMeta(request),
     );
     sendSignInResult(response, result, dependencies.clock());
+  });
+  router.post('/token', async (request, response) => {
+    const body: unknown = request.body;
+    const input = nativeTokenBodySchema.parse(body);
+    const result = await signInWithPassword(
+      dependencies,
+      { email: input.email, password: input.password },
+      authMeta(request),
+      input.client,
+    );
+    sendNativeSignInResult(response, result);
+  });
+  router.post('/token/mfa', async (request, response) => {
+    const body: unknown = request.body;
+    const input = nativeMfaChallengeBodySchema.parse(body);
+    const session = await completeMfaChallenge(
+      dependencies,
+      input.challengeToken,
+      input.code,
+      input.method,
+      authMeta(request),
+      input.client,
+    );
+    sendNativeSignInResult(response, { status: 'session', session });
   });
   router.post('/magic/request', async (request, response) => {
     const body: unknown = request.body;
@@ -350,6 +425,49 @@ export function createAuthRouter(
         })),
       }),
     );
+  });
+  router.post('/devices', async (request, response) => {
+    const session = await requireSession(dependencies, request);
+    const body: unknown = request.body;
+    const registered = await registerDevice(
+      dependencies.database,
+      session,
+      deviceRegistrationBodySchema.parse(body),
+      dependencies.clock(),
+    );
+    response.json(
+      deviceResponseSchema.parse({
+        ...registered,
+        lastSeenAt: registered.lastSeenAt.toISOString(),
+      }),
+    );
+  });
+  router.get('/devices', async (request, response) => {
+    const session = await requireSession(dependencies, request);
+    const devices = await listDevices(dependencies.database, session.accountId);
+    response.json(
+      devicesResponseSchema.parse({
+        devices: devices.map((item) => ({
+          ...item,
+          lastSeenAt: item.lastSeenAt.toISOString(),
+        })),
+      }),
+    );
+  });
+  router.delete('/devices/:id', async (request, response) => {
+    const session = await requireSession(dependencies, request);
+    const id = z.uuid().parse(request.params.id);
+    if (
+      !(await revokeDevice(
+        dependencies.database,
+        session.accountId,
+        id,
+        dependencies.clock(),
+      ))
+    ) {
+      throw new AuthHttpError(404, 'NOT_FOUND', 'Device was not found');
+    }
+    response.json(authStatusResponseSchema.parse({ status: 'revoked' }));
   });
   router.delete('/sessions/:id', async (request, response) => {
     const session = await requireSession(dependencies, request);

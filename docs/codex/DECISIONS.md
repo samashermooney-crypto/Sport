@@ -111,3 +111,11 @@
 - **Decision:** Create a random key once in the ignored `data/dev-encryption-key.json` with owner-only file permissions. Local auth uses Mailpit preview and an always-pass test captcha. Browser sessions use a Secure, HttpOnly, SameSite=Lax host-only cookie; mutating requests require the same-origin `Origin` and `X-Athlentry-Request` header. Production auth startup fails closed until approved legal documents and production adapters are configured.
 - **Why:** Protects MFA secrets and browser sessions while keeping local flows reproducible without external delivery.
 - **Consequences / follow-ups:** Implement real Turnstile and production adapters before the launch gate; verify local browser cookie behavior on desktop and mobile. Native bearer requests need a separately authenticated path that does not rely on browser Origin headers.
+
+### DEC-013 — Unique device ownership and revoked subscription data
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 native auth and devices
+- **Context:** The device-token model does not prescribe duplicate handling or what to retain after revocation.
+- **Decision:** Hash each platform plus its stable endpoint/token as a unique fingerprint. The same account may refresh its registration; another account receives a conflict until ownership is resolved. Revocation retains the id and fingerprint for deduplication but clears the stored push subscription or token and marks the row revoked.
+- **Why:** Prevents one device from receiving two accounts' notifications and minimizes retained delivery secrets after revocation.
+- **Consequences / follow-ups:** Add an explicit verified device transfer flow if account switching on one device must be supported; push senders must filter revoked rows.
