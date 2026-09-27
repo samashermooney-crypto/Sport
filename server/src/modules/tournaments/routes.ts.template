@@ -1,0 +1,36 @@
+import { Router } from 'express';
+import { createTournamentsSchema } from '../../../../shared/src/schemas/tournaments.js';
+import type { TournamentsRepository } from './repo.js';
+import { createTournamentsService } from './service.js';
+import { __camel__Permissions } from './policy.js';
+
+// Supply the application's withOrg and permission middleware; all repository
+// operations must execute inside the same org-scoped transaction.
+export function createTournamentsRouter(dependencies: {
+  withOrg<T>(orgId: string, action: (repository: TournamentsRepository) => Promise<T>): Promise<T>;
+  requirePermission(permission: string): import('express').RequestHandler;
+}) {
+  const router = Router();
+  router.get('/', dependencies.requirePermission(__camel__Permissions.list), async (request, response, next) => {
+    try {
+      const orgId = response.locals.orgId as string;
+      response.json(await dependencies.withOrg(orgId, (repository) => createTournamentsService(repository).list()));
+    } catch (error) { next(error); }
+  });
+  router.get('/:id', dependencies.requirePermission(__camel__Permissions.get), async (request, response, next) => {
+    try {
+      const orgId = response.locals.orgId as string;
+      const record = await dependencies.withOrg(orgId, (repository) => createTournamentsService(repository).get(String(request.params.id)));
+      if (!record) { response.sendStatus(404); return; }
+      response.json(record);
+    } catch (error) { next(error); }
+  });
+  router.post('/', dependencies.requirePermission(__camel__Permissions.create), async (request, response, next) => {
+    try {
+      const input = createTournamentsSchema.parse(request.body);
+      const orgId = response.locals.orgId as string;
+      response.status(201).json(await dependencies.withOrg(orgId, (repository) => createTournamentsService(repository).create(input)));
+    } catch (error) { next(error); }
+  });
+  return router;
+}

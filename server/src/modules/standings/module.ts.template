@@ -1,0 +1,9 @@
+import { createStandingsRouter } from './routes.js';
+
+// Adapt dependencies to ServerModule after routes, permissions, and schemas are specialized.
+export const __camel__Module = {
+  name: 'standings',
+  path: '/api/v1/standings',
+  router: createStandingsRouter,
+  permissions: ['standings.read', 'standings.write'],
+};

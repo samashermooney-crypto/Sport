@@ -1,0 +1,17 @@
+import { describe, expect, it } from 'vitest';
+
+describe('tournaments tenant and permission contract', () => {
+  it('returns 404 for a record in another organization', async () => {
+    // Build two organizations with real Postgres factories, create in A, read in B.
+    // Assert 404 and no cross-tenant row leakage before activating this module.
+    expect.assertions(0);
+  });
+  it('denies a caller without the required permission', async () => {
+    // Call each route with an authenticated role lacking the operation permission.
+    expect.assertions(0);
+  });
+  it('records restricted reads in the audit trail', async () => {
+    // Replace this case with a real audit assertion when data is restricted.
+    expect.assertions(0);
+  });
+});
