@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- Phase 1 is in progress on `rebuild/phase-1`. Tasks 1–2 are complete; tasks 3–6 and 16–17 remain unchecked. [CI run 36285397253](https://github.com/samashermooney-crypto/Sport/actions/runs/36285397253) passed 8 jobs and timed out on the new browser `/healthz` readiness check; restore Vite root readiness and poll API health inside each browser test, then recheck CI. Web identity, MFA, step-up, session and device registration/revocation work in local preview. Organization onboarding migration 0010 adds plans and tenant onboarding tables with RLS; local typecheck, lint, 43 tests on retry, 4 browser tests and build passed. Next seed sport templates, implement atomic org creation and `/start`, then complete every Phase 1 task and acceptance criterion. One initial integration run had a transient test-database teardown permission error; immediate rerun passed. Do not check off this phase yet.
+- Phase 1 is in progress. [CI run 36285846119](https://github.com/samashermooney-crypto/Sport/actions/runs/36285846119) failed browser tests because fresh VAPID key creation crashed API startup; regression test `server/src/config.test.ts` now covers the fixed path. Establish green trunk and Track A branch, then follow `50-PARALLEL-PLAN.md §4`; do not check off Phase 1 yet.
 
 ## Phase status
 

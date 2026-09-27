@@ -15,9 +15,11 @@ import type { AuthDependencies } from './modules/auth/routes';
 const localKeyFile = resolve('data/dev-encryption-key.json');
 const localVapidFile = resolve('data/dev-vapid.json');
 
-async function localVapidPublicKey(): Promise<string> {
+export async function localVapidPublicKey(
+  filePath = localVapidFile,
+): Promise<string> {
   try {
-    const saved: unknown = JSON.parse(await readFile(localVapidFile, 'utf8'));
+    const saved: unknown = JSON.parse(await readFile(filePath, 'utf8'));
     return z
       .strictObject({ publicKey: z.string(), privateKey: z.string() })
       .parse(saved).publicKey;
@@ -25,25 +27,25 @@ async function localVapidPublicKey(): Promise<string> {
     if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT'))
       throw error;
   }
-  await mkdir(resolve('data'), { recursive: true });
+  await mkdir(resolve(filePath, '..'), { recursive: true });
   const key = createECDH('prime256v1');
   key.generateKeys();
+  const publicKey = key
+    .getPublicKey(undefined, 'uncompressed')
+    .toString('base64url');
   const value = JSON.stringify({
-    publicKey: key
-      .getPublicKey(undefined, 'uncompressed')
-      .toString('base64url'),
+    publicKey,
     privateKey: key.getPrivateKey().toString('base64url'),
   });
   try {
-    await writeFile(localVapidFile, value, { flag: 'wx', mode: 0o600 });
-    return z.strictObject({ publicKey: z.string() }).parse(JSON.parse(value))
-      .publicKey;
+    await writeFile(filePath, value, { flag: 'wx', mode: 0o600 });
+    return publicKey;
   } catch (error) {
     if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST'))
       throw error;
     return z
-      .strictObject({ publicKey: z.string() })
-      .parse(JSON.parse(await readFile(localVapidFile, 'utf8'))).publicKey;
+      .strictObject({ publicKey: z.string(), privateKey: z.string() })
+      .parse(JSON.parse(await readFile(filePath, 'utf8'))).publicKey;
   }
 }
 
