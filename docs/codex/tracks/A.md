@@ -3,9 +3,9 @@
 Status: working
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/a-core`
-Current: Module generator is on trunk; onboarding bootstrap foundation is local. Schema spine and test factories are next before remaining Phase 1 tasks; preview SMTP offset remains Track C handoff.
-Ready for integration: none
-Requests to other tracks: C — make `createMailpitEmailSender` use `ATHLENTRY_MAILPIT_SMTP_PORT` (default 1025) so offset Playwright email journeys use their own Mailpit container.
+Current: Schema spine migrations 0100–0113, shared entity contracts, Kysely types, test factories, and split-space booking are locally green and ready for trunk integration. Then merge ready B/C/D ranges and resume remaining Phase 1 work.
+Ready for integration: schema spine and factories from the next Track A commit; B complete queue, C adapters, and D primitives are also marked ready in their local track files.
+Requests to other tracks: E — begin Phase 4 once the spine lands on `rebuild/trunk`.
 Blocked on: none
 Self-review: Server app, worker and configuration consume the generated module/integration registry; web routing consumes generated feature routes.
 Self-review: Existing auth routes keep `/api/v1/auth`; full browser sign-up, Mailpit verification, MFA and device journey passes on Chromium and WebKit.

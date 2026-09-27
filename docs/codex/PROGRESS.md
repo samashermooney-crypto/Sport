@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- M0 is on `main` at `d0f59a1`. `rebuild/trunk` holds the port-offset, registry, and module-generator checkpoints. Track A builds the schema spine and test factories next, then resumes Phase 1 tasks 3–5, 6–10, 13–15 and 17. Tracks B–E work in separate sibling worktrees and integrate from local branches. Phase 1 remains open until every task and acceptance criterion passes its gate.
+- M0 is on `main` at `d0f59a1`. Track A's schema spine and test factories are ready for trunk integration, then Track A resumes Phase 1 tasks 3–8 and 16–17. Track B owns tasks 9–10 and 13–15; Track C owns 11–12. Tracks B–E integrate from local branches when their track files mark ranges ready. Phase 1 remains open until every task and acceptance criterion passes its gate.
 
 ## Phase status
 
@@ -32,10 +32,19 @@
 | Track | Scope | Model | Status | Branch |
 |---|---|---|---|---|
 | A | Core and integration | GPT-6 Sol until S1 | working | `track/a-core` |
-| B | Sport engine, algorithms, policies | GPT-6 Sol | ready slice integrated; further queue active | `track/b-logic` |
-| C | Files and provider adapters | GPT-6 Luna | working | `track/c-adapters` |
-| D | Design system | GPT-6 Luna | working | `track/d-design` |
-| E | Stripe and finance | GPT-6 Sol | test-mode gateway ready slice integrated; money core awaiting spine | `track/e-finance` |
+| B | Sport engine, algorithms, policies | GPT-6 Sol | initial slice integrated; complete queue ready locally | `track/b-logic` |
+| C | Files and provider adapters | GPT-6 Luna | ready locally; integration wiring pending | `track/c-adapters` |
+| D | Design system | GPT-6 Luna | primitives and dev showcase ready locally | `track/d-design` |
+| E | Stripe and finance | GPT-6 Sol | test-mode gateway ready slice integrated; money core awaiting trunk spine | `track/e-finance` |
+
+## Cross-phase schema spine checkpoint
+
+- [x] Migrations 0100–0113 create the remaining B tables and all tables in `02 §C, D, E, G, H, I, J, L, N, Q` (125 total tables including earlier migrations, plus the code-defined notification type catalog). Forced tenant RLS, composite tenant foreign keys, mutable-aggregate versions, updated-at triggers, enum/capacity checks, partial unique indexes, and foreign-key indexes are present. Catalog tests assert the complete tenant FK graph and index coverage.
+- [x] Deferred finance reconciliation checks reject inconsistent invoice totals and payment/refund allocations. PostgreSQL integration tests cover invalid and valid atomic writes.
+- [x] Shared Zod entity contracts cover the primary entities across people, programs, registration, scheduling, compliance, officials, attendance, and money. Generated Kysely types introspect 126 tables after the spine (including migration ledger).
+- [x] `server/test/factories.ts` provides a typed `row` insert for every tenant table, always inside `withOrg`, plus linked actor, person, household, program, team, registration, invoice, event, and contest presets. Integration tests prove linked rows and cross-tenant isolation.
+- [x] Split-space booking expands parent spaces to leaf rows in one transaction; GiST exclusion blocks overlaps, while sibling leaves can be booked independently. A forward-only hierarchy trigger rejects cycles and cross-facility parenting.
+- [ ] Integrate this checkpoint into `rebuild/trunk`, run the complete gate there, and push. Then Track E can resume Phase 4.
 
 ## Phase checklists
 
