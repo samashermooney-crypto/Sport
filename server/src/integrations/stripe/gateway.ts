@@ -105,16 +105,42 @@ export interface PaymentsGateway {
     startingAfter?: string,
   ): Promise<GatewayPage<GatewayBalanceTransaction>>;
   createBillingCheckout(input: {
+    orgId: string;
     customerId: string;
     priceId: string;
     successUrl: string;
     cancelUrl: string;
     idempotencyKey: string;
   }): Promise<{ id: string; url: string }>;
+  createBillingCustomer(input: {
+    orgId: string;
+    name: string;
+    email: string;
+    idempotencyKey: string;
+  }): Promise<{ id: string }>;
   createBillingPortal(input: {
     customerId: string;
     returnUrl: string;
   }): Promise<{ url: string }>;
+  retrieveBillingSubscription(subscriptionId: string): Promise<{
+    id: string;
+    orgId: string | null;
+    customerId: string;
+    priceIds: string[];
+    status: string;
+    currentPeriodEnd: number | null;
+  }>;
+  retrieveBillingInvoice(invoiceId: string): Promise<{
+    id: string;
+    customerId: string | null;
+    subscriptionId: string | null;
+    status: string | null;
+    currency: string;
+    totalCents: number;
+    amountPaidCents: number;
+    amountDueCents: number;
+    created: number;
+  }>;
   registerPaymentMethodDomain(
     domainName: string,
   ): Promise<{ id: string; applePayStatus: string }>;

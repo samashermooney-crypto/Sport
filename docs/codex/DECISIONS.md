@@ -196,9 +196,9 @@
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 1 files integration
 - **Context:** The file adapter initially allowed nullable organization ids, while the global RLS invariant requires tenant-owned file records. The file service leaves authorization to the application composition root.
-- **Decision:** Require `files.org_id` for every record. Local file routes require an authenticated active organization member and the request's organization header. Uploads require an active org-level owner, admin or registrar role with completed MFA; restricted downloads require owner or admin, sensitive downloads permit registrar, and internal/public downloads permit active members. Mutating routes verify origin and request header.
+- **Decision:** Require `files.org_id` for every record. Local file routes require an authenticated actor in the organization and the request's organization header. General uploads require an active org-level owner, admin or registrar role with completed MFA. A verified active guardian link may upload restricted evidence only for its represented person and an approved credential or return-to-play clearance purpose. Restricted downloads require an active owner or compliance role with completed MFA and an audited content read; sensitive downloads permit registrar, and internal/public downloads permit active members. Mutating routes verify origin and request header.
 - **Why:** Privacy and child safety require an explicit tenant and narrow authorization before upload or download. Public website assets are published through a separate later flow.
-- **Consequences / follow-ups:** Phase 1 file acceptance must verify these role boundaries over HTTP. Later public asset publishing must copy approved assets into a separate public delivery path without exposing private file URLs.
+- **Consequences / follow-ups:** Phase 1 and Phase 7 file acceptance must verify these role boundaries over HTTP, including guardian ownership and 404 denial for unauthorized Restricted reads. Later public asset publishing must copy approved assets into a separate public delivery path without exposing private file URLs.
 
 ### DEC-024 — Separate campaign mail sender
 - **Date:** 2026-09-26
@@ -416,7 +416,6 @@
 - **Why:** Staff can check routing while editing without persisting every draft and preview counts remain aligned with send-time policy.
 - **Consequences / follow-ups:** Cover saved and unsaved preview paths with tenant and permission integration tests.
 
-
 ### DEC-055 — Generate weekly installments on the checkout weekday
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 4 installments
@@ -472,7 +471,87 @@
 - **Why:** A background-check flow must not collect or promise a fee without an auditable invoice and reconciliation path.
 - **Consequences / follow-ups:** Track E can unblock the option by providing its documented invoice service; no live payment path is introduced here.
 
-### DEC-062 — Preserve only representable legacy recurrence rules
+### DEC-062 — Use the organization calendar for People age and grade
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People directory
+- **Context:** The data model stores graduation year but leaves the school-year rollover for directory grade unspecified.
+- **Decision:** Calculate current age on the organization's local calendar date. Calculate grade from graduation year with an August 1 school-year rollover, stored as `peopleSchoolYearCutoff` in organization settings for later configuration. Never store the derived age or grade on a person.
+- **Why:** This keeps directory and eligibility values current across birthdays and school years without bulk data updates.
+- **Consequences / follow-ups:** Filters use the same local date and cutoff. A later organization settings control can expose the cutoff after its validation and audit flow is built.
+
+### DEC-063 — Batch outbound unread chat fallback per conversation
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 chat notifications
+- **Context:** Busy conversations can produce repeated push and email alerts, while chat itself must remain realtime over Track B's inbox/SSE path.
+- **Decision:** Keep the per-message in-app/SSE notification immediate, and batch only external unread fallback by organization, conversation and recipient for ten minutes from the first message. Recheck active membership, mute and unread state at dispatch; send push when enabled and use email only when push is unavailable; never include chat body text. Push delivery follows the shared quiet-hours policy.
+- **Why:** Families keep realtime chat while notification bursts are reduced, read conversations do not produce stale fallback, and message content stays out of external notification bodies.
+- **Consequences / follow-ups:** H stores retryable tenant-scoped batch state in migrations `4005`–`4006`; preference defaults and channel selection come from Track B. Provider failures retry with bounded backoff.
+
+### DEC-070 — Keep household primary contacts and balances explicit
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 households
+- **Context:** The data model allows multiple households per person and invoices in different currencies; the task does not define primary-contact replacement or balance aggregation.
+- **Decision:** A household may have one primary contact, who must have an adult household role. Adding a new primary contact clears the former flag in the same locked transaction. Show invoice balances grouped by currency and never add amounts from different currencies.
+- **Why:** The rule prevents ambiguous contact routing and misleading financial totals.
+- **Consequences / follow-ups:** Member editing and removal must preserve or deliberately reassign the primary contact. Household address and membership changes are audited and versioned.
+
+### DEC-071 — Retain removed household membership history
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 household membership
+- **Context:** A household member can hold encrypted custody notes and financial responsibility; deleting the row would erase context needed for audits and could leave authorization consumers trusting a stale link.
+- **Decision:** Set `removed_at` on removal and retain the row. Re-adding the same person creates a new active membership. Every family, chat, checkout and finance authorization query ignores removed memberships. Removing the last primary contact while other members remain requires another adult to be assigned first.
+- **Why:** Historical contact decisions remain reviewable while access ends immediately.
+- **Consequences / follow-ups:** New membership consumers must filter on `removed_at IS NULL`; membership removal and reassignment are covered by PostgreSQL and browser tests.
+
+### DEC-072 — Keep People balance filtering tied to direct invoice lines
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People directory
+- **Context:** A person may belong to several households, while a household invoice can contain charges for several people. The directory's `has balance` filter does not define whether a family debt belongs to every member.
+- **Decision:** Count a person as having a balance only when an outstanding, non-draft, non-void invoice contains a line assigned to that person. Household filtering uses active membership only; a removed membership does not appear in results.
+- **Why:** This avoids attributing a sibling's or guardian's debt to a child and prevents a removed relationship from keeping someone in a household result.
+- **Consequences / follow-ups:** Unassigned invoice lines do not make every member appear indebted. The People directory can still show household-wide balances separately in the household view.
+
+### DEC-073 — Use current participation for People program and team filters
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People directory
+- **Context:** Registration and roster history is retained after withdrawal and release, but the directory's program and team filters do not specify whether former participants should remain in results.
+- **Decision:** A program filter matches a registration that has not been canceled, withdrawn or transferred out. A team filter matches a current roster entry with active, injured or suspended status and no departure date. Staff search organization programs and team seasons by name, with team labels including their program.
+- **Why:** This makes the directory useful for current operations while keeping historical participation available in the underlying records.
+- **Consequences / follow-ups:** Historical participation needs a separate history view rather than broadening these current-participant filters.
+
+### DEC-074 — Retire person photos when media consent ends
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People photos
+- **Context:** A person's photo can remain in the file store after consent changes, and the generic file endpoint can issue a download link independently of the People profile.
+- **Decision:** Staff attach only a completed image file with sensitive classification and exact person ownership after media consent is granted. The browser crops to a square before upload. Removing or replacing a photo, or revoking consent, clears the profile link and soft-deletes the old file record in the same org transaction. Person responses suppress photo IDs whenever consent is not granted.
+- **Why:** The file cannot be newly downloaded after consent revocation, while the audit and file metadata remain reviewable.
+- **Consequences / follow-ups:** Previously issued external presigned URLs may remain valid until their five-minute expiry. The family portal photo editor must reuse the same consent and ownership checks when Phase 2 guardian access lands.
+
+### DEC-075 — Label the People compliance filter by credential record state
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People directory
+- **Context:** A person may have multiple credentials, while eligibility depends on role, program, age, expiry, requirements and overrides. A single `compliant` flag in the directory could incorrectly imply permission to coach or officiate.
+- **Decision:** Offer exact credential-record states (`pending_review`, `verified`, `rejected`, `expired`, `revoked`) plus no record. A person can match more than one state. Label the control “Compliance credential status,” and continue to use the Phase 7 role policy for activation decisions.
+- **Why:** Staff can find records needing review without treating a verified credential as proof that all role requirements are satisfied.
+- **Consequences / follow-ups:** The Phase 2 task remains open until the role-aware compliance view and remaining acceptance criteria are complete.
+
+### DEC-076 — Verify adult guardian accounts before direct staff linking
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 guardian links
+- **Context:** Staff may link an existing account to a person by email, which immediately grants access to protected child records. A shared, unverified, suspended or minor account must not gain guardian access.
+- **Decision:** Direct linking resolves only an active, email-verified account whose date of birth proves age 18 or older in the organization's timezone. The person must be active and belong to that organization. A duplicate active link is rejected, every link/revocation is audited, and revoking the final verified guardian of a minor with a self account is blocked.
+- **Why:** Staff linking is an explicit authorization action, but account control, adult status, tenant scope and continuing supervision must still be checked at the time of change.
+- **Consequences / follow-ups:** Guardian invitation redemption repeats these checks and binds its token to the intended person and email. Athlete and adult self-claim flows remain before Phase 2 task 3 can close.
+
+### DEC-079 — Discover family organizations through an account candidate index
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 family portal
+- **Context:** A guardian may have people in several organizations without an organization staff membership. A cross-tenant family listing must find candidate org IDs without querying tenant rows outside `withOrg`.
+- **Decision:** The existing account `linked_org_ids` array remains an append-only candidate index. A trigger adds an org when a person-account link is inserted and a migration backfills existing links. The family reader starts from the authenticated global account, then checks active, verified links and active people separately inside `withOrg` for each candidate organization. Revocation does not remove the candidate ID.
+- **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
+- **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
+
+### DEC-080 — Preserve only representable legacy recurrence rules
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 recurrence migration
 - **Context:** The existing spine uses RFC recurrence text in availability and allocation rows; binding clarification C1 supports structured one-time, weekly and monthly-nth-weekday rules only.
@@ -480,7 +559,7 @@
 - **Why:** An incorrect availability window can create unsafe or impossible bookings; migration failure keeps source data intact for an explicit repair.
 - **Consequences / follow-ups:** Verify the isolated database has only representable rules before applying migration 3000.
 
-### DEC-063 — Treat non-space schedule conflicts as reasoned overrides
+### DEC-081 — Treat non-space schedule conflicts as reasoned overrides
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 conflict policy
 - **Context:** The event specification permits override reasons for soft conflicts and explicitly says space double-booking is never overridable, but does not classify team, coach and official overlap severity.
@@ -488,7 +567,7 @@
 - **Why:** The database remains the final protection against unsafe venue double-booking, while staff retain a documented path to resolve calendar edge cases.
 - **Consequences / follow-ups:** Every override is written to the audit log and exposed in the conflict report.
 
-### DEC-064 — Preserve materialized schedule history during series edits
+### DEC-082 — Preserve materialized schedule history during series edits
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 recurring events
 - **Context:** The series edit scopes must update future materialized events while preserving references from contests, attendance, audit and results.
@@ -496,7 +575,7 @@
 - **Why:** Event identity carries operational history; hard deletion or rewriting completed occurrences would orphan that history.
 - **Consequences / follow-ups:** Migration 3006 adds `event_series.active`; generated recurrence extension skips inactive series.
 
-### DEC-065 — Store coach schedule blackout requests as approved date ranges
+### DEC-083 — Store coach schedule blackout requests as approved date ranges
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 schedule generator
 - **Context:** The shared generator accepts team blackout dates, but the inherited spine has no request table or approval workflow for those dates.
@@ -504,7 +583,7 @@
 - **Why:** This preserves a clear approval boundary and avoids silently making a coach preference a hard scheduling rule.
 - **Consequences / follow-ups:** Migration 3007 adds the request aggregate and indexed status; generator input includes approved request dates.
 
-### DEC-066 — Snapshot sport profiles with a database trigger
+### DEC-084 — Snapshot sport profiles with a database trigger
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 9 result format history
 - **Context:** Contests must use the exact sport profile format version they were created against, but the inherited spine has no append-only profile version table.
@@ -512,15 +591,15 @@
 - **Why:** Historical result validation and rendering must remain tied to the format configuration used at contest creation.
 - **Consequences / follow-ups:** Migration 3008 adds the version table, snapshot trigger, and contest foreign key; sport-profile editing continues to use the current profile row.
 
-### DEC-067 — Snapshot sport profiles after the source row is written
+### DEC-085 — Snapshot sport profiles after the source row is written
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 result format history
-- **Context:** The insert trigger added with DEC-066 attempted to insert its version row before the referenced sport profile existed, violating the composite tenant foreign key during profile creation.
+- **Context:** The insert trigger added with DEC-084 attempted to insert its version row before the referenced sport profile existed, violating the composite tenant foreign key during profile creation.
 - **Decision:** Set the next profile version in a `BEFORE UPDATE` trigger, then append the immutable version snapshot in an `AFTER INSERT OR UPDATE` trigger.
 - **Why:** The source profile must exist at the referenced version before the snapshot row is inserted; this preserves the composite foreign key and append-only history.
 - **Consequences / follow-ups:** Migration 3013 repairs trigger timing without rewriting migration 3008; verify factory profile creation and profile edits in the database test suite.
 
-### DEC-068 — Keep survey responses anonymous in staff summaries
+### DEC-086 — Keep survey responses anonymous in staff summaries
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 season end
 - **Context:** Family feedback needs a simple NPS and free text, while the response table must prevent duplicate submissions per account.
@@ -528,7 +607,7 @@
 - **Why:** The organization can prevent duplicate voting and restrict results to scoped staff while keeping feedback content unattributed.
 - **Consequences / follow-ups:** A staff member with program schedule management permission can read comments; schedule batches now create in-app records through Track B's notification service, while email fan-out remains Phase 10 work.
 
-### DEC-069 — Use the browser print dialog for season award PDFs
+### DEC-087 — Use the browser print dialog for season award PDFs
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 season end
 - **Context:** The owned web feature needs printable award certificates, but no PDF-generation service exists in Track G's paths.
@@ -536,7 +615,7 @@
 - **Why:** This creates a usable PDF path without adding a generator dependency or persisting an unsafe user-uploaded file.
 - **Consequences / follow-ups:** Certificates are local browser output, not a server-rendered or stored artifact; connect to the files/PDF service if a reusable downloadable certificate is required.
 
-### DEC-070 — Seed pool elimination rounds from finalized standings
+### DEC-088 — Seed pool elimination rounds from finalized standings
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 pool tournaments
 - **Context:** Pool tournaments need a deterministic transition from round-robin results to elimination play, while late corrections must not silently invalidate already-started playoff matches.
@@ -544,7 +623,7 @@
 - **Why:** Tournament progression must use the same standings and bracket rules as other sport operations, and the seeded playoff must stay stable once it begins.
 - **Consequences / follow-ups:** Pool standings must have enough results to satisfy sport-specific tiebreakers. Bracket foreign-key links are attached only after all round rows exist.
 
-### DEC-071 — Assign timed meet lanes as a versioned contest operation
+### DEC-089 — Assign timed meet lanes as a versioned contest operation
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 individual-sport meets
 - **Context:** Contest participants already have seed, heat, and lane fields, but timed meets had no scoped operation for assigning them before results were entered.
@@ -552,7 +631,7 @@
 - **Why:** Meet lanes and seeds affect the official result workflow and need the same tenant, permission, and stale-write protections as scores.
 - **Consequences / follow-ups:** Timed meet assignments close before final results; other multi-event format scheduling can reuse this aggregate operation if the sport rules require it.
 
-### DEC-072 — Return only public tournament display fields
+### DEC-090 — Return only public tournament display fields
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 public tournament pages
 - **Context:** Tournament brackets are readable by slug without an authenticated organization context, while the internal bracket record also contains tenant, program, and configuration identifiers.
@@ -560,7 +639,7 @@
 - **Why:** Visitors need match information, while internal configuration and aggregate metadata do not help them follow a tournament.
 - **Consequences / follow-ups:** Add any additional public-facing tournament content through an explicit allowlisted response shape.
 
-### DEC-073 — Persist tournament schedule reservations separately from bracket matches
+### DEC-091 — Persist tournament schedule reservations separately from bracket matches
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 tournament scheduling
 - **Context:** Pool games can be scheduled before their match rows are played, while elimination match rows for pool tournaments are not created until final pool standings are known.
@@ -568,7 +647,7 @@
 - **Why:** The shared tournament generator can reserve real space and time before the bracket is seeded without inventing placeholder bracket rows or losing schedule-to-match links.
 - **Consequences / follow-ups:** Tournament event creation and match binding must run transactionally, and bracket views must expose reservation times only through the authorized tournament response.
 
-### DEC-074 — Keep resource-calendar moves in the schedule feature
+### DEC-092 — Keep resource-calendar moves in the schedule feature
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 8 resource calendar
 - **Context:** The shared calendar renders read-only resource slots, while the schedule acceptance requires event moves by drag-and-drop and an equivalent keyboard path. Track G cannot change Track D’s owned design-system components.
@@ -576,7 +655,7 @@
 - **Why:** The scheduling feature needs its operational move workflow while retaining the frozen shared design system and backend as the authority for booking conflicts.
 - **Consequences / follow-ups:** The calendar remains inside `web/src/console/schedule`; Track A must mount the feature and add the cross-browser schedule journeys.
 
-### DEC-075 — Generate schedule, results and standings PDFs through browser print
+### DEC-093 — Generate schedule, results and standings PDFs through browser print
 - **Date:** 2026-09-27
 - **Phase / area:** Phases 8–9 schedule and sport exports
 - **Context:** Schedule and meet results require CSV/PDF exports, standings and tournament brackets must print, and Track G has no server-side PDF service in its owned modules.
@@ -584,7 +663,7 @@
 - **Why:** Staff need usable paper/PDF output without storing duplicate operational data or adding an unrelated PDF dependency.
 - **Consequences / follow-ups:** PDFs are generated in the browser and are not stored as organization files; reusable downloadable artifacts can move to the Files/PDF service if that becomes a requirement.
 
-### DEC-076 — Serialize standings snapshot arrays as JSON
+### DEC-094 — Serialize standings snapshot arrays as JSON
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 standings snapshots
 - **Context:** PostgreSQL's driver encodes JavaScript arrays as PostgreSQL arrays by default, while the standings snapshot column is `jsonb`.
@@ -592,7 +671,7 @@
 - **Why:** Every refresh must persist the same rows returned to the standings reader instead of failing at the database boundary.
 - **Consequences / follow-ups:** The isolated PostgreSQL integration test covers snapshot creation, labels and visibility reads.
 
-### DEC-077 — Keep private athlete statistics out of personal-best views
+### DEC-095 — Keep private athlete statistics out of personal-best views
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 athlete statistics
 - **Context:** Personal-best records are shown in the family portal, and a single endpoint serves both athlete/guardian links and staff roles.
@@ -600,7 +679,7 @@
 - **Why:** One predictable response keeps private youth performance data out of family-facing personal-best summaries.
 - **Consequences / follow-ups:** Sport profile definitions must mark a statistic public before it appears in family personal-best views.
 
-### DEC-078 — Commit lineup suspension audits before returning a conflict
+### DEC-096 — Commit lineup suspension audits before returning a conflict
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 discipline enforcement
 - **Context:** The discipline policy writes an audit row when it blocks a suspended athlete, but throwing the HTTP conflict from inside the `withOrg` transaction rolls that audit row back.

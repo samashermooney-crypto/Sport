@@ -36,6 +36,6 @@ Status: working; integration readiness is pending because the Phase 8/9 acceptan
 ## Decisions and review
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
-- G decisions are `DEC-062–078` in `docs/codex/DECISIONS.md`; `DEC-057–061` belong to Track F after the trunk merge.
+- G decisions are `DEC-080–096` in `docs/codex/DECISIONS.md`; the latest trunk decisions are preserved through `DEC-079`.
 - Last trunk merge: `841ad80` (`rebuild/trunk` at `3f0f157`). All changes remain local on `track/g-schedule`; nothing was pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys, generator acceptance and full gates pass.

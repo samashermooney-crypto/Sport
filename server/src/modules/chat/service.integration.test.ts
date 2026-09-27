@@ -6,7 +6,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
+import { FakeEmailSender } from '../../integrations/email/sender';
+import { PreviewPushSender } from '../../integrations/push/sender';
+import { issueSession } from '../auth/sessions';
 
+import {
+  enqueueChatNotificationBatch,
+  processDueChatNotificationBatches,
+} from './notification-batching';
 import {
   ChatAccessError,
   ChatPermissionError,
@@ -184,6 +191,262 @@ beforeAll(async () => {
 afterAll(async () => database.destroy());
 
 describe('chat SafeSport and permission rules', () => {
+  it('batches per-conversation unread fallback for ten minutes and honors locale preferences', async () => {
+    const start = new Date('2026-09-27T18:00:00.000Z');
+    const conversation = await createConversation(
+      ownerContext,
+      { kind: 'group', title: 'Team updates', accountIds: [guardianId] },
+      start,
+      withOrg,
+    );
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    try {
+      await admin.query(
+        'UPDATE accounts SET email_verified_at = now(), locale = $2, timezone = $3 WHERE id = $1',
+        [guardianId, 'es', 'UTC'],
+      );
+    } finally {
+      await admin.end();
+    }
+
+    for (const [index, minute] of [0, 3, 7].entries()) {
+      const sentAt = new Date(start.getTime() + minute * 60_000);
+      await sendChatMessage(
+        ownerContext,
+        conversation.id,
+        { body: `Update ${String(index + 1)}`, attachments: [] },
+        {
+          encryption: { activeKid: 'test', keys: new Map() },
+          notifications: ({ context, accountId, conversationId, messageId }) =>
+            enqueueChatNotificationBatch(
+              context,
+              { accountId, conversationId, messageId },
+              sentAt,
+              withOrg,
+            ),
+        },
+        sentAt,
+        withOrg,
+      );
+    }
+
+    const pending = await withOrg(ownerContext, (trx) =>
+      trx
+        .selectFrom('chat_notification_batches')
+        .select(['id', 'message_count', 'available_at', 'status'])
+        .where('org_id', '=', orgId)
+        .where('conversation_id', '=', conversation.id)
+        .where('recipient_account_id', '=', guardianId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(pending).toMatchObject({ message_count: 3, status: 'pending' });
+    expect(pending.available_at).toEqual(
+      new Date(start.getTime() + 10 * 60_000),
+    );
+
+    const email = new FakeEmailSender();
+    await expect(
+      processDueChatNotificationBatches(
+        orgId,
+        { email, push: new PreviewPushSender(), appUrl: 'https://app.test' },
+        pending.available_at,
+        withOrg,
+      ),
+    ).resolves.toBe(1);
+    expect(email.messages).toHaveLength(1);
+    expect(email.messages[0]).toMatchObject({
+      to: `${guardianId}@example.invalid`,
+      subject: 'Chat test: tienes mensajes sin leer',
+      kind: 'transactional',
+    });
+    expect(email.messages[0]?.text).toContain(
+      'Tienes 3 mensajes sin leer en Athlentry.',
+    );
+    expect(email.messages[0]?.text).toContain(
+      `/portal/orgs/${orgId}/notifications#preferences`,
+    );
+    const sent = await withOrg(ownerContext, (trx) =>
+      trx
+        .selectFrom('chat_notification_batches')
+        .select(['status', 'email_sent_at'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', pending.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(sent.status).toBe('sent');
+    expect(sent.email_sent_at).toBeInstanceOf(Date);
+  });
+
+  it('skips batched push and email when the conversation was read before the window closes', async () => {
+    const start = new Date('2026-09-28T18:00:00.000Z');
+    const conversation = await createConversation(
+      ownerContext,
+      { kind: 'group', title: 'Read before send', accountIds: [guardianId] },
+      start,
+      withOrg,
+    );
+    await sendChatMessage(
+      ownerContext,
+      conversation.id,
+      { body: 'Please review', attachments: [] },
+      {
+        encryption: { activeKid: 'test', keys: new Map() },
+        notifications: ({ context, accountId, conversationId, messageId }) =>
+          enqueueChatNotificationBatch(
+            context,
+            { accountId, conversationId, messageId },
+            start,
+            withOrg,
+          ),
+      },
+      start,
+      withOrg,
+    );
+    await withOrg({ orgId, actor: { accountId: guardianId } }, (trx) =>
+      trx
+        .updateTable('conversation_members')
+        .set({ last_read_at: new Date(start.getTime() + 2 * 60_000) })
+        .where('org_id', '=', orgId)
+        .where('conversation_id', '=', conversation.id)
+        .where('account_id', '=', guardianId)
+        .execute(),
+    );
+    const email = new FakeEmailSender();
+    await processDueChatNotificationBatches(
+      orgId,
+      { email, push: new PreviewPushSender(), appUrl: 'https://app.test' },
+      new Date(start.getTime() + 10 * 60_000),
+      withOrg,
+    );
+    expect(email.messages).toHaveLength(0);
+    await expect(
+      withOrg(ownerContext, (trx) =>
+        trx
+          .selectFrom('chat_notification_batches')
+          .select('status')
+          .where('org_id', '=', orgId)
+          .where('conversation_id', '=', conversation.id)
+          .where('recipient_account_id', '=', guardianId)
+          .executeTakeFirstOrThrow(),
+      ),
+    ).resolves.toEqual({ status: 'skipped' });
+  });
+
+  it('uses enabled push before email for unread conversation fallback', async () => {
+    const start = new Date('2026-09-29T02:00:00.000Z');
+    const conversation = await createConversation(
+      ownerContext,
+      { kind: 'group', title: 'Push updates', accountIds: [guardianId] },
+      start,
+      withOrg,
+    );
+    const session = await database.transaction().execute((trx) =>
+      issueSession(
+        trx,
+        {
+          accountId: guardianId,
+          kind: 'cookie',
+          client: 'web',
+          privileged: false,
+        },
+        start,
+      ),
+    );
+    await withOrg(ownerContext, async (trx) => {
+      await trx
+        .insertInto('communication_preferences')
+        .values({
+          id: randomUUID(),
+          org_id: orgId,
+          account_id: guardianId,
+          category: 'operational',
+          channel: 'push',
+          enabled: true,
+        })
+        .execute();
+      await trx
+        .insertInto('communication_preferences')
+        .values({
+          id: randomUUID(),
+          org_id: orgId,
+          account_id: guardianId,
+          category: 'operational',
+          channel: 'email',
+          enabled: false,
+        })
+        .execute();
+      await trx
+        .insertInto('device_tokens')
+        .values({
+          id: randomUUID(),
+          account_id: guardianId,
+          platform: 'webpush',
+          token_or_subscription: {
+            endpoint: `https://push.example.invalid/${guardianId}`,
+            keys: { p256dh: 'test-public-key', auth: 'test-auth-key' },
+          },
+          session_id: session.id,
+        })
+        .execute();
+    });
+    await sendChatMessage(
+      ownerContext,
+      conversation.id,
+      { body: 'Sensitive chat body is never copied to push.', attachments: [] },
+      {
+        encryption: { activeKid: 'test', keys: new Map() },
+        notifications: ({ context, accountId, conversationId, messageId }) =>
+          enqueueChatNotificationBatch(
+            context,
+            { accountId, conversationId, messageId },
+            start,
+            withOrg,
+          ),
+      },
+      start,
+      withOrg,
+    );
+
+    const email = new FakeEmailSender();
+    const push = new PreviewPushSender();
+    await processDueChatNotificationBatches(
+      orgId,
+      { email, push, appUrl: 'https://app.test' },
+      new Date(start.getTime() + 10 * 60_000),
+      withOrg,
+    );
+    expect(push.deliveries).toHaveLength(0);
+    expect(email.messages).toHaveLength(0);
+    const deferred = await withOrg(ownerContext, (trx) =>
+      trx
+        .selectFrom('chat_notification_batches')
+        .select(['status', 'available_at'])
+        .where('org_id', '=', orgId)
+        .where('conversation_id', '=', conversation.id)
+        .where('recipient_account_id', '=', guardianId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(deferred).toEqual({
+      status: 'pending',
+      available_at: new Date('2026-09-29T08:00:00.000Z'),
+    });
+    await processDueChatNotificationBatches(
+      orgId,
+      { email, push, appUrl: 'https://app.test' },
+      deferred.available_at,
+      withOrg,
+    );
+    expect(push.deliveries).toHaveLength(1);
+    expect(push.deliveries[0]?.message.body).toContain('1');
+    expect(push.deliveries[0]?.message.body).not.toContain(
+      'Sensitive chat body',
+    );
+    expect(email.messages).toHaveLength(0);
+  });
+
   it('reports attachment controls only when Files permissions allow them', async () => {
     await expect(
       getChatAttachmentCapabilities(ownerContext, withOrg),

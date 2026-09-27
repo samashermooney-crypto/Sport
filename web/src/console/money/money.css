@@ -20,3 +20,23 @@
 .money-error {
   color: var(--bad);
 }
+
+.money-installments {
+  display: grid;
+  gap: var(--space-8);
+  padding: 0;
+  list-style: none;
+}
+
+.money-staff-action {
+  display: grid;
+  gap: var(--space-12);
+  max-width: 34rem;
+}
+
+.money-staff-action input,
+.money-staff-action select,
+.money-staff-action textarea {
+  width: 100%;
+  min-height: 44px;
+}

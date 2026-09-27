@@ -4,6 +4,7 @@ import {
   assertInvoiceLines,
   deriveInvoiceState,
 } from '@shared/algorithms/invoice-state';
+import { percentOf } from '@shared/money';
 
 import type { RefundTerms } from './refund-terms.js';
 
@@ -73,6 +74,8 @@ export function invoiceTotals(input: IssueInvoiceInput): InvoiceTotals {
   let serviceFee = 0n;
   let tax = 0n;
   let absoluteSum = 0n;
+  let productSubtotal = 0n;
+  let taxLine: NewInvoiceLine | null = null;
   const discountByParent = new Map<number, bigint>();
   for (const [index, line] of input.lines.entries()) {
     if (!line.description.trim())
@@ -114,14 +117,39 @@ export function invoiceTotals(input: IssueInvoiceInput): InvoiceTotals {
       else if (line.kind === 'tax') {
         if (input.source !== 'order')
           throw new Error('Tax applies only to product orders');
+        if (taxLine) throw new Error('Invoice supports one product tax rate');
+        taxLine = line;
         tax += BigInt(line.amountCents);
-      } else subtotal += BigInt(line.amountCents);
+      } else {
+        if (line.kind === 'product')
+          productSubtotal += BigInt(line.amountCents);
+        subtotal += BigInt(line.amountCents);
+      }
     }
   }
   for (const [parentIndex, totalDiscount] of discountByParent) {
     const parent = input.lines[parentIndex];
     if (!parent || totalDiscount > BigInt(parent.amountCents))
       throw new Error('Discount/aid exceeds its parent line');
+  }
+  if (taxLine) {
+    if (
+      !Number.isInteger(taxLine.taxRateBps) ||
+      taxLine.taxRateBps === undefined ||
+      taxLine.taxRateBps < 1 ||
+      taxLine.taxRateBps > 10_000 ||
+      productSubtotal === 0n
+    )
+      throw new Error('Product tax requires a positive rate and product');
+    const productDiscount = [...discountByParent.entries()]
+      .filter(([index]) => input.lines[index]?.kind === 'product')
+      .reduce((sum, [, amount]) => sum + amount, 0n);
+    const expectedTax = percentOf(
+      cents(productSubtotal - productDiscount),
+      taxLine.taxRateBps,
+    );
+    if (taxLine.amountCents !== expectedTax)
+      throw new Error('Product tax does not match discounted product cents');
   }
   cents(absoluteSum);
   const totalCents = cents(subtotal - discount + serviceFee + tax);

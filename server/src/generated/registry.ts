@@ -18,6 +18,7 @@ import { moduleDefinition as jobsModule } from '../modules/jobs/module';
 import { moduleDefinition as notificationsModule } from '../modules/notifications/module';
 import { moduleDefinition as officialsModule } from '../modules/officials/module';
 import { moduleDefinition as orgsModule } from '../modules/orgs/module';
+import { moduleDefinition as peopleModule } from '../modules/people/module';
 import { moduleDefinition as platformModule } from '../modules/platform/module';
 import { moduleDefinition as safetyModule } from '../modules/safety/module';
 import { moduleDefinition as schedulingModule } from '../modules/scheduling/module';
@@ -38,6 +39,7 @@ export const serverModules: readonly ServerModule[] = [
   notificationsModule,
   officialsModule,
   orgsModule,
+  peopleModule,
   platformModule,
   safetyModule,
   schedulingModule,

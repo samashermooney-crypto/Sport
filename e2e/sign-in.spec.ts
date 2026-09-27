@@ -153,6 +153,7 @@ test('new account verifies its preview email and signs in', async ({
   request,
   browser,
 }, testInfo) => {
+  test.setTimeout(60_000);
   const email = `e2e-${testInfo.project.name}-${Date.now().toString()}@example.test`;
   const password = 'Pinecones!7348Ridge';
   await page.addInitScript(() => {

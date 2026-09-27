@@ -21,6 +21,10 @@ export const installmentTemplateBodySchema = z.strictObject({
       dayOfMonth: z.number().int().min(1).max(31),
     }),
     z.strictObject({
+      kind: z.literal('weekly'),
+      count: z.number().int().min(1).max(36),
+    }),
+    z.strictObject({
       kind: z.literal('fixed_dates'),
       dates: z.array(z.iso.date()).min(1).max(36),
     }),

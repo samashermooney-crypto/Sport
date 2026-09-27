@@ -38,3 +38,61 @@ export async function requireFinanceStaff(
   });
   if (!allowed) throw new FinanceAccessError();
 }
+
+/** Platform subscription changes are reserved for an active org owner. */
+export async function requireBillingOwner(
+  database: Kysely<DB>,
+  context: OrgContext,
+): Promise<void> {
+  const allowed = await createWithOrg(database)(context, async (trx) => {
+    const membership = await trx
+      .selectFrom('org_memberships')
+      .select('id')
+      .where('org_id', '=', context.orgId)
+      .where('account_id', '=', context.actor.accountId)
+      .where('status', '=', 'active')
+      .executeTakeFirst();
+    if (!membership) return false;
+    const owner = await trx
+      .selectFrom('role_assignments')
+      .select('id')
+      .where('org_id', '=', context.orgId)
+      .where('account_id', '=', context.actor.accountId)
+      .where('role', '=', 'owner')
+      .where('scope_type', '=', 'org')
+      .where('pending_mfa', '=', false)
+      .where('revoked_at', 'is', null)
+      .executeTakeFirst();
+    return Boolean(owner);
+  });
+  if (!allowed) throw new FinanceAccessError();
+}
+
+/** Aid decisions expose Restricted household finances to owner/finance only. */
+export async function requireAidStaff(
+  database: Kysely<DB>,
+  context: OrgContext,
+): Promise<void> {
+  const allowed = await createWithOrg(database)(context, async (trx) => {
+    const membership = await trx
+      .selectFrom('org_memberships')
+      .select('id')
+      .where('org_id', '=', context.orgId)
+      .where('account_id', '=', context.actor.accountId)
+      .where('status', '=', 'active')
+      .executeTakeFirst();
+    if (!membership) return false;
+    const role = await trx
+      .selectFrom('role_assignments')
+      .select('id')
+      .where('org_id', '=', context.orgId)
+      .where('account_id', '=', context.actor.accountId)
+      .where('role', 'in', ['owner', 'finance'])
+      .where('scope_type', '=', 'org')
+      .where('pending_mfa', '=', false)
+      .where('revoked_at', 'is', null)
+      .executeTakeFirst();
+    return Boolean(role);
+  });
+  if (!allowed) throw new FinanceAccessError();
+}

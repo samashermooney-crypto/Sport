@@ -2,15 +2,17 @@ import { randomUUID } from 'node:crypto';
 
 import { Temporal } from '@js-temporal/polyfill';
 import { newId } from '@shared/ids';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDatabase } from '../../db/kysely.js';
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
+import { FakeEmailSender } from '../../integrations/email/sender.js';
 
 import { PostgresInstallmentChargeRepository } from './installment-charge-repo.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
+import { deliverFinanceNotices } from './money-notice-job.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
 
 let database: Kysely<DB>;
@@ -32,6 +34,7 @@ beforeAll(async () => {
       first_name: 'Dunning',
       last_name: 'Test',
       date_of_birth: '1990-01-01',
+      email_verified_at: new Date(),
     })
     .execute();
   await database
@@ -245,6 +248,35 @@ describe('durable installment charges', () => {
     expect(afterSecond.next_attempt_at?.toISOString()).toBe(
       '2026-09-30T15:00:00.000Z',
     );
+    const failureNotices = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('finance_notice_outbox')
+        .select(['kind', 'source_id'])
+        .where('org_id', '=', context.orgId)
+        .where('kind', '=', 'installment_failed')
+        .orderBy('source_id')
+        .execute(),
+    );
+    expect(failureNotices).toHaveLength(2);
+    const sender = new FakeEmailSender();
+    await deliverFinanceNotices({
+      database,
+      sender,
+      appUrl: 'http://127.0.0.1:5173',
+      organizationIds: [context.orgId],
+    });
+    const failureEmails = sender.messages.filter((message) =>
+      message.subject.includes('installment payment failed'),
+    );
+    expect(failureEmails).toHaveLength(2);
+    expect(
+      failureEmails.every(
+        (message) =>
+          message.text.includes(
+            `/portal/orgs/${context.orgId}/money/installments`,
+          ) && message.attachments === undefined,
+      ),
+    ).toBe(true);
     const third = await repo.claimDue(context.orgId, '2026-09-30T15:00:00Z');
     if (!third) throw new Error('Third installment attempt missing');
     expect(third.attemptNumber).toBe(3);
@@ -374,8 +406,164 @@ describe('durable installment charges', () => {
       autopay: false,
       next_attempt_at: null,
     });
+    const finalNotice = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('finance_notice_outbox')
+        .select('id')
+        .where('org_id', '=', context.orgId)
+        .where('kind', '=', 'installment_final_notice')
+        .execute(),
+    );
+    expect(finalNotice).toHaveLength(1);
     expect(
       await repo.claimDue(context.orgId, '2026-10-06T15:00:00Z'),
     ).toBeNull();
+  });
+
+  it('notifies finance once when an ACH installment fails after processing', async () => {
+    const invoice = await new PostgresInvoiceRepository(
+      database,
+      context,
+    ).issue({
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      source: 'tuition',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'tuition',
+          description: 'ACH tuition',
+          amountCents: 400,
+          refundable: true,
+        },
+      ],
+    });
+    const methodId = newId();
+    const achInstallmentId = newId();
+    const financeId = newId();
+    await database
+      .insertInto('accounts')
+      .values({
+        id: financeId,
+        email: `ach-finance-${randomUUID()}@example.invalid`,
+        first_name: 'ACH',
+        last_name: 'Finance',
+        date_of_birth: '1990-01-01',
+      })
+      .execute();
+    await database
+      .insertInto('payment_methods')
+      .values({
+        id: methodId,
+        account_id: context.actor.accountId,
+        stripe_payment_method_id: `pm_${randomUUID()}`,
+        type: 'us_bank_account',
+        status: 'active',
+      })
+      .execute();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('org_memberships')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          account_id: financeId,
+          status: 'active',
+        })
+        .execute();
+      await trx
+        .insertInto('role_assignments')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          account_id: financeId,
+          role: 'finance',
+          scope_type: 'org',
+          pending_mfa: false,
+        })
+        .execute();
+      await trx
+        .insertInto('installments')
+        .values({
+          id: achInstallmentId,
+          org_id: context.orgId,
+          invoice_id: invoice.id,
+          sequence: 1,
+          due_on: '2026-10-07',
+          amount_cents: 400,
+          autopay: true,
+          payment_method_id: methodId,
+        })
+        .execute();
+      await trx
+        .insertInto('autopay_authorizations')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          account_id: context.actor.accountId,
+          payment_method_id: methodId,
+          invoice_id: invoice.id,
+          mandate_text_version: 'test-v1',
+        })
+        .execute();
+    });
+    const claim = await repo.claimDue(context.orgId, '2026-10-07T15:00:00Z');
+    if (!claim || claim.installmentId !== achInstallmentId)
+      throw new Error('ACH installment was not claimed');
+    await repo.beginExternal(claim);
+    const intentId = `pi_${randomUUID()}`;
+    await repo.recordIntent(claim, intentId);
+    const events = new PostgresPaymentEventRepository(
+      database,
+      context.actor.accountId,
+      () => Temporal.Instant.from('2026-10-07T16:00:00Z'),
+    );
+    const latest = {
+      id: intentId,
+      clientSecret: null,
+      amountCents: 400,
+      latestChargeId: null,
+      method: 'us_bank_account' as const,
+    };
+    await events.applyLatest({
+      orgId: context.orgId,
+      paymentIntentId: intentId,
+      latest: { ...latest, status: 'processing' },
+    });
+    await events.applyLatest({
+      orgId: context.orgId,
+      paymentIntentId: intentId,
+      latest: {
+        ...latest,
+        status: 'requires_payment_method',
+        failureCode: 'ach_return',
+      },
+    });
+    await events.applyLatest({
+      orgId: context.orgId,
+      paymentIntentId: intentId,
+      latest: {
+        ...latest,
+        status: 'requires_payment_method',
+        failureCode: 'ach_return',
+      },
+    });
+    const notices = await createWithOrg(database)(context, async (trx) => {
+      const payment = await trx
+        .selectFrom('payments')
+        .select('id')
+        .where('org_id', '=', context.orgId)
+        .where('stripe_payment_intent_id', '=', intentId)
+        .executeTakeFirstOrThrow();
+      return sql<{ account_id: string }>`
+        SELECT account_id FROM notifications
+        WHERE org_id = ${context.orgId}::uuid
+          AND type = 'installment.failed'
+          AND payload->>'resourceId' = ${payment.id}
+      `.execute(trx);
+    });
+    expect(notices.rows.map((notice) => notice.account_id).sort()).toEqual(
+      [context.actor.accountId, financeId].sort(),
+    );
   });
 });

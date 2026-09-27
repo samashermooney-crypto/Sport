@@ -78,6 +78,59 @@ async function state(invoiceId: string) {
 }
 
 describe('account credit source ledger', () => {
+  it('waits for an unsettled payment before debiting account credit', async () => {
+    const bill = await invoice();
+    await ledger.issue({
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      amountCents: 100,
+      source: 'goodwill',
+      operationKey: randomUUID(),
+    });
+    const paymentId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('payments')
+        .values({
+          id: paymentId,
+          org_id: context.orgId,
+          account_id: context.actor.accountId,
+          method: 'card',
+          status: 'requires_action',
+          amount_cents: 100,
+        })
+        .execute();
+      await trx
+        .insertInto('payment_allocations')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          payment_id: paymentId,
+          invoice_id: bill.id,
+          amount_cents: 100,
+        })
+        .execute();
+    });
+    const request = {
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      invoiceId: bill.id,
+      amountCents: 100,
+      todayLocal: '2026-09-26',
+      operationKey: randomUUID(),
+    };
+    await expect(ledger.apply(request)).rejects.toThrow('unsettled payment');
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('payments')
+        .set({ status: 'canceled' })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', paymentId)
+        .execute(),
+    );
+    await ledger.apply(request);
+    expect((await state(bill.id)).credit_applied_cents).toBe(100);
+  });
   it('issues by key and applies FIFO sources to an invoice exactly once', async () => {
     const key = randomUUID();
     const source1 = await ledger.issue({

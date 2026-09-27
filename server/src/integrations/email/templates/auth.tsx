@@ -10,6 +10,7 @@ type AuthEmailKind =
   | 'magic-link'
   | 'password-reset'
   | 'invitation'
+  | 'guardian-invitation'
   | 'ownership-transfer'
   | 'email-change-verification'
   | 'password-reset-confirmed'
@@ -36,6 +37,10 @@ const copy = {
     invitation: [
       'Join your Athlentry organization',
       'An organization invited you to join Athlentry. This link expires in 7 days.',
+    ],
+    'guardian-invitation': [
+      'Accept guardian access in Athlentry',
+      'An organization invited you to manage a family member in Athlentry. Sign in with this email address and accept within 7 days.',
     ],
     'ownership-transfer': [
       'Accept Athlentry organization ownership',
@@ -90,6 +95,10 @@ const copy = {
     invitation: [
       'Únase a su organización en Athlentry',
       'Una organización le invitó a unirse a Athlentry. Este enlace vence en 7 días.',
+    ],
+    'guardian-invitation': [
+      'Acepte acceso como tutor en Athlentry',
+      'Una organización le invitó a gestionar a un familiar en Athlentry. Inicie sesión con este correo y acepte en un plazo de 7 días.',
     ],
     'ownership-transfer': [
       'Acepte la titularidad de una organización en Athlentry',

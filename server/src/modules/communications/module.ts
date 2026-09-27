@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { createMailpitEmailSender } from '../../integrations/email/sender';
 import type { ServerModule } from '../../lib/module-contract';
+import { runChatNotificationBatchJob } from '../chat/notification-batching';
 import {
   chatModerationListSchema,
   chatAttachmentCapabilitiesSchema,
@@ -349,6 +350,11 @@ const jobs = [
           : createCommunicationAdapters({ email: createMailpitEmailSender() });
       return deliverDueCampaigns(dependencies);
     },
+  },
+  {
+    name: 'communications.chat-notification-batch',
+    cron: '* * * * *',
+    run: runChatNotificationBatchJob,
   },
 ] satisfies RegisteredJob[];
 

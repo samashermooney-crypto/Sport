@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Temporal } from '@js-temporal/polyfill';
 import { newId } from '@shared/ids';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDatabase } from '../../db/kysely.js';
@@ -211,6 +211,39 @@ describe('pending Stripe refund records', () => {
       context.actor.accountId,
       () => Temporal.Instant.from('2026-09-26T12:00:00Z'),
     );
+    const financeAccountId = newId();
+    await database
+      .insertInto('accounts')
+      .values({
+        id: financeAccountId,
+        email: `refund-finance-${randomUUID()}@example.invalid`,
+        first_name: 'Finance',
+        last_name: 'Reviewer',
+        date_of_birth: '1990-01-01',
+      })
+      .execute();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('org_memberships')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          account_id: financeAccountId,
+          status: 'active',
+        })
+        .execute();
+      await trx
+        .insertInto('role_assignments')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          account_id: financeAccountId,
+          role: 'finance',
+          scope_type: 'org',
+          pending_mfa: false,
+        })
+        .execute();
+    });
     const latest = {
       id: input.refundId,
       status: 'succeeded',
@@ -224,6 +257,17 @@ describe('pending Stripe refund records', () => {
     expect(
       await settlements.applyLatest({ orgId: context.orgId, refund: latest }),
     ).toBe('unchanged');
+    const notifications = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('notifications')
+        .select('account_id')
+        .where('org_id', '=', context.orgId)
+        .where('type', '=', 'refund.issued')
+        .execute(),
+    );
+    expect(notifications.map((row) => row.account_id).sort()).toEqual(
+      [context.actor.accountId, financeAccountId].sort(),
+    );
     const settled = await createWithOrg(database)(context, (trx) =>
       trx
         .selectFrom('invoices')
@@ -236,6 +280,16 @@ describe('pending Stripe refund records', () => {
       refunded_cents: 500,
       balance_cents: 500,
     });
+    const refundClock = await createWithOrg(database)(context, (trx) =>
+      sql<{ succeeded_at: Date }>`
+        SELECT succeeded_at FROM refunds
+        WHERE org_id = ${context.orgId}::uuid
+          AND stripe_refund_id = ${input.refundId}
+      `.execute(trx),
+    );
+    expect(refundClock.rows[0]?.succeeded_at.toISOString()).toBe(
+      '2026-09-26T12:00:00.000Z',
+    );
     expect(await sourceReader.load(context.orgId, paymentId)).toMatchObject({
       previouslyRefundedServiceFeeCents: 50,
       lines: [
@@ -314,6 +368,16 @@ describe('pending Stripe refund records', () => {
         .executeTakeFirstOrThrow(),
     );
     expect(invoice).toEqual({ refunded_cents: 1000, balance_cents: 1000 });
+    const creditRefundClock = await createWithOrg(database)(context, (trx) =>
+      sql<{ succeeded_at: Date }>`
+        SELECT succeeded_at FROM refunds
+        WHERE org_id = ${context.orgId}::uuid
+          AND credit_id = ${result.creditId}::uuid
+      `.execute(trx),
+    );
+    expect(creditRefundClock.rows[0]?.succeeded_at.toISOString()).toBe(
+      '2026-09-26T12:00:00.000Z',
+    );
     expect(
       await new PostgresCreditLedger(database, context).balance({
         orgId: context.orgId,

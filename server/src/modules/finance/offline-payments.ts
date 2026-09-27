@@ -8,6 +8,7 @@ import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import { appendAuditEvent } from '../audit/service.js';
 
 import { recomputeInvoiceStatus } from './invoice-repo.js';
+import { enqueueFinanceNotice } from './money-notices.js';
 import { allocatePaymentLines } from './payment-line-allocations.js';
 
 export interface OfflinePaymentInput {
@@ -202,6 +203,11 @@ export class PostgresOfflinePayments {
           },
           method: { tier: 'internal', before: null, after: input.method },
         },
+      });
+      await enqueueFinanceNotice(trx, this.context, {
+        kind: 'payment_received',
+        sourceId: paymentId,
+        accountId: invoice.account_id,
       });
       return { paymentId, receiptNumber, amountCents: input.amountCents };
     });

@@ -70,10 +70,14 @@ export interface Accounts {
 
 export interface AidApplications {
   answers: Generated<Json>;
+  award_bps: number | null;
   award_cents: Generated<number>;
   award_kind: string | null;
+  award_operation_key: string | null;
+  award_request_hash: string | null;
   created_at: Generated<Timestamp>;
   decided_by: string | null;
+  decision_reason: string | null;
   documents: Generated<Json>;
   financial_aid_program_id: string;
   household_id: string;
@@ -206,7 +210,9 @@ export interface AutopayAuthorizations {
   id: string;
   invoice_id: string | null;
   ip: string | null;
+  mandate_text_hash: string | null;
   mandate_text_version: string;
+  operation_key: string | null;
   org_id: string;
   payment_method_id: string;
   revoked_at: Timestamp | null;
@@ -328,6 +334,20 @@ export interface BalanceTransactions {
   updated_at: Generated<Timestamp>;
 }
 
+export interface BillingCheckoutClaims {
+  checkout_url: string | null;
+  created_at: Generated<Timestamp>;
+  id: string;
+  org_id: string;
+  plan_id: string;
+  request_key: string;
+  status: Generated<string>;
+  stripe_customer_id: string;
+  stripe_price_id: string;
+  stripe_session_id: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface BracketMatches {
   bracket_id: string;
   contest_id: string | null;
@@ -417,6 +437,26 @@ export interface ChatMessages {
   reported_count: Generated<number>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
+}
+
+export interface ChatNotificationBatches {
+  attempt_count: Generated<number>;
+  available_at: Timestamp;
+  claimed_at: Timestamp | null;
+  conversation_id: string;
+  created_at: Generated<Timestamp>;
+  email_sent_at: Timestamp | null;
+  first_message_id: string;
+  id: string;
+  last_error: string | null;
+  latest_message_id: string;
+  message_count: Generated<number>;
+  org_id: string;
+  push_sent_at: Timestamp | null;
+  recipient_account_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  window_started_at: Timestamp;
 }
 
 export interface ChatReports {
@@ -945,11 +985,33 @@ export interface Files {
   width: number | null;
 }
 
+export interface FinanceNoticeOutbox {
+  account_id: string;
+  attachment_pdf: Buffer | null;
+  attempts: Generated<number>;
+  created_at: Generated<Timestamp>;
+  delivery_email: string | null;
+  id: string;
+  kind: string;
+  last_error: string | null;
+  lease_token: string | null;
+  lease_until: Timestamp | null;
+  message_key: string;
+  org_id: string;
+  provider_message_id: string | null;
+  sent_at: Timestamp | null;
+  source_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface FinancialAidPrograms {
   application_form_id: string | null;
   awarded_cents: Generated<number>;
   budget_cents: Generated<number>;
   created_at: Generated<Timestamp>;
+  creation_hash: string | null;
+  creation_key: string | null;
   id: string;
   name: string;
   org_id: string;
@@ -1006,6 +1068,8 @@ export interface GameReports {
 export interface GlCodes {
   code: string;
   created_at: Generated<Timestamp>;
+  creation_hash: string | null;
+  creation_key: string | null;
   id: string;
   kind: string;
   name: string;
@@ -1026,6 +1090,7 @@ export interface HouseholdMembers {
   org_id: string;
   person_id: string;
   receives_communications: Generated<boolean>;
+  removed_at: Timestamp | null;
   role: string;
   updated_at: Generated<Timestamp>;
 }
@@ -1157,6 +1222,20 @@ export interface Installments {
   version: Generated<number>;
 }
 
+export interface InstallmentStaffActions {
+  action: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  installment_id: string;
+  operation_key: string;
+  org_id: string;
+  performed_by: string;
+  reason: string;
+  request_hash: string;
+  result: Json;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface InvoiceLines {
   amount_cents: number;
   created_at: Generated<Timestamp>;
@@ -1223,6 +1302,24 @@ export interface Lineups {
   team_season_id: string;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
+}
+
+export interface ManualInstallmentPaymentAttempts {
+  account_id: string;
+  amount_cents: number;
+  application_fee_cents: number;
+  connected_account_id: string;
+  created_at: Generated<Timestamp>;
+  customer_id: string;
+  id: string;
+  installment_id: string;
+  operation_key: string;
+  org_id: string;
+  payment_id: string;
+  request_hash: string;
+  result: Json | null;
+  status: string;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface MedicalProfiles {
@@ -1452,6 +1549,22 @@ export interface Organizations {
   website_url: string | null;
 }
 
+export interface OrgBillingInvoices {
+  amount_due_cents: number;
+  amount_paid_cents: number;
+  created_at: Generated<Timestamp>;
+  currency: string;
+  id: string;
+  org_id: string;
+  status: string;
+  stripe_created_at: Timestamp;
+  stripe_customer_id: string;
+  stripe_invoice_id: string;
+  stripe_subscription_id: string;
+  total_cents: number;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface OrgCounters {
   created_at: Generated<Timestamp>;
   name: string;
@@ -1469,6 +1582,21 @@ export interface OrgMemberships {
   org_id: string;
   status: string;
   title: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface OrgSubscriptions {
+  created_at: Generated<Timestamp>;
+  current_period_end: Timestamp | null;
+  customer_claim_key: string | null;
+  customer_claim_status: Generated<string>;
+  id: string;
+  org_id: string;
+  plan_id: string | null;
+  status: Generated<string>;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -1573,6 +1701,18 @@ export interface Payments {
   stripe_charge_id: string | null;
   stripe_payment_intent_id: string | null;
   succeeded_at: Timestamp | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface PayoutJournalMappings {
+  bank: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  org_id: string;
+  processing_fees: string;
+  stripe_clearing: string;
+  transaction_types: Json;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -1933,6 +2073,7 @@ export interface Refunds {
   reverse_transfer: Generated<boolean>;
   status: Generated<string>;
   stripe_refund_id: string | null;
+  succeeded_at: Timestamp | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -2421,6 +2562,8 @@ export interface TaxRates {
   active: Generated<boolean>;
   applies_to: Generated<string>;
   created_at: Generated<Timestamp>;
+  creation_hash: string | null;
+  creation_key: string | null;
   id: string;
   name: string;
   org_id: string;
@@ -2619,12 +2762,14 @@ export interface DB {
   background_check_settings: BackgroundCheckSettings;
   background_check_webhook_events: BackgroundCheckWebhookEvents;
   balance_transactions: BalanceTransactions;
+  billing_checkout_claims: BillingCheckoutClaims;
   bracket_matches: BracketMatches;
   brackets: Brackets;
   calendar_feeds: CalendarFeeds;
   capacity_counters: CapacityCounters;
   capacity_holds: CapacityHolds;
   chat_messages: ChatMessages;
+  chat_notification_batches: ChatNotificationBatches;
   chat_reports: ChatReports;
   checkout_capacity_refund_claims: CheckoutCapacityRefundClaims;
   checkouts: Checkouts;
@@ -2657,6 +2802,7 @@ export interface DB {
   external_teams: ExternalTeams;
   facilities: Facilities;
   files: Files;
+  finance_notice_outbox: FinanceNoticeOutbox;
   financial_aid_programs: FinancialAidPrograms;
   form_definitions: FormDefinitions;
   form_responses: FormResponses;
@@ -2670,10 +2816,12 @@ export interface DB {
   injury_roster_holds: InjuryRosterHolds;
   installment_charge_attempts: InstallmentChargeAttempts;
   installment_plan_templates: InstallmentPlanTemplates;
+  installment_staff_actions: InstallmentStaffActions;
   installments: Installments;
   invoice_lines: InvoiceLines;
   invoices: Invoices;
   lineups: Lineups;
+  manual_installment_payment_attempts: ManualInstallmentPaymentAttempts;
   medical_profiles: MedicalProfiles;
   message_campaigns: MessageCampaigns;
   message_deliveries: MessageDeliveries;
@@ -2687,8 +2835,10 @@ export interface DB {
   official_pay_lines: OfficialPayLines;
   official_positions: OfficialPositions;
   official_profiles: OfficialProfiles;
+  org_billing_invoices: OrgBillingInvoices;
   org_counters: OrgCounters;
   org_memberships: OrgMemberships;
+  org_subscriptions: OrgSubscriptions;
   organizations: Organizations;
   payer_profiles: PayerProfiles;
   payment_accounts: PaymentAccounts;
@@ -2697,6 +2847,7 @@ export interface DB {
   payment_line_allocations: PaymentLineAllocations;
   payment_methods: PaymentMethods;
   payments: Payments;
+  payout_journal_mappings: PayoutJournalMappings;
   payouts: Payouts;
   people: People;
   person_account_links: PersonAccountLinks;

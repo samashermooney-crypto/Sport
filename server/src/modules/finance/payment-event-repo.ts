@@ -6,8 +6,11 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import type { GatewayPaymentIntent } from '../../integrations/stripe/gateway.js';
 import { appendAuditEvent } from '../audit/service.js';
+import { createNotification } from '../notifications/service.js';
 
+import { activeFinanceNotificationRecipients } from './finance-notification-recipients.js';
 import { recomputeInvoiceStatus } from './invoice-repo.js';
+import { enqueueFinanceNotice } from './money-notices.js';
 import type {
   PaymentEventRepository,
   PaymentEventResult,
@@ -66,6 +69,7 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
         .selectFrom('payments')
         .select([
           'id',
+          'account_id',
           'amount_cents',
           'status',
           'method',
@@ -193,44 +197,90 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
         allocation.installment_id &&
         (target === 'failed' || target === 'canceled')
       ) {
-        const installment = await trx
-          .selectFrom('installments')
-          .select(['attempt_count', 'status'])
-          .where('org_id', '=', input.orgId)
-          .where('id', '=', allocation.installment_id)
-          .forUpdate()
-          .executeTakeFirstOrThrow();
-        if (installment.status !== 'paid') {
-          const retry =
-            target === 'failed'
-              ? nextInstallmentAttempt(
-                  this.now().toString(),
-                  installment.attempt_count,
-                  failureCode ?? 'unknown',
-                  org.timezone,
-                )
-              : { retry: false, nextAttemptAt: null, finalFailure: true };
-          await trx
-            .updateTable('installments')
-            .set({
-              status: 'failed',
-              autopay: retry.retry,
-              next_attempt_at: retry.nextAttemptAt
-                ? new Date(retry.nextAttemptAt)
-                : null,
-              last_failure_code: failureCode,
-              last_failure_message: failureMessage,
-              version: sql`version + 1`,
-            })
-            .where('org_id', '=', input.orgId)
-            .where('id', '=', allocation.installment_id)
-            .execute();
+        const manual = await sql<{ exists: boolean }>`
+          SELECT EXISTS (
+            SELECT 1 FROM manual_installment_payment_attempts
+            WHERE org_id = ${input.orgId}::uuid
+              AND payment_id = ${payment.id}::uuid
+          ) AS exists
+        `.execute(trx);
+        if (manual.rows[0]?.exists) {
           await recomputeInvoiceStatus(
             trx,
             input.orgId,
             allocation.invoice_id,
             todayLocal,
           );
+        } else {
+          const installment = await trx
+            .selectFrom('installments')
+            .select(['attempt_count', 'status'])
+            .where('org_id', '=', input.orgId)
+            .where('id', '=', allocation.installment_id)
+            .forUpdate()
+            .executeTakeFirstOrThrow();
+          if (installment.status !== 'paid') {
+            const retry =
+              target === 'failed'
+                ? nextInstallmentAttempt(
+                    this.now().toString(),
+                    installment.attempt_count,
+                    failureCode ?? 'unknown',
+                    org.timezone,
+                  )
+                : { retry: false, nextAttemptAt: null, finalFailure: true };
+            await trx
+              .updateTable('installments')
+              .set({
+                status: 'failed',
+                autopay: retry.retry,
+                next_attempt_at: retry.nextAttemptAt
+                  ? new Date(retry.nextAttemptAt)
+                  : null,
+                last_failure_code: failureCode,
+                last_failure_message: failureMessage,
+                version: sql`version + 1`,
+              })
+              .where('org_id', '=', input.orgId)
+              .where('id', '=', allocation.installment_id)
+              .execute();
+            await recomputeInvoiceStatus(
+              trx,
+              input.orgId,
+              allocation.invoice_id,
+              todayLocal,
+            );
+            if (!payment.account_id)
+              throw new Error('Failed installment lacks a payer account');
+            const queued = await enqueueFinanceNotice(trx, context, {
+              kind: retry.retry
+                ? 'installment_failed'
+                : 'installment_final_notice',
+              sourceId: payment.id,
+              accountId: payment.account_id,
+            });
+            if (
+              queued &&
+              method === 'us_bank_account' &&
+              payment.processing_started_at
+            ) {
+              const staff = await activeFinanceNotificationRecipients(
+                trx,
+                input.orgId,
+              );
+              for (const accountId of staff) {
+                if (accountId === payment.account_id) continue;
+                await createNotification(trx, context, {
+                  accountId,
+                  type: 'installment.failed',
+                  payload: {
+                    resourceType: 'payment',
+                    resourceId: payment.id,
+                  },
+                });
+              }
+            }
+          }
         }
       }
       await appendAuditEvent(trx, context, {
@@ -241,6 +291,15 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
           status: { tier: 'internal', before: payment.status, after: target },
         },
       });
+      if (firstSuccess) {
+        if (!payment.account_id)
+          throw new Error('Successful Stripe payment lacks a payer account');
+        await enqueueFinanceNotice(trx, context, {
+          kind: 'payment_received',
+          sourceId: payment.id,
+          accountId: payment.account_id,
+        });
+      }
       return 'applied';
     });
   }
