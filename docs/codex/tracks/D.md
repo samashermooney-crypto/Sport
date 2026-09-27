@@ -3,9 +3,9 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Current: Design system queues 1–6 are complete. Linux parity references are generated and pass in the lockfile-matching Playwright Linux image; the current trunk sync is `7175207`. Phase 14 report APIs and the report builder support curated role-visible datasets, 200-row previews, typed filters, time grouping/aggregates/sorting, saved-report role sharing, CSV/XLSX exports, secure-link schedules with pause/resume, and visual presets for registration pace and revenue by program. Migration 7008 adds missing Phase 14 FK lookup indexes and makes retention sweep runs org-scoped. Action Center, the remaining standard reports/dashboards, website, org export, privacy, and retention surfaces remain.
-Ready for integration: `195e30e..HEAD` contains the design baselines and report-builder batch. Typecheck, lint, focused report tests, and desktop parity pass. The first trunk merge was aborted after the full test gate exposed missing Phase 14 FK indexes and retention-run nullability; migration 7008 fixes the schema assertions, while the full suite still needs a clean rerun after load-related timeouts.
-Requests to other tracks: Track C — mount the website server renderer at `/site` once `server/src/modules/website/public.ts` is committed; the current `ServerModule.extraRouters` contract only supports `/api/v1/*`. Regenerate server and nested web registries for website and console website routes, and wire Action Center, exports, and their worker jobs as those contracts land. Reports routing is present in the generated registry on this branch.
+Current: Design system queues 1–6 are complete. Linux parity references are generated in the pinned Playwright 1.63 Noble image and pass there; commit `5cf711c` is still missing from trunk. The report API and builder support curated role-visible datasets, 200-row previews, typed filters, grouping and aggregates, saved-report role sharing, CSV/XLSX exports, local-time schedules with pause/resume, and visual presets for registration pace and revenue by program. Website page editing, safe structured content, versioned revisions, public JSON/sitemap endpoints, and an SSR renderer are implemented. Action Center, remaining standard reports/dashboards, website domains/menus/news/embeds, org export, privacy UI, and retention sweep remain.
+Ready for integration: `195e30e..HEAD` is the current local D range. Typecheck, lint, focused reports tests, website tests, and design parity pass on D; trunk integration awaits a clean shared trunk checkout and a passing full gate. Migration 7008 supplies the Phase 14 FK indexes and org-scoped retention run shape required by schema guards.
+Requests to other tracks: Track C — mount `createSiteSsrRouter` from `server/src/modules/website/public.ts` at `/site`; the current `ServerModule.extraRouters` contract only supports `/api/v1/*`. Regenerate server and nested web registries for website and console website routes, and wire Action Center, exports, and their worker jobs as those contracts land. Reports routing is present in the generated registry on this branch.
 Blocked on: None.
 
 Completed:
@@ -15,6 +15,7 @@ Completed:
 - Linux parity references were generated using `mcr.microsoft.com/playwright:v1.63.0-noble` with `linux/amd64`. The 9-case design parity spec passed on both Mac and Linux; legacy references remain and the mismatch threshold and token-equality assertion are unchanged.
 - On the current synced branch, the host Chromium desktop parity run passed 9/9; the pinned Linux Chromium run passed 9/9, including the 390px legacy shell comparison. CI run `36337698479` failed on the prior trunk commit because Linux snapshot files were absent; the baseline comparison passed in the target Linux image after selecting the Linux capture.
 - Phase 14 migrations 7000–7008, generated DB types, report dataset/query/schema/service/router/module, CSV/XLSX serializers, ZIP helper, org-local schedule CRUD, durable outbox delivery, and per-recipient outcomes are present. Migrations were applied to the isolated Track D database.
+- Website foundation: role-checked page editing, optimistic versions and revision history, public published-page JSON, sitemap output, structured safe-content schemas, a console editor, public page surface, legacy site CSS port, and an SSR document renderer. Focused schema tests pass 3/3 and the Postgres service tests pass 2/2 on a fresh isolated stack.
 
 In progress (exact paths):
 - `db/migrations/7000_website_core.sql`
@@ -53,15 +54,17 @@ In progress (exact paths):
 - `web/src/console/reports/report.css`
 
 Exact next steps:
-1. Add standard report presets and visual pages for receivables aging, compliance percentage, and year-over-year retention; registration pace and revenue by program presets now use source-backed grouped report data.
-3. Implement Action Center and the Money, Registration, Compliance, and Academy dashboards, including board PDF output.
-4. Implement the website editor and public pages, SEO, domains, embeds, and SSR; then complete org export, privacy requests, and retention sweep.
-5. Track C owns registry and nested-route wiring. Run the Phase 14 acceptance checks and SPRINT merge gate before marking ready or merging.
-6. At 13:00 local time, begin Phase 16 §3 accessibility/i18n, §5 legal drafts, and §6 landing/README. Continue small commits and use SPRINT's self-merge protocol only when the gate is green.
+1. Add standard report presets and visual pages for receivables aging, compliance percentage, and year-over-year retention; registration pace and revenue by program presets already use source-backed grouped data.
+2. Implement Action Center and Money, Registration, Compliance, and Academy dashboards, including board PDF output.
+3. Finish website settings, menus, news, generated pages, domains, embeds, and public SSR wiring.
+4. Complete org data export, privacy requests, retention policy UI, and sweep job.
+5. Track C owns registry and nested-route wiring. Run Phase 14 acceptance and the SPRINT merge gate before marking ready or merging.
+6. Complete Phase 16 §3 accessibility/i18n, §5 legal drafts, and §6 landing/README; merge through SPRINT's self-merge protocol when the gate is green.
 
 Known failing or unverified checks:
 - No current Linux or Mac parity assertion failures are known; the focused parity suite passed 9/9 in each environment. Neither the 6.5% mismatch tolerance nor token-equality test changed.
 - Focused report-builder UI test passed 1/1; report query validation passed 5/5, and focused report, schedule, export, ZIP, and shared-dataset checks passed 24/24. The grouped chart and table share the same server preview rows. `npm run typecheck` passes and the Track D reports path passes ESLint after the chart/preset additions.
+- Website schema tests pass 3/3, the website Postgres page service test passes 2/2, targeted website ESLint passes, and `npm run typecheck` passes. The preexisting D database rejected the restored untracked 7007 file checksum, so website integration validation used a fresh isolated Postgres stack without changing the old database.
 - The latest full trunk `npm test` attempt failed on the missing FK indexes and `retention_sweep_runs.org_id` nullability, now fixed by migration 7008. It also hit timeout failures in finance reconciliation, officials, and several `afterAll` hooks under concurrent machine load; rerun the full suite before integration.
 - Full unit/integration, full E2E, build, registry/OpenAPI freshness, knip, audit, and the SPRINT merge gate have not been run against the current Phase 14 branch state. Report builder, dashboards, website, exports/privacy UI, and Phase 16 acceptance remain unverified.
 - The first Playwright attempt found an orphaned Track D E2E runner on port 7173; that runner exited and the fresh isolated run passed.
