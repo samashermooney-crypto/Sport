@@ -115,4 +115,31 @@ describe('sport age groups', () => {
       ),
     ).toThrow();
   });
+
+  it('handles absent birth dates, grade labels and invalid year inputs', () => {
+    expect(calculateAgeGroup({ method: 'none' }, season).label).toBeNull();
+    expect(
+      calculateAgeGroup(
+        {
+          method: 'birth_year',
+          label: 'U{n}',
+          seasonYearBasis: 'season_start',
+        },
+        season,
+      ).age,
+    ).toBeNull();
+    expect(gradeLabel(-2)).toContain('-2');
+    expect(() => gradeLabel(1.5)).toThrow();
+    expect(() => gradeFromGraduationYear(2033.5, 2027)).toThrow();
+    expect(() =>
+      calculateAgeGroup(
+        {
+          method: 'birth_year',
+          label: 'U{n}',
+          seasonYearBasis: 'season_start',
+        },
+        { ...season, dateOfBirth: '2030-01-01' },
+      ),
+    ).toThrow();
+  });
 });

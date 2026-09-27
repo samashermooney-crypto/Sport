@@ -10,6 +10,8 @@ import {
   rankPlacementOnly,
   rankTimed,
   rollUpTeamPoints,
+  scoreCrossCountryTeams,
+  scoreGolfTeams,
 } from './results.js';
 import { type ContestFormatConfig } from './schema.js';
 
@@ -181,5 +183,142 @@ describe('sport results', () => {
       ).map((entry) => entry.points),
     ).toEqual([6, 4]);
     expect(() => rankPlacementOnly([{ id: 'a', place: 0 }])).toThrow();
+  });
+
+  it('rejects invalid scores, sets, entrant IDs and judge sheets', () => {
+    expect(() => computeScore(score, -1, 0)).toThrow();
+    expect(() =>
+      computeScore(score, 0, 0, {
+        forfeitBy: 'home',
+        forfeitScore: { winner: 0, loser: 0 },
+      }),
+    ).toThrow();
+    expect(() =>
+      computeScore({ ...score, shootout: false }, 1, 1, {
+        shootoutWinner: 'home',
+      }),
+    ).toThrow();
+    expect(() =>
+      computeSets(sets, [
+        { home: 25, away: 25 },
+        { home: 25, away: 20 },
+      ]),
+    ).toThrow();
+    expect(() =>
+      computeSets({ ...sets, cap: 30 }, [
+        { home: 31, away: 29 },
+        { home: 25, away: 20 },
+      ]),
+    ).toThrow();
+    const timedFormat: Extract<ContestFormatConfig, { format: 'multi_timed' }> =
+      {
+        format: 'multi_timed',
+        events: [{ key: 'race', label: text }],
+        lowerIsBetter: true,
+        precision: 'seconds',
+        heats: false,
+        lanes: 1,
+      };
+    expect(() =>
+      rankTimed(timedFormat, [
+        { id: 'a', value: 1 },
+        { id: 'a', value: 2 },
+      ]),
+    ).toThrow();
+    expect(() => rankTimed(timedFormat, [{ id: 'a', value: -1 }])).toThrow();
+    const measuredFormat: Extract<
+      ContestFormatConfig,
+      { format: 'multi_measured' }
+    > = {
+      format: 'multi_measured',
+      events: [{ key: 'jump', label: text }],
+      lowerIsBetter: false,
+      unit: 'm',
+      attempts: 1,
+    };
+    expect(() =>
+      rankMeasured(measuredFormat, [{ id: 'a', attempts: [1, 2] }]),
+    ).toThrow();
+    expect(() =>
+      rankPlacementOnly([
+        { id: 'a', place: 1 },
+        { id: 'a', place: 2 },
+      ]),
+    ).toThrow();
+  });
+
+  it('awards distinct relay points and rejects mixed individual results', () => {
+    const format: Extract<ContestFormatConfig, { format: 'multi_timed' }> = {
+      format: 'multi_timed',
+      events: [{ key: 'relay', label: text, relay: true }],
+      lowerIsBetter: true,
+      precision: 'hundredths',
+      heats: true,
+      lanes: 8,
+      placePoints: [6, 4, 3],
+      relayPlacePoints: [8, 4, 2],
+    };
+    expect(
+      rankTimed(format, [
+        { id: 'a', value: 1000, relay: true },
+        { id: 'b', value: 1100, relay: true },
+      ]).map((row) => row.points),
+    ).toEqual([8, 4]);
+    expect(() =>
+      rankTimed(format, [
+        { id: 'a', value: 1000, relay: true },
+        { id: 'b', value: 1100 },
+      ]),
+    ).toThrow();
+  });
+
+  it('multiplies diving execution by consistent degree of difficulty', () => {
+    const format: Extract<ContestFormatConfig, { format: 'judged' }> = {
+      format: 'judged',
+      apparatusOrRoutines: [{ key: 'springboard', label: text }],
+      panel: {
+        judges: 4,
+        dropHighLow: true,
+        combine: 'sum',
+        components: [
+          { key: 'execution', label: text, max: 10 },
+          { key: 'dd', label: text, max: 5 },
+        ],
+      },
+    };
+    const sheets = [6, 8, 9, 10].map((execution, index) => ({
+      judgeId: String(index),
+      components: { execution, dd: 2.5 },
+    }));
+    expect(judgedTotal(format, sheets)).toBe(42.5);
+    expect(() =>
+      judgedTotal(
+        format,
+        sheets.map((sheet, index) =>
+          index
+            ? sheet
+            : { ...sheet, components: { ...sheet.components, dd: 3 } },
+        ),
+      ),
+    ).toThrow();
+  });
+
+  it('scores only complete cross-country and golf teams using best N', () => {
+    const placement = (
+      id: string,
+      teamId: string,
+      place: number,
+      value: number,
+    ) => ({ id, teamId, place, value, status: 'ok' as const, points: 0 });
+    const rows = [
+      placement('a1', 'a', 1, 80),
+      placement('a2', 'a', 5, 90),
+      placement('a3', 'a', 4, 85),
+      placement('b1', 'b', 2, 75),
+    ];
+    expect(scoreCrossCountryTeams(rows, 2).get('a')).toBe(5);
+    expect(scoreCrossCountryTeams(rows, 2).has('b')).toBe(false);
+    expect(scoreGolfTeams(rows, 2).get('a')).toBe(165);
+    expect(() => scoreGolfTeams(rows, 0)).toThrow();
   });
 });

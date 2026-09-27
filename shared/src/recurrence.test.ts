@@ -143,6 +143,62 @@ describe('recurrence expansion', () => {
     expect(ics).toContain('RDATE;TZID=America/Chicago:20260908T163000');
   });
 
+  it('exports monthly and counted weekly rules and validates series bounds', () => {
+    const monthly: TimedRecurrence = {
+      recurrence: {
+        kind: 'monthly_nth_weekday',
+        nth: 2,
+        weekday: 'TU',
+        startsOn: '2026-01-01',
+        endsOn: '2026-04-30',
+        exceptions: ['2026-02-10'],
+      },
+      startTime: '09:00',
+      durationMinutes: 60,
+      timezone: 'America/Chicago',
+    };
+    expect(
+      expand(monthly, '2026-01-01', '2026-04-30').map(
+        (entry) => entry.localDate,
+      ),
+    ).toEqual(['2026-01-13', '2026-03-10', '2026-04-14']);
+    expect(toRfc5545(monthly)).toContain('RRULE:FREQ=MONTHLY;BYDAY=2TU');
+    expect(toRfc5545(monthly)).toContain(
+      'EXDATE;TZID=America/Chicago:20260210T090000',
+    );
+    const counted: TimedRecurrence = {
+      ...weekly,
+      recurrence: {
+        kind: 'weekly',
+        interval: 1,
+        byDay: ['MO'],
+        startsOn: '2026-09-01',
+        endsOn: null,
+        count: 2,
+        exceptions: [],
+        additions: [],
+      },
+    };
+    expect(toRfc5545(counted)).toContain('COUNT=2');
+    expect(() =>
+      expand(
+        {
+          ...monthly,
+          recurrence: {
+            kind: 'monthly_nth_weekday',
+            nth: 2,
+            weekday: 'TU',
+            startsOn: '2027-01-01',
+            endsOn: '2026-12-31',
+            exceptions: [],
+          },
+        },
+        '2026-01-01',
+        '2027-12-31',
+      ),
+    ).toThrow();
+  });
+
   it('always returns unique dates within the requested range', () => {
     fc.assert(
       fc.property(

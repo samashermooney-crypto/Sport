@@ -1,3 +1,5 @@
+import { Temporal } from '@js-temporal/polyfill';
+
 import { allocate, percentOf } from '../money.js';
 
 export type RefundPolicy = {
@@ -24,8 +26,7 @@ export function proposeRefund(
   policy: RefundPolicy,
   previouslyRefundedServiceFeeCents = 0,
 ): ProposedRefund {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(cancellationDate))
-    throw new RangeError('Expected a local cancellation date');
+  Temporal.PlainDate.from(cancellationDate);
   if (!Number.isSafeInteger(paidServiceFeeCents) || paidServiceFeeCents < 0)
     throw new RangeError('Invalid service fee');
   if (
@@ -36,14 +37,27 @@ export function proposeRefund(
     throw new RangeError('Invalid prior service fee refund');
   if (new Set(lines.map((line) => line.id)).size !== lines.length)
     throw new RangeError('Duplicate refund line');
+  for (const rule of policy.rules) {
+    Temporal.PlainDate.from(rule.throughDate);
+    if (
+      !Number.isSafeInteger(rule.refundBps) ||
+      rule.refundBps < 0 ||
+      rule.refundBps > 10_000
+    )
+      throw new RangeError('Refund percentage must be 0–10000 bps');
+  }
+  if (
+    !Number.isSafeInteger(policy.afterLastBps) ||
+    policy.afterLastBps < 0 ||
+    policy.afterLastBps > 10_000
+  )
+    throw new RangeError('Refund percentage must be 0–10000 bps');
   const ordered = [...policy.rules].sort((a, b) =>
     a.throughDate.localeCompare(b.throughDate),
   );
   const bps =
     ordered.find((rule) => cancellationDate <= rule.throughDate)?.refundBps ??
     policy.afterLastBps;
-  if (!Number.isSafeInteger(bps) || bps < 0 || bps > 10_000)
-    throw new RangeError('Refund percentage must be 0–10000 bps');
   const proposed = lines.map((line) => {
     const previously = line.previouslyRefundedCents ?? 0;
     if (

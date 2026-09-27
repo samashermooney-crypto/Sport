@@ -207,18 +207,20 @@
       "winner": 3,
       "loser": 0
     },
-    "tiebreakers": [
-      "head_to_head_points",
-      "head_to_head_differential",
-      "differential",
-      "scored",
-      "coin_toss_manual"
-    ],
+    "tiebreakers": ["net_run_rate", "wins", "coin_toss_manual"],
     "include": {
       "stages": ["regular"],
       "crossDivision": false
     },
-    "columns": ["rank", "team", "played", "wins", "losses", "ties", "points"],
+    "columns": [
+      "rank",
+      "team",
+      "played",
+      "wins",
+      "losses",
+      "points",
+      "net_run_rate"
+    ],
     "publicVisibility": "members"
   },
   "disciplineTypes": []

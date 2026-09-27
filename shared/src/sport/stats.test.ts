@@ -69,4 +69,33 @@ describe('sport stats', () => {
       aggregateStats([percentage], [{ subjectId: 'a', values: {} }]),
     ).toThrow();
   });
+
+  it('supports max, min and average and rejects duplicate definitions', () => {
+    const make = (
+      key: string,
+      aggregate: StatDefinition['aggregate'],
+    ): StatDefinition => ({
+      ...goals,
+      key,
+      aggregate,
+      valueType: 'decimal',
+      public: true,
+    });
+    const summaries = aggregateStats(
+      [make('best', 'max'), make('least', 'min'), make('pace', 'average')],
+      [
+        { subjectId: 'a', values: { best: 3, least: 3, pace: 3 } },
+        { subjectId: 'a', values: { best: 5, least: 5, pace: 5 } },
+      ],
+    );
+    expect(summaries[0]?.values).toEqual({ best: 5, least: 3, pace: 4 });
+    expect(() => aggregateStats([goals, goals], [])).toThrow();
+    expect(() =>
+      statLeaders(goals, summaries, {
+        youth: false,
+        viewerCanSeePrivate: true,
+        limit: -1,
+      }),
+    ).toThrow();
+  });
 });

@@ -239,7 +239,19 @@ export function rankTimed(
   entries.forEach((entry) => {
     nonnegativeInteger(entry.value, 'time in milliseconds');
   });
-  return rankEntries(entries, true, format.placePoints);
+  if (
+    entries.some((entry) => Boolean(entry.relay) !== Boolean(entries[0]?.relay))
+  )
+    throw new RangeError(
+      'Relay and individual results require separate events',
+    );
+  return rankEntries(
+    entries,
+    true,
+    entries[0]?.relay
+      ? (format.relayPlacePoints ?? format.placePoints)
+      : format.placePoints,
+  );
 }
 
 export function rankMeasured(
@@ -283,6 +295,7 @@ export function judgedTotal(
   )
     throw new RangeError('Judge panel is incomplete or duplicated');
   let total = 0;
+  let difficulty: number | undefined;
   for (const component of format.panel.components) {
     const scores = sheets.map((sheet) => sheet.components[component.key]);
     if (
@@ -296,6 +309,14 @@ export function judgedTotal(
     )
       throw new RangeError(`Invalid score for ${component.key}`);
     const values = scores as number[];
+    if (component.key === 'dd') {
+      if (new Set(values).size !== 1)
+        throw new RangeError(
+          'Degree of difficulty must be identical across judges',
+        );
+      difficulty = values[0];
+      continue;
+    }
     const retained =
       format.panel.dropHighLow && values.length >= 4
         ? [...values].sort((a, b) => a - b).slice(1, -1)
@@ -303,7 +324,7 @@ export function judgedTotal(
     const sum = retained.reduce((acc, score) => acc + score, 0);
     total += format.panel.combine === 'average' ? sum / retained.length : sum;
   }
-  return total;
+  return difficulty === undefined ? total : total * difficulty;
 }
 
 export function rankJudged(
@@ -357,4 +378,49 @@ export function rollUpTeamPoints(
       );
   }
   return totals;
+}
+
+function scoreTeamBestN(
+  placements: readonly Placement[],
+  count: number,
+  metric: 'place' | 'value',
+): Map<string, number> {
+  if (!Number.isSafeInteger(count) || count < 1)
+    throw new RangeError('Team scoring count must be positive');
+  const candidates = new Map<string, number[]>();
+  for (const placement of placements) {
+    if (!placement.teamId || placement.status !== 'ok') continue;
+    const value = placement[metric];
+    if (value === null || !Number.isFinite(value) || value < 0)
+      throw new RangeError('Team result must be non-negative and finite');
+    const team = candidates.get(placement.teamId) ?? [];
+    team.push(value);
+    candidates.set(placement.teamId, team);
+  }
+  const totals = new Map<string, number>();
+  for (const [teamId, values] of candidates) {
+    if (values.length < count) continue;
+    totals.set(
+      teamId,
+      values
+        .sort((a, b) => a - b)
+        .slice(0, count)
+        .reduce((sum, value) => sum + value, 0),
+    );
+  }
+  return totals;
+}
+
+export function scoreCrossCountryTeams(
+  placements: readonly Placement[],
+  count = 5,
+): Map<string, number> {
+  return scoreTeamBestN(placements, count, 'place');
+}
+
+export function scoreGolfTeams(
+  placements: readonly Placement[],
+  count: number,
+): Map<string, number> {
+  return scoreTeamBestN(placements, count, 'value');
 }

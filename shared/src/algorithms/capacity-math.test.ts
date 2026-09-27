@@ -62,4 +62,18 @@ describe('capacity math', () => {
       ),
     ).toBe(false);
   });
+
+  it('withdraws confirmed capacity and rejects duplicate counters or reversed activity', () => {
+    expect(
+      changeCapacity(counters, 'withdraw').every(
+        (counter) => counter.confirmed === 0,
+      ),
+    ).toBe(true);
+    const first = counters[0];
+    if (!first) throw new Error('Test counter missing');
+    expect(() => changeCapacity([...counters, first], 'hold')).toThrow();
+    expect(() =>
+      holdExpiresAt('2026-09-01T10:00:00Z', '2026-09-01T09:59:00Z'),
+    ).toThrow();
+  });
 });
