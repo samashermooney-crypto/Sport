@@ -686,3 +686,27 @@
 - **Decision:** Return a suspension-blocked result from the transaction callback, commit the audit entry, then raise the scheduling conflict after `withOrg` completes.
 - **Why:** A denied lineup must remain denied while preserving the required safety audit trail.
 - **Consequences / follow-ups:** The attendance integration test verifies the athlete is not added and the audit record persists. Automatic result-to-discipline record creation remains dependent on Track F's missing service method.
+
+### DEC-097 — Attribute meet team points through active program rosters
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 9 individual/hybrid sport results
+- **Context:** `contest_participants` accepts exactly one of person, team or external entrant, so a swimmer entered as a person had no team attached and place points could never roll up to team scores.
+- **Decision:** When computing ranked results and contest team scores, resolve each person entrant's team from the earliest active/injured/suspended `roster_entries` row on a `team_seasons` row in the event's program (and division when the event has one).
+- **Why:** Team scoring is a required meet outcome and roster membership is the authoritative athlete-to-team link for the season.
+- **Consequences / follow-ups:** `listContestResults` returns per-contest `teamScores`; athletes rostered on multiple teams in one program/division attach to the earliest roster entry.
+
+### DEC-098 — Align contest stage values to the data-model enum
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 9 contests and tournaments
+- **Context:** The contest API and `createContest` accepted `tournament` as a stage while `02-DATA-MODEL.md` and the `contests_stage_check` constraint allow only `regular|pool|playoff|championship|consolation|friendly|exhibition`; seeded bracket matches therefore failed to persist.
+- **Decision:** Constrain the service input and route enum to the data-model values and persist seeded non-pool bracket matches as `playoff`.
+- **Why:** The specification enum and database constraint are authoritative; inserting an invalid stage broke every bracket-linked contest creation.
+- **Consequences / follow-ups:** Track B's shared `contestStageSchema` still exposes `tournament` and omits `championship`/`consolation`/`exhibition`; standings `include.stages` should be aligned to the data-model enum by its owner.
+
+### DEC-099 — Declined and no-show assignments release the crew position
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 9 officials assignment
+- **Context:** The position-occupancy check and `official_assignments_active_position_idx` treated every non-canceled assignment as occupying the slot, so a declined offer permanently blocked reassignment.
+- **Decision:** Only `offered`, `accepted` and `confirmed` assignments occupy a contest position; migration 3017 narrows the partial unique index to those live statuses.
+- **Why:** The Phase 9 acceptance path requires declining an offer and reassigning a replacement to the same position.
+- **Consequences / follow-ups:** Declined and no-show assignments remain as history rows but no longer reserve the position.

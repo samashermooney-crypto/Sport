@@ -136,8 +136,10 @@ export function createContestsRouter(
             'regular',
             'pool',
             'playoff',
-            'tournament',
+            'championship',
+            'consolation',
             'friendly',
+            'exhibition',
           ]),
           countsForStandings: z.boolean(),
         })

@@ -146,7 +146,14 @@ export async function createContest(
   eventId: string,
   input: {
     formatIndex: number;
-    stage: 'regular' | 'pool' | 'playoff' | 'tournament' | 'friendly';
+    stage:
+      | 'regular'
+      | 'pool'
+      | 'playoff'
+      | 'championship'
+      | 'consolation'
+      | 'friendly'
+      | 'exhibition';
     countsForStandings: boolean;
   },
 ) {
@@ -288,11 +295,7 @@ export async function createContest(
         profile_version: sportProfile.version,
         format: format.format,
         format_config: format as unknown as import('../../db/types').Json,
-        stage: scheduledMatch
-          ? poolMatch
-            ? 'pool'
-            : 'tournament'
-          : input.stage,
+        stage: scheduledMatch ? (poolMatch ? 'pool' : 'playoff') : input.stage,
         counts_for_standings: scheduledMatch
           ? poolMatch
           : input.countsForStandings,
@@ -506,11 +509,64 @@ type ComputedRow = {
   detail: Record<string, unknown>;
 };
 
+async function teamAttributionByPerson(
+  trx: OrgTransaction,
+  orgId: string,
+  participants: readonly ContestParticipant[],
+  programId: string | null,
+  divisionId: string | null,
+): Promise<Map<string, string>> {
+  const personIds = participants
+    .map((participant) => participant.person_id)
+    .filter((id): id is string => Boolean(id));
+  if (!personIds.length || !programId) return new Map();
+  const rows = await trx
+    .selectFrom('roster_entries')
+    .innerJoin('team_seasons', (join) =>
+      join
+        .onRef('team_seasons.org_id', '=', 'roster_entries.org_id')
+        .onRef('team_seasons.id', '=', 'roster_entries.team_season_id'),
+    )
+    .select([
+      'roster_entries.person_id',
+      'roster_entries.team_season_id',
+      'roster_entries.created_at',
+      'team_seasons.division_id',
+    ])
+    .where('roster_entries.org_id', '=', orgId)
+    .where('roster_entries.person_id', 'in', personIds)
+    .where('roster_entries.status', 'in', ['active', 'injured', 'suspended'])
+    .where('team_seasons.program_id', '=', programId)
+    .orderBy('roster_entries.created_at')
+    .execute();
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    if (!row.person_id || map.has(row.person_id)) continue;
+    if (divisionId && row.division_id !== divisionId) continue;
+    map.set(row.person_id, row.team_season_id);
+  }
+  return map;
+}
+
+function participantTeamId(
+  participant: ContestParticipant | undefined,
+  teamsByPerson: ReadonlyMap<string, string>,
+): string | undefined {
+  if (!participant) return undefined;
+  return (
+    participant.team_season_id ??
+    (participant.person_id
+      ? teamsByPerson.get(participant.person_id)
+      : undefined)
+  );
+}
+
 function computeResultRows(
   format: ContestFormatConfig,
   participants: readonly ContestParticipant[],
   input: ResultInput,
   bracket: boolean,
+  teamsByPerson: ReadonlyMap<string, string> = new Map(),
 ): ComputedRow[] {
   const bySide = new Map(participants.map((item) => [item.side, item]));
   const homeParticipant = bySide.get('home');
@@ -658,9 +714,9 @@ function computeResultRows(
     const ranked: RankedEntry[] = input.entries.map((entry) => ({
       id: entry.participantId,
       value: numeric(entry.value),
-      ...(known.get(entry.participantId)?.team_season_id
-        ? { teamId: known.get(entry.participantId)?.team_season_id as string }
-        : {}),
+      ...((id) => (id === undefined ? {} : { teamId: id }))(
+        participantTeamId(known.get(entry.participantId), teamsByPerson),
+      ),
       ...(entry.status ? { status: entry.status } : {}),
       ...(entry.relay === undefined ? {} : { relay: entry.relay }),
     }));
@@ -671,9 +727,9 @@ function computeResultRows(
       input.entries.map((entry) => ({
         id: entry.participantId,
         attempts: entry.attempts ?? [],
-        ...(known.get(entry.participantId)?.team_season_id
-          ? { teamId: known.get(entry.participantId)?.team_season_id as string }
-          : {}),
+        ...((id) => (id === undefined ? {} : { teamId: id }))(
+          participantTeamId(known.get(entry.participantId), teamsByPerson),
+        ),
         ...(entry.status ? { status: entry.status } : {}),
       })),
     );
@@ -683,9 +739,9 @@ function computeResultRows(
       input.entries.map((entry) => ({
         id: entry.participantId,
         sheets: entry.sheets ?? [],
-        ...(known.get(entry.participantId)?.team_season_id
-          ? { teamId: known.get(entry.participantId)?.team_season_id as string }
-          : {}),
+        ...((id) => (id === undefined ? {} : { teamId: id }))(
+          participantTeamId(known.get(entry.participantId), teamsByPerson),
+        ),
       })),
     );
   } else {
@@ -693,9 +749,9 @@ function computeResultRows(
       input.entries.map((entry) => ({
         id: entry.participantId,
         place: entry.place ?? 0,
-        ...(known.get(entry.participantId)?.team_season_id
-          ? { teamId: known.get(entry.participantId)?.team_season_id as string }
-          : {}),
+        ...((id) => (id === undefined ? {} : { teamId: id }))(
+          participantTeamId(known.get(entry.participantId), teamsByPerson),
+        ),
       })),
       format.placePoints,
     );
@@ -928,6 +984,15 @@ export async function submitContestResult(
       results: bundle.results,
     };
     const bracket = Boolean(bundle.contest.bracket_match_id);
+    const teamsByPerson = input.result.abandoned
+      ? new Map<string, string>()
+      : await teamAttributionByPerson(
+          trx,
+          context.orgId,
+          bundle.participants,
+          bundle.event.program_id,
+          bundle.event.division_id,
+        );
     const computed = input.result.abandoned
       ? []
       : computeResultRows(
@@ -935,6 +1000,7 @@ export async function submitContestResult(
           bundle.participants,
           input.result,
           bracket,
+          teamsByPerson,
         );
     await replaceContestResults(trx, context.orgId, computed);
     await updateStatLines(
@@ -1438,7 +1504,31 @@ export async function listContestResults(context: OrgContext, eventId: string) {
           'FORBIDDEN',
         );
     }
-    return contestBundle(trx, context.orgId, contest.id);
+    const bundle = await contestBundle(trx, context.orgId, contest.id);
+    const teamsByPerson = await teamAttributionByPerson(
+      trx,
+      context.orgId,
+      bundle.participants,
+      bundle.event.program_id,
+      bundle.event.division_id,
+    );
+    const teamScores = new Map<string, number>();
+    for (const row of bundle.results) {
+      const teamId =
+        row.team_season_id ??
+        (row.person_id ? teamsByPerson.get(row.person_id) : undefined);
+      if (!teamId) continue;
+      const awarded: unknown = row.points_awarded;
+      const points = typeof awarded === 'number' ? awarded : Number(awarded);
+      teamScores.set(teamId, (teamScores.get(teamId) ?? 0) + points);
+    }
+    return {
+      ...bundle,
+      teamScores: [...teamScores.entries()].map(([teamSeasonId, points]) => ({
+        teamSeasonId,
+        points,
+      })),
+    };
   });
 }
 
