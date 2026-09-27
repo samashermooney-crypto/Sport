@@ -423,7 +423,9 @@ async function inviteClub(
   await page.getByLabel('Name, organization slug, or owner email').fill(slug);
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('button', { name: 'Select', exact: true }).click();
-  const proposedAgreement = page.getByRole('group').first();
+  const proposedAgreement = page.getByRole('group', {
+    name: 'Proposed data-sharing agreement',
+  });
   await proposedAgreement
     .getByRole('checkbox', { name: 'Submitted rosters' })
     .check();

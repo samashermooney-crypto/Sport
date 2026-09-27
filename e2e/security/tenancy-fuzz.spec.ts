@@ -204,6 +204,10 @@ test('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, and DELE
         pathResource === 'file'
           ? { ...headers, 'X-Athlentry-Org': ownOrganization.orgId }
           : headers;
+      if (method !== 'get')
+        Object.assign(operationHeaders, {
+          'Idempotency-Key': randomUUID(),
+        });
       const response =
         method === 'get'
           ? await request.get(url, { headers: operationHeaders })

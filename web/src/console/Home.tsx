@@ -1,9 +1,11 @@
+import { federationRelationshipSchema } from '@shared/schemas/federation';
 import {
   myOrganizationsSchema,
   orgWorkspaceSchema,
 } from '@shared/schemas/orgs';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router';
+import { z } from 'zod';
 
 import { apiGet } from '../api/client';
 import { AuthFrame, AuthLink, ErrorBox } from '../ui/auth';
@@ -24,6 +26,16 @@ export function ConsoleHome(): React.JSX.Element {
   const organizations = useQuery({
     queryKey: ['orgs', 'mine'],
     queryFn: () => apiGet('/orgs/mine', myOrganizationsSchema),
+  });
+  const federation = useQuery({
+    queryKey: ['federation', orgId, 'relationships'],
+    queryFn: () =>
+      apiGet(
+        `/federation/organizations/${String(orgId)}/relationships`,
+        z.strictObject({ items: z.array(federationRelationshipSchema) }),
+      ),
+    enabled: Boolean(orgId),
+    retry: false,
   });
   if (workspace.isPending) {
     return (
@@ -100,7 +112,17 @@ export function ConsoleHome(): React.JSX.Element {
           },
         ]
       : []),
-    ...(workspace.data.canAudit && manageActions[6] ? [manageActions[6]] : []),
+    ...(workspace.data.canAudit && manageActions[7] ? [manageActions[7]] : []),
+    ...(federation.isSuccess
+      ? [
+          {
+            label: 'Open federation',
+            description:
+              'View member relationships, competition, shared schedules and officials.',
+            to: `/console/federation/${orgId}`,
+          },
+        ]
+      : []),
   ];
   const navigation = [
     {

@@ -28,6 +28,8 @@ beforeEach(() => {
       return Promise.resolve([
         { id: orgId, name: 'Northstar Club', slug: 'northstar-club' },
       ] as never);
+    if (path === `/federation/organizations/${orgId}/relationships`)
+      return Promise.resolve({ items: [] } as never);
     throw new Error(`Unexpected request: ${path}`);
   });
 });
@@ -55,6 +57,15 @@ describe('organization console home', () => {
     expect(scheduleLink.getAttribute('href')).toBe(
       `/console/orgs/${orgId}/schedule`,
     );
+    const federationLink = await screen.findByRole('link', {
+      name: 'Open federation',
+    });
+    expect(federationLink.getAttribute('href')).toBe(
+      `/console/federation/${orgId}`,
+    );
+    expect(
+      screen.getAllByRole('link', { name: 'Open safety center' }),
+    ).toHaveLength(1);
     client.clear();
   });
 });
