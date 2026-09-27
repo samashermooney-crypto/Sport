@@ -148,6 +148,11 @@ export const transferBodySchema = z.strictObject({
   note: z.string().trim().max(400).optional(),
 });
 
+export const registrationTransferResponseSchema = z.strictObject({
+  toRegistrationId: z.uuid(),
+  differenceCents: z.number().int(),
+});
+
 export const staffRegisterBodySchema = z.strictObject({
   personId: z.uuid(),
   householdId: z.uuid(),
@@ -2263,7 +2268,7 @@ export class PostgresRegistrationLifecycle {
       'carry_payment' | 'refund_difference' | 'charge_difference' | 'no_change';
     note?: string;
     idempotencyKey: string;
-  }): Promise<{ toRegistrationId: string; differenceCents: number }> {
+  }): Promise<z.output<typeof registrationTransferResponseSchema>> {
     return this.withOrg(this.context, async (trx) => {
       const key = z.uuid().parse(input.idempotencyKey);
       const requestHash = createHash('sha256')
@@ -2292,16 +2297,6 @@ export class PostgresRegistrationLifecycle {
           source.division_id,
         ),
       );
-      if (
-        !['confirmed', 'pending_payment', 'pending_approval'].includes(
-          source.status,
-        )
-      )
-        throw new RegistrationCheckoutError(
-          409,
-          'NOT_TRANSFERABLE',
-          `A ${source.status} registration cannot be transferred`,
-        );
       const prior = await trx
         .selectFrom('transfers')
         .select([
@@ -2325,7 +2320,7 @@ export class PostgresRegistrationLifecycle {
           );
         const priorResult = z
           .looseObject({
-            differenceCents: z.number().int().nonnegative().optional(),
+            differenceCents: z.number().int().optional(),
           })
           .parse(prior.result);
         return {
@@ -2333,6 +2328,16 @@ export class PostgresRegistrationLifecycle {
           differenceCents: priorResult.differenceCents ?? 0,
         };
       }
+      if (
+        !['confirmed', 'pending_payment', 'pending_approval'].includes(
+          source.status,
+        )
+      )
+        throw new RegistrationCheckoutError(
+          409,
+          'NOT_TRANSFERABLE',
+          `A ${source.status} registration cannot be transferred`,
+        );
       const destination = await trx
         .selectFrom('registration_offerings')
         .select([
@@ -2409,6 +2414,29 @@ export class PostgresRegistrationLifecycle {
         : null;
       const difference =
         destination.price_cents - (sourceLine?.amount_cents ?? 0);
+      const sourceInvoice = sourceLine
+        ? await trx
+            .selectFrom('invoices')
+            .select(['account_id', 'refund_terms'])
+            .where('org_id', '=', input.orgId)
+            .where('id', '=', sourceLine.invoice_id)
+            .executeTakeFirst()
+        : null;
+      if (input.financialTreatment === 'refund_difference')
+        throw new RegistrationCheckoutError(
+          409,
+          'NOT_TRANSFERABLE',
+          'The transfer was not applied because its refund must first be recorded through finance',
+        );
+      if (
+        input.financialTreatment === 'charge_difference' &&
+        (difference <= 0 || !sourceLine || !sourceInvoice)
+      )
+        throw new RegistrationCheckoutError(
+          409,
+          'NOT_TRANSFERABLE',
+          'A charge difference requires a higher-priced destination and an issued source invoice',
+        );
       const toId = newId();
       const sameStatus =
         source.status === 'pending_approval' && !destination.requires_approval
@@ -2527,24 +2555,19 @@ export class PostgresRegistrationLifecycle {
       if (
         input.financialTreatment === 'charge_difference' &&
         difference > 0 &&
-        sourceLine
+        sourceLine &&
+        sourceInvoice
       ) {
         invoiceId = newId();
         const number = await allocateOrgNumber(trx, input.orgId, 'invoice');
-        const terms = await trx
-          .selectFrom('invoices')
-          .select('refund_terms')
-          .where('org_id', '=', input.orgId)
-          .where('id', '=', sourceLine.invoice_id)
-          .executeTakeFirst();
         await sql`
           INSERT INTO invoices
             (id, org_id, number, account_id, household_id, status, issued_at,
              subtotal_cents, total_cents, source, refund_terms, memo)
           VALUES (${invoiceId}::uuid, ${input.orgId}::uuid, ${number},
-            ${this.context.actor.accountId}::uuid, ${source.household_id}::uuid,
+            ${sourceInvoice.account_id}::uuid, ${source.household_id}::uuid,
             'open', now(), ${difference}, ${difference}, 'staff',
-            ${terms?.refund_terms ? JSON.stringify(terms.refund_terms) : null}::jsonb,
+            ${sourceInvoice.refund_terms ? JSON.stringify(sourceInvoice.refund_terms) : null}::jsonb,
             ${'Registration transfer difference'})
         `.execute(trx);
         await trx

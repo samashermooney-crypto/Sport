@@ -23,6 +23,7 @@ import {
   PostgresRegistrationLifecycle,
   registrationCancelResponseSchema,
   registrationRefundPreviewSchema,
+  registrationTransferResponseSchema,
   staffRegistrationListSchema,
   transferBodySchema,
   waitlistEntrySchema,
@@ -800,14 +801,7 @@ export function createRegistrationRouter(
           ...(body.note ? { note: body.note } : {}),
           idempotencyKey,
         });
-        response.json(
-          z
-            .strictObject({
-              toRegistrationId: z.uuid(),
-              differenceCents: z.number().int().nonnegative(),
-            })
-            .parse(result),
-        );
+        response.json(registrationTransferResponseSchema.parse(result));
       } catch (error) {
         sendError(response, error);
       }

@@ -13,6 +13,7 @@ import {
   myRegistrationListSchema,
   registrationCancelResponseSchema,
   registrationRefundPreviewSchema,
+  registrationTransferResponseSchema,
   staffRegistrationListSchema,
   transferBodySchema,
   waitlistEntrySchema,
@@ -206,10 +207,7 @@ export const moduleDefinition = {
       path: '/api/v1/registration/orgs/{orgId}/registrations/{registrationId}/transfer',
       summary: 'Transfer a registration with explicit financial treatment',
       body: transferBodySchema,
-      response: z.strictObject({
-        toRegistrationId: z.uuid(),
-        differenceCents: z.number().int().nonnegative(),
-      }),
+      response: registrationTransferResponseSchema,
     },
     {
       method: 'get',
