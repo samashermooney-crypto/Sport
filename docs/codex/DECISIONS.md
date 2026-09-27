@@ -431,3 +431,11 @@
 - **Decision:** Serve the current English or Spanish draft from `/api/v1/auth/legal?locale=`, using English for unknown values. Assign the Spanish draft its own version and save its full text with the selected locale during sign-up. Both drafts remain clearly labeled for legal review.
 - **Why:** The consent audit trail must match the language and wording the person saw before accepting.
 - **Consequences / follow-ups:** A qualified legal reviewer must replace and approve both language versions before launch; publish future revisions as distinct immutable versions.
+
+### DEC-057 — Save account language separately from the browser preference
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 internationalization and Phase 10 SMS consent
+- **Context:** The browser's local language choice could differ from the account locale used to choose an auditable SMS consent disclosure.
+- **Decision:** Return the saved `en`/`es` account locale from `/api/v1/auth/me` and let an authenticated account update it through a versioned API route. The account page follows the saved locale, and a successful language change updates both the account and browser preference.
+- **Why:** The displayed account language and the server's SMS consent version need one durable source of truth across devices.
+- **Consequences / follow-ups:** Authenticated portal and platform entry points should load the account locale before rendering consent-bearing content; the public unauthenticated experience continues to use the browser preference.

@@ -1,4 +1,6 @@
 import {
+  accountLocaleBodySchema,
+  accountLocaleResponseSchema,
   authLegalResponseSchema,
   authCaptchaConfigResponseSchema,
   authPushConfigResponseSchema,
@@ -247,7 +249,7 @@ export function createAuthRouter(
     const [account, factor] = await Promise.all([
       dependencies.database
         .selectFrom('accounts')
-        .select(['id', 'email', 'first_name', 'last_name'])
+        .select(['id', 'email', 'first_name', 'last_name', 'locale'])
         .where('id', '=', session.accountId)
         .executeTakeFirstOrThrow(),
       dependencies.database
@@ -263,11 +265,22 @@ export function createAuthRouter(
         email: account.email,
         firstName: account.first_name,
         lastName: account.last_name,
+        locale: account.locale === 'es' ? 'es' : 'en',
         mfaEnabled: Boolean(factor),
         sessionId: session.id,
         client: session.client,
       }),
     );
+  });
+  router.patch('/locale', async (request, response) => {
+    const session = await requireSession(dependencies, request);
+    const { locale } = accountLocaleBodySchema.parse(request.body as unknown);
+    await dependencies.database
+      .updateTable('accounts')
+      .set({ locale })
+      .where('id', '=', session.accountId)
+      .executeTakeFirstOrThrow();
+    response.json(accountLocaleResponseSchema.parse({ locale }));
   });
   router.post('/sign-up', async (request, response) => {
     const body: unknown = request.body;
