@@ -17,6 +17,7 @@ Ready for integration: local `96230da..4572f61` — database-owned service fee s
 Ready for integration: local `a5253d4..d16ac2d` — pass-through net acceptance and fenced dispute evidence submission foundation; queue work continues.
 Ready for integration: local `f56be6b..254448e` — immutable per-payment invoice-line allocations and multi-payment refund bounds; queue work continues.
 Ready for integration: local `1a2738c..0897daf` — database-backed sibling pricing for one household with confirmed registration history; queue work continues.
+Ready for integration: local `4e1b9ef..5ba8c41` — scoped discount-code reservations, redemption caps, stacking and exact invoice-link redemption; queue work continues.
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
@@ -37,6 +38,7 @@ Requests to other tracks: A: capture proof that refund terms were shown and acce
 Requests to other tracks: A: regenerate `server/src/db/types.ts` after E migrations 1023–1026 merge; 1024–1026 add immutable payment-line shares with a same-invoice composite FK for partial-payment refunds (2026-09-27).
 Requests to other tracks: A: use strict sibling rule `config` keys `second_bps` and `third_plus_bps` when building the staff discount editor; E freezes the active rule and historical registration prices (2026-09-27).
 Requests to other tracks: B: extend the shared sibling pricing input if mixed-household carts or offering-scoped sibling rules are required; E currently fails those cases closed because the shared function takes one checkout-wide sibling rule (2026-09-27).
+Requests to other tracks: A: regenerate Kysely types after migration 1027 and use strict `discount_codes.applies_to` keys `programIds`, `offeringIds`, `productVariantIds` in the staff editor; E enforces active windows and global/account caps at checkout freeze (2026-09-27).
 Blocked on: None; schema spine and test factories are on `rebuild/trunk`.
 Luna finance: Build checkout flow by calling `CheckoutPricingService` with `PostgresCheckoutPricingRepository`, then `PostgresInvoiceRepository.issue`, then `CheckoutPaymentService` with `PostgresFrozenChargeReader`/attempt/record stores; never calculate or trust client-provided prices or create a Stripe intent before a frozen invoice reconciles.
 Luna finance: Use `shared/src/algorithms/{pricing,fees,installments,invoice-state,dunning-schedule}.ts` and `shared/src/policies/refund-policy.ts`; keep cents as safe integers, use only `withOrg` for tenant rows, and make every external money call pass a durable idempotency claim before Stripe.
@@ -50,13 +52,14 @@ Gateway review: test-only keys and events enforced; raw webhook bytes verified; 
 Gateway review: no live keys, no real payment or email sent; test-mode smoke script needs operator test credentials and onboarding.
 Gateway gate: 83 tests, typecheck, lint, build, registry/OpenAPI/codegen freshness green; no gateway screens for Playwright.
 Additional gate: 267 tests passed/1 skipped against isolated Postgres, typecheck, lint and build green; no affected mounted Playwright screens or generated inputs.
-Current gate: 567 tests passed/1 skipped with isolated Postgres and stripe-mock; typecheck, lint, build, and Playwright 26 passed/4 skipped on Chromium/WebKit mobile. A-owned registry/OpenAPI/codegen regeneration remains for integration.
+Current gate: 569 tests passed/1 skipped with isolated Postgres and stripe-mock; typecheck, lint, build, and Playwright 26 passed/4 skipped on Chromium/WebKit mobile. A-owned registry/OpenAPI/codegen regeneration remains for integration.
 Current review: Refund approval hashes bind requester, proposal, destination and key; checkout attempts serialize different keys before Stripe, and payout exports require exact reconciliation.
 Current review: Tenant finance data uses `withOrg`; account-wide payer methods use the authenticated account; no live keys, real charges or external messages were used.
 Current review: Net line shares include parent-linked discounts and aid, use Track B's integer `allocate`, and reconcile to invoice cents before a payment is recorded.
 Current review: Multi-payment refunds use only immutable funded shares; a payment lock, Stripe-attempt fence and fresh policy proposal prevent duplicate or stale credit refunds.
 Current review: RLS and composite invoice-line foreign keys guard cross-tenant and cross-invoice allocation; legacy unallocated partial payments fail closed.
 Current review: Sibling ranking uses only the same household and season, locks rule and registration facts during the quote, and rejects missing historical invoice prices instead of repricing from today's offering.
+Current review: Code row locks serialize final-use reservations and invoice redemptions; one code or multiple stackable codes are priced by Track B, caps count live holds plus redemptions, and exact replay makes no second redemption.
 Current review: Frozen charge terms must be persisted with the checkout snapshot before the payment route is mounted; multi-payment refund allocation and dispute evidence remain in the queue.
 Additional review: `20 §3–§5` fee, installment and state rules checked; every external Stripe money call now has a durable claim before invocation.
 Additional review: webhook handlers fetch latest Stripe state and require org-scoped id/amount matching; repository persistence and real concurrency gates await spine.

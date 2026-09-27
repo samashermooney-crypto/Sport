@@ -196,9 +196,9 @@
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 1 files integration
 - **Context:** The file adapter initially allowed nullable organization ids, while the global RLS invariant requires tenant-owned file records. The file service leaves authorization to the application composition root.
-- **Decision:** Require `files.org_id` for every record. Local file routes require an authenticated active organization member and the request's organization header. Uploads require an active org-level owner, admin or registrar role with completed MFA; restricted downloads require owner or admin, sensitive downloads permit registrar, and internal/public downloads permit active members. Mutating routes verify origin and request header.
+- **Decision:** Require `files.org_id` for every record. Local file routes require an authenticated actor in the organization and the request's organization header. General uploads require an active org-level owner, admin or registrar role with completed MFA. A verified active guardian link may upload restricted evidence only for its represented person and an approved credential or return-to-play clearance purpose. Restricted downloads require an active owner or compliance role with completed MFA and an audited content read; sensitive downloads permit registrar, and internal/public downloads permit active members. Mutating routes verify origin and request header.
 - **Why:** Privacy and child safety require an explicit tenant and narrow authorization before upload or download. Public website assets are published through a separate later flow.
-- **Consequences / follow-ups:** Phase 1 file acceptance must verify these role boundaries over HTTP. Later public asset publishing must copy approved assets into a separate public delivery path without exposing private file URLs.
+- **Consequences / follow-ups:** Phase 1 and Phase 7 file acceptance must verify these role boundaries over HTTP, including guardian ownership and 404 denial for unauthorized Restricted reads. Later public asset publishing must copy approved assets into a separate public delivery path without exposing private file URLs.
 
 ### DEC-024 — Separate campaign mail sender
 - **Date:** 2026-09-26
@@ -408,10 +408,65 @@
 - **Why:** Both languages communicate the same privacy-preserving outcome without leaking whether an address has an account.
 - **Consequences / follow-ups:** Localize remaining auth screens and server-provided legal text before Task 16 acceptance.
 
-### DEC-054 — Preview draft audiences without persisting campaign state
+### DEC-054 — Preview draft campaign audiences without persisting campaign state
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 10 campaign composer
-- **Context:** The composer needs a live recipient count and preview while users change selectors, categories and channels, before saving a campaign.
-- **Decision:** Provide a read-only draft audience preview endpoint that calls the same recipient resolver and eligibility calculation as a saved campaign preview. Require the same campaign role and owner/admin restriction for emergency audiences; debounce composer requests and skip preview until a selector and channel are present.
-- **Why:** Staff can validate recipient routing immediately without creating a persisted campaign for every draft edit, and preview counts stay aligned with send-time policy.
-- **Consequences / follow-ups:** Both saved and unsaved preview paths must remain covered by tenant and permission integration tests.
+- **Context:** The composer needs a live recipient count while staff change selectors, categories and channels before saving a campaign.
+- **Decision:** Use a read-only draft audience preview endpoint backed by the same recipient resolver and channel eligibility calculation as saved campaign preview. Require campaign permissions and owner/admin authorization for emergency audiences; debounce composer requests and skip preview until a selector and channel are present.
+- **Why:** Staff can check routing while editing without persisting every draft and preview counts remain aligned with send-time policy.
+- **Consequences / follow-ups:** Cover saved and unsaved preview paths with tenant and permission integration tests.
+
+### DEC-055 — Generate weekly installments on the checkout weekday
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 4 installments
+- **Context:** `02 §L` lists weekly plans, while `20 §3` specifies dates only for fixed-date and monthly schedules.
+- **Decision:** A weekly template takes a positive installment count. The first charge is seven calendar days after the organization-local checkout date, with later charges at seven-day intervals on the same weekday. Deposit, cent allocation and minimum-charge reduction follow the existing installment rules.
+- **Why:** This gives `weekly` a deterministic schedule without inventing another day-of-week or interval setting.
+- **Consequences / follow-ups:** Finance template validation and quoting should accept `{ kind: 'weekly', count }` and use the shared generator; a later custom cadence needs an explicit schema and decision.
+
+### DEC-056 — Store the exact localized consent draft shown at signup
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 identity and internationalization
+- **Context:** Sign-up offered a Spanish interface but served and saved only the English legal drafts. The consent record must retain the exact document displayed to the account holder.
+- **Decision:** Serve the current English or Spanish draft from `/api/v1/auth/legal?locale=`, using English for unknown values. Assign the Spanish draft its own version and save its full text with the selected locale during sign-up. Both drafts remain clearly labeled for legal review.
+- **Why:** The consent audit trail must match the language and wording the person saw before accepting.
+- **Consequences / follow-ups:** A qualified legal reviewer must replace and approve both language versions before launch; publish future revisions as distinct immutable versions.
+
+### DEC-057 — Save account language separately from the browser preference
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 internationalization and Phase 10 SMS consent
+- **Context:** The browser's local language choice could differ from the account locale used to choose an auditable SMS consent disclosure.
+- **Decision:** Return the saved `en`/`es` account locale from `/api/v1/auth/me` and let an authenticated account update it through a versioned API route. The account page follows the saved locale, and a successful language change updates both the account and browser preference.
+- **Why:** The displayed account language and the server's SMS consent version need one durable source of truth across devices.
+- **Consequences / follow-ups:** Authenticated portal and platform entry points should load the account locale before rendering consent-bearing content; the public unauthenticated experience continues to use the browser preference.
+### DEC-058 — Compare compliance dates as organization calendar dates
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 7 credential eligibility and expiry
+- **Context:** PostgreSQL `date` values are returned through the driver as JavaScript `Date` objects; comparing those instants against an organization-local calendar day can shift eligibility at timezone boundaries.
+- **Decision:** Convert stored dates to `YYYY-MM-DD` values and compare them as SQL `date` values for eligibility, overrides and expiry.
+- **Why:** Credential and FCRA deadlines are calendar dates, not UTC instants.
+- **Consequences / follow-ups:** Tests cover timezone-safe expiry, credential review and override boundaries.
+
+### DEC-059 — Accept linked guardian injury reports
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 7 injuries and return to play
+- **Context:** The family portal presents injury reporting for a linked athlete, while the Phase 7 text does not narrow reporting to staff.
+- **Decision:** Permit a verified self or guardian link to submit and read that person's injury record; encrypt the narrative, write Restricted-read audits, notify guardians, and automatically hold rosters for suspected concussion reports.
+- **Why:** Families need a direct safety reporting path and concussion holds must not wait for staff review.
+- **Consequences / follow-ups:** Staff still review return-to-play evidence before roster restoration; role authorization remains tenant-scoped.
+
+### DEC-060 — Associate restricted uploads with the represented person
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 7 credential evidence
+- **Context:** Restricted file IDs are opaque, but a same-organization file ID could otherwise be attached to another person's credential.
+- **Decision:** Credential evidence must be a completed restricted file whose owner type is `person_credential` and owner id is the credential subject. The Files module must authorize guardian uploads and compliance reviewer downloads with its own audited policy.
+- **Why:** Organization scope alone does not prevent one person's protected document from appearing on another person's safety record.
+- **Consequences / follow-ups:** Track C must extend the Files module's current owner/admin-only access without weakening its tenant, consent, or audit checks.
+
+### DEC-061 — Keep volunteer-paid background checks disabled without invoicing
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 7 FCRA configuration
+- **Context:** The settings contract includes a volunteer-paid fee option, but the finance invoice service is not yet available to Track F.
+- **Decision:** Reject enabling volunteer-paid mode until Track E exposes an invoice-backed flow; manual and configured Checkr checks remain available without collecting money.
+- **Why:** A background-check flow must not collect or promise a fee without an auditable invoice and reconciliation path.
+- **Consequences / follow-ups:** Track E can unblock the option by providing its documented invoice service; no live payment path is introduced here.

@@ -24,15 +24,17 @@ export interface EmailMessage {
 }
 
 export interface EmailSender {
-  send(message: EmailMessage): Promise<void>;
+  send(message: EmailMessage): Promise<{ providerId: string }>;
 }
 
 export class FakeEmailSender implements EmailSender {
   readonly messages: EmailMessage[] = [];
 
-  send(message: EmailMessage): Promise<void> {
+  send(message: EmailMessage): Promise<{ providerId: string }> {
     this.messages.push(message);
-    return Promise.resolve();
+    return Promise.resolve({
+      providerId: `fake-email-${String(this.messages.length)}`,
+    });
   }
 }
 
@@ -50,7 +52,7 @@ export function createMailpitEmailSender(
   });
   return {
     async send(message) {
-      await transport.sendMail({
+      const result = await transport.sendMail({
         from: 'Athlentry Preview <preview@athlentry.invalid>',
         ...message,
         attachments: message.attachments?.map((attachment) => ({
@@ -63,6 +65,7 @@ export function createMailpitEmailSender(
           cid: attachment.contentId,
         })),
       });
+      return { providerId: result.messageId };
     },
   };
 }
@@ -141,6 +144,17 @@ export function createResendEmailSender(options: {
         throw new Error(
           `Resend request failed with HTTP ${String(response.status)}`,
         );
+      const result: unknown = await response.json();
+      const providerId =
+        result &&
+        typeof result === 'object' &&
+        'id' in result &&
+        typeof result.id === 'string'
+          ? result.id
+          : undefined;
+      if (!providerId)
+        throw new Error('Resend response did not include a message ID');
+      return { providerId };
     },
   };
 }

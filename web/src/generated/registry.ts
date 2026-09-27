@@ -5,6 +5,8 @@ import { consoleNav } from '../console/nav';
 import { consoleRoutes } from '../console/routes';
 import { orgsNav } from '../orgs/nav';
 import { orgsRoutes } from '../orgs/routes';
+import { peopleNav } from '../people/nav';
+import { peopleRoutes } from '../people/routes';
 import { platformNav } from '../platform/nav';
 import { platformRoutes } from '../platform/routes';
 import { portalNav } from '../portal/nav';
@@ -16,6 +18,7 @@ export const webFeatures: readonly WebFeature[] = [
   { name: 'auth', routes: authRoutes, nav: authNav },
   { name: 'console', routes: consoleRoutes, nav: consoleNav },
   { name: 'orgs', routes: orgsRoutes, nav: orgsNav },
+  { name: 'people', routes: peopleRoutes, nav: peopleNav },
   { name: 'platform', routes: platformRoutes, nav: platformNav },
   { name: 'portal', routes: portalRoutes, nav: portalNav },
   { name: 'ui', routes: uiRoutes, nav: uiNav },

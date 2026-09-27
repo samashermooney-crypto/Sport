@@ -51,6 +51,45 @@ describe('invoice state', () => {
     ).toMatchObject({ paidNetCents: 500, balanceCents: 300 });
   });
 
+  it('keeps active disputes outside collectible balance and reopens lost disputes separately from refunds', () => {
+    expect(
+      deriveInvoiceState({
+        ...base,
+        succeededAllocationsCents: 1000,
+        disputedCents: 300,
+      }),
+    ).toMatchObject({
+      status: 'paid',
+      balanceCents: 0,
+      paidNetCents: 1000,
+      disputedCents: 300,
+      disputedLostCents: 0,
+    });
+    expect(
+      deriveInvoiceState({
+        ...base,
+        succeededAllocationsCents: 1000,
+        refundedToMethodCents: 100,
+        disputedLostCents: 200,
+        disputedCents: 300,
+      }),
+    ).toMatchObject({
+      balanceCents: 300,
+      paidNetCents: 700,
+      disputedCents: 300,
+      disputedLostCents: 200,
+    });
+    expect(() =>
+      deriveInvoiceState({
+        ...base,
+        succeededAllocationsCents: 1000,
+        refundedToMethodCents: 400,
+        disputedLostCents: 400,
+        disputedCents: 300,
+      }),
+    ).toThrow('Refunds and disputes exceed succeeded allocations');
+  });
+
   it('fails closed on over-refunds, overpayment and voiding with money applied', () => {
     expect(() =>
       deriveInvoiceState({

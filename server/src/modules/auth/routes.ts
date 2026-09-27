@@ -1,4 +1,6 @@
 import {
+  accountLocaleBodySchema,
+  accountLocaleResponseSchema,
   authLegalResponseSchema,
   authCaptchaConfigResponseSchema,
   authPushConfigResponseSchema,
@@ -47,7 +49,7 @@ import {
 import type { CredentialsDependencies } from './credentials';
 import { listDevices, registerDevice, revokeDevice } from './devices';
 import { AuthDomainError } from './domain-error';
-import { localLegalDocuments } from './legal';
+import { legalDocumentsForLocale } from './legal';
 import { RateLimitExceededError } from './rate-limits';
 import type { AuthRateLimits } from './rate-limits';
 import {
@@ -224,8 +226,11 @@ export function createAuthRouter(
     next();
   });
 
-  router.get('/legal', (_request, response) => {
-    response.json(authLegalResponseSchema.parse(localLegalDocuments));
+  router.get('/legal', (request, response) => {
+    const locale = request.query.locale === 'es' ? 'es' : 'en';
+    response.json(
+      authLegalResponseSchema.parse(legalDocumentsForLocale(locale)),
+    );
   });
   router.get('/captcha-config', (_request, response) => {
     response.json(
@@ -244,7 +249,7 @@ export function createAuthRouter(
     const [account, factor] = await Promise.all([
       dependencies.database
         .selectFrom('accounts')
-        .select(['id', 'email', 'first_name', 'last_name'])
+        .select(['id', 'email', 'first_name', 'last_name', 'locale'])
         .where('id', '=', session.accountId)
         .executeTakeFirstOrThrow(),
       dependencies.database
@@ -260,11 +265,22 @@ export function createAuthRouter(
         email: account.email,
         firstName: account.first_name,
         lastName: account.last_name,
+        locale: account.locale === 'es' ? 'es' : 'en',
         mfaEnabled: Boolean(factor),
         sessionId: session.id,
         client: session.client,
       }),
     );
+  });
+  router.patch('/locale', async (request, response) => {
+    const session = await requireSession(dependencies, request);
+    const { locale } = accountLocaleBodySchema.parse(request.body as unknown);
+    await dependencies.database
+      .updateTable('accounts')
+      .set({ locale })
+      .where('id', '=', session.accountId)
+      .executeTakeFirstOrThrow();
+    response.json(accountLocaleResponseSchema.parse({ locale }));
   });
   router.post('/sign-up', async (request, response) => {
     const body: unknown = request.body;

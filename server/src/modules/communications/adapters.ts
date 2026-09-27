@@ -1,5 +1,8 @@
 import { withOrg } from '../../db/withOrg';
-import { createResendEmailSender } from '../../integrations/email/sender';
+import {
+  FakeEmailSender,
+  createResendEmailSender,
+} from '../../integrations/email/sender';
 import type { EmailSender } from '../../integrations/email/sender';
 import {
   PreviewPushSender,
@@ -54,7 +57,7 @@ export function createCommunicationAdapters(
   const appUrl = input.appUrl ?? process.env.APP_URL ?? 'http://127.0.0.1:5173';
   if (process.env.DELIVERY_MODE !== 'live') {
     return {
-      email: input.email ?? { send: () => Promise.resolve() },
+      email: input.email ?? new FakeEmailSender(),
       sms: new PreviewSmsSender(),
       push: new PreviewPushSender(),
       appUrl,

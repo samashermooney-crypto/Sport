@@ -562,7 +562,7 @@ async function deliverOne(
         title: renderMergeFields(content.subject, mergeContext),
         children: ReactMarkup(`${html}${localizedFooter}${unsubscribeFooter}`),
       });
-      await dependencies.email.send({
+      const result = await dependencies.email.send({
         to: recipient.email,
         subject: renderMergeFields(content.subject, mergeContext),
         text: `${plain}\n\n${htmlToText(localizedFooter)}${unsubscribeUrl ? `\n${unsubscribeUrl}` : ''}`,
@@ -572,7 +572,7 @@ async function deliverOne(
         kind: 'campaign',
         idempotencyKey: `athlentry:${context.orgId}:${deliveryId}`,
       });
-      return { status: 'sent' as const, providerId: null };
+      return { status: 'sent' as const, providerId: result.providerId };
     }
     if (channel === 'sms') {
       const branding = await orgBranding(context, runWithOrg);
@@ -595,7 +595,7 @@ async function deliverOne(
         body,
         idempotencyKey: `athlentry:${context.orgId}:${deliveryId}`,
       });
-      return { status: 'sent' as const, providerId: result.providerId ?? null };
+      return { status: 'sent' as const, providerId: result.providerId };
     }
     if (channel === 'push') {
       const subscriptions = await subscriptionsForAccount(
@@ -622,6 +622,7 @@ async function deliverOne(
         tag: `campaign-${campaign.id}`,
       };
       let sent = false;
+      let providerId: string | null = null;
       for (const { subscription } of subscriptions) {
         const result = await sendPushAndCleanup(
           dependencies.push,
@@ -635,11 +636,14 @@ async function deliverOne(
             },
           },
         );
-        sent ||= result === 'sent';
+        if (result.status === 'sent') {
+          sent = true;
+          providerId ??= result.providerId ?? null;
+        }
       }
       return {
         status: sent ? ('sent' as const) : ('failed' as const),
-        providerId: null,
+        providerId,
       };
     }
     if (channel === 'in_app') {

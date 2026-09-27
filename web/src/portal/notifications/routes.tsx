@@ -1,12 +1,16 @@
 import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
+import { PortalShell } from '../PortalShell';
+
 import { NotificationCenter } from './NotificationCenter';
 
 function NotificationRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
   return orgId ? (
-    <NotificationCenter orgId={orgId} />
+    <PortalShell orgId={orgId}>
+      <NotificationCenter orgId={orgId} />
+    </PortalShell>
   ) : (
     <main>Organization not found.</main>
   );

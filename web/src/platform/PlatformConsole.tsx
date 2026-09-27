@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 
 import { platformApi } from './api';
+import { clearImpersonation, currentImpersonationId } from './impersonation';
 import './platform.css';
 
 type Role = 'super_admin' | 'support' | 'finance_ops';
@@ -107,7 +108,7 @@ export function ImpersonationBanner(): React.JSX.Element | null {
   useEffect(() => {
     let live = true;
     const refresh = () => {
-      const id = sessionStorage.getItem('athlentry.impersonation');
+      const id = currentImpersonationId();
       if (!id) {
         setCurrent(null);
         return;
@@ -119,7 +120,7 @@ export function ImpersonationBanner(): React.JSX.Element | null {
           if (live) setCurrent(result);
         })
         .catch(() => {
-          sessionStorage.removeItem('athlentry.impersonation');
+          clearImpersonation();
           if (live) setCurrent(null);
         });
     };
@@ -135,7 +136,7 @@ export function ImpersonationBanner(): React.JSX.Element | null {
     const remaining = new Date(current.expiresAt).getTime() - Date.now();
     const timer = window.setTimeout(
       () => {
-        sessionStorage.removeItem('athlentry.impersonation');
+        clearImpersonation();
         setCurrent(null);
       },
       Math.max(0, remaining),
@@ -163,7 +164,7 @@ export function ImpersonationBanner(): React.JSX.Element | null {
             method: 'DELETE',
           })
             .then(() => {
-              sessionStorage.removeItem('athlentry.impersonation');
+              clearImpersonation();
               setCurrent(null);
             })
             .catch((cause: unknown) => {

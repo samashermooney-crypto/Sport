@@ -1,6 +1,9 @@
 import { lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
+
+import { PortalShell } from '../PortalShell';
 
 const MessagesPortal = lazy(() =>
   import('./MessagesPortal').then(({ MessagesPortal: Component }) => ({
@@ -9,13 +12,20 @@ const MessagesPortal = lazy(() =>
 );
 
 function PortalMessagesRoute(): React.JSX.Element {
+  const { t } = useTranslation('portal');
   const { orgId } = useParams<{ orgId: string }>();
   return orgId ? (
-    <Suspense fallback={<main role="status">Loading messages…</main>}>
-      <MessagesPortal orgId={orgId} />
-    </Suspense>
+    <PortalShell orgId={orgId}>
+      <Suspense
+        fallback={
+          <main role="status">{t('messageCenter.loadingMessages')}</main>
+        }
+      >
+        <MessagesPortal orgId={orgId} />
+      </Suspense>
+    </PortalShell>
   ) : (
-    <main>Organization not found.</main>
+    <main>{t('messageCenter.organizationNotFound')}</main>
   );
 }
 

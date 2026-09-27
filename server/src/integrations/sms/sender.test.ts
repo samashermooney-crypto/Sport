@@ -74,7 +74,9 @@ describe('SMS adapters', () => {
   });
   it('stores sends in fake adapter', async () => {
     const sender = new FakeSmsSender();
-    await sender.send({ to: '+15555550123', body: 'Preview' });
+    await expect(
+      sender.send({ to: '+15555550123', body: 'Preview' }),
+    ).resolves.toEqual({ providerId: 'fake-1' });
     expect(sender.messages).toHaveLength(1);
   });
   it('sends through the configured Messaging Service with signed status callback destination', async () => {
@@ -99,5 +101,17 @@ describe('SMS adapters', () => {
     expect(submitted?.get('StatusCallback')).toBe(
       'https://api.example.test/api/v1/webhooks/twilio/sms-status',
     );
+  });
+  it('rejects a successful Twilio response without its provider message ID', async () => {
+    const sender = createTwilioSmsSender({
+      accountSid: 'ACfixture',
+      authToken: 'fake-token',
+      messagingServiceSid: 'MGfixture',
+      statusCallbackUrl: 'https://api.example.test/status',
+      fetch: () => Promise.resolve(new Response('{}', { status: 201 })),
+    });
+    await expect(
+      sender.send({ to: '+15555550123', body: 'Preview' }),
+    ).rejects.toThrow('message ID');
   });
 });

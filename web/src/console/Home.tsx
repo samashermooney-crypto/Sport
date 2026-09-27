@@ -43,6 +43,11 @@ export function ConsoleHome(): React.JSX.Element {
   }
   const manageActions = [
     {
+      label: 'Manage people',
+      description: 'Create, find and update people in your organization.',
+      to: `/console/orgs/${orgId}/people`,
+    },
+    {
       label: 'Review safety requirements',
       description: 'Edit the credential checks your organization uses.',
       to: `/orgs/${orgId}/credentials`,
@@ -58,14 +63,20 @@ export function ConsoleHome(): React.JSX.Element {
       to: `/orgs/${orgId}/profile`,
     },
     {
+      label: 'Open safety center',
+      description:
+        'Review credentials, injuries, incidents and background checks.',
+      to: `/console/safety/${orgId}`,
+    },
+    {
       label: 'Review audit history',
       description: 'Inspect recorded changes and protected access.',
       to: `/console/orgs/${orgId}/audit`,
     },
   ];
   const actions = [
-    ...(workspace.data.canManage ? manageActions.slice(0, 3) : []),
-    ...(workspace.data.canAudit && manageActions[3] ? [manageActions[3]] : []),
+    ...(workspace.data.canManage ? manageActions.slice(0, 5) : []),
+    ...(workspace.data.canAudit && manageActions[5] ? [manageActions[5]] : []),
   ];
   const navigation = [
     {

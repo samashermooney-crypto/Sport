@@ -4,6 +4,7 @@ export type InvoiceStateInput = {
   totalCents: number;
   succeededAllocationsCents: number;
   refundedToMethodCents: number;
+  disputedLostCents?: number;
   creditAppliedCents: number;
   disputedCents?: number;
   installments?: readonly {
@@ -21,6 +22,7 @@ export type InvoiceState = {
   balanceCents: number;
   paidNetCents: number;
   disputedCents: number;
+  disputedLostCents: number;
 };
 
 function amount(value: number, label: string): void {
@@ -34,10 +36,18 @@ export function deriveInvoiceState(input: InvoiceStateInput): InvoiceState {
   amount(input.refundedToMethodCents, 'refunds');
   amount(input.creditAppliedCents, 'credit');
   amount(input.disputedCents ?? 0, 'disputed amount');
-  if (input.refundedToMethodCents > input.succeededAllocationsCents)
-    throw new RangeError('Refunds exceed succeeded allocations');
+  amount(input.disputedLostCents ?? 0, 'lost dispute amount');
+  if (
+    input.refundedToMethodCents +
+      (input.disputedLostCents ?? 0) +
+      (input.disputedCents ?? 0) >
+    input.succeededAllocationsCents
+  )
+    throw new RangeError('Refunds and disputes exceed succeeded allocations');
   const paidNetCents =
-    input.succeededAllocationsCents - input.refundedToMethodCents;
+    input.succeededAllocationsCents -
+    input.refundedToMethodCents -
+    (input.disputedLostCents ?? 0);
   const balanceCents =
     input.totalCents - paidNetCents - input.creditAppliedCents;
   if (balanceCents < 0 || balanceCents > input.totalCents)
@@ -76,6 +86,7 @@ export function deriveInvoiceState(input: InvoiceStateInput): InvoiceState {
     balanceCents,
     paidNetCents,
     disputedCents: input.disputedCents ?? 0,
+    disputedLostCents: input.disputedLostCents ?? 0,
   };
 }
 

@@ -6,6 +6,7 @@ import {
 } from '@shared/schemas/auth';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { apiDelete, apiGet, apiPost } from '../api/client';
 import {
@@ -23,6 +24,7 @@ const supported =
   'Notification' in window;
 
 export function BrowserPush(): React.JSX.Element {
+  const { t, i18n } = useTranslation('auth');
   const queryClient = useQueryClient();
   const [currentId, setCurrentId] = useState(() => storedPushDeviceId());
   const [error, setError] = useState('');
@@ -50,9 +52,7 @@ export function BrowserPush(): React.JSX.Element {
       await action();
     } catch (caught) {
       setError(
-        caught instanceof Error
-          ? caught.message
-          : 'Browser notification settings could not be changed.',
+        caught instanceof Error ? caught.message : t('browserSettingsFailed'),
       );
     } finally {
       setBusy(false);
@@ -61,10 +61,9 @@ export function BrowserPush(): React.JSX.Element {
 
   async function enable(): Promise<void> {
     await run(async () => {
-      if (!config.data) throw new Error('Push configuration is unavailable.');
+      if (!config.data) throw new Error(t('pushConfigUnavailable'));
       const permission = await Notification.requestPermission();
-      if (permission !== 'granted')
-        throw new Error('Notifications were not allowed in this browser.');
+      if (permission !== 'granted') throw new Error(t('notificationsDenied'));
       await navigator.serviceWorker.register('/sw.js', {
         scope: '/',
       });
@@ -78,7 +77,7 @@ export function BrowserPush(): React.JSX.Element {
       const json = subscription.toJSON();
       if (!json.endpoint || !json.keys?.p256dh || !json.keys.auth) {
         await subscription.unsubscribe();
-        throw new Error('Browser subscription was incomplete.');
+        throw new Error(t('subscriptionIncomplete'));
       }
       const device = await apiPost(
         '/auth/devices',
@@ -97,7 +96,7 @@ export function BrowserPush(): React.JSX.Element {
       rememberPushDeviceId(device.id);
       setCurrentId(device.id);
       await queryClient.invalidateQueries({ queryKey: ['auth', 'devices'] });
-      setNotice('Browser notifications enabled on this device.');
+      setNotice(t('browserEnabled'));
     });
   }
 
@@ -110,38 +109,40 @@ export function BrowserPush(): React.JSX.Element {
         await apiDelete(`/auth/devices/${id}`, authStatusResponseSchema);
       }
       await queryClient.invalidateQueries({ queryKey: ['auth', 'devices'] });
-      setNotice('Notification device revoked.');
+      setNotice(t('deviceRevoked'));
     });
   }
 
   return (
     <section className="security-section" aria-labelledby="push-heading">
-      <h2 id="push-heading">Browser notifications</h2>
-      <p>Register this browser to receive account notifications.</p>
+      <h2 id="push-heading">{t('browserNotifications')}</h2>
+      <p>{t('browserNotificationsDescription')}</p>
       <ErrorBox error={error} />
       {notice && <p role="status">{notice}</p>}
       {supported && config.isError && (
-        <ErrorBox error="Push configuration could not be loaded." />
+        <ErrorBox error={t('pushConfigFailed')} />
       )}
       {supported && config.isSuccess && !activeHere && (
         <Button type="button" disabled={busy} onClick={() => void enable()}>
-          Enable browser notifications
+          {t('enableBrowserNotifications')}
         </Button>
       )}
-      {devices.isPending && <p role="status">Loading registered devices…</p>}
-      {devices.isError && (
-        <ErrorBox error="Registered devices could not be loaded." />
-      )}
+      {devices.isPending && <p role="status">{t('loadingDevices')}</p>}
+      {devices.isError && <ErrorBox error={t('devicesFailed')} />}
       {devices.data?.devices.map((device) => (
         <div className="session-row" key={device.id}>
           <div>
             <strong>
               {device.platform === 'webpush'
-                ? 'Browser'
+                ? t('browserDevice')
                 : device.platform.toUpperCase()}
             </strong>
             <small>
-              Last registered {new Date(device.lastSeenAt).toLocaleString()}
+              {t('lastRegistered', {
+                date: new Date(device.lastSeenAt).toLocaleString(
+                  i18n.resolvedLanguage,
+                ),
+              })}
             </small>
           </div>
           <Button
@@ -149,7 +150,7 @@ export function BrowserPush(): React.JSX.Element {
             disabled={busy}
             onClick={() => void revoke(device.id)}
           >
-            Revoke device
+            {t('revokeDevice')}
           </Button>
         </div>
       ))}

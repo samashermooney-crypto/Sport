@@ -93,9 +93,9 @@ The owner runs **GPT-6 Sol** for Tracks **A, B and E** and **GPT-6 Luna** for Tr
    - Service APIs that Luna tracks must call instead of re-implementing: `checkout/service.ts`, finance services, `shared/src/policies/*` (compliance gate, SafeSport, refund policy, quiet hours, FCRA timeline).
 6. Zero open review findings for A, B and E.
 
-When S1 is reached, Track A writes "S1 reached" in `docs/codex/tracks/A.md` and stops; the owner switches models and starts the post-S1 sessions (§8). Tracks F (safety) and H (comms) MUST call `shared/src/policies/*` for every gating and SafeSport decision; re-implementing those rules is a review finding.
+When S1 is reached, Track A writes "S1 reached" in `docs/codex/tracks/A.md` and continues its post-S1 queue as integrator: Phase 5 registration flows/UI, Phase 6, then any Phase 2/3 leftovers. The owner switches its model without interrupting that queue. Tracks F (safety) and H (comms) MUST call `shared/src/policies/*` for every gating and SafeSport decision; re-implementing those rules is a review finding.
 
-### Wave 2 — starts when trunk has: Phase 1 gate passed, schema spine, test factories, registry, module generator, D's primitives, B's pricing/fees/installments/invoice-state (E is already running from wave 1). F, G, H start after S1 on Luna.
+### Wave 2 — starts when trunk has: Phase 1 gate passed, schema spine, test factories, registry, module generator, D's primitives, B's pricing/fees/installments/invoice-state (E is already running from wave 1). F, G and H started early on Luna in their own worktrees; Track A integrates their ready ranges through the same full gate.
 
 | Track | Phases | Notes |
 |---|---|---|
