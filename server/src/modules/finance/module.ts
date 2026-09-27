@@ -7,6 +7,11 @@ import {
   aidProgramSchema,
 } from './aid-programs.js';
 import {
+  aidDecisionBodySchema,
+  aidDecisionResponseSchema,
+  aidQueueSchema,
+} from './aid-review.js';
+import {
   installmentTemplateBodySchema,
   installmentTemplateSchema,
   installmentTemplateListSchema,
@@ -47,6 +52,19 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/aid-applications',
+      summary: 'List restricted aid review metadata for finance staff',
+      response: aidQueueSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/aid-applications/{applicationId}/decision',
+      summary: 'Start review or decline an application at an exact version',
+      body: aidDecisionBodySchema,
+      response: aidDecisionResponseSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/finance/orgs/{orgId}/aid-programs',

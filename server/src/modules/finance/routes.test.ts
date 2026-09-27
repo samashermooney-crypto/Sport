@@ -405,6 +405,86 @@ describe('payer invoice feed', () => {
 });
 
 describe('aid award HTTP', () => {
+  it('lists only review metadata and declines at the submitted version', async () => {
+    const seasonId = newId();
+    const householdId = newId();
+    const aidProgramId = newId();
+    const applicationId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('seasons')
+        .values({
+          id: seasonId,
+          org_id: context.orgId,
+          name: 'Review API season',
+          starts_on: '2026-01-01',
+          ends_on: '2027-12-31',
+        })
+        .execute();
+      await trx
+        .insertInto('households')
+        .values({
+          id: householdId,
+          org_id: context.orgId,
+          name: 'Review family',
+        })
+        .execute();
+      await trx
+        .insertInto('financial_aid_programs')
+        .values({
+          id: aidProgramId,
+          org_id: context.orgId,
+          name: 'Review fund',
+          season_id: seasonId,
+          budget_cents: 200,
+          status: 'open',
+        })
+        .execute();
+      await trx
+        .insertInto('aid_applications')
+        .values({
+          id: applicationId,
+          org_id: context.orgId,
+          financial_aid_program_id: aidProgramId,
+          household_id: householdId,
+          requested_cents: 200,
+          status: 'submitted',
+        })
+        .execute();
+    });
+    const path = `${baseUrl}/orgs/${context.orgId}/aid-applications`;
+    const queue = await fetch(`${path}?seasonId=${seasonId}`, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(queue.status).toBe(200);
+    const listing = await queue.text();
+    expect(listing).toContain(applicationId);
+    expect(listing).not.toContain('answers');
+    const post = (requestOrigin: string) =>
+      fetch(`${path}/${applicationId}/decision`, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: requestOrigin,
+          'X-Athlentry-Request': '1',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          expectedVersion: 1,
+          action: 'decline',
+          reason: 'incomplete_application',
+        }),
+      });
+    expect((await post('https://attacker.example')).status).toBe(403);
+    const declined = await post(origin);
+    expect(declined.status).toBe(200);
+    expect(await declined.json()).toMatchObject({
+      applicationId,
+      status: 'declined',
+      version: 2,
+    });
+    expect((await post(origin)).status).toBe(409);
+  });
   it('creates and opens an aid fund only for a finance session', async () => {
     const seasonId = newId();
     const formId = newId();

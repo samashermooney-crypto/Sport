@@ -20,6 +20,13 @@ import {
   AidProgramConflictError,
   PostgresAidPrograms,
 } from './aid-programs.js';
+import {
+  aidDecisionBodySchema,
+  aidDecisionResponseSchema,
+  aidQueueSchema,
+  AidReviewConflictError,
+  PostgresAidReview,
+} from './aid-review.js';
 import { PostgresPaymentAttemptStore } from './attempt-repo.js';
 import { ConnectConflictError, ConnectOnboardingService } from './connect.js';
 import { PostgresCreditRefundRepository } from './credit-refund-repo.js';
@@ -358,7 +365,8 @@ function sendError(response: Response, error: unknown): void {
           error instanceof InstallmentTemplateConflictError ||
           error instanceof InvoiceConflictError ||
           error instanceof AidAwardConflictError ||
-          error instanceof AidProgramConflictError
+          error instanceof AidProgramConflictError ||
+          error instanceof AidReviewConflictError
         ? 409
         : error instanceof InvoiceNotFoundError
           ? 404
@@ -491,6 +499,60 @@ export function createFinanceRouter(
           context,
         ).replace(programId, body);
         response.json(aidProgramSchema.parse(program));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get('/orgs/:orgId/aid-applications', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireAidStaff(dependencies.database, context);
+      const result = await new PostgresAidReview(
+        dependencies.database,
+        context,
+      ).queue({
+        seasonId:
+          request.query.seasonId === undefined
+            ? undefined
+            : z.uuid().parse(request.query.seasonId),
+        limit:
+          request.query.limit === undefined
+            ? 50
+            : z.coerce.number().int().parse(request.query.limit),
+        cursor:
+          request.query.cursor === undefined
+            ? undefined
+            : z.string().parse(request.query.cursor),
+      });
+      response.json(aidQueueSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/orgs/:orgId/aid-applications/:applicationId/decision',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const applicationId = z.uuid().parse(request.params.applicationId);
+        const body = aidDecisionBodySchema.parse(request.body as unknown);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireAidStaff(dependencies.database, context);
+        const result = await new PostgresAidReview(
+          dependencies.database,
+          context,
+        ).decide(applicationId, body);
+        response.json(aidDecisionResponseSchema.parse(result));
       } catch (error) {
         sendError(response, error);
       }
