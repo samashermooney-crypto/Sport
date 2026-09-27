@@ -13767,6 +13767,196 @@
         }
       }
     },
+    "/api/v1/finance/stripe-client-config": {
+      "get": {
+        "operationId": "get_api_v1_finance_stripe_client_config",
+        "summary": "Read the test-mode Stripe publishable key for authenticated payers",
+        "tags": ["finance"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "publishableKey": {
+                      "type": "string",
+                      "pattern": "^pk_test_.*"
+                    }
+                  },
+                  "required": ["publishableKey"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/api/v1/finance/orgs/{orgId}/me/installments": {
+      "get": {
+        "operationId": "get_api_v1_finance_orgs_orgId_me_installments",
+        "summary": "List payer-owned outstanding installments available for payment",
+        "tags": ["finance"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "installments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "invoiceId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "invoiceNumber": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "dueOn": {
+                            "type": "string",
+                            "format": "date",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                          },
+                          "outstandingCents": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["scheduled", "failed"]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "invoiceId",
+                          "invoiceNumber",
+                          "dueOn",
+                          "outstandingCents",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["installments"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
+      }
+    },
+    "/api/v1/finance/orgs/{orgId}/me/installments/{installmentId}/payment-intents": {
+      "post": {
+        "operationId": "post_api_v1_finance_orgs_orgId_me_installments_installmentId_payment_intents",
+        "summary": "Reserve a payer-owned manual installment PaymentIntent",
+        "tags": ["finance"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "pattern": "^pi_.*" },
+                    "clientSecret": { "type": "string", "minLength": 1 },
+                    "status": { "type": "string", "minLength": 1 },
+                    "amountCents": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "applicationFeeCents": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "clientSecret",
+                    "status",
+                    "amountCents",
+                    "applicationFeeCents"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "installmentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
+      }
+    },
     "/api/v1/finance/orgs/{orgId}/invoices/{invoiceId}/installments": {
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_invoices_invoiceId_installments",
@@ -14242,6 +14432,22 @@
                                 "properties": {
                                   "kind": {
                                     "type": "string",
+                                    "const": "weekly"
+                                  },
+                                  "count": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 36
+                                  }
+                                },
+                                "required": ["kind", "count"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
                                     "const": "fixed_dates"
                                   },
                                   "dates": {
@@ -14398,6 +14604,19 @@
                         {
                           "type": "object",
                           "properties": {
+                            "kind": { "type": "string", "const": "weekly" },
+                            "count": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 36
+                            }
+                          },
+                          "required": ["kind", "count"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
                             "kind": {
                               "type": "string",
                               "const": "fixed_dates"
@@ -14544,6 +14763,19 @@
                       {
                         "type": "object",
                         "properties": {
+                          "kind": { "type": "string", "const": "weekly" },
+                          "count": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 36
+                          }
+                        },
+                        "required": ["kind", "count"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
                           "kind": { "type": "string", "const": "fixed_dates" },
                           "dates": {
                             "minItems": 1,
@@ -14660,6 +14892,19 @@
                             }
                           },
                           "required": ["kind", "count", "dayOfMonth"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": { "type": "string", "const": "weekly" },
+                            "count": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 36
+                            }
+                          },
+                          "required": ["kind", "count"],
                           "additionalProperties": false
                         },
                         {
@@ -14812,6 +15057,19 @@
                           }
                         },
                         "required": ["kind", "count", "dayOfMonth"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": { "type": "string", "const": "weekly" },
+                          "count": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 36
+                          }
+                        },
+                        "required": ["kind", "count"],
                         "additionalProperties": false
                       },
                       {
@@ -15928,6 +16186,197 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/finance/orgs/{orgId}/payouts/{payoutId}/reconciliation": {
+      "get": {
+        "operationId": "get_api_v1_finance_orgs_orgId_payouts_payoutId_reconciliation",
+        "summary": "Read the payout and each matched Stripe movement",
+        "tags": ["finance"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "payoutId": {
+                      "type": "string",
+                      "pattern": "^po_[A-Za-z0-9_]+$"
+                    },
+                    "status": { "type": "string", "minLength": 1 },
+                    "arrivalDate": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "amountCents": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "transactionNetCents": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "differenceCents": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "complete": { "type": "boolean" },
+                    "unlinkedSourceCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "transactionId": { "type": "string", "minLength": 1 },
+                          "type": { "type": "string", "minLength": 1 },
+                          "amountCents": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "feeCents": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "netCents": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "sourceId": { "type": ["string", "null"] },
+                          "paymentId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              { "type": "null" }
+                            ]
+                          },
+                          "invoiceNumbers": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          }
+                        },
+                        "required": [
+                          "transactionId",
+                          "type",
+                          "amountCents",
+                          "feeCents",
+                          "netCents",
+                          "sourceId",
+                          "paymentId",
+                          "invoiceNumbers"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "payoutId",
+                    "status",
+                    "arrivalDate",
+                    "amountCents",
+                    "transactionNetCents",
+                    "differenceCents",
+                    "complete",
+                    "unlinkedSourceCount",
+                    "rows"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "payoutId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
+      }
+    },
+    "/api/v1/finance/orgs/{orgId}/payouts/{payoutId}/reconciliation.csv": {
+      "get": {
+        "operationId": "get_api_v1_finance_orgs_orgId_payouts_payoutId_reconciliation_csv",
+        "summary": "Export the payout reconciliation as CSV",
+        "tags": ["finance"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "payoutId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
       }
     },
     "/api/v1/notifications/orgs/{orgId}/inbox": {
