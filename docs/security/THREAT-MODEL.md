@@ -36,18 +36,18 @@ reads and writes are audited, with Restricted values redacted from audit diffs.
 
 ## Security controls and verification
 
-| Control                                             | Evidence in this checkout                                                                                                                                               |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Identity, CSRF, cookies, sessions, MFA, rate limits | `server/src/modules/auth/routes.test.ts`, `auth/rate-limits.test.ts`, `auth/security.test.ts`, `auth/sessions.test.ts`, `server/test/security/session-fixation.test.ts` |
-| RLS and tenant scoping                              | `server/src/modules/orgs/tenancyAcceptance.test.ts`, `server/src/db/withOrg.ts`; route-level coverage is tracked below                                                  |
-| Guardian links and family portal                    | `server/src/modules/people/guardianLinks.ts`, `server/src/modules/people/family.ts`, `server/test/guardianLinks.test.ts`, `e2e/security/guardian-idor.spec.ts`          |
-| File type, size, content and ownership              | `server/src/modules/files/service.test.ts`, `files/service.integration.test.ts`, `server/test/security/upload-bypass.test.ts`                                           |
-| Stripe signature verification                       | `server/src/integrations/stripe/webhook-routes.test.ts`                                                                                                                 |
-| Geocoder and background-check host allowlists       | `server/src/integrations/geocoder/geocoder.ts`, `server/src/integrations/background-check/provider.ts`, `server/test/security/ssrf.test.ts`                             |
-| Sanitized campaign HTML                             | `server/src/modules/communications/content.test.ts`, `server/test/security/stored-xss.test.ts`                                                                          |
-| Platform MFA and impersonation                      | `server/src/modules/platform/routes.test.ts`, `platform/impersonation.ts`, `server/test/security/impersonation.test.ts`                                                 |
-| Response headers and security.txt                   | `server/src/lib/security/security-headers.test.ts`, `e2e/security/security-headers.spec.ts`, `server/test/security/security-txt.test.ts`                                |
-| Encryption primitives and key rotation              | `server/src/lib/crypto.test.ts`, `server/test/security/rotate-encryption-key.test.ts`                                                                                   |
+| Control                                             | Evidence in this checkout                                                                                                                                                       |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity, CSRF, cookies, sessions, MFA, rate limits | `server/src/modules/auth/routes.test.ts`, `auth/rate-limits.test.ts`, `auth/security.test.ts`, `auth/sessions.test.ts`, `server/test/security/session-fixation.test.ts`         |
+| RLS and tenant scoping                              | `server/src/modules/orgs/tenancyAcceptance.test.ts`, `server/src/db/withOrg.ts`; route-level coverage is tracked below                                                          |
+| Guardian links and family portal                    | `server/src/modules/people/guardianLinks.ts`, `server/src/modules/people/family.ts`, `server/test/guardianLinks.test.ts`, `e2e/security/guardian-idor.spec.ts`                  |
+| File type, size, content and ownership              | `server/src/modules/files/service.test.ts`, `files/service.integration.test.ts`, `server/test/security/upload-bypass.test.ts`                                                   |
+| Stripe signature verification                       | `server/src/integrations/stripe/webhook-routes.test.ts`                                                                                                                         |
+| Geocoder and background-check host allowlists       | `server/src/integrations/geocoder/geocoder.ts`, `server/src/integrations/background-check/provider.ts`, `server/test/security/ssrf.test.ts`; push endpoint gap is tracked below |
+| Sanitized campaign HTML                             | `server/src/modules/communications/content.test.ts`, `server/test/security/stored-xss.test.ts`                                                                                  |
+| Platform MFA and impersonation                      | `server/src/modules/platform/routes.test.ts`, `platform/impersonation.ts`, `server/test/security/impersonation.test.ts`                                                         |
+| Response headers and security.txt                   | `server/src/lib/security/security-headers.test.ts`, `e2e/security/security-headers.spec.ts`, `server/test/security/security-txt.test.ts`                                        |
+| Encryption primitives and key rotation              | `server/src/lib/crypto.test.ts`, `server/test/security/rotate-encryption-key.test.ts`                                                                                           |
 
 ## Current residual launch work
 
@@ -61,6 +61,10 @@ reads and writes are audited, with Restricted values redacted from audit diffs.
 - Step-up reauthentication currently elevates the existing session without
   rotating its token. Track A owns the auth route; the skipped regression test
   and precise request are recorded in both track files.
+- `WebPushSender` forwards the account-supplied HTTPS endpoint to the web-push
+  client without destination checks. This enables server-side requests to
+  loopback or other internal hosts. Track C owns the push adapter; the
+  regression and exact request are recorded in both track files.
 - `npm audit --omit=dev --audit-level=high` found no high or critical
   advisories; it reports two moderate transitive `uuid` advisories under
   `exceljs`. `npm run knip` currently fails on unused G and A exports/files;
