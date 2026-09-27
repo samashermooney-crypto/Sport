@@ -9,6 +9,67 @@ function gateway() {
 }
 
 describe('Stripe SDK gateway', () => {
+  it('binds Billing Checkout and subscriptions to the organization in test mode', async () => {
+    const test = gateway();
+    const createCustomer = vi
+      .spyOn(test.stripe.customers, 'create')
+      .mockResolvedValue({
+        id: 'cus_billing',
+      } as Stripe.Response<Stripe.Customer>);
+    await test.gateway.createBillingCustomer({
+      orgId: 'org_billing',
+      name: 'Billing Club',
+      email: 'billing@example.test',
+      idempotencyKey: 'billing:customer:org_billing',
+    });
+    expect(createCustomer.mock.calls[0]?.[0]).toMatchObject({
+      metadata: { org_id: 'org_billing' },
+    });
+    const createCheckout = vi
+      .spyOn(test.stripe.checkout.sessions, 'create')
+      .mockResolvedValue({
+        id: 'cs_test_billing',
+        url: 'https://checkout.stripe.com/test',
+      } as Stripe.Response<Stripe.Checkout.Session>);
+    await test.gateway.createBillingCheckout({
+      orgId: 'org_billing',
+      customerId: 'cus_billing',
+      priceId: 'price_billing',
+      successUrl: 'https://app.example.test/billing/return',
+      cancelUrl: 'https://app.example.test/billing',
+      idempotencyKey: 'billing:checkout:org_billing',
+    });
+    expect(createCheckout.mock.calls[0]?.[0]).toMatchObject({
+      client_reference_id: 'org_billing',
+      subscription_data: { metadata: { org_id: 'org_billing' } },
+    });
+    const retrieve = vi
+      .spyOn(test.stripe.subscriptions, 'retrieve')
+      .mockResolvedValue({
+        id: 'sub_billing',
+        customer: 'cus_billing',
+        metadata: { org_id: 'org_billing' },
+        items: {
+          data: [
+            {
+              price: { id: 'price_billing' },
+              current_period_end: 1_900_000_000,
+            },
+          ],
+        },
+        status: 'active',
+      } as unknown as Stripe.Response<Stripe.Subscription>);
+    expect(
+      await test.gateway.retrieveBillingSubscription('sub_billing'),
+    ).toMatchObject({
+      id: 'sub_billing',
+      orgId: 'org_billing',
+      customerId: 'cus_billing',
+      priceIds: ['price_billing'],
+      currentPeriodEnd: 1_900_000_000,
+    });
+    expect(retrieve).toHaveBeenCalledWith('sub_billing');
+  });
   it('creates controller-based Express accounts', async () => {
     const test = gateway();
     const create = vi.spyOn(test.stripe.accounts, 'create').mockResolvedValue({

@@ -536,6 +536,7 @@ export class StripeSdkGateway implements PaymentsGateway {
   }
 
   async createBillingCheckout(input: {
+    orgId: string;
     customerId: string;
     priceId: string;
     successUrl: string;
@@ -546,6 +547,8 @@ export class StripeSdkGateway implements PaymentsGateway {
       {
         mode: 'subscription',
         customer: input.customerId,
+        client_reference_id: input.orgId,
+        subscription_data: { metadata: { org_id: input.orgId } },
         line_items: [{ price: input.priceId, quantity: 1 }],
         success_url: input.successUrl,
         cancel_url: input.cancelUrl,
@@ -556,11 +559,48 @@ export class StripeSdkGateway implements PaymentsGateway {
     return { id: session.id, url: session.url };
   }
 
+  async createBillingCustomer(input: {
+    orgId: string;
+    name: string;
+    email: string;
+    idempotencyKey: string;
+  }) {
+    const customer = await this.stripe.customers.create(
+      {
+        name: input.name,
+        email: input.email,
+        metadata: { org_id: input.orgId },
+      },
+      { idempotencyKey: input.idempotencyKey },
+    );
+    return { id: customer.id };
+  }
+
   async createBillingPortal(input: { customerId: string; returnUrl: string }) {
     return this.stripe.billingPortal.sessions.create({
       customer: input.customerId,
       return_url: input.returnUrl,
     });
+  }
+
+  async retrieveBillingSubscription(subscriptionId: string) {
+    const subscription =
+      await this.stripe.subscriptions.retrieve(subscriptionId);
+    return {
+      id: subscription.id,
+      orgId: subscription.metadata.org_id ?? null,
+      customerId:
+        typeof subscription.customer === 'string'
+          ? subscription.customer
+          : subscription.customer.id,
+      priceIds: subscription.items.data.map((item) => item.price.id),
+      status: subscription.status,
+      currentPeriodEnd: subscription.items.data.length
+        ? Math.max(
+            ...subscription.items.data.map((item) => item.current_period_end),
+          )
+        : null,
+    };
   }
 
   async registerPaymentMethodDomain(domainName: string) {
