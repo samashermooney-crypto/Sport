@@ -14,7 +14,7 @@ export class ApiError extends Error {
 async function request<T extends z.ZodType>(
   path: string,
   schema: T,
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   body?: unknown,
   idempotencyKey?: string,
   extraHeaders?: Record<string, string>,
@@ -106,4 +106,12 @@ export function apiPatch<T extends z.ZodType>(
   schema: T,
 ): Promise<z.output<T>> {
   return request(path, schema, 'PATCH', body);
+}
+
+export function apiPut<T extends z.ZodType>(
+  path: string,
+  body: unknown,
+  schema: T,
+): Promise<z.output<T>> {
+  return request(path, schema, 'PUT', body);
 }
