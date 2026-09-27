@@ -2601,6 +2601,7 @@ export interface StoreOrders {
   org_id: string;
   registration_id: string | null;
   request_hash: Generated<string>;
+  shipping_address: Json | null;
   status: Generated<string>;
   subtotal_cents: Generated<number>;
   tax_cents: Generated<number>;

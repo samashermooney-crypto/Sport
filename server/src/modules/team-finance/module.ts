@@ -72,6 +72,12 @@ const openapiRoutes = [
   ),
   route(
     'get',
+    '/me/ledgers',
+    'List team ledgers available to the signed-in team treasurer',
+    teamLedgerListSchema,
+  ),
+  route(
+    'get',
     '/teams/{teamSeasonId}/ledger',
     'Read a team ledger and balances',
     teamLedgerSchema,

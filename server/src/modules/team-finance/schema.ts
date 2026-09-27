@@ -97,6 +97,7 @@ export const teamLedgerListSchema = z.strictObject({
       balanceCents: z.number().int(),
       openReimbursements: z.number().int().nonnegative(),
       overdueObligations: z.number().int().nonnegative(),
+      requesterPersonId: uuid.nullable().optional(),
     }),
   ),
 });

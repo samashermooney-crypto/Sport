@@ -33,6 +33,7 @@ import {
   listReimbursementRequests,
   listTeamFeeAssessments,
   listTeamLedgers,
+  listMyTeamLedgers,
   TeamFinanceAccessError,
 } from './service';
 
@@ -119,6 +120,20 @@ export function createTeamFinanceRouter(
       response.json(
         teamLedgerListSchema.parse({
           ledgers: await listTeamLedgers(dependencies.database, actor.context),
+        }),
+      );
+    }),
+  );
+  router.get(
+    '/orgs/:orgId/me/ledgers',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      response.json(
+        teamLedgerListSchema.parse({
+          ledgers: await listMyTeamLedgers(
+            dependencies.database,
+            actor.context,
+          ),
         }),
       );
     }),

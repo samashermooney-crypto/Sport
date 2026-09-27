@@ -77,7 +77,7 @@ function checkoutPort() {
 
 describe('guest fundraising donations', () => {
   it('binds an idempotency key to the exact guest donation details', async () => {
-    const { actor, campaignId, now } = await publishedCampaign();
+    const { actor, campaignId, slug, now } = await publishedCampaign();
     const checkout = checkoutPort();
     const idempotencyKey = randomUUID();
     const input = {
@@ -111,11 +111,20 @@ describe('guest fundraising donations', () => {
         'Donation idempotency key was already used with different details',
     });
     expect(checkout.create).toHaveBeenCalledTimes(1);
+    const organizationSlug = (
+      await database
+        .selectFrom('organizations')
+        .select('slug')
+        .where('id', '=', actor.orgId)
+        .executeTakeFirstOrThrow()
+    ).slug;
     expect(checkout.create).toHaveBeenCalledWith(
       expect.objectContaining({
         donorName: 'Jamie Donor',
         donorEmail: 'jamie@example.test',
         campaignId,
+        successUrl: `https://app.example.test/site/${organizationSlug}/fundraisers/${slug}?status=success`,
+        cancelUrl: `https://app.example.test/site/${organizationSlug}/fundraisers/${slug}?status=cancel`,
       }),
     );
   });

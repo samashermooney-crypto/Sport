@@ -16,6 +16,7 @@ import {
   decideReimbursement,
   getTeamLedger,
   issueTeamFeeAssessment,
+  listMyTeamLedgers,
   syncPaidTeamFees,
 } from '../../../src/modules/team-finance/service';
 import { createTestFactories } from '../../factories';
@@ -119,6 +120,7 @@ describe('team finance acceptance flow', () => {
           person_id: requestorPersonId,
           account_id: owner.accountId,
           relationship: 'self',
+          verified_at: new Date(),
         })
         .execute();
       await trx
@@ -192,6 +194,12 @@ describe('team finance acceptance flow', () => {
       dueOn: '2027-01-01',
       installmentTemplateId: template.id,
     });
+    expect(await listMyTeamLedgers(database, owner)).toEqual([
+      expect.objectContaining({
+        teamSeasonId: team.teamSeasonId,
+        requesterPersonId: requestorPersonId,
+      }),
+    ]);
     const issued = await issueTeamFeeAssessment(database, owner, assessment.id);
     expect(issued.issued).toBe(1);
     const invoiceId = issued.invoices[0]?.invoiceId;

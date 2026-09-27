@@ -3,8 +3,9 @@ import { createHash } from 'node:crypto';
 import { newId } from '@shared/ids';
 import { percentOf } from '@shared/money';
 import { sql, type Kysely } from 'kysely';
+import { z } from 'zod';
 
-import type { DB } from '../../db/types';
+import type { DB, Json } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 import { appendAuditEvent } from '../audit/service';
@@ -12,6 +13,22 @@ import { PostgresInvoiceRepository } from '../finance/invoice-repo';
 import { systemWorkerActorId } from '../jobs/credentials-expiry';
 import { isNotificationType } from '../notifications/catalog';
 import { createNotification } from '../notifications/service';
+
+const shippingAddressSchema = z.strictObject({
+  line1: z.string().trim().min(1).max(160),
+  line2: z.string().trim().max(160).optional(),
+  city: z.string().trim().min(1).max(100),
+  region: z
+    .string()
+    .trim()
+    .length(2)
+    .regex(/^[A-Z]{2}$/),
+  postalCode: z
+    .string()
+    .trim()
+    .regex(/^\d{5}(?:-\d{4})?$/),
+  country: z.literal('US'),
+});
 
 export class StoreConflictError extends Error {
   readonly status = 409;
@@ -768,6 +785,28 @@ export async function placeStoreOrder(
             'Registration not found for this household',
           );
       }
+      let shippingAddress: Json | null = null;
+      if (input.fulfillmentMethod === 'ship') {
+        if (!input.householdId)
+          throw new StoreConflictError(
+            'Choose a household with a saved shipping address',
+          );
+        const household = await trx
+          .selectFrom('households')
+          .select('address')
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', input.householdId)
+          .where('status', '=', 'active')
+          .executeTakeFirst();
+        const parsedAddress = shippingAddressSchema.safeParse(
+          household?.address,
+        );
+        if (!parsedAddress.success)
+          throw new StoreConflictError(
+            'Add a valid US shipping address to this household before ordering',
+          );
+        shippingAddress = parsedAddress.data;
+      }
       await trx
         .insertInto('store_orders')
         .values({
@@ -775,6 +814,7 @@ export async function placeStoreOrder(
           org_id: context.orgId,
           account_id: context.actor.accountId,
           household_id: input.householdId ?? null,
+          shipping_address: shippingAddress,
           registration_id: input.registrationId ?? null,
           team_season_id: input.teamSeasonId ?? null,
           status: 'draft',

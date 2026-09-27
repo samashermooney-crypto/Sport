@@ -350,6 +350,25 @@ export async function createGuestDonation(
       receiptNumber: donation.receipt_number,
       amountCents: donation.amount_cents,
     };
+  const publicPath = await createWithOrg(database)(context, async (trx) =>
+    trx
+      .selectFrom('fundraising_campaigns as campaign')
+      .innerJoin('organizations as organization', (join) =>
+        join.onRef('organization.id', '=', 'campaign.org_id'),
+      )
+      .select([
+        'organization.slug as org_slug',
+        'campaign.slug as campaign_slug',
+      ])
+      .where('campaign.org_id', '=', input.orgId)
+      .where('campaign.id', '=', donation.campaign_id)
+      .executeTakeFirst(),
+  );
+  if (!publicPath)
+    throw new FundraisingNotFoundError('Campaign is no longer available');
+  const fundraiserUrl =
+    `${input.appUrl}/site/${encodeURIComponent(publicPath.org_slug)}` +
+    `/fundraisers/${encodeURIComponent(publicPath.campaign_slug)}`;
   const checkoutResult = await checkout.create({
     orgId: input.orgId,
     campaignId: donation.campaign_id,
@@ -357,8 +376,8 @@ export async function createGuestDonation(
     amountCents: donation.amount_cents,
     donorName: donation.donor_name,
     donorEmail: donation.donor_email,
-    successUrl: `${input.appUrl}/me/donations/${donation.id}?status=success`,
-    cancelUrl: `${input.appUrl}/site/${encodeURIComponent(input.orgId)}/fundraisers/${encodeURIComponent(input.campaignId)}?status=cancel`,
+    successUrl: `${fundraiserUrl}?status=success`,
+    cancelUrl: `${fundraiserUrl}?status=cancel`,
     idempotencyKey: input.idempotencyKey,
   });
   const parsedUrl = new URL(checkoutResult.url);

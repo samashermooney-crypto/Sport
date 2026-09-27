@@ -536,6 +536,41 @@ export async function listTeamLedgers(
   });
 }
 
+export async function listMyTeamLedgers(
+  database: Kysely<DB>,
+  context: OrgContext,
+) {
+  const staff = await createWithOrg(database)(context, async (trx) =>
+    trx
+      .selectFrom('team_staff as staff')
+      .innerJoin('person_account_links as link', (join) =>
+        join
+          .onRef('link.org_id', '=', 'staff.org_id')
+          .onRef('link.person_id', '=', 'staff.person_id'),
+      )
+      .select(['staff.team_season_id', 'staff.person_id'])
+      .where('staff.org_id', '=', context.orgId)
+      .where('staff.role', '=', 'treasurer')
+      .where('staff.status', '=', 'active')
+      .where('link.account_id', '=', context.actor.accountId)
+      .where('link.relationship', '=', 'self')
+      .where('link.verified_at', 'is not', null)
+      .where('link.revoked_at', 'is', null)
+      .execute(),
+  );
+  if (!staff.length) return [];
+  const personByTeam = new Map(
+    staff.map((row) => [row.team_season_id, row.person_id]),
+  );
+  const ledgers = await listTeamLedgers(database, context);
+  return ledgers
+    .filter((ledger) => personByTeam.has(ledger.teamSeasonId))
+    .map((ledger) => ({
+      ...ledger,
+      requesterPersonId: personByTeam.get(ledger.teamSeasonId) ?? null,
+    }));
+}
+
 export async function createManualLedgerEntry(
   database: Kysely<DB>,
   context: OrgContext,
