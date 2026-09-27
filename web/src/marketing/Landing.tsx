@@ -134,6 +134,14 @@ export function Landing(): React.JSX.Element {
           >
             Questions
           </a>
+          <Link
+            to="/pricing"
+            onClick={() => {
+              setMenu(false);
+            }}
+          >
+            Pricing
+          </Link>
           <Link to="/" className="al-nav-cta">
             Open platform <ArrowUpRight size={17} />
           </Link>
@@ -440,6 +448,7 @@ export function Landing(): React.JSX.Element {
         </Link>
         <span>Sports management. Moving forward.</span>
         <nav aria-label="Legal information">
+          <Link to="/pricing">Pricing</Link>
           <Link to="/legal/terms">Terms</Link>
           <Link to="/legal/privacy">Privacy</Link>
           <Link to="/legal/accessibility">Accessibility</Link>

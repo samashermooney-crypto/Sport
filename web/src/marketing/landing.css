@@ -838,3 +838,55 @@
     margin-bottom: 34px !important;
   }
 }
+
+.pricing-page__main {
+  max-width: 1180px;
+  min-height: 70vh;
+  margin: 0 auto;
+}
+.pricing-page__main > h1 {
+  margin: 22px 0 18px;
+  font-size: clamp(56px, 9vw, 112px);
+}
+.pricing-page__intro {
+  max-width: 590px;
+  color: #60655d;
+  font-size: 17px;
+  line-height: 1.7;
+}
+.pricing-page__plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 18px;
+  margin: 52px 0 30px;
+  padding: 0;
+  list-style: none;
+}
+.pricing-page__plan {
+  min-height: 180px;
+  padding: 26px;
+  border: 1px solid #2024214d;
+}
+.pricing-page__plan h2 {
+  margin: 0 0 22px;
+  font-size: 32px;
+}
+.pricing-page__price {
+  margin-bottom: 15px !important;
+  font-family: 'Barlow Semi Condensed', sans-serif;
+  font-size: 38px;
+  font-weight: 600;
+}
+.pricing-page__price span {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+}
+@media (max-width: 768px) {
+  .pricing-page__main {
+    padding: 55px 6%;
+  }
+  .pricing-page__plans {
+    margin-top: 36px;
+  }
+}

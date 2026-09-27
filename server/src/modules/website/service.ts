@@ -18,6 +18,43 @@ import { WebsiteError, requireWebsiteEditor } from './policy';
 const publicActor = '00000000-0000-0000-0000-000000000000';
 type WebsiteDatabase = Kysely<DB>;
 
+export async function listPublicWebsitePlans(database: WebsiteDatabase) {
+  const rows = await database
+    .selectFrom('plans')
+    .select(['key', 'name', 'monthly_price_cents', 'limits'])
+    .where('active', '=', true)
+    .orderBy('monthly_price_cents')
+    .orderBy('name')
+    .execute();
+  return {
+    items: rows.map((row) => {
+      const limits =
+        typeof row.limits === 'object' &&
+        row.limits !== null &&
+        !Array.isArray(row.limits)
+          ? row.limits
+          : {};
+      const customPricing =
+        'customPricing' in limits && limits.customPricing === true;
+      const priceValue: unknown = row.monthly_price_cents;
+      const monthlyPriceCents =
+        typeof priceValue === 'number'
+          ? priceValue
+          : typeof priceValue === 'string'
+            ? Number(priceValue)
+            : Number.NaN;
+      if (!Number.isSafeInteger(monthlyPriceCents) || monthlyPriceCents < 0)
+        throw new RangeError('Plan pricing is invalid');
+      return {
+        key: row.key,
+        name: row.name,
+        monthlyPriceCents,
+        customPricing,
+      };
+    }),
+  };
+}
+
 function pageSummary(row: {
   id: string;
   slug: string;

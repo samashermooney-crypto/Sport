@@ -9,6 +9,7 @@ import type { OrgContext } from '../../db/withOrg';
 
 import {
   getPublicWebsitePage,
+  listPublicWebsitePlans,
   listWebsitePages,
   saveWebsitePage,
 } from './service';
@@ -60,6 +61,38 @@ beforeAll(async () => {
 afterAll(async () => database.destroy());
 
 describe('website page service', () => {
+  it('returns only public active plan fields for the pricing page', async () => {
+    const inactiveId = randomUUID();
+    const inactiveKey = `inactive-${inactiveId.slice(0, 8)}`;
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    await admin.query(
+      'INSERT INTO plans(id,key,name,monthly_price_cents,application_fee_bps,application_fee_fixed_cents,limits,active) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+      [inactiveId, inactiveKey, 'Inactive test plan', 100, 0, 0, '{}', false],
+    );
+    try {
+      const result = await listPublicWebsitePlans(database);
+      expect(result.items).toContainEqual({
+        key: 'pro',
+        name: 'Pro',
+        monthlyPriceCents: 9900,
+        customPricing: false,
+      });
+      expect(result.items.some((plan) => plan.key === inactiveKey)).toBe(false);
+      expect(Object.keys(result.items[0] ?? {}).sort()).toEqual([
+        'customPricing',
+        'key',
+        'monthlyPriceCents',
+        'name',
+      ]);
+    } finally {
+      await admin.query('DELETE FROM plans WHERE id = $1', [inactiveId]);
+      await admin.end();
+    }
+  });
+
   it('keeps drafts private and serves only a published page to the public', async () => {
     const created = await saveWebsitePage(
       context,

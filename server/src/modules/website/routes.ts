@@ -16,8 +16,10 @@ import type { AuthDependencies } from '../auth/routes';
 import { requireSession } from '../auth/routes';
 
 import { WebsiteError } from './policy';
+import { publicPlansSchema } from './schema';
 import {
   getPublicWebsitePage,
+  listPublicWebsitePlans,
   listPublicWebsitePages,
   listWebsitePages,
   saveWebsitePage,
@@ -97,6 +99,15 @@ export function createWebsiteRouter(
 ): express.Router {
   const router = express.Router();
   const withOrg = createWithOrg(dependencies.database);
+
+  router.get(
+    '/public/plans',
+    route(async (_request, response) => {
+      const result = await listPublicWebsitePlans(dependencies.database);
+      response.setHeader('Cache-Control', 'public, max-age=300');
+      response.json(publicPlansSchema.parse(result));
+    }),
+  );
 
   router.get(
     '/public/:orgSlug/pages/*pageSlug',

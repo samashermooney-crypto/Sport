@@ -9,8 +9,16 @@ import { z } from 'zod';
 import type { ServerModule } from '../../lib/module-contract';
 
 import { createWebsiteRouter } from './routes';
+import { publicPlansSchema } from './schema';
 
 const routes = [
+  {
+    method: 'get',
+    path: '/api/v1/website/public/plans',
+    summary: 'List active public organization subscription plans',
+    response: publicPlansSchema,
+    public: true,
+  },
   {
     method: 'get',
     path: '/api/v1/website/public/{orgSlug}/pages/{pageSlug}',

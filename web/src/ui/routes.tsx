@@ -3,6 +3,7 @@ import type { RouteObject } from 'react-router';
 
 import { Landing } from '../marketing/Landing';
 import { LegalPage } from '../marketing/LegalPage';
+import { PricingPage } from '../marketing/PricingPage';
 
 const DevShowcase = import.meta.env.DEV
   ? lazy(() =>
@@ -14,6 +15,7 @@ const DevShowcase = import.meta.env.DEV
 
 export const uiRoutes: readonly RouteObject[] = [
   { path: '/welcome', element: <Landing /> },
+  { path: '/pricing', element: <PricingPage /> },
   { path: '/legal/:slug', element: <LegalPage /> },
   ...(DevShowcase
     ? [
