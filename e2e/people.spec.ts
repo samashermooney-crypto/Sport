@@ -60,7 +60,13 @@ test('owner creates, edits and archives a person from the console', async ({
       page.getByRole('heading', { name: 'Alex Rivera' }),
     ).toBeVisible();
     await page.getByRole('textbox', { name: 'Preferred name' }).fill('Lex');
+    const savedPerson = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        response.url().includes(`/api/v1/people/orgs/${actor.orgId}/`),
+    );
     await page.getByRole('button', { name: 'Save person' }).click();
+    expect((await savedPerson).ok()).toBe(true);
     await expect(
       page.getByRole('textbox', { name: 'Preferred name' }),
     ).toHaveValue('Lex');

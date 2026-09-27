@@ -50,6 +50,35 @@ export const installmentStaffResultSchema = z.strictObject({
   consentMandateId: z.uuid().nullable().optional(),
   waivedCents: z.number().int().positive().nullable().optional(),
 });
+export const installmentStaffListSchema = z.strictObject({
+  installments: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      sequence: z.number().int().positive(),
+      dueOn: z.iso.date(),
+      amountCents: z.number().int().positive(),
+      paidCents: z.number().int().nonnegative(),
+      status: z.enum([
+        'scheduled',
+        'processing',
+        'paid',
+        'failed',
+        'canceled',
+        'waived',
+      ]),
+      autopay: z.boolean(),
+      version: z.number().int().positive(),
+    }),
+  ),
+  consents: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      paymentMethodId: z.uuid(),
+      type: z.string(),
+      last4: z.string().nullable(),
+    }),
+  ),
+});
 export type InstallmentStaffAction = z.output<
   typeof installmentStaffActionSchema
 >;
@@ -87,6 +116,72 @@ export class PostgresInstallmentStaffActions {
     private readonly now: () => Temporal.Instant = () => Temporal.Now.instant(),
   ) {
     this.withOrg = createWithOrg(database);
+  }
+
+  async listInvoice(
+    invoiceId: string,
+  ): Promise<z.output<typeof installmentStaffListSchema>> {
+    const id = z.uuid().parse(invoiceId);
+    return this.withOrg(this.context, async (trx) => {
+      const invoice = await trx
+        .selectFrom('invoices')
+        .select('id')
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', id)
+        .executeTakeFirst();
+      if (!invoice) throw new InstallmentStaffNotFoundError();
+      const installments = await sql<{
+        id: string;
+        sequence: number;
+        due_on: string;
+        amount_cents: number;
+        paid_cents: number;
+        status: string;
+        autopay: boolean;
+        version: number;
+      }>`
+        SELECT id, sequence, due_on::text, amount_cents, paid_cents,
+          status, autopay, version FROM installments
+        WHERE org_id = ${this.context.orgId}::uuid
+          AND invoice_id = ${id}::uuid
+        ORDER BY sequence
+      `.execute(trx);
+      const consents = await sql<{
+        id: string;
+        payment_method_id: string;
+        type: string;
+        last4: string | null;
+      }>`
+        SELECT a.id, a.payment_method_id, m.type, m.last4
+        FROM autopay_authorizations a
+        JOIN payment_methods m ON m.id = a.payment_method_id
+          AND m.account_id = a.account_id
+        JOIN invoices i ON i.org_id = a.org_id AND i.id = a.invoice_id
+          AND i.account_id = a.account_id
+        WHERE a.org_id = ${this.context.orgId}::uuid
+          AND a.invoice_id = ${id}::uuid
+          AND a.revoked_at IS NULL AND m.status = 'active'
+        ORDER BY a.authorized_at DESC, a.id DESC
+      `.execute(trx);
+      return installmentStaffListSchema.parse({
+        installments: installments.rows.map((row) => ({
+          id: row.id,
+          sequence: row.sequence,
+          dueOn: row.due_on,
+          amountCents: row.amount_cents,
+          paidCents: row.paid_cents,
+          status: row.status,
+          autopay: row.autopay,
+          version: row.version,
+        })),
+        consents: consents.rows.map((row) => ({
+          id: row.id,
+          paymentMethodId: row.payment_method_id,
+          type: row.type,
+          last4: row.last4,
+        })),
+      });
+    });
   }
 
   async perform(
