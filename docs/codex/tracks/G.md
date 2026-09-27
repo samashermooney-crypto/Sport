@@ -37,6 +37,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Shared algorithm tests pass: 14/14; focused G generator/bracket acceptance tests pass: 2/2. The 48-team case is below the 60-second acceptance bound.
 - [x] Cached per-run timezone and epoch conversions in schedule candidate checks; the 48-team/168-game generator acceptance now takes 0.53 seconds locally with its 60-second assertion unchanged, and all 7 shared schedule-generator tests pass.
 - [x] Schedule generator browser journey passes Chromium desktop and WebKit mobile with axe: it renders unscheduled explanations, discards one run, then applies a scheduled game and verifies persisted run/event state.
+- [x] Kept the ten-game officials crew/pay regression below Vitest's unchanged five-second timeout under load by running its independent assignment offers and responses concurrently; three focused runs passed.
 - [x] `npm run typecheck` and `npm run lint` pass after syncing `rebuild/trunk` through `af353fc` (merge `70b7c2d`).
 - [x] Updated scheduling access integration passes, including official closure recipients and emergency batch timing.
 - [x] Program statistic settings, leaderboard aggregation, enabled/public filters, private-stat staff access, and optimistic-concurrency integration regression pass against the isolated Postgres stack.
