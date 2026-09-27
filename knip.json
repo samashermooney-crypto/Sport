@@ -24,6 +24,11 @@
   "ignoreIssues": {
     "server/src/db/types.ts": ["exports", "types"],
     "server/src/db/withOrg.ts": ["exports"],
-    "server/src/integrations/email/sender.ts": ["exports"]
+    "server/src/integrations/email/sender.ts": ["exports"],
+    "shared/src/recurrence.ts": ["exports", "types"],
+    "shared/src/sport/schema.ts": ["exports", "types"],
+    "shared/src/sport/templates/base.ts": ["exports"],
+    "shared/src/sport/templates/catalog.ts": ["exports"],
+    "shared/src/sport/templates/index.ts": ["exports"]
   }
 }
