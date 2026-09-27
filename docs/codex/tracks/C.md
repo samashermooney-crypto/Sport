@@ -1,7 +1,7 @@
 # Track C — files, adapters, and wiring
 Status: working
 Branch: `track/c-adapters`
-Current: C commits `4367a77` (shared Files contracts/error envelope), `9abb2ac` (OPS wiring), and `cf437a2` (trunk sync through `9b934b0`) are on this branch. Registry, OpenAPI, and Kysely types were regenerated; typecheck/lint pass. The full Postgres suite is red on six concurrent teardown hooks and one G-owned Officials acceptance timeout, reproduced alone at 5.035s. Track D owns design-parity CI; the orchestrator pushes to GitHub because this sandbox has no network. Phase 15 remains owned by Track K.
+Current: C commits `4367a77` (shared Files contracts/error envelope), `9abb2ac` (OPS wiring), `cf437a2` (trunk sync through `9b934b0`), and `387009e` (raw binary OpenAPI request bodies) are on this branch. SEC-SSRF-C-001 now validates approved Web Push provider hosts, rejects private/non-public DNS answers, and pins HTTPS to the validated addresses. Focused push tests (7/7), typecheck, and targeted lint pass. The full Postgres suite is red on six concurrent teardown hooks and one G-owned Officials acceptance timeout, reproduced alone at 5.035s. Track D owns design-parity CI; the orchestrator pushes to GitHub because this sandbox has no network. Phase 15 remains owned by Track K.
 Ready for integration: no; commit the raw binary request-body OpenAPI change and rerun the full gate after tracked upstream failures are fixed.
 Requests to other tracks: Track A — no remaining C-owned file/provider implementation request. Track B — optional `SeasonRolloverExtras` module composition is pending. Track D — report/Action Center/website/export modules and nested routes will enter the generated registry when D's contracts merge. Track F — evaluator checkout adapter depends on E; audited consented evaluator-photo reads remain pending. Track K — raw binary OpenAPI request bodies are implemented; AI config and Help routes need K's modules to merge before runtime wiring. Track H — installment failure/final-notice fanout remains pending the comms worker/event contract.
 Requests from OPS: addressed in the current worktree — public `/readyz` and `/status`, web/worker structured startup and redacted Sentry hooks, key scripts, registered periodic heartbeat/queue/Stripe/payment/email alert checks, and removal of the web process's admin URL environment variable after pool initialization.
@@ -12,6 +12,7 @@ Requests from OPS: addressed in the current worktree — public `/readyz` and `/
 - Track H chat attachments: active same-organization conversation members can upload and download images/PDF; image metadata is stripped; nonmembers receive 404 and Restricted reads remain audited.
 - Track H provider IDs: email, SMS, and push adapters return provider message IDs when supplied; fake adapters return stable IDs. Mailpit SMTP reads `ATHLENTRY_MAILPIT_SMTP_PORT` (default 1025).
 - Existing adapter wiring: raw Stripe webhook ingress and worker registration, finance module and routes, generated registry/OpenAPI and nested route discovery. Stripe remains test-mode only.
+- SEC-SSRF-C-001: implemented in the Web Push adapter with provider-host validation, public-address checks for every DNS answer, and a pinned HTTPS agent to prevent DNS rebinding; regression tests reject unsafe hosts/addresses and verify the pinned lookup.
 - Trunk CI repair `9b5b430` was reported by the owner as fixing the test and Knip jobs; Track D owns the remaining design-parity CI job.
 - Phase 15 remains owned by Track K. C removed merge `63871e0` after the corrected full PostgreSQL gate found two schema failures in migration `8500_phase15_growth.sql`; K must carry and resolve that work on its branch.
 
@@ -27,10 +28,6 @@ Requests from OPS: addressed in the current worktree — public `/readyz` and `/
 - Track H: wire `installment.failed` and `installment.final_notice` fanout to consented push/SMS when comms workers and event contracts are available.
 - Reviewed wiring requests across the local track worktrees. D module/route discovery, B rollover contributions, F evaluator access/offer adapter, K's AI/Help runtime wiring and H installment-alert fanout remain gated on those owners' contracts reaching the integration branch. K's raw binary request-body support is committed in the next C change and generated OpenAPI documents it as `application/octet-stream`.
 - SEC-002 follow-up: nonmembers now receive concealed 404s for chat history/conversation/moderation and finance staff/template routes; active members without the required finance role still receive 403.
-
-## Remaining request from SEC
-
-- SEC-SSRF-C-001: validate Web Push subscription endpoints before the `web-push` transport call. The user-controlled destination must reject private/loopback/link-local and unknown hosts and protect DNS resolution from rebinding; its regression assertion remains `test.fixme` in `e2e/security/ssrf.spec.ts`.
 
 ## Verification and environment
 
