@@ -5,6 +5,10 @@ import {
   reportExportQuerySchema,
   reportPreviewBodySchema,
   reportPreviewResponseSchema,
+  reportScheduleBodySchema,
+  reportScheduleCreateResponseSchema,
+  reportScheduleListSchema,
+  reportScheduleUpdateResponseSchema,
   savedReportBodySchema,
   savedReportCreateResponseSchema,
   savedReportListSchema,
@@ -35,6 +39,11 @@ import {
   previewReport,
   updateSavedReport,
 } from './service';
+import {
+  createReportSchedule,
+  listReportSchedules,
+  updateReportSchedule,
+} from './schedules';
 
 const reportIdSchema = z.uuid();
 
@@ -275,6 +284,53 @@ export function createReportsRouter(
       const body = savedReportUpdateSchema.parse(request.body);
       const result = await updateSavedReport(context, reportId, body, withOrg);
       response.json(savedReportResponseSchema.parse(result));
+    }),
+  );
+
+  router.get(
+    '/orgs/:orgId/report-schedules',
+    withErrorHandling(async (request, response) => {
+      const { context } = await sessionContext(dependencies, request);
+      const result = await listReportSchedules(context, withOrg);
+      response.setHeader('Cache-Control', 'no-store');
+      response.json(reportScheduleListSchema.parse(result));
+    }),
+  );
+
+  router.post(
+    '/orgs/:orgId/report-schedules',
+    withErrorHandling(async (request, response) => {
+      if (!requireMutationOrigin(request, response, dependencies)) return;
+      const { context } = await sessionContext(dependencies, request);
+      const body = reportScheduleBodySchema.parse(request.body);
+      const schedule = await createReportSchedule(
+        context,
+        body,
+        dependencies.clock(),
+        withOrg,
+      );
+      response.status(201).json(
+        reportScheduleCreateResponseSchema.parse({ schedule }),
+      );
+    }),
+  );
+
+  router.put(
+    '/orgs/:orgId/report-schedules/:scheduleId',
+    withErrorHandling(async (request, response) => {
+      if (!requireMutationOrigin(request, response, dependencies)) return;
+      const { context } = await sessionContext(dependencies, request);
+      const scheduleId = reportIdSchema.parse(request.params.scheduleId);
+      const schedule = await updateReportSchedule(
+        context,
+        scheduleId,
+        request.body,
+        dependencies.clock(),
+        withOrg,
+      );
+      response.json(
+        reportScheduleUpdateResponseSchema.parse({ schedule }),
+      );
     }),
   );
 

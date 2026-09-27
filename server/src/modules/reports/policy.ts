@@ -73,6 +73,8 @@ export function canViewSavedReport(
 ): boolean {
   return (
     report.created_by === accountId ||
+    roles.includes('owner') ||
+    roles.includes('admin') ||
     report.shared_roles.some((role) => roles.includes(role))
   );
 }

@@ -2240,6 +2240,21 @@ export interface ReportDeliveries {
   updated_at: Generated<Timestamp>;
 }
 
+export interface ReportDeliveryOutbox {
+  attempts: Generated<number>;
+  created_at: Generated<Timestamp>;
+  id: string;
+  last_error: string | null;
+  lease_token: string | null;
+  lease_until: Timestamp | null;
+  next_attempt_at: Generated<Timestamp>;
+  org_id: string;
+  schedule_id: string;
+  scheduled_for: Timestamp;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface ReportSchedules {
   cadence: string;
   created_at: Generated<Timestamp>;
@@ -2251,6 +2266,9 @@ export interface ReportSchedules {
   next_run_at: Timestamp;
   org_id: string;
   recipients: Json;
+  run_at_minute: Generated<number>;
+  run_on_day: number | null;
+  run_on_weekday: number | null;
   saved_report_id: string;
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
@@ -2968,6 +2986,7 @@ export interface DB {
   registration_status_history: RegistrationStatusHistory;
   registrations: Registrations;
   report_deliveries: ReportDeliveries;
+  report_delivery_outbox: ReportDeliveryOutbox;
   report_schedules: ReportSchedules;
   reschedule_requests: RescheduleRequests;
   result_audit: ResultAudit;

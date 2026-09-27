@@ -490,3 +490,12 @@ export function reportContainsTier(
     (column) => column.tier === tier,
   );
 }
+
+export function reportUsesOnlyInternalData(
+  dataset: Dataset,
+  definition: ReportDefinition,
+): boolean {
+  return usedColumns(dataset, definition).every(
+    (column) => column.tier === 'public' || column.tier === 'internal',
+  );
+}

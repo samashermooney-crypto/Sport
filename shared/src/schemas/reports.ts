@@ -87,12 +87,37 @@ export const reportScheduleBodySchema = z.strictObject({
 
 export const reportScheduleUpdateSchema = z.strictObject({
   cadence: z.enum(['daily', 'weekly', 'monthly']).optional(),
-  recipientAccountIds: z.array(z.uuid()).min(1).max(20).optional(),
+  recipientAccountIds: z
+    .array(z.uuid())
+    .min(1)
+    .max(20)
+    .refine(
+      (accountIds) => new Set(accountIds).size === accountIds.length,
+      'Duplicate recipient',
+    )
+    .optional(),
   delivery: z.enum(['link', 'csv_attachment']).optional(),
   format: z.enum(['csv', 'xlsx']).optional(),
   runAtMinute: z.number().int().min(0).max(1439).optional(),
   status: z.enum(['active', 'paused']).optional(),
   expectedVersion: z.number().int().positive(),
+});
+
+export const reportScheduleBodySchema = z.strictObject({
+  savedReportId: z.uuid(),
+  cadence: z.enum(['daily', 'weekly', 'monthly']),
+  recipientAccountIds: z
+    .array(z.uuid())
+    .min(1)
+    .max(20)
+    .refine(
+      (accountIds) => new Set(accountIds).size === accountIds.length,
+      'Duplicate recipient',
+    ),
+  delivery: z.enum(['link', 'csv_attachment']),
+  format: z.enum(['csv', 'xlsx']).default('csv'),
+  /** Minutes after midnight in the organization's timezone. */
+  runAtMinute: z.number().int().min(0).max(1439).default(360),
 });
 
 export const reportExportQuerySchema = z.strictObject({
@@ -184,3 +209,9 @@ export const reportScheduleListSchema = z.strictObject({
 export const reportScheduleCreateResponseSchema = z.strictObject({
   schedule: reportScheduleResponseSchema,
 });
+
+export const reportScheduleUpdateResponseSchema = z.strictObject({
+  schedule: reportScheduleResponseSchema,
+});
+
+export type ReportScheduleBody = z.infer<typeof reportScheduleBodySchema>;
