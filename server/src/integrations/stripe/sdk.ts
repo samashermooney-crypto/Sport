@@ -162,6 +162,48 @@ export class StripeSdkGateway implements PaymentsGateway {
     return { id: intent.id, clientSecret: intent.client_secret };
   }
 
+  async retrieveSetupIntent(setupIntentId: string) {
+    const intent = await this.stripe.setupIntents.retrieve(setupIntentId);
+    return {
+      id: intent.id,
+      status: intent.status,
+      customerId:
+        typeof intent.customer === 'string'
+          ? intent.customer
+          : (intent.customer?.id ?? null),
+      paymentMethodId:
+        typeof intent.payment_method === 'string'
+          ? intent.payment_method
+          : (intent.payment_method?.id ?? null),
+    };
+  }
+
+  async retrievePaymentMethod(paymentMethodId: string) {
+    const method = await this.stripe.paymentMethods.retrieve(paymentMethodId);
+    const type =
+      method.type === 'card'
+        ? ('card' as const)
+        : method.type === 'us_bank_account'
+          ? ('us_bank_account' as const)
+          : method.type === 'link'
+            ? ('link' as const)
+            : null;
+    if (!type) throw new Error('Unsupported Stripe payment method type');
+    return {
+      id: method.id,
+      type,
+      brand: method.card?.brand ?? null,
+      last4: method.card?.last4 ?? method.us_bank_account?.last4 ?? null,
+      expMonth: method.card?.exp_month ?? null,
+      expYear: method.card?.exp_year ?? null,
+      bankName: method.us_bank_account?.bank_name ?? null,
+      customerId:
+        typeof method.customer === 'string'
+          ? method.customer
+          : (method.customer?.id ?? null),
+    };
+  }
+
   async listPaymentMethods(
     customerId: string,
   ): Promise<GatewayPaymentMethod[]> {

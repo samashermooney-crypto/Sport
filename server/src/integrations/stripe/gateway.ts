@@ -35,6 +35,17 @@ export interface PaymentsGateway {
     id: string;
     clientSecret: string;
   }>;
+  retrieveSetupIntent(setupIntentId: string): Promise<{
+    id: string;
+    status: string;
+    customerId: string | null;
+    paymentMethodId: string | null;
+  }>;
+  retrievePaymentMethod(paymentMethodId: string): Promise<
+    GatewayPaymentMethod & {
+      customerId: string | null;
+    }
+  >;
   listPaymentMethods(customerId: string): Promise<GatewayPaymentMethod[]>;
   detachPaymentMethod(paymentMethodId: string): Promise<void>;
   setDefaultPaymentMethod(

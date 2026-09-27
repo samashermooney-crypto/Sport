@@ -73,6 +73,7 @@ describe('saved payment method persistence', () => {
     const stored = rows[0];
     if (!stored) throw new Error('Saved method was not stored');
     methodRowId = stored.id;
+    expect(await methods.findOwner(stripeId)).toBe(context.actor.accountId);
     await expect(methods.sync(newId(), [method])).rejects.toThrow(
       'different payer',
     );

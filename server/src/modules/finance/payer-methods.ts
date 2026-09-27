@@ -17,6 +17,7 @@ export interface PayerProfileRepository {
   reserve(accountId: string): Promise<PayerReservation>;
   save(accountId: string, customerId: string): Promise<void>;
   load(accountId: string): Promise<string | null>;
+  findAccountByCustomer(customerId: string): Promise<string | null>;
 }
 
 export interface SavedPaymentMethodRepository {
@@ -26,6 +27,7 @@ export interface SavedPaymentMethodRepository {
   ): Promise<void>;
   setDefault(accountId: string, paymentMethodId: string): Promise<void>;
   markDetached(accountId: string, paymentMethodId: string): Promise<void>;
+  findOwner(paymentMethodId: string): Promise<string | null>;
 }
 
 export class PayerMethodsService {

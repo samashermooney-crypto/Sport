@@ -49,6 +49,9 @@ describe('Postgres payer profile repository', () => {
   it('stores one Customer and returns it on later reservations', async () => {
     await repository.save(accountId, 'cus_test_repo_1');
     expect(await repository.load(accountId)).toBe('cus_test_repo_1');
+    expect(await repository.findAccountByCustomer('cus_test_repo_1')).toBe(
+      accountId,
+    );
     expect(await repository.reserve(accountId)).toEqual({
       kind: 'existing',
       customerId: 'cus_test_repo_1',

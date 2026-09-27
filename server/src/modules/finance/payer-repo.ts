@@ -51,4 +51,12 @@ export class PostgresPayerProfileRepository implements PayerProfileRepository {
     `.execute(this.database);
     return result.rows[0]?.stripe_customer_id ?? null;
   }
+
+  async findAccountByCustomer(customerId: string): Promise<string | null> {
+    const result = await sql<{ account_id: string }>`
+      SELECT account_id FROM payer_profiles
+      WHERE stripe_customer_id = ${customerId}
+    `.execute(this.database);
+    return result.rows[0]?.account_id ?? null;
+  }
 }

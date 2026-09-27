@@ -26,6 +26,9 @@ function harness() {
       return Promise.resolve();
     }),
     load: vi.fn(() => Promise.resolve(customerId)),
+    findAccountByCustomer: vi.fn((id: string) =>
+      Promise.resolve(id === customerId ? 'account-1' : null),
+    ),
   } satisfies PayerProfileRepository;
   const gateway = {
     createCustomer: vi.fn<PaymentsGateway['createCustomer']>(() =>
