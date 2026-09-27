@@ -21,7 +21,7 @@ export default defineConfig({
         resolve: { alias },
         test: {
           name: 'server',
-          include: ['server/src/**/*.test.ts'],
+          include: ['server/{src,test}/**/*.test.ts'],
           environment: 'node',
           sequence: { hooks: 'stack' },
           globalSetup: ['server/test/global-setup.ts'],
