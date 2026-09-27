@@ -1,3 +1,4 @@
+import { apiErrorSchema } from '@shared/schemas/errors';
 import {
   createOrgResponseSchema,
   createOrgSchema,
@@ -46,12 +47,14 @@ export function createOrgRouter(
         (request.get('Origin') !== origin &&
           !(bearerRequest && request.get('Origin') === undefined))
       ) {
-        response.status(403).json({
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Request origin could not be verified',
-          },
-        });
+        response.status(403).json(
+          apiErrorSchema.parse({
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Request origin could not be verified',
+            },
+          }),
+        );
         return;
       }
       const session = await requireSession(dependencies, request);
@@ -72,18 +75,22 @@ export function createOrgRouter(
 
 function sendError(response: express.Response, error: unknown): void {
   if (error instanceof z.ZodError) {
-    response.status(400).json({
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Check the organization details',
-      },
-    });
+    response.status(400).json(
+      apiErrorSchema.parse({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Check the organization details',
+        },
+      }),
+    );
   } else if (error instanceof OrgCreationError) {
     const status =
       error.code === 'CONFLICT' ? 409 : error.code === 'FORBIDDEN' ? 403 : 400;
-    response
-      .status(status)
-      .json({ error: { code: error.code, message: error.message } });
+    response.status(status).json(
+      apiErrorSchema.parse({
+        error: { code: error.code, message: error.message },
+      }),
+    );
   } else if (
     error instanceof Error &&
     'status' in error &&
@@ -91,15 +98,19 @@ function sendError(response: express.Response, error: unknown): void {
     'code' in error &&
     error.code === 'UNAUTHENTICATED'
   ) {
-    response.status(401).json({
-      error: { code: 'UNAUTHENTICATED', message: 'Sign in to continue' },
-    });
+    response.status(401).json(
+      apiErrorSchema.parse({
+        error: { code: 'UNAUTHENTICATED', message: 'Sign in to continue' },
+      }),
+    );
   } else {
-    response.status(500).json({
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'The request could not be completed',
-      },
-    });
+    response.status(500).json(
+      apiErrorSchema.parse({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'The request could not be completed',
+        },
+      }),
+    );
   }
 }
