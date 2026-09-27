@@ -11,6 +11,7 @@ import {
   peopleFilterOptionsSchema,
   peopleListSchema,
   personCreateSchema,
+  personPhotoUpdateSchema,
   personResponseSchema,
   personUpdateSchema,
 } from '@shared/schemas/people';
@@ -107,6 +108,13 @@ export const moduleDefinition = {
       path: '/api/v1/people/orgs/{orgId}/{personId}',
       summary: 'Versioned person update',
       body: personUpdateSchema,
+      response: personResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/photo',
+      summary: 'Attach or remove a consent-aware person photo',
+      body: personPhotoUpdateSchema,
       response: personResponseSchema,
     },
     {

@@ -24,6 +24,8 @@ import {
 } from '../ui/primitives';
 import { AppShell } from '../ui/shell';
 
+import { PersonPhoto } from './PersonPhoto';
+
 type Person = z.output<typeof personResponseSchema>;
 type FormValues = {
   firstName: string;
@@ -678,6 +680,13 @@ export function PersonDetail(): React.JSX.Element {
                   },
                   personResponseSchema,
                 );
+                await client.invalidateQueries({ queryKey: ['people', orgId] });
+              }}
+            />
+            <PersonPhoto
+              orgId={orgId}
+              person={current}
+              onSaved={async () => {
                 await client.invalidateQueries({ queryKey: ['people', orgId] });
               }}
             />

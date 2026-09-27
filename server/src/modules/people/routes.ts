@@ -10,6 +10,7 @@ import {
   peopleFilterOptionsQuerySchema,
   peopleQuerySchema,
   personCreateSchema,
+  personPhotoUpdateSchema,
   personUpdateSchema,
 } from '@shared/schemas/people';
 import express from 'express';
@@ -171,6 +172,28 @@ export function createPeopleRouter(
           session.accountId,
           personId,
           personUpdateSchema.parse(request.body),
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.post('/orgs/:orgId/:personId/photo', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+      if (!validWriteOrigin(request, dependencies.appUrl))
+        throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+      const orgId = z.uuid().parse(request.params.orgId);
+      const personId = z.uuid().parse(request.params.personId);
+      response.json(
+        await people.setPhoto(
+          orgId,
+          session.accountId,
+          personId,
+          personPhotoUpdateSchema.parse(request.body),
         ),
       );
     } catch (error) {

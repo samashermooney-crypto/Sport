@@ -42,6 +42,7 @@ export const personResponseSchema = z.strictObject({
   email: z.string().nullable(),
   phoneE164: z.string().nullable(),
   mediaConsent: z.enum(['granted', 'denied', 'unknown']),
+  photoFileId: z.uuid().nullable(),
   status: z.enum(['active', 'archived', 'merged', 'anonymized']),
   version: z.int().positive(),
 });
@@ -49,6 +50,11 @@ export const personResponseSchema = z.strictObject({
 export const peopleListSchema = z.strictObject({
   items: z.array(personResponseSchema),
   nextCursor: z.uuid().nullable(),
+});
+
+export const personPhotoUpdateSchema = z.strictObject({
+  expectedVersion: z.int().positive(),
+  fileId: z.uuid().nullable(),
 });
 
 export const peopleQuerySchema = z.strictObject({
