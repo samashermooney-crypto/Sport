@@ -1,0 +1,65 @@
+@import '../../ui/tokens.css';
+
+.notification-center {
+  background: var(--canvas);
+  color: var(--ink-2);
+  font-family: var(--font-app);
+  padding: var(--space-24);
+}
+.notification-center header,
+.notification-center__inbox li {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-16);
+}
+.notification-center h1,
+.notification-center h2 {
+  color: var(--ink);
+  font-family: var(--font-display);
+}
+.notification-center section {
+  margin-top: var(--space-24);
+}
+.notification-center button {
+  background: var(--accent);
+  border: 1px solid var(--accent-600);
+  border-radius: var(--radius-4);
+  color: var(--on-accent);
+  cursor: pointer;
+  min-height: var(--control-height-40);
+  padding: 0 var(--space-16);
+}
+.notification-center button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.notification-center__inbox {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.notification-center__inbox li {
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  padding: var(--space-16);
+}
+.notification-center__inbox time {
+  color: var(--muted);
+  display: block;
+}
+.notification-center__preferences {
+  display: grid;
+  gap: var(--space-8);
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+.notification-center__preferences label {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-4);
+  display: flex;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  text-transform: capitalize;
+}

@@ -20,6 +20,7 @@ export type OpenApiRoute = {
   tags?: string[];
   public?: boolean;
   query?: Record<string, z.ZodType>;
+  contentType?: string;
 };
 
 const authBase = '/api/v1/auth';
@@ -280,7 +281,11 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
     responses: {
       [status]: {
         description: 'Success',
-        content: { 'application/json': { schema: jsonSchema(route.response) } },
+        content: {
+          [route.contentType ?? 'application/json']: {
+            schema: jsonSchema(route.response),
+          },
+        },
       },
       '400': { $ref: '#/components/responses/ValidationError' },
       '401': { $ref: '#/components/responses/Unauthenticated' },

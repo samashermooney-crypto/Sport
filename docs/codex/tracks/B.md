@@ -3,7 +3,7 @@
 Status: working
 Model: GPT-6 Sol
 Branch: `track/b-logic`
-Current: Second queue Phase 1 task 13 notifications core next.
+Current: Second queue Phase 1 task 13 notifications core implemented locally; task 9 platform console next.
 Ready: Age/eligibility — `shared/src/sport/{age,eligibility}.ts`; 11 targeted tests, typecheck and lint green.
 Ready: Recurrence — `shared/src/recurrence.ts`; 11 targeted tests across four timezones, typecheck and lint green.
 Ready: Sport schema/results/stats/standings — 19 targeted tests, typecheck and lint green; template goldens still pending.
@@ -22,10 +22,12 @@ Ready: Property invariants — brackets, capacity, schedule, dunning, waitlist, 
 Ready: Phase 1 task 10 core — pg-boss schema, executable job descriptors, 30-second worker heartbeat and redacted failed-job listing; isolated Postgres job completed.
 Ready: Phase 1 task 15 — OpenAPI 3.1 for 31 current operations with route coverage/freshness check; closed error schema on auth/orgs, cursor pagination, transactional Idempotency-Key and version checks.
 Ready: Phase 1 task 14 — append-only audit service, fail-closed Restricted-field redaction/read helper, role-scoped cursor API and functional console viewer.
+Ready: Phase 1 task 13 core — code-defined catalog, org-scoped inbox and preferences APIs, audited writes, Postgres LISTEN/NOTIFY SSE transport, and portal notification center; 5 targeted server tests pass.
 Ready for integration: 30a775f..HEAD — complete Track B queue: age/eligibility, recurrence, sport engine and 46 templates, pricing/fees/installments/invoice-state/capacity/dunning/waitlist, five policies, brackets, schedule generator, team balancer, evaluation, proration, edge review, scoring variants and property invariants.
-Second queue ready range: 2693ff1..HEAD — task 10 jobs core, task 15 API conventions and task 14 audit; worker/console entry hooks remain in A-owned files.
-Requests to other tracks: A — call `startRegisteredWorker(serverModules, DATABASE_URL)` from `server/src/worker.ts` and await `stop()` on signals; mount exported `auditConsoleRoutes` from `web/src/console/audit/routes.tsx` in the console feature; B cannot edit those entry points under the second-queue ownership rule.
-Blocked on: none
+Second queue ready range: 2693ff1..727cfe9 — tasks 10 jobs core, 15 API conventions and 14 audit; task 13 implementation awaits integration hooks and OpenAPI freshness.
+Requests to other tracks: A — call `startRegisteredWorker(serverModules, DATABASE_URL)` from `server/src/worker.ts` and await `stop()` on signals; mount exported `auditConsoleRoutes` from `web/src/console/audit/routes.tsx`; mount notification module's `streamRouter` at `/api/v1/stream` through the generated registry and `notificationPortalRoutes` in portal routing.
+Requests to other tracks: A/C — add shared Zod request/response schemas and module OpenAPI descriptors for five existing files routes; the route-coverage generator now detects these undocumented operations, so `npm run openapi` currently fails after the spine merge.
+Blocked on: A-owned worker, stream, console and portal entry hooks; shared files schemas for OpenAPI freshness.
 Self-review: Checked age and eligibility against `03 §3` and `15 §C8`; date rules reuse `shared/src/dates.ts`.
 Self-review: Checked recurrence DST behavior against `15 §C1` across Chicago, New York, Phoenix and Honolulu.
 Self-review: Checked money sequencing and state invariants against `20 §1–§5`; all arithmetic uses integer cents.
@@ -35,3 +37,4 @@ Self-review: 220 shared tests pass; Track B line coverage 95.08%; swim/diving/cr
 Self-review: Task 10 checked against `01 §6, §10`; pg-boss 12.1.1 migration applied and probe completed on isolated Postgres; generated registry refreshed.
 Self-review: Task 15 checked against `01 §5` and Phase 1 task 15; concurrent idempotency replay tested on Postgres, existing auth/org routes and OpenAPI regeneration pass.
 Self-review: Task 14 checked against `04 §6`; Restricted values are redacted at append and view, Restricted reads write in the read transaction, and owner/compliance/outsider access was tested on Postgres.
+Self-review: Task 13 checked against `01 §5` and Phase 1 task 13; account-filtered SSE envelopes omit content, notifications and preferences use spine tables under `withOrg`, and concurrent preference updates serialize per account/category.
