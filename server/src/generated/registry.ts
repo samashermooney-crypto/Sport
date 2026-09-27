@@ -10,6 +10,7 @@ import { moduleDefinition as authModule } from '../modules/auth/module';
 import { moduleDefinition as communicationsModule } from '../modules/communications/module';
 import { moduleDefinition as complianceModule } from '../modules/compliance/module';
 import { moduleDefinition as disciplineModule } from '../modules/discipline/module';
+import { moduleDefinition as federationModule } from '../modules/federation/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
@@ -25,6 +26,7 @@ export const serverModules: readonly ServerModule[] = [
   communicationsModule,
   complianceModule,
   disciplineModule,
+  federationModule,
   filesModule,
   financeModule,
   jobsModule,

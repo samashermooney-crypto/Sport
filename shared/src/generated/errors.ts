@@ -1,1 +1,6 @@
-export const moduleErrorCodes = [] as const;
+export const moduleErrorCodes = [
+  'FEDERATION_CONFLICT',
+  'FEDERATION_RULE',
+  'FEDERATION_SHARING_DENIED',
+  'FEDERATION_UNAVAILABLE',
+] as const;
