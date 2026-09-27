@@ -713,6 +713,12 @@ describe('signed-in payer method HTTP', () => {
       'cus_route',
       'pm_route',
     );
+    const afterDefault = await fetch(`${baseUrl}/me/payment-methods`, {
+      headers: { Cookie: headers.Cookie },
+    });
+    expect(await afterDefault.json()).toMatchObject({
+      defaultMethodId: 'pm_route',
+    });
     const removed = await fetch(`${baseUrl}/me/payment-methods/pm_route`, {
       method: 'DELETE',
       headers,

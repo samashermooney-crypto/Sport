@@ -12,6 +12,17 @@ import type { SavedPaymentMethodRepository } from './payer-methods.js';
 export class PostgresSavedPaymentMethodRepository implements SavedPaymentMethodRepository {
   constructor(private readonly database: Kysely<DB>) {}
 
+  async loadDefault(accountId: string): Promise<string | null> {
+    const method = await this.database
+      .selectFrom('payment_methods')
+      .select('stripe_payment_method_id')
+      .where('account_id', '=', accountId)
+      .where('is_default', '=', true)
+      .where('status', '=', 'active')
+      .executeTakeFirst();
+    return method?.stripe_payment_method_id ?? null;
+  }
+
   async findOwner(paymentMethodId: string): Promise<string | null> {
     const method = await this.database
       .selectFrom('payment_methods')

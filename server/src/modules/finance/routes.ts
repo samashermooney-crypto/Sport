@@ -254,6 +254,7 @@ export const savedPaymentMethodSchema = z.strictObject({
 });
 export const savedPaymentMethodsResponseSchema = z.strictObject({
   methods: z.array(savedPaymentMethodSchema),
+  defaultMethodId: z.string().startsWith('pm_').nullable(),
 });
 export const paymentMethodActionResponseSchema = z.strictObject({
   success: z.literal(true),
@@ -748,7 +749,17 @@ export function createFinanceRouter(
       if (requestImpersonation(request)) throw new FinanceAccessError();
       const session = await requireSession(dependencies, request);
       const methods = await payerMethods().list(session.accountId);
-      response.json(savedPaymentMethodsResponseSchema.parse({ methods }));
+      const storedDefault = await new PostgresSavedPaymentMethodRepository(
+        dependencies.database,
+      ).loadDefault(session.accountId);
+      response.json(
+        savedPaymentMethodsResponseSchema.parse({
+          methods,
+          defaultMethodId: methods.some((method) => method.id === storedDefault)
+            ? storedDefault
+            : null,
+        }),
+      );
     } catch (error) {
       sendError(response, error);
     }
