@@ -1,6 +1,10 @@
 import { householdListSchema } from '@shared/schemas/households';
 import { orgWorkspaceSchema } from '@shared/schemas/orgs';
-import { peopleListSchema, personResponseSchema } from '@shared/schemas/people';
+import {
+  peopleFilterOptionsSchema,
+  peopleListSchema,
+  personResponseSchema,
+} from '@shared/schemas/people';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
@@ -273,7 +277,29 @@ export function PeopleList(): React.JSX.Element {
   const [grade, setGrade] = useState('');
   const [householdSearch, setHouseholdSearch] = useState('');
   const [householdId, setHouseholdId] = useState('');
+  const [programSearch, setProgramSearch] = useState('');
+  const [programId, setProgramId] = useState('');
+  const [teamSearch, setTeamSearch] = useState('');
+  const [teamSeasonId, setTeamSeasonId] = useState('');
   const [hasBalance, setHasBalance] = useState('');
+  const programs = useQuery({
+    queryKey: ['people-filter-programs', orgId, programSearch],
+    queryFn: () =>
+      apiGet(
+        `/people/orgs/${String(orgId)}/filter-options?${new URLSearchParams({ kind: 'program', ...(programSearch ? { q: programSearch } : {}) })}`,
+        peopleFilterOptionsSchema,
+      ),
+    enabled: Boolean(orgId),
+  });
+  const teams = useQuery({
+    queryKey: ['people-filter-teams', orgId, teamSearch],
+    queryFn: () =>
+      apiGet(
+        `/people/orgs/${String(orgId)}/filter-options?${new URLSearchParams({ kind: 'team', ...(teamSearch ? { q: teamSearch } : {}) })}`,
+        peopleFilterOptionsSchema,
+      ),
+    enabled: Boolean(orgId),
+  });
   const households = useQuery({
     queryKey: ['households', orgId, 'people-filter', householdSearch],
     queryFn: () =>
@@ -294,6 +320,8 @@ export function PeopleList(): React.JSX.Element {
       maxAge,
       grade,
       householdId,
+      programId,
+      teamSeasonId,
       hasBalance,
       cursor,
     ],
@@ -307,6 +335,8 @@ export function PeopleList(): React.JSX.Element {
           ...(maxAge ? { maxAge } : {}),
           ...(grade ? { grade } : {}),
           ...(householdId ? { householdId } : {}),
+          ...(programId ? { programId } : {}),
+          ...(teamSeasonId ? { teamSeasonId } : {}),
           ...(hasBalance ? { hasBalance } : {}),
           ...(cursor ? { cursor } : {}),
         })}`,
@@ -448,6 +478,60 @@ export function PeopleList(): React.JSX.Element {
               ]}
               onChange={(event) => {
                 setHasBalance(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Find program">
+            <Input
+              type="search"
+              value={programSearch}
+              onChange={(event) => {
+                setProgramSearch(event.target.value);
+                setProgramId('');
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Program">
+            <Select
+              value={programId}
+              options={[
+                { value: '', label: 'Any program' },
+                ...(programs.data?.items.map((program) => ({
+                  value: program.id,
+                  label: program.name,
+                })) ?? []),
+              ]}
+              onChange={(event) => {
+                setProgramId(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Find team">
+            <Input
+              type="search"
+              value={teamSearch}
+              onChange={(event) => {
+                setTeamSearch(event.target.value);
+                setTeamSeasonId('');
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Team">
+            <Select
+              value={teamSeasonId}
+              options={[
+                { value: '', label: 'Any team' },
+                ...(teams.data?.items.map((team) => ({
+                  value: team.id,
+                  label: team.name,
+                })) ?? []),
+              ]}
+              onChange={(event) => {
+                setTeamSeasonId(event.target.value);
                 setCursor(null);
               }}
             />

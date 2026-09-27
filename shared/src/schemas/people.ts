@@ -61,10 +61,21 @@ export const peopleQuerySchema = z.strictObject({
   maxAge: z.coerce.number().int().min(0).max(120).optional(),
   grade: z.coerce.number().int().min(-1).max(12).optional(),
   householdId: z.uuid().optional(),
+  programId: z.uuid().optional(),
+  teamSeasonId: z.uuid().optional(),
   hasBalance: z
     .enum(['true', 'false'])
     .transform((value) => value === 'true')
     .optional(),
   cursor: z.uuid().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
+});
+
+export const peopleFilterOptionsQuerySchema = z.strictObject({
+  kind: z.enum(['program', 'team']),
+  q: z.string().trim().max(120).optional(),
+});
+
+export const peopleFilterOptionsSchema = z.strictObject({
+  items: z.array(z.strictObject({ id: z.uuid(), name: z.string() })),
 });
