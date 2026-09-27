@@ -127,3 +127,33 @@ export const updateOrgCredentialSchema = z.strictObject({
   active: z.boolean(),
   version: z.number().int().positive(),
 });
+
+const orgRoleSchema = z.enum([
+  'owner',
+  'admin',
+  'registrar',
+  'finance',
+  'scheduler',
+  'compliance',
+  'communications',
+  'director',
+  'evaluator',
+  'volunteer_coordinator',
+  'reporter',
+]);
+
+export const updateOrgMemberRolesSchema = z.strictObject({
+  roles: z
+    .array(orgRoleSchema)
+    .min(1)
+    .max(11)
+    .refine((roles) => new Set(roles).size === roles.length, 'Duplicate role'),
+  expectedVersion: z.number().int().positive(),
+});
+
+export const orgMemberRolesResponseSchema = z.strictObject({
+  accountId: z.uuid(),
+  roles: z.array(orgRoleSchema),
+  pendingMfa: z.boolean(),
+  version: z.number().int().positive(),
+});

@@ -223,3 +223,11 @@
 - **Decision:** Bind new device registrations to the registering session, reject a concurrent stale session, hide expired-session devices from reads, scrub subscription or token data on explicit session revocation, and run hourly expiry cleanup. Revoke and scrub pre-migration device records that have no session association.
 - **Why:** Delivery endpoints can identify a family's device; their validity must not outlast the authenticated session that supplied them.
 - **Consequences / follow-ups:** Push dispatchers must select only active session-bound devices. A trusted HTTPS browser subscription check remains before Phase 1 task 4 is complete.
+
+### DEC-027 — Serialize organization ownership changes
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 users and roles
+- **Context:** Concurrent role edits could each observe another owner and leave an organization without an active owner. A direct role edit could also grant ownership without recipient acceptance.
+- **Decision:** Add a membership version and lock the organization row before reading or changing owner assignments. Role edits require an active owner with completed MFA and recent step-up, reject direct owner grants, and revoke the target's sessions after any change. Granting admin or finance stays pending until MFA is confirmed.
+- **Why:** A single serialization point protects the last-owner invariant, and accepted transfer prevents surprise legal and financial ownership.
+- **Consequences / follow-ups:** The invitation and transfer flows must use the same organization lock. Add the users and roles screen and scoped role controls before task 7 is complete.

@@ -1183,6 +1183,7 @@ export interface OrgMemberships {
   status: string;
   title: string | null;
   updated_at: Generated<Timestamp>;
+  version: Generated<number>;
 }
 
 export interface PayerProfiles {
