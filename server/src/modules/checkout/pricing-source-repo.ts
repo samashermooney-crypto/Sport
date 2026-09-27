@@ -38,6 +38,7 @@ const emptyObject = (value: Json): boolean =>
 const orgSettingsSchema = z
   .object({
     confirmOnAchProcessing: z.boolean().optional(),
+    lateFeeCents: z.number().int().nonnegative().max(10_000).optional(),
     serviceFee: z
       .discriminatedUnion('enabled', [
         z.object({ enabled: z.literal(false) }).strict(),
