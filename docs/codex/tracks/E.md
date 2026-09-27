@@ -36,4 +36,5 @@ Lost-capacity refunds: checkout now durably claims each intent before Stripe ref
 Checkout pricing: `checkout/pricing.ts` freezes Track B pricing from repository-owned inputs in one withOrg transaction, validates invoice/credit reconciliation and replays stored cents; 2 targeted tests pass.
 Refund core: `finance/refunds.ts` applies Track B refund policy with proportional service-fee reversal, two-person threshold, ACH-processing block and stable idempotent Stripe refunds; 7 targeted tests pass.
 Refund attempts: migration 1003 and `finance/refund-attempt-repo.ts` persist scoped request-hash conflicts, pre-external retries, external fences and exact replay results; 2 real-Postgres tests pass.
+Invoice issuance: migration 1004 adds product-tax lines and creation keys; `finance/invoice-repo.ts` atomically numbers, dedupes and reconciles header/lines with the spine triggers; 2 real-Postgres tests pass.
 Waitlist holds: `checkout/waitlist.ts` sets family-local send times and expiry from send, with one-transaction repository contract for capacity, offer and outbox; 2 targeted tests pass.
