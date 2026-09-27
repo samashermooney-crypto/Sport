@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
+import { serverModules } from '../../generated/registry';
 import type { ServerModule } from '../../lib/module-contract';
 
 import { moduleDefinition } from './module';
 import { collectRegisteredJobs } from './registry';
 
 describe('job registry', () => {
+  it('accepts every generated module job at worker startup', () => {
+    const names = collectRegisteredJobs(serverModules).map((job) => job.name);
+    expect(names).toContain('communications.deliver-due');
+  });
+
   it('collects executable jobs from module descriptors', async () => {
     const jobs = collectRegisteredJobs([moduleDefinition]);
     expect(jobs.map((job) => job.name)).toEqual(['jobs.probe']);
