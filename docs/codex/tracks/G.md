@@ -45,3 +45,20 @@ Status: working; integration readiness is pending because Phase 8/9 acceptance e
 - G decisions are `DEC-080–096` in `docs/codex/DECISIONS.md`; the latest trunk decisions are preserved through `DEC-079`.
 - Last completed trunk syncs: `925d8ff` (through `d991fee`) and `69bd7c9` (through `4660724`). The most recent lock-protected merge attempt failed the unit gate and was rolled back. All changes remain local on `track/g-schedule`; nothing was pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys, generator acceptance and full gates pass.
+
+## HANDOFF
+
+- **Done:** G-owned Phase 8/9 service and UI implementation is committed on local `track/g-schedule`; the branch includes trunk through `4660724`. Recent closure work includes assigned-official recipients and immediate emergency batches. The focused Chromium sign-in, ownership-transfer and people journeys all pass.
+- **In progress / blocked paths:** `server/src/modules/tournaments/bracket-acceptance.test.ts` is a committed 13-team double-elimination regression that cannot complete GF1 because Track B's shared algorithm does not advance losers-bracket bye winners. `server/src/modules/scheduling/generator.test.ts`'s 48-team case exceeds its 60-second limit (82.1s in the latest full unit run). There are no uncommitted implementation edits. G's actual schedule Playwright journeys are not present because the registered routes are not mounted.
+- **Next steps, in order:**
+  1. Ask Track B to repair the shared 48-team generator runtime/fairness and loser-bracket bye progression; rerun the two targeted generator/bracket regressions and unit gate.
+  2. Ask Track C to mount the registered schedule console and portal routes/navigation, define the safe facility-layout image serving contract, and add Phase 8/9 Chromium and WebKit mobile journeys with axe.
+  3. Coordinate Track B/C notification fan-out so closure notifications reach the required preview email path; preserve G's use of the shared notification module.
+  4. Coordinate with Track H on volunteer-by-event assignments and include volunteers in emergency closure recipients.
+  5. Coordinate with Track F on transaction-scoped result-to-discipline creation and finalized-game-served counting; then complete automatic discipline integration in result finalization.
+  6. Have Track A resolve the remaining baseline WebKit failures in ownership transfer, people and sign-in.
+  7. Rerun generator, closure, DST, ICS, tenancy/permission and Phase 8/9 browser tests; run the complete tiered gate. The last lock-protected self-merge gate was red and rolled back, so do not merge until the gate passes.
+- **Known failing tests:** latest serial Playwright rerun: Chromium 3/3 passed; WebKit mobile failed `e2e/ownership-transfer.spec.ts:20` (acceptance link status), `e2e/people.spec.ts:13` (Alex Rivera heading), and `e2e/sign-in.spec.ts:151` (verification-link status). Latest full `npm test` before the new bracket regression: 752 passed, 1 skipped, 1 failed (48-team generator took 82.1s); the focused `server/src/modules/tournaments/bracket-acceptance.test.ts` regression fails at loser-bracket bye progression. The latest full browser run was 38 passed, 4 failed, 4 skipped.
+- **Open requests:** Track B: generator and bracket fixes; Track C: route mounting, schedule journeys/axe and facility image contract; Track B/C: notification email fan-out; Track H: volunteer assignments; Track F: discipline transaction/game-served APIs; Track A: baseline browser failures.
+- **Local test stack:** `COMPOSE_PROJECT_NAME=athlentry_g PORT_OFFSET=700`.
+- **Integration state:** `track/g-schedule` is local and unpushed. The trunk merge attempt failed the full unit gate and was rolled back; skip self-merge while the gate remains red.
