@@ -100,4 +100,28 @@ describe('versioned installment templates', () => {
       }),
     ).rejects.toThrow('strictly increasing');
   });
+
+  it('persists and replaces a weekly template without losing its schedule', async () => {
+    const repo = new PostgresInstallmentTemplates(database, context);
+    const created = await repo.create({
+      ...input,
+      name: 'Weekly plan',
+      schedule: { kind: 'weekly', count: 4 },
+    });
+    expect(created.schedule).toEqual({ kind: 'weekly', count: 4 });
+    expect((await repo.list(true))[0]?.schedule).toEqual({
+      kind: 'weekly',
+      count: 4,
+    });
+    const replaced = await repo.replace(created.id, created.version, {
+      ...input,
+      name: 'Short weekly plan',
+      schedule: { kind: 'weekly', count: 2 },
+    });
+    expect(replaced).toMatchObject({
+      version: 2,
+      schedule: { kind: 'weekly', count: 2 },
+    });
+    await repo.archive(replaced.id, replaced.version);
+  });
 });
