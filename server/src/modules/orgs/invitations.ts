@@ -3,6 +3,7 @@ import {
   acceptedOrgInvitationResponseSchema,
   orgInvitationResponseSchema,
   orgInvitationSchema,
+  orgStaffResponseSchema,
 } from '@shared/schemas/orgs';
 import type { Kysely } from 'kysely';
 import type { z } from 'zod';
@@ -18,6 +19,82 @@ import { OrgMemberRolesError } from './memberRoles';
 
 type Invitation = z.output<typeof orgInvitationSchema>;
 type InvitationResponse = z.output<typeof orgInvitationResponseSchema>;
+
+export async function listOrgStaff(
+  database: Kysely<DB>,
+  input: { orgId: string; actorId: string; now: Date },
+): Promise<z.output<typeof orgStaffResponseSchema>> {
+  return createWithOrg(database)(
+    { orgId: input.orgId, actor: { accountId: input.actorId } },
+    async (trx) => {
+      await assertActiveOwner(trx, input.orgId, input.actorId);
+      const members = await trx
+        .selectFrom('org_memberships')
+        .innerJoin('accounts', 'accounts.id', 'org_memberships.account_id')
+        .select([
+          'org_memberships.account_id',
+          'org_memberships.status',
+          'org_memberships.version',
+          'accounts.email',
+          'accounts.first_name',
+          'accounts.last_name',
+        ])
+        .where('org_memberships.org_id', '=', input.orgId)
+        .where('org_memberships.status', '!=', 'removed')
+        .orderBy('accounts.email')
+        .execute();
+      const roles = await trx
+        .selectFrom('role_assignments')
+        .select(['account_id', 'role', 'scope_type', 'scope_id', 'pending_mfa'])
+        .where('org_id', '=', input.orgId)
+        .where('revoked_at', 'is', null)
+        .orderBy('role')
+        .execute();
+      const invitations = await trx
+        .selectFrom('auth_tokens')
+        .select(['id', 'email', 'payload', 'expires_at'])
+        .where('org_id', '=', input.orgId)
+        .where('purpose', '=', 'org_invitation')
+        .where('consumed_at', 'is', null)
+        .where('revoked_at', 'is', null)
+        .orderBy('created_at', 'desc')
+        .execute();
+      return orgStaffResponseSchema.parse({
+        members: members.map((member) => ({
+          accountId: member.account_id,
+          email: member.email,
+          name: `${member.first_name} ${member.last_name}`,
+          status: member.status,
+          version: member.version,
+          roles: roles
+            .filter((role) => role.account_id === member.account_id)
+            .map((role) => ({
+              role: role.role,
+              scopeType: role.scope_type,
+              scopeId: role.scope_id,
+              pendingMfa: role.pending_mfa,
+            })),
+        })),
+        invitations: invitations.map((item) => {
+          const invitation = orgInvitationSchema.parse({
+            email: item.email,
+            roles: (item.payload as Record<string, unknown>).roles,
+            scopeType: (item.payload as Record<string, unknown>).scopeType,
+            scopeId: (item.payload as Record<string, unknown>).scopeId,
+          });
+          return {
+            id: item.id,
+            email: item.email,
+            roles: invitation.roles,
+            scopeType: invitation.scopeType,
+            scopeId: invitation.scopeId,
+            expiresAt: item.expires_at.toISOString(),
+          };
+        }),
+      });
+    },
+  );
+}
 
 async function assertActiveOwner(
   trx: OrgTransaction,
@@ -261,6 +338,85 @@ export async function createOrgInvitation(
     }
   }
   return result.response;
+}
+
+export async function resendOrgInvitation(
+  dependencies: { database: Kysely<DB>; email: EmailSender; appUrl: string },
+  input: {
+    orgId: string;
+    actorId: string;
+    invitationId: string;
+    idempotencyKey: string | undefined;
+    now: Date;
+  },
+): Promise<InvitationResponse> {
+  const invitation = await createWithOrg(dependencies.database)(
+    { orgId: input.orgId, actor: { accountId: input.actorId } },
+    async (trx) => {
+      await assertActiveOwner(trx, input.orgId, input.actorId);
+      const item = await trx
+        .selectFrom('auth_tokens')
+        .select(['email', 'payload'])
+        .where('id', '=', input.invitationId)
+        .where('org_id', '=', input.orgId)
+        .where('purpose', '=', 'org_invitation')
+        .where('consumed_at', 'is', null)
+        .where('revoked_at', 'is', null)
+        .executeTakeFirst();
+      if (!item)
+        throw new OrgMemberRolesError(404, 'NOT_FOUND', 'Invitation not found');
+      const payload = item.payload as Record<string, unknown>;
+      return orgInvitationSchema.parse({
+        email: item.email,
+        roles: payload.roles,
+        scopeType: payload.scopeType,
+        scopeId: payload.scopeId,
+      });
+    },
+  );
+  return createOrgInvitation(dependencies, {
+    orgId: input.orgId,
+    actorId: input.actorId,
+    invitation,
+    idempotencyKey: input.idempotencyKey,
+    now: input.now,
+  });
+}
+
+export async function revokeOrgInvitation(
+  database: Kysely<DB>,
+  input: { orgId: string; actorId: string; invitationId: string; now: Date },
+): Promise<void> {
+  await createWithOrg(database)(
+    { orgId: input.orgId, actor: { accountId: input.actorId } },
+    async (trx) => {
+      await assertActiveOwner(trx, input.orgId, input.actorId);
+      const revoked = await trx
+        .updateTable('auth_tokens')
+        .set({ revoked_at: input.now })
+        .where('id', '=', input.invitationId)
+        .where('org_id', '=', input.orgId)
+        .where('purpose', '=', 'org_invitation')
+        .where('consumed_at', 'is', null)
+        .where('revoked_at', 'is', null)
+        .returning('id')
+        .executeTakeFirst();
+      if (!revoked)
+        throw new OrgMemberRolesError(404, 'NOT_FOUND', 'Invitation not found');
+      await trx
+        .insertInto('audit_log')
+        .values({
+          id: newId(),
+          org_id: input.orgId,
+          actor_account_id: input.actorId,
+          action: 'membership.invitation_revoked',
+          entity_type: 'auth_token',
+          entity_id: input.invitationId,
+          changes: {},
+        })
+        .execute();
+    },
+  );
 }
 
 export async function acceptOrgInvitation(
