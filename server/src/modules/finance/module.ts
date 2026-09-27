@@ -19,6 +19,12 @@ import {
 } from './autopay-authorizations.js';
 import { creditBalanceSchema } from './credit-balances.js';
 import {
+  glCodeBodySchema,
+  glCodeListSchema,
+  glCodeReplaceSchema,
+  glCodeSchema,
+} from './gl-codes.js';
+import {
   installmentStaffActionSchema,
   installmentStaffListSchema,
   installmentStaffResultSchema,
@@ -29,9 +35,15 @@ import {
   installmentTemplateListSchema,
 } from './installment-templates.js';
 import {
+  journalMappingResponseSchema,
+  journalMappingSaveSchema,
+  journalMappingSchema,
+} from './journal-mapping.js';
+import {
   manualInstallmentIntentSchema,
   manualInstallmentListSchema,
 } from './manual-installment-pay.js';
+import { runFinanceNoticeJob } from './money-notice-job.js';
 import { payerReceiptListSchema } from './payer-receipts.js';
 import { payoutReconciliationSchema } from './reconciliation.js';
 import {
@@ -44,6 +56,7 @@ import {
   refundApprovalDecisionSchema,
   payoutJournalBodySchema,
   payoutJournalResponseSchema,
+  savedJournalResponseSchema,
   setupIntentResponseSchema,
   savedPaymentMethodsResponseSchema,
   staffCreditIssueSchema,
@@ -80,7 +93,13 @@ export const moduleDefinition = {
   name: 'finance',
   path: '/api/v1/finance',
   router: createFinanceRouter,
-  jobs: [],
+  jobs: [
+    {
+      name: 'finance.deliver-notices',
+      cron: '* * * * *',
+      run: runFinanceNoticeJob,
+    },
+  ],
   permissions: ['finance.manage'],
   notificationTypes: [],
   errorCodes: [],
@@ -157,6 +176,26 @@ export const moduleDefinition = {
       summary: 'Replace a product-only tax rate at an exact version',
       body: taxRateReplaceSchema,
       response: taxRateSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/gl-codes',
+      summary: 'List the organization GL code catalog',
+      response: glCodeListSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/gl-codes',
+      summary: 'Create a versioned GL code with an idempotency key',
+      body: glCodeBodySchema,
+      response: glCodeSchema,
+    },
+    {
+      method: 'put',
+      path: '/api/v1/finance/orgs/{orgId}/gl-codes/{codeId}',
+      summary: 'Replace a GL code at an exact version',
+      body: glCodeReplaceSchema,
+      response: glCodeSchema,
     },
     {
       method: 'post',
@@ -394,6 +433,26 @@ export const moduleDefinition = {
       summary: 'Export a reconciled payout journal with explicit GL codes',
       body: payoutJournalBodySchema,
       response: payoutJournalResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/journal-mapping',
+      summary: 'Read the organization payout journal mapping',
+      response: journalMappingResponseSchema,
+    },
+    {
+      method: 'put',
+      path: '/api/v1/finance/orgs/{orgId}/journal-mapping',
+      summary: 'Save payout journal accounts at an exact version',
+      body: journalMappingSaveSchema,
+      response: journalMappingSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/payouts/{payoutId}/journal-export',
+      summary:
+        'Export a reconciled payout journal with saved organization accounts',
+      response: savedJournalResponseSchema,
     },
     {
       method: 'get',

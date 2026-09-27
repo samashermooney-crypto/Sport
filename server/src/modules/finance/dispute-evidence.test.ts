@@ -15,19 +15,17 @@ describe('dispute evidence submission', () => {
     };
     let state = 'none';
     const repository: DisputeEvidenceRepository = {
-      claim: vi
-        .fn()
-        .mockImplementation(() =>
-          Promise.resolve(
-            state === 'completed'
-              ? { kind: 'replay', status: 'under_review' }
-              : {
-                  kind: 'reserved',
-                  key: 'fixed-key',
-                  evidence: { uncategorized_text: 'recorded facts' },
-                },
-          ),
+      claim: vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          state === 'completed'
+            ? { kind: 'replay', status: 'under_review' }
+            : {
+                kind: 'reserved',
+                key: 'fixed-key',
+                evidence: { uncategorized_text: 'recorded facts' },
+              },
         ),
+      ),
       beginExternal: vi.fn().mockImplementation(() => {
         state = 'external_started';
         return Promise.resolve();
@@ -56,19 +54,17 @@ describe('dispute evidence submission', () => {
     let started = false;
     const complete = vi.fn();
     const repository: DisputeEvidenceRepository = {
-      claim: vi
-        .fn()
-        .mockImplementation(() =>
-          Promise.resolve(
-            started
-              ? { kind: 'busy' }
-              : {
-                  kind: 'reserved',
-                  key: 'fixed-key',
-                  evidence: { uncategorized_text: 'facts' },
-                },
-          ),
+      claim: vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          started
+            ? { kind: 'busy' }
+            : {
+                kind: 'reserved',
+                key: 'fixed-key',
+                evidence: { uncategorized_text: 'facts' },
+              },
         ),
+      ),
       beginExternal: vi.fn().mockImplementation(() => {
         started = true;
         return Promise.resolve();

@@ -15,6 +15,7 @@ import {
 import { appendAuditEvent } from '../audit/service';
 import type { AuthDependencies } from '../auth/routes';
 import { requireSession } from '../auth/routes';
+import { enqueueChatNotificationBatch } from '../chat/notification-batching';
 import {
   chatMessageCreateSchema,
   chatMessageEditSchema,
@@ -49,6 +50,7 @@ import {
   softDeleteMessage,
   updateReportStatus,
 } from '../chat/service';
+import { preferencesCenterPath } from '../notifications/links';
 
 import {
   createCommunicationAdapters,
@@ -317,6 +319,12 @@ export function createCommunicationsRouter(
               type: 'communications.chat_message',
               payload: { conversationId, messageId },
             });
+            await enqueueChatNotificationBatch(
+              context,
+              { accountId, conversationId, messageId },
+              dependencies.clock(),
+              withOrg,
+            );
           },
         }
       : {}),
@@ -803,11 +811,25 @@ export function createCommunicationsRouter(
   router.post('/unsubscribe/:token', async (request, response) => {
     try {
       const token = z.string().min(1).max(2048).parse(request.params.token);
-      await unsubscribeFromCategory(token, dependencies.clock(), withOrg);
+      const result = await unsubscribeFromCategory(
+        token,
+        dependencies.clock(),
+        withOrg,
+      );
+      const success =
+        result.locale === 'es'
+          ? 'Se canceló la suscripción a esta categoría de correo.'
+          : 'You are unsubscribed from this email category.';
+      const preferencesLabel =
+        result.locale === 'es'
+          ? 'Administrar preferencias de notificación'
+          : 'Manage notification preferences';
       response
         .status(200)
-        .type('text')
-        .send('You are unsubscribed from this email category.');
+        .type('html')
+        .send(
+          `<!doctype html><html lang="${result.locale}"><meta charset="utf-8"><title>${success}</title><main><h1>${success}</h1><p><a href="${preferencesCenterPath(result.orgId)}">${preferencesLabel}</a></p></main></html>`,
+        );
     } catch (error) {
       sendError(response, error);
     }
