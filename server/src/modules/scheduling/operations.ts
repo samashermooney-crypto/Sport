@@ -2,6 +2,7 @@ import { newId } from '@shared/ids';
 import { expand } from '@shared/recurrence';
 import { sql } from 'kysely';
 
+import type { Json } from '../../db/types';
 import { withOrg } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 import { VersionConflictError } from '../../lib/version-check';
@@ -698,7 +699,7 @@ export async function requestReschedule(
         event_id: eventId,
         requested_by: context.actor.accountId,
         reason: input.reason,
-        proposed_slots: slots as never,
+        proposed_slots: JSON.stringify(slots) as unknown as Json,
       })
       .execute();
     await appendAuditEvent(trx, context, {

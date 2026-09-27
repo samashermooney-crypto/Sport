@@ -60,7 +60,20 @@ export const eventCreateSchema = z.strictObject({
   published: z.boolean().default(false),
 });
 
-export const eventUpdateSchema = eventCreateSchema.partial().extend({
+export const eventUpdateSchema = z.strictObject({
+  kind: eventKindSchema.optional(),
+  title: z.string().trim().min(1).max(200).optional(),
+  startsAt: z.iso.datetime({ offset: true }).optional(),
+  endsAt: z.iso.datetime({ offset: true }).optional(),
+  timezone: z.string().min(1).max(80).optional(),
+  programId: z.uuid().nullable().optional(),
+  divisionId: z.uuid().nullable().optional(),
+  spaceId: z.uuid().nullable().optional(),
+  locationText: z.string().trim().max(500).nullable().optional(),
+  notesHtml: z.string().max(4000).nullable().optional(),
+  arrivalMinutesBefore: z.number().int().min(0).max(1440).optional(),
+  participants: z.array(participantInputSchema).max(100).optional(),
+  published: z.boolean().optional(),
   expectedVersion: z.number().int().positive(),
   overrideReason: z.string().trim().min(10).max(500).optional(),
 });

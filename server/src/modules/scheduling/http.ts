@@ -1,4 +1,4 @@
-import { apiErrorSchema } from '@shared/schemas/errors';
+import { apiErrorSchema, errorCodeSchema } from '@shared/schemas/errors';
 import type { Response, Request } from 'express';
 import { z } from 'zod';
 
@@ -32,7 +32,7 @@ export function sendScheduleError(response: Response, error: unknown): void {
           : error instanceof Error && 'code' in error && error.code === '23P01'
             ? 409
             : 500;
-  const code =
+  const candidateCode =
     error instanceof SchedulingRuleError
       ? error.code
       : error instanceof ScheduleAccessError
@@ -54,6 +54,9 @@ export function sendScheduleError(response: Response, error: unknown): void {
                   : status === 409
                     ? 'CONFLICT'
                     : 'INTERNAL_ERROR';
+  const code = errorCodeSchema.safeParse(candidateCode).success
+    ? candidateCode
+    : 'INTERNAL_ERROR';
   const message =
     status >= 500
       ? 'The request could not be completed.'

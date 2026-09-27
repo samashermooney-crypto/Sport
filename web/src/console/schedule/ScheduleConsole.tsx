@@ -1878,7 +1878,14 @@ export function ScheduleConsole({
               )}
               {importRun.result && (
                 <>
-                  <p>{importRun.result.imported} rows can be imported.</p>
+                  <p>
+                    {
+                      importRun.result.rows.filter(
+                        (row) => row.errors.length === 0,
+                      ).length
+                    }{' '}
+                    rows can be imported.
+                  </p>
                   <div className="table-scroll">
                     <table className="ui-table">
                       <thead>
