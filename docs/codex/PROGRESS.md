@@ -13,13 +13,13 @@
 | 1 | Platform core | in progress | Branch `rebuild/phase-1` created from green Phase 0. |
 | 2 | People, households, forms, imports | not started | |
 | 3 | Sport engine, programs, teams, facilities | not started | |
-| 4 | Payments and finance | in progress | Test-mode Stripe gateway and ready finance contracts integrated; durable persistence and phase acceptance remain. |
-| 5 | Registration | not started | |
+| 4 | Payments and finance | in progress | Test-mode Stripe gateway and finance migrations 1000–1021 integrated; durable webhook, Connect UI and full phase acceptance remain. |
+| 5 | Registration | in progress | Checkout capacity, frozen pricing and payment terms from Track E are integrated; registration flows and acceptance remain. |
 | 6 | Evaluations and team formation | not started | |
-| 7 | Compliance and safety | not started | |
-| 8 | Scheduling and facilities | not started | |
-| 9 | Game day, results, tournaments, officials | not started | |
-| 10 | Communications | not started | |
+| 7 | Compliance and safety | in progress on Track F | Local `track/f-safety` range is ready; trunk merge aborted on integration gate gaps. |
+| 8 | Scheduling and facilities | in progress on Track G | Local `track/g-schedule` is working; no range integrated. |
+| 9 | Game day, results, tournaments, officials | in progress on Track G | Local `track/g-schedule` is working; no range integrated. |
+| 10 | Communications | in progress on Track H | Local `track/h-comms` is working; no range integrated. |
 | 11 | Volunteers, team finance, fundraising, store | not started | |
 | 12 | Academy / class mode | not started | |
 | 13 | Federation | not started | |
@@ -34,8 +34,11 @@
 | A | Core and integration | GPT-6 Sol until S1 | working | `track/a-core` |
 | B | Sport engine, algorithms, policies; platform infrastructure | GPT-6 Sol | logic queue and Phase 1 tasks 10, 14–15 integrated; tasks 9 and 13 in progress | `track/b-logic` |
 | C | Files and provider adapters | GPT-6 Luna | complete adapter queue integrated; files API mounted, acceptance still open | `track/c-adapters` |
-| D | Design system | GPT-6 Luna | shared primitives, extended controls, shell and dev showcase integrated; auth restyle still open | `track/d-design` |
-| E | Stripe and finance | GPT-6 Sol | test-mode gateway and ready finance contracts integrated; durable money persistence in progress | `track/e-finance` |
+| D | Design system | GPT-6 Luna | complete component and auth restyle range integrated; app-wide shell acceptance remains with A | `track/d-design` |
+| E | Stripe and finance | GPT-6 Sol | finance and checkout core through frozen database pricing integrated; phase acceptance remains | `track/e-finance` |
+| F | Safety and compliance | GPT-6 Luna | local range ready; integration gaps after aborted merge | `track/f-safety` |
+| G | Scheduling and game day | GPT-6 Luna | working locally; no ready range | `track/g-schedule` |
+| H | Communications | GPT-6 Luna | working locally; no ready range | `track/h-comms` |
 
 ## Cross-phase schema spine checkpoint
 
@@ -50,6 +53,7 @@
 - [x] Integrated Track B's ready Phase 1 infrastructure range through `727cfe9`: pg-boss worker and heartbeat, redacted audit API/viewer, OpenAPI route coverage, pagination, idempotency and version helpers. Registered the worker and audit route, reconciled files/onboarding API paths, and passed typecheck, lint, 359 tests (one operator-credential smoke skipped), 9 browser tests (3 guarded WebKit design skips), build and knip.
 - [x] Integrated Track B's ready platform and notification range through `9debfa5`: platform org/plan/flag/staff console, MFA-gated staff API, read-only expiring impersonation records, notification inbox/preferences and PostgreSQL SSE transport. Mounted `/api/v1/stream`, portal notification route and a global impersonation banner; platform staff now require MFA at sign-in. Included the platform Chromium/WebKit accessibility journey in the standard browser gate. Local integration passed typecheck, lint, 431 tests (one operator-credential smoke skipped), 11 browser tests (3 guarded design skips), registry/OpenAPI freshness and Knip. Task 9 and 13 remain open for impersonated tenant-request enforcement/audit and account-scoped notification aliases.
 - [x] Integrated Track E's second ready range through `c7dd637`: verified webhook and Connect contracts, checkout holds/pricing, refund and installment policies, payer method orchestration and Payment Element components. The merged trunk passed typecheck, lint, 410 tests (one operator-credential smoke skipped), 9 browser tests (3 guarded WebKit design skips), build, registry/OpenAPI freshness and knip. Phase 4 remains open while durable payment writes and acceptance are built.
+- [x] Integrated Track E's ready finance and checkout ranges through `385d96a`: migrations 1000–1021, durable Stripe event leases, payer/payment/refund/credit/dispute/payout records, staff finance and payer-method APIs, Connect API, capacity concurrency, frozen checkout pricing and database source validation. Regenerated 8-module registry, Kysely types for 143 tables, permissions and OpenAPI. The merged gate passed typecheck, lint, 525 tests (one operator smoke skipped), 24 browser tests (4 guarded design skips) and build. Phase 4 and 5 remain open for webhook/Connect UI mount, worker actor, registration flows and their acceptance criteria. Knip reports seven unused exports in unmounted finance handlers/screens; resolve as those paths are wired.
 - [x] Integrated Track D's ready design range through `a0a20f2`, including frozen tokens, primitives, extended controls, shell and development-only `/__ui` through the feature registry. The merged app passed typecheck, lint, 342 tests, 9 browser e2e tests (3 WebKit design cases intentionally skipped), build and a zero-advisory production audit. Auth restyle and the full Phase 1 design acceptance remain open.
 - [x] Integrated Track D's later auth restyle and parity range through `d184ced`. The merged trunk passed typecheck, lint, 447 tests (one operator-credential smoke skipped), 22 browser tests (4 guarded WebKit/Chromium design skips), build, registry/OpenAPI freshness and Knip. The shell chrome now compares with the captured legacy desktop and phone headers, and showcase controls pass axe and 44px phone target checks. Phase 1 task 16 remains open for app-wide shells, org switching, i18n and end-to-end design parity.
 

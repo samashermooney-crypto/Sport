@@ -33,8 +33,17 @@ export interface ConnectOnboardingUrls {
   refreshUrl: (orgId: string) => string;
 }
 
+export class ConnectConflictError extends Error {}
+
 function assertHttpsUrl(url: string): void {
-  if (new URL(url).protocol !== 'https:') {
+  const parsed = new URL(url);
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(
+    parsed.hostname,
+  );
+  if (
+    parsed.protocol !== 'https:' &&
+    !(loopback && parsed.protocol === 'http:')
+  ) {
     throw new Error('Connect onboarding URLs must use HTTPS');
   }
 }
@@ -55,7 +64,9 @@ export class ConnectOnboardingService {
   async create(orgId: string, email: string): Promise<{ url: string }> {
     const reservation = await this.repository.reserve(orgId);
     if (reservation.kind === 'busy') {
-      throw new Error('Stripe account creation is already in progress');
+      throw new ConnectConflictError(
+        'Stripe account creation is already in progress',
+      );
     }
     if (reservation.kind === 'existing') {
       return this.onboardingLink(orgId, reservation.account.stripeAccountId);
@@ -82,7 +93,9 @@ export class ConnectOnboardingService {
     const account = await this.requireAccount(orgId);
     const latest = await this.refresh(orgId, account.stripeAccountId);
     if (!latest.chargesEnabled || !latest.payoutsEnabled) {
-      throw new Error('Stripe payments and payouts are not yet enabled');
+      throw new ConnectConflictError(
+        'Stripe payments and payouts are not yet enabled',
+      );
     }
     return this.gateway.createExpressLoginLink(account.stripeAccountId);
   }
@@ -94,7 +107,9 @@ export class ConnectOnboardingService {
   ): Promise<ConnectAccount> {
     const current = await this.requireAccount(orgId);
     if (current.stripeAccountId !== stripeAccountId) {
-      throw new Error('Connected account does not belong to this organization');
+      throw new ConnectConflictError(
+        'Connected account does not belong to this organization',
+      );
     }
     const latest = await this.gateway.retrieveAccount(stripeAccountId);
     if (latest.id !== stripeAccountId) {
@@ -107,7 +122,8 @@ export class ConnectOnboardingService {
 
   private async requireAccount(orgId: string): Promise<ConnectAccount> {
     const account = await this.repository.load(orgId);
-    if (!account) throw new Error('Stripe account has not been created');
+    if (!account)
+      throw new ConnectConflictError('Stripe account has not been created');
     return account;
   }
 

@@ -9,6 +9,8 @@ import {
 
 import type { PaymentsGateway } from '../../integrations/stripe/gateway.js';
 
+import type { RefundApprovalInput } from './refund-approval-repo.js';
+
 export interface RefundSource {
   orgId: string;
   paymentId: string;
@@ -23,6 +25,13 @@ export interface RefundSource {
   refundApplicationFee: boolean;
 }
 
+export class RefundConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RefundConflictError';
+  }
+}
+
 export interface RefundSourceReader {
   /** Must load the payment and its invoice-line allocations inside withOrg. */
   load(orgId: string, paymentId: string): Promise<RefundSource | null>;
@@ -32,6 +41,7 @@ export interface RefundApprovalPolicy {
   isAuthorizedSecondApprover(
     orgId: string,
     accountId: string,
+    input: RefundApprovalInput,
   ): Promise<boolean>;
 }
 
@@ -70,6 +80,19 @@ export interface RefundAttemptStore {
   fail(input: { orgId: string; paymentId: string; key: string }): Promise<void>;
 }
 
+/** Persists a Stripe refund and line allocations before the attempt completes. */
+export interface RefundRecordStore {
+  recordPending(input: {
+    orgId: string;
+    paymentId: string;
+    refundId: string;
+    proposal: ProposedRefund;
+    requestedByAccountId: string;
+    approvedByAccountId: string | null;
+    refundApplicationFee: boolean;
+  }): Promise<void>;
+}
+
 export interface RefundRequest {
   orgId: string;
   paymentId: string;
@@ -84,7 +107,7 @@ export function refundProposal(
   cancellationDate: string,
 ): ProposedRefund {
   if (source.paymentStatus !== 'succeeded') {
-    throw new Error('Only succeeded payments may be refunded');
+    throw new RefundConflictError('Only succeeded payments may be refunded');
   }
   return proposeRefund(
     source.lines,
@@ -103,7 +126,6 @@ function hashRequest(input: RefundRequest): string {
         paymentId: input.paymentId,
         cancellationDate: input.cancellationDate,
         requestedByAccountId: input.requestedByAccountId,
-        approvedByAccountId: input.approvedByAccountId ?? null,
       }),
     )
     .digest('hex');
@@ -115,6 +137,7 @@ export class StripeRefundService {
     private readonly approvals: RefundApprovalPolicy,
     private readonly attempts: RefundAttemptStore,
     private readonly gateway: Pick<PaymentsGateway, 'createRefund'>,
+    private readonly records: RefundRecordStore,
   ) {}
 
   async refund(input: RefundRequest): Promise<RefundResult> {
@@ -133,9 +156,11 @@ export class StripeRefundService {
     });
     if (reservation.kind === 'replay') return reservation.result;
     if (reservation.kind === 'busy')
-      throw new Error('Refund attempt is already in progress');
+      throw new RefundConflictError('Refund attempt is already in progress');
     if (reservation.kind === 'conflict')
-      throw new Error('Idempotency-Key was used for a different refund');
+      throw new RefundConflictError(
+        'Idempotency-Key was used for a different refund',
+      );
     let externalStarted = false;
     try {
       const source = await this.reader.load(input.orgId, input.paymentId);
@@ -144,11 +169,11 @@ export class StripeRefundService {
         source.orgId !== input.orgId ||
         source.paymentId !== input.paymentId
       ) {
-        throw new Error('Payment not found');
+        throw new RefundConflictError('Payment not found');
       }
       const proposal = refundProposal(source, input.cancellationDate);
       if (proposal.totalCents < 1)
-        throw new Error('No refundable amount remains');
+        throw new RefundConflictError('No refundable amount remains');
       if (proposal.totalCents > source.approvalThresholdCents) {
         if (
           !input.approvedByAccountId ||
@@ -156,9 +181,21 @@ export class StripeRefundService {
           !(await this.approvals.isAuthorizedSecondApprover(
             input.orgId,
             input.approvedByAccountId,
+            {
+              orgId: input.orgId,
+              paymentId: input.paymentId,
+              operationKey: input.idempotencyKey,
+              destination: 'original_method',
+              recipient: null,
+              cancellationDate: input.cancellationDate,
+              requestedByAccountId: input.requestedByAccountId,
+              proposal,
+            },
           ))
         ) {
-          throw new Error('A separate finance approver is required');
+          throw new RefundConflictError(
+            'A separate finance approver is required',
+          );
         }
       }
       await this.attempts.beginExternal({
@@ -168,13 +205,28 @@ export class StripeRefundService {
       });
       externalStarted = true;
       const refund = await this.gateway.createRefund({
+        orgId: input.orgId,
         paymentIntentId: source.paymentIntentId,
         amountCents: proposal.totalCents,
         reverseTransfer: true,
         refundApplicationFee: source.refundApplicationFee,
         idempotencyKey: `refund:${input.paymentId}:${input.idempotencyKey}`,
       });
+      if (
+        !refund.id.startsWith('re_') ||
+        refund.amountCents !== proposal.totalCents
+      )
+        throw new Error('Stripe refund differs from the approved proposal');
       const result = { id: refund.id, status: refund.status, proposal };
+      await this.records.recordPending({
+        orgId: input.orgId,
+        paymentId: input.paymentId,
+        refundId: refund.id,
+        proposal,
+        requestedByAccountId: input.requestedByAccountId,
+        approvedByAccountId: input.approvedByAccountId ?? null,
+        refundApplicationFee: source.refundApplicationFee,
+      });
       await this.attempts.complete({
         orgId: input.orgId,
         paymentId: input.paymentId,

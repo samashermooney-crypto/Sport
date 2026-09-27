@@ -178,6 +178,7 @@ export class CheckoutService {
     });
     if (claim === 'pending') return { kind: 'refund_pending' as const };
     const refund = await this.gateway.createRefund({
+      orgId: input.orgId,
       paymentIntentId: input.paymentIntentId,
       amountCents: input.amountCents,
       reverseTransfer: true,
