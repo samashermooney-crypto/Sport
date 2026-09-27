@@ -15,6 +15,7 @@ import { CheckoutPricingService } from './pricing.js';
 let database: Kysely<DB>;
 let context: OrgContext;
 let checkoutId: string;
+let athleteId: string;
 
 beforeAll(async () => {
   database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
@@ -25,7 +26,7 @@ beforeAll(async () => {
   const programId = newId();
   const offeringId = newId();
   const guardianId = newId();
-  const athleteId = newId();
+  athleteId = newId();
   const householdId = newId();
   checkoutId = newId();
   await database
@@ -203,6 +204,26 @@ describe('basic checkout pricing source', () => {
         context,
         new PostgresBasicCheckoutPricingSource(),
       ),
+    );
+    await expect(
+      service.freeze({
+        orgId: context.orgId,
+        checkoutId,
+        idempotencyKey: randomUUID(),
+      }),
+    ).rejects.toThrow('Registration pricing source is unavailable');
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .insertInto('person_account_links')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          person_id: athleteId,
+          account_id: context.actor.accountId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute(),
     );
     const ruleId = newId();
     await createWithOrg(database)(context, (trx) =>
