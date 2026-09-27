@@ -26,6 +26,7 @@ Money core: `finance/service.ts` uses Track B fee algorithms for service/applica
 Money idempotency: PaymentIntent and refund attempts set a durable external-start fence before Stripe calls; ambiguous network/persistence failures remain blocked for reconciliation; 4 failure tests pass.
 Installment quotes: `finance/installment-quotes.ts` uses Track B schedule and fee algorithms to show per-charge service/application fees and reconcile the plan total; 2 targeted tests pass.
 Connect core: `finance/connect.ts` defines withOrg reservation/persistence, org-stable Stripe account creation, onboarding/dashboard links and latest-state refresh; 5 targeted tests pass; unresolved Stripe creation keeps its reservation for reconciliation.
+Connect persistence: `finance/repo.ts` implements a durable one-row reservation, idempotent account sync and cross-org RLS isolation on spine `payment_accounts`; 2 real-Postgres tests pass.
 Payer methods: `finance/payer-methods.ts` lazily creates one platform Customer with a durable reservation, creates off-session SetupIntents and lists account-attached methods; 4 targeted tests pass.
 Checkout core: `checkout/service.ts` contracts for atomic holds, fixed lock order, processing/72-hour holds and automatic lost-capacity refunds; pure state machine and 9 targeted tests pass; real-Postgres oversell test awaits spine.
 Lost-capacity refunds: checkout now durably claims each intent before Stripe refund and preserves uncertain claims for reconciliation; 1 replay/failure test added.
