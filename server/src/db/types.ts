@@ -78,6 +78,21 @@ export interface AidApplications {
   version: Generated<number>;
 }
 
+export interface AllocationRequests {
+  allocation_id: string;
+  created_at: Generated<Timestamp>;
+  decided_by: string | null;
+  ends_at: Timestamp;
+  id: string;
+  org_id: string;
+  requested_by: string;
+  resulting_event_id: string | null;
+  starts_at: Timestamp;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Allocations {
   created_at: Generated<Timestamp>;
   division_id: string | null;
@@ -86,7 +101,7 @@ export interface Allocations {
   id: string;
   org_id: string;
   purpose: string;
-  rrule: string;
+  recurrence: Json;
   space_id: string;
   start_time: string;
   starts_on: Timestamp;
@@ -383,6 +398,21 @@ export interface Closures {
   version: Generated<number>;
 }
 
+export interface CoachPlayerRatings {
+  coach_account_id: string;
+  created_at: Generated<Timestamp>;
+  criteria: Json;
+  id: string;
+  notes: string | null;
+  org_id: string;
+  person_id: string;
+  program_id: string;
+  returning_next_season: boolean | null;
+  team_season_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface CommunicationPreferences {
   account_id: string;
   category: string;
@@ -431,9 +461,13 @@ export interface Contests {
   bracket_match_id: string | null;
   counts_for_standings: Generated<boolean>;
   created_at: Generated<Timestamp>;
+  dispute_reason: string | null;
+  disputed_at: Timestamp | null;
+  disputed_by: string | null;
   event_id: string;
   finalized_at: Timestamp | null;
   format: string;
+  format_config: Json | null;
   id: string;
   org_id: string;
   profile_version: number;
@@ -678,6 +712,7 @@ export interface Events {
 }
 
 export interface EventSeries {
+  active: Generated<boolean>;
   created_at: Generated<Timestamp>;
   duration_minutes: number;
   id: string;
@@ -713,6 +748,7 @@ export interface Facilities {
   created_at: Generated<Timestamp>;
   id: string;
   lat: Numeric | null;
+  layout_image_file_id: string | null;
   lng: Numeric | null;
   map_url: string | null;
   name: string;
@@ -1144,18 +1180,22 @@ export interface OfficialAvailability {
   id: string;
   org_id: string;
   person_id: string;
-  rrule: string | null;
+  recurrence: Json | null;
   starts_on: Timestamp | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
 
 export interface OfficialPayBatches {
+  approved_at: Timestamp | null;
+  approved_by: string | null;
   created_at: Generated<Timestamp>;
   id: string;
   org_id: string;
   paid_at: Timestamp | null;
+  paid_by: string | null;
   paid_via: string | null;
+  payment_reference: string | null;
   period_end: Timestamp;
   period_start: Timestamp;
   status: Generated<string>;
@@ -1193,6 +1233,8 @@ export interface OfficialProfiles {
   created_at: Generated<Timestamp>;
   grade: string | null;
   home_area: string | null;
+  home_lat: Numeric | null;
+  home_lng: Numeric | null;
   id: string;
   level: string | null;
   max_games_per_day: number | null;
@@ -1852,17 +1894,79 @@ export interface RosterEntries {
   version: Generated<number>;
 }
 
+export interface ScheduleBlackoutRequests {
+  created_at: Generated<Timestamp>;
+  decided_by: string | null;
+  ends_on: Timestamp;
+  id: string;
+  org_id: string;
+  reason: string;
+  requested_by: string;
+  starts_on: Timestamp;
+  status: Generated<string>;
+  team_season_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ScheduleChangeBatches {
+  changes: Json;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  emit_after: Timestamp;
+  id: string;
+  notification_id: string | null;
+  notification_type: Generated<string>;
+  org_id: string;
+  recipient_account_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface ScheduleGenerationRuns {
   applied_at: Timestamp | null;
   created_at: Generated<Timestamp>;
   created_by: string;
+  error_code: string | null;
   id: string;
   input: Json;
   org_id: string;
   program_id: string;
+  progress: Generated<number>;
+  progress_message: string | null;
   result: Json | null;
   seed: number;
   status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ScheduleImportRuns {
+  completed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  error_message: string | null;
+  file_name: string;
+  id: Generated<string>;
+  org_id: string;
+  progress: Generated<number>;
+  result: Json | null;
+  source: Buffer | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ScheduleSettings {
+  coach_slot_picker_enabled: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  id: string;
+  official_self_assign_enabled: Generated<boolean>;
+  org_id: string;
+  program_id: string;
+  result_confirmation_required: Generated<boolean>;
+  slot_approval_required: Generated<boolean>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -1874,6 +1978,22 @@ export interface SchemaMigrations {
   version: number;
 }
 
+export interface SeasonAwards {
+  certificate_file_id: string | null;
+  created_at: Generated<Timestamp>;
+  description: string | null;
+  id: string;
+  issued_at: Generated<Timestamp>;
+  issued_by: string;
+  org_id: string;
+  person_id: string | null;
+  program_id: string;
+  team_season_id: string | null;
+  title: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Seasons {
   copied_from_season_id: string | null;
   created_at: Generated<Timestamp>;
@@ -1883,6 +2003,33 @@ export interface Seasons {
   org_id: string;
   starts_on: Timestamp;
   status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface SeasonSurveyCampaigns {
+  closes_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  id: string;
+  locale: Generated<string>;
+  opens_at: Timestamp | null;
+  org_id: string;
+  program_id: string;
+  status: Generated<string>;
+  title: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface SeasonSurveyResponses {
+  campaign_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  nps: number | null;
+  org_id: string;
+  respondent_account_id: string;
+  response_text: string | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -1924,7 +2071,7 @@ export interface SpaceAvailability {
   id: string;
   org_id: string;
   permit_reference: string | null;
-  rrule: string;
+  recurrence: Json;
   source: string;
   space_id: string;
   start_time: string;
@@ -1984,6 +2131,15 @@ export interface SportProfiles {
   template_key: string | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
+}
+
+export interface SportProfileVersions {
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  org_id: string;
+  profile: Json;
+  sport_profile_id: string;
+  version: number;
 }
 
 export interface SportTemplates {
@@ -2137,6 +2293,21 @@ export interface TeamStaff {
   version: Generated<number>;
 }
 
+export interface TournamentEntries {
+  bracket_id: string;
+  checked_in_at: Timestamp | null;
+  checked_in_by: string | null;
+  created_at: Generated<Timestamp>;
+  external_team_id: string | null;
+  id: string;
+  org_id: string;
+  seed: number | null;
+  status: Generated<string>;
+  team_season_id: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Transfers {
   created_at: Generated<Timestamp>;
   financial_treatment: string;
@@ -2213,6 +2384,7 @@ export interface DB {
   account_consents: AccountConsents;
   accounts: Accounts;
   aid_applications: AidApplications;
+  allocation_requests: AllocationRequests;
   allocations: Allocations;
   athlete_cards: AthleteCards;
   attendance: Attendance;
@@ -2232,6 +2404,7 @@ export interface DB {
   checkout_capacity_refund_claims: CheckoutCapacityRefundClaims;
   checkouts: Checkouts;
   closures: Closures;
+  coach_player_ratings: CoachPlayerRatings;
   communication_preferences: CommunicationPreferences;
   contest_participants: ContestParticipants;
   contest_results: ContestResults;
@@ -2327,8 +2500,15 @@ export interface DB {
   role_assignments: RoleAssignments;
   role_credential_requirements: RoleCredentialRequirements;
   roster_entries: RosterEntries;
+  schedule_blackout_requests: ScheduleBlackoutRequests;
+  schedule_change_batches: ScheduleChangeBatches;
   schedule_generation_runs: ScheduleGenerationRuns;
+  schedule_import_runs: ScheduleImportRuns;
+  schedule_settings: ScheduleSettings;
   schema_migrations: SchemaMigrations;
+  season_awards: SeasonAwards;
+  season_survey_campaigns: SeasonSurveyCampaigns;
+  season_survey_responses: SeasonSurveyResponses;
   seasons: Seasons;
   security_events: SecurityEvents;
   sessions: Sessions;
@@ -2336,6 +2516,7 @@ export interface DB {
   space_blackouts: SpaceBlackouts;
   space_bookings: SpaceBookings;
   spaces: Spaces;
+  sport_profile_versions: SportProfileVersions;
   sport_profiles: SportProfiles;
   sport_templates: SportTemplates;
   standings_configs: StandingsConfigs;
@@ -2348,6 +2529,7 @@ export interface DB {
   team_seasons: TeamSeasons;
   team_staff: TeamStaff;
   teams: Teams;
+  tournament_entries: TournamentEntries;
   transfers: Transfers;
   waitlist_entries: WaitlistEntries;
   waiver_documents: WaiverDocuments;

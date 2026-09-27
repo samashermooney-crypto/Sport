@@ -1,0 +1,12 @@
+// Instantiate inside withOrg; never use an unscoped database handle here.
+export interface TournamentsRepository {
+  list(): Promise<readonly TournamentsRecord[]>;
+  get(id: string): Promise<TournamentsRecord | null>;
+  create(input: { name: string }): Promise<TournamentsRecord>;
+}
+
+export interface TournamentsRecord {
+  id: string;
+  orgId: string;
+  name: string;
+}
