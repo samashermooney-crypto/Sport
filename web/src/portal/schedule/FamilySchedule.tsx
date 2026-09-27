@@ -16,6 +16,14 @@ type FamilyEvent = {
   spaceId: string | null;
 };
 type Rsvp = 'yes' | 'no' | 'maybe' | 'none';
+type FamilyPersonalBest = {
+  key: string;
+  label: { en: string; es: string };
+  valueType: string;
+  value: number;
+  achievedAt: string;
+  profileVersion: number;
+};
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: 'include', ...init });
@@ -186,8 +194,90 @@ export function FamilySchedule({
           !error && <p>No published events are scheduled for this team.</p>
         )}
       </section>
+      <FamilyPersonalBests orgId={orgId} personId={personId} />
       <FamilySeasonSurveys orgId={orgId} />
     </main>
+  );
+}
+
+function FamilyPersonalBests({
+  orgId,
+  personId,
+}: {
+  orgId: string;
+  personId: string;
+}): React.JSX.Element {
+  const [items, setItems] = useState<FamilyPersonalBest[]>([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    void request<{ items: FamilyPersonalBest[] }>(
+      `/api/v1/contests/orgs/${encodeURIComponent(orgId)}/people/${encodeURIComponent(personId)}/personal-bests`,
+    )
+      .then((result) => {
+        if (!active) return;
+        setItems(result.items);
+        setError('');
+      })
+      .catch((cause: unknown) => {
+        if (active)
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : 'Personal bests could not be loaded.',
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [orgId, personId]);
+
+  const language = document.documentElement.lang === 'es' ? 'es' : 'en';
+  const formattedValue = (item: FamilyPersonalBest) =>
+    item.valueType === 'time_ms'
+      ? `${(item.value / 1000).toFixed(2)} s`
+      : String(item.value);
+
+  return (
+    <section className="schedule-card" aria-labelledby="family-bests-heading">
+      <h2 id="family-bests-heading">Personal bests</h2>
+      {error && <p role="alert">{error}</p>}
+      {loading ? (
+        <p aria-live="polite">Loading personal bests…</p>
+      ) : items.length ? (
+        <div className="table-scroll">
+          <table className="ui-table">
+            <thead>
+              <tr>
+                <th scope="col">Statistic</th>
+                <th scope="col">Best</th>
+                <th scope="col">Achieved</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={`${item.key}-${String(item.profileVersion)}`}>
+                  <th scope="row">{item.label[language] || item.key}</th>
+                  <td>{formattedValue(item)}</td>
+                  <td>
+                    <time dateTime={item.achievedAt}>
+                      {new Date(item.achievedAt).toLocaleDateString()}
+                    </time>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        !error && <p>No personal bests have been recorded yet.</p>
+      )}
+    </section>
   );
 }
 

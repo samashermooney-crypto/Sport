@@ -155,6 +155,7 @@ export async function exportScheduleCsv(
       'status',
       'space_id',
       'space_name',
+      'location_text',
       'home_team_season_id',
       'home_team',
       'away_team_season_id',
@@ -183,6 +184,7 @@ export async function exportScheduleCsv(
           event.status,
           event.space_id,
           event.space_id ? spaceById.get(event.space_id)?.name : '',
+          event.location_text,
           home,
           teamNames.get(home) ?? '',
           away,
@@ -205,6 +207,7 @@ type CsvImportRow = {
   program_id: string;
   division_id: string;
   space_id: string;
+  location_text: string;
   home_team_season_id: string;
   away_team_season_id: string;
   override_reason: string;
@@ -265,6 +268,7 @@ const optionalImportHeaders = [
   'program_id',
   'division_id',
   'space_id',
+  'location_text',
   'home_team_season_id',
   'away_team_season_id',
   'override_reason',
@@ -798,6 +802,7 @@ export async function importScheduleCsv(
       program_id: get('program_id'),
       division_id: get('division_id'),
       space_id: get('space_id'),
+      location_text: get('location_text'),
       home_team_season_id: get('home_team_season_id'),
       away_team_season_id: get('away_team_season_id'),
       override_reason: get('override_reason'),
@@ -827,7 +832,7 @@ export async function importScheduleCsv(
         programId: raw.program_id || null,
         divisionId: raw.division_id || null,
         spaceId: raw.space_id || null,
-        locationText: null,
+        locationText: raw.location_text || null,
         notesHtml: null,
         arrivalMinutesBefore: 0,
         participants: [

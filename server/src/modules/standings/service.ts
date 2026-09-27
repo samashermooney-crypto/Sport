@@ -41,13 +41,13 @@ async function scopeConfig(
       throw new SchedulingRuleError('Division not found.', 404, 'NOT_FOUND');
     const configured = await trx
       .selectFrom('standings_configs')
-      .select('config')
+      .select(['config', 'version'])
       .where('org_id', '=', orgId)
       .where('division_id', '=', division.id)
       .execute();
     const programConfig = await trx
       .selectFrom('standings_configs')
-      .select('config')
+      .select(['config', 'version'])
       .where('org_id', '=', orgId)
       .where('program_id', '=', division.program_id)
       .execute();
@@ -73,6 +73,7 @@ async function scopeConfig(
         configured,
         programConfig[0]?.config ?? profile.defaultStandings,
       ),
+      configVersion: configured[0]?.version ?? null,
       programId: division.program_id,
       divisionId: division.id,
     };
@@ -99,13 +100,14 @@ async function scopeConfig(
     throw new SchedulingRuleError('Program not found.', 404, 'NOT_FOUND');
   const configured = await trx
     .selectFrom('standings_configs')
-    .select('config')
+    .select(['config', 'version'])
     .where('org_id', '=', orgId)
     .where('program_id', '=', program.id)
     .execute();
   const profile = program.profile as { defaultStandings?: unknown };
   return {
     config: configFor(configured, profile.defaultStandings),
+    configVersion: configured[0]?.version ?? null,
     programId: program.id,
     divisionId: null,
   };
@@ -279,7 +281,37 @@ async function computeSnapshot(
       ...(manualOrder ? { manualOrder } : {}),
     },
   );
-  return { ...resolved, rows };
+  return {
+    ...resolved,
+    rows,
+    teamNames: await teamNamesForRows(
+      trx,
+      orgId,
+      rows.map((row) => row.teamId),
+    ),
+  };
+}
+
+async function teamNamesForRows(
+  trx: OrgTransaction,
+  orgId: string,
+  teamIds: readonly string[],
+): Promise<Record<string, string>> {
+  if (!teamIds.length) return {};
+  const teams = await trx
+    .selectFrom('team_seasons')
+    .innerJoin('teams', (join) =>
+      join
+        .onRef('teams.org_id', '=', 'team_seasons.org_id')
+        .onRef('teams.id', '=', 'team_seasons.team_id'),
+    )
+    .select(['team_seasons.id', 'team_seasons.display_name', 'teams.name'])
+    .where('team_seasons.org_id', '=', orgId)
+    .where('team_seasons.id', 'in', [...teamIds])
+    .execute();
+  return Object.fromEntries(
+    teams.map((team) => [team.id, team.display_name?.trim() || team.name]),
+  );
 }
 
 async function persistSnapshot(
@@ -297,7 +329,7 @@ async function persistSnapshot(
       org_id: orgId,
       scope_type: scopeType,
       scope_id: scopeId,
-      rows: rows as unknown as import('../../db/types').Json,
+      rows: JSON.stringify(rows) as unknown as import('../../db/types').Json,
     })
     .execute();
   return id;
@@ -430,6 +462,9 @@ export async function refreshStandings(
       scopeId,
       computedAt: new Date().toISOString(),
       rows: result.rows,
+      teamNames: result.teamNames,
+      config: result.config,
+      configVersion: result.configVersion,
     };
   });
 }
@@ -462,7 +497,19 @@ export async function getStandings(
       .where('scope_id', '=', scopeId)
       .orderBy('computed_at', 'desc')
       .executeTakeFirst();
-    if (snapshot) return { ...snapshot, config: resolved.config };
+    if (snapshot)
+      return {
+        ...snapshot,
+        config: resolved.config,
+        configVersion: resolved.configVersion,
+        teamNames: await teamNamesForRows(
+          trx,
+          context.orgId,
+          ((snapshot.rows ?? []) as unknown as StandingRow[]).map(
+            (row) => row.teamId,
+          ),
+        ),
+      };
     const computed = await computeSnapshot(trx, context.orgId, scope);
     return {
       rows: computed.rows,
@@ -470,6 +517,8 @@ export async function getStandings(
       scope_type: scopeType,
       scope_id: scopeId,
       config: resolved.config,
+      configVersion: resolved.configVersion,
+      teamNames: computed.teamNames,
     };
   });
 }

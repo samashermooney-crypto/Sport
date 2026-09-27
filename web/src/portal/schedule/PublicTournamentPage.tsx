@@ -2,7 +2,7 @@ import { Temporal } from '@js-temporal/polyfill';
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
-import { Badge } from '../../ui';
+import { Badge, Button } from '../../ui';
 
 import '../../console/schedule/schedule.css';
 
@@ -149,9 +149,19 @@ export function PublicTournamentPage({
           <h1>{data.bracket.name}</h1>
           <p>{data.bracket.type.replaceAll('_', ' ')}</p>
         </div>
-        <Badge tone={data.bracket.status === 'completed' ? 'ok' : 'pending'}>
-          {data.bracket.status}
-        </Badge>
+        <div className="schedule-print-controls">
+          <Badge tone={data.bracket.status === 'completed' ? 'ok' : 'pending'}>
+            {data.bracket.status}
+          </Badge>
+          <Button
+            secondary
+            onClick={() => {
+              window.print();
+            }}
+          >
+            Print bracket / Save PDF
+          </Button>
+        </div>
       </header>
       {rounds.length ? (
         rounds.map((round) => (

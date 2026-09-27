@@ -3,6 +3,7 @@ import { useParams } from 'react-router';
 
 import { FamilySchedule } from './FamilySchedule';
 import { PublicFacilityPage } from './PublicFacilityPage';
+import { PublicStandingsPage } from './PublicStandingsPage';
 import { PublicTournamentPage } from './PublicTournamentPage';
 
 function FamilyScheduleRoute(): React.JSX.Element {
@@ -45,6 +46,31 @@ function PublicTournamentRoute(): React.JSX.Element {
   );
 }
 
+function PublicProgramStandingsRoute(): React.JSX.Element {
+  const { slug, programId } = useParams<{ slug: string; programId: string }>();
+  return slug && programId ? (
+    <PublicStandingsPage slug={slug} scopeType="program" scopeId={programId} />
+  ) : (
+    <main className="schedule-page">Standings not found.</main>
+  );
+}
+
+function PublicDivisionStandingsRoute(): React.JSX.Element {
+  const { slug, divisionId } = useParams<{
+    slug: string;
+    divisionId: string;
+  }>();
+  return slug && divisionId ? (
+    <PublicStandingsPage
+      slug={slug}
+      scopeType="division"
+      scopeId={divisionId}
+    />
+  ) : (
+    <main className="schedule-page">Standings not found.</main>
+  );
+}
+
 export const schedulePortalRoutes: readonly RouteObject[] = [
   {
     path: '/portal/orgs/:orgId/schedule/teams/:teamSeasonId/people/:personId',
@@ -57,5 +83,13 @@ export const schedulePortalRoutes: readonly RouteObject[] = [
   {
     path: '/orgs/:slug/tournaments/:bracketId',
     element: <PublicTournamentRoute />,
+  },
+  {
+    path: '/orgs/:slug/programs/:programId/standings',
+    element: <PublicProgramStandingsRoute />,
+  },
+  {
+    path: '/orgs/:slug/divisions/:divisionId/standings',
+    element: <PublicDivisionStandingsRoute />,
   },
 ];

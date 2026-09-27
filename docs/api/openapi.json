@@ -11928,6 +11928,60 @@
         ]
       }
     },
+    "/api/v1/contests/orgs/{orgId}/people/{personId}/personal-bests": {
+      "get": {
+        "operationId": "get_api_v1_contests_orgs_orgId_people_personId_personal_bests",
+        "summary": "List athlete personal bests",
+        "tags": ["contests"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "number" },
+                    { "type": "boolean" },
+                    { "type": "null" },
+                    { "type": "array", "items": { "$ref": "#" } },
+                    {
+                      "type": "object",
+                      "propertyNames": { "type": "string" },
+                      "additionalProperties": { "$ref": "#" }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "personId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
+      }
+    },
     "/api/v1/contests/public/orgs/{orgSlug}/contests/{contestId}/live": {
       "get": {
         "operationId": "get_api_v1_contests_public_orgs_orgSlug_contests_contestId_live",

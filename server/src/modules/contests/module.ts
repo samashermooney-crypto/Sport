@@ -45,6 +45,11 @@ const endpoints = [
   ['get', '/orgs/{orgId}/teams/{teamSeasonId}/stats', 'List team statistics'],
   [
     'get',
+    '/orgs/{orgId}/people/{personId}/personal-bests',
+    'List athlete personal bests',
+  ],
+  [
+    'get',
     '/public/orgs/{orgSlug}/contests/{contestId}/live',
     'Read public live contest results',
   ],

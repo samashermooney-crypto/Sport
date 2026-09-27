@@ -11,6 +11,7 @@ import {
 import type { Placement, RankedEntry } from '@shared/sport/results';
 import { contestFormatSchema, sportProfileSchema } from '@shared/sport/schema';
 import type { ContestFormatConfig, SportProfile } from '@shared/sport/schema';
+import { aggregateStats, statLeaders } from '@shared/sport/stats';
 
 import { withOrg } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
@@ -57,6 +58,13 @@ function numeric(value: unknown): number {
   const result = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(result))
     throw new SchedulingRuleError('A score must be a finite number.');
+  return result;
+}
+
+function statNumericValue(value: number | string): number {
+  const result = typeof value === 'string' ? Number(value) : value;
+  if (!Number.isFinite(result))
+    throw new SchedulingRuleError('A stored statistic is not numeric.', 409);
   return result;
 }
 
@@ -1126,11 +1134,17 @@ async function createDisciplineRecordsForCards(
     discipline = (await import(disciplineServicePath)) as typeof discipline;
   } catch {
     throw new SchedulingRuleError(
-      'Discipline cards cannot be finalized until Track F discipline integration is available.',
+      'Discipline cards cannot be finalized because the discipline service is unavailable.',
       503,
       'SCHEDULE_CONFLICT',
     );
   }
+  if (typeof discipline.createFromContestResult !== 'function')
+    throw new SchedulingRuleError(
+      'Discipline cards cannot be finalized because the discipline service does not expose its contest-result integration yet.',
+      503,
+      'SCHEDULE_CONFLICT',
+    );
   for (const card of cards) {
     const rule = profile.disciplineTypes.find((item) => item.key === card.type);
     if (!rule)
@@ -1554,10 +1568,211 @@ export async function listTeamStats(
       .where('team_season_id', '=', scope.teamSeasonId)
       .where('stat_key', 'in', [...permitted]);
     if (scope.statKey) query = query.where('stat_key', '=', scope.statKey);
+    const stats = await query.execute();
+    const definitions = profile.stats.filter(
+      (item) => item.level === 'team' && item.public,
+    );
+    const aggregate = aggregateStats(
+      profile.stats,
+      stats.length
+        ? stats.map((stat) => ({
+            subjectId: scope.teamSeasonId,
+            values: { [stat.stat_key]: statNumericValue(stat.value) },
+          }))
+        : [{ subjectId: scope.teamSeasonId, values: {} }],
+    )[0]?.values;
     return {
-      stats: await query.execute(),
-      definitions: profile.stats.filter(
-        (item) => item.level === 'team' && item.public,
+      stats,
+      definitions,
+      summary: Object.fromEntries(
+        definitions.map((definition) => [
+          definition.key,
+          aggregate?.[definition.key] ?? 0,
+        ]),
+      ),
+    };
+  });
+}
+
+export async function listPersonPersonalBests(
+  context: OrgContext,
+  personId: string,
+) {
+  return withOrg(context, async (trx) => {
+    const person = await trx
+      .selectFrom('people')
+      .select('id')
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', personId)
+      .executeTakeFirst();
+    if (!person)
+      throw new SchedulingRuleError('Athlete not found.', 404, 'NOT_FOUND');
+
+    let permitted = false;
+    try {
+      await assertSchedulePermission(trx, context, 'results.read', {
+        personId,
+      });
+      permitted = true;
+    } catch {
+      const teams = await trx
+        .selectFrom('roster_entries as roster')
+        .innerJoin('team_seasons as team', (join) =>
+          join
+            .onRef('team.org_id', '=', 'roster.org_id')
+            .onRef('team.id', '=', 'roster.team_season_id'),
+        )
+        .select(['roster.team_season_id', 'team.program_id'])
+        .where('roster.org_id', '=', context.orgId)
+        .where('roster.person_id', '=', personId)
+        .where('roster.status', 'in', ['active', 'injured', 'suspended'])
+        .execute();
+      for (const team of teams) {
+        try {
+          await assertSchedulePermission(trx, context, 'results.read', {
+            teamSeasonId: team.team_season_id,
+          });
+          permitted = true;
+          break;
+        } catch {
+          try {
+            await assertSchedulePermission(trx, context, 'results.read', {
+              programId: team.program_id,
+            });
+            permitted = true;
+            break;
+          } catch {
+            try {
+              await assertSchedulePermission(trx, context, 'results.manage', {
+                teamSeasonId: team.team_season_id,
+              });
+              permitted = true;
+              break;
+            } catch {
+              /* Continue through the athlete's scoped teams. */
+            }
+          }
+        }
+      }
+    }
+    if (!permitted)
+      throw new SchedulingRuleError(
+        'You cannot read this athlete’s results.',
+        403,
+        'FORBIDDEN',
+      );
+
+    const records = await trx
+      .selectFrom('stat_lines')
+      .innerJoin('contests', (join) =>
+        join
+          .onRef('contests.org_id', '=', 'stat_lines.org_id')
+          .onRef('contests.id', '=', 'stat_lines.contest_id'),
+      )
+      .innerJoin('events', (join) =>
+        join
+          .onRef('events.org_id', '=', 'contests.org_id')
+          .onRef('events.id', '=', 'contests.event_id'),
+      )
+      .innerJoin('sport_profile_versions as profile_version', (join) =>
+        join
+          .onRef('profile_version.org_id', '=', 'contests.org_id')
+          .onRef(
+            'profile_version.sport_profile_id',
+            '=',
+            'contests.sport_profile_id',
+          )
+          .onRef('profile_version.version', '=', 'contests.profile_version'),
+      )
+      .select([
+        'stat_lines.stat_key',
+        'stat_lines.value',
+        'stat_lines.contest_id',
+        'contests.sport_profile_id',
+        'contests.profile_version',
+        'events.starts_at',
+        'profile_version.profile as profile_snapshot',
+      ])
+      .where('stat_lines.org_id', '=', context.orgId)
+      .where('stat_lines.person_id', '=', personId)
+      .where('contests.status', 'in', ['final', 'forfeit'])
+      .orderBy('events.starts_at')
+      .execute();
+
+    const profiles = new Map<
+      string,
+      {
+        profile: SportProfile;
+        profileVersion: number;
+        entries: Map<
+          string,
+          { startsAt: Date; values: Record<string, number> }
+        >;
+      }
+    >();
+    for (const record of records) {
+      const profileKey = `${record.sport_profile_id}:${String(record.profile_version)}`;
+      let group = profiles.get(profileKey);
+      if (!group) {
+        group = {
+          profile: sportProfileSchema.parse(record.profile_snapshot),
+          profileVersion: record.profile_version,
+          entries: new Map(),
+        };
+        profiles.set(profileKey, group);
+      }
+      const entry = group.entries.get(record.contest_id) ?? {
+        startsAt: record.starts_at,
+        values: {},
+      };
+      entry.values[record.stat_key] = statNumericValue(record.value);
+      group.entries.set(record.contest_id, entry);
+    }
+
+    const personalBests = [];
+    for (const group of profiles.values()) {
+      const entries = [...group.entries].map(([contestId, entry]) => ({
+        contestId,
+        startsAt: entry.startsAt,
+        values: entry.values,
+      }));
+      for (const definition of group.profile.stats.filter(
+        (item) => item.level === 'athlete' && item.public,
+      )) {
+        const observed = entries.filter(
+          (entry) => entry.values[definition.key] !== undefined,
+        );
+        const best = statLeaders(
+          definition,
+          observed.map((entry) => ({
+            subjectId: entry.contestId,
+            values: entry.values,
+          })),
+          {
+            youth: true,
+            viewerCanSeePrivate: false,
+            limit: 1,
+          },
+        )[0];
+        if (!best) continue;
+        const record = entries.find(
+          (entry) => entry.contestId === best.subjectId,
+        );
+        if (!record) continue;
+        personalBests.push({
+          key: definition.key,
+          label: definition.label,
+          valueType: definition.valueType,
+          value: best.value,
+          contestId: best.subjectId,
+          achievedAt: record.startsAt.toISOString(),
+          profileVersion: group.profileVersion,
+        });
+      }
+    }
+    return {
+      items: personalBests.sort((left, right) =>
+        left.key.localeCompare(right.key),
       ),
     };
   });

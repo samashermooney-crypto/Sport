@@ -118,6 +118,13 @@
   min-width: 0;
 }
 
+.schedule-print-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-12);
+}
+
 .schedule-run progress {
   width: 100%;
   accent-color: var(--accent);
@@ -293,5 +300,25 @@
   .schedule-card__title {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+@media print {
+  .schedule-print-controls {
+    display: none !important;
+  }
+
+  .schedule-page {
+    max-width: none;
+    padding: 0;
+  }
+
+  .schedule-card {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .table-scroll {
+    overflow: visible;
   }
 }

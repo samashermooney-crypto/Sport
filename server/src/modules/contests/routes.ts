@@ -14,6 +14,7 @@ import {
   assignMeetParticipants,
   disputeContestResult,
   listContestResults,
+  listPersonPersonalBests,
   listTeamStats,
   liveContestPublic,
   submitContestResult,
@@ -273,6 +274,21 @@ export function createContestsRouter(
       fail(res, error);
     }
   });
+  router.get(
+    '/orgs/:orgId/people/:personId/personal-bests',
+    async (req, res) => {
+      try {
+        res.json(
+          await listPersonPersonalBests(
+            await contextFor(dependencies, req),
+            id.parse(req.params.personId),
+          ),
+        );
+      } catch (error) {
+        fail(res, error);
+      }
+    },
+  );
   router.get(
     '/public/orgs/:orgSlug/contests/:contestId/live',
     async (req, res) => {

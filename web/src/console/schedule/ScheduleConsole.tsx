@@ -1,4 +1,5 @@
 import { Temporal } from '@js-temporal/polyfill';
+import type { StandingsConfig } from '@shared/sport/schema';
 import { useCallback, useEffect, useState } from 'react';
 import type { SubmitEvent } from 'react';
 
@@ -6,6 +7,12 @@ import { Badge, Button, Field, Input, Select, Textarea } from '../../ui';
 
 import { ResourceScheduleCalendar } from './ResourceScheduleCalendar';
 import type { ResourceScheduleEvent } from './ResourceScheduleCalendar';
+import {
+  encodeCsv,
+  parseCsvRows,
+  printableTableDocument,
+  replacePrintDocument,
+} from './export';
 import './schedule.css';
 
 type ScheduleEvent = {
@@ -83,6 +90,45 @@ type MeetParticipant = {
   seed: number | null;
   heat: number | null;
   lane: number | null;
+};
+type ContestExportResult = {
+  participant_id: string;
+  side: string;
+  score: number | null;
+  place: number | null;
+  outcome: string | null;
+  status: string;
+  score_detail: unknown;
+};
+type StandingsRow = {
+  teamId: string;
+  rank: number;
+  played: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  scored: number;
+  allowed: number;
+  differential: number;
+  points: number;
+  winPercentage: number;
+};
+type StandingsSnapshot = {
+  rows: StandingsRow[];
+  teamNames: Record<string, string>;
+  config: StandingsConfig;
+  configVersion: number | null;
+  computed_at?: string | null;
+  computedAt?: string;
+};
+type TeamStatsSnapshot = {
+  definitions: Array<{
+    key: string;
+    label: { en: string; es: string };
+    abbreviation: string;
+    valueType: string;
+  }>;
+  summary: Record<string, number>;
 };
 
 const base = (orgId: string, module: string) =>
@@ -187,8 +233,16 @@ export function ScheduleConsole({
     status: string;
     format?: { format: string; lanes?: number; heats?: boolean };
     participants?: MeetParticipant[];
+    results?: ContestExportResult[];
+    event?: { title: string; starts_at: string; timezone: string };
   } | null>(null);
-  const [standings, setStandings] = useState<unknown>(null);
+  const [standingsScopeType, setStandingsScopeType] = useState<
+    'program' | 'division'
+  >('program');
+  const [standingsScopeId, setStandingsScopeId] = useState('');
+  const [standings, setStandings] = useState<StandingsSnapshot | null>(null);
+  const [teamStatsTeamId, setTeamStatsTeamId] = useState('');
+  const [teamStats, setTeamStats] = useState<TeamStatsSnapshot | null>(null);
 
   const loadEvents = useCallback(async () => {
     setError('');
@@ -339,6 +393,141 @@ export function ScheduleConsole({
     } finally {
       setLoading(false);
     }
+  }
+
+  function standingsScope() {
+    const id =
+      standingsScopeId.trim() ||
+      (standingsScopeType === 'program' ? programId.trim() : '');
+    return {
+      id,
+      noun: standingsScopeType === 'program' ? 'programs' : 'divisions',
+    };
+  }
+
+  function standingsUrl(action = ''): string {
+    const scope = standingsScope();
+    return `${base(orgId, 'standings')}/${scope.noun}/${encodeURIComponent(scope.id)}/standings${action}`;
+  }
+
+  async function loadStandings(): Promise<void> {
+    if (!standingsScope().id) {
+      setError('Enter a program or division ID first.');
+      return;
+    }
+    await perform(async () => {
+      setStandings(await api<StandingsSnapshot>(standingsUrl()));
+    }, 'Standings snapshot loaded.');
+  }
+
+  async function refreshStandings(): Promise<void> {
+    if (!standingsScope().id) {
+      setError('Enter a program or division ID first.');
+      return;
+    }
+    await perform(async () => {
+      setStandings(
+        await api<StandingsSnapshot>(standingsUrl('/refresh'), {
+          ...json({}),
+          method: 'POST',
+        }),
+      );
+    }, 'Standings refreshed.');
+  }
+
+  async function loadTeamStats(): Promise<void> {
+    const teamSeasonId = teamStatsTeamId.trim();
+    if (!teamSeasonId) {
+      setError('Enter a team season ID first.');
+      return;
+    }
+    await perform(async () => {
+      setTeamStats(
+        await api<TeamStatsSnapshot>(
+          `${base(orgId, 'contests')}/teams/${encodeURIComponent(teamSeasonId)}/stats`,
+        ),
+      );
+    }, 'Team statistics loaded.');
+  }
+
+  async function saveStandingsVisibility(
+    event: SubmitEvent<HTMLFormElement>,
+  ): Promise<void> {
+    event.preventDefault();
+    if (!standings || !standingsScope().id) {
+      setError('Load standings before changing their visibility.');
+      return;
+    }
+    const form = new FormData(event.currentTarget);
+    const config = {
+      ...standings.config,
+      publicVisibility: formText(form, 'publicVisibility'),
+    } as StandingsConfig;
+    await perform(async () => {
+      const result = await api<{ version: number }>(standingsUrl('/config'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config,
+          ...(standings.configVersion === null
+            ? {}
+            : { expectedVersion: standings.configVersion }),
+        }),
+      });
+      setStandings({
+        ...standings,
+        config,
+        configVersion: result.version,
+      });
+    }, 'Standings visibility saved.');
+  }
+
+  function printStandings(): void {
+    if (!standings) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      setError('Allow the print window to open, then try again.');
+      return;
+    }
+    const rows = standings.rows.map((row) => [
+      row.rank,
+      standings.teamNames[row.teamId] ?? row.teamId,
+      row.played,
+      row.wins,
+      row.losses,
+      row.ties,
+      row.points,
+      row.scored,
+      row.allowed,
+      row.differential,
+    ]);
+    const scope = standingsScope();
+    const computedAt = standings.computedAt ?? standings.computed_at;
+    replacePrintDocument(
+      printWindow.document,
+      printableTableDocument(
+        'Standings',
+        `${standingsScopeType} ${scope.id}${computedAt ? ` · Updated ${new Date(computedAt).toLocaleString()}` : ' · Live calculation'}`,
+        [
+          'Rank',
+          'Team',
+          'Played',
+          'Wins',
+          'Losses',
+          'Ties',
+          'Points',
+          'Scored',
+          'Allowed',
+          'Differential',
+        ],
+        rows,
+      ),
+    );
+    printWindow.focus();
+    window.setTimeout(() => {
+      printWindow.print();
+    }, 250);
+    setMessage('Standings print view ready.');
   }
 
   async function createEvent(
@@ -534,7 +723,9 @@ export function ScheduleConsole({
     }, 'Import validation started.');
   }
 
-  async function exportCsv(event: SubmitEvent<HTMLFormElement>): Promise<void> {
+  async function exportSchedule(
+    event: SubmitEvent<HTMLFormElement>,
+  ): Promise<void> {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const toDate = Temporal.PlainDate.from(formText(form, 'to'))
@@ -546,20 +737,173 @@ export function ScheduleConsole({
       from: new Date(`${formText(form, 'from')}T00:00:00Z`).toISOString(),
       to: new Date(`${toDate}T00:00:00Z`).toISOString(),
     });
-    await perform(async () => {
-      const response = await fetch(
-        `${base(orgId, 'scheduling')}/schedule.csv?${query}`,
-        { credentials: 'include' },
+    const format =
+      event.nativeEvent.submitter instanceof HTMLButtonElement
+        ? event.nativeEvent.submitter.value
+        : 'csv';
+    const printWindow = format === 'pdf' ? window.open('', '_blank') : null;
+    if (format === 'pdf' && !printWindow) {
+      setError('Allow the print window to open, then try again.');
+      return;
+    }
+    if (printWindow) {
+      printWindow.document.title = 'Preparing schedule';
+      printWindow.document.body.textContent = 'Preparing schedule print view…';
+    }
+    await perform(
+      async () => {
+        const response = await fetch(
+          `${base(orgId, 'scheduling')}/schedule.csv?${query}`,
+          { credentials: 'include' },
+        );
+        if (!response.ok)
+          throw new Error(
+            `Schedule export failed (${String(response.status)}).`,
+          );
+        const text = await response.text();
+        if (format === 'pdf' && printWindow) {
+          const [header = [], ...records] = parseCsvRows(text);
+          const column = (name: string) => header.indexOf(name);
+          const value = (record: string[], name: string) =>
+            record[column(name)] ?? '';
+          const rows = records.map((record) => {
+            const timezoneValue = value(record, 'timezone') || 'UTC';
+            const start = value(record, 'starts_at');
+            const end = value(record, 'ends_at');
+            const date = new Intl.DateTimeFormat(undefined, {
+              dateStyle: 'medium',
+              timeZone: timezoneValue,
+            }).format(new Date(start));
+            const times = `${new Intl.DateTimeFormat(undefined, {
+              hour: 'numeric',
+              minute: '2-digit',
+              timeZone: timezoneValue,
+            }).format(new Date(start))}–${new Intl.DateTimeFormat(undefined, {
+              hour: 'numeric',
+              minute: '2-digit',
+              timeZone: timezoneValue,
+            }).format(new Date(end))}`;
+            return [
+              date,
+              times,
+              timezoneValue,
+              value(record, 'title'),
+              value(record, 'kind'),
+              value(record, 'space_name') ||
+                value(record, 'location_text') ||
+                'Unassigned',
+              value(record, 'home_team'),
+              value(record, 'away_team'),
+              value(record, 'status'),
+            ];
+          });
+          const title = 'Schedule export';
+          const subtitle = `${formText(form, 'scopeType')} ${formText(form, 'scopeId')} · ${formText(form, 'from')} to ${formText(form, 'to')}`;
+          replacePrintDocument(
+            printWindow.document,
+            printableTableDocument(
+              title,
+              subtitle,
+              [
+                'Date',
+                'Time',
+                'Time zone',
+                'Event',
+                'Type',
+                'Location',
+                'Home',
+                'Away',
+                'Status',
+              ],
+              rows,
+            ),
+          );
+          printWindow.focus();
+          window.setTimeout(() => {
+            printWindow.print();
+          }, 250);
+        } else {
+          const objectUrl = URL.createObjectURL(
+            new Blob([text], { type: 'text/csv;charset=utf-8' }),
+          );
+          const anchor = document.createElement('a');
+          anchor.href = objectUrl;
+          anchor.download = 'schedule.csv';
+          anchor.click();
+          URL.revokeObjectURL(objectUrl);
+        }
+      },
+      format === 'pdf' ? 'Print view ready.' : 'CSV downloaded.',
+    );
+  }
+
+  function exportContestResults(format: 'csv' | 'pdf'): void {
+    if (!contest?.results?.length) {
+      setError('Load a contest with entered results before exporting.');
+      return;
+    }
+    const participantById = new Map(
+      (contest.participants ?? []).map((participant) => [
+        participant.id,
+        participant.person_id ??
+          participant.team_season_id ??
+          participant.external_team_id ??
+          participant.id,
+      ]),
+    );
+    const rows = contest.results.map((result) => [
+      participantById.get(result.participant_id) ?? result.participant_id,
+      result.side,
+      result.score,
+      result.place,
+      result.outcome,
+      result.status,
+      result.score_detail,
+    ]);
+    const headers = [
+      'Participant',
+      'Side',
+      'Score',
+      'Place',
+      'Outcome',
+      'Status',
+      'Result detail',
+    ];
+    const title = `${contest.event?.title ?? 'Contest'} results`;
+    const subtitle = contest.event
+      ? `${new Intl.DateTimeFormat(undefined, {
+          dateStyle: 'medium',
+          timeZone: contest.event.timezone,
+        }).format(new Date(contest.event.starts_at))} · ${contest.status}`
+      : `Contest ${contest.id} · ${contest.status}`;
+    if (format === 'csv') {
+      const objectUrl = URL.createObjectURL(
+        new Blob([encodeCsv([headers, ...rows])], {
+          type: 'text/csv;charset=utf-8',
+        }),
       );
-      if (!response.ok)
-        throw new Error(`CSV export failed (${String(response.status)}).`);
-      const objectUrl = URL.createObjectURL(await response.blob());
       const anchor = document.createElement('a');
       anchor.href = objectUrl;
-      anchor.download = 'schedule.csv';
+      anchor.download = 'contest-results.csv';
       anchor.click();
       URL.revokeObjectURL(objectUrl);
-    }, 'CSV downloaded.');
+      setMessage('Results CSV downloaded.');
+      return;
+    }
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      setError('Allow the print window to open, then try again.');
+      return;
+    }
+    replacePrintDocument(
+      printWindow.document,
+      printableTableDocument(title, subtitle, headers, rows),
+    );
+    printWindow.focus();
+    window.setTimeout(() => {
+      printWindow.print();
+    }, 250);
+    setMessage('Results print view ready.');
   }
 
   async function createSeries(
@@ -694,11 +1038,15 @@ export function ScheduleConsole({
     const detail = await api<{
       participants: MeetParticipant[];
       format: { format: string; lanes?: number; heats?: boolean };
+      results: ContestExportResult[];
+      event: { title: string; starts_at: string; timezone: string };
     }>(`${base(orgId, 'contests')}/contests/${result.contest.id}`);
     setContest({
       ...result.contest,
       format: detail.format,
       participants: detail.participants,
+      results: detail.results,
+      event: detail.event,
     });
   }
 
@@ -726,6 +1074,7 @@ export function ScheduleConsole({
       );
       setContest({ ...contest, ...response });
       await loadEvents();
+      await loadContest();
     }, 'Result submitted.');
   }
 
@@ -1448,7 +1797,7 @@ export function ScheduleConsole({
           )}
           <form
             className="schedule-form schedule-form--two"
-            onSubmit={(event) => void exportCsv(event)}
+            onSubmit={(event) => void exportSchedule(event)}
           >
             <Field label="Export scope">
               <Select
@@ -1465,8 +1814,11 @@ export function ScheduleConsole({
             <Field label="To date" required>
               <Input name="to" type="date" defaultValue={today(90)} required />
             </Field>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" name="format" value="csv" disabled={loading}>
               Export CSV
+            </Button>
+            <Button type="submit" name="format" value="pdf" disabled={loading}>
+              Print schedule / Save PDF
             </Button>
           </form>
           <details className="schedule-details">
@@ -1960,6 +2312,26 @@ export function ScheduleConsole({
                 Submit result
               </Button>
             </form>
+            {contest.results?.length ? (
+              <div className="schedule-actions" aria-label="Result exports">
+                <Button
+                  secondary
+                  onClick={() => {
+                    exportContestResults('csv');
+                  }}
+                >
+                  Export results CSV
+                </Button>
+                <Button
+                  secondary
+                  onClick={() => {
+                    exportContestResults('pdf');
+                  }}
+                >
+                  Print results / Save PDF
+                </Button>
+              </div>
+            ) : null}
           </div>
         )}
       </section>
@@ -2394,34 +2766,178 @@ export function ScheduleConsole({
           aria-labelledby="schedule-standings-heading"
         >
           <h2 id="schedule-standings-heading">Standings</h2>
-          <p>Refresh a snapshot after results are finalized.</p>
-          <Field label="Program ID">
-            <Input
-              value={programId}
+          <p>Load or refresh a program or division snapshot.</p>
+          <Field label="Standings scope">
+            <Select
+              value={standingsScopeType}
+              options={['program', 'division']}
               onChange={(event) => {
-                setProgramId(event.target.value);
+                setStandingsScopeType(
+                  event.target.value as 'program' | 'division',
+                );
               }}
             />
           </Field>
-          <Button
-            disabled={!programId || loading}
-            onClick={() =>
-              void perform(async () => {
-                setStandings(
-                  await api(
-                    `${base(orgId, 'standings')}/programs/${programId}/standings/refresh`,
-                    { ...json({}), method: 'POST' },
-                  ),
-                );
-              }, 'Standings refreshed.')
-            }
-          >
-            Refresh program standings
-          </Button>
+          <Field label="Program or division ID">
+            <Input
+              value={
+                standingsScopeId ||
+                (standingsScopeType === 'program' ? programId : '')
+              }
+              onChange={(event) => {
+                setStandingsScopeId(event.target.value);
+              }}
+            />
+          </Field>
+          <div className="schedule-actions">
+            <Button
+              secondary
+              disabled={loading || !standingsScope().id}
+              onClick={() => void loadStandings()}
+            >
+              Load standings
+            </Button>
+            <Button
+              disabled={loading || !standingsScope().id}
+              onClick={() => void refreshStandings()}
+            >
+              Refresh snapshot
+            </Button>
+            {standings && (
+              <Button secondary disabled={loading} onClick={printStandings}>
+                Print standings / Save PDF
+              </Button>
+            )}
+          </div>
           {standings !== null && (
-            <pre className="schedule-json">
-              {JSON.stringify(standings, null, 2)}
-            </pre>
+            <>
+              <p>
+                Visibility: {standings.config.publicVisibility} ·{' '}
+                {(standings.computedAt ?? standings.computed_at)
+                  ? `Updated ${new Date(standings.computedAt ?? standings.computed_at ?? '').toLocaleString()}`
+                  : 'Calculated from current results'}
+              </p>
+              <form
+                className="schedule-form"
+                onSubmit={(event) => void saveStandingsVisibility(event)}
+              >
+                <Field label="Standings visibility">
+                  <Select
+                    name="publicVisibility"
+                    options={['public', 'members', 'hidden']}
+                    defaultValue={standings.config.publicVisibility}
+                  />
+                </Field>
+                <Button type="submit" disabled={loading}>
+                  Save visibility
+                </Button>
+              </form>
+              <div className="table-scroll">
+                <table className="ui-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Rank</th>
+                      <th scope="col">Team</th>
+                      <th scope="col">Played</th>
+                      <th scope="col">W</th>
+                      <th scope="col">L</th>
+                      <th scope="col">T</th>
+                      <th scope="col">Points</th>
+                      <th scope="col">Scored</th>
+                      <th scope="col">Allowed</th>
+                      <th scope="col">Diff</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {standings.rows.map((row) => (
+                      <tr key={row.teamId}>
+                        <td>{row.rank}</td>
+                        <th scope="row">
+                          {standings.teamNames[row.teamId] ?? row.teamId}
+                        </th>
+                        <td>{row.played}</td>
+                        <td>{row.wins}</td>
+                        <td>{row.losses}</td>
+                        <td>{row.ties}</td>
+                        <td>{row.points}</td>
+                        <td>{row.scored}</td>
+                        <td>{row.allowed}</td>
+                        <td>{row.differential}</td>
+                      </tr>
+                    ))}
+                    {!standings.rows.length && (
+                      <tr>
+                        <td colSpan={10}>No standings entries yet.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </section>
+        <section
+          className="schedule-card"
+          aria-labelledby="schedule-team-stats-heading"
+        >
+          <h2 id="schedule-team-stats-heading">Team statistics</h2>
+          <form
+            className="schedule-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void loadTeamStats();
+            }}
+          >
+            <Field label="Team season ID" required>
+              <Input
+                value={teamStatsTeamId}
+                onChange={(event) => {
+                  setTeamStatsTeamId(event.target.value);
+                }}
+                required
+              />
+            </Field>
+            <Button type="submit" disabled={loading || !teamStatsTeamId.trim()}>
+              Load team statistics
+            </Button>
+          </form>
+          {teamStats && (
+            <div className="table-scroll">
+              <table className="ui-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Statistic</th>
+                    <th scope="col">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamStats.definitions.map((definition) => {
+                    const value = teamStats.summary[definition.key] ?? 0;
+                    return (
+                      <tr key={definition.key}>
+                        <th scope="row">
+                          {definition.label[
+                            document.documentElement.lang === 'es' ? 'es' : 'en'
+                          ] || definition.abbreviation}
+                        </th>
+                        <td>
+                          {definition.valueType === 'time_ms'
+                            ? `${(value / 1000).toFixed(2)} s`
+                            : value}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {!teamStats.definitions.length && (
+                    <tr>
+                      <td colSpan={2}>
+                        No public team statistics are configured.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       </div>
