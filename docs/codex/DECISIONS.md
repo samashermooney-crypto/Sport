@@ -343,3 +343,11 @@
 - **Decision:** Use a saved explicit English or Spanish choice when available, then the browser language, then English. Update the document language when the user switches and continue rendering if browser storage is unavailable.
 - **Why:** A choice made on the sign-in screen should survive navigation, while private-browsing storage failures must not block access.
 - **Consequences / follow-ups:** Account preference synchronization and complete auth/portal/site translations remain part of Task 16.
+
+### DEC-042 — Generate weekly installments on the checkout weekday
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 4 installments
+- **Context:** `02 §L` lists weekly plans, while `20 §3` specifies dates only for fixed-date and monthly schedules.
+- **Decision:** A weekly template takes a positive installment count. The first charge is seven calendar days after the organization-local checkout date, with later charges at seven-day intervals on the same weekday. Deposit, cent allocation and minimum-charge reduction follow the existing installment rules.
+- **Why:** This gives `weekly` a deterministic schedule without inventing another day-of-week or interval setting.
+- **Consequences / follow-ups:** Finance template validation and quoting should accept `{ kind: 'weekly', count }` and use the shared generator; a later custom cadence needs an explicit schema and decision.

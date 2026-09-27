@@ -58,6 +58,37 @@ describe('installments', () => {
     ).toBeNull();
   });
 
+  it('schedules weekly charges every seven calendar days from the local checkout date', () => {
+    const plan = generateInstallments(
+      1001,
+      {
+        deposit: { kind: 'fixed', amountCents: 101 },
+        schedule: { kind: 'weekly', count: 3 },
+        minAmountCents: 100,
+      },
+      '2026-12-28',
+    );
+    expect(plan?.installments.map((item) => item.dueOn)).toEqual([
+      '2027-01-04',
+      '2027-01-11',
+      '2027-01-18',
+    ]);
+    expect(plan?.installments.map((item) => item.amountCents)).toEqual([
+      300, 300, 300,
+    ]);
+    expect(() =>
+      generateInstallments(
+        1000,
+        {
+          deposit: { kind: 'fixed', amountCents: 0 },
+          schedule: { kind: 'weekly', count: 0 },
+          minAmountCents: 1,
+        },
+        '2026-09-01',
+      ),
+    ).toThrow('Invalid weekly schedule');
+  });
+
   it('reduces installment count to meet the minimum', () => {
     const plan = generateInstallments(
       1000,
