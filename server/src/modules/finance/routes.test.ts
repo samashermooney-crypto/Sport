@@ -636,3 +636,73 @@ describe('Connect Express finance HTTP', () => {
     expect(createExpressLoginLink).toHaveBeenCalledWith('acct_route');
   });
 });
+
+describe('installment template finance HTTP', () => {
+  it('restricts writes and versions create, replace and archive for the offering picker', async () => {
+    const path = `${baseUrl}/orgs/${context.orgId}/installment-templates`;
+    const headers = {
+      Cookie: `__Host-athlentry_session=${token}`,
+      Origin: origin,
+      'X-Athlentry-Request': '1',
+      'Content-Type': 'application/json',
+    };
+    const body = {
+      name: 'Monthly registration plan',
+      deposit: { kind: 'percent', bps: 2500 },
+      schedule: { kind: 'monthly', count: 3, dayOfMonth: 15 },
+      minAmountCents: 100,
+      autopayRequired: true,
+      allowedMethods: ['card', 'us_bank_account'],
+    };
+    expect(
+      (
+        await fetch(path, {
+          method: 'POST',
+          headers: { ...headers, Origin: 'https://attacker.example' },
+          body: JSON.stringify(body),
+        })
+      ).status,
+    ).toBe(403);
+    const created = await fetch(path, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+    expect(created.status).toBe(201);
+    const template = (await created.json()) as { id: string; version: number };
+    expect(template.version).toBe(1);
+    const listed = await fetch(path, { headers: { Cookie: headers.Cookie } });
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toMatchObject({ templates: [body] });
+    const updated = await fetch(`${path}/${template.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'If-Match': '1' },
+      body: JSON.stringify({ ...body, name: 'Updated plan' }),
+    });
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({
+      version: 2,
+      name: 'Updated plan',
+    });
+    expect(
+      (
+        await fetch(`${path}/${template.id}`, {
+          method: 'PATCH',
+          headers: { ...headers, 'If-Match': '1' },
+          body: JSON.stringify(body),
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await fetch(`${path}/${template.id}`, {
+          method: 'DELETE',
+          headers: { ...headers, 'If-Match': '2' },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      await (await fetch(path, { headers: { Cookie: headers.Cookie } })).json(),
+    ).toEqual({ templates: [] });
+  });
+});

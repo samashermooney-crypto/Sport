@@ -1,6 +1,11 @@
 import type { ServerModule } from '../../lib/module-contract.js';
 
 import {
+  installmentTemplateBodySchema,
+  installmentTemplateSchema,
+  installmentTemplateListSchema,
+} from './installment-templates.js';
+import {
   createFinanceRouter,
   offlinePaymentBodySchema,
   offlinePaymentReceiptSchema,
@@ -28,6 +33,32 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/installment-templates',
+      summary: 'List active installment plan templates for an organization',
+      response: installmentTemplateListSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/installment-templates',
+      summary: 'Create a versioned installment plan template',
+      body: installmentTemplateBodySchema,
+      response: installmentTemplateSchema,
+    },
+    {
+      method: 'patch',
+      path: '/api/v1/finance/orgs/{orgId}/installment-templates/{templateId}',
+      summary: 'Replace an installment plan template at an exact version',
+      body: installmentTemplateBodySchema,
+      response: installmentTemplateSchema,
+    },
+    {
+      method: 'delete',
+      path: '/api/v1/finance/orgs/{orgId}/installment-templates/{templateId}',
+      summary: 'Archive an installment plan template at an exact version',
+      response: paymentMethodActionResponseSchema,
+    },
     {
       method: 'post',
       path: '/api/v1/finance/orgs/{orgId}/checkout-payment-intents',

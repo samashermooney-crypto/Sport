@@ -112,14 +112,12 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
               AND athlete.household_id = ${item.householdId}::uuid
               AND h.status = 'active' AND person.status = 'active'
               AND EXISTS (
-                SELECT 1 FROM household_members payer
-                JOIN person_account_links pal ON pal.org_id = payer.org_id
-                  AND pal.person_id = payer.person_id
-                WHERE payer.org_id = athlete.org_id
-                  AND payer.household_id = athlete.household_id
-                  AND payer.role = 'guardian' AND payer.financially_responsible
+                SELECT 1 FROM person_account_links pal
+                WHERE pal.org_id = athlete.org_id
+                  AND pal.person_id = athlete.person_id
                   AND pal.account_id = ${checkout.accountId}::uuid
-                  AND pal.verified_at IS NOT NULL AND pal.revoked_at IS NULL
+                  AND pal.relationship IN ('self', 'guardian')
+                  AND pal.revoked_at IS NULL
               )
           ) AS access_ok,
           EXISTS (

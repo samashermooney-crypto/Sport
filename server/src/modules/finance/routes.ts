@@ -4,6 +4,7 @@ import type { Request, Response } from 'express';
 import Stripe from 'stripe';
 import { z } from 'zod';
 
+import { createWithOrg } from '../../db/withOrg.js';
 import type { PaymentsGateway } from '../../integrations/stripe/gateway.js';
 import { StripeSdkGateway } from '../../integrations/stripe/sdk.js';
 import { requestImpersonation } from '../../lib/tenant-guard.js';
@@ -15,6 +16,13 @@ import { ConnectConflictError, ConnectOnboardingService } from './connect.js';
 import { PostgresCreditRefundRepository } from './credit-refund-repo.js';
 import { CreditRefundService } from './credit-refunds.js';
 import { PostgresFrozenChargeReader } from './frozen-charge-repo.js';
+import {
+  installmentTemplateBodySchema,
+  installmentTemplateListSchema,
+  installmentTemplateSchema,
+  InstallmentTemplateConflictError,
+  PostgresInstallmentTemplates,
+} from './installment-templates.js';
 import {
   JournalExportError,
   payoutJournalCsv,
@@ -186,7 +194,8 @@ function sendError(response: Response, error: unknown): void {
           error instanceof JournalExportError ||
           error instanceof PayerMethodConflictError ||
           error instanceof ConnectConflictError ||
-          error instanceof PaymentConflictError
+          error instanceof PaymentConflictError ||
+          error instanceof InstallmentTemplateConflictError
         ? 409
         : error instanceof FinanceDependencyError
           ? 503
@@ -253,6 +262,135 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.get(
+    '/orgs/:orgId/installment-templates',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        const allowed = await createWithOrg(dependencies.database)(
+          context,
+          async (trx) => {
+            const membership = await trx
+              .selectFrom('org_memberships')
+              .select('id')
+              .where('org_id', '=', orgId)
+              .where('account_id', '=', session.accountId)
+              .where('status', '=', 'active')
+              .executeTakeFirst();
+            if (membership) return true;
+            const link = await trx
+              .selectFrom('person_account_links')
+              .select('id')
+              .where('org_id', '=', orgId)
+              .where('account_id', '=', session.accountId)
+              .where('revoked_at', 'is', null)
+              .executeTakeFirst();
+            return Boolean(link);
+          },
+        );
+        if (!allowed) throw new FinanceAccessError();
+        const templates = await new PostgresInstallmentTemplates(
+          dependencies.database,
+          context,
+        ).list(true);
+        response.json(installmentTemplateListSchema.parse({ templates }));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post(
+    '/orgs/:orgId/installment-templates',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const body = installmentTemplateBodySchema.parse(
+          request.body as unknown,
+        );
+        const template = await new PostgresInstallmentTemplates(
+          dependencies.database,
+          context,
+        ).create(body);
+        response.status(201).json(installmentTemplateSchema.parse(template));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.patch(
+    '/orgs/:orgId/installment-templates/:templateId',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const templateId = z.uuid().parse(request.params.templateId);
+        const version = z.coerce
+          .number()
+          .int()
+          .positive()
+          .parse(request.get('If-Match'));
+        const body = installmentTemplateBodySchema.parse(
+          request.body as unknown,
+        );
+        const template = await new PostgresInstallmentTemplates(
+          dependencies.database,
+          context,
+        ).replace(templateId, version, body);
+        response.json(installmentTemplateSchema.parse(template));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.delete(
+    '/orgs/:orgId/installment-templates/:templateId',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const templateId = z.uuid().parse(request.params.templateId);
+        const version = z.coerce
+          .number()
+          .int()
+          .positive()
+          .parse(request.get('If-Match'));
+        await new PostgresInstallmentTemplates(
+          dependencies.database,
+          context,
+        ).archive(templateId, version);
+        response.json(
+          paymentMethodActionResponseSchema.parse({ success: true }),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   router.post(
     '/orgs/:orgId/checkout-payment-intents',
     async (request, response) => {
