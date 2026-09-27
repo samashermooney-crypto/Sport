@@ -2215,6 +2215,19 @@ async function normalizeVolunteerHours(
       ),
     );
   if (person.match) normalized['_person_id'] = person.match.id;
+  if (person.match) {
+    const householdId = await primaryHousehold(trx, ctx.orgId, person.match.id);
+    if (householdId) normalized['_household_id'] = householdId;
+    else
+      issues.push(
+        issue(
+          'error',
+          'HOUSEHOLD_NOT_FOUND',
+          'Assign the person to a household before importing volunteer hours',
+          'person_email',
+        ),
+      );
+  }
   const hours = values['hours']?.trim()
     ? parseMoney(values['hours'], 'hours')
     : {
@@ -2222,11 +2235,72 @@ async function normalizeVolunteerHours(
         issue: issue('error', 'REQUIRED', 'Hours are required', 'hours'),
       };
   if (hours.issue) issues.push(hours.issue);
-  if (hours.value !== null) normalized['hours'] = hours.value / 100;
-  if (values['role']?.trim()) normalized['role'] = values['role'].trim();
+  if (hours.value !== null) {
+    if (hours.value <= 0)
+      issues.push(
+        issue('error', 'INVALID_HOURS', 'Hours must be positive', 'hours'),
+      );
+    else normalized['hours'] = hours.value / 100;
+  }
+  const roleName = values['role']?.trim() || 'General volunteering';
+  if (roleName.length > 120)
+    issues.push(
+      issue(
+        'error',
+        'TOO_LONG',
+        'Volunteer role must be 120 characters or fewer',
+        'role',
+      ),
+    );
+  else normalized['role'] = roleName;
+  const shiftName = values['shift_name']?.trim();
+  if (shiftName) {
+    if (shiftName.length > 120)
+      issues.push(
+        issue(
+          'error',
+          'TOO_LONG',
+          'Shift name must be 120 characters or fewer',
+          'shift_name',
+        ),
+      );
+    else normalized['shift_name'] = shiftName;
+  }
+  const facilityName = values['facility']?.trim();
+  if (!facilityName) {
+    issues.push(
+      issue(
+        'error',
+        'REQUIRED',
+        'Facility is required so historical volunteer work is not assigned an invented location',
+        'facility',
+      ),
+    );
+  } else {
+    const facility = await trx
+      .selectFrom('facilities')
+      .select('id')
+      .where('org_id', '=', ctx.orgId)
+      .where('archived_at', 'is', null)
+      .where(sql<boolean>`lower(name) = lower(${facilityName})`)
+      .executeTakeFirst();
+    if (!facility)
+      issues.push(
+        issue(
+          'error',
+          'FACILITY_NOT_FOUND',
+          `No active facility named "${facilityName}"`,
+          'facility',
+        ),
+      );
+    else normalized['_facility_id'] = facility.id;
+  }
   const occurred = values['occurred_on']?.trim()
     ? parseDate(values['occurred_on'], 'occurred_on')
-    : { value: null, issue: null };
+    : {
+        value: null,
+        issue: issue('error', 'REQUIRED', 'Date is required', 'occurred_on'),
+      };
   if (occurred.issue) issues.push(occurred.issue);
   if (occurred.value) normalized['occurred_on'] = occurred.value;
   if (values['notes']?.trim()) normalized['notes'] = values['notes'].trim();
@@ -2245,7 +2319,6 @@ async function commitVolunteerHours(
 ) {
   const outcomes = new Map<string, RowOutcome>();
   const roles = new Map<string, string>();
-  const shifts = new Map<string, string>();
   let credited = 0;
   let hoursTotal = 0;
   for (const row of rows) {
@@ -2255,11 +2328,14 @@ async function commitVolunteerHours(
     }
     const record = row.normalized;
     const personId = str(record, '_person_id');
+    const householdId = str(record, '_household_id');
+    const facilityId = str(record, '_facility_id');
     const hours = num(record, 'hours');
-    if (!personId || !hours) {
+    const occurredOn = str(record, 'occurred_on');
+    if (!personId || !householdId || !facilityId || !hours || !occurredOn) {
       outcomes.set(row.rowId, {
         targets: [],
-        note: 'unresolved person or hours',
+        note: 'unresolved person, household, facility, date, or hours',
       });
       continue;
     }
@@ -2267,51 +2343,68 @@ async function commitVolunteerHours(
     const roleName = str(record, 'role') ?? 'General volunteering';
     let roleId = roles.get(roleName.toLowerCase()) ?? null;
     if (!roleId) {
-      const existing = await sql<{ id: string }>`
-        SELECT id FROM volunteer_roles
-        WHERE org_id = ${ctx.orgId} AND lower(name) = lower(${roleName})
-        LIMIT 1
-      `.execute(trx);
-      if (existing.rows[0]) {
-        roleId = existing.rows[0].id;
+      const existing = await trx
+        .selectFrom('volunteer_roles')
+        .select(['id', 'archived_at'])
+        .where('org_id', '=', ctx.orgId)
+        .where(sql<boolean>`lower(name) = lower(${roleName})`)
+        .executeTakeFirst();
+      if (existing && existing.archived_at === null) {
+        roleId = existing.id;
       } else {
-        const inserted = await sql<{ id: string }>`
-          INSERT INTO volunteer_roles (id, org_id, name)
-          VALUES (${newId()}, ${ctx.orgId}, ${roleName})
-          RETURNING id
-        `.execute(trx);
-        roleId = inserted.rows[0]?.id ?? null;
-        if (!roleId) throw new Error('Volunteer role insert returned no id');
+        roleId = newId();
+        const insertedName = existing
+          ? `${roleName.slice(0, 100)} imported ${roleId.slice(0, 8)}`
+          : roleName;
+        await trx
+          .insertInto('volunteer_roles')
+          .values({
+            id: roleId,
+            org_id: ctx.orgId,
+            name: insertedName,
+            description: 'Created by importing historical volunteer hours.',
+            minimum_age: 18,
+            created_by: ctx.actorId,
+          })
+          .execute();
         targets.push({ table: 'volunteer_roles', id: roleId, version: 1 });
       }
       roles.set(roleName.toLowerCase(), roleId);
     }
-    if (!roleId) throw new Error('Volunteer role could not be resolved');
-    const occurredOn = str(record, 'occurred_on') ?? '2020-01-01';
-    const shiftKey = `${roleId}|${occurredOn}`;
-    let shiftId = shifts.get(shiftKey) ?? null;
-    if (!shiftId) {
-      shiftId = newId();
-      const start = new Date(`${occurredOn}T09:00:00Z`);
-      await sql`
-        INSERT INTO volunteer_shifts
-          (id, org_id, volunteer_role_id, title, starts_at, ends_at, slots, credit_hours, imported)
-        VALUES (
-          ${shiftId}, ${ctx.orgId}, ${roleId}, ${`Imported hours — ${roleName}`},
-          ${start}, ${new Date(start.getTime() + 3_600_000)},
-          ${Math.max(1, rows.length)}, ${hours}, true
-        )
-      `.execute(trx);
-      targets.push({ table: 'volunteer_shifts', id: shiftId, version: 1 });
-      shifts.set(shiftKey, shiftId);
-    }
+    const shiftId = newId();
+    const start = new Date(`${occurredOn}T09:00:00Z`);
+    const shiftName = str(record, 'shift_name');
+    const shiftNotes = [
+      `Imported historical hours${shiftName ? ` — ${shiftName}` : ''}`,
+      str(record, 'notes'),
+    ]
+      .filter(Boolean)
+      .join('\n');
+    await trx
+      .insertInto('volunteer_shifts')
+      .values({
+        id: shiftId,
+        org_id: ctx.orgId,
+        volunteer_role_id: roleId,
+        facility_id: facilityId,
+        starts_at: start,
+        ends_at: new Date(start.getTime() + 3_600_000),
+        slots: 1,
+        credit_hours: hours,
+        notes: shiftNotes,
+        status: 'completed',
+        created_by: ctx.actorId,
+      })
+      .execute();
+    targets.push({ table: 'volunteer_shifts', id: shiftId, version: 1 });
     const signupId = newId();
     await sql`
       INSERT INTO volunteer_signups
-        (id, org_id, volunteer_shift_id, person_id, household_id, status, hours_credited, credited_by)
+        (id, org_id, volunteer_shift_id, person_id, household_id, status,
+         hours_credited, credited_by, credited_at, created_by)
       VALUES (
         ${signupId}, ${ctx.orgId}, ${shiftId}, ${personId},
-        ${await primaryHousehold(trx, ctx.orgId, personId)}, 'completed', ${hours}, ${ctx.actorId}
+        ${householdId}, 'completed', ${hours}, ${ctx.actorId}, now(), ${ctx.actorId}
       )
     `.execute(trx);
     targets.push({ table: 'volunteer_signups', id: signupId, version: 1 });

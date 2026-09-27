@@ -1506,32 +1506,45 @@ export async function seedDemo(database: Kysely<DB>): Promise<void> {
       const volunteerSchema = await sql<{ available: boolean }>`
         SELECT to_regclass('volunteer_roles') IS NOT NULL AS available
       `.execute(trx);
-      if (volunteerSchema.rows[0]?.available) {
+      if (spec.seed === 'riverside' && volunteerSchema.rows[0]?.available) {
         const volunteerRoleId = stableId(`demo-volunteer-role-${spec.seed}`);
         await sql`
           INSERT INTO volunteer_roles
-            (id, org_id, name, description, minimum_age, active)
+            (id, org_id, name, description, minimum_age, created_by)
           VALUES
-            (${volunteerRoleId}, ${orgId}, 'Event helper', 'Demo volunteer role', 16, true)
+            (${volunteerRoleId}, ${orgId}, 'Event helper', 'Demo volunteer role', 16, ${adminId})
         `.execute(trx);
-        const volunteerShiftId = stableId(`demo-volunteer-shift-${spec.seed}`);
+        const completedShiftId = stableId(
+          `demo-volunteer-shift-completed-${spec.seed}`,
+        );
         await sql`
           INSERT INTO volunteer_shifts
-            (id, org_id, volunteer_role_id, facility_id, title, starts_at, ends_at,
-             slots, credit_hours, notes, imported)
+            (id, org_id, volunteer_role_id, facility_id, starts_at, ends_at,
+             slots, credit_hours, notes, status, created_by)
           VALUES
-            (${volunteerShiftId}, ${orgId}, ${volunteerRoleId}, ${valueAt(facilityIds, 0, 'volunteer facility')},
-             'Season welcome desk', '2026-10-10T15:00:00.000Z', '2026-10-10T19:00:00.000Z',
-             4, 2, 'Fictional demo shift', false)
+            (${completedShiftId}, ${orgId}, ${volunteerRoleId}, ${valueAt(facilityIds, 0, 'volunteer facility')},
+             '2026-08-15T15:00:00.000Z', '2026-08-15T17:00:00.000Z',
+             1, 2, 'Fictional completed demo shift', 'completed', ${adminId})
         `.execute(trx);
         await sql`
           INSERT INTO volunteer_signups
-            (id, org_id, volunteer_shift_id, person_id, household_id, status, hours_credited, credited_by)
+            (id, org_id, volunteer_shift_id, person_id, household_id, status,
+             hours_credited, credited_by, credited_at, created_by)
           VALUES
-            (${stableId(`demo-volunteer-signup-${spec.seed}`)}, ${orgId}, ${volunteerShiftId},
+            (${stableId(`demo-volunteer-signup-${spec.seed}`)}, ${orgId}, ${completedShiftId},
              ${valueAt(participants, 0, 'demo participant').guardianId ?? valueAt(participants, 0, 'demo participant').id},
              ${valueAt(participants, 0, 'demo participant').householdId},
-             'completed', 2, ${adminId})
+             'completed', 2, ${adminId}, '2026-08-15T17:00:00.000Z', ${adminId})
+        `.execute(trx);
+        await sql`
+          INSERT INTO volunteer_shifts
+            (id, org_id, volunteer_role_id, event_id, facility_id, starts_at, ends_at,
+             slots, credit_hours, notes, created_by)
+          VALUES
+            (${stableId(`demo-volunteer-shift-open-${spec.seed}`)}, ${orgId}, ${volunteerRoleId},
+             ${eventRows[0]?.id ?? null}, ${valueAt(facilityIds, 0, 'volunteer facility')},
+             '2026-10-10T15:00:00.000Z', '2026-10-10T19:00:00.000Z',
+             4, 2, 'Fictional demo shift; no notification has been sent.', ${adminId})
         `.execute(trx);
       }
 

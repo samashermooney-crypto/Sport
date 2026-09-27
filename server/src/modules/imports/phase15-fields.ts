@@ -571,11 +571,22 @@ const volunteerHourFields: ImportField[] = [
   field('role', 'Volunteer role', 'text', 'e.g. Concessions, Field setup', {
     aliases: ['volunteer role', 'job', 'position'],
   }),
+  field('shift_name', 'Shift name', 'text', 'Name of the historical activity', {
+    aliases: ['shift', 'shift name', 'activity', 'event'],
+  }),
+  field(
+    'facility',
+    'Facility',
+    'text',
+    'Active facility name where the historical volunteer work occurred',
+    { required: true, aliases: ['location', 'site'] },
+  ),
   field('hours', 'Hours', 'money', 'Hours worked (decimal allowed)', {
     required: true,
     aliases: ['hour', 'hours worked', 'credit hours'],
   }),
   field('occurred_on', 'Date', 'date', 'When the work happened', {
+    required: true,
     aliases: ['date', 'worked on', 'shift date'],
   }),
   field('notes', 'Notes', 'text', '', { aliases: ['note', 'memo'] }),

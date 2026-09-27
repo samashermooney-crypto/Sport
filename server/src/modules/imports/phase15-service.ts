@@ -1238,6 +1238,55 @@ export function createImportsService(
             if (result.rows.length > 0)
               reversed['person_credentials'] =
                 (reversed['person_credentials'] ?? 0) + 1;
+          } else if (target.table === 'volunteer_signups') {
+            result = await sql<{ id: string }>`
+              UPDATE volunteer_signups
+              SET status = 'canceled', version = version + 1
+              WHERE org_id = ${orgId} AND id = ${target.id}
+                AND version = ${target.version}
+                AND status IN ('signed_up', 'confirmed', 'checked_in', 'completed', 'no_show')
+              RETURNING id
+            `.execute(trx);
+            if (result.rows.length > 0)
+              reversed['volunteer_signups'] =
+                (reversed['volunteer_signups'] ?? 0) + 1;
+          } else if (target.table === 'volunteer_shifts') {
+            result = await sql<{ id: string }>`
+              UPDATE volunteer_shifts
+              SET status = 'canceled', version = version + 1
+              WHERE org_id = ${orgId} AND id = ${target.id}
+                AND version = ${target.version} AND status = 'completed'
+              RETURNING id
+            `.execute(trx);
+            if (result.rows.length > 0)
+              reversed['volunteer_shifts'] =
+                (reversed['volunteer_shifts'] ?? 0) + 1;
+          } else if (target.table === 'volunteer_roles') {
+            result = await sql<{ id: string }>`
+              UPDATE volunteer_roles AS role
+              SET archived_at = now(), version = version + 1
+              WHERE role.org_id = ${orgId} AND role.id = ${target.id}
+                AND role.version = ${target.version} AND role.archived_at IS NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM volunteer_shifts AS shift
+                  WHERE shift.org_id = role.org_id
+                    AND shift.volunteer_role_id = role.id
+                    AND shift.status <> 'canceled'
+                )
+              RETURNING id
+            `.execute(trx);
+            if (result.rows.length > 0) {
+              reversed['volunteer_roles'] =
+                (reversed['volunteer_roles'] ?? 0) + 1;
+            } else {
+              result = await sql<{ id: string }>`
+                SELECT id FROM volunteer_roles
+                WHERE org_id = ${orgId} AND id = ${target.id}
+              `.execute(trx);
+              if (result.rows.length > 0)
+                retained['volunteer_roles'] =
+                  (retained['volunteer_roles'] ?? 0) + 1;
+            }
           } else if (target.table === 'registrations') {
             result = await sql<{ id: string }>`
             UPDATE registrations

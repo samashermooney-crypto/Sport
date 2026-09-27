@@ -401,6 +401,141 @@ describe('Phase 15 import transactions', () => {
     expect(after.line).not.toBeNull();
   });
 
+  it('imports volunteer hours against the Phase 11 contract and reverses the credit', async () => {
+    const email = `volunteer-${crypto.randomUUID()}@example.test`;
+    const personId = await createPerson(email, 'Morgan Volunteer');
+    const householdId = await factories.household(staff);
+    const facilityId = crypto.randomUUID();
+    await factories.scoped(staff, async (trx) => {
+      await trx
+        .insertInto('household_members')
+        .values({
+          id: crypto.randomUUID(),
+          org_id: staff.orgId,
+          household_id: householdId,
+          person_id: personId,
+          role: 'other_adult',
+          financially_responsible: true,
+          is_primary_contact: true,
+        })
+        .execute();
+      await trx
+        .insertInto('facilities')
+        .values({
+          id: facilityId,
+          org_id: staff.orgId,
+          name: 'Volunteer Import Field',
+          ownership: 'owned',
+        })
+        .execute();
+    });
+    const imports = createImportsService(database, null);
+    const missingFacilityBatch = await imports.createBatch(
+      staff.orgId,
+      staff.accountId,
+      {
+        kind: 'volunteer_hours',
+        fileName: 'volunteer-hours-without-facility.csv',
+        bytes: csv(
+          `Person email,Volunteer role,Hours,Date\n${email},Field marshal,3.5,2026-03-14`,
+        ),
+      },
+    );
+    const missingFacilityValidation = await imports.validateBatch(
+      staff.orgId,
+      missingFacilityBatch.id,
+      staff.accountId,
+    );
+    expect(missingFacilityValidation.rowCount).toBe(1);
+    expect(missingFacilityValidation.errorCount).toBeGreaterThan(0);
+
+    const batch = await imports.createBatch(staff.orgId, staff.accountId, {
+      kind: 'volunteer_hours',
+      fileName: 'volunteer-hours.csv',
+      bytes: csv(
+        `Person email,Volunteer role,Shift name,Facility,Hours,Date,Notes\n${email},Field marshal,Opening day,Volunteer Import Field,3.5,2026-03-14,Field setup`,
+      ),
+    });
+    expect(
+      await imports.validateBatch(staff.orgId, batch.id, staff.accountId),
+    ).toMatchObject({ rowCount: 1, errorCount: 0 });
+    expect(
+      await imports.commitBatch(staff.orgId, batch.id, staff.accountId),
+    ).toMatchObject({ credited: 1, hours_total: 3.5 });
+
+    const imported = await factories.scoped(staff, async (trx) => {
+      const signup = await trx
+        .selectFrom('volunteer_signups')
+        .selectAll()
+        .where('org_id', '=', staff.orgId)
+        .where('person_id', '=', personId)
+        .executeTakeFirstOrThrow();
+      const shift = await trx
+        .selectFrom('volunteer_shifts')
+        .selectAll()
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', signup.volunteer_shift_id)
+        .executeTakeFirstOrThrow();
+      const role = await trx
+        .selectFrom('volunteer_roles')
+        .selectAll()
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', shift.volunteer_role_id)
+        .executeTakeFirstOrThrow();
+      return { signup, shift, role };
+    });
+    expect(imported.signup).toMatchObject({
+      household_id: householdId,
+      status: 'completed',
+      hours_credited: '3.50',
+      credited_by: staff.accountId,
+      created_by: staff.accountId,
+    });
+    expect(imported.shift).toMatchObject({
+      facility_id: facilityId,
+      slots: 1,
+      credit_hours: '3.50',
+      status: 'completed',
+      created_by: staff.accountId,
+    });
+    expect(imported.shift.notes).toContain('Opening day');
+    expect(imported.role.name).toBe('Field marshal');
+    expect(imported.role.created_by).toBe(staff.accountId);
+
+    expect(
+      await imports.rollbackBatch(staff.orgId, batch.id, staff.accountId),
+    ).toMatchObject({
+      reversed: {
+        volunteer_signups: 1,
+        volunteer_shifts: 1,
+        volunteer_roles: 1,
+      },
+    });
+    const after = await factories.scoped(staff, async (trx) => ({
+      signup: await trx
+        .selectFrom('volunteer_signups')
+        .select('status')
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', imported.signup.id)
+        .executeTakeFirstOrThrow(),
+      shift: await trx
+        .selectFrom('volunteer_shifts')
+        .select('status')
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', imported.shift.id)
+        .executeTakeFirstOrThrow(),
+      role: await trx
+        .selectFrom('volunteer_roles')
+        .select('archived_at')
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', imported.role.id)
+        .executeTakeFirstOrThrow(),
+    }));
+    expect(after.signup.status).toBe('canceled');
+    expect(after.shift.status).toBe('canceled');
+    expect(after.role.archived_at).not.toBeNull();
+  });
+
   it('requires an explicit create or skip decision for duplicate people rows', async () => {
     const email = `duplicate-${crypto.randomUUID()}@example.test`;
     await createPerson(email, 'Returning Player');

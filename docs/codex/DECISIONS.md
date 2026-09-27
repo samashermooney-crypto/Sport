@@ -853,7 +853,7 @@
 - **Context:** Track A owns the Phase 2 import tables and routes while Phase 15 adds additional import kinds and reversible processing. Preset privacy and financial rollback behavior were not specified for the extension.
 - **Decision:** Store Phase 15 batches, rows, and mapping presets in separate tenant-scoped tables and mount them as additive adapters. Keep saved mapping presets within one organization. Historical payments use the external method and are never re-charged; rollback cancels external payments, voids only untouched paid invoices, revokes imported credentials, and retains financial evidence.
 - **Why:** This avoids overwriting Track A's import engine, prevents cross-organization preset leakage, and preserves financial and compliance records.
-- **Consequences / follow-ups:** Reconcile the additive route/job mount with Track A whenever trunk is merged. Volunteer-hours rows use the Phase 11 table contract and remain subject to H's final schema review.
+- **Consequences / follow-ups:** Reconcile the additive route/job mount with Track A whenever trunk is merged. Volunteer-hours rows were reconciled against Phase 11's required facility, actor, and status fields during the latest trunk sync.
 
 ### DEC-116 — Reverse imported operations with status changes
 - **Date:** 2026-09-27
@@ -902,3 +902,11 @@
 - **Decision:** Seed 300 students, 300 household-specific guardian accounts, and one active tuition subscription and class enrollment per student. Distribute students evenly across the 40 classes (8 per class) and use only synthetic `example.test` identities.
 - **Why:** The profile exercises class, family, and tuition screens with valid guardian links while remaining below each class's 18-seat capacity.
 - **Consequences / follow-ups:** These accounts share the documented demo password and remain fictional; no payment is created or charged by seeding.
+
+### DEC-122 — Require the source facility for historical volunteer hours
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 volunteer-hours import
+- **Context:** Phase 11 requires each volunteer shift to reference an organization facility, while historical spreadsheets may omit a location.
+- **Decision:** Require an explicit active facility mapping for each volunteer-hours row. Do not silently assign a missing location to the first active facility.
+- **Why:** Historical imports should not invent where work occurred, and the resulting record must satisfy the volunteer module's tenant-scoped facility contract.
+- **Consequences / follow-ups:** The generic template includes a sample facility; organizations must map their own source locations to active facilities before committing rows.
