@@ -1,12 +1,13 @@
 # Track E — Stripe and finance
 
-Status: working
+Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Schema spine merged; Phase 4 persistence in progress, starting with durable Stripe event ingress.
+Current: Schema spine merged; Phase 4 and Phase 5 money core continue with dispute evidence, checkout freeze persistence and remaining family/staff money flows.
+Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
-Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1020 merge (2026-09-26).
+Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
 Requests to other tracks: B: confirm whether `generateInstallments` must support `weekly` from `02 §L` (current `20 §3` algorithm and shared function cover fixed dates/monthly only) (2026-09-26).
 Requests to other tracks: B: extend `deriveInvoiceState` with disputed-lost cents separate from refunds, while active dispute cents stay excluded from collectible balance; E will add invoice/dispute columns in migration 1015 (2026-09-26).
 Requests to other tracks: A: record the Stripe transfer-reversal limit as a `20 §10` implementation constraint in DECISIONS.md: Stripe permits reversal only up to the unreversed transfer, so full dispute amount plus fee can exceed the legal reversal amount; E will record unrecovered liability instead of claiming the fee was debited (2026-09-26).
@@ -22,6 +23,10 @@ Gateway review: test-only keys and events enforced; raw webhook bytes verified; 
 Gateway review: no live keys, no real payment or email sent; test-mode smoke script needs operator test credentials and onboarding.
 Gateway gate: 83 tests, typecheck, lint, build, registry/OpenAPI/codegen freshness green; no gateway screens for Playwright.
 Additional gate: 267 tests passed/1 skipped against isolated Postgres, typecheck, lint and build green; no affected mounted Playwright screens or generated inputs.
+Current gate: 516 tests passed/1 skipped with isolated Postgres and stripe-mock; typecheck, lint, build, and Playwright 13 passed/3 skipped on Chromium/WebKit mobile. A-owned registry/OpenAPI/codegen regeneration remains for integration.
+Current review: Refund approval hashes bind requester, proposal, destination and key; checkout attempts serialize different keys before Stripe, and payout exports require exact reconciliation.
+Current review: Tenant finance data uses `withOrg`; account-wide payer methods use the authenticated account; no live keys, real charges or external messages were used.
+Current review: Frozen charge terms must be persisted with the checkout snapshot before the payment route is mounted; multi-payment refund allocation and dispute evidence remain in the queue.
 Additional review: `20 §3–§5` fee, installment and state rules checked; every external Stripe money call now has a durable claim before invocation.
 Additional review: webhook handlers fetch latest Stripe state and require org-scoped id/amount matching; repository persistence and real concurrency gates await spine.
 Additional review: UI remains unmounted until API wiring, uses existing design tokens and test-only publishable keys; no live Stripe keys or messages used.
