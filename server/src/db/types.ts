@@ -86,6 +86,24 @@ export interface AuthTokens {
   token_hash: Buffer;
 }
 
+export interface CredentialTypes {
+  active: Generated<boolean>;
+  applies_to: Json;
+  blocks_activation: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  description: string | null;
+  id: string;
+  key: string;
+  name: string;
+  org_id: string | null;
+  provider: string | null;
+  renewal_reminder_days: Generated<number[]>;
+  updated_at: Generated<Timestamp>;
+  validity: Json;
+  verification: string;
+  version: Generated<number>;
+}
+
 export interface DeviceTokens {
   account_id: string;
   created_at: Generated<Timestamp>;
@@ -96,6 +114,21 @@ export interface DeviceTokens {
   token_hash: Buffer | null;
   token_or_subscription: Json;
   updated_at: Generated<Timestamp>;
+}
+
+export interface FormDefinitions {
+  created_at: Generated<Timestamp>;
+  id: string;
+  name: string;
+  org_id: string;
+  owner_id: string | null;
+  owner_type: Generated<string>;
+  published_at: Timestamp | null;
+  retired_at: Timestamp | null;
+  schema: Json;
+  scope: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
 }
 
 export interface IdempotencyKeys {
@@ -229,6 +262,19 @@ export interface SchemaMigrations {
   version: number;
 }
 
+export interface Seasons {
+  copied_from_season_id: string | null;
+  created_at: Generated<Timestamp>;
+  ends_on: Timestamp;
+  id: string;
+  name: string;
+  org_id: string;
+  starts_on: Timestamp;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface SecurityEvents {
   account_id: string | null;
   action: string;
@@ -258,12 +304,51 @@ export interface Sessions {
   user_agent: string | null;
 }
 
+export interface SportProfiles {
+  archived_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  id: string;
+  name: string;
+  org_id: string;
+  profile: Json;
+  template_key: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface SportTemplates {
+  created_at: Generated<Timestamp>;
+  id: string;
+  key: string;
+  name: string;
+  profile: Json;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface WaiverDocuments {
+  body_html: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  name: string;
+  org_id: string;
+  published_at: Timestamp | null;
+  renewal: string;
+  requires: string;
+  retired_at: Timestamp | null;
+  template_unreviewed: Generated<boolean>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface DB {
   account_consents: AccountConsents;
   accounts: Accounts;
   audit_log: AuditLog;
   auth_tokens: AuthTokens;
+  credential_types: CredentialTypes;
   device_tokens: DeviceTokens;
+  form_definitions: FormDefinitions;
   idempotency_keys: IdempotencyKeys;
   mfa_factors: MfaFactors;
   mfa_recovery_codes: MfaRecoveryCodes;
@@ -275,6 +360,10 @@ export interface DB {
   rate_limit_points: RateLimitPoints;
   role_assignments: RoleAssignments;
   schema_migrations: SchemaMigrations;
+  seasons: Seasons;
   security_events: SecurityEvents;
   sessions: Sessions;
+  sport_profiles: SportProfiles;
+  sport_templates: SportTemplates;
+  waiver_documents: WaiverDocuments;
 }

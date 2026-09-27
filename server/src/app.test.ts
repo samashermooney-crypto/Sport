@@ -33,7 +33,7 @@ describe('Phase 0 server', () => {
         `SELECT current_database() AS name, count(*)::text AS migration_count FROM schema_migrations`,
       );
       expect(result.rows[0]?.name).toMatch(/^t_[0-9a-f]{32}$/);
-      expect(result.rows[0]?.migration_count).toBe('9');
+      expect(result.rows[0]?.migration_count).toBe('10');
     } finally {
       await client.end();
     }

@@ -76,13 +76,22 @@ describe('tenant database isolation', () => {
           'org_counters',
           'org_memberships',
           'role_assignments',
+          'sport_profiles',
+          'seasons',
+          'credential_types',
+          'form_definitions',
+          'waiver_documents',
         ]),
       );
       for (const row of result.rows) {
         expect(row.relrowsecurity, row.table_name).toBe(true);
         expect(row.relforcerowsecurity, row.table_name).toBe(true);
         expect(Number(row.policy_count), row.table_name).toBeGreaterThan(0);
-        if (!['audit_log', 'auth_tokens'].includes(row.table_name)) {
+        if (
+          !['audit_log', 'auth_tokens', 'credential_types'].includes(
+            row.table_name,
+          )
+        ) {
           expect(row.nullable, row.table_name).toBe('1');
         }
       }
@@ -207,5 +216,62 @@ describe('tenant database isolation', () => {
         trx.updateTable('audit_log').set({ action: 'tampered' }).execute(),
       ),
     ).rejects.toThrow();
+  });
+
+  it('keeps the default waiver private until its draft text is replaced', async () => {
+    const id = randomUUID();
+    await withOrg(contextA, async (trx) => {
+      await trx
+        .insertInto('waiver_documents')
+        .values({
+          id,
+          org_id: orgA,
+          name: 'Default waiver',
+          body_html: '<p>Draft — replace with your own reviewed text</p>',
+          requires: 'guardian_if_minor',
+          renewal: 'every_registration',
+          template_unreviewed: true,
+        })
+        .execute();
+    });
+    expect(
+      await withOrg(contextB, (trx) =>
+        trx
+          .selectFrom('waiver_documents')
+          .select('id')
+          .where('id', '=', id)
+          .execute(),
+      ),
+    ).toEqual([]);
+    await expect(
+      withOrg(contextA, (trx) =>
+        trx
+          .updateTable('waiver_documents')
+          .set({ published_at: new Date() })
+          .where('id', '=', id)
+          .execute(),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      withOrg(contextA, (trx) =>
+        trx
+          .updateTable('waiver_documents')
+          .set({ template_unreviewed: false })
+          .where('id', '=', id)
+          .execute(),
+      ),
+    ).rejects.toThrow();
+    const reviewed = await withOrg(contextA, (trx) =>
+      trx
+        .updateTable('waiver_documents')
+        .set({
+          body_html: '<p>Organization reviewed text</p>',
+          template_unreviewed: false,
+        })
+        .where('id', '=', id)
+        .returning('template_unreviewed')
+        .executeTakeFirstOrThrow(),
+    );
+    expect(reviewed.template_unreviewed).toBe(false);
   });
 });
