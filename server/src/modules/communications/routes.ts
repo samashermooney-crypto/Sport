@@ -19,6 +19,8 @@ import {
   chatMessageCreateSchema,
   chatMessageEditSchema,
   chatMessageListSchema,
+  chatAttachmentCapabilitiesSchema,
+  chatMemberOptionsSchema,
   chatModerationListSchema,
   chatModerationUpdateSchema,
   chatReportResponseSchema,
@@ -32,6 +34,9 @@ import {
   editMessage,
   ensureTeamConversation,
   ensureTeamStaffConversation,
+  getChatAttachmentCapabilities,
+  listHouseholdMessageHistory,
+  listChatMemberOptions,
   listConversations,
   listAvailableTeams,
   listMessages,
@@ -45,7 +50,10 @@ import {
   updateReportStatus,
 } from '../chat/service';
 
-import { createCommunicationAdapters } from './adapters';
+import {
+  createCommunicationAdapters,
+  createCommunicationNotificationSink,
+} from './adapters';
 import {
   recordWebhookStatus,
   sendCampaign,
@@ -178,8 +186,8 @@ async function providerLocator(
   return rows.rows[0] ?? null;
 }
 
-async function applyTwilioCommand(
-  dependencies: AuthDependencies,
+export async function applyTwilioCommand(
+  dependencies: Pick<AuthDependencies, 'database'>,
   runWithOrg: ReturnType<typeof createWithOrg>,
   phone: string,
   action: 'granted' | 'revoked',
@@ -273,12 +281,19 @@ export function createCommunicationsRouter(
 ): express.Router {
   const router = express.Router();
   const withOrg = createWithOrg(dependencies.database);
-  const delivery: DeliveryDependencies =
+  const configuredDelivery =
     options.delivery ??
     createCommunicationAdapters({
       email: dependencies.email,
       appUrl: dependencies.appUrl,
+      runWithOrg: withOrg,
     });
+  const delivery: DeliveryDependencies = {
+    ...configuredDelivery,
+    notifications:
+      configuredDelivery.notifications ??
+      createCommunicationNotificationSink(withOrg),
+  };
   const chat = {
     encryption: dependencies.encryption,
     ...(delivery.notifications
@@ -631,6 +646,22 @@ export function createCommunicationsRouter(
       }
     },
   );
+  router.get(
+    '/orgs/:orgId/households/:householdId/history',
+    async (request, response) => {
+      try {
+        const { context } = await sessionContext(dependencies, request);
+        const householdId = z.uuid().parse(request.params.householdId);
+        response.json(
+          personCommunicationHistorySchema.parse(
+            await listHouseholdMessageHistory(context, householdId, withOrg),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   router.get('/orgs/:orgId/sender-identity', async (request, response) => {
     try {
       const { context } = await sessionContext(dependencies, request);
@@ -873,6 +904,34 @@ export function createCommunicationsRouter(
       sendError(response, error);
     }
   });
+  router.get('/orgs/:orgId/chat/member-options', async (request, response) => {
+    try {
+      const { context } = await sessionContext(dependencies, request);
+      const search = z.string().max(100).optional().parse(request.query.search);
+      response.json(
+        chatMemberOptionsSchema.parse(
+          await listChatMemberOptions(context, search ?? '', withOrg),
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get(
+    '/orgs/:orgId/chat/attachment-capabilities',
+    async (request, response) => {
+      try {
+        const { context } = await sessionContext(dependencies, request);
+        response.json(
+          chatAttachmentCapabilitiesSchema.parse(
+            await getChatAttachmentCapabilities(context, withOrg),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   router.get('/orgs/:orgId/chat/teams', async (request, response) => {
     try {
       const { context } = await sessionContext(dependencies, request);

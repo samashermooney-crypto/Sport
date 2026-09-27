@@ -120,6 +120,7 @@ async function requireConversationMember(
     .where('member.org_id', '=', context.orgId)
     .where('member.account_id', '=', context.actor.accountId)
     .where('member.conversation_id', '=', conversationId)
+    .where('member.revoked_at', 'is', null)
     .executeTakeFirst();
   if (!row || row.archived_at)
     throw new ChatAccessError('Conversation not found');
@@ -326,10 +327,72 @@ async function writeConversationMembers(
   ownerId: string,
 ) {
   for (const accountId of accountIds) {
-    await sql`INSERT INTO conversation_members(id, org_id, conversation_id, account_id, role, guardian_copied) VALUES (${randomUUID()}, ${orgId}, ${conversationId}, ${accountId}, ${accountId === ownerId ? 'owner' : 'member'}, ${guardianIds.has(accountId)}) ON CONFLICT (org_id, conversation_id, account_id) DO UPDATE SET guardian_copied = conversation_members.guardian_copied OR EXCLUDED.guardian_copied`.execute(
+    await sql`INSERT INTO conversation_members(id, org_id, conversation_id, account_id, role, guardian_copied) VALUES (${randomUUID()}, ${orgId}, ${conversationId}, ${accountId}, ${accountId === ownerId ? 'owner' : 'member'}, ${guardianIds.has(accountId)}) ON CONFLICT (org_id, conversation_id, account_id) DO UPDATE SET role = CASE WHEN conversation_members.role = 'owner' THEN 'owner' ELSE EXCLUDED.role END, guardian_copied = conversation_members.guardian_copied OR EXCLUDED.guardian_copied, revoked_at = NULL`.execute(
       trx,
     );
   }
+}
+
+async function synchronizeConversationMembers(
+  trx: OrgTransaction,
+  context: OrgContext,
+  conversationId: string,
+  accountIds: readonly string[],
+  guardianIds: ReadonlySet<string>,
+  ownerId: string,
+  now: Date,
+  created: boolean,
+  kind: 'team' | 'team_staff',
+  teamSeasonId: string,
+) {
+  const current = await trx
+    .selectFrom('conversation_members')
+    .select('account_id')
+    .where('org_id', '=', context.orgId)
+    .where('conversation_id', '=', conversationId)
+    .where('revoked_at', 'is', null)
+    .execute();
+  const currentIds = new Set(current.map((row) => row.account_id));
+  const desiredIds = new Set(accountIds);
+  const removed = [...currentIds].filter((id) => !desiredIds.has(id));
+  await writeConversationMembers(
+    trx,
+    context.orgId,
+    conversationId,
+    accountIds,
+    guardianIds,
+    ownerId,
+  );
+  if (removed.length)
+    await trx
+      .updateTable('conversation_members')
+      .set({ revoked_at: now })
+      .where('org_id', '=', context.orgId)
+      .where('conversation_id', '=', conversationId)
+      .where('account_id', 'in', removed)
+      .where('revoked_at', 'is', null)
+      .execute();
+  const added = [...desiredIds].filter((id) => !currentIds.has(id));
+  if (created || added.length || removed.length)
+    await appendAuditEvent(trx, context, {
+      action: created
+        ? 'chat.conversation.create'
+        : 'chat.conversation.members.sync',
+      entityType: 'conversation',
+      entityId: conversationId,
+      changes: {
+        kind: { tier: 'internal', after: kind },
+        team_season_id: { tier: 'internal', after: teamSeasonId },
+        members: {
+          tier: 'internal',
+          before: current.length,
+          after: desiredIds.size,
+        },
+        members_added: { tier: 'internal', after: added.length },
+        members_revoked: { tier: 'internal', after: removed.length },
+        guardians_copied: { tier: 'internal', after: guardianIds.size },
+      },
+    });
 }
 
 async function enforceSafeSport(
@@ -443,23 +506,20 @@ export async function createConversation(
         );
     }
     const conversationId = randomUUID();
-    const safeResult =
+    const safeKind =
       input.kind === 'direct'
-        ? await enforceSafeSport(
-            trx,
-            context.orgId,
-            'direct',
-            context.actor.accountId,
-            accountIds,
-            now,
-          )
-        : {
-            result: {
-              guardianAdditions: [] as string[],
-              guardianCopied: false,
-            },
-            pseudoMinorIds: new Set<string>(),
-          };
+        ? 'direct'
+        : input.kind === 'team_staff'
+          ? 'team'
+          : 'message';
+    const safeResult = await enforceSafeSport(
+      trx,
+      context.orgId,
+      safeKind,
+      context.actor.accountId,
+      accountIds,
+      now,
+    );
     const guardianIds = new Set(safeResult.result.guardianAdditions);
     const finalAccounts = [
       ...new Set([...accountIds, ...safeResult.result.guardianAdditions]),
@@ -485,6 +545,14 @@ export async function createConversation(
       guardianIds,
       context.actor.accountId,
     );
+    if (input.kind === 'announcement')
+      await trx
+        .updateTable('conversation_members')
+        .set({ role: 'read_only' })
+        .where('org_id', '=', context.orgId)
+        .where('conversation_id', '=', conversationId)
+        .where('account_id', '!=', context.actor.accountId)
+        .execute();
     await appendAuditEvent(trx, context, {
       action: 'chat.conversation.create',
       entityType: 'conversation',
@@ -517,12 +585,35 @@ export async function ensureTeamConversation(
   return runWithOrg(context, async (trx) => {
     await requireActiveOrgActor(trx, context);
     const season = await trx
-      .selectFrom('team_seasons')
-      .select(['id', 'team_id', 'program_id'])
-      .where('org_id', '=', context.orgId)
-      .where('id', '=', teamSeasonId)
+      .selectFrom('team_seasons as season')
+      .innerJoin('programs as program', (join) =>
+        join
+          .onRef('program.id', '=', 'season.program_id')
+          .onRef('program.org_id', '=', 'season.org_id'),
+      )
+      .select([
+        'season.id',
+        'season.team_id',
+        'season.program_id',
+        'program.settings',
+      ])
+      .where('season.org_id', '=', context.orgId)
+      .where('season.id', '=', teamSeasonId)
       .executeTakeFirst();
     if (!season) throw new ChatAccessError('Team conversation not found');
+    const programSettings =
+      season.settings &&
+      typeof season.settings === 'object' &&
+      !Array.isArray(season.settings)
+        ? (season.settings as Record<string, unknown>)
+        : {};
+    const communicationsSettings = programSettings.communications;
+    const athleteChatEnabled =
+      communicationsSettings !== null &&
+      typeof communicationsSettings === 'object' &&
+      !Array.isArray(communicationsSettings) &&
+      (communicationsSettings as Record<string, unknown>).athleteChatEnabled ===
+        true;
     const [roster, staff, existing] = await Promise.all([
       trx
         .selectFrom('roster_entries')
@@ -584,9 +675,11 @@ export async function ensureTeamConversation(
         .map((link) => link.account_id),
     );
     const athleteAccountIds = new Set(
-      selfLinks
-        .filter((link) => (rosterAgeById.get(link.person_id) ?? 18) >= 13)
-        .map((link) => link.account_id),
+      athleteChatEnabled
+        ? selfLinks
+            .filter((link) => (rosterAgeById.get(link.person_id) ?? 18) >= 13)
+            .map((link) => link.account_id)
+        : [],
     );
     const memberIds = [...new Set([...staffAccountIds, ...athleteAccountIds])];
     if (!memberIds.includes(context.actor.accountId))
@@ -650,25 +743,18 @@ export async function ensureTeamConversation(
         })
         .returningAll()
         .executeTakeFirstOrThrow());
-    await writeConversationMembers(
+    await synchronizeConversationMembers(
       trx,
-      context.orgId,
+      context,
       conversation.id,
       finalIds,
       guardianIds,
       conversation.created_by,
+      now,
+      !existing,
+      'team',
+      teamSeasonId,
     );
-    if (!existing)
-      await appendAuditEvent(trx, context, {
-        action: 'chat.conversation.create',
-        entityType: 'conversation',
-        entityId: conversation.id,
-        changes: {
-          kind: { tier: 'internal', after: 'team' },
-          team_season_id: { tier: 'internal', after: teamSeasonId },
-          guardians_copied: { tier: 'internal', after: guardianIds.size },
-        },
-      });
     return {
       id: conversation.id,
       kind: conversation.kind,
@@ -763,25 +849,18 @@ export async function ensureTeamStaffConversation(
         })
         .returningAll()
         .executeTakeFirstOrThrow());
-    await writeConversationMembers(
+    await synchronizeConversationMembers(
       trx,
-      context.orgId,
+      context,
       conversation.id,
       finalIds,
       guardianIds,
       conversation.created_by,
+      now,
+      !existing,
+      'team_staff',
+      teamSeasonId,
     );
-    if (!existing)
-      await appendAuditEvent(trx, context, {
-        action: 'chat.conversation.create',
-        entityType: 'conversation',
-        entityId: conversation.id,
-        changes: {
-          kind: { tier: 'internal', after: 'team_staff' },
-          team_season_id: { tier: 'internal', after: teamSeasonId },
-          guardians_copied: { tier: 'internal', after: guardianIds.size },
-        },
-      });
     return {
       id: conversation.id,
       kind: conversation.kind,
@@ -805,6 +884,7 @@ export async function listConversations(
       .select(['conversation_id', 'last_read_at'])
       .where('org_id', '=', context.orgId)
       .where('account_id', '=', context.actor.accountId)
+      .where('revoked_at', 'is', null)
       .execute();
     if (!memberships.length) return { items: [] };
     const query = await sql<{
@@ -819,7 +899,7 @@ export async function listConversations(
       SELECT conversation.id, conversation.kind, conversation.title, conversation.team_season_id, member.guardian_copied, member.muted, member.last_read_at
       FROM conversations AS conversation
       INNER JOIN conversation_members AS member ON member.org_id = conversation.org_id AND member.conversation_id = conversation.id
-      WHERE conversation.org_id = ${context.orgId} AND member.account_id = ${context.actor.accountId} AND conversation.archived_at IS NULL
+      WHERE conversation.org_id = ${context.orgId} AND member.account_id = ${context.actor.accountId} AND member.revoked_at IS NULL AND conversation.archived_at IS NULL
       ORDER BY conversation.updated_at DESC
     `.execute(trx);
     const rows = query.rows;
@@ -857,6 +937,85 @@ export async function listConversations(
       });
     }
     return { items };
+  });
+}
+
+export async function listChatMemberOptions(
+  context: OrgContext,
+  search: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    await requireActiveOrgActor(trx, context);
+    const roles = await activeOrgRoles(trx, context);
+    if (
+      !roles.some((role) =>
+        ['owner', 'admin', 'communications', 'director'].includes(role),
+      )
+    )
+      throw new ChatPermissionError(
+        'Only authorized organization staff can create chat channels',
+      );
+    const term = search.trim().slice(0, 100);
+    const rows = await sql<{ accountId: string; label: string }>`
+      SELECT DISTINCT account.id AS "accountId",
+        btrim(concat_ws(' ', account.first_name, account.last_name)) AS label
+      FROM accounts AS account
+      WHERE account.status = 'active'
+        AND (
+          EXISTS (
+            SELECT 1 FROM org_memberships AS membership
+            WHERE membership.org_id = ${context.orgId}
+              AND membership.account_id = account.id
+              AND membership.status = 'active'
+          )
+          OR EXISTS (
+            SELECT 1 FROM person_account_links AS link
+            WHERE link.org_id = ${context.orgId}
+              AND link.account_id = account.id
+              AND link.revoked_at IS NULL
+          )
+        )
+        AND (
+          ${term} = '' OR
+          concat_ws(' ', account.first_name, account.last_name, account.email)
+            ILIKE ${`%${term}%`}
+        )
+      ORDER BY label, account.id
+      LIMIT 100
+    `.execute(trx);
+    return {
+      items: rows.rows.map((row) => ({
+        accountId: row.accountId,
+        label: row.label || 'Organization member',
+      })),
+    };
+  });
+}
+
+export async function getChatAttachmentCapabilities(
+  context: OrgContext,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    await requireActiveOrgActor(trx, context);
+    const membership = await trx
+      .selectFrom('org_memberships')
+      .select('id')
+      .where('org_id', '=', context.orgId)
+      .where('account_id', '=', context.actor.accountId)
+      .where('status', '=', 'active')
+      .executeTakeFirst();
+    const roles = await activeOrgRoles(trx, context);
+    return {
+      // Keep the portal's controls aligned with the current Files module:
+      // uploads require an active organization membership and owner, admin,
+      // or registrar role; internal chat files are downloadable by members.
+      canUpload:
+        Boolean(membership) &&
+        roles.some((role) => ['owner', 'admin', 'registrar'].includes(role)),
+      canDownload: Boolean(membership),
+    };
   });
 }
 
@@ -1003,12 +1162,21 @@ export async function sendChatMessage(
   const messageId = randomUUID();
   if (!dependencies.notifications) {
     const recipients = await runWithOrg(context, async (trx) => {
-      await requireConversationMember(trx, context, conversationId);
+      const membership = await requireConversationMember(
+        trx,
+        context,
+        conversationId,
+      );
+      if (membership.role === 'read_only')
+        throw new ChatPermissionError(
+          'This announcement conversation is read-only for members',
+        );
       const members = await trx
         .selectFrom('conversation_members')
         .select('account_id')
         .where('org_id', '=', context.orgId)
         .where('conversation_id', '=', conversationId)
+        .where('revoked_at', 'is', null)
         .execute();
       return members.filter(
         (member) => member.account_id !== context.actor.accountId,
@@ -1020,13 +1188,21 @@ export async function sendChatMessage(
       );
   }
   const targetAccounts = await runWithOrg(context, async (trx) => {
-    await requireConversationMember(trx, context, conversationId);
+    const membership = await requireConversationMember(
+      trx,
+      context,
+      conversationId,
+    );
+    if (membership.role === 'read_only')
+      throw new ChatPermissionError(
+        'This announcement conversation is read-only for members',
+      );
     const members = await trx
       .selectFrom('conversation_members')
       .select('account_id')
       .where('org_id', '=', context.orgId)
       .where('conversation_id', '=', conversationId)
-      .where('role', '!=', 'read_only')
+      .where('revoked_at', 'is', null)
       .execute();
     const accountIds = members.map((member) => member.account_id);
     const safe = await enforceSafeSport(
@@ -1068,7 +1244,7 @@ export async function sendChatMessage(
         conversation_id: conversationId,
         author_account_id: context.actor.accountId,
         body: input.body.trim(),
-        attachments: attachments as unknown as Json,
+        attachments: JSON.stringify(attachments) as unknown as Json,
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -1134,6 +1310,7 @@ export async function listMessages(
       .where('org_id', '=', context.orgId)
       .where('conversation_id', '=', conversationId)
       .where('account_id', '=', context.actor.accountId)
+      .where('revoked_at', 'is', null)
       .executeTakeFirst();
     const roles = membership ? [] : await activeOrgRoles(trx, context);
     const moderationView =
@@ -1191,6 +1368,7 @@ export async function listMessages(
         .select((eb) => eb.fn.countAll<number>().as('count'))
         .where('org_id', '=', context.orgId)
         .where('conversation_id', '=', conversationId)
+        .where('revoked_at', 'is', null)
         .where('account_id', '!=', row.author_account_id)
         .where('last_read_at', '>=', row.created_at)
         .executeTakeFirstOrThrow();
@@ -1236,12 +1414,14 @@ export async function markConversationRead(
       .where('org_id', '=', context.orgId)
       .where('conversation_id', '=', conversationId)
       .where('account_id', '=', context.actor.accountId)
+      .where('revoked_at', 'is', null)
       .execute();
     const members = await trx
       .selectFrom('conversation_members')
       .select('account_id')
       .where('org_id', '=', context.orgId)
       .where('conversation_id', '=', conversationId)
+      .where('revoked_at', 'is', null)
       .where('account_id', '!=', context.actor.accountId)
       .execute();
     const read = members.length
@@ -1250,6 +1430,7 @@ export async function markConversationRead(
           .select((eb) => eb.fn.countAll<number>().as('count'))
           .where('org_id', '=', context.orgId)
           .where('conversation_id', '=', conversationId)
+          .where('revoked_at', 'is', null)
           .where('account_id', '!=', context.actor.accountId)
           .where('last_read_at', 'is not', null)
           .executeTakeFirstOrThrow()
@@ -1277,6 +1458,7 @@ export async function setConversationMuted(
       .where('org_id', '=', context.orgId)
       .where('conversation_id', '=', conversationId)
       .where('account_id', '=', context.actor.accountId)
+      .where('revoked_at', 'is', null)
       .execute();
     await appendAuditEvent(trx, context, {
       action: 'chat.conversation.mute',
@@ -1426,6 +1608,7 @@ export async function reportMessage(
       .select('account_id')
       .where('org_id', '=', context.orgId)
       .where('conversation_id', '=', conversationId)
+      .where('revoked_at', 'is', null)
       .execute();
     const people = members.length
       ? await trx
@@ -1608,6 +1791,102 @@ export async function listPersonMessageHistory(
       ])
       .where('delivery.org_id', '=', context.orgId)
       .where('delivery.person_id', '=', personId)
+      .orderBy('delivery.created_at', 'desc')
+      .limit(200)
+      .execute();
+    return {
+      items: deliveries.map((row) => ({
+        id: row.id,
+        campaignId: row.campaign_id,
+        title: row.subject ?? 'Message',
+        channel: row.channel,
+        status: row.status,
+        recipientAccountId: row.recipient_account_id,
+        createdAt: row.created_at.toISOString(),
+        sentAt: row.sent_at?.toISOString() ?? null,
+        deliveredAt: row.delivered_at?.toISOString() ?? null,
+      })),
+    };
+  });
+}
+
+export async function listHouseholdMessageHistory(
+  context: OrgContext,
+  householdId: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    const roles = await activeOrgRoles(trx, context);
+    if (
+      !roles.some((role) =>
+        [
+          'owner',
+          'admin',
+          'communications',
+          'director',
+          'registrar',
+          'compliance',
+        ].includes(role),
+      )
+    )
+      throw new ChatPermissionError('Communication history access is required');
+    const household = await trx
+      .selectFrom('households')
+      .select('id')
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', householdId)
+      .executeTakeFirst();
+    if (!household) throw new ChatAccessError('Household not found');
+    const members = await trx
+      .selectFrom('household_members')
+      .select('person_id')
+      .where('org_id', '=', context.orgId)
+      .where('household_id', '=', householdId)
+      .execute();
+    const personIds = [...new Set(members.map((member) => member.person_id))];
+    if (!personIds.length) return { items: [] };
+    const accounts = await trx
+      .selectFrom('person_account_links')
+      .select('account_id')
+      .where('org_id', '=', context.orgId)
+      .where('person_id', 'in', personIds)
+      .where('revoked_at', 'is', null)
+      .execute();
+    const accountIds = [
+      ...new Set(accounts.map((account) => account.account_id)),
+    ];
+    const deliveries = await trx
+      .selectFrom('message_deliveries as delivery')
+      .leftJoin('message_campaigns as campaign', (join) =>
+        join
+          .onRef('campaign.id', '=', 'delivery.campaign_id')
+          .onRef('campaign.org_id', '=', 'delivery.org_id'),
+      )
+      .select([
+        'delivery.id',
+        'delivery.campaign_id',
+        'delivery.channel',
+        'delivery.status',
+        'delivery.created_at',
+        'delivery.sent_at',
+        'delivery.delivered_at',
+        'campaign.subject',
+        'delivery.recipient_account_id',
+      ])
+      .where('delivery.org_id', '=', context.orgId)
+      .where((expression) =>
+        expression.or([
+          expression('delivery.person_id', 'in', personIds),
+          ...(accountIds.length
+            ? [
+                expression.and([
+                  expression('delivery.recipient_account_id', 'in', accountIds),
+                  expression('delivery.person_id', 'is', null),
+                ]),
+              ]
+            : []),
+        ]),
+      )
       .orderBy('delivery.created_at', 'desc')
       .limit(200)
       .execute();

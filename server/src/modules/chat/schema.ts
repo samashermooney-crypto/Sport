@@ -64,6 +64,18 @@ export const conversationSchema = z.strictObject({
 export const conversationListSchema = z.strictObject({
   items: z.array(conversationSchema),
 });
+export const chatMemberOptionsSchema = z.strictObject({
+  items: z.array(
+    z.strictObject({
+      accountId: z.uuid(),
+      label: z.string(),
+    }),
+  ),
+});
+export const chatAttachmentCapabilitiesSchema = z.strictObject({
+  canUpload: z.boolean(),
+  canDownload: z.boolean(),
+});
 export const chatMessageListSchema = z.strictObject({
   items: z.array(chatMessageSchema),
   nextCursor: z.string().nullable(),

@@ -20,6 +20,20 @@ const selectorSetSchema = z.strictObject({
   programIds: z.array(z.uuid()).max(200).optional(),
   roles: z.array(audienceRoleSchema).max(5).optional(),
 });
+export const registrationStatuses = [
+  'pending_payment',
+  'pending_approval',
+  'waitlisted',
+  'offered',
+  'confirmed',
+  'canceled',
+  'withdrawn',
+  'transferred_out',
+] as const;
+const audienceFiltersSchema = z.strictObject({
+  registrationStatuses: z.array(z.enum(registrationStatuses)).max(8).optional(),
+  pastDueBalance: z.boolean().optional(),
+});
 const hasSelector = (value: z.infer<typeof selectorSetSchema>) =>
   Boolean(
     value.personIds?.length ||
@@ -31,12 +45,17 @@ export const audienceSpecSchema = z
   .strictObject({
     include: selectorSetSchema,
     exclude: selectorSetSchema.default({}),
+    filters: audienceFiltersSchema.default({}),
   })
   .refine((value) => hasSelector(value.include), {
     message: 'Choose at least one audience selector',
     path: ['include'],
   });
-export type AudienceSpec = z.infer<typeof audienceSpecSchema>;
+export type AudienceSpec = {
+  include: z.infer<typeof selectorSetSchema>;
+  exclude?: z.infer<typeof selectorSetSchema>;
+  filters?: z.infer<typeof audienceFiltersSchema>;
+};
 
 export const localeContentSchema = z.strictObject({
   subject: z.string().max(200).default(''),

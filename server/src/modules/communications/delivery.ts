@@ -354,6 +354,7 @@ async function addressForMerge(
   recipient: ResolvedRecipient,
   campaign: CampaignRow,
   runWithOrg: typeof withOrg,
+  now: Date,
 ) {
   return runWithOrg(context, async (trx) => {
     const person = recipient.aboutPersonId
@@ -365,13 +366,15 @@ async function addressForMerge(
           .executeTakeFirst()
       : undefined;
     const audience = audienceSpecSchema.safeParse(campaign.audience);
-    const teamId = audience.success
-      ? audience.data.include.teamSeasonIds?.[0]
-      : undefined;
-    const programId = audience.success
-      ? audience.data.include.programIds?.[0]
-      : undefined;
-    const team = teamId
+    const teamSeasonIds = audience.success
+      ? (audience.data.include.teamSeasonIds ?? [])
+      : [];
+    const programIds = audience.success
+      ? (audience.data.include.programIds ?? [])
+      : [];
+    const teamSeasonId = teamSeasonIds[0];
+    const programId = programIds[0];
+    const team = teamSeasonId
       ? await trx
           .selectFrom('team_seasons as season')
           .innerJoin('teams', (join) =>
@@ -379,9 +382,14 @@ async function addressForMerge(
               .onRef('teams.id', '=', 'season.team_id')
               .onRef('teams.org_id', '=', 'season.org_id'),
           )
-          .select('teams.name')
+          .innerJoin('programs as program', (join) =>
+            join
+              .onRef('program.id', '=', 'season.program_id')
+              .onRef('program.org_id', '=', 'season.org_id'),
+          )
+          .select(['teams.name', 'program.name as programName'])
           .where('season.org_id', '=', context.orgId)
-          .where('season.id', '=', teamId)
+          .where('season.id', '=', teamSeasonId)
           .executeTakeFirst()
       : undefined;
     const program = programId
@@ -392,12 +400,39 @@ async function addressForMerge(
           .where('id', '=', programId)
           .executeTakeFirst()
       : undefined;
+    const nextEvent = await sql<{ starts_at: Date }>`
+      SELECT DISTINCT event.starts_at
+      FROM events AS event
+      LEFT JOIN event_participants AS participant
+        ON participant.org_id = event.org_id AND participant.event_id = event.id
+      WHERE event.org_id = ${context.orgId}
+        AND event.status = 'scheduled'
+        AND event.published = true
+        AND event.starts_at > ${now}
+        AND (
+          (${teamSeasonIds.length > 0} AND participant.team_season_id = ANY(${teamSeasonIds}::uuid[]))
+          OR (${programIds.length > 0} AND event.program_id = ANY(${programIds}::uuid[]))
+          OR (${recipient.aboutPersonId}::uuid IS NOT NULL AND participant.person_id = ${recipient.aboutPersonId}::uuid)
+        )
+      ORDER BY event.starts_at
+      LIMIT 1
+    `.execute(trx);
+    const eventStart = nextEvent.rows[0]?.starts_at;
     return {
       'guardian.first_name': recipient.firstName,
       'athlete.first_name': person?.preferred_name || person?.first_name,
       'team.name': team?.name,
-      'program.name': program?.name,
-      'event.next.start': undefined,
+      'program.name': program?.name ?? team?.programName,
+      'event.next.start': eventStart
+        ? new Intl.DateTimeFormat(
+            recipient.locale === 'es' ? 'es-US' : 'en-US',
+            {
+              timeZone: recipient.timezone || 'UTC',
+              dateStyle: 'medium',
+              timeStyle: 'short',
+            },
+          ).format(eventStart)
+        : undefined,
       'athlete.last_name': person?.last_name,
     };
   });
@@ -486,6 +521,7 @@ async function deliverOne(
     recipient,
     campaign,
     runWithOrg,
+    now,
   );
   const html = sanitizeCampaignHtml(
     renderMergeFields(content.bodyHtml, mergeContext, true),

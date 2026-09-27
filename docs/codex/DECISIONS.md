@@ -279,3 +279,43 @@
 - **Decision:** Record SMS consent as append-only, tenant-scoped events containing the exact disclosure, version, phone, account, timestamp, IP and user agent. A verified Twilio STOP creates a global SMS-only suppression; signed START removes that global STOP row and appends a new consent event with the inbound text as evidence.
 - **Why:** SMS delivery must fail closed without explicit, auditable consent, and STOP must take effect across every organization immediately.
 - **Consequences / follow-ups:** Restrict global suppression writes to signed SMS webhook code; keep all tenant reads/writes inside `withOrg`; apply shared quiet-hours policy at delivery time.
+
+### DEC-034 — Treat registration and balance as audience refinements
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 campaign audience
+- **Context:** `AudienceSpec` defines include/exclude selectors but does not define how registration status and balance combine with a team, program or role selection.
+- **Decision:** Include selectors form the candidate audience, exclusions remove matches, then registration status and past-due balance refinements narrow the remaining audience. A past-due balance matches only the invoice's bill-to account; other guardians are not shown or sent account-specific balance messages.
+- **Why:** This gives predictable U10-plus-past-due targeting and protects household financial privacy when an athlete has multiple guardians.
+- **Consequences / follow-ups:** Keep filters inside the tenant-scoped audience resolver and cover payer-only routing with database-backed tests.
+
+### DEC-035 — Link in-app campaign deliveries to their inbox notification
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 in-app delivery
+- **Context:** A campaign's in-app channel creates a Track B inbox notification, while the delivery spine requires exactly one of `campaign_id` or `notification_id`; storing both links would fail the existing constraint.
+- **Decision:** Keep source exclusivity for email, SMS, push and standalone notification deliveries. Permit both source links only for `in_app` campaign delivery so its campaign stats and Track B inbox/SSE event share one delivery record.
+- **Why:** The one-row link preserves campaign stats and retry idempotency while reusing Track B's inbox and stream service.
+- **Consequences / follow-ups:** The allowed dual link is constrained to `in_app` and covered by a database-backed integration test.
+
+### DEC-036 — Require an explicit program setting for athlete team chat
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 team conversations
+- **Context:** The Phase 10 team roster includes athletes aged 13+ only "if enabled," but the schema and UX do not name a setting or default.
+- **Decision:** Keep athlete accounts out of team conversations unless `programs.settings.communications.athleteChatEnabled` is exactly `true`. Continue to include active team staff and guardians for every minor; additions run through the shared SafeSport policy. The default is off.
+- **Why:** Youth accounts should not become visible in a staff/family communication channel until an authorized organization setting explicitly enables that audience.
+- **Consequences / follow-ups:** Track A must expose this setting in program/team communication settings. H's team conversation service reads the setting and is covered by a database-backed membership test.
+
+### DEC-037 — Soft-revoke chat membership when team eligibility changes
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 team conversation membership
+- **Context:** Roster, staff assignment, guardian link, or athlete-chat setting changes can make a previously included account ineligible, while chat history must remain retained.
+- **Decision:** Keep conversation membership rows and message history, mark ineligible members with `revoked_at`, and filter revoked rows from access, recipient, unread and read-receipt queries. Team and staff conversation synchronization applies both additions and revocations through the shared SafeSport policy and audits the membership delta.
+- **Why:** Removed families and staff immediately lose access without erasing retained messages or compliance evidence.
+- **Consequences / follow-ups:** Track A must invoke the H synchronization functions after roster and staff assignment changes; the service reconciles the active membership set.
+
+### DEC-038 — Show attachment actions only for current Files access
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 chat attachments
+- **Context:** Track C's Files routes currently require active organization membership for all access and owner/admin/registrar for upload, while household portal access can come from person-account links alone.
+- **Decision:** The chat API reports attachment capabilities using the current Files authorization contract. The portal renders upload/download actions only when those capabilities allow them; chat messages remain visible with a neutral access-unavailable label otherwise.
+- **Why:** A family-facing button that predictably receives 403 is not a working feature, and membership must not grant file access outside the Files policy.
+- **Consequences / follow-ups:** Track C must extend Files upload/download authorization to active same-organization conversation members for approved chat image/PDF attachments; then remove any stale capability duplication if Files exposes an authorization API.

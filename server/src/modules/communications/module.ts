@@ -4,6 +4,8 @@ import { createMailpitEmailSender } from '../../integrations/email/sender';
 import type { ServerModule } from '../../lib/module-contract';
 import {
   chatModerationListSchema,
+  chatAttachmentCapabilitiesSchema,
+  chatMemberOptionsSchema,
   conversationCreateSchema,
   conversationListSchema,
   conversationSchema,
@@ -34,6 +36,19 @@ import {
 
 const objectResponse = z.record(z.string(), z.unknown());
 const routes = [
+  {
+    method: 'get',
+    path: '/api/v1/communications/orgs/{orgId}/chat/attachment-capabilities',
+    summary: 'Get chat attachment permissions for the current account',
+    response: chatAttachmentCapabilitiesSchema,
+  },
+  {
+    method: 'get',
+    path: '/api/v1/communications/orgs/{orgId}/chat/member-options',
+    summary: 'Search organization accounts for chat channel membership',
+    response: chatMemberOptionsSchema,
+    query: { search: z.string().max(100).optional() },
+  },
   {
     method: 'get',
     path: '/api/v1/communications/orgs/{orgId}/audience-options',
@@ -122,6 +137,12 @@ const routes = [
     method: 'get',
     path: '/api/v1/communications/orgs/{orgId}/people/{personId}/history',
     summary: 'Get communication history for a person',
+    response: personCommunicationHistorySchema,
+  },
+  {
+    method: 'get',
+    path: '/api/v1/communications/orgs/{orgId}/households/{householdId}/history',
+    summary: 'Get communication history for a household',
     response: personCommunicationHistorySchema,
   },
   {

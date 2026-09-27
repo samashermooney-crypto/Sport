@@ -3,6 +3,7 @@ import { Temporal } from '@js-temporal/polyfill';
 import { withOrg } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 
+import { audienceSpecSchema } from './schema';
 import type { AudienceSpec } from './schema';
 
 export type ResolvedRecipient = {
@@ -206,21 +207,37 @@ export async function resolveAudience(
 ): Promise<ResolvedRecipient[]> {
   return runWithOrg(context, async (trx) => {
     const orgId = context.orgId;
+    const parsedAudience = audienceSpecSchema.parse(audience);
     const includedPeople = await collectSelectedPeople(
       trx,
       orgId,
-      audience.include,
+      parsedAudience.include,
     );
     const excludedPeople = await collectSelectedPeople(
       trx,
       orgId,
-      audience.exclude,
+      parsedAudience.exclude,
     );
     for (const personId of excludedPeople) includedPeople.delete(personId);
-    const boardAccounts = audience.include.roles?.includes('board')
+    if (parsedAudience.filters.registrationStatuses?.length) {
+      const registrations = await trx
+        .selectFrom('registrations')
+        .select('person_id')
+        .where('org_id', '=', orgId)
+        .where('status', 'in', parsedAudience.filters.registrationStatuses)
+        .execute();
+      const matchingPeople = new Set(
+        registrations.map((registration) => registration.person_id),
+      );
+      for (const personId of includedPeople)
+        if (!matchingPeople.has(personId)) includedPeople.delete(personId);
+    }
+    const boardAccounts = parsedAudience.include.roles?.includes('board')
       ? await collectBoardAccounts(trx, orgId)
       : new Set<string>();
-    const excludedBoardAccounts = audience.exclude.roles?.includes('board')
+    const excludedBoardAccounts = parsedAudience.exclude.roles?.includes(
+      'board',
+    )
       ? await collectBoardAccounts(trx, orgId)
       : new Set<string>();
     for (const accountId of excludedBoardAccounts)
@@ -265,6 +282,22 @@ export async function resolveAudience(
       }
     }
     for (const accountId of boardAccounts) targetAccounts.set(accountId, null);
+
+    if (parsedAudience.filters.pastDueBalance) {
+      const invoices = await trx
+        .selectFrom('invoices')
+        .select('account_id')
+        .where('org_id', '=', orgId)
+        .where('status', '=', 'past_due')
+        .where('balance_cents', '>', 0)
+        .execute();
+      const financiallyResponsibleAccounts = new Set(
+        invoices.map((invoice) => invoice.account_id),
+      );
+      for (const accountId of targetAccounts.keys())
+        if (!financiallyResponsibleAccounts.has(accountId))
+          targetAccounts.delete(accountId);
+    }
 
     const accountIds = [...targetAccounts.keys()];
     if (!accountIds.length) return [];

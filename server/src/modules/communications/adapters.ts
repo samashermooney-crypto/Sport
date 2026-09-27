@@ -1,3 +1,4 @@
+import { withOrg } from '../../db/withOrg';
 import { createResendEmailSender } from '../../integrations/email/sender';
 import type { EmailSender } from '../../integrations/email/sender';
 import {
@@ -11,13 +12,43 @@ import {
   createTwilioSmsSender,
 } from '../../integrations/sms/sender';
 import type { SmsSender } from '../../integrations/sms/sender';
+import { createNotification } from '../notifications/service';
 
-import type { DeliveryDependencies } from './delivery';
+import type { DeliveryDependencies, NotificationSink } from './delivery';
+
+export function createCommunicationNotificationSink(
+  runWithOrg: typeof withOrg = withOrg,
+): NotificationSink {
+  return async ({ context, accountId, type, payload }) => {
+    const isChat = type === 'communications.chat_message';
+    const resourceId = isChat ? payload.conversationId : payload.campaignId;
+    if (!resourceId) throw new Error('Notification resource is unavailable');
+    const notificationType =
+      type === 'communications.emergency'
+        ? 'safety.emergency'
+        : 'organization.announcement';
+    const safePayload = {
+      resourceType: isChat ? 'conversation' : 'message_campaign',
+      resourceId,
+      href: isChat
+        ? `/me/orgs/${context.orgId}/messages?conversation=${resourceId}`
+        : `/me/orgs/${context.orgId}/messages`,
+    };
+    return runWithOrg(context, (trx) =>
+      createNotification(trx, context, {
+        accountId,
+        type: notificationType,
+        payload: safePayload,
+      }),
+    );
+  };
+}
 
 export function createCommunicationAdapters(
   input: {
     email?: EmailSender;
     appUrl?: string;
+    runWithOrg?: typeof withOrg;
   } = {},
 ): DeliveryDependencies {
   const appUrl = input.appUrl ?? process.env.APP_URL ?? 'http://127.0.0.1:5173';
@@ -27,6 +58,7 @@ export function createCommunicationAdapters(
       sms: new PreviewSmsSender(),
       push: new PreviewPushSender(),
       appUrl,
+      notifications: createCommunicationNotificationSink(input.runWithOrg),
     };
   }
   if (process.env.NODE_ENV !== 'production')
@@ -62,7 +94,13 @@ export function createCommunicationAdapters(
       return (await sender).send(subscription, message);
     },
   };
-  return { email, sms, push, appUrl };
+  return {
+    email,
+    sms,
+    push,
+    appUrl,
+    notifications: createCommunicationNotificationSink(input.runWithOrg),
+  };
 }
 
 function required(key: string): string {

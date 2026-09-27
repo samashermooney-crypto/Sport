@@ -472,6 +472,7 @@ export interface ConversationMembers {
   last_read_at: Timestamp | null;
   muted: Generated<boolean>;
   org_id: string;
+  revoked_at: Timestamp | null;
   role: string;
   updated_at: Generated<Timestamp>;
 }

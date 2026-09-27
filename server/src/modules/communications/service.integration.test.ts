@@ -7,6 +7,7 @@ import { createDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 
+import { createCommunicationNotificationSink } from './adapters';
 import {
   CommunicationsAccessError,
   CommunicationsPermissionError,
@@ -85,7 +86,11 @@ afterAll(async () => database.destroy());
 const draft = () => ({
   channels: ['email' as const],
   category: 'announcement' as const,
-  audience: { include: { personIds: [personId] }, exclude: {} },
+  audience: {
+    include: { personIds: [personId] },
+    exclude: {},
+    filters: {},
+  },
   subject: 'Season update',
   bodyHtml: '<p>Schedule update</p>',
   bodyText: 'Schedule update',
@@ -126,5 +131,77 @@ describe('communications tenancy and permissions', () => {
     await expect(
       createCampaign(noRoleContext, draft(), 'https://athlentry.test', withOrg),
     ).rejects.toBeInstanceOf(CommunicationsPermissionError);
+  });
+
+  it('uses the Track B notification service for in-app campaign and emergency delivery', async () => {
+    const campaignId = randomUUID();
+    const notificationDeliveryId = randomUUID();
+    const notificationId = await createCommunicationNotificationSink(withOrg)({
+      context: contextA,
+      accountId: ownerA,
+      type: 'communications.emergency',
+      payload: { campaignId, deliveryId: notificationDeliveryId },
+    });
+    const notification = await withOrg(contextA, (trx) =>
+      trx
+        .selectFrom('notifications')
+        .select(['id', 'type', 'payload'])
+        .where('id', '=', notificationId)
+        .executeTakeFirstOrThrow(),
+    );
+
+    expect(notification).toMatchObject({
+      id: notificationId,
+      type: 'safety.emergency',
+      payload: {
+        resourceType: 'message_campaign',
+        resourceId: campaignId,
+        href: `/me/orgs/${orgA}/messages`,
+      },
+    });
+    const campaign = await createCampaign(
+      contextA,
+      {
+        ...draft(),
+        channels: ['in_app'],
+        audience: {
+          include: { roles: ['board'] },
+          exclude: {},
+          filters: {},
+        },
+      },
+      'https://athlentry.test',
+      withOrg,
+    );
+    const deliveryId = randomUUID();
+    await withOrg(contextA, (trx) =>
+      trx
+        .insertInto('message_deliveries')
+        .values({
+          id: deliveryId,
+          org_id: orgA,
+          campaign_id: campaign.id,
+          notification_id: notificationId,
+          recipient_account_id: ownerA,
+          person_id: null,
+          channel: 'in_app',
+          address: null,
+          status: 'sent',
+        })
+        .execute()
+        .then(() => undefined),
+    );
+    await expect(
+      withOrg(contextA, (trx) =>
+        trx
+          .selectFrom('message_deliveries')
+          .select(['campaign_id', 'notification_id'])
+          .where('id', '=', deliveryId)
+          .executeTakeFirstOrThrow(),
+      ),
+    ).resolves.toEqual({
+      campaign_id: campaign.id,
+      notification_id: notificationId,
+    });
   });
 });
