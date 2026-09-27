@@ -9,6 +9,7 @@ import {
   refundProposal,
   type RefundAttemptStore,
   type RefundResult,
+  type RefundRecordStore,
   type RefundSource,
 } from './refunds.js';
 
@@ -82,11 +83,17 @@ function fixture() {
       amountCents: 5150,
     });
   const attempts = new AttemptStore();
+  const records = {
+    recordPending: vi.fn<RefundRecordStore['recordPending']>(() =>
+      Promise.resolve(),
+    ),
+  };
   const service = new StripeRefundService(
     { load },
     { isAuthorizedSecondApprover },
     attempts,
     { createRefund },
+    records,
   );
   const input = {
     orgId: 'org_1',
@@ -102,6 +109,7 @@ function fixture() {
     isAuthorizedSecondApprover,
     createRefund,
     attempts,
+    records,
     service,
     input,
   };
@@ -135,7 +143,9 @@ describe('refund policy application', () => {
     test.current.previouslyRefundedServiceFeeCents = 150;
     expect(await test.service.refund(test.input)).toEqual(first);
     expect(test.createRefund).toHaveBeenCalledTimes(1);
+    expect(test.records.recordPending).toHaveBeenCalledTimes(1);
     expect(test.createRefund.mock.calls[0]?.[0]).toEqual({
+      orgId: 'org_1',
       paymentIntentId: 'pi_1',
       amountCents: 5_150,
       reverseTransfer: true,
@@ -190,5 +200,21 @@ describe('refund policy application', () => {
       'already in progress',
     );
     expect(test.createRefund).toHaveBeenCalledTimes(1);
+  });
+
+  it('fences a Stripe refund whose amount differs from the approved proposal', async () => {
+    const test = fixture();
+    test.createRefund.mockResolvedValueOnce({
+      id: 're_wrong',
+      status: 'pending',
+      amountCents: 5151,
+    });
+    await expect(test.service.refund(test.input)).rejects.toThrow(
+      'differs from the approved proposal',
+    );
+    expect(test.records.recordPending).not.toHaveBeenCalled();
+    await expect(test.service.refund(test.input)).rejects.toThrow(
+      'already in progress',
+    );
   });
 });

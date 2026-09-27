@@ -65,9 +65,10 @@ export function BrowserPush(): React.JSX.Element {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted')
         throw new Error('Notifications were not allowed in this browser.');
-      const registration = await navigator.serviceWorker.register('/sw.js', {
+      await navigator.serviceWorker.register('/sw.js', {
         scope: '/',
       });
+      const registration = await navigator.serviceWorker.ready;
       const existing = await registration.pushManager.getSubscription();
       if (existing) await existing.unsubscribe();
       const subscription = await registration.pushManager.subscribe({

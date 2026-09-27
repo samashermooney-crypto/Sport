@@ -5,6 +5,7 @@ import {
   acceptedOrgInvitationResponseSchema,
   createOrgResponseSchema,
   createOrgSchema,
+  myOrganizationsSchema,
   orgCredentialSchema,
   orgCredentialsResponseSchema,
   orgInvitationResponseSchema,
@@ -13,6 +14,7 @@ import {
   orgMemberRolesResponseSchema,
   orgMemberStatusResponseSchema,
   orgProfileSchema,
+  orgWorkspaceSchema,
   ownershipTransferAcceptResponseSchema,
   ownershipTransferAcceptSchema,
   ownershipTransferRequestResponseSchema,
@@ -49,12 +51,14 @@ import {
   setOrgMemberStatus,
   setScopedRole,
 } from './memberRoles';
+import { listMyOrganizations } from './mine';
 import {
   acceptOwnershipTransfer,
   requestOwnershipTransfer,
 } from './ownershipTransfer';
 import { getOrgProfile, updateOrgProfile } from './profile';
 import { isOrgSlugAvailable } from './slug';
+import { getOrgWorkspace } from './workspace';
 
 class OrgCredentialsError extends Error {
   constructor(
@@ -112,6 +116,37 @@ export function createOrgRouter(
         .orderBy('name')
         .execute();
       response.json(sportTemplateCatalogSchema.parse(templates));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/mine', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      response.json(
+        myOrganizationsSchema.parse(
+          await listMyOrganizations(dependencies.database, session.accountId),
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/:orgId/workspace', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      response.json(
+        orgWorkspaceSchema.parse(
+          await getOrgWorkspace(
+            dependencies.database,
+            orgId,
+            session.accountId,
+          ),
+        ),
+      );
     } catch (error) {
       sendError(response, error);
     }

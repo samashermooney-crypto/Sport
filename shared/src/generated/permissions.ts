@@ -5,4 +5,5 @@ export const modulePermissions = [
   'chat.send',
   'communications.manage',
   'communications.read',
+  'finance.manage',
 ] as const;

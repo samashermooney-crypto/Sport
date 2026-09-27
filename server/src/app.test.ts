@@ -28,17 +28,19 @@ describe('Phase 0 server', () => {
     });
     await client.connect();
     try {
-      const result = await client.query<{
-        name: string;
-        migration_count: string;
-      }>(
-        `SELECT current_database() AS name, count(*)::text AS migration_count FROM schema_migrations`,
+      const database = await client.query<{ name: string }>(
+        'SELECT current_database() AS name',
       );
-      expect(result.rows[0]?.name).toMatch(/^t_[0-9a-f]{32}$/);
+      expect(database.rows[0]?.name).toMatch(/^t_[0-9a-f]{32}$/);
       const migrations = (
         await readdir(new URL('../../db/migrations/', import.meta.url))
       ).filter((name) => /^\d{4}_.+\.sql$/.test(name));
-      expect(Number(result.rows[0]?.migration_count)).toBe(migrations.length);
+      const applied = await client.query<{ name: string }>(
+        'SELECT name FROM schema_migrations',
+      );
+      expect(applied.rows.map((row) => row.name)).toEqual(
+        expect.arrayContaining(migrations),
+      );
     } finally {
       await client.end();
     }

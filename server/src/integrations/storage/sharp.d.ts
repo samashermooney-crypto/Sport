@@ -8,6 +8,11 @@ declare module 'sharp' {
     info: SharpInfo;
   }
   interface SharpPipeline {
+    metadata(): Promise<{
+      exif?: Uint8Array;
+      xmp?: Uint8Array;
+      iptc?: Uint8Array;
+    }>;
     rotate(): SharpPipeline;
     resize(options: {
       width: number;
@@ -21,7 +26,7 @@ declare module 'sharp' {
   }
   const sharp: (
     input: Uint8Array,
-    options: { failOn: 'error'; limitInputPixels: number },
+    options?: { failOn: 'error'; limitInputPixels: number },
   ) => SharpPipeline;
   // Sharp exposes its factory as the default CommonJS export.
   // eslint-disable-next-line import/no-default-export

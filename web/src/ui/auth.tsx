@@ -1,11 +1,17 @@
 import type { PropsWithChildren, ReactNode } from 'react';
-import { cloneElement, isValidElement, useId } from 'react';
-import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
+
+import { i18n } from '../lib/i18n';
+
+import { Link, Select } from './primitives';
+
+export { Button, Checkbox, Field, Input, Select } from './primitives';
 
 export function AuthFrame({
   children,
   footer,
 }: PropsWithChildren<{ footer?: ReactNode }>): React.JSX.Element {
+  const { t } = useTranslation('auth');
   return (
     <main className="login-page">
       <div className="login-brand" aria-label="Athlentry">
@@ -16,6 +22,20 @@ export function AuthFrame({
       </div>
       <section className="login-card">{children}</section>
       {footer && <p className="login-caption">{footer}</p>}
+      <div className="login-caption">
+        <label htmlFor="auth-language">{t('language')}</label>{' '}
+        <Select
+          id="auth-language"
+          value={i18n.resolvedLanguage ?? 'en'}
+          options={[
+            { value: 'en', label: t('english') },
+            { value: 'es', label: t('spanish') },
+          ]}
+          onChange={(event) => {
+            void i18n.changeLanguage(event.target.value);
+          }}
+        />
+      </div>
     </main>
   );
 }
@@ -25,53 +45,6 @@ export function AuthLink({
   children,
 }: PropsWithChildren<{ to: string }>): React.JSX.Element {
   return <Link to={to}>{children}</Link>;
-}
-
-export function Button(
-  props: React.ButtonHTMLAttributes<HTMLButtonElement>,
-): React.JSX.Element {
-  return (
-    <button
-      {...props}
-      className={`button${props.className ? ` ${props.className}` : ''}`}
-    />
-  );
-}
-
-export function Field({
-  label,
-  children,
-  required,
-  error,
-}: PropsWithChildren<{
-  label: string;
-  required?: boolean;
-  error?: string | undefined;
-}>): React.JSX.Element {
-  const errorId = useId();
-  const control = isValidElement<{
-    'aria-describedby'?: string | undefined;
-    'aria-invalid'?: boolean | undefined;
-  }>(children)
-    ? cloneElement(children, {
-        'aria-describedby': error ? errorId : undefined,
-        'aria-invalid': Boolean(error),
-      })
-    : children;
-  return (
-    <label className="field">
-      <span>
-        {label}
-        {required && <b className="required"> *</b>}
-      </span>
-      {control}
-      {error && (
-        <small className="field-error" id={errorId} role="alert">
-          {error}
-        </small>
-      )}
-    </label>
-  );
 }
 
 export function ErrorBox({

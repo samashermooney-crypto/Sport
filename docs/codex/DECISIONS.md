@@ -272,7 +272,79 @@
 - **Why:** This preserves design parity and prevents unsafe URLs, unreadable brand text and cross-tenant or incomplete logo attachment.
 - **Consequences / follow-ups:** Public site and email rendering use these brand values when their phases land; the admin console keeps `tokens.css` values.
 
-### DEC-033 — Preserve SMS consent evidence and global STOP state
+### DEC-033 — Fail closed on production auth configuration
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 public authentication
+- **Context:** Local auth uses preview email and an AlwaysPass CAPTCHA; production needs explicit delivery and Turnstile configuration. Expired PostgreSQL rate-limit rows otherwise accumulate indefinitely.
+- **Decision:** Production startup requires approved legal documents, a strong session secret, HTTPS app URL, live delivery mode, database and encryption settings, Resend sender, Turnstile site and secret keys, and a VAPID public key. It uses server-side Turnstile verification and the configured Resend sender. An hourly registered worker job deletes only expired rate-limit rows; unexpired counters remain intact.
+- **Why:** Missing protection or credentials cannot silently fall back to local adapters in production, while scheduled cleanup bounds storage without resetting active limits.
+- **Consequences / follow-ups:** Deployment must provide these values before startup. Local development and tests continue to use preview/fake delivery; production service calls are not exercised in tests.
+
+### DEC-034 — Meet contrast minimums in calendar and pagination text
+- **Date:** 2026-09-26
+- **Phase / area:** Track D shared design system
+- **Context:** The legacy muted text colors for outside-month dates and pagination details fall below the required 4.5:1 contrast on their backgrounds.
+- **Decision:** Use the existing `--muted` token for those two text treatments while leaving the token palette unchanged.
+- **Why:** Accessibility is the only permitted visual adjustment under `01 §11a`; using the existing muted hue is the smallest passing change.
+- **Consequences / follow-ups:** These two labels are slightly darker than legacy; all remaining captured token values and component styling stay unchanged.
+
+### DEC-035 — Preserve modal styling while meeting phone touch targets
+- **Date:** 2026-09-26
+- **Phase / area:** Track D shared design system
+- **Context:** The legacy admin modal close control is 32px square, while `01 §11` requires 44×44px touch targets. The admin modal reference uses a 68px title bar.
+- **Decision:** Keep the 32px close affordance on desktop. On phone widths, expand its control box to 44×44px and reduce title-bar vertical padding so the captured title-bar height remains unchanged; retain the legacy icon, colors, border and typography.
+- **Why:** This satisfies the explicit touch target requirement with the smallest mobile-only change to the legacy modal.
+- **Consequences / follow-ups:** Phone screenshots include the wider invisible close-control area; modal styling otherwise follows the captured admin modal treatment.
+
+### DEC-036 — Correct empty-state copy contrast
+- **Date:** 2026-09-26
+- **Phase / area:** Track D shared design system
+- **Context:** The legacy empty-state copy color fails the required contrast check on a white panel, surfaced by the design parity axe audit.
+- **Decision:** Use the existing `--muted` token for shared empty-state copy while preserving its size, layout and surrounding styles.
+- **Why:** Accessibility is the only permitted visual adjustment under `01 §11a`; the existing muted token is the smallest passing change.
+- **Consequences / follow-ups:** Empty-state copy is darker than the original legacy color; the palette and all other captured values stay unchanged.
+
+### DEC-037 — Enumerate account organizations through the identity index
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 organization switcher
+- **Context:** Tenant rows cannot be scanned without an organization scope, while an account needs to list its own organizations.
+- **Decision:** Read only the signed-in account's global `linked_org_ids` index, then enter `withOrg` separately for each ID and include only active memberships in active or onboarding organizations. A workspace summary also reads roles inside `withOrg` and exposes only actions that the account can actually use.
+- **Why:** Account-specific discovery does not bypass tenant RLS or expose a removed, suspended or unrelated organization.
+- **Consequences / follow-ups:** The console switcher uses this list; every newly linked organization continues to update the account index through the existing membership trigger.
+
+### DEC-038 — Cap transfer reversals at recoverable Stripe funds
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 4 disputes and transfer reversals
+- **Context:** A disputed charge plus dispute fee may exceed the connected transfer amount that Stripe permits reversing.
+- **Decision:** Reverse only the remaining unreversed transfer amount and record any shortfall as unrecovered platform liability. A later dispute win restores only funds actually reversed.
+- **Why:** The ledger must never claim that Stripe moved money it could not reverse.
+- **Consequences / follow-ups:** Reconciliation and payout reports must show the outstanding liability until a real recovery is recorded.
+
+### DEC-039 — Freeze refund terms when an invoice is issued
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 4 invoice refunds
+- **Context:** Organization or program refund settings can change after an invoice is issued.
+- **Decision:** Persist the applicable refund policy, approval threshold and fee terms with the invoice at issuance. Refund calculations use that immutable snapshot.
+- **Why:** A later setting edit must not retroactively change a family's refund rights or the finance ledger.
+- **Consequences / follow-ups:** Historical invoices need an explicit policy snapshot before staff refund actions are enabled; unsupported mixed-payment allocations fail closed.
+
+### DEC-040 — Sanitize document photos as images
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 files
+- **Context:** The files module accepted JPEG/PNG document uploads but only re-encoded the `image` and `website_asset` purposes. A document photo could therefore preserve GPS metadata.
+- **Decision:** Re-encode every accepted image MIME type, including document photos, and store the sanitized WebP original and derivatives. Leave PDF and import bytes unchanged.
+- **Why:** A file's purpose does not reduce the location privacy risk of embedded image metadata.
+- **Consequences / follow-ups:** Document photo downloads return `image/webp`. A committed GPS-tagged JPEG fixture verifies that the original and both stored variants have no EXIF, XMP or IPTC metadata.
+
+### DEC-041 — Select the initial web language from a local preference
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 frontend internationalization
+- **Context:** The web app needs an initial language before authentication, when no account preference is available.
+- **Decision:** Use a saved explicit English or Spanish choice when available, then the browser language, then English. Update the document language when the user switches and continue rendering if browser storage is unavailable.
+- **Why:** A choice made on the sign-in screen should survive navigation, while private-browsing storage failures must not block access.
+- **Consequences / follow-ups:** Account preference synchronization and complete auth/portal/site translations remain part of Task 16.
+
+### DEC-042 — Preserve SMS consent evidence and global STOP state
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 10 communications consent
 - **Context:** The spine stores account/phone data and tenant suppressions, but it has no versioned SMS consent evidence and its suppression policy permits global reads but not global signed STOP writes.
@@ -280,7 +352,7 @@
 - **Why:** SMS delivery must fail closed without explicit, auditable consent, and STOP must take effect across every organization immediately.
 - **Consequences / follow-ups:** Restrict global suppression writes to signed SMS webhook code; keep all tenant reads/writes inside `withOrg`; apply shared quiet-hours policy at delivery time.
 
-### DEC-034 — Treat registration and balance as audience refinements
+### DEC-043 — Treat registration and balance as audience refinements
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 10 campaign audience
 - **Context:** `AudienceSpec` defines include/exclude selectors but does not define how registration status and balance combine with a team, program or role selection.
@@ -288,7 +360,7 @@
 - **Why:** This gives predictable U10-plus-past-due targeting and protects household financial privacy when an athlete has multiple guardians.
 - **Consequences / follow-ups:** Keep filters inside the tenant-scoped audience resolver and cover payer-only routing with database-backed tests.
 
-### DEC-035 — Link in-app campaign deliveries to their inbox notification
+### DEC-044 — Link in-app campaign deliveries to their inbox notification
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 10 in-app delivery
 - **Context:** A campaign's in-app channel creates a Track B inbox notification, while the delivery spine requires exactly one of `campaign_id` or `notification_id`; storing both links would fail the existing constraint.
@@ -296,7 +368,7 @@
 - **Why:** The one-row link preserves campaign stats and retry idempotency while reusing Track B's inbox and stream service.
 - **Consequences / follow-ups:** The allowed dual link is constrained to `in_app` and covered by a database-backed integration test.
 
-### DEC-036 — Require an explicit program setting for athlete team chat
+### DEC-045 — Require an explicit program setting for athlete team chat
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 10 team conversations
 - **Context:** The Phase 10 team roster includes athletes aged 13+ only "if enabled," but the schema and UX do not name a setting or default.
@@ -304,7 +376,7 @@
 - **Why:** Youth accounts should not become visible in a staff/family communication channel until an authorized organization setting explicitly enables that audience.
 - **Consequences / follow-ups:** Track A must expose this setting in program/team communication settings. H's team conversation service reads the setting and is covered by a database-backed membership test.
 
-### DEC-037 — Soft-revoke chat membership when team eligibility changes
+### DEC-046 — Soft-revoke chat membership when team eligibility changes
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 10 team conversation membership
 - **Context:** Roster, staff assignment, guardian link, or athlete-chat setting changes can make a previously included account ineligible, while chat history must remain retained.
@@ -312,7 +384,7 @@
 - **Why:** Removed families and staff immediately lose access without erasing retained messages or compliance evidence.
 - **Consequences / follow-ups:** Track A must invoke the H synchronization functions after roster and staff assignment changes; the service reconciles the active membership set.
 
-### DEC-038 — Show attachment actions only for current Files access
+### DEC-047 — Show attachment actions only for current Files access
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 10 chat attachments
 - **Context:** Track C's Files routes currently require active organization membership for all access and owner/admin/registrar for upload, while household portal access can come from person-account links alone.

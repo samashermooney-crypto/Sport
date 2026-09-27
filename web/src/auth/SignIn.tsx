@@ -1,10 +1,18 @@
 import { authSignInResponseSchema } from '@shared/schemas/auth';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import { apiPost } from '../api/client';
-import { AuthFrame, AuthLink, Button, ErrorBox, Field } from '../ui/auth';
+import {
+  AuthFrame,
+  AuthLink,
+  Button,
+  ErrorBox,
+  Field,
+  Input,
+} from '../ui/auth';
 
 interface Credentials {
   email: string;
@@ -13,6 +21,7 @@ interface Credentials {
 
 export function SignIn(): React.JSX.Element {
   const navigate = useNavigate();
+  const { t } = useTranslation('auth');
   const [error, setError] = useState('');
   const {
     register,
@@ -36,50 +45,50 @@ export function SignIn(): React.JSX.Element {
         void navigate('/me', { replace: true });
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Sign-in failed.');
+      setError(caught instanceof Error ? caught.message : t('signInFailed'));
     }
   }
 
   return (
     <AuthFrame>
-      <h1>Welcome back.</h1>
-      <p>Sign in to manage your organization.</p>
+      <h1>{t('welcome')}</h1>
+      <p>{t('signInDescription')}</p>
       <ErrorBox error={error} />
       <form onSubmit={(event) => void handleSubmit(submit)(event)} noValidate>
-        <Field label="Email address" required error={errors.email?.message}>
-          <input
+        <Field label={t('emailAddress')} required error={errors.email?.message}>
+          <Input
             type="email"
             autoComplete="username"
             {...register('email', {
-              required: 'Enter your email address.',
+              required: t('emailRequired'),
               pattern: {
                 value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                message: 'Enter a valid email address.',
+                message: t('emailInvalid'),
               },
             })}
           />
         </Field>
-        <Field label="Password" required error={errors.password?.message}>
-          <input
+        <Field label={t('password')} required error={errors.password?.message}>
+          <Input
             type="password"
             autoComplete="current-password"
             {...register('password', {
-              required: 'Enter your password.',
+              required: t('passwordRequired'),
             })}
           />
         </Field>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Signing in…' : 'Sign in'}
+          {isSubmitting ? t('signingIn') : t('signIn')}
         </Button>
       </form>
       <p className="auth-secondary">
-        <AuthLink to="/forgot-password">Forgot your password?</AuthLink>
+        <AuthLink to="/forgot-password">{t('forgotPassword')}</AuthLink>
       </p>
       <p className="auth-secondary">
-        <AuthLink to="/email-link">Email me a sign-in link</AuthLink>
+        <AuthLink to="/email-link">{t('emailLink')}</AuthLink>
       </p>
       <p className="auth-secondary">
-        <AuthLink to="/sign-up">Create an account</AuthLink>
+        <AuthLink to="/sign-up">{t('createAccount')}</AuthLink>
       </p>
     </AuthFrame>
   );

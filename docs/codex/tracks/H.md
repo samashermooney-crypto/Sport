@@ -2,8 +2,8 @@
 
 Status: ready-for-integration (H-owned slice; Phase 10 completion awaits cross-track work)
 Branch: `track/h-comms` (local only; no push)
-Base: merged `rebuild/trunk` at `8553f4b` before this task; prior H checkpoint `a9d9916`
-Local branch range: `a9d9916..HEAD` (includes the `8553f4b` trunk merge and this readiness commit)
+Base: merging current `rebuild/trunk` at `82b9cb0`; prior merge `8553f4b`; prior H checkpoint `a9d9916`
+H implementation commit: `c577d62` (local; no push)
 Migration range: `4000–4004`
 
 ## Delivered
@@ -14,7 +14,7 @@ Migration range: `4000–4004`
 - Chat: shared SafeSport checks, guardian inclusion, no unguarded adult-minor direct conversation, read-only announcements, opt-in athlete accounts, soft membership revocation, moderation/report-to-compliance, Track B notification/SSE integration, and household history API.
 - Attachments: completed internal image/PDF references are tenant-validated and stored on messages; portal actions follow current Files authorization. Family-only file access remains blocked by Track C authorization and is listed below.
 - Preferences: H keeps SMS consent and tokenized email unsubscribe; portal links to Track B's notification inbox/preferences instead of duplicating those controls.
-- Decisions recorded: `DEC-033` through `DEC-038`; schema indexes added in `4004` after the full gate found missing foreign-key lookup indexes.
+- Decisions recorded: `DEC-042` through `DEC-047`; schema indexes added in `4004` after the full gate found missing foreign-key lookup indexes.
 - Generator requirement: ran `npm run gen:module communications`; it refused to overwrite the existing module, so existing module patterns were preserved.
 
 ## Verification

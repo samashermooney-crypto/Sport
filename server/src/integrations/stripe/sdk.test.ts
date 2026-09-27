@@ -39,7 +39,8 @@ describe('Stripe SDK gateway', () => {
         status: 'requires_payment_method',
         amount: 10_000,
         latest_charge: null,
-      } as Stripe.Response<Stripe.PaymentIntent>);
+        metadata: { org_id: 'org_1' },
+      } as unknown as Stripe.Response<Stripe.PaymentIntent>);
     const result = await test.gateway.createDestinationPayment({
       amountCents: 10_000,
       applicationFeeCents: 150,
