@@ -19,6 +19,10 @@ import { autopayAuthorizationListSchema } from './autopay-authorizations.js';
 import { creditBalanceSchema } from './credit-balances.js';
 import { glCodeListSchema, glCodeSchema } from './gl-codes.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
+import {
+  journalMappingResponseSchema,
+  journalMappingSchema,
+} from './journal-mapping.js';
 import { payerReceiptListSchema } from './payer-receipts.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
@@ -27,6 +31,7 @@ import {
   aidAwardResponseSchema,
   createFinanceRouter,
   payoutJournalResponseSchema,
+  savedJournalResponseSchema,
   refundResponseSchema,
   staffCreditIssueResponseSchema,
 } from './routes.js';
@@ -1194,6 +1199,59 @@ describe('finance payout journal HTTP', () => {
     expect(result.lineCount).toBe(5);
     expect(result.csv).toContain('Date,Journal No,Account,Debits,Credits');
     expect(result.csv).toContain('9.70');
+    const mappingUrl = `${baseUrl}/orgs/${context.orgId}/journal-mapping`;
+    const mappingBody = {
+      bank: '1000',
+      stripeClearing: '1010',
+      processingFees: '6200',
+      transactionTypes: { charge: '4000' },
+      expectedVersion: 0,
+    };
+    const mappingResponse = await fetch(mappingUrl, {
+      method: 'PUT',
+      headers: {
+        Cookie: `__Host-athlentry_session=${token}`,
+        Origin: origin,
+        'X-Athlentry-Request': '1',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(mappingBody),
+    });
+    expect(mappingResponse.status).toBe(200);
+    expect(
+      journalMappingSchema.parse((await mappingResponse.json()) as unknown)
+        .version,
+    ).toBe(1);
+    const mappingRead = await fetch(mappingUrl, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(
+      journalMappingResponseSchema.parse((await mappingRead.json()) as unknown)
+        .mapping?.bank,
+    ).toBe('1000');
+    const savedExport = await fetch(
+      `${baseUrl}/orgs/${context.orgId}/payouts/${payoutId}/journal-export`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(savedExport.status).toBe(200);
+    expect(
+      savedJournalResponseSchema.parse((await savedExport.json()) as unknown),
+    ).toMatchObject({
+      mappingVersion: 1,
+      lineCount: 5,
+      csv: result.csv,
+    });
+    const staleMapping = await fetch(mappingUrl, {
+      method: 'PUT',
+      headers: {
+        Cookie: `__Host-athlentry_session=${token}`,
+        Origin: origin,
+        'X-Athlentry-Request': '1',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(mappingBody),
+    });
+    expect(staleMapping.status).toBe(409);
     const reportResponse = await fetch(
       `${baseUrl}/orgs/${context.orgId}/payouts/${payoutId}/reconciliation`,
       { headers: { Cookie: `__Host-athlentry_session=${token}` } },

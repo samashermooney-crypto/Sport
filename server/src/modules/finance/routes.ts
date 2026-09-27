@@ -83,6 +83,14 @@ import {
   payoutJournalLines,
 } from './journal-export.js';
 import {
+  journalAccounts,
+  JournalMappingConflictError,
+  journalMappingResponseSchema,
+  journalMappingSaveSchema,
+  journalMappingSchema,
+  PostgresJournalMapping,
+} from './journal-mapping.js';
+import {
   manualInstallmentIntentSchema,
   manualInstallmentListSchema,
   ManualInstallmentConflictError,
@@ -390,6 +398,9 @@ export const payoutJournalResponseSchema = z.strictObject({
   journalNo: z.string().min(1),
   lineCount: z.number().int().nonnegative(),
 });
+export const savedJournalResponseSchema = payoutJournalResponseSchema.extend({
+  mappingVersion: z.number().int().positive(),
+});
 export const setupIntentResponseSchema = z.strictObject({
   id: z.string().startsWith('seti_'),
   clientSecret: z.string().min(1),
@@ -468,6 +479,7 @@ function sendError(response: Response, error: unknown): void {
       : error instanceof OfflinePaymentConflictError ||
           error instanceof RefundConflictError ||
           error instanceof JournalExportError ||
+          error instanceof JournalMappingConflictError ||
           error instanceof PayerMethodConflictError ||
           error instanceof ConnectConflictError ||
           error instanceof PaymentConflictError ||
@@ -1913,6 +1925,80 @@ export function createFinanceRouter(
             csv: payoutJournalCsv(lines),
             journalNo: `PAYOUT-${payoutId}`,
             lineCount: lines.length,
+          }),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get('/orgs/:orgId/journal-mapping', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const mapping = await new PostgresJournalMapping(
+        dependencies.database,
+        context,
+      ).read();
+      response.json(journalMappingResponseSchema.parse({ mapping }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.put('/orgs/:orgId/journal-mapping', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = journalMappingSaveSchema.parse(request.body as unknown);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const mapping = await new PostgresJournalMapping(
+        dependencies.database,
+        context,
+      ).save(body);
+      response.json(journalMappingSchema.parse(mapping));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get(
+    '/orgs/:orgId/payouts/:payoutId/journal-export',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const payoutId = z
+          .string()
+          .regex(/^po_[A-Za-z0-9_]+$/)
+          .parse(request.params.payoutId);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const mapping = await new PostgresJournalMapping(
+          dependencies.database,
+          context,
+        ).read();
+        if (!mapping)
+          throw new JournalMappingConflictError('Journal mapping is required');
+        const report = await new PostgresPayoutReconciliation(
+          dependencies.database,
+          context,
+        ).read(payoutId);
+        const lines = payoutJournalLines(report, journalAccounts(mapping));
+        response.json(
+          savedJournalResponseSchema.parse({
+            csv: payoutJournalCsv(lines),
+            journalNo: `PAYOUT-${payoutId}`,
+            lineCount: lines.length,
+            mappingVersion: mapping.version,
           }),
         );
       } catch (error) {

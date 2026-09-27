@@ -35,6 +35,11 @@ import {
   installmentTemplateListSchema,
 } from './installment-templates.js';
 import {
+  journalMappingResponseSchema,
+  journalMappingSaveSchema,
+  journalMappingSchema,
+} from './journal-mapping.js';
+import {
   manualInstallmentIntentSchema,
   manualInstallmentListSchema,
 } from './manual-installment-pay.js';
@@ -51,6 +56,7 @@ import {
   refundApprovalDecisionSchema,
   payoutJournalBodySchema,
   payoutJournalResponseSchema,
+  savedJournalResponseSchema,
   setupIntentResponseSchema,
   savedPaymentMethodsResponseSchema,
   staffCreditIssueSchema,
@@ -427,6 +433,26 @@ export const moduleDefinition = {
       summary: 'Export a reconciled payout journal with explicit GL codes',
       body: payoutJournalBodySchema,
       response: payoutJournalResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/journal-mapping',
+      summary: 'Read the organization payout journal mapping',
+      response: journalMappingResponseSchema,
+    },
+    {
+      method: 'put',
+      path: '/api/v1/finance/orgs/{orgId}/journal-mapping',
+      summary: 'Save payout journal accounts at an exact version',
+      body: journalMappingSaveSchema,
+      response: journalMappingSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/payouts/{payoutId}/journal-export',
+      summary:
+        'Export a reconciled payout journal with saved organization accounts',
+      response: savedJournalResponseSchema,
     },
     {
       method: 'get',
