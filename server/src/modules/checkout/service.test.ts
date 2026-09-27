@@ -52,6 +52,8 @@ describe('checkout capacity service', () => {
       }),
       extend: vi.fn().mockResolvedValue(true),
       confirm: vi.fn().mockResolvedValue('confirmed'),
+      claimLostCapacityRefund: vi.fn().mockResolvedValue('claimed'),
+      recordLostCapacityRefund: vi.fn().mockResolvedValue(undefined),
       release: vi.fn().mockResolvedValue(undefined),
       keepForFailedPayment: vi.fn().mockResolvedValue(undefined),
     };
@@ -85,6 +87,8 @@ describe('checkout capacity service', () => {
       reserve: vi.fn().mockResolvedValue('reserved'),
       extend: vi.fn().mockResolvedValue(true),
       confirm,
+      claimLostCapacityRefund: vi.fn().mockResolvedValue('claimed'),
+      recordLostCapacityRefund: vi.fn().mockResolvedValue(undefined),
       release: vi.fn().mockResolvedValue(undefined),
       keepForFailedPayment: vi.fn().mockResolvedValue(undefined),
     };
@@ -103,10 +107,13 @@ describe('checkout capacity service', () => {
   });
 
   it('initiates a full destination refund if paid capacity was lost', async () => {
+    const recordLostCapacityRefund = vi.fn().mockResolvedValue(undefined);
     const repository: CheckoutCapacityRepository = {
       reserve: vi.fn().mockResolvedValue('reserved'),
       extend: vi.fn().mockResolvedValue(true),
       confirm: vi.fn().mockResolvedValue('expired'),
+      claimLostCapacityRefund: vi.fn().mockResolvedValue('claimed'),
+      recordLostCapacityRefund,
       release: vi.fn().mockResolvedValue(undefined),
       keepForFailedPayment: vi.fn().mockResolvedValue(undefined),
     };
@@ -126,8 +133,50 @@ describe('checkout capacity service', () => {
       amountCents: 1000,
       reverseTransfer: true,
       refundApplicationFee: true,
-      idempotencyKey: 'capacity-lost:checkout_1',
+      idempotencyKey: 'capacity-lost:checkout_1:pi_test',
     });
+    expect(recordLostCapacityRefund).toHaveBeenCalledWith({
+      orgId: 'org_1',
+      checkoutId: 'checkout_1',
+      paymentIntentId: 'pi_test',
+      refundId: 're_test',
+      status: 'pending',
+    });
+  });
+
+  it('does not retry an uncertain refund after the durable claim', async () => {
+    let claimed = false;
+    const repository: CheckoutCapacityRepository = {
+      reserve: vi.fn().mockResolvedValue('reserved'),
+      extend: vi.fn().mockResolvedValue(true),
+      confirm: vi.fn().mockResolvedValue('expired'),
+      claimLostCapacityRefund: vi.fn(() => {
+        if (claimed) return Promise.resolve('pending' as const);
+        claimed = true;
+        return Promise.resolve('claimed' as const);
+      }),
+      recordLostCapacityRefund: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn().mockResolvedValue(undefined),
+      keepForFailedPayment: vi.fn().mockResolvedValue(undefined),
+    };
+    const { checkout, createRefund } = service(repository);
+    createRefund.mockRejectedValueOnce(new Error('network lost'));
+    const input = {
+      orgId: 'org_1',
+      checkoutId: 'checkout_1',
+      checkoutStatus: 'expired',
+      processingStartedAt: null,
+      holdExpiresAt: '2026-09-26T20:20:00Z',
+      paymentIntentId: 'pi_test',
+      amountCents: 1000,
+    };
+    await expect(checkout.confirmPaidCheckout(input)).rejects.toThrow(
+      'network lost',
+    );
+    await expect(checkout.confirmPaidCheckout(input)).resolves.toEqual({
+      kind: 'refund_pending',
+    });
+    expect(createRefund).toHaveBeenCalledTimes(1);
   });
 
   it('extends failed-payment capacity for exactly 72 hours', async () => {
@@ -138,6 +187,8 @@ describe('checkout capacity service', () => {
       reserve: vi.fn().mockResolvedValue('reserved'),
       extend: vi.fn().mockResolvedValue(true),
       confirm: vi.fn().mockResolvedValue('confirmed'),
+      claimLostCapacityRefund: vi.fn().mockResolvedValue('claimed'),
+      recordLostCapacityRefund: vi.fn().mockResolvedValue(undefined),
       release: vi.fn().mockResolvedValue(undefined),
       keepForFailedPayment,
     };

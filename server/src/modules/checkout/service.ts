@@ -45,6 +45,20 @@ export interface CheckoutCapacityRepository {
     checkoutId: string;
     honorProcessingHold: boolean;
   }): Promise<'confirmed' | 'already_confirmed' | 'expired'>;
+  /** Durable withOrg claim keyed by checkout and intent; never lease-expire after claim. */
+  claimLostCapacityRefund(input: {
+    orgId: string;
+    checkoutId: string;
+    paymentIntentId: string;
+    amountCents: number;
+  }): Promise<'claimed' | 'pending'>;
+  recordLostCapacityRefund(input: {
+    orgId: string;
+    checkoutId: string;
+    paymentIntentId: string;
+    refundId: string;
+    status: string;
+  }): Promise<void>;
   release(input: { orgId: string; checkoutId: string }): Promise<void>;
   keepForFailedPayment(input: {
     orgId: string;
@@ -151,12 +165,31 @@ export class CheckoutService {
       honorProcessingHold,
     });
     if (result !== 'expired') return { kind: 'confirmed' as const };
+    if (!Number.isSafeInteger(input.amountCents) || input.amountCents < 1) {
+      throw new RangeError(
+        'Lost-capacity refund amount must be positive cents',
+      );
+    }
+    const claim = await this.capacity.claimLostCapacityRefund({
+      orgId: input.orgId,
+      checkoutId: input.checkoutId,
+      paymentIntentId: input.paymentIntentId,
+      amountCents: input.amountCents,
+    });
+    if (claim === 'pending') return { kind: 'refund_pending' as const };
     const refund = await this.gateway.createRefund({
       paymentIntentId: input.paymentIntentId,
       amountCents: input.amountCents,
       reverseTransfer: true,
       refundApplicationFee: true,
-      idempotencyKey: `capacity-lost:${input.checkoutId}`,
+      idempotencyKey: `capacity-lost:${input.checkoutId}:${input.paymentIntentId}`,
+    });
+    await this.capacity.recordLostCapacityRefund({
+      orgId: input.orgId,
+      checkoutId: input.checkoutId,
+      paymentIntentId: input.paymentIntentId,
+      refundId: refund.id,
+      status: refund.status,
     });
     return {
       kind: 'refund_initiated' as const,
