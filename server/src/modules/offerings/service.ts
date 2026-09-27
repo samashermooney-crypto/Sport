@@ -52,7 +52,7 @@ const addOnOptionSchema = z.strictObject({
   key: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   label: z.string().trim().min(1).max(80),
 });
-export const offeringAddOnSchema = z
+const offeringAddOnSchema = z
   .strictObject({
     key: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
     name: z.string().trim().min(1).max(120),

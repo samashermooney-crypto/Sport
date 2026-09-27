@@ -5,7 +5,7 @@ import type { ServerModule } from '../../lib/module-contract';
 
 import { createSportsRouter } from './routes';
 
-export const profileResponseSchema = z.object({
+const profileResponseSchema = z.object({
   id: z.uuid(),
   template_key: z.string().nullable(),
   name: z.string(),
