@@ -1,49 +1,55 @@
 # Track D — design system
 
-Status: ready-for-integration
+Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Current: All Track D queue items 1–6 are complete; the dev-only showcase is mounted through the generated registry.
-Ready for integration: 195e30e..HEAD — primitives, extended components, parity coverage, shell navigation and auth controls are ready for dependent screens.
-Requests to other tracks: Track A — latest observed `rebuild/trunk` (`fd46684`) fails the staged ESLint hook in `memberRoles.ts`, `ownershipTransfer.ts` and `orgs/routes.ts`; fix before full-gate integration. `/__ui` is picked up through `web/src/ui/routes.tsx`.
-Blocked on: None for Track D.
-Completed: Queue 1 legacy reference captures and token snapshot; queue 2 primitives published in early batches with initial tests.
-Completed: Queue 3 extended controls, overlays, calendar views/resource grid, chart, rich text, signature, QR, print, keyboard-accessible board, bracket and chat components.
-Completed: Queue 4 parity suite; queue 5 mobile bottom tabs, command palette and global search shell.
-Completed: Queue 6 auth controls restyled through shared components after Track A marked identity screens stable.
-Self-review: `tokens.css` and `tokens.json` retain captured legacy values and fonts; accessibility-only adjustments use existing tokens (DEC-029, DEC-031) and the mobile modal touch-target adjustment is logged in DEC-030.
-Self-review: `/__ui` is dev-only and registry-discovered; chart tones are token-backed; no CSS framework or styled component library is used.
-Self-review: Desktop/mobile axe checks, 44px targets, modal escape behavior, keyboard tabs, calendar views and board keyboard moves are covered by the parity suite.
-Verification: typecheck, lint, `npm test` (439 passed, 1 skipped), build (149.63 KB gzip main bundle), registry, OpenAPI and database codegen pass; full Playwright: 20 passed, 4 expected skips.
-Track D complete.
+Current: Design system queues 1–6 are complete. Linux parity baselines are generated and verified with the lockfile-matching Playwright Linux image. Phase 14 has report-query foundations and migrations in WIP commits; the remaining Phase 14 surfaces and Phase 16 assignments are not complete.
+Ready for integration: `195e30e..5cf711c` for the design-system and parity work only. Current HEAD also contains Phase 14 WIP and has not passed the SPRINT merge gate.
+Requests to other tracks: Track C — wire the routes/jobs for D's report, action-center, website, and exports modules and nested web features after D provides their module contracts.
+Blocked on: None.
+
+Completed:
+- Queue 1 legacy reference captures and token snapshot; queue 2 primitives published in early batches.
+- Queue 3 extended controls, overlays, calendar views/resource grid, chart, rich text, signature, QR, print, keyboard-accessible board, bracket, and chat components.
+- Queue 4 parity suite; queue 5 mobile bottom tabs, command palette, and global search shell; queue 6 shared auth controls.
+- Linux parity references were generated using `mcr.microsoft.com/playwright:v1.63.0-noble` with `linux/amd64`. The 9-case design parity spec passed on both Mac and Linux; legacy references remain and the mismatch threshold and token-equality assertion are unchanged.
+- Phase 14 base migrations 7000–7003, generated DB types, report dataset/query/schema foundations, report policy helper, and ZIP helper/tests are committed as WIP. Migrations were applied to the isolated `athlentry_e2e` database.
+
+In progress (exact paths):
+- `db/migrations/7000_website_core.sql`
+- `db/migrations/7001_reports.sql`
+- `db/migrations/7002_exports_privacy.sql`
+- `db/migrations/7003_export_token_fix.sql`
+- `server/src/db/types.ts`
+- `server/src/modules/reports/query.ts`
+- `server/src/modules/reports/policy.ts`
+- `server/src/modules/reports/query.test.ts`
+- `server/src/modules/exports/zip.ts`
+- `server/src/modules/exports/zip.test.ts`
+- `shared/src/reports/datasets.ts`
+- `shared/src/reports/datasets.test.ts`
+- `shared/src/schemas/reports.ts`
+
+Exact next steps:
+1. Review WIP commits `ef8413a` and `a3a1c24`; rerun report/ZIP/dataset tests and the migration checks on the isolated stack.
+2. Finish the report module APIs and UI: dataset listing, typed preview, saved reports/sharing, scheduled delivery, standard reports, and CSV/XLSX export. Keep export access tiered and step-up protected.
+3. Implement Action Center and the Money, Registration, Compliance, and Academy dashboards, including board PDF output.
+4. Implement the website editor and public pages, SEO, domains, embeds, and SSR; then complete org export, privacy requests, and retention sweep.
+5. Ask Track C to wire the generated module route/job registry and nested web routes once their contracts are ready. Run the Phase 14 acceptance checks and SPRINT merge gate before marking ready or merging.
+6. At 13:30 local time, begin Phase 16 §3 accessibility/i18n, §5 legal drafts, and §6 landing/README. Continue small commits and use SPRINT's self-merge protocol only when the gate is green.
+
+Known failing or unverified checks:
+- No current Linux or Mac parity assertion failures are known; the focused parity suite passed 9/9 in each environment.
+- Targeted report-query and ZIP tests last passed 9/9; shared dataset tests passed 3/3. The latest commit hook also passed typecheck and staged ESLint/Prettier.
+- Full unit/integration, full E2E, build, registry/OpenAPI freshness, knip, audit, and the SPRINT merge gate have not been run against the current Phase 14 branch state. Phase 14 and Phase 16 acceptance remain unverified.
+- The previous attempt to run Playwright with its default local server failed to bind because port 7173 was already occupied; the isolated parity config reused the running server and passed.
+
+Open requests: Track C route/job registry and nested web route wiring described above. `COMPOSE_PROJECT_NAME=athlentry_d_sprint`; `PORT_OFFSET=2000`.
 
 ## HANDOFF
 
-Status at engine switch: Track D has not started Sprint Phase 14 or Phase 16 work. The branch includes the latest observed `rebuild/trunk` merge (`71ac3f8`) plus the committed Linux parity baseline and mobile shell adjustments. The branch is not ready to merge into trunk because the parity suite has two screenshot failures and the full merge gate has not passed. Track C was reported as fixing trunk CI.
+The current branch is not merge-ready as a whole: Phase 14 is incomplete, the full SPRINT gate has not passed, and the current HEAD includes report/export WIP. Do not merge current HEAD until the successor completes and verifies Phase 14; the earlier design-system/parity cutoff is `195e30e..5cf711c`.
 
-Done:
-- Added Linux-specific shell references and platform selection while preserving the macOS references, the 6.5% mismatch limit, and token-equality check (`5619852`).
-- Adjusted mobile shell details to match the legacy appearance (`e31eacc`). Focused Mac shell parity passed. `npm run typecheck` and `npm run lint` passed after merging trunk.
-- `/__ui` is registered in `web/src/ui/routes.tsx`; no Track A request is open for route registration.
-- Chart and TipTap dependencies are already present in the merged package manifests (`c08e86b`).
+In-progress code is limited to the exact file paths listed above. No Phase 14 web surfaces or Phase 16 deliverables have been completed. Keep this file current as the queue advances; do not edit `docs/codex/PROGRESS.md`.
 
-In progress (exact paths):
-- Linux baseline provenance needs correction and validation in `e2e/visual-reference/parity-baselines.json`, `e2e/visual-reference/dashboard-1440-linux.png`, and `e2e/visual-reference/dashboard-390-linux.png`. Current references were captured from `mcr.microsoft.com/playwright:v1.58.0-noble`, while the branch lockfile resolves Playwright 1.63.0. Pulling the matching v1.63.0 Linux image timed out. The Linux test has not passed under the lockfile's browser version.
-- Full parity screenshot drift is recorded at `e2e/design/parity.spec.ts-snapshots/ui-scheduling-1440-chromium-desktop-darwin.png` and `e2e/design/parity.spec.ts-snapshots/ui-shell-topbar-390-chromium-desktop-darwin.png`; inspect and refresh only if the changes are confirmed intentional.
-- Phase 14 implementation has not started. Assigned paths are the reports, action-center, website, and exports modules; reports, website, site, and home web surfaces; and migrations 7000–7999 as listed in SPRINT.md.
-
-Exact next steps:
-1. In a Linux environment using `mcr.microsoft.com/playwright:v1.63.0-noble` (linux/amd64), regenerate both legacy shell references, update their provenance metadata, and run the focused Linux `shell chrome` parity test. Keep the existing mismatch threshold, token-equality assertion, and macOS reference files unchanged.
-2. Review the two named Darwin snapshot diffs, refresh snapshots only for confirmed intentional shell changes, then rerun the full design parity spec on Mac and Linux.
-3. Once trunk CI is green and Track D's full merge gate passes, use the SPRINT.md self-merge protocol to integrate the ready local range. Current local range: `195e30e..HEAD`.
-4. Implement the Phase 14 queue on the owned paths, including migrations 7000–7999, and update this track note as work lands.
-5. At 13:30 local time, start Phase 16 §3 accessibility/i18n, §5 legal drafts, and §6 landing/README. Continue small commits and the scheduled self-merges.
-
-Known failing or unverified checks:
-- `npx playwright test --project=chromium-desktop e2e/design/parity.spec.ts`: 7 passed, 2 failed on the two Darwin snapshots named above (8 pixels for scheduling; 535 pixels for the 390px top bar).
-- Linux shell parity was measured below threshold with the older container/browser, but was not rerun with the lockfile-matching Playwright 1.63.0 environment; current Linux baseline provenance is therefore provisional.
-- The full SPRINT merge gate was not run and trunk integration was skipped.
-
-Open requests: none. `COMPOSE_PROJECT_NAME=athlentry_d_sprint`; `PORT_OFFSET=2000`.
-
-HANDED OFF 08:23
+Local stack: `COMPOSE_PROJECT_NAME=athlentry_d_sprint`, `PORT_OFFSET=2000`.
