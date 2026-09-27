@@ -50,6 +50,7 @@ beforeAll(async () => {
       last_name: 'Admin',
       date_of_birth: '1990-01-01',
       email_verified_at: now,
+      locale: 'es',
     })
     .execute();
 });
@@ -90,6 +91,10 @@ describe('organization invitations', () => {
     });
     expect(sent.email).toBe(email);
     expect(sender.messages).toHaveLength(1);
+    expect(sender.messages[0]?.subject).toBe(
+      'Únase a su organización en Athlentry',
+    );
+    expect(sender.messages[0]?.html).toContain('<html lang="es">');
     const replay = await createOrgInvitation(dependencies, {
       orgId,
       actorId: ownerId,

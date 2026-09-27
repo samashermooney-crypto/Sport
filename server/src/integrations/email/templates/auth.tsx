@@ -10,6 +10,14 @@ type AuthEmailKind =
   | 'magic-link'
   | 'password-reset'
   | 'invitation'
+  | 'ownership-transfer'
+  | 'email-change-verification'
+  | 'password-reset-confirmed'
+  | 'password-changed'
+  | 'email-change-requested'
+  | 'email-changed'
+  | 'mfa-enabled'
+  | 'recovery-codes-changed'
   | 'security-alert';
 const copy = {
   en: {
@@ -26,8 +34,40 @@ const copy = {
       'Use the secure link below to choose a new password. This link expires in 1 hour.',
     ],
     invitation: [
-      'You are invited',
-      'An organization invited you to join Athlentry.',
+      'Join your Athlentry organization',
+      'An organization invited you to join Athlentry. This link expires in 7 days.',
+    ],
+    'ownership-transfer': [
+      'Accept Athlentry organization ownership',
+      'An organization owner asked to transfer ownership to you. Sign in and use this link within 24 hours.',
+    ],
+    'email-change-verification': [
+      'Verify your new Athlentry email',
+      'Confirm your new email address with this link within 1 hour.',
+    ],
+    'password-reset-confirmed': [
+      'Your Athlentry password was reset',
+      'Your password was reset. If you did not make this change, contact Athlentry support immediately.',
+    ],
+    'password-changed': [
+      'Your Athlentry password changed',
+      'Your password was changed. If you did not make this change, contact Athlentry support immediately.',
+    ],
+    'email-change-requested': [
+      'Athlentry email change requested',
+      'A change to your account email was requested. If this was not you, contact Athlentry support immediately.',
+    ],
+    'email-changed': [
+      'Your Athlentry email changed',
+      'Your account email changed. If you did not make this change, contact Athlentry support immediately.',
+    ],
+    'mfa-enabled': [
+      'Athlentry MFA enabled',
+      'Multi-factor authentication was enabled on your account. If you did not make this change, contact Athlentry support immediately.',
+    ],
+    'recovery-codes-changed': [
+      'Athlentry recovery codes changed',
+      'Your MFA recovery codes were regenerated. If you did not make this change, contact Athlentry support immediately.',
     ],
     'security-alert': [
       'Security notice',
@@ -48,8 +88,40 @@ const copy = {
       'Use el enlace seguro para elegir una contraseña nueva. Este enlace vence en 1 hora.',
     ],
     invitation: [
-      'Tiene una invitación',
-      'Una organización le invitó a unirse a Athlentry.',
+      'Únase a su organización en Athlentry',
+      'Una organización le invitó a unirse a Athlentry. Este enlace vence en 7 días.',
+    ],
+    'ownership-transfer': [
+      'Acepte la titularidad de una organización en Athlentry',
+      'Una persona propietaria solicitó transferirle la titularidad. Inicie sesión y use este enlace en las próximas 24 horas.',
+    ],
+    'email-change-verification': [
+      'Verifique su nuevo correo electrónico de Athlentry',
+      'Confirme su nuevo correo electrónico con este enlace en la próxima hora.',
+    ],
+    'password-reset-confirmed': [
+      'Se restableció su contraseña de Athlentry',
+      'Se restableció su contraseña. Si usted no hizo este cambio, comuníquese con soporte de Athlentry de inmediato.',
+    ],
+    'password-changed': [
+      'Cambió su contraseña de Athlentry',
+      'Se cambió su contraseña. Si usted no hizo este cambio, comuníquese con soporte de Athlentry de inmediato.',
+    ],
+    'email-change-requested': [
+      'Se solicitó cambiar su correo electrónico de Athlentry',
+      'Se solicitó cambiar el correo electrónico de su cuenta. Si usted no lo solicitó, comuníquese con soporte de Athlentry de inmediato.',
+    ],
+    'email-changed': [
+      'Cambió su correo electrónico de Athlentry',
+      'Cambió el correo electrónico de su cuenta. Si usted no hizo este cambio, comuníquese con soporte de Athlentry de inmediato.',
+    ],
+    'mfa-enabled': [
+      'Se activó la autenticación multifactor de Athlentry',
+      'Se activó la autenticación multifactor en su cuenta. Si usted no hizo este cambio, comuníquese con soporte de Athlentry de inmediato.',
+    ],
+    'recovery-codes-changed': [
+      'Cambiaron sus códigos de recuperación de Athlentry',
+      'Se regeneraron sus códigos de recuperación. Si usted no hizo este cambio, comuníquese con soporte de Athlentry de inmediato.',
     ],
     'security-alert': [
       'Aviso de seguridad',
