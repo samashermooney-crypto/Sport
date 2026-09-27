@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-export const errorCodeSchema = z.enum([
+import { moduleErrorCodes } from '../generated/errors';
+
+const coreErrorCodes = [
   'VALIDATION_ERROR',
   'UNDER_13',
   'WEAK_PASSWORD',
@@ -15,7 +17,9 @@ export const errorCodeSchema = z.enum([
   'RATE_LIMITED',
   'DEPENDENCY_UNAVAILABLE',
   'INTERNAL_ERROR',
-]);
+] as const;
+
+export const errorCodeSchema = z.enum([...coreErrorCodes, ...moduleErrorCodes]);
 
 export const apiErrorSchema = z.strictObject({
   error: z.strictObject({

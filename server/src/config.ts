@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { z } from 'zod';
 
 import { getDatabase } from './db/kysely';
+import { integrationConfigs, serverModules } from './generated/registry';
 import { AlwaysPassCaptcha } from './integrations/captcha/provider';
 import { createMailpitEmailSender } from './integrations/email/sender';
 import { parseEncryptionKeys } from './lib/crypto';
@@ -81,6 +82,12 @@ const runtimeSchema = z.strictObject({
 });
 
 export async function createLocalAuthDependencies(): Promise<AuthDependencies> {
+  for (const integration of integrationConfigs) {
+    integration.schema.parse(process.env);
+  }
+  for (const module of serverModules) {
+    module.configSchema?.parse(process.env);
+  }
   const runtime = runtimeSchema.parse({
     nodeEnv: process.env.NODE_ENV ?? 'development',
     appUrl: process.env.APP_URL ?? 'http://127.0.0.1:5173',
