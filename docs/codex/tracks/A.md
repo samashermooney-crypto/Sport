@@ -3,9 +3,10 @@
 Status: working
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/a-core`
-Current: Spine, ready B/C/D ranges, task 6 onboarding, and ready E finance contracts are integrated and pushed on `rebuild/trunk`. Track A is closing Phase 1 tasks 3–5 before tasks 7–8 and 16–17.
+Current: Spine, ready B/C/D ranges, task 6 onboarding, and ready E finance contracts are integrated and pushed on `rebuild/trunk`. Phase 1 task 3 identity screens are complete; Track A is finishing task 4 and task 5, then tasks 7–8 and 16–17.
 Ready for integration: Session-bound device migration and cleanup after full local gate; task 4 remains open for a real trusted HTTPS browser subscription check.
 Requests to other tracks: E — proceed with Phase 4 against the spine now on trunk.
+Requests to other tracks: D — identity screens in task 3 are stable for your auth restyle queue; console Home in task 17 remains with A.
 Blocked on: none
 Self-review: Server app, worker and configuration consume the generated module/integration registry; web routing consumes generated feature routes.
 Self-review: Existing auth routes keep `/api/v1/auth`; full browser sign-up, Mailpit verification, MFA and device journey passes on Chromium and WebKit.
