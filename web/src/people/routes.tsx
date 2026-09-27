@@ -13,6 +13,11 @@ const AcceptGuardianInvitation = lazy(() =>
     }),
   ),
 );
+const FamilyHome = lazy(() =>
+  import('./FamilyHome').then(({ FamilyHome: Component }) => ({
+    default: Component,
+  })),
+);
 const PersonDetail = lazy(() =>
   import('./PeopleConsole').then(({ PersonDetail: Component }) => ({
     default: Component,
@@ -30,6 +35,14 @@ const HouseholdDetail = lazy(() =>
 );
 
 export const peopleRoutes: readonly RouteObject[] = [
+  {
+    path: '/me/family',
+    element: (
+      <Suspense fallback={<main role="status">Loading family…</main>}>
+        <FamilyHome />
+      </Suspense>
+    ),
+  },
   {
     path: '/guardian-invitations/:orgId/:token',
     element: (

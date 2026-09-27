@@ -53,6 +53,24 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
         email_verified_at: new Date(),
       })
       .execute();
+    const secondOrg = await factories.actor();
+    const secondChildId = await factories.person(secondOrg, {
+      firstName: 'Zoe',
+      lastName: 'Morgan',
+    });
+    await createWithOrg(database)(secondOrg, async (trx) => {
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: newId(),
+          org_id: secondOrg.orgId,
+          person_id: secondChildId,
+          account_id: guardianId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute();
+    });
     const staffSession = await database.transaction().execute((trx) =>
       issueSession(
         trx,
@@ -149,6 +167,13 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
     await expect(
       guardianPage.getByText('Guardian access is active.'),
     ).toBeVisible();
+    await guardianPage.goto('/me/family');
+    await expect(
+      guardianPage.getByRole('heading', { name: 'Your family' }),
+    ).toBeVisible();
+    await expect(guardianPage.getByText('Mia Rivera')).toBeVisible();
+    await expect(guardianPage.getByText('Zoe Morgan')).toBeVisible();
+    expect(await accessibilityViolations(guardianPage)).toEqual([]);
     const links = await createWithOrg(database)(staff, (trx) =>
       trx
         .selectFrom('person_account_links')

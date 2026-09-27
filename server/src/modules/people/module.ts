@@ -8,6 +8,7 @@ import {
   householdUpdateSchema,
 } from '@shared/schemas/households';
 import {
+  familyResponseSchema,
   guardianInvitationAcceptedResponseSchema,
   guardianInvitationAcceptSchema,
   guardianInvitationResponseSchema,
@@ -35,6 +36,13 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/people/me/family',
+      summary:
+        'List verified family links across organizations for this account',
+      response: familyResponseSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/people/households/orgs/{orgId}',
