@@ -71,3 +71,5 @@ There is no waiver integration test or Forms/Waivers UI yet. The new module defi
 
 - `COMPOSE_PROJECT_NAME=athlentry_a`
 - `PORT_OFFSET=3000` (local database port `8432`)
+
+HANDED OFF 12:29
