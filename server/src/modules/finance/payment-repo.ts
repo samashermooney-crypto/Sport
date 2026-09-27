@@ -5,6 +5,7 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import { appendAuditEvent } from '../audit/service.js';
 
+import { allocatePaymentLines } from './payment-line-allocations.js';
 import type { PaymentRecordStore } from './service.js';
 
 interface ExistingPayment {
@@ -88,6 +89,12 @@ export class PostgresPaymentRecordStore implements PaymentRecordStore {
         ) {
           throw new Error('Pending payment allocation conflicts with invoice');
         }
+        await allocatePaymentLines(trx, {
+          orgId: input.orgId,
+          invoiceId: input.invoiceId,
+          paymentId: recorded.id,
+          amountCents: input.amountCents,
+        });
         return;
       }
       const invoice = await trx
@@ -157,6 +164,12 @@ export class PostgresPaymentRecordStore implements PaymentRecordStore {
           amount_cents: input.amountCents,
         })
         .execute();
+      await allocatePaymentLines(trx, {
+        orgId: input.orgId,
+        invoiceId: input.invoiceId,
+        paymentId,
+        amountCents: input.amountCents,
+      });
       await appendAuditEvent(trx, this.context, {
         action: 'payment.intent_recorded',
         entityType: 'payment',

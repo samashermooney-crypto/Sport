@@ -8,6 +8,7 @@ import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import { appendAuditEvent } from '../audit/service.js';
 
 import { recomputeInvoiceStatus } from './invoice-repo.js';
+import { allocatePaymentLines } from './payment-line-allocations.js';
 
 export interface OfflinePaymentInput {
   orgId: string;
@@ -159,6 +160,12 @@ export class PostgresOfflinePayments {
           amount_cents: input.amountCents,
         })
         .execute();
+      await allocatePaymentLines(trx, {
+        orgId: input.orgId,
+        invoiceId: input.invoiceId,
+        paymentId,
+        amountCents: input.amountCents,
+      });
       await trx
         .updateTable('invoices')
         .set({
