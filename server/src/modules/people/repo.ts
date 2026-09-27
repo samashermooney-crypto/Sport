@@ -131,7 +131,7 @@ function mapPerson(
   });
 }
 
-async function requireStaff(
+export async function requireStaff(
   trx: OrgTransaction,
   orgId: string,
   actorId: string,

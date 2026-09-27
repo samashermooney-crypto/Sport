@@ -80,6 +80,20 @@ test('owner creates, edits and archives a person from the console', async ({
     await expect(
       page.getByRole('button', { name: 'Save person' }),
     ).toBeVisible();
+    await page.goto(`/console/orgs/${actor.orgId}/households`);
+    await page
+      .getByRole('textbox', { name: 'Household name' })
+      .fill('Rivera household');
+    await page.getByRole('button', { name: 'Create household' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Rivera household' }),
+    ).toBeVisible();
+    await page
+      .getByRole('combobox', { name: 'Person' })
+      .selectOption({ label: 'Alex Rivera' });
+    await page.getByRole('button', { name: 'Add member' }).click();
+    await expect(page.getByRole('link', { name: 'Alex Rivera' })).toBeVisible();
+    expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
     await database.destroy();
   }

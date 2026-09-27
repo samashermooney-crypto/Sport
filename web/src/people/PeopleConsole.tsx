@@ -202,7 +202,7 @@ function PersonForm({
   );
 }
 
-function PeopleShell({
+export function PeopleShell({
   orgId,
   children,
 }: {
@@ -226,6 +226,7 @@ function PeopleShell({
           items: [
             ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
             { label: 'People', to: people },
+            { label: 'Households', to: `${home}/households` },
             { label: 'Account', to: '/me' },
           ],
         },
@@ -233,6 +234,7 @@ function PeopleShell({
       mobileTabs={[
         ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
         { label: 'People', to: people },
+        { label: 'Households', to: `${home}/households` },
         { label: 'Account', to: '/me' },
       ]}
     >
