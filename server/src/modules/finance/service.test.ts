@@ -145,13 +145,20 @@ describe('finance PaymentIntent orchestration', () => {
     });
   });
 
-  it('rejects a reused key after the frozen charge changes', async () => {
+  it('replays the original result after the frozen charge changes', async () => {
+    const test = fixture();
+    const original = await test.service.create(test.input);
+    test.current.baseCents = 11_000;
+    expect(await test.service.create(test.input)).toEqual(original);
+    expect(test.createDestinationPayment).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a reused key for a different request body', async () => {
     const test = fixture();
     await test.service.create(test.input);
-    test.current.baseCents = 11_000;
-    await expect(test.service.create(test.input)).rejects.toThrow(
-      'different payment',
-    );
+    await expect(
+      test.service.create({ ...test.input, saveForAutopay: false }),
+    ).rejects.toThrow('different payment');
     expect(test.createDestinationPayment).toHaveBeenCalledTimes(1);
   });
 

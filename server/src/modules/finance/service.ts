@@ -125,25 +125,14 @@ export function quoteCharge(charge: FrozenCharge): PaymentQuote {
   };
 }
 
-function requestHash(
-  charge: FrozenCharge,
-  input: CreateCheckoutPaymentInput,
-): string {
+function requestHash(input: CreateCheckoutPaymentInput): string {
   return createHash('sha256')
     .update(
       JSON.stringify({
-        orgId: charge.orgId,
-        checkoutId: charge.checkoutId,
-        invoiceId: charge.invoiceId,
-        accountId: charge.accountId,
-        customerId: charge.customerId,
-        connectedAccountId: charge.connectedAccountId,
-        version: charge.version,
-        baseCents: charge.baseCents,
-        taxCents: charge.taxCents,
-        applicationRate: charge.applicationRate,
-        serviceFee: charge.serviceFee,
-        statementDescriptorSuffix: charge.statementDescriptorSuffix ?? null,
+        orgId: input.orgId,
+        checkoutId: input.checkoutId,
+        invoiceId: input.invoiceId,
+        accountId: input.accountId,
         saveForAutopay: input.saveForAutopay,
       }),
     )
@@ -170,26 +159,11 @@ export class CheckoutPaymentService {
     ) {
       throw new Error('Idempotency-Key must be a UUID');
     }
-    const charge = await this.reader.load(input);
-    if (
-      !charge ||
-      charge.orgId !== input.orgId ||
-      charge.checkoutId !== input.checkoutId ||
-      charge.invoiceId !== input.invoiceId ||
-      charge.accountId !== input.accountId
-    ) {
-      throw new Error('Frozen checkout charge not found');
-    }
-    if (input.saveForAutopay && !charge.autopayAuthorized) {
-      throw new Error('Autopay authorization is required');
-    }
-    const quote = quoteCharge(charge);
-    const hash = requestHash(charge, input);
     const reservation = await this.attempts.reserve({
       orgId: input.orgId,
       checkoutId: input.checkoutId,
       key: input.idempotencyKey,
-      requestHash: hash,
+      requestHash: requestHash(input),
     });
     if (reservation.kind === 'replay') return reservation.result;
     if (reservation.kind === 'busy')
@@ -197,6 +171,20 @@ export class CheckoutPaymentService {
     if (reservation.kind === 'conflict')
       throw new Error('Idempotency-Key was used for a different payment');
     try {
+      const charge = await this.reader.load(input);
+      if (
+        !charge ||
+        charge.orgId !== input.orgId ||
+        charge.checkoutId !== input.checkoutId ||
+        charge.invoiceId !== input.invoiceId ||
+        charge.accountId !== input.accountId
+      ) {
+        throw new Error('Frozen checkout charge not found');
+      }
+      if (input.saveForAutopay && !charge.autopayAuthorized) {
+        throw new Error('Autopay authorization is required');
+      }
+      const quote = quoteCharge(charge);
       const account = await this.gateway.retrieveAccount(
         charge.connectedAccountId,
       );
