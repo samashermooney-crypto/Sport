@@ -132,6 +132,14 @@ it('versions published forms, preserves historical responses, encrypts tiers, an
     schema,
   });
   await forms.publish(owner, v1.id, v1.version);
+  const personForms = await forms.listForPerson(context, childId);
+  expect(personForms.items.some((form) => form.id === v1.id)).toBe(true);
+  await expect(
+    forms.listForPerson(
+      { orgId: owner.orgId, actor: { accountId: reporter.accountId } },
+      childId,
+    ),
+  ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
   const responseV1 = await forms.submit(context, {
     formDefinitionId: v1.id,
     subjectType: 'person',

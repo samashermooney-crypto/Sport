@@ -32,6 +32,14 @@ export const moduleDefinition = {
       tags: ['forms'],
     },
     {
+      method: 'get',
+      path: '/api/v1/forms/orgs/{orgId}/person',
+      summary: 'List published profile forms for a linked person',
+      query: { personId: z.uuid() },
+      response: formDefinitionListSchema,
+      tags: ['forms'],
+    },
+    {
       method: 'post',
       path: '/api/v1/forms/orgs/{orgId}',
       summary: 'Create a draft form definition',

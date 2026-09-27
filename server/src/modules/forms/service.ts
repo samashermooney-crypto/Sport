@@ -288,6 +288,26 @@ export function createFormsService(
       });
     },
 
+    async listForPerson(context: OrgContext, personId: string) {
+      const id = z.uuid().parse(personId);
+      return withOrg(context, async (trx) => {
+        await requirePersonLink(trx, context, id);
+        const rows = await trx
+          .selectFrom('form_definitions')
+          .selectAll()
+          .where('org_id', '=', context.orgId)
+          .where('scope', '=', 'person_profile')
+          .where('published_at', 'is not', null)
+          .where('retired_at', 'is', null)
+          .orderBy('name')
+          .orderBy('version', 'desc')
+          .execute();
+        return formDefinitionListSchema.parse({
+          items: rows.map(definitionView),
+        });
+      });
+    },
+
     async create(context: OrgContext, input: FormDefinitionCreate) {
       const value = formDefinitionCreateSchema.parse(input);
       return withOrg(context, async (trx) => {

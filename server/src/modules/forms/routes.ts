@@ -88,6 +88,26 @@ export function createFormsRouter(
     }
   });
 
+  router.get('/orgs/:orgId/person', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new FormsError(404, 'NOT_FOUND', 'Form was not found');
+      const query = uuidQuerySchema.parse(request.query);
+      response.json(
+        await forms.listForPerson(
+          {
+            orgId: z.uuid().parse(request.params.orgId),
+            actor: { accountId: session.accountId },
+          },
+          query.personId,
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
   router.post('/orgs/:orgId', async (request, response) => {
     try {
       if (!validWriteOrigin(request, dependencies.appUrl))
