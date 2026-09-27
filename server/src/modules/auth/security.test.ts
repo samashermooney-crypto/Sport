@@ -107,6 +107,15 @@ describe('MFA enrollment and re-authentication', () => {
       .transaction()
       .execute((trx) => resolveSession(trx, issued.token, now));
     if (!active) throw new Error('Session missing');
+    const otherSession = await database
+      .transaction()
+      .execute((trx) =>
+        issueSession(
+          trx,
+          { accountId, kind: 'cookie', client: 'web', privileged: false },
+          now,
+        ),
+      );
     const enrollment = await beginMfaEnrollment(dependencies, active);
     expect(enrollment.otpauthUrl).toContain('otpauth://totp/');
     expect(enrollment.manualKey).toHaveLength(32);
@@ -114,6 +123,11 @@ describe('MFA enrollment and re-authentication', () => {
     const code = totpCode(decodeBase32(enrollment.manualKey), step);
     const recovery = await confirmMfaEnrollment(dependencies, active, code);
     expect(recovery).toHaveLength(10);
+    expect(
+      await database
+        .transaction()
+        .execute((trx) => resolveSession(trx, otherSession.token, now)),
+    ).toBeNull();
     await expect(
       confirmMfaEnrollment(dependencies, active, code),
     ).rejects.toThrow('No pending');
