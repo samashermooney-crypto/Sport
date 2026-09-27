@@ -159,6 +159,50 @@ test('owner creates, edits and archives a person from the console', async ({
       registration_id: registrationId,
     });
     await page.goto(`/console/orgs/${actor.orgId}/people`);
+    const commandPalette = page.getByRole('dialog', {
+      name: 'Command palette',
+    });
+    await page.getByRole('button', { name: 'Search Athlentry' }).click();
+    const globalSearch = commandPalette.getByRole('searchbox', {
+      name: 'Search Athlentry',
+    });
+    await globalSearch.fill('Rivera household');
+    const householdSearchResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes(`/people/households/orgs/${actor.orgId}`),
+    );
+    await globalSearch.press('Enter');
+    expect((await householdSearchResponse).ok()).toBe(true);
+    await commandPalette
+      .getByRole('link', { name: 'Rivera household' })
+      .click();
+    await expect(page).toHaveURL(householdUrl);
+    await expect(
+      page.getByRole('heading', { name: 'Rivera household' }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Search Athlentry' }).click();
+    const peopleSearch = commandPalette.getByRole('searchbox', {
+      name: 'Search Athlentry',
+    });
+    await peopleSearch.fill('Alex Rivera');
+    const peopleSearchResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes(`/people/orgs/${actor.orgId}?`),
+    );
+    await peopleSearch.press('Enter');
+    expect((await peopleSearchResponse).ok()).toBe(true);
+    await commandPalette.getByRole('link', { name: 'Alex Rivera' }).click();
+    await expect(page).toHaveURL(
+      `/console/orgs/${actor.orgId}/people/${personId}`,
+    );
+    await expect(
+      page.getByRole('heading', { name: 'Alex Rivera' }),
+    ).toBeVisible();
+
+    await page.goto(`/console/orgs/${actor.orgId}/people`);
     await page
       .getByRole('searchbox', { name: 'Find household' })
       .fill('Rivera');

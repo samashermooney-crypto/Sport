@@ -25,6 +25,7 @@ export function AppShell({
   onGlobalSearch,
   searchResults = [],
   searchLoading = false,
+  searchError,
   children,
 }: PropsWithChildren<{
   orgName: string;
@@ -35,6 +36,7 @@ export function AppShell({
   onGlobalSearch?: (query: string) => void;
   searchResults?: ShellNavItem[];
   searchLoading?: boolean;
+  searchError?: string | undefined;
 }>): React.JSX.Element {
   const [active, setActive] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -78,7 +80,9 @@ export function AppShell({
   );
   const results = onGlobalSearch
     ? query.trim()
-      ? searchResults
+      ? searchSubmitted
+        ? searchResults
+        : []
       : allItems
     : destinationResults;
   return (
@@ -238,15 +242,20 @@ export function AppShell({
             </li>
           ))}
           {onGlobalSearch && searchLoading && <li role="status">Searching…</li>}
-          {!results.length && !searchLoading && (
-            <li>
-              {onGlobalSearch
-                ? searchSubmitted
-                  ? 'No matching results'
-                  : 'Press Enter to search Athlentry'
-                : 'No matching destinations'}
-            </li>
+          {onGlobalSearch && searchSubmitted && searchError && (
+            <li role="alert">{searchError}</li>
           )}
+          {!results.length &&
+            !searchLoading &&
+            (!searchError || !searchSubmitted) && (
+              <li>
+                {onGlobalSearch
+                  ? searchSubmitted
+                    ? 'No matching results'
+                    : 'Press Enter to search Athlentry'
+                  : 'No matching destinations'}
+              </li>
+            )}
         </ul>
       </dialog>
     </div>

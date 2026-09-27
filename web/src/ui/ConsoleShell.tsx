@@ -1,9 +1,12 @@
+import { householdListSchema } from '@shared/schemas/households';
 import {
   myOrganizationsSchema,
   orgWorkspaceSchema,
 } from '@shared/schemas/orgs';
+import { peopleListSchema } from '@shared/schemas/people';
 import { useQuery } from '@tanstack/react-query';
 import type { PropsWithChildren } from 'react';
+import { useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 
 import { apiGet } from '../api/client';
@@ -19,6 +22,7 @@ export function ConsoleShell({
   const location = useLocation();
   const navigate = useNavigate();
   const impersonationId = useImpersonationId();
+  const [searchQuery, setSearchQuery] = useState('');
   const workspace = useQuery({
     queryKey: ['orgs', orgId, 'workspace'],
     queryFn: () => apiGet(`/orgs/${orgId}/workspace`, orgWorkspaceSchema),
@@ -29,6 +33,34 @@ export function ConsoleShell({
     queryFn: () => apiGet('/orgs/mine', myOrganizationsSchema),
     enabled: !impersonationId,
   });
+  const peopleSearch = useQuery({
+    queryKey: ['people', orgId, 'global-search', searchQuery],
+    queryFn: () =>
+      apiGet(
+        `/people/orgs/${encodeURIComponent(orgId)}?${new URLSearchParams({ q: searchQuery, status: 'active', limit: '8' })}`,
+        peopleListSchema,
+      ),
+    enabled: Boolean(orgId && searchQuery),
+  });
+  const householdSearch = useQuery({
+    queryKey: ['households', orgId, 'global-search', searchQuery],
+    queryFn: () =>
+      apiGet(
+        `/people/households/orgs/${encodeURIComponent(orgId)}?${new URLSearchParams({ q: searchQuery })}`,
+        householdListSchema,
+      ),
+    enabled: Boolean(orgId && searchQuery),
+  });
+  const globalSearchResults = [
+    ...(peopleSearch.data?.items.map((person) => ({
+      label: `${person.firstName} ${person.lastName}`,
+      to: `/console/orgs/${orgId}/people/${person.id}`,
+    })) ?? []),
+    ...(householdSearch.data?.items.map((household) => ({
+      label: household.name,
+      to: `/console/orgs/${orgId}/households/${household.id}`,
+    })) ?? []),
+  ];
   const home = `/console/orgs/${orgId}`;
   const links = {
     Home: home,
@@ -115,6 +147,14 @@ export function ConsoleShell({
         item('Messages'),
         item('Account'),
       ]}
+      onGlobalSearch={setSearchQuery}
+      searchResults={globalSearchResults}
+      searchLoading={peopleSearch.isFetching || householdSearch.isFetching}
+      searchError={
+        peopleSearch.isError || householdSearch.isError
+          ? 'People search is unavailable. Try again.'
+          : undefined
+      }
     >
       {children}
     </AppShell>
