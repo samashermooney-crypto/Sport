@@ -2,7 +2,7 @@
 
 Status: ready-for-integration (H-owned work and gates are green; Phase 10 completion awaits the listed A/C/G work)
 Branch: `track/h-comms` (local only; no push)
-Merged trunk: `rebuild/trunk` at `15b35a8` (including the dependency, finance and household integrations)
+Merged trunk: `rebuild/trunk` at `6878b6d` (including the dependency, finance and household integrations)
 Local range: `c577d62..HEAD` (includes the resolved trunk merge and H follow-ups)
 Migration range: `4000–4006`
 
