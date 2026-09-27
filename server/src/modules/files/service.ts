@@ -346,6 +346,39 @@ export class FilesService {
     return { bytes: object.bytes, mime: record.mime };
   }
 
+  async readPublicFacilityLayout(
+    context: OrgContext,
+    facilityId: string,
+  ): Promise<{ bytes: Uint8Array; mime: 'image/webp' | 'image/jpeg' } | null> {
+    const asset = await this.tenantScope(context, async (trx) =>
+      trx
+        .selectFrom('facilities as facility')
+        .innerJoin('files as file', (join) =>
+          join
+            .onRef('file.org_id', '=', 'facility.org_id')
+            .onRef('file.id', '=', 'facility.layout_image_file_id'),
+        )
+        .select(['file.storage_key as storageKey', 'file.mime as mime'])
+        .where('facility.org_id', '=', context.orgId)
+        .where('facility.id', '=', facilityId)
+        .where('facility.public', '=', true)
+        .where('facility.archived_at', 'is', null)
+        .where('file.purpose', '=', 'website_asset')
+        .where('file.sensitivity', '=', 'public')
+        .where('file.upload_state', '=', 'complete')
+        .where('file.deleted_at', 'is', null)
+        .where('file.mime', 'in', ['image/webp', 'image/jpeg'])
+        .executeTakeFirst(),
+    );
+    if (!asset) return null;
+    const object = await this.storage.get(asset.storageKey);
+    if (!object || sniffMime(object.bytes) !== asset.mime) return null;
+    return {
+      bytes: object.bytes,
+      mime: asset.mime as 'image/webp' | 'image/jpeg',
+    };
+  }
+
   async download(context: OrgContext, fileId: string): Promise<string> {
     const record = await this.tenantScope(context, async (trx) =>
       getRecord(trx, fileId),

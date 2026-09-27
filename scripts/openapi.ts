@@ -310,6 +310,15 @@ const fileRoutes: OpenApiRoute[] = [
     response: z.string(),
     binary: true,
   },
+  {
+    method: 'get',
+    path: `${filesBase}/public/orgs/{orgSlug}/facilities/{facilityId}/layout`,
+    summary: 'Read a published facility layout image',
+    response: z.string(),
+    binary: true,
+    contentType: 'image/webp',
+    public: true,
+  },
 ];
 const orgRoutes: OpenApiRoute[] = [
   {
@@ -681,6 +690,11 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
       : []),
   ];
   const status = String(route.status ?? 200);
+  const binaryContentType =
+    route.contentType ??
+    (route.binary && /(?:\.pdf|\/pdf)$/i.test(route.path)
+      ? 'application/pdf'
+      : 'application/octet-stream');
   const result: Record<string, unknown> = {
     operationId: `${route.method}_${route.path.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '')}`,
     summary: route.summary,
@@ -697,7 +711,7 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
             ? undefined
             : route.binary
               ? {
-                  'application/octet-stream': {
+                  [binaryContentType]: {
                     schema: { type: 'string', format: 'binary' },
                   },
                 }
@@ -808,12 +822,115 @@ function collectRouteCalls(
   visit(node);
 }
 
+const routeContractOverrides = new Map<string, Partial<OpenApiRoute>>([
+  [
+    'patch /api/v1/attendance/orgs/{orgId}/events/{eventId}/people/{personId}/attendance',
+    {
+      body: z.strictObject({
+        status: z.enum(['present', 'absent', 'late', 'excused', 'unknown']),
+        expectedVersion: z.number().int().nonnegative(),
+        checkIn: z.boolean().optional(),
+      }),
+      tenancyFixture: {
+        body: { status: 'present', expectedVersion: 0 },
+      },
+    },
+  ],
+  [
+    'get /api/v1/attendance/orgs/{orgId}/reports',
+    {
+      query: {
+        from: z.iso.datetime({ offset: true }),
+        to: z.iso.datetime({ offset: true }),
+        teamSeasonId: z.uuid().optional(),
+      },
+      tenancyFixture: {
+        body: {},
+        query: {
+          from: '2026-01-01T00:00:00Z',
+          to: '2026-01-02T00:00:00Z',
+        },
+      },
+    },
+  ],
+  [
+    'get /api/v1/officials/orgs/{orgId}/assignment-board',
+    {
+      query: {
+        from: z.iso.datetime({ offset: true }),
+        to: z.iso.datetime({ offset: true }),
+        programId: z.uuid().optional(),
+      },
+      tenancyFixture: {
+        body: {},
+        query: {
+          from: '2026-01-01T00:00:00Z',
+          to: '2026-01-02T00:00:00Z',
+        },
+      },
+    },
+  ],
+  [
+    'get /api/v1/officials/orgs/{orgId}/payroll/yearly-totals',
+    {
+      query: { year: z.number().int().min(2000).max(2200) },
+      tenancyFixture: { body: {}, query: { year: '2026' } },
+    },
+  ],
+  [
+    'get /api/v1/officials/orgs/{orgId}/payroll/yearly-totals.csv',
+    {
+      query: { year: z.number().int().min(2000).max(2200) },
+      tenancyFixture: { body: {}, query: { year: '2026' } },
+    },
+  ],
+  [
+    'get /api/v1/scheduling/orgs/{orgId}/events',
+    {
+      tenancyFixture: {
+        body: {},
+        query: {
+          from: '2026-01-01T00:00:00Z',
+          to: '2026-01-02T00:00:00Z',
+        },
+      },
+    },
+  ],
+  [
+    'get /api/v1/scheduling/orgs/{orgId}/schedule.csv',
+    {
+      tenancyFixture: {
+        body: {},
+        query: {
+          scope: 'program',
+          id: '00000000-0000-4000-8000-000000000001',
+          from: '2026-01-01T00:00:00Z',
+          to: '2026-01-02T00:00:00Z',
+        },
+      },
+    },
+  ],
+  [
+    'patch /api/v1/standings/orgs/{orgId}/season-surveys/{campaignId}',
+    {
+      body: z.strictObject({
+        status: z.enum(['open', 'closed', 'archived']),
+        expectedVersion: z.number().int().positive(),
+      }),
+      tenancyFixture: {
+        body: { status: 'closed', expectedVersion: 1 },
+      },
+    },
+  ],
+]);
+
 const moduleRoutes = serverModules.flatMap((module) => {
   const candidate: unknown =
     'openapiRoutes' in module ? module.openapiRoutes : undefined;
   return Array.isArray(candidate)
     ? (candidate as OpenApiRoute[]).map((route) => ({
         ...route,
+        ...routeContractOverrides.get(`${route.method} ${route.path}`),
         moduleName: module.name,
       }))
     : [];

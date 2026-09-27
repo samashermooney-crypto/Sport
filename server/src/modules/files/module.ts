@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import express from 'express';
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
@@ -239,6 +241,28 @@ export function createFilesAuthorization(
   };
 }
 
+export function createPublicFacilityLayoutReader(
+  database: Kysely<DB>,
+  files: FilesService,
+) {
+  return async (orgSlug: string, facilityId: string) => {
+    const organization = await database
+      .selectFrom('organizations')
+      .select(['id', 'status'])
+      .where('slug', '=', orgSlug)
+      .where('status', '=', 'active')
+      .executeTakeFirst();
+    if (!organization) return null;
+    return files.readPublicFacilityLayout(
+      {
+        orgId: organization.id,
+        actor: { accountId: randomUUID() },
+      },
+      facilityId,
+    );
+  };
+}
+
 function createMountedFilesRouter(
   dependencies: AuthDependencies,
 ): express.Router {
@@ -275,6 +299,10 @@ function createMountedFilesRouter(
   router.use(
     createFilesRouter({
       files: service,
+      publicFacilityLayout: createPublicFacilityLayoutReader(
+        dependencies.database,
+        service,
+      ),
       context: async (request) => {
         let accountId: string;
         try {

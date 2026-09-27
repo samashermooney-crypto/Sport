@@ -13,7 +13,10 @@ import type { OrgContext } from '../../db/withOrg';
 import { SharpImageProcessor } from '../../integrations/storage/image-processor';
 import { MemoryStorage } from '../../integrations/storage/storage';
 
-import { createFilesAuthorization } from './module';
+import {
+  createFilesAuthorization,
+  createPublicFacilityLayoutReader,
+} from './module';
 import { createFilesRouter } from './routes';
 import type { FileAuthorization } from './service';
 import {
@@ -24,6 +27,8 @@ import {
 
 const orgA = randomUUID();
 const orgB = randomUUID();
+const orgASlug = `files-a-${orgA.slice(0, 8)}`;
+const orgBSlug = `files-b-${orgB.slice(0, 8)}`;
 const accountA = randomUUID();
 const accountB = randomUUID();
 const guardianAccount = randomUUID();
@@ -40,6 +45,8 @@ const chatConversationId = randomUUID();
 const otherChatConversationId = randomUUID();
 const archivedChatConversationId = randomUUID();
 const revokedChatConversationId = randomUUID();
+const publicFacilityId = randomUUID();
+const publicLayoutFileId = randomUUID();
 const contextA: OrgContext = { orgId: orgA, actor: { accountId: accountA } };
 const contextB: OrgContext = { orgId: orgB, actor: { accountId: accountB } };
 const guardianContext: OrgContext = {
@@ -88,12 +95,7 @@ beforeAll(async () => {
       `INSERT INTO organizations (id, slug, name, kind, timezone)
        VALUES ($1, $2, 'File Test A', 'club', 'America/Chicago'),
               ($3, $4, 'File Test B', 'club', 'America/Chicago')`,
-      [
-        orgA,
-        `files-a-${orgA.slice(0, 8)}`,
-        orgB,
-        `files-b-${orgB.slice(0, 8)}`,
-      ],
+      [orgA, orgASlug, orgB, orgBSlug],
     );
     await admin.query(
       `INSERT INTO accounts (id, email, first_name, last_name, date_of_birth)
@@ -347,6 +349,130 @@ describe('files tenancy and lifecycle', () => {
     ).rejects.toBeInstanceOf(FileValidationError);
   });
 
+  it('serves layout images only from active public facilities and public image assets', async () => {
+    const bytes = Buffer.from('RIFF0000WEBP');
+    const storageKey = `${orgA}/website_asset/${publicLayoutFileId}.webp`;
+    await storage.put(storageKey, bytes, 'image/webp');
+    await database
+      .updateTable('organizations')
+      .set({ status: 'active' })
+      .where('id', '=', orgA)
+      .execute();
+    await createWithOrg(database)(contextA, async (trx) => {
+      await trx
+        .insertInto('files')
+        .values({
+          id: publicLayoutFileId,
+          org_id: orgA,
+          purpose: 'website_asset',
+          owner_type: null,
+          owner_id: null,
+          storage_key: storageKey,
+          mime: 'image/webp',
+          bytes: bytes.byteLength,
+          sha256: null,
+          width: 1,
+          height: 1,
+          sensitivity: 'public',
+          created_by: accountA,
+          upload_state: 'complete',
+          deleted_at: null,
+        })
+        .execute();
+      await trx
+        .insertInto('facilities')
+        .values({
+          id: publicFacilityId,
+          org_id: orgA,
+          name: 'Public Layout Facility',
+          address: null,
+          lat: null,
+          lng: null,
+          timezone: 'America/Chicago',
+          ownership: 'owned',
+          notes_html: null,
+          parking_notes: null,
+          map_url: null,
+          public: true,
+          archived_at: null,
+          layout_image_file_id: publicLayoutFileId,
+        })
+        .execute();
+    });
+
+    const readLayout = createPublicFacilityLayoutReader(database, service);
+    const storedLayout = await readLayout(orgASlug, publicFacilityId);
+    expect(storedLayout?.mime).toBe('image/webp');
+    expect(Buffer.from(storedLayout?.bytes ?? [])).toEqual(bytes);
+
+    const app = express();
+    app.use(
+      createFilesRouter({
+        files: service,
+        context: () => Promise.resolve(contextA),
+        publicFacilityLayout: readLayout,
+      }),
+    );
+    const server = createServer(app);
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const address = server.address();
+    if (!address || typeof address === 'string')
+      throw new Error('Files test server did not bind to a TCP port');
+    const url =
+      `http://127.0.0.1:${String(address.port)}` +
+      `/public/orgs/${orgASlug}/facilities/${publicFacilityId}/layout`;
+    try {
+      const visible = await fetch(url);
+      expect(visible.status).toBe(200);
+      expect(visible.headers.get('content-type')).toBe('image/webp');
+      expect(visible.headers.get('cache-control')).toBe('no-store');
+      expect(Buffer.from(await visible.arrayBuffer())).toEqual(bytes);
+
+      expect((await fetch(url.replace(orgASlug, orgBSlug))).status).toBe(404);
+      await createWithOrg(database)(contextA, (trx) =>
+        trx
+          .updateTable('files')
+          .set({ sensitivity: 'restricted' })
+          .where('id', '=', publicLayoutFileId)
+          .execute(),
+      );
+      expect((await fetch(url)).status).toBe(404);
+      const restrictedAudit = await createWithOrg(database)(contextA, (trx) =>
+        trx
+          .selectFrom('audit_log')
+          .select('id')
+          .where('entity_id', '=', publicLayoutFileId)
+          .where('action', '=', 'file.restricted.read')
+          .execute(),
+      );
+      expect(restrictedAudit).toEqual([]);
+
+      await createWithOrg(database)(contextA, async (trx) => {
+        await trx
+          .updateTable('files')
+          .set({ sensitivity: 'public' })
+          .where('id', '=', publicLayoutFileId)
+          .execute();
+        await trx
+          .updateTable('facilities')
+          .set({ public: false })
+          .where('id', '=', publicFacilityId)
+          .execute();
+      });
+      expect((await fetch(url)).status).toBe(404);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+    }
+  });
+
   it('limits chat image and PDF uploads and downloads to active conversation members', async () => {
     const chatService = new FilesService(
       storage,
@@ -495,6 +621,7 @@ describe('files tenancy and lifecycle', () => {
       createFilesRouter({
         files: chatService,
         context: () => Promise.resolve(requestContext),
+        publicFacilityLayout: () => Promise.resolve(null),
       }),
     );
     const server = createServer(app);
@@ -611,6 +738,7 @@ describe('files tenancy and lifecycle', () => {
       createFilesRouter({
         files: restrictedService,
         context: () => Promise.resolve(requestContext),
+        publicFacilityLayout: () => Promise.resolve(null),
       }),
     );
     const server = createServer(app);

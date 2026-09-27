@@ -4288,10 +4288,56 @@
         ]
       }
     },
+    "/api/v1/files/public/orgs/{orgSlug}/facilities/{facilityId}/layout": {
+      "get": {
+        "operationId": "get_api_v1_files_public_orgs_orgSlug_facilities_facilityId_layout",
+        "summary": "Read a published facility layout image",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "files.files.public",
+        "x-athlentry-scope": "public",
+        "tags": ["files"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "image/webp": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgSlug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "facilityId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
+      }
+    },
     "/api/v1/attendance/orgs/{orgId}/events/{eventId}": {
       "get": {
         "operationId": "get_api_v1_attendance_orgs_orgId_events_eventId",
         "summary": "List event attendance",
+        "x-athlentry-permission": "attendance.read",
+        "x-athlentry-resource": "attendance.events",
+        "x-athlentry-scope": "organization",
         "tags": ["attendance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4326,6 +4372,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -4346,6 +4393,9 @@
       "get": {
         "operationId": "get_api_v1_attendance_orgs_orgId_events_eventId_game_day",
         "summary": "Get the private coach game-day screen",
+        "x-athlentry-permission": "attendance.read",
+        "x-athlentry-resource": "attendance.events.game-day",
+        "x-athlentry-scope": "organization",
         "tags": ["attendance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4380,6 +4430,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -4400,6 +4451,9 @@
       "put": {
         "operationId": "put_api_v1_attendance_orgs_orgId_events_eventId_people_personId_rsvp",
         "summary": "Submit a family RSVP",
+        "x-athlentry-permission": "attendance.manage",
+        "x-athlentry-resource": "attendance.events.people",
+        "x-athlentry-scope": "organization",
         "tags": ["attendance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4482,6 +4536,9 @@
       "patch": {
         "operationId": "patch_api_v1_attendance_orgs_orgId_events_eventId_people_personId_attendance",
         "summary": "Record attendance and check-in",
+        "x-athlentry-permission": "attendance.manage",
+        "x-athlentry-resource": "attendance.events.people",
+        "x-athlentry-scope": "organization",
         "tags": ["attendance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4516,6 +4573,9 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": {
+          "body": { "status": "present", "expectedVersion": 0 }
+        },
         "parameters": [
           {
             "name": "orgId",
@@ -4542,18 +4602,21 @@
             "application/json": {
               "schema": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "anyOf": [
-                  { "type": "string" },
-                  { "type": "number" },
-                  { "type": "boolean" },
-                  { "type": "null" },
-                  { "type": "array", "items": { "$ref": "#" } },
-                  {
-                    "type": "object",
-                    "propertyNames": { "type": "string" },
-                    "additionalProperties": { "$ref": "#" }
-                  }
-                ]
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["present", "absent", "late", "excused", "unknown"]
+                  },
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "checkIn": { "type": "boolean" }
+                },
+                "required": ["status", "expectedVersion"],
+                "additionalProperties": false
               }
             }
           }
@@ -4564,6 +4627,9 @@
       "post": {
         "operationId": "post_api_v1_attendance_orgs_orgId_events_eventId_people_personId_check_out",
         "summary": "Check out an athlete to an authorized pickup person",
+        "x-athlentry-permission": "attendance.manage",
+        "x-athlentry-resource": "attendance.events.people",
+        "x-athlentry-scope": "organization",
         "tags": ["attendance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4646,6 +4712,9 @@
       "put": {
         "operationId": "put_api_v1_attendance_orgs_orgId_contests_contestId_teams_teamSeasonId_lineup",
         "summary": "Save a contest lineup",
+        "x-athlentry-permission": "attendance.manage",
+        "x-athlentry-resource": "attendance.contests.teams",
+        "x-athlentry-scope": "organization",
         "tags": ["attendance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4728,6 +4797,9 @@
       "get": {
         "operationId": "get_api_v1_attendance_orgs_orgId_reports",
         "summary": "Get an attendance report",
+        "x-athlentry-permission": "attendance.read",
+        "x-athlentry-resource": "attendance.reports",
+        "x-athlentry-scope": "organization",
         "tags": ["attendance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -4762,12 +4834,52 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": {
+          "body": {},
+          "query": {
+            "from": "2026-01-01T00:00:00Z",
+            "to": "2026-01-02T00:00:00Z"
+          }
+        },
         "parameters": [
           {
             "name": "orgId",
             "in": "path",
             "required": true,
             "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            }
+          },
+          {
+            "name": "teamSeasonId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
           }
         ]
       }
@@ -11908,6 +12020,9 @@
       "get": {
         "operationId": "get_api_v1_contests_orgs_orgId_events_eventId_results",
         "summary": "List event contest results",
+        "x-athlentry-permission": "contests.read",
+        "x-athlentry-resource": "contests.events.results",
+        "x-athlentry-scope": "organization",
         "tags": ["contests"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -11942,6 +12057,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -11962,6 +12078,9 @@
       "post": {
         "operationId": "post_api_v1_contests_orgs_orgId_events_eventId_contests",
         "summary": "Create a format-versioned contest",
+        "x-athlentry-permission": "contests.manage",
+        "x-athlentry-resource": "contests.events.contests",
+        "x-athlentry-scope": "organization",
         "tags": ["contests"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12038,6 +12157,9 @@
       "get": {
         "operationId": "get_api_v1_contests_orgs_orgId_contests_contestId",
         "summary": "Get contest and result history",
+        "x-athlentry-permission": "contests.read",
+        "x-athlentry-resource": "contests.contests",
+        "x-athlentry-scope": "organization",
         "tags": ["contests"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12072,6 +12194,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -12092,6 +12215,9 @@
       "post": {
         "operationId": "post_api_v1_contests_orgs_orgId_contests_contestId_results",
         "summary": "Submit or finalize contest results",
+        "x-athlentry-permission": "contests.manage",
+        "x-athlentry-resource": "contests.contests.results",
+        "x-athlentry-scope": "organization",
         "tags": ["contests"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12168,6 +12294,9 @@
       "put": {
         "operationId": "put_api_v1_contests_orgs_orgId_contests_contestId_meet_assignments",
         "summary": "Assign timed meet participants to heats and lanes",
+        "x-athlentry-permission": "contests.manage",
+        "x-athlentry-resource": "contests.contests.meet-assignments",
+        "x-athlentry-scope": "organization",
         "tags": ["contests"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12244,6 +12373,9 @@
       "post": {
         "operationId": "post_api_v1_contests_orgs_orgId_contests_contestId_confirm",
         "summary": "Confirm an opponent result",
+        "x-athlentry-permission": "contests.manage",
+        "x-athlentry-resource": "contests.contests.confirm",
+        "x-athlentry-scope": "organization",
         "tags": ["contests"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12320,6 +12452,9 @@
       "post": {
         "operationId": "post_api_v1_contests_orgs_orgId_contests_contestId_disputes",
         "summary": "Dispute a contest result",
+        "x-athlentry-permission": "contests.manage",
+        "x-athlentry-resource": "contests.contests.disputes",
+        "x-athlentry-scope": "organization",
         "tags": ["contests"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12396,6 +12531,9 @@
       "get": {
         "operationId": "get_api_v1_contests_orgs_orgId_teams_teamSeasonId_stats",
         "summary": "List team statistics",
+        "x-athlentry-permission": "contests.read",
+        "x-athlentry-resource": "contests.teams.stats",
+        "x-athlentry-scope": "organization",
         "tags": ["contests"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12430,6 +12568,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -12450,6 +12589,9 @@
       "get": {
         "operationId": "get_api_v1_contests_orgs_orgId_programs_programId_stats_settings",
         "summary": "Get program statistic settings",
+        "x-athlentry-permission": "contests.read",
+        "x-athlentry-resource": "contests.programs.stats",
+        "x-athlentry-scope": "organization",
         "tags": ["contests"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12484,6 +12626,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -12502,6 +12645,9 @@
       "put": {
         "operationId": "put_api_v1_contests_orgs_orgId_programs_programId_stats_settings",
         "summary": "Update program statistic settings",
+        "x-athlentry-permission": "contests.manage",
+        "x-athlentry-resource": "contests.programs.stats",
+        "x-athlentry-scope": "organization",
         "tags": ["contests"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12578,6 +12724,9 @@
       "get": {
         "operationId": "get_api_v1_contests_orgs_orgId_programs_programId_stats_leaders",
         "summary": "List program or division statistic leaders",
+        "x-athlentry-permission": "contests.read",
+        "x-athlentry-resource": "contests.programs.stats",
+        "x-athlentry-scope": "organization",
         "tags": ["contests"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12612,6 +12761,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -12643,6 +12793,9 @@
       "get": {
         "operationId": "get_api_v1_contests_orgs_orgId_people_personId_personal_bests",
         "summary": "List athlete personal bests",
+        "x-athlentry-permission": "contests.read",
+        "x-athlentry-resource": "contests.people.personal-bests",
+        "x-athlentry-scope": "organization",
         "tags": ["contests"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12677,6 +12830,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -12697,6 +12851,9 @@
       "get": {
         "operationId": "get_api_v1_contests_public_orgs_orgSlug_contests_contestId_live",
         "summary": "Read public live contest results",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "contests.contests.public",
+        "x-athlentry-scope": "public",
         "tags": ["contests"],
         "security": [],
         "responses": {
@@ -13460,7 +13617,7 @@
           "200": {
             "description": "Success",
             "content": {
-              "application/octet-stream": {
+              "application/pdf": {
                 "schema": { "type": "string", "format": "binary" }
               }
             }
@@ -13503,7 +13660,7 @@
           "200": {
             "description": "Success",
             "content": {
-              "application/octet-stream": {
+              "application/pdf": {
                 "schema": { "type": "string", "format": "binary" }
               }
             }
@@ -19258,6 +19415,9 @@
       "get": {
         "operationId": "get_api_v1_imports_orgs_orgId_batches",
         "summary": "List import batches",
+        "x-athlentry-permission": "imports.read",
+        "x-athlentry-resource": "imports.batches",
+        "x-athlentry-scope": "organization",
         "tags": ["imports"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -19403,6 +19563,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -19415,6 +19576,9 @@
       "post": {
         "operationId": "post_api_v1_imports_orgs_orgId_batches",
         "summary": "Create an import batch and preview staged rows",
+        "x-athlentry-permission": "imports.manage",
+        "x-athlentry-resource": "imports.batches",
+        "x-athlentry-scope": "organization",
         "tags": ["imports"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -19670,6 +19834,9 @@
       "get": {
         "operationId": "get_api_v1_imports_orgs_orgId_batches_batchId",
         "summary": "Read an import batch with per-row preview",
+        "x-athlentry-permission": "imports.read",
+        "x-athlentry-resource": "imports.batches",
+        "x-athlentry-scope": "organization",
         "tags": ["imports"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -19865,6 +20032,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -19885,6 +20053,9 @@
       "post": {
         "operationId": "post_api_v1_imports_orgs_orgId_batches_batchId_commit",
         "summary": "Commit a previewed import batch",
+        "x-athlentry-permission": "imports.manage",
+        "x-athlentry-resource": "imports.batches.commit",
+        "x-athlentry-scope": "organization",
         "tags": ["imports"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -20035,6 +20206,9 @@
       "post": {
         "operationId": "post_api_v1_imports_orgs_orgId_batches_batchId_rollback",
         "summary": "Roll back a committed import batch",
+        "x-athlentry-permission": "imports.manage",
+        "x-athlentry-resource": "imports.batches.rollback",
+        "x-athlentry-scope": "organization",
         "tags": ["imports"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -20185,6 +20359,9 @@
       "get": {
         "operationId": "get_api_v1_imports_orgs_orgId_presets",
         "summary": "List saved column-mapping presets",
+        "x-athlentry-permission": "imports.read",
+        "x-athlentry-resource": "imports.presets",
+        "x-athlentry-scope": "organization",
         "tags": ["imports"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -20253,6 +20430,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -20280,6 +20458,9 @@
       "post": {
         "operationId": "post_api_v1_imports_orgs_orgId_presets",
         "summary": "Save a column-mapping preset",
+        "x-athlentry-permission": "imports.manage",
+        "x-athlentry-resource": "imports.presets",
+        "x-athlentry-scope": "organization",
         "tags": ["imports"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22756,6 +22937,9 @@
       "get": {
         "operationId": "get_api_v1_officials_orgs_orgId_profiles",
         "summary": "List official profiles",
+        "x-athlentry-permission": "officials.read",
+        "x-athlentry-resource": "officials.profiles",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22790,6 +22974,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -22804,6 +22989,9 @@
       "put": {
         "operationId": "put_api_v1_officials_orgs_orgId_profiles_personId",
         "summary": "Create or update an official profile",
+        "x-athlentry-permission": "officials.manage",
+        "x-athlentry-resource": "officials.profiles",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22880,6 +23068,9 @@
       "post": {
         "operationId": "post_api_v1_officials_orgs_orgId_availability",
         "summary": "Set official availability",
+        "x-athlentry-permission": "officials.manage",
+        "x-athlentry-resource": "officials.availability",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22950,6 +23141,9 @@
       "get": {
         "operationId": "get_api_v1_officials_orgs_orgId_assignment_board",
         "summary": "View assignment candidates and conflicts",
+        "x-athlentry-permission": "officials.read",
+        "x-athlentry-resource": "officials.assignment-board",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -22984,12 +23178,52 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": {
+          "body": {},
+          "query": {
+            "from": "2026-01-01T00:00:00Z",
+            "to": "2026-01-02T00:00:00Z"
+          }
+        },
         "parameters": [
           {
             "name": "orgId",
             "in": "path",
             "required": true,
             "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            }
+          },
+          {
+            "name": "programId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
           }
         ]
       }
@@ -22998,6 +23232,9 @@
       "post": {
         "operationId": "post_api_v1_officials_orgs_orgId_assignments",
         "summary": "Assign an official to a contest position",
+        "x-athlentry-permission": "officials.manage",
+        "x-athlentry-resource": "officials.assignments",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23068,6 +23305,9 @@
       "get": {
         "operationId": "get_api_v1_officials_orgs_orgId_me_assignments",
         "summary": "List the current official assignments",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "officials.me.assignments",
+        "x-athlentry-scope": "account",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23116,6 +23356,9 @@
       "post": {
         "operationId": "post_api_v1_officials_orgs_orgId_me_contests_contestId_self_assign",
         "summary": "Self-assign to an open contest position",
+        "x-athlentry-permission": "account.self",
+        "x-athlentry-resource": "officials.me.contests",
+        "x-athlentry-scope": "account",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23192,6 +23435,9 @@
       "post": {
         "operationId": "post_api_v1_officials_orgs_orgId_assignments_assignmentId_respond",
         "summary": "Accept or decline an assignment offer",
+        "x-athlentry-permission": "officials.manage",
+        "x-athlentry-resource": "officials.assignments.respond",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23268,6 +23514,9 @@
       "post": {
         "operationId": "post_api_v1_officials_orgs_orgId_assignments_assignmentId_confirm",
         "summary": "Confirm an official assignment",
+        "x-athlentry-permission": "officials.manage",
+        "x-athlentry-resource": "officials.assignments.confirm",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23344,6 +23593,9 @@
       "post": {
         "operationId": "post_api_v1_officials_orgs_orgId_assignments_assignmentId_no_show",
         "summary": "Record an official no-show",
+        "x-athlentry-permission": "officials.manage",
+        "x-athlentry-resource": "officials.assignments.no-show",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23420,6 +23672,9 @@
       "post": {
         "operationId": "post_api_v1_officials_orgs_orgId_contests_contestId_reports",
         "summary": "Submit an official game report",
+        "x-athlentry-permission": "officials.manage",
+        "x-athlentry-resource": "officials.contests.reports",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23496,6 +23751,9 @@
       "post": {
         "operationId": "post_api_v1_officials_orgs_orgId_pay_batches",
         "summary": "Create an officials pay batch",
+        "x-athlentry-permission": "officials.manage",
+        "x-athlentry-resource": "officials.pay-batches",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23566,6 +23824,9 @@
       "post": {
         "operationId": "post_api_v1_officials_orgs_orgId_pay_batches_batchId_approve",
         "summary": "Approve an officials pay batch",
+        "x-athlentry-permission": "officials.manage",
+        "x-athlentry-resource": "officials.pay-batches.approve",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23642,6 +23903,9 @@
       "post": {
         "operationId": "post_api_v1_officials_orgs_orgId_pay_batches_batchId_record_payment",
         "summary": "Record officials pay batch payment",
+        "x-athlentry-permission": "officials.manage",
+        "x-athlentry-resource": "officials.pay-batches.record-payment",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23718,6 +23982,9 @@
       "get": {
         "operationId": "get_api_v1_officials_orgs_orgId_payroll_yearly_totals",
         "summary": "Get yearly officials pay totals",
+        "x-athlentry-permission": "officials.read",
+        "x-athlentry-resource": "officials.payroll.yearly-totals",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23752,12 +24019,27 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": {
+          "body": {},
+          "query": { "year": "2026" }
+        },
         "parameters": [
           {
             "name": "orgId",
             "in": "path",
             "required": true,
             "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2200
+            }
           }
         ]
       }
@@ -23766,6 +24048,9 @@
       "get": {
         "operationId": "get_api_v1_officials_orgs_orgId_payroll_yearly_totals_csv",
         "summary": "Export yearly officials pay as CSV",
+        "x-athlentry-permission": "officials.read",
+        "x-athlentry-resource": "officials.payroll.yearly-totals.csv",
+        "x-athlentry-scope": "organization",
         "tags": ["officials"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23786,12 +24071,27 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": {
+          "body": {},
+          "query": { "year": "2026" }
+        },
         "parameters": [
           {
             "name": "orgId",
             "in": "path",
             "required": true,
             "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2200
+            }
           }
         ]
       }
@@ -23800,6 +24100,9 @@
       "get": {
         "operationId": "get_api_v1_people_orgs_orgId_personId_athlete_link",
         "summary": "Read a child athlete account link as a verified guardian",
+        "x-athlentry-permission": "people.read",
+        "x-athlentry-resource": "people.athlete-link",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23862,6 +24165,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -23882,6 +24186,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_personId_athlete_invitations",
         "summary": "Invite a 13–17-year-old athlete account as a guardian",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.athlete-invitations",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -23965,6 +24272,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_athlete_invitations_accept",
         "summary": "Accept a guardian-issued athlete account invitation",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.athlete-invitations.accept",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24035,6 +24345,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_personId_athlete_link_revoke",
         "summary": "Revoke a minor athlete account as a guardian",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.athlete-link.revoke",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24117,6 +24430,9 @@
       "get": {
         "operationId": "get_api_v1_people_orgs_orgId_personId_emergency_contacts",
         "summary": "List audited emergency contacts for an authorized person",
+        "x-athlentry-permission": "people.read",
+        "x-athlentry-resource": "people.emergency-contacts",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24201,6 +24517,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -24219,6 +24536,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_personId_emergency_contacts",
         "summary": "Add an emergency contact",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.emergency-contacts",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24365,6 +24685,9 @@
       "patch": {
         "operationId": "patch_api_v1_people_orgs_orgId_personId_emergency_contacts_contactId",
         "summary": "Update a versioned emergency contact",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.emergency-contacts",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24449,6 +24772,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": { "expectedVersion": 1 } },
         "parameters": [
           {
             "name": "orgId",
@@ -24520,6 +24844,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_personId_emergency_contacts_contactId_remove",
         "summary": "Retain and remove an emergency contact",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.emergency-contacts.remove",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24650,6 +24977,9 @@
       "get": {
         "operationId": "get_api_v1_people_orgs_orgId_personId_medical",
         "summary": "Read audited medical profile at actor visibility level",
+        "x-athlentry-permission": "people.read",
+        "x-athlentry-resource": "people.medical",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24764,6 +25094,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -24782,6 +25113,9 @@
       "patch": {
         "operationId": "patch_api_v1_people_orgs_orgId_personId_medical",
         "summary": "Replace a versioned encrypted medical profile",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.medical",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -24895,6 +25229,20 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": {
+            "allergies": "x",
+            "allergyFlags": [],
+            "conditions": "x",
+            "medications": "x",
+            "physicianName": "x",
+            "physicianPhone": "x",
+            "insuranceCarrier": "x",
+            "insurancePolicy": "x",
+            "notes": "x",
+            "expectedVersion": 0
+          }
         },
         "parameters": [
           {
@@ -27228,6 +27576,9 @@
       "get": {
         "operationId": "get_api_v1_people_orgs_orgId_duplicates",
         "summary": "List suspected duplicate people pairs for review",
+        "x-athlentry-permission": "people.read",
+        "x-athlentry-resource": "people.duplicates",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -27329,6 +27680,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -27343,6 +27695,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_merges",
         "summary": "Merge a duplicate person into the surviving record",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.merges",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -28198,6 +28553,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_personId_claim_invitations",
         "summary": "Staff invite an adult to claim their person profile",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.claim-invitations",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -28281,6 +28639,9 @@
       "post": {
         "operationId": "post_api_v1_people_orgs_orgId_claim_invitations_accept",
         "summary": "Accept a person- and email-bound adult claim invitation",
+        "x-athlentry-permission": "people.manage",
+        "x-athlentry-resource": "people.claim-invitations.accept",
+        "x-athlentry-scope": "organization",
         "tags": ["people"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -30929,6 +31290,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_orgs_orgId_events",
         "summary": "List organization events",
+        "x-athlentry-permission": "scheduling.read",
+        "x-athlentry-resource": "scheduling.events",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -31075,6 +31439,13 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": {
+          "body": {},
+          "query": {
+            "from": "2026-01-01T00:00:00Z",
+            "to": "2026-01-02T00:00:00Z"
+          }
+        },
         "parameters": [
           {
             "name": "orgId",
@@ -31141,6 +31512,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_events",
         "summary": "Create an event",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.events",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -31488,6 +31862,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_events_conflicts",
         "summary": "Check event conflicts",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.events.conflicts",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -31751,6 +32128,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_orgs_orgId_events_eventId",
         "summary": "Get an event",
+        "x-athlentry-permission": "scheduling.read",
+        "x-athlentry-resource": "scheduling.events",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -31887,6 +32267,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -31905,6 +32286,9 @@
       "patch": {
         "operationId": "patch_api_v1_scheduling_orgs_orgId_events_eventId",
         "summary": "Update an event",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.events",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -32041,6 +32425,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": { "expectedVersion": 1 } },
         "parameters": [
           {
             "name": "orgId",
@@ -32255,6 +32640,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_events_eventId_publish",
         "summary": "Publish an event",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.events.publish",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -32431,6 +32819,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_event_series",
         "summary": "Create a recurring event series",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.event-series",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -32837,6 +33228,9 @@
       "patch": {
         "operationId": "patch_api_v1_scheduling_orgs_orgId_event_series_seriesId",
         "summary": "Edit a recurring event series",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.event-series",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -32881,6 +33275,13 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": {
+            "scope": "this",
+            "occurrenceStartsAt": "2026-09-27T12:00:00.000Z",
+            "expectedVersion": 1
+          }
         },
         "parameters": [
           {
@@ -33289,6 +33690,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_orgs_orgId_facilities",
         "summary": "List facilities",
+        "x-athlentry-permission": "scheduling.read",
+        "x-athlentry-resource": "scheduling.facilities",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -33341,6 +33745,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -33353,6 +33758,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_facilities",
         "summary": "Create a facility",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.facilities",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -33483,6 +33891,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_spaces",
         "summary": "Create a facility space",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.spaces",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -33606,6 +34017,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_orgs_orgId_spaces",
         "summary": "List facility spaces",
+        "x-athlentry-permission": "scheduling.read",
+        "x-athlentry-resource": "scheduling.spaces",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -33658,6 +34072,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -33683,6 +34098,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_orgs_orgId_spaces_spaceId_availability",
         "summary": "List space availability",
+        "x-athlentry-permission": "scheduling.read",
+        "x-athlentry-resource": "scheduling.spaces.availability",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -33734,6 +34152,13 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": {},
+          "query": {
+            "from": "2026-09-27T12:00:00.000Z",
+            "to": "2026-09-27T12:00:00.000Z"
+          }
         },
         "parameters": [
           {
@@ -33777,6 +34202,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_space_availability",
         "summary": "Create space availability",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.space-availability",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -34036,6 +34464,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_space_blackouts",
         "summary": "Create a facility or space blackout",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.space-blackouts",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -34129,6 +34560,9 @@
       "put": {
         "operationId": "put_api_v1_scheduling_orgs_orgId_schedule_settings",
         "summary": "Update schedule settings",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.schedule-settings",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -34208,6 +34642,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_team_seasons_teamSeasonId_blackout_requests",
         "summary": "Request a team schedule blackout",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.team-seasons.blackout-requests",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -34292,6 +34729,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_blackout_requests_requestId_decision",
         "summary": "Approve or decline a team blackout request",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.blackout-requests.decision",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -34367,6 +34807,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_games_bulk_shift",
         "summary": "Move games from one date to another",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.games.bulk-shift",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -34456,6 +34899,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_events_eventId_swap_home_away",
         "summary": "Swap event home and away teams",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.events.swap-home-away",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -34632,6 +35078,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_orgs_orgId_schedule_csv",
         "summary": "Export a schedule as CSV",
+        "x-athlentry-permission": "scheduling.read",
+        "x-athlentry-resource": "scheduling.schedule.csv",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -34651,6 +35100,15 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": {},
+          "query": {
+            "scope": "program",
+            "id": "00000000-0000-4000-8000-000000000001",
+            "from": "2026-01-01T00:00:00Z",
+            "to": "2026-01-02T00:00:00Z"
+          }
         },
         "parameters": [
           {
@@ -34709,6 +35167,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_schedule_csv_import",
         "summary": "Upload a schedule file for validation",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.schedule.csv.import",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -34797,6 +35258,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_orgs_orgId_schedule_import_runs_runId",
         "summary": "Get schedule import progress",
+        "x-athlentry-permission": "scheduling.read",
+        "x-athlentry-resource": "scheduling.schedule-import-runs",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -34831,6 +35295,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -34851,6 +35316,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_orgs_orgId_schedule_import_runs_runId_events",
         "summary": "Stream schedule import progress",
+        "x-athlentry-permission": "scheduling.read",
+        "x-athlentry-resource": "scheduling.schedule-import-runs.events",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -34885,6 +35353,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -34905,6 +35374,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_schedule_import_runs_runId_commit",
         "summary": "Commit a validated schedule import",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.schedule-import-runs.commit",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -34980,6 +35452,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_schedule_import_runs_runId_discard",
         "summary": "Discard a schedule import",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.schedule-import-runs.discard",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -35046,6 +35521,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_allocations",
         "summary": "Allocate recurring facility time",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.allocations",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -35312,6 +35790,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_allocations_allocationId_requests",
         "summary": "Request an allocated practice slot",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.allocations.requests",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -35391,6 +35872,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_allocation_requests_requestId_decision",
         "summary": "Approve or decline an allocation request",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.allocation-requests.decision",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -35466,6 +35950,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_orgs_orgId_allocation_requests",
         "summary": "List pending allocated-slot requests",
+        "x-athlentry-permission": "scheduling.read",
+        "x-athlentry-resource": "scheduling.allocation-requests",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -35518,6 +36005,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -35532,6 +36020,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_closures_preview",
         "summary": "Preview schedule closure effects",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.closures.preview",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -35636,6 +36127,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_closures",
         "summary": "Close a facility, space, or organization schedule",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.closures",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -35740,6 +36234,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_events_eventId_reschedule_requests",
         "summary": "Request an event reschedule",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.events.reschedule-requests",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -35846,6 +36343,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_reschedule_requests_requestId_decision",
         "summary": "Approve or decline a reschedule request",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.reschedule-requests.decision",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -35926,6 +36426,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_orgs_orgId_reschedule_requests",
         "summary": "List open event reschedule requests",
+        "x-athlentry-permission": "scheduling.read",
+        "x-athlentry-resource": "scheduling.reschedule-requests",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -35978,6 +36481,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -35992,6 +36496,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_programs_programId_generation_runs",
         "summary": "Start schedule generation",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.programs.generation-runs",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -36204,6 +36711,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_orgs_orgId_generation_runs_runId",
         "summary": "Get schedule generation progress and explanation report",
+        "x-athlentry-permission": "scheduling.read",
+        "x-athlentry-resource": "scheduling.generation-runs",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -36268,6 +36778,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -36288,6 +36799,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_orgs_orgId_generation_runs_runId_events",
         "summary": "Stream schedule generation progress",
+        "x-athlentry-permission": "scheduling.read",
+        "x-athlentry-resource": "scheduling.generation-runs.events",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -36322,6 +36836,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -36342,6 +36857,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_generation_runs_runId_apply",
         "summary": "Apply a generated schedule atomically",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.generation-runs.apply",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -36417,6 +36935,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_generation_runs_runId_discard",
         "summary": "Discard a generated schedule",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.generation-runs.discard",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -36483,6 +37004,9 @@
       "post": {
         "operationId": "post_api_v1_scheduling_orgs_orgId_calendar_feeds",
         "summary": "Create a tokenized calendar feed",
+        "x-athlentry-permission": "scheduling.manage",
+        "x-athlentry-resource": "scheduling.calendar-feeds",
+        "x-athlentry-scope": "organization",
         "tags": ["scheduling"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -36554,6 +37078,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_orgs_orgId_feeds_token_ics",
         "summary": "Read a tokenized iCalendar feed",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "scheduling.feeds.{token}.ics",
+        "x-athlentry-scope": "public",
         "tags": ["scheduling"],
         "security": [],
         "responses": {
@@ -36597,6 +37124,9 @@
       "get": {
         "operationId": "get_api_v1_scheduling_public_orgs_slug_facilities_facilityId",
         "summary": "View a public facility page and closure banner",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "scheduling.scheduling.public",
+        "x-athlentry-scope": "public",
         "tags": ["scheduling"],
         "security": [],
         "responses": {
@@ -36651,6 +37181,9 @@
       "get": {
         "operationId": "get_api_v1_standings_orgs_orgId_programs_programId_standings",
         "summary": "Read program standings",
+        "x-athlentry-permission": "standings.read",
+        "x-athlentry-resource": "standings.programs.standings",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -36685,6 +37218,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -36705,6 +37239,9 @@
       "post": {
         "operationId": "post_api_v1_standings_orgs_orgId_programs_programId_standings_refresh",
         "summary": "Refresh program standings snapshot",
+        "x-athlentry-permission": "standings.manage",
+        "x-athlentry-resource": "standings.programs.standings",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -36781,6 +37318,9 @@
       "put": {
         "operationId": "put_api_v1_standings_orgs_orgId_programs_programId_standings_config",
         "summary": "Configure program standings",
+        "x-athlentry-permission": "standings.manage",
+        "x-athlentry-resource": "standings.programs.standings",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -36857,6 +37397,9 @@
       "get": {
         "operationId": "get_api_v1_standings_orgs_orgId_divisions_divisionId_standings",
         "summary": "Read division standings",
+        "x-athlentry-permission": "standings.read",
+        "x-athlentry-resource": "standings.divisions.standings",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -36891,6 +37434,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -36911,6 +37455,9 @@
       "post": {
         "operationId": "post_api_v1_standings_orgs_orgId_divisions_divisionId_standings_refresh",
         "summary": "Refresh division standings snapshot",
+        "x-athlentry-permission": "standings.manage",
+        "x-athlentry-resource": "standings.divisions.standings",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -36987,6 +37534,9 @@
       "put": {
         "operationId": "put_api_v1_standings_orgs_orgId_divisions_divisionId_standings_config",
         "summary": "Configure division standings",
+        "x-athlentry-permission": "standings.manage",
+        "x-athlentry-resource": "standings.divisions.standings",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -37063,6 +37613,9 @@
       "get": {
         "operationId": "get_api_v1_standings_public_orgs_orgSlug_programs_programId",
         "summary": "Read public program standings",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "standings.standings.public",
+        "x-athlentry-scope": "public",
         "tags": ["standings"],
         "security": [],
         "responses": {
@@ -37117,6 +37670,9 @@
       "get": {
         "operationId": "get_api_v1_standings_public_orgs_orgSlug_divisions_divisionId",
         "summary": "Read public division standings",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "standings.standings.public",
+        "x-athlentry-scope": "public",
         "tags": ["standings"],
         "security": [],
         "responses": {
@@ -37171,6 +37727,9 @@
       "get": {
         "operationId": "get_api_v1_standings_orgs_orgId_programs_programId_season_surveys",
         "summary": "List end-of-season surveys",
+        "x-athlentry-permission": "standings.read",
+        "x-athlentry-resource": "standings.programs.season-surveys",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -37205,6 +37764,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -37223,6 +37783,9 @@
       "post": {
         "operationId": "post_api_v1_standings_orgs_orgId_programs_programId_season_surveys",
         "summary": "Create an end-of-season family survey",
+        "x-athlentry-permission": "standings.manage",
+        "x-athlentry-resource": "standings.programs.season-surveys",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -37299,6 +37862,9 @@
       "get": {
         "operationId": "get_api_v1_standings_orgs_orgId_season_surveys",
         "summary": "List open surveys for a verified family account",
+        "x-athlentry-permission": "standings.read",
+        "x-athlentry-resource": "standings.season-surveys",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -37333,6 +37899,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -37347,6 +37914,9 @@
       "patch": {
         "operationId": "patch_api_v1_standings_orgs_orgId_season_surveys_campaignId",
         "summary": "Open, close, or archive a family survey",
+        "x-athlentry-permission": "standings.manage",
+        "x-athlentry-resource": "standings.season-surveys",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -37380,6 +37950,9 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": {
+          "body": { "status": "closed", "expectedVersion": 1 }
         },
         "parameters": [
           {
@@ -37401,18 +37974,20 @@
             "application/json": {
               "schema": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "anyOf": [
-                  { "type": "string" },
-                  { "type": "number" },
-                  { "type": "boolean" },
-                  { "type": "null" },
-                  { "type": "array", "items": { "$ref": "#" } },
-                  {
-                    "type": "object",
-                    "propertyNames": { "type": "string" },
-                    "additionalProperties": { "$ref": "#" }
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["open", "closed", "archived"]
+                  },
+                  "expectedVersion": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
                   }
-                ]
+                },
+                "required": ["status", "expectedVersion"],
+                "additionalProperties": false
               }
             }
           }
@@ -37423,6 +37998,9 @@
       "post": {
         "operationId": "post_api_v1_standings_orgs_orgId_season_surveys_campaignId_responses",
         "summary": "Submit a verified family survey response",
+        "x-athlentry-permission": "standings.manage",
+        "x-athlentry-resource": "standings.season-surveys.responses",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -37499,6 +38077,9 @@
       "get": {
         "operationId": "get_api_v1_standings_orgs_orgId_season_surveys_campaignId_results",
         "summary": "Read family survey summary and comments",
+        "x-athlentry-permission": "standings.read",
+        "x-athlentry-resource": "standings.season-surveys.results",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -37533,6 +38114,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -37553,6 +38135,9 @@
       "put": {
         "operationId": "put_api_v1_standings_orgs_orgId_team_seasons_teamSeasonId_player_ratings",
         "summary": "Capture coach player ratings for next-season balancing",
+        "x-athlentry-permission": "standings.manage",
+        "x-athlentry-resource": "standings.team-seasons.player-ratings",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -37629,6 +38214,9 @@
       "get": {
         "operationId": "get_api_v1_standings_orgs_orgId_programs_programId_prior_player_ratings",
         "summary": "Read coach ratings from the prior season for team balancing",
+        "x-athlentry-permission": "standings.read",
+        "x-athlentry-resource": "standings.programs.prior-player-ratings",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -37663,6 +38251,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -37683,6 +38272,9 @@
       "get": {
         "operationId": "get_api_v1_standings_orgs_orgId_programs_programId_season_awards",
         "summary": "List season awards",
+        "x-athlentry-permission": "standings.read",
+        "x-athlentry-resource": "standings.programs.season-awards",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -37717,6 +38309,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -37735,6 +38328,9 @@
       "post": {
         "operationId": "post_api_v1_standings_orgs_orgId_programs_programId_season_awards",
         "summary": "Issue an individual or team season award",
+        "x-athlentry-permission": "standings.manage",
+        "x-athlentry-resource": "standings.programs.season-awards",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -37811,6 +38407,9 @@
       "post": {
         "operationId": "post_api_v1_standings_orgs_orgId_seasons_seasonId_archive",
         "summary": "Archive a completed season",
+        "x-athlentry-permission": "standings.manage",
+        "x-athlentry-resource": "standings.seasons.archive",
+        "x-athlentry-scope": "organization",
         "tags": ["standings"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -37887,6 +38486,9 @@
       "get": {
         "operationId": "get_api_v1_tournaments_orgs_orgId_programs_programId",
         "summary": "List tournament brackets",
+        "x-athlentry-permission": "tournaments.read",
+        "x-athlentry-resource": "tournaments.programs",
+        "x-athlentry-scope": "organization",
         "tags": ["tournaments"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -37921,6 +38523,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -37941,6 +38544,9 @@
       "post": {
         "operationId": "post_api_v1_tournaments_orgs_orgId_brackets",
         "summary": "Create a tournament bracket or pool program",
+        "x-athlentry-permission": "tournaments.manage",
+        "x-athlentry-resource": "tournaments.brackets",
+        "x-athlentry-scope": "organization",
         "tags": ["tournaments"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -38011,6 +38617,9 @@
       "get": {
         "operationId": "get_api_v1_tournaments_orgs_orgId_brackets_bracketId",
         "summary": "Get bracket, pools, matches, and check-in status",
+        "x-athlentry-permission": "tournaments.read",
+        "x-athlentry-resource": "tournaments.brackets",
+        "x-athlentry-scope": "organization",
         "tags": ["tournaments"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -38045,6 +38654,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",
@@ -38065,6 +38675,9 @@
       "post": {
         "operationId": "post_api_v1_tournaments_orgs_orgId_brackets_bracketId_generate",
         "summary": "Generate pool or elimination matches",
+        "x-athlentry-permission": "tournaments.manage",
+        "x-athlentry-resource": "tournaments.brackets.generate",
+        "x-athlentry-scope": "organization",
         "tags": ["tournaments"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -38141,6 +38754,9 @@
       "post": {
         "operationId": "post_api_v1_tournaments_orgs_orgId_brackets_bracketId_entries_entryId_check_in",
         "summary": "Check in a tournament team",
+        "x-athlentry-permission": "tournaments.manage",
+        "x-athlentry-resource": "tournaments.brackets.entries",
+        "x-athlentry-scope": "organization",
         "tags": ["tournaments"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -38223,6 +38839,9 @@
       "post": {
         "operationId": "post_api_v1_tournaments_orgs_orgId_brackets_bracketId_matches_matchId_contest",
         "summary": "Link a match to its contest",
+        "x-athlentry-permission": "tournaments.manage",
+        "x-athlentry-resource": "tournaments.brackets.matches",
+        "x-athlentry-scope": "organization",
         "tags": ["tournaments"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -38305,6 +38924,9 @@
       "post": {
         "operationId": "post_api_v1_tournaments_orgs_orgId_brackets_bracketId_pools",
         "summary": "Create a round-robin pool",
+        "x-athlentry-permission": "tournaments.manage",
+        "x-athlentry-resource": "tournaments.brackets.pools",
+        "x-athlentry-scope": "organization",
         "tags": ["tournaments"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -38381,6 +39003,9 @@
       "post": {
         "operationId": "post_api_v1_tournaments_orgs_orgId_brackets_pool_seeds",
         "summary": "Seed bracket entries from pool standings",
+        "x-athlentry-permission": "tournaments.manage",
+        "x-athlentry-resource": "tournaments.brackets.pool-seeds",
+        "x-athlentry-scope": "organization",
         "tags": ["tournaments"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -38451,6 +39076,9 @@
       "get": {
         "operationId": "get_api_v1_tournaments_public_orgs_orgSlug_brackets_bracketId",
         "summary": "Read a public tournament bracket",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "tournaments.tournaments.public",
+        "x-athlentry-scope": "public",
         "tags": ["tournaments"],
         "security": [],
         "responses": {

@@ -23,11 +23,51 @@ export const uploadBody = z.strictObject({
 export interface FilesRoutesDependencies {
   files: FilesService;
   context(request: Request): Promise<OrgContext>;
+  publicFacilityLayout(
+    orgSlug: string,
+    facilityId: string,
+  ): Promise<{ bytes: Uint8Array; mime: 'image/webp' | 'image/jpeg' } | null>;
 }
 
 export function createFilesRouter(dependencies: FilesRoutesDependencies) {
   const router = express.Router();
   router.use(express.json({ limit: '32kb' }));
+  router.get(
+    '/public/orgs/:orgSlug/facilities/:facilityId/layout',
+    async (request, response, next) => {
+      const orgSlug = z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .safeParse(request.params.orgSlug);
+      const facilityId = z.uuid().safeParse(request.params.facilityId);
+      if (!orgSlug.success || !facilityId.success) {
+        response.status(404).end();
+        return;
+      }
+      try {
+        const content = await dependencies.publicFacilityLayout(
+          orgSlug.data,
+          facilityId.data,
+        );
+        if (!content) {
+          response.status(404).end();
+          return;
+        }
+        response
+          .type(content.mime)
+          .set({
+            'Cache-Control': 'no-store',
+            'Content-Disposition': 'inline',
+            'X-Content-Type-Options': 'nosniff',
+          })
+          .send(Buffer.from(content.bytes));
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
   router.post('/uploads', async (request, response, next) => {
     try {
       const body = uploadBody.parse(request.body);
