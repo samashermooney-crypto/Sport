@@ -269,3 +269,143 @@ test('family registers two siblings together, signs waivers, and chooses uniform
     await database.destroy();
   }
 });
+
+test('family joins a full program waitlist from discovery', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  const database = createDatabase(
+    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+  );
+  try {
+    const factories = createTestFactories(database);
+    const actor = await factories.actor();
+    const program = await factories.program(actor);
+    const householdId = await factories.household(actor);
+    const registeredPersonId = await factories.person(actor, {
+      firstName: 'Jordan',
+      lastName: 'Family',
+      dateOfBirth: '2014-05-20',
+    });
+    const waitlistedPersonId = await factories.person(actor, {
+      firstName: 'Taylor',
+      lastName: 'Family',
+      dateOfBirth: '2016-02-14',
+    });
+    await createWithOrg(database)(actor, async (trx) => {
+      await trx
+        .updateTable('programs')
+        .set({
+          status: 'registration_open',
+          visibility: 'public',
+          settings: { waitlistMode: 'manual' },
+        })
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', program.programId)
+        .execute();
+      await trx
+        .updateTable('registration_offerings')
+        .set({
+          active: true,
+          visibility: 'public',
+          waitlist_enabled: true,
+        })
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', program.offeringId)
+        .execute();
+      await trx
+        .insertInto('household_members')
+        .values(
+          [registeredPersonId, waitlistedPersonId].map((personId) => ({
+            id: crypto.randomUUID(),
+            org_id: actor.orgId,
+            household_id: householdId,
+            person_id: personId,
+            role: 'athlete' as const,
+            financially_responsible: false,
+          })),
+        )
+        .execute();
+      await trx
+        .insertInto('person_account_links')
+        .values(
+          [registeredPersonId, waitlistedPersonId].map((personId) => ({
+            id: crypto.randomUUID(),
+            org_id: actor.orgId,
+            person_id: personId,
+            account_id: actor.accountId,
+            relationship: 'guardian' as const,
+            verified_at: new Date(),
+          })),
+        )
+        .execute();
+      await trx
+        .insertInto('capacity_counters')
+        .values(
+          [
+            ['program', program.programId],
+            ['division', program.divisionId],
+            ['offering', program.offeringId],
+          ].map(([subjectType, subjectId]) => ({
+            id: crypto.randomUUID(),
+            org_id: actor.orgId,
+            subject_type: subjectType as 'program' | 'division' | 'offering',
+            subject_id: subjectId ?? '',
+            capacity: 1,
+            confirmed: 1,
+          })),
+        )
+        .execute();
+    });
+    await factories.registration(
+      actor,
+      program,
+      registeredPersonId,
+      householdId,
+    );
+    const session = await database.transaction().execute((trx) =>
+      issueSession(
+        trx,
+        {
+          accountId: actor.accountId,
+          kind: 'cookie',
+          client: 'web',
+          privileged: false,
+        },
+        new Date(),
+      ),
+    );
+    await page.context().addCookies([
+      {
+        name: '__Host-athlentry_session',
+        value: session.token,
+        url: String(testInfo.project.use.baseURL),
+        secure: true,
+        httpOnly: true,
+        sameSite: 'Lax',
+      },
+    ]);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/portal/orgs/${actor.orgId}/register`);
+    const participant = page.getByLabel(
+      'Participant for Fixture League · Player waitlist',
+    );
+    await participant.selectOption(`${waitlistedPersonId}:${householdId}`);
+    await page.getByRole('button', { name: 'Join waitlist' }).click();
+    await expect(page.getByText('You are #1 on this waitlist.')).toBeVisible();
+
+    const entries = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('waitlist_entries')
+        .select(['person_id', 'position', 'status'])
+        .where('org_id', '=', actor.orgId)
+        .where('offering_id', '=', program.offeringId)
+        .execute(),
+    );
+    expect(entries).toEqual([
+      { person_id: waitlistedPersonId, position: 1, status: 'waiting' },
+    ]);
+  } finally {
+    await database.destroy();
+  }
+});

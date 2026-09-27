@@ -42,6 +42,19 @@ const startedSchema = z.strictObject({
   expiresAt: z.iso.datetime(),
   status: z.enum(['open', 'awaiting_payment', 'completed']),
 });
+const waitlistEntrySchema = z.strictObject({
+  id: z.uuid(),
+  offeringId: z.uuid(),
+  offeringName: z.string(),
+  programName: z.string(),
+  personId: z.uuid(),
+  personName: z.string(),
+  position: z.number().int().positive(),
+  status: z.string(),
+  checkoutId: z.uuid().nullable(),
+  offeredAt: z.string().nullable(),
+  offerExpiresAt: z.string().nullable(),
+});
 
 type CatalogItem = z.output<typeof catalogSchema>['items'][number];
 type Participant = z.output<typeof participantsSchema>['people'][number];
@@ -67,6 +80,10 @@ export function RegistrationScreen({
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [cart, setCart] = useState<CartLine[]>([]);
   const [busy, setBusy] = useState(false);
+  const [busyWaitlistOffering, setBusyWaitlistOffering] = useState('');
+  const [waitlistPositions, setWaitlistPositions] = useState<
+    Record<string, number>
+  >({});
   const [error, setError] = useState('');
   const base = `/registration/orgs/${encodeURIComponent(orgId)}`;
   const catalog = useQuery({
@@ -146,6 +163,39 @@ export function RegistrationScreen({
       );
     } finally {
       setBusy(false);
+    }
+  };
+  const joinWaitlist = async (item: CatalogItem): Promise<void> => {
+    const choice = selected[item.offeringId];
+    const participant = participants.data?.people.find(
+      (person) => `${person.personId}:${person.householdId}` === choice,
+    );
+    if (!participant || busyWaitlistOffering) return;
+    const joinedKey = `${item.offeringId}:${participant.personId}`;
+    setBusyWaitlistOffering(item.offeringId);
+    setError('');
+    try {
+      const entry = await apiPost(
+        `${base}/me/waitlist`,
+        {
+          offeringId: item.offeringId,
+          personId: participant.personId,
+          householdId: participant.householdId,
+        },
+        waitlistEntrySchema,
+      );
+      setWaitlistPositions((current) => ({
+        ...current,
+        [joinedKey]: entry.position,
+      }));
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Could not join this waitlist. Try again.',
+      );
+    } finally {
+      setBusyWaitlistOffering('');
     }
   };
 
@@ -246,6 +296,65 @@ export function RegistrationScreen({
                       >
                         Add to cart
                       </button>
+                    </>
+                  )}
+                {item.status === 'full' &&
+                  item.waitlistEnabled &&
+                  participants.data.people.length > 0 && (
+                    <>
+                      <label
+                        htmlFor={`waitlist-participant-${item.offeringId}`}
+                      >
+                        Participant for {item.programName} · {item.offeringName}{' '}
+                        waitlist
+                      </label>
+                      <select
+                        id={`waitlist-participant-${item.offeringId}`}
+                        value={selected[item.offeringId] ?? ''}
+                        onChange={(event) => {
+                          setSelected((current) => ({
+                            ...current,
+                            [item.offeringId]: event.target.value,
+                          }));
+                        }}
+                      >
+                        <option value="">Choose a family member</option>
+                        {participants.data.people.map((person: Participant) => (
+                          <option
+                            key={`${person.personId}:${person.householdId}`}
+                            value={`${person.personId}:${person.householdId}`}
+                          >
+                            {person.name} · {person.householdName}
+                          </option>
+                        ))}
+                      </select>
+                      {(() => {
+                        const choice = selected[item.offeringId];
+                        const selectedPersonId = choice?.split(':')[0] ?? '';
+                        const position =
+                          waitlistPositions[
+                            `${item.offeringId}:${selectedPersonId}`
+                          ];
+                        return position ? (
+                          <p role="status">
+                            You are #{position} on this waitlist.
+                          </p>
+                        ) : (
+                          <button
+                            className="button"
+                            type="button"
+                            disabled={
+                              !choice ||
+                              busyWaitlistOffering === item.offeringId
+                            }
+                            onClick={() => void joinWaitlist(item)}
+                          >
+                            {busyWaitlistOffering === item.offeringId
+                              ? 'Joining waitlist…'
+                              : 'Join waitlist'}
+                          </button>
+                        );
+                      })()}
                     </>
                   )}
               </section>
