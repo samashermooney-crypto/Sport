@@ -48,6 +48,11 @@ export function ConsoleHome(): React.JSX.Element {
       to: `/console/orgs/${orgId}/people`,
     },
     {
+      label: 'Manage households',
+      description: 'Create households and link people to them.',
+      to: `/console/orgs/${orgId}/households`,
+    },
+    {
       label: 'Review safety requirements',
       description: 'Edit the credential checks your organization uses.',
       to: `/orgs/${orgId}/credentials`,
@@ -75,8 +80,8 @@ export function ConsoleHome(): React.JSX.Element {
     },
   ];
   const actions = [
-    ...(workspace.data.canManage ? manageActions.slice(0, 5) : []),
-    ...(workspace.data.canAudit && manageActions[5] ? [manageActions[5]] : []),
+    ...(workspace.data.canManage ? manageActions.slice(0, 6) : []),
+    ...(workspace.data.canAudit && manageActions[6] ? [manageActions[6]] : []),
   ];
   const navigation = [
     {
