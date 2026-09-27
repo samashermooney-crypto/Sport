@@ -74,4 +74,57 @@ describe('team balancer', () => {
       }),
     );
   });
+
+  it('balances 120 players across 10 teams within 3% mean rating in under five seconds', () => {
+    const players = Array.from({ length: 120 }, (_, index) => {
+      const player: BalanceInput['players'][number] = {
+        id: `p${String(index)}`,
+        rating: 20 + ((index * 37) % 80),
+        positions: index % 12 === 0 ? ['keeper'] : index % 3 === 0 ? ['defense'] : ['field'],
+      };
+      if (index < 10) player.fixedTeamId = `t${String(index)}`;
+      else if (index < 20 && index % 2 === 0) player.friendRequestId = `p${String(index + 1)}`;
+      else if (index < 20) player.friendRequestId = `p${String(index - 1)}`;
+      else if (index < 40) player.siblingGroupId = `fam${String(index % 10)}`;
+      return player;
+    });
+    const teams = Array.from({ length: 10 }, (_, index) => ({
+      id: `t${String(index)}`,
+      maxRoster: 12,
+      minPositions: { keeper: 1 },
+    }));
+    const started = Date.now();
+    const output = balanceTeams({
+      players,
+      teams,
+      siblingsTogether: true,
+      returningStay: false,
+      seed: 2024,
+      timeBudgetSeconds: 5,
+    });
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(Object.keys(output.assignments)).toHaveLength(120);
+    expect(output.metrics.every((metric) => metric.size <= 12)).toBe(true);
+    expect(
+      output.metrics.every((metric) => metric.positionCoverageViolations === 0),
+    ).toBe(true);
+    for (let index = 0; index < 10; index += 1)
+      expect(output.assignments[`p${String(index)}`]).toBe(`t${String(index)}`);
+    const globalMean =
+      output.metrics.reduce((sum, metric) => sum + metric.totalRating, 0) / 120;
+    for (const metric of output.metrics)
+      expect(metric.meanRating).toBeGreaterThanOrEqual(globalMean * 0.97);
+    for (const metric of output.metrics)
+      expect(metric.meanRating).toBeLessThanOrEqual(globalMean * 1.03);
+    expect(
+      balanceTeams({
+        players,
+        teams,
+        siblingsTogether: true,
+        returningStay: false,
+        seed: 2024,
+        timeBudgetSeconds: 5,
+      }).assignments,
+    ).toEqual(output.assignments);
+  });
 });

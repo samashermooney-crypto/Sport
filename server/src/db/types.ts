@@ -903,6 +903,7 @@ export interface EvaluationParticipants {
   org_id: string;
   person_id: string;
   photo_file_id: string | null;
+  position_keys: Generated<string[]>;
   registration_id: string | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
@@ -1959,6 +1960,7 @@ export interface PgbossVersion {
 
 export interface PlacementBoards {
   created_at: Generated<Timestamp>;
+  division_id: string | null;
   evaluation_event_id: string | null;
   fairness_metrics: Generated<Json>;
   id: string;
@@ -1983,6 +1985,21 @@ export interface PlacementLocks {
   released_at: Timestamp | null;
   team_season_id: string;
   updated_at: Generated<Timestamp>;
+}
+
+export interface PlacementPreferences {
+  coach_rating: Numeric | null;
+  created_at: Generated<Timestamp>;
+  friend_request_person_id: string | null;
+  id: string;
+  note: string | null;
+  org_id: string;
+  person_id: string;
+  practice_location: string | null;
+  program_id: string;
+  source: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
 }
 
 export interface Plans {
@@ -2594,6 +2611,7 @@ export interface TeamOffers {
   checkout_id: string | null;
   created_at: Generated<Timestamp>;
   decline_reason: string | null;
+  declined_by_account_id: string | null;
   deposit_cents: number;
   expires_at: Timestamp;
   household_id: string;
@@ -2604,6 +2622,7 @@ export interface TeamOffers {
   person_id: string;
   placement_id: string;
   registration_id: string | null;
+  reminder_sent_at: Timestamp | null;
   responded_at: Timestamp | null;
   status: Generated<string>;
   team_season_id: string;
@@ -2870,6 +2889,7 @@ export interface DB {
   'pgboss.version': PgbossVersion;
   placement_boards: PlacementBoards;
   placement_locks: PlacementLocks;
+  placement_preferences: PlacementPreferences;
   plans: Plans;
   platform_audit_log: PlatformAuditLog;
   platform_feature_flags: PlatformFeatureFlags;

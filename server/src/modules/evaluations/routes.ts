@@ -18,6 +18,7 @@ import {
   offerSchema,
   participantSchema,
   placementMoveSchema,
+  placementPreferenceSchema,
   scoreSchema,
 } from './schemas';
 import {
@@ -39,10 +40,15 @@ import {
   listEvaluationResults,
   listFamilyOffers,
   listEvaluationScoringSheet,
+  listMyEvaluationResults,
+  listOfferDashboard,
+  listPlacementPreferences,
   lockPlacement,
   movePlacement,
   publishPlacementBoard,
   upsertEvaluationScore,
+  upsertPlacementPreference,
+  withdrawTeamOffer,
 } from './service';
 import type { EvaluationDependencies } from './service';
 import type { OfferCheckoutAdapter } from './service';
@@ -369,6 +375,84 @@ export function createEvaluationsRouter(
           uuid(request.params.boardId),
         ),
       );
+    }),
+  );
+  router.post(
+    '/orgs/:orgId/programs/:programId/boards',
+    endpoint(async (request, response) => {
+      const actor = await director(request);
+      const body = boardCreateSchema.parse(request.body);
+      response
+        .status(201)
+        .json(
+          await createPlacementBoard(
+            evaluations,
+            actor.context,
+            null,
+            uuid(request.params.programId),
+            body,
+          ),
+        );
+    }),
+  );
+  router.get(
+    '/orgs/:orgId/programs/:programId/placement-preferences',
+    endpoint(async (request, response) => {
+      const actor = await director(request);
+      response.json(
+        await listPlacementPreferences(
+          evaluations,
+          actor.context,
+          uuid(request.params.programId),
+        ),
+      );
+    }),
+  );
+  router.put(
+    '/orgs/:orgId/programs/:programId/placement-preferences',
+    endpoint(async (request, response) => {
+      const actor = await director(request);
+      response.json(
+        await upsertPlacementPreference(
+          evaluations,
+          actor.context,
+          uuid(request.params.programId),
+          placementPreferenceSchema.parse(request.body),
+        ),
+      );
+    }),
+  );
+  router.get(
+    '/orgs/:orgId/boards/:boardId/offers',
+    endpoint(async (request, response) => {
+      const actor = await director(request);
+      response.json(
+        await listOfferDashboard(
+          evaluations,
+          actor.context,
+          uuid(request.params.boardId),
+        ),
+      );
+    }),
+  );
+  router.post(
+    '/orgs/:orgId/offers/:offerId/withdraw',
+    endpoint(async (request, response) => {
+      const actor = await director(request);
+      response.json(
+        await withdrawTeamOffer(
+          evaluations,
+          actor.context,
+          uuid(request.params.offerId),
+        ),
+      );
+    }),
+  );
+  router.get(
+    '/orgs/:orgId/me/results',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      response.json(await listMyEvaluationResults(evaluations, actor.context));
     }),
   );
   router.get(

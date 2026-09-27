@@ -54,7 +54,7 @@ export function EvaluationScoringSheet(): React.JSX.Element {
   const sheet = useQuery({ queryKey: ['evaluation-scoring-sheet', orgId, eventId], queryFn: () => apiGet(`/evaluations/orgs/${orgId}/events/${eventId}/scoring-sheet`, scoringSheetSchema), enabled: Boolean(orgId && eventId) });
   useEffect(() => { sessionStorage.setItem(key, JSON.stringify(queue)); }, [key, queue]);
   useEffect(() => {
-    const changed = () => setOnline(navigator.onLine);
+    const changed = () => { setOnline(navigator.onLine); };
     window.addEventListener('online', changed); window.addEventListener('offline', changed);
     return () => { window.removeEventListener('online', changed); window.removeEventListener('offline', changed); };
   }, []);
@@ -144,13 +144,27 @@ export function FamilyOffers(): React.JSX.Element {
   return <PortalShell orgId={orgId}><main className="console-home evaluation-portal">
     <PageHeader kicker="TEAM PLACEMENT" title="Team offers" description="Review an offer, choose an installment plan at checkout, or decline with a reason." />
     {offers.isPending ? <p role="status">Loading offers…</p> : offers.isError ? <p role="alert">{offers.error.message}</p> : offers.data.length ? <div className="evaluation-offer-list">{offers.data.map((offer) => <Card key={offer.id}>
-      <div className="evaluation-score-athlete"><div><h2>{offer.firstName} {offer.lastName} · {offer.teamName}</h2><p>Offer ${((offer.amountCents ?? 0) / 100).toFixed(2)} · Deposit ${((offer.depositCents ?? 0) / 100).toFixed(2)}</p><p>Respond by {new Date(offer.expiresAt).toLocaleString()}</p>{offer.message && <p>{offer.message}</p>}</div><Badge tone={offer.status === 'accepted' ? 'ok' : offer.status === 'sent' ? 'warn' : 'neutral'}>{offer.status}</Badge></div>
+      <div className="evaluation-score-athlete"><div><h2>{offer.firstName} {offer.lastName} · {offer.teamName}</h2><p>Offer ${(offer.amountCents / 100).toFixed(2)} · Deposit ${(offer.depositCents / 100).toFixed(2)}</p><p>Respond by {new Date(offer.expiresAt).toLocaleString()}</p>{offer.message && <p>{offer.message}</p>}</div><Badge tone={offer.status === 'accepted' ? 'ok' : offer.status === 'sent' ? 'warn' : 'neutral'}>{offer.status}</Badge></div>
       {offer.status === 'sent' && <div className="evaluation-offer-actions">{offer.acceptanceReady && <Button type="button" onClick={() => void respond(offer.id, 'accept', offer.version)}>Accept and continue to deposit checkout</Button>}
         {!offer.acceptanceReady && <p role="status">Registration checkout is being connected for this offer. You can decline below.</p>}
-        <Field label="Reason for declining"><Input value={reasons[offer.id] ?? ''} onChange={(event) => setReasons((current) => ({ ...current, [offer.id]: event.target.value }))} maxLength={2000} /></Field>
+        <Field label="Reason for declining"><Input value={reasons[offer.id] ?? ''} onChange={(event) => { setReasons((current) => ({ ...current, [offer.id]: event.target.value })); }} maxLength={2000} /></Field>
         <Button secondary type="button" onClick={() => void respond(offer.id, 'decline', offer.version)}>Decline offer</Button>
       </div>}
     </Card>)}</div> : <Card><p>You have no team offers.</p></Card>}
     {notice && <p className="evaluation-sync-notice" role="status">{notice}</p>}
+  </main></PortalShell>;
+}
+
+const resultSchema = z.object({ eventId: z.uuid(), eventName: z.string(), participantId: z.uuid(), personId: z.uuid(), firstName: z.string(), lastName: z.string(), group: z.string(), composite: z.number().nullable(), rankInGroup: z.number().nullable(), evaluatorCount: z.number(), criterionValues: z.record(z.string(), z.number()) });
+const resultsListSchema = z.array(resultSchema);
+
+export function FamilyResults(): React.JSX.Element {
+  const { orgId = '' } = useParams();
+  const results = useQuery({ queryKey: ['evaluation-family-results', orgId], queryFn: () => apiGet(`/evaluations/orgs/${orgId}/me/results`, resultsListSchema), enabled: Boolean(orgId) });
+  return <PortalShell orgId={orgId}><main className="console-home evaluation-portal">
+    <PageHeader kicker="TRYOUTS" title="Evaluation results" description="Results are shared only when the organization chooses to release them." />
+    {results.isPending ? <p role="status">Loading results…</p> : results.isError ? <p role="alert">{results.error.message}</p> : results.data.length ? <div className="evaluation-offer-list">{results.data.map((row) => <Card key={row.participantId}>
+      <div className="evaluation-score-athlete"><div><h2>{row.firstName} {row.lastName}</h2><p>{row.eventName} · {row.group}</p>{Object.keys(row.criterionValues).length > 0 && <p>{Object.entries(row.criterionValues).map(([key, value]) => `${key}: ${value.toFixed(1)}`).join(' · ')}</p>}</div><Badge tone={row.composite === null ? 'neutral' : 'ok'}>{row.composite === null ? 'Incomplete' : `Rank ${String(row.rankInGroup ?? '—')} · ${row.composite.toFixed(2)}`}</Badge></div>
+    </Card>)}</div> : <Card><p>No shared evaluation results.</p></Card>}
   </main></PortalShell>;
 }

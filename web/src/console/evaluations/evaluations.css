@@ -77,6 +77,23 @@
   flex: 1 1 8rem;
 }
 
+.evaluation-move-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.evaluation-move-controls .select-wrap {
+  min-width: 10rem;
+}
+
+.evaluation-next-in-line {
+  margin-block: var(--space-2);
+  padding-inline-start: var(--space-5);
+  color: var(--muted);
+}
+
 .evaluation-notice {
   padding: var(--space-3);
   border: 1px solid var(--line);
