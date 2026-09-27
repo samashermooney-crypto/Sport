@@ -100,3 +100,64 @@ it('registers a verified adult captain with a stable request key', async () => {
     ),
   ).toBeTruthy();
 });
+
+it('shows invitation status to the captain after they load the team roster', async () => {
+  vi.mocked(apiGet).mockImplementation((path) =>
+    Promise.resolve(
+      path.endsWith('/team-entry-options')
+        ? {
+            offerings: [],
+            captains: [{ personId: captainPersonId, name: 'Jordan Captain' }],
+          }
+        : path.endsWith('/me/team-entries')
+          ? {
+              entries: [
+                {
+                  id: entryId,
+                  teamName: 'Northside United',
+                  programId: '0199a413-a221-7000-8000-000000000015',
+                  programName: 'Fall Soccer',
+                  divisionId: '0199a413-a221-7000-8000-000000000016',
+                  divisionName: 'U16',
+                  offeringId,
+                  offeringName: 'External team',
+                  captainPersonId,
+                  status: 'accepted',
+                  seedHint: null,
+                  createdAt: '2026-09-20T12:00:00.000Z',
+                  inviteCount: 1,
+                },
+              ],
+            }
+          : {
+              invites: [
+                {
+                  id: '0199a413-a221-7000-8000-000000000020',
+                  email: 'player@example.invalid',
+                  status: 'accepted',
+                  expiresAt: '2026-10-04T12:00:00.000Z',
+                },
+              ],
+            },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <TeamEntriesScreen orgId={orgId} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'View invitations' }),
+  );
+
+  expect(
+    await screen.findByText('player@example.invalid · accepted'),
+  ).toBeTruthy();
+});

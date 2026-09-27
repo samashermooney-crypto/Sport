@@ -68,6 +68,16 @@ const teamEntriesSchema = z.strictObject({
 const teamDecisionSchema = z.strictObject({
   status: z.enum(['accepted', 'declined']),
 });
+const teamEntryInvitesSchema = z.strictObject({
+  invites: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      email: z.email(),
+      status: z.enum(['pending', 'accepted', 'expired', 'canceled']),
+      expiresAt: z.iso.datetime(),
+    }),
+  ),
+});
 
 const refundPreviewSchema = z
   .strictObject({
@@ -167,6 +177,7 @@ export function RegistrationStaffScreen({
   const [teamDecisionNotes, setTeamDecisionNotes] = useState<
     Record<string, string>
   >({});
+  const [viewingTeamInvites, setViewingTeamInvites] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [cancelId, setCancelId] = useState('');
   const [transferIds, setTransferIds] = useState<Record<string, string>>({});
@@ -189,6 +200,20 @@ export function RegistrationStaffScreen({
   const teamEntries = useQuery({
     queryKey: ['registration', orgId, 'staff-team-entries'],
     queryFn: () => apiGet(`${base}/team-entries`, teamEntriesSchema),
+  });
+  const teamEntryInvites = useQuery({
+    queryKey: [
+      'registration',
+      orgId,
+      'staff-team-entry-invites',
+      viewingTeamInvites,
+    ],
+    queryFn: () =>
+      apiGet(
+        `${base}/team-entries/${encodeURIComponent(viewingTeamInvites)}/invites`,
+        teamEntryInvitesSchema,
+      ),
+    enabled: Boolean(viewingTeamInvites),
   });
   const waitlist = useQuery({
     queryKey: ['registration', orgId, 'staff-waitlist', loadedOfferingId],
@@ -663,6 +688,44 @@ export function RegistrationStaffScreen({
               {entry.programName} · {entry.divisionName} · {entry.offeringName}
             </p>
             <p>{entry.inviteCount} player invitations</p>
+            <button
+              className="button secondary"
+              type="button"
+              aria-expanded={viewingTeamInvites === entry.id}
+              onClick={() => {
+                setViewingTeamInvites((current) =>
+                  current === entry.id ? '' : entry.id,
+                );
+              }}
+            >
+              {viewingTeamInvites === entry.id
+                ? 'Hide player invitations'
+                : 'View player invitations'}
+            </button>
+            {viewingTeamInvites === entry.id ? (
+              <div aria-live="polite">
+                {teamEntryInvites.isFetching ? (
+                  <p role="status">Loading player invitations…</p>
+                ) : null}
+                {teamEntryInvites.error ? (
+                  <p role="alert" className="money-error">
+                    Player invitations are unavailable.
+                  </p>
+                ) : null}
+                {teamEntryInvites.data?.invites.length === 0 ? (
+                  <p>No player invitations yet.</p>
+                ) : null}
+                {teamEntryInvites.data ? (
+                  <ul className="money-invoices">
+                    {teamEntryInvites.data.invites.map((invite) => (
+                      <li key={invite.id}>
+                        {invite.email} · {invite.status}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
             {entry.status === 'pending_approval' ? (
               <>
                 <label htmlFor={`team-entry-decision-note-${entry.id}`}>

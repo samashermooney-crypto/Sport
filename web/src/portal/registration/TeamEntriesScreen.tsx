@@ -51,6 +51,16 @@ const invitesSchema = z.strictObject({
     }),
   ),
 });
+const inviteListSchema = z.strictObject({
+  invites: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      email: z.email(),
+      status: z.enum(['pending', 'accepted', 'expired', 'canceled']),
+      expiresAt: z.iso.datetime(),
+    }),
+  ),
+});
 
 export function TeamEntriesScreen({
   orgId,
@@ -67,6 +77,7 @@ export function TeamEntriesScreen({
   const [createdInvites, setCreatedInvites] = useState<
     Record<string, z.output<typeof invitesSchema>['invites']>
   >({});
+  const [viewingInvitesFor, setViewingInvitesFor] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
   const options = useQuery({
@@ -76,6 +87,15 @@ export function TeamEntriesScreen({
   const entries = useQuery({
     queryKey: ['registration', orgId, 'team-entries-mine'],
     queryFn: () => apiGet(`${base}/me/team-entries`, entriesSchema),
+  });
+  const inviteList = useQuery({
+    queryKey: ['registration', orgId, 'team-entry-invites', viewingInvitesFor],
+    queryFn: () =>
+      apiGet(
+        `${base}/team-entries/${encodeURIComponent(viewingInvitesFor)}/invites`,
+        inviteListSchema,
+      ),
+    enabled: Boolean(viewingInvitesFor),
   });
 
   const createEntry = async (): Promise<void> => {
@@ -131,9 +151,14 @@ export function TeamEntriesScreen({
         [entryId]: result.invites,
       }));
       setInviteEmails((current) => ({ ...current, [entryId]: '' }));
-      await queryClient.invalidateQueries({
-        queryKey: ['registration', orgId, 'team-entries-mine'],
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ['registration', orgId, 'team-entries-mine'],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['registration', orgId, 'team-entry-invites', entryId],
+        }),
+      ]);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -269,6 +294,43 @@ export function TeamEntriesScreen({
                       {entry.status}
                     </p>
                     <p>{entry.inviteCount} player invitations</p>
+                    <Button
+                      secondary
+                      aria-expanded={viewingInvitesFor === entry.id}
+                      onClick={() => {
+                        setViewingInvitesFor((current) =>
+                          current === entry.id ? '' : entry.id,
+                        );
+                      }}
+                    >
+                      {viewingInvitesFor === entry.id
+                        ? 'Hide invitations'
+                        : 'View invitations'}
+                    </Button>
+                    {viewingInvitesFor === entry.id ? (
+                      <div aria-live="polite">
+                        {inviteList.isFetching ? (
+                          <p role="status">Loading invitations…</p>
+                        ) : null}
+                        {inviteList.error ? (
+                          <p role="alert" className="money-error">
+                            Invitations are unavailable.
+                          </p>
+                        ) : null}
+                        {inviteList.data?.invites.length === 0 ? (
+                          <p>No player invitations yet.</p>
+                        ) : null}
+                        {inviteList.data ? (
+                          <ul className="money-invoices">
+                            {inviteList.data.invites.map((invite) => (
+                              <li key={invite.id}>
+                                {invite.email} · {invite.status}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </div>
+                    ) : null}
                     {['pending_approval', 'accepted'].includes(entry.status) ? (
                       <div className="registration-team-form">
                         <label htmlFor={`team-entry-emails-${entry.id}`}>
