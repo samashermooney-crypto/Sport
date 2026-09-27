@@ -1,6 +1,6 @@
 # Track E — Stripe and finance
 
-Status: working
+Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
 Current: Schema spine merged; Phase 4 and Phase 5 money core continue with expanded checkout pricing sources, dispute evidence and remaining family/staff money flows.
@@ -18,20 +18,21 @@ Ready for integration: local `a5253d4..d16ac2d` — pass-through net acceptance 
 Ready for integration: local `f56be6b..254448e` — immutable per-payment invoice-line allocations and multi-payment refund bounds; queue work continues.
 Ready for integration: local `1a2738c..0897daf` — database-backed sibling pricing for one household with confirmed registration history; queue work continues.
 Ready for integration: local `4e1b9ef..5ba8c41` — scoped discount-code reservations, redemption caps, stacking and exact invoice-link redemption; queue work continues.
-In progress: local `45c8a05..b151f55` — authenticated staff invoice issuance with payer/household checks and frozen refund terms; full Playwright gate remains red outside E-owned paths.
-In progress: local `a6296f1..9af07ea` — finance invoice detail and versioned void API; void refuses net money, active disputes, unsettled payments and active installments; full Playwright gate remains red outside E-owned paths.
-In progress: local `fa0b5b0..84c7407` — account-owned invoice balance feed and paginated portal component; full Playwright gate remains red outside E-owned paths.
-In progress: local `1ab284c..fbe26f7` — test-mode SetupIntent, saved-method list/default/remove portal UI and default-method API result; full Playwright gate remains red outside E-owned paths.
-In progress: local `8ad03dd..201dc02` — 25-run real-Postgres reconciliation property test across discounts, credits, partial offline payments, refund fixtures and voids; full Playwright gate remains red outside E-owned paths.
-In progress: local `e580bbf..88de49a` — finance-only aid award API reserves fixed or capped-percent awards under the season budget lock with exact-key replay; full Playwright gate remains red outside E-owned paths.
-In progress: local `85c080b..f60dd93` — finance-only season aid fund list/create/replace API with published-form opening, versioned transitions, restricted-read audit and budget floor; full Playwright gate remains red outside E-owned paths.
-In progress: local `bbecf15..5350906` — finance-only aid review queue with microsecond-safe pagination and versioned review/decline decisions; full Playwright gate remains red outside E-owned paths.
-In progress: local `309deb6..9583d13` — payer-scoped account/household credit balances and portal component with immediate guardian-link revocation; full Playwright gate remains red outside E-owned paths.
-In progress: local `0692b47..2f792db` — finance credit issuance and payer invoice application with recipient checks, revocation fencing and unsettled-payment guard; full Playwright gate remains red outside E-owned paths.
-In progress: local `85c7c4e..0f5feb9` — portal credit-to-invoice chooser with exact available cents and session-stable apply key; full Playwright gate remains red outside E-owned paths.
-In progress: local `388ab27..f48863d` — product-only tax rate API with exact-rate discounted-product invoice validation; full Playwright gate remains red outside E-owned paths.
+Ready for integration: local `45c8a05..b151f55` — authenticated staff invoice issuance with payer/household checks and frozen refund terms; latest merged-trunk full gate green.
+Ready for integration: local `a6296f1..9af07ea` — finance invoice detail and versioned void API; void refuses net money, active disputes, unsettled payments and active installments; latest merged-trunk full gate green.
+Ready for integration: local `fa0b5b0..84c7407` — account-owned invoice balance feed and paginated portal component; latest merged-trunk full gate green.
+Ready for integration: local `1ab284c..fbe26f7` — test-mode SetupIntent, saved-method list/default/remove portal UI and default-method API result; latest merged-trunk full gate green.
+Ready for integration: local `8ad03dd..201dc02` — 25-run real-Postgres reconciliation property test across discounts, credits, partial offline payments, refund fixtures and voids; latest merged-trunk full gate green.
+Ready for integration: local `e580bbf..88de49a` — finance-only aid award API reserves fixed or capped-percent awards under the season budget lock with exact-key replay; latest merged-trunk full gate green.
+Ready for integration: local `85c080b..f60dd93` — finance-only season aid fund list/create/replace API with published-form opening, versioned transitions, restricted-read audit and budget floor; latest merged-trunk full gate green.
+Ready for integration: local `bbecf15..5350906` — finance-only aid review queue with microsecond-safe pagination and versioned review/decline decisions; latest merged-trunk full gate green.
+Ready for integration: local `309deb6..9583d13` — payer-scoped account/household credit balances and portal component with immediate guardian-link revocation; latest merged-trunk full gate green.
+Ready for integration: local `0692b47..2f792db` — finance credit issuance and payer invoice application with recipient checks, revocation fencing and unsettled-payment guard; latest merged-trunk full gate green.
+Ready for integration: local `85c7c4e..0f5feb9` — portal credit-to-invoice chooser with exact available cents and session-stable apply key; latest merged-trunk full gate green.
+Ready for integration: local `388ab27..f48863d` — product-only tax rate API with exact-rate discounted-product invoice validation; latest merged-trunk full gate green.
 Ready for integration: local `f6b0eb9..212cbce` — payer year-end statement API and portal component with org-local calendar boundaries and dated Stripe/credit refunds; latest merged-trunk full gate green.
 Ready for integration: local `017746b..d957580` — payer-owned autopay mandate list and revocation, with future installment attempts stopped atomically; full gate green.
+Ready for integration: local `b498f3a..5af9888` — payer invoice/receipt PDFs, paginated receipt feed, portal links and embedded Open Sans font; latest full gate green.
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
@@ -42,6 +43,7 @@ Requests to other tracks: A: run registry/OpenAPI generation after merging E's `
 Requests to other tracks: A: include the new `/api/v1/finance/orgs/{orgId}/checkout-payment-intents` route in generated registry/OpenAPI after merging E; E owns the route and payer authorization (2026-09-27).
 Requests to other tracks: A: regenerate registry/OpenAPI for `/api/v1/finance/orgs/{orgId}/me/statements/{year}` and mount `YearEndStatementScreen` in the portal money route after merging E; the screen and finance route are E-owned (2026-09-27).
 Requests to other tracks: A: regenerate registry/OpenAPI for `/api/v1/finance/orgs/{orgId}/me/autopay` and its revoke route, and mount `AutopayScreen` in the portal money route after merging E (2026-09-27).
+Requests to other tracks: A: regenerate registry/OpenAPI for E's payer receipts feed and invoice/receipt binary PDF routes, and mount `ReceiptsScreen` beside `InvoiceBalanceScreen` in portal money; OpenAPI binary responses currently advertise octet-stream although the routes return application/pdf (2026-09-27).
 Requests to other tracks: A: mount E's `ConnectScreen`, `ConnectReturn`, and `ConnectRefresh` at the console money route and `/orgs/{orgId}/money/connect/{return,refresh}` targets in A-owned app router; E's Connect API supplies onboarding, continue, status and dashboard links (2026-09-27).
 Requests to other tracks: A: mount E's `CheckoutPaymentScreen` only after A/B checkout flow supplies payer-owned checkout/invoice IDs and the frozen quote; E's screen posts the stable key to its PaymentIntent route and validates returned cents before rendering Stripe (2026-09-27).
 Requests to other tracks: A: checkout flow must call E's `PostgresCheckoutInvoiceLinker.link(checkoutId, invoiceId)` after issuing the frozen checkout invoice and before presenting a PaymentIntent; migration 1022 enforces one invoice per checkout, and generated DB types need regeneration (2026-09-27).
@@ -94,6 +96,7 @@ Latest portal-credit gate: 607 tests passed/1 skipped; typecheck, lint and build
 Latest tax gate: 610 tests passed/1 skipped; typecheck, lint and build green; 20 focused rate/invoice/HTTP tests pass. Full Playwright remains red in A-owned flows noted above.
 Latest statement gate: 613 tests passed/1 skipped; typecheck, lint and build green; 20 focused statement/route/refund/component tests pass. The 25-run Postgres reconciliation property passes alone and now has a 20-second full-suite timeout. Full Playwright remains red in A-owned flows noted above.
 Latest autopay gate: 654 tests passed/1 skipped; typecheck, lint and build green; 18 focused mandate/route/component tests pass. Full Playwright on the merged trunk: 30 passed/4 skipped across Chromium and WebKit; the E-owned portal screen awaits mounting.
+Latest PDF gate: 659 tests passed/1 skipped; typecheck, lint and build green; payer ownership, ledger reconciliation, PDF bytes and unsupported-glyph refusal pass. Full Playwright rerun: 30 passed/4 skipped; first run had five transient A-owned auth/org/platform failures. The E-owned receipt screen awaits mounting.
 Latest saved-method gate: 578 tests passed/1 skipped; typecheck, lint and build green. Focused portal tests cover setup, default/remove actions and ambiguous confirmation; A-owned route mounting is still needed for browser coverage.
 Latest reconciliation gate: 579 tests passed/1 skipped; typecheck, lint and build green. Randomized test checks ledger/header totals and Track B-derived status after each step; Stripe refund lifecycle fixtures remain covered in their dedicated suites.
 Current review: Refund approval hashes bind requester, proposal, destination and key; checkout attempts serialize different keys before Stripe, and payout exports require exact reconciliation.
@@ -184,3 +187,4 @@ Portal credit action: `CreditBalanceScreen` now offers an invoice/source picker,
 Product tax: migration 1032 dedupes rate creation; finance-only API versions product rates and resolves active rates for future order writers; order invoice totals accept one tax rate only and verify its exact cents against discounted product lines, while issued lines keep their original rate after configuration changes.
 Year-end statements: migration 1033 dates new succeeded refunds; payer-only API totals succeeded payments and donation allocations by org-local calendar year and separates original-method refunds from credit movements. Legacy succeeded refunds without a date fail closed until reconciled; Stripe refund success time is the observed webhook settlement time, not a retroactive Stripe creation timestamp. The portal component awaits A-owned mounting.
 Autopay controls: payer-only API lists exact-account mandates and revokes one under the same installment-before-mandate lock order used by dunning; it stops future scheduled/failed charges, preserves consent evidence and replays revocation without another change. The portal screen shows method and invoice context and confirms the in-flight-payment caveat; new mandate capture remains in checkout flow.
+Money documents: `pdf-lib` 1.17.1 and fontkit 1.1.1 are dependency-only commits; payer-only invoice and receipt PDFs use a bundled Open Sans font with its OFL license, preserve supported text exactly and reject unsupported glyphs instead of replacing names. Receipt rendering checks every payment allocation and service-fee line share; the paginated feed refuses unreconciled legacy payments. PDF email delivery and additional script-font coverage remain in Phase 4 queue.
