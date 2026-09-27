@@ -254,4 +254,92 @@
 - **Context:** A member can hold distinct grants for a season, program, division or team season. Editing one grant must not overwrite grants at other scopes or let an owner use an ID from another organization.
 - **Decision:** Grant or revoke one scoped role at a time after checking the scoped entity under `withOrg`, with the same membership version, organization lock, owner step-up and target-session revocation as organization role edits. Ownership is restricted to organization scope and its separate accepted transfer flow.
 - **Why:** Each change is independently auditable and concurrent edits cannot silently overwrite each other.
-- **Consequences / follow-ups:** The staff UI needs a usable selector for existing scope records as the Phase 2 and 3 directories become available; it currently accepts a validated scope ID.
+- **Consequences / follow-ups:** The staff UI lists tenant-scoped seasons, programs, divisions and team seasons by name; grants remain version-checked when those records change.
+
+### DEC-031 — Transfer ownership only after recipient acceptance
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 users and roles
+- **Context:** The spec requires owner-initiated, step-up protected transfer that the recipient accepts. It does not specify token lifetime or how concurrent changes invalidate a pending request.
+- **Decision:** Send a single-use 24-hour transfer link to an active member's verified account. Acceptance requires that account's authenticated session and confirmed MFA; it checks both membership versions and both roles under the organization lock, grants the new owner first, revokes the previous owner's assignment, audits the action and revokes both accounts' sessions. A failed email send revokes the request.
+- **Why:** Consent, identity and tenant checks precede the authority change; stale transfers cannot override later membership changes.
+- **Consequences / follow-ups:** A changed membership requires a new request. The recipient signs in again after accepting because both sessions are revoked.
+
+### DEC-032 — Keep organization branding separate from the admin chrome
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 organization profile
+- **Context:** Organization branding must be editable, while the owner's existing web design system is fixed. The spec leaves default brand colors and URL validation open.
+- **Decision:** Store a tenant's primary and accent colors for public and communication surfaces without changing admin UI tokens. Use the frozen blue values as defaults, require each color to reach 4.5:1 contrast on white, and accept HTTPS website URLs. Logo changes require a completed same-organization image from the files module and a version-checked owner profile update.
+- **Why:** This preserves design parity and prevents unsafe URLs, unreadable brand text and cross-tenant or incomplete logo attachment.
+- **Consequences / follow-ups:** Public site and email rendering use these brand values when their phases land; the admin console keeps `tokens.css` values.
+
+### DEC-033 — Fail closed on production auth configuration
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 public authentication
+- **Context:** Local auth uses preview email and an AlwaysPass CAPTCHA; production needs explicit delivery and Turnstile configuration. Expired PostgreSQL rate-limit rows otherwise accumulate indefinitely.
+- **Decision:** Production startup requires approved legal documents, a strong session secret, HTTPS app URL, live delivery mode, database and encryption settings, Resend sender, Turnstile site and secret keys, and a VAPID public key. It uses server-side Turnstile verification and the configured Resend sender. An hourly registered worker job deletes only expired rate-limit rows; unexpired counters remain intact.
+- **Why:** Missing protection or credentials cannot silently fall back to local adapters in production, while scheduled cleanup bounds storage without resetting active limits.
+- **Consequences / follow-ups:** Deployment must provide these values before startup. Local development and tests continue to use preview/fake delivery; production service calls are not exercised in tests.
+
+### DEC-034 — Meet contrast minimums in calendar and pagination text
+- **Date:** 2026-09-26
+- **Phase / area:** Track D shared design system
+- **Context:** The legacy muted text colors for outside-month dates and pagination details fall below the required 4.5:1 contrast on their backgrounds.
+- **Decision:** Use the existing `--muted` token for those two text treatments while leaving the token palette unchanged.
+- **Why:** Accessibility is the only permitted visual adjustment under `01 §11a`; using the existing muted hue is the smallest passing change.
+- **Consequences / follow-ups:** These two labels are slightly darker than legacy; all remaining captured token values and component styling stay unchanged.
+
+### DEC-035 — Preserve modal styling while meeting phone touch targets
+- **Date:** 2026-09-26
+- **Phase / area:** Track D shared design system
+- **Context:** The legacy admin modal close control is 32px square, while `01 §11` requires 44×44px touch targets. The admin modal reference uses a 68px title bar.
+- **Decision:** Keep the 32px close affordance on desktop. On phone widths, expand its control box to 44×44px and reduce title-bar vertical padding so the captured title-bar height remains unchanged; retain the legacy icon, colors, border and typography.
+- **Why:** This satisfies the explicit touch target requirement with the smallest mobile-only change to the legacy modal.
+- **Consequences / follow-ups:** Phone screenshots include the wider invisible close-control area; modal styling otherwise follows the captured admin modal treatment.
+
+### DEC-036 — Correct empty-state copy contrast
+- **Date:** 2026-09-26
+- **Phase / area:** Track D shared design system
+- **Context:** The legacy empty-state copy color fails the required contrast check on a white panel, surfaced by the design parity axe audit.
+- **Decision:** Use the existing `--muted` token for shared empty-state copy while preserving its size, layout and surrounding styles.
+- **Why:** Accessibility is the only permitted visual adjustment under `01 §11a`; the existing muted token is the smallest passing change.
+- **Consequences / follow-ups:** Empty-state copy is darker than the original legacy color; the palette and all other captured values stay unchanged.
+
+### DEC-037 — Enumerate account organizations through the identity index
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 organization switcher
+- **Context:** Tenant rows cannot be scanned without an organization scope, while an account needs to list its own organizations.
+- **Decision:** Read only the signed-in account's global `linked_org_ids` index, then enter `withOrg` separately for each ID and include only active memberships in active or onboarding organizations. A workspace summary also reads roles inside `withOrg` and exposes only actions that the account can actually use.
+- **Why:** Account-specific discovery does not bypass tenant RLS or expose a removed, suspended or unrelated organization.
+- **Consequences / follow-ups:** The console switcher uses this list; every newly linked organization continues to update the account index through the existing membership trigger.
+
+### DEC-038 — Cap transfer reversals at recoverable Stripe funds
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 4 disputes and transfer reversals
+- **Context:** A disputed charge plus dispute fee may exceed the connected transfer amount that Stripe permits reversing.
+- **Decision:** Reverse only the remaining unreversed transfer amount and record any shortfall as unrecovered platform liability. A later dispute win restores only funds actually reversed.
+- **Why:** The ledger must never claim that Stripe moved money it could not reverse.
+- **Consequences / follow-ups:** Reconciliation and payout reports must show the outstanding liability until a real recovery is recorded.
+
+### DEC-039 — Freeze refund terms when an invoice is issued
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 4 invoice refunds
+- **Context:** Organization or program refund settings can change after an invoice is issued.
+- **Decision:** Persist the applicable refund policy, approval threshold and fee terms with the invoice at issuance. Refund calculations use that immutable snapshot.
+- **Why:** A later setting edit must not retroactively change a family's refund rights or the finance ledger.
+- **Consequences / follow-ups:** Historical invoices need an explicit policy snapshot before staff refund actions are enabled; unsupported mixed-payment allocations fail closed.
+
+### DEC-040 — Sanitize document photos as images
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 files
+- **Context:** The files module accepted JPEG/PNG document uploads but only re-encoded the `image` and `website_asset` purposes. A document photo could therefore preserve GPS metadata.
+- **Decision:** Re-encode every accepted image MIME type, including document photos, and store the sanitized WebP original and derivatives. Leave PDF and import bytes unchanged.
+- **Why:** A file's purpose does not reduce the location privacy risk of embedded image metadata.
+- **Consequences / follow-ups:** Document photo downloads return `image/webp`. A committed GPS-tagged JPEG fixture verifies that the original and both stored variants have no EXIF, XMP or IPTC metadata.
+
+### DEC-041 — Select the initial web language from a local preference
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 frontend internationalization
+- **Context:** The web app needs an initial language before authentication, when no account preference is available.
+- **Decision:** Use a saved explicit English or Spanish choice when available, then the browser language, then English. Update the document language when the user switches and continue rendering if browser storage is unavailable.
+- **Why:** A choice made on the sign-in screen should survive navigation, while private-browsing storage failures must not block access.
+- **Consequences / follow-ups:** Account preference synchronization and complete auth/portal/site translations remain part of Task 16.

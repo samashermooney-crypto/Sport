@@ -10,6 +10,7 @@ export const authTokenPurposeSchema = z.enum([
   'claim_person',
   'email_change',
   'mfa_challenge',
+  'ownership_transfer',
 ]);
 
 export const authTokenPayloadSchema = z.record(z.string(), z.json());

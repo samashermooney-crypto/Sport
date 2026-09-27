@@ -16,6 +16,16 @@ export interface ConnectOnboardingActions {
   openDashboard: () => Promise<{ url: string }>;
 }
 
+export function assertStripeDestination(url: string): void {
+  const target = new URL(url);
+  if (
+    target.protocol !== 'https:' ||
+    !target.hostname.endsWith('.stripe.com')
+  ) {
+    throw new Error('Stripe returned an invalid destination.');
+  }
+}
+
 export function ConnectOnboarding({
   account,
   actions,
@@ -36,13 +46,7 @@ export function ConnectOnboarding({
     setError('');
     try {
       const { url } = await action();
-      const target = new URL(url);
-      if (
-        target.protocol !== 'https:' ||
-        !target.hostname.endsWith('.stripe.com')
-      ) {
-        throw new Error('Stripe returned an invalid destination.');
-      }
+      assertStripeDestination(url);
       navigate(url);
     } catch (caught) {
       setError(

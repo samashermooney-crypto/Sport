@@ -17,6 +17,7 @@ async function request<T extends z.ZodType>(
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   body?: unknown,
   idempotencyKey?: string,
+  extraHeaders?: Record<string, string>,
 ): Promise<z.output<T>> {
   let response: Response;
   try {
@@ -37,6 +38,7 @@ async function request<T extends z.ZodType>(
         ...(impersonationId
           ? { 'X-Athlentry-Impersonation': impersonationId }
           : {}),
+        ...extraHeaders,
       },
       ...(method === 'GET' ? {} : { body: JSON.stringify(body ?? {}) }),
     });
@@ -85,8 +87,9 @@ export function apiPost<T extends z.ZodType>(
   body: unknown,
   schema: T,
   idempotencyKey?: string,
+  extraHeaders?: Record<string, string>,
 ): Promise<z.output<T>> {
-  return request(path, schema, 'POST', body, idempotencyKey);
+  return request(path, schema, 'POST', body, idempotencyKey, extraHeaders);
 }
 
 export function apiDelete<T extends z.ZodType>(

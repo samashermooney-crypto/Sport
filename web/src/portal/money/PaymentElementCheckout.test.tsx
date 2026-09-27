@@ -72,4 +72,24 @@ describe('Payment Element checkout', () => {
       }),
     );
   });
+
+  it('does not offer an immediate second submission after an ambiguous Stripe failure', async () => {
+    confirmPayment.mockRejectedValue(new Error('connection lost'));
+    render(
+      <PaymentElementCheckout
+        publishableKey="pk_test_fixture"
+        clientSecret="pi_test_secret"
+        quote={quote}
+        returnUrl="/me/payments/return"
+        onSubmitted={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Pay $51.80' }));
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain(
+        'status is unknown',
+      );
+    });
+    expect(screen.queryByRole('button', { name: 'Pay $51.80' })).toBeNull();
+  });
 });

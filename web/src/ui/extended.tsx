@@ -98,15 +98,22 @@ export function MoneyInput({
         step="0.01"
         value={value === '' ? '' : (value / 100).toFixed(2)}
         onChange={(event) => {
-          onChange(
-            event.target.value === ''
-              ? ''
-              : Math.round(Number(event.target.value) * 100),
-          );
+          onChange(dollarsToCents(event.target.value));
         }}
       />
     </span>
   );
+}
+
+function dollarsToCents(value: string): number | '' {
+  if (value === '') return '';
+  const match = /^(\d*)(?:\.(\d*))?$/.exec(value);
+  if (!match) return '';
+  const whole = BigInt(match[1] || '0');
+  const fraction = match[2] ?? '';
+  const cents = BigInt((fraction + '00').slice(0, 2));
+  const rounded = cents + (Number(fraction[2] ?? '0') >= 5 ? 1n : 0n);
+  return Number(whole * 100n + rounded);
 }
 export function PhoneInput(
   props: InputHTMLAttributes<HTMLInputElement>,
@@ -131,7 +138,9 @@ export function Combobox({
   onQueryChange?: (query: string) => void;
 }): React.JSX.Element {
   const id = useId();
+  const [query, setQuery] = useState<string | null>(null);
   const selected = options.find((option) => option.value === value);
+  const inputValue = query ?? selected?.label ?? value;
   return (
     <span className="ui-combobox">
       <input
@@ -139,13 +148,20 @@ export function Combobox({
         aria-busy={loading}
         aria-autocomplete="list"
         list={`${id}-options`}
-        value={selected?.label ?? value}
+        value={inputValue}
         placeholder={placeholder}
         onChange={(event) => {
           const query = event.target.value;
           const option = options.find((candidate) => candidate.label === query);
-          onChange(option?.value ?? query);
-          onQueryChange?.(option?.label ?? query);
+          if (option) {
+            setQuery(null);
+            onChange(option.value);
+            onQueryChange?.('');
+            return;
+          }
+          setQuery(query);
+          if (!query) onChange('');
+          onQueryChange?.(query);
         }}
       />
       <datalist id={`${id}-options`}>
@@ -277,6 +293,7 @@ export function Calendar({
     () => new Date(`${initialDate ?? toDateKey(new Date())}T00:00:00`),
   );
   const [localView, setLocalView] = useState(view);
+  const calendarGridRef = useRef<HTMLDivElement>(null);
   const activeView = onViewChange ? view : localView;
   const monthHeading = cursor.toLocaleDateString('en-US', {
     month: 'long',
@@ -328,6 +345,28 @@ export function Calendar({
     else next.setMonth(cursor.getMonth() + direction);
     setCursor(next);
   };
+  const moveGridFocus = (
+    event: React.KeyboardEvent<HTMLDivElement>,
+    day: Date,
+  ) => {
+    const dayDelta: Record<string, number> = {
+      ArrowLeft: -1,
+      ArrowRight: 1,
+      ArrowUp: -7,
+      ArrowDown: 7,
+    };
+    const delta = dayDelta[event.key];
+    if (delta === undefined) return;
+    event.preventDefault();
+    const next = new Date(day);
+    next.setDate(day.getDate() + delta);
+    setCursor(next);
+    requestAnimationFrame(() => {
+      calendarGridRef.current
+        ?.querySelector<HTMLElement>(`[data-date="${toDateKey(next)}"]`)
+        ?.focus();
+    });
+  };
   const views = [
     'month',
     'week',
@@ -338,11 +377,9 @@ export function Calendar({
   const firstDay = days[0];
   const lastDay = days[days.length - 1];
   const visibleEvents = events.filter((event) => {
+    if (activeView === 'resource') return event.date === toDateKey(cursor);
     const date = new Date(`${event.date}T00:00:00`);
-    return (
-      (activeView === 'resource' && event.date === toDateKey(cursor)) ||
-      (firstDay && lastDay && date >= firstDay && date <= lastDay)
-    );
+    return firstDay && lastDay && date >= firstDay && date <= lastDay;
   });
   return (
     <section className={`ui-calendar ui-calendar-${activeView}`}>
@@ -395,7 +432,7 @@ export function Calendar({
       {activeView === 'resource' && resources ? (
         <div
           className="ui-resource-calendar"
-          role="grid"
+          role="table"
           aria-label={`Resource schedule for ${heading}`}
         >
           <div className="ui-resource-time" role="row">
@@ -411,7 +448,12 @@ export function Calendar({
           {resources.map((resource) => (
             <div className="ui-resource-row" role="row" key={resource}>
               <strong role="rowheader">{resource}</strong>
-              <div className="ui-resource-slots" role="presentation">
+              <div
+                className="ui-resource-slots"
+                role="cell"
+                aria-colspan={16}
+                aria-label={`${resource} time slots`}
+              >
                 {Array.from({ length: 16 }, (_, index) => (
                   <span aria-hidden="true" key={index} />
                 ))}
@@ -481,32 +523,67 @@ export function Calendar({
           className={`ui-month-grid ui-grid-${activeView}`}
           role="grid"
           aria-label={heading}
+          ref={calendarGridRef}
         >
-          {activeView !== 'day' &&
-            ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-              <strong role="columnheader" key={day}>
-                {day}
-              </strong>
-            ))}
-          {days.map((day) => (
+          {activeView !== 'day' && (
+            <div className="ui-calendar-grid-row" role="row">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                <strong role="columnheader" key={day}>
+                  {day}
+                </strong>
+              ))}
+            </div>
+          )}
+          {(activeView === 'month'
+            ? Array.from({ length: 6 }, (_, index) =>
+                days.slice(index * 7, index * 7 + 7),
+              )
+            : [days]
+          ).map((week) => (
             <div
-              role="gridcell"
-              key={day.toISOString()}
-              className={
-                activeView === 'month' && day.getMonth() !== cursor.getMonth()
-                  ? 'outside'
-                  : ''
-              }
+              className="ui-calendar-grid-row"
+              role="row"
+              key={week[0] ? toDateKey(week[0]) : 'empty'}
             >
-              <time dateTime={toDateKey(day)}>{day.getDate()}</time>
-              {visibleEvents
-                .filter((event) => event.date === toDateKey(day))
-                .map((event) => (
-                  <span className="ui-calendar-event" key={event.id}>
-                    {event.time && `${event.time} · `}
-                    {event.title}
-                  </span>
-                ))}
+              {week.map((day) => {
+                const dateKey = toDateKey(day);
+                return (
+                  <div
+                    role="gridcell"
+                    aria-label={day.toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                    aria-selected={dateKey === toDateKey(cursor)}
+                    tabIndex={dateKey === toDateKey(cursor) ? 0 : -1}
+                    data-date={dateKey}
+                    key={dateKey}
+                    className={
+                      activeView === 'month' &&
+                      day.getMonth() !== cursor.getMonth()
+                        ? 'outside'
+                        : ''
+                    }
+                    onKeyDown={(event) => {
+                      moveGridFocus(event, day);
+                    }}
+                    onFocus={() => {
+                      if (dateKey !== toDateKey(cursor)) setCursor(day);
+                    }}
+                  >
+                    <time dateTime={dateKey}>{day.getDate()}</time>
+                    {visibleEvents
+                      .filter((event) => event.date === dateKey)
+                      .map((event) => (
+                        <span className="ui-calendar-event" key={event.id}>
+                          {event.time && `${event.time} · `}
+                          {event.title}
+                        </span>
+                      ))}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>
@@ -557,12 +634,19 @@ export function StatTile({
 export function Chart({
   title,
   values,
-  color = 'var(--accent)',
+  tone = 'accent',
 }: {
   title: string;
   values: { label: string; value: number }[];
-  color?: string;
+  tone?: 'accent' | 'ok' | 'warn' | 'bad' | 'chrome';
 }): React.JSX.Element {
+  const colors = {
+    accent: 'var(--accent)',
+    ok: 'var(--ok)',
+    warn: 'var(--warn)',
+    bad: 'var(--bad)',
+    chrome: 'var(--chrome)',
+  } as const;
   const label = `${title}: ${values
     .map((item) => `${item.label} ${item.value.toString()}`)
     .join(', ')}`;
@@ -582,7 +666,7 @@ export function Chart({
               tickLine={{ stroke: 'var(--line)' }}
               tick={{
                 fill: 'var(--muted)',
-                fontSize: 11,
+                fontSize: 'var(--font-size-11)',
                 fontFamily: 'var(--font-app)',
               }}
             />
@@ -592,7 +676,7 @@ export function Chart({
               tickLine={{ stroke: 'var(--line)' }}
               tick={{
                 fill: 'var(--muted)',
-                fontSize: 11,
+                fontSize: 'var(--font-size-11)',
                 fontFamily: 'var(--font-app)',
               }}
             />
@@ -609,7 +693,7 @@ export function Chart({
               labelStyle={{ color: 'var(--muted)', fontWeight: 600 }}
               itemStyle={{ color: 'var(--accent-600)' }}
             />
-            <Bar dataKey="value" fill={color} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="value" fill={colors[tone]} radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

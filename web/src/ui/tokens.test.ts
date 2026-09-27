@@ -9,6 +9,22 @@ interface TokenSnapshot {
   tokens: Record<string, string>;
 }
 
+const forbiddenStyleDependencyPatterns = [
+  /^(?:tailwindcss|bootstrap|react-bootstrap|bulma|react-bulma-components|foundation-sites|materialize-css|tachyons|unocss|windicss|daisyui|flowbite|@picocss\/pico)$/,
+  /^@tailwindcss\//,
+  /^@unocss\//,
+  /^(?:styled-components|@emotion\/(?:react|styled)|@stitches\/(?:react|core)|@vanilla-extract\/)/,
+  /^(?:linaria|@linaria\/|@compiled\/react|goober|jss)$/,
+  /^(?:@mui\/|@material-ui\/|@chakra-ui\/|@mantine\/|@radix-ui\/themes$|shadcn(?:-ui)?$)/,
+  /^(?:antd|@ant-design\/|semantic-ui-react|semantic-ui-css)$/,
+  /^(?:@blueprintjs\/|@fluentui\/|@carbon\/|@nextui-org\/|@heroui\/|@gluestack-ui\/|@tamagui\/|tamagui$|primereact$|primevue$|vuetify$|quasar$|grommet$|evergreen-ui$)/,
+  /^react-select$/,
+];
+
+function isForbiddenStyleDependency(name: string): boolean {
+  return forbiddenStyleDependencyPatterns.some((pattern) => pattern.test(name));
+}
+
 function normalizedCssValue(value: string): string {
   return value
     .replace(/\s+/g, ' ')
@@ -51,12 +67,24 @@ describe('legacy design tokens', () => {
       ...packageJson.dependencies,
       ...packageJson.devDependencies,
     });
+    expect(dependencies.filter(isForbiddenStyleDependency)).toEqual([]);
+  });
+
+  it('recognizes common CSS frameworks and styled component libraries', () => {
     expect(
-      dependencies.filter((name) =>
-        /^(tailwindcss|bootstrap|@mui\/|@chakra-ui\/|@mantine\/|@radix-ui\/themes|shadcn-ui)/.test(
-          name,
-        ),
-      ),
-    ).toEqual([]);
+      [
+        'tailwindcss',
+        '@tailwindcss/vite',
+        'bootstrap',
+        'styled-components',
+        '@emotion/react',
+        '@mui/material',
+        '@chakra-ui/react',
+        '@mantine/core',
+        '@radix-ui/themes',
+        'antd',
+        'shadcn-ui',
+      ].filter(isForbiddenStyleDependency),
+    ).toHaveLength(11);
   });
 });

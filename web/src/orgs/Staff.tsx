@@ -1,7 +1,9 @@
+import { authMeResponseSchema } from '@shared/schemas/auth';
 import {
   orgInvitationResponseSchema,
   orgMemberRolesResponseSchema,
   orgMemberStatusResponseSchema,
+  ownershipTransferRequestResponseSchema,
   scopedRoleResponseSchema,
   orgRoleSchema,
   orgStaffResponseSchema,
@@ -23,10 +25,14 @@ function MemberEditor({
   orgId,
   member,
   lastOwner,
+  ownerVersion,
+  scopes,
 }: {
   orgId: string;
   member: Member;
   lastOwner: boolean;
+  ownerVersion: number | null;
+  scopes: Staff['scopes'];
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const [roles, setRoles] = useState<string[]>(
@@ -142,6 +148,38 @@ function MemberEditor({
       setBusy(false);
     }
   }
+  async function transferOwnership(): Promise<void> {
+    if (
+      !ownerVersion ||
+      !window.confirm(
+        `Ask ${member.name} to accept ownership of this organization? Your owner role will end when they accept.`,
+      )
+    )
+      return;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await apiPost(
+        `/orgs/${orgId}/ownership-transfer`,
+        {
+          recipientAccountId: member.accountId,
+          expectedVersion: ownerVersion,
+        },
+        ownershipTransferRequestResponseSchema,
+        crypto.randomUUID(),
+      );
+      setNotice(`Ownership acceptance link sent to ${member.email}.`);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Ownership transfer could not be requested.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <section
       className="start-credential-card"
@@ -160,7 +198,9 @@ function MemberEditor({
           <p
             key={`${assignment.role}:${assignment.scopeType}:${String(assignment.scopeId)}`}
           >
-            {assignment.role} · {assignment.scopeType} · {assignment.scopeId}
+            {assignment.role} · {assignment.scopeType} ·{' '}
+            {scopes.find((item) => item.id === assignment.scopeId)?.name ??
+              assignment.scopeId}
             {assignment.pendingMfa ? ' · MFA pending' : ''}{' '}
             {member.status === 'active' && (
               <Button
@@ -202,6 +242,7 @@ function MemberEditor({
               value={scopeType}
               onChange={(event) => {
                 setScopeType(event.target.value as typeof scopeType);
+                setScopeId('');
               }}
             >
               <option value="season">Season</option>
@@ -210,17 +251,26 @@ function MemberEditor({
               <option value="team_season">Team season</option>
             </Select>
           </Field>
-          <Field label="Scope ID" required>
-            <Input
+          <Field label="Select scope" required>
+            <Select
               value={scopeId}
               onChange={(event) => {
                 setScopeId(event.target.value);
               }}
-            />
+            >
+              <option value="">Choose {scopeType.replaceAll('_', ' ')}</option>
+              {scopes
+                .filter((item) => item.scopeType === scopeType)
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+            </Select>
           </Field>
           <Button
             type="button"
-            disabled={busy || !z.uuid().safeParse(scopeId).success}
+            disabled={busy || !scopeId}
             onClick={() =>
               void changeScopedRole(scopedRole, scopeType, scopeId, true)
             }
@@ -268,6 +318,19 @@ function MemberEditor({
           {busy ? 'Saving…' : 'Save roles'}
         </Button>
       )}
+      {ownerVersion &&
+        member.status === 'active' &&
+        !member.roles.some(
+          (role) => role.role === 'owner' && role.scopeType === 'org',
+        ) && (
+          <Button
+            type="button"
+            disabled={busy}
+            onClick={() => void transferOwnership()}
+          >
+            Request ownership transfer
+          </Button>
+        )}
       {lastOwner && (
         <p>The last active owner cannot be suspended or removed.</p>
       )}
@@ -310,6 +373,11 @@ export function Staff(): React.JSX.Element {
     queryKey: ['orgs', id, 'staff'],
     queryFn: () => apiGet(`/orgs/${id}/staff`, orgStaffResponseSchema),
     enabled: Boolean(orgId),
+    retry: false,
+  });
+  const account = useQuery({
+    queryKey: ['auth', 'me'],
+    queryFn: () => apiGet('/auth/me', authMeResponseSchema),
     retry: false,
   });
   const [email, setEmail] = useState('');
@@ -439,6 +507,7 @@ export function Staff(): React.JSX.Element {
                 value={scopeType}
                 onChange={(event) => {
                   setScopeType(event.target.value as typeof scopeType);
+                  setScopeId('');
                 }}
               >
                 <option value="org">Whole organization</option>
@@ -449,13 +518,24 @@ export function Staff(): React.JSX.Element {
               </Select>
             </Field>
             {scopeType !== 'org' && (
-              <Field label={`${scopeType.replaceAll('_', ' ')} ID`} required>
-                <Input
+              <Field label={scopeType.replaceAll('_', ' ')} required>
+                <Select
                   value={scopeId}
                   onChange={(event) => {
                     setScopeId(event.target.value);
                   }}
-                />
+                >
+                  <option value="">
+                    Choose {scopeType.replaceAll('_', ' ')}
+                  </option>
+                  {query.data.scopes
+                    .filter((item) => item.scopeType === scopeType)
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                </Select>
               </Field>
             )}
             <Button
@@ -509,6 +589,12 @@ export function Staff(): React.JSX.Element {
                 key={member.accountId}
                 orgId={id}
                 member={member}
+                scopes={query.data.scopes}
+                ownerVersion={
+                  query.data.members.find(
+                    (item) => item.accountId === account.data?.id,
+                  )?.version ?? null
+                }
                 lastOwner={
                   member.roles.some(
                     (role) =>

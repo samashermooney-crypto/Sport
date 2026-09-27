@@ -301,6 +301,7 @@ export interface CapacityHolds {
   org_id: string;
   quantity: number;
   released_at: Timestamp | null;
+  reservation_key: string | null;
   subject_id: string;
   subject_type: string;
   updated_at: Generated<Timestamp>;
@@ -334,11 +335,24 @@ export interface ChatReports {
   version: Generated<number>;
 }
 
+export interface CheckoutCapacityRefundClaims {
+  amount_cents: number;
+  checkout_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  org_id: string;
+  payment_intent_id: string;
+  refund_status: string | null;
+  stripe_refund_id: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface Checkouts {
   account_id: string;
   completed_at: Timestamp | null;
   created_at: Generated<Timestamp>;
   expires_at: Timestamp;
+  first_payment_failed_at: Timestamp | null;
   id: string;
   idempotency_key: string | null;
   items: Generated<Json>;
@@ -485,8 +499,12 @@ export interface Credits {
   invoice_id: string | null;
   kind: string;
   note: string | null;
+  operation_key: string | null;
+  operation_line: number | null;
   org_id: string;
+  request_hash: string | null;
   source: string;
+  source_credit_id: string | null;
   updated_at: Generated<Timestamp>;
 }
 
@@ -551,18 +569,41 @@ export interface DiscountRedemptions {
   updated_at: Generated<Timestamp>;
 }
 
+export interface DisputeLiabilityMovements {
+  amount_cents: number;
+  created_at: Generated<Timestamp>;
+  direction: string;
+  dispute_id: string;
+  id: string;
+  idempotency_key: string;
+  org_id: string;
+  state: string;
+  stripe_movement_id: string | null;
+  stripe_transfer_id: string;
+  unrecovered_cents: Generated<number>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Disputes {
+  accounting_state: Generated<string>;
   amount_cents: number;
   created_at: Generated<Timestamp>;
   evidence_due_by: Timestamp | null;
   evidence_submitted_at: Timestamp | null;
+  fee_cents: Generated<number>;
+  funds_reinstated: Generated<boolean>;
+  funds_withdrawn: Generated<boolean>;
   id: string;
+  invoice_id: string | null;
   org_id: string;
   outcome: string | null;
   payment_id: string;
   reason: string | null;
   status: string;
+  stripe_charge_id: string | null;
   stripe_dispute_id: string;
+  stripe_transfer_id: string | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -848,6 +889,27 @@ export interface InjuryReports {
   version: Generated<number>;
 }
 
+export interface InstallmentChargeAttempts {
+  account_id: string;
+  amount_cents: number;
+  application_fee_cents: number;
+  attempt_number: number;
+  connected_account_id: string;
+  created_at: Generated<Timestamp>;
+  customer_id: string;
+  id: string;
+  installment_id: string;
+  invoice_id: string;
+  lease_expires_at: Timestamp;
+  lease_token: string;
+  method: string;
+  org_id: string;
+  payment_method_id: string;
+  status: string;
+  stripe_payment_intent_id: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface InstallmentPlanTemplates {
   active: Generated<boolean>;
   allowed_methods: Generated<string[]>;
@@ -910,9 +972,13 @@ export interface Invoices {
   account_id: string;
   balance_cents: Generated<number | null>;
   created_at: Generated<Timestamp>;
+  creation_hash: string | null;
+  creation_key: string | null;
   credit_applied_cents: Generated<number>;
   currency: Generated<string>;
   discount_cents: Generated<number>;
+  dispute_lost_cents: Generated<number>;
+  disputed_cents: Generated<number>;
   due_on: Timestamp | null;
   household_id: string | null;
   id: string;
@@ -921,6 +987,7 @@ export interface Invoices {
   number: number;
   org_id: string;
   paid_cents: Generated<number>;
+  refund_terms: Json | null;
   refunded_cents: Generated<number>;
   service_fee_cents: Generated<number>;
   source: string;
@@ -1189,8 +1256,9 @@ export interface OrgMemberships {
 export interface PayerProfiles {
   account_id: string;
   created_at: Generated<Timestamp>;
+  customer_claimed_at: Timestamp | null;
   id: string;
-  stripe_customer_id: string;
+  stripe_customer_id: string | null;
   updated_at: Generated<Timestamp>;
 }
 
@@ -1222,6 +1290,19 @@ export interface PaymentAllocations {
   updated_at: Generated<Timestamp>;
 }
 
+export interface PaymentAttempts {
+  checkout_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  idempotency_key: string;
+  org_id: string;
+  request_hash: string;
+  result: Json | null;
+  status: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface PaymentMethods {
   account_id: string;
   bank_name: string | null;
@@ -1243,6 +1324,7 @@ export interface Payments {
   account_id: string | null;
   amount_cents: number;
   application_fee_cents: Generated<number>;
+  checkout_id: string | null;
   created_at: Generated<Timestamp>;
   failure_code: string | null;
   failure_message: string | null;
@@ -1252,6 +1334,8 @@ export interface Payments {
   net_cents: Generated<number>;
   org_id: string;
   processing_fee_cents: Generated<number>;
+  processing_started_at: Timestamp | null;
+  receipt_number: number | null;
   received_by: string | null;
   reference: string | null;
   status: string;
@@ -1557,17 +1641,53 @@ export interface RefundAllocations {
   updated_at: Generated<Timestamp>;
 }
 
+export interface RefundApprovals {
+  amount_cents: number;
+  approved_at: Timestamp | null;
+  approved_by: string | null;
+  cancellation_date: Timestamp;
+  created_at: Generated<Timestamp>;
+  destination: string;
+  id: string;
+  operation_key: string;
+  org_id: string;
+  payment_id: string;
+  recipient: string | null;
+  request_hash: string;
+  requested_by: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface RefundAttempts {
+  created_at: Generated<Timestamp>;
+  id: string;
+  idempotency_key: string;
+  org_id: string;
+  payment_id: string;
+  request_hash: string;
+  result: Json | null;
+  status: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Refunds {
   allocations: Generated<Json>;
   amount_cents: number;
   approved_by: string | null;
   created_at: Generated<Timestamp>;
+  credit_id: string | null;
+  credit_operation_key: string | null;
+  destination: Generated<string>;
   id: string;
   note: string | null;
   org_id: string;
   payment_id: string;
   reason: string;
   refund_application_fee: Generated<boolean>;
+  request_hash: string | null;
   requested_by: string | null;
   reverse_transfer: Generated<boolean>;
   status: Generated<string>;
@@ -1916,6 +2036,8 @@ export interface StripeEvents {
   created_at: Generated<Timestamp>;
   error: string | null;
   id: string;
+  lease_expires_at: Timestamp | null;
+  lease_token: string | null;
   payload: Json;
   processed_at: Timestamp | null;
   received_at: Generated<Timestamp>;
@@ -2106,6 +2228,7 @@ export interface DB {
   capacity_holds: CapacityHolds;
   chat_messages: ChatMessages;
   chat_reports: ChatReports;
+  checkout_capacity_refund_claims: CheckoutCapacityRefundClaims;
   checkouts: Checkouts;
   closures: Closures;
   communication_preferences: CommunicationPreferences;
@@ -2120,6 +2243,7 @@ export interface DB {
   discipline_records: DisciplineRecords;
   discount_codes: DiscountCodes;
   discount_redemptions: DiscountRedemptions;
+  dispute_liability_movements: DisputeLiabilityMovements;
   disputes: Disputes;
   divisions: Divisions;
   emergency_contacts: EmergencyContacts;
@@ -2139,6 +2263,7 @@ export interface DB {
   idempotency_keys: IdempotencyKeys;
   incident_reports: IncidentReports;
   injury_reports: InjuryReports;
+  installment_charge_attempts: InstallmentChargeAttempts;
   installment_plan_templates: InstallmentPlanTemplates;
   installments: Installments;
   invoice_lines: InvoiceLines;
@@ -2163,6 +2288,7 @@ export interface DB {
   payer_profiles: PayerProfiles;
   payment_accounts: PaymentAccounts;
   payment_allocations: PaymentAllocations;
+  payment_attempts: PaymentAttempts;
   payment_methods: PaymentMethods;
   payments: Payments;
   payouts: Payouts;
@@ -2187,6 +2313,8 @@ export interface DB {
   programs: Programs;
   rate_limit_points: RateLimitPoints;
   refund_allocations: RefundAllocations;
+  refund_approvals: RefundApprovals;
+  refund_attempts: RefundAttempts;
   refunds: Refunds;
   registration_approvals: RegistrationApprovals;
   registration_offerings: RegistrationOfferings;

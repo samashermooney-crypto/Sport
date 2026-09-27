@@ -295,6 +295,31 @@ const fileRoutes: OpenApiRoute[] = [
 const orgRoutes: OpenApiRoute[] = [
   {
     method: 'get',
+    path: `${orgsBase}/mine`,
+    summary: 'List organizations for the current account',
+    response: orgs.myOrganizationsSchema,
+  },
+  {
+    method: 'get',
+    path: `${orgsBase}/{orgId}/workspace`,
+    summary: 'Get the active organization workspace and available actions',
+    response: orgs.orgWorkspaceSchema,
+  },
+  {
+    method: 'get',
+    path: `${orgsBase}/{orgId}/profile`,
+    summary: 'Get organization profile and branding',
+    response: orgs.orgProfileSchema,
+  },
+  {
+    method: 'patch',
+    path: `${orgsBase}/{orgId}/profile`,
+    summary: 'Update versioned organization profile and branding',
+    body: orgs.updateOrgProfileSchema,
+    response: orgs.orgProfileSchema,
+  },
+  {
+    method: 'get',
     path: `${orgsBase}/sport-templates`,
     summary: 'List built-in sport templates',
     response: orgs.sportTemplateCatalogSchema,
@@ -332,6 +357,21 @@ const orgRoutes: OpenApiRoute[] = [
     summary: 'Grant or revoke a scoped organization role',
     body: orgs.updateScopedRoleSchema,
     response: orgs.scopedRoleResponseSchema,
+  },
+  {
+    method: 'post',
+    path: `${orgsBase}/{orgId}/ownership-transfer`,
+    summary: 'Request recipient-accepted ownership transfer',
+    body: orgs.ownershipTransferRequestSchema,
+    response: orgs.ownershipTransferRequestResponseSchema,
+    status: 201,
+  },
+  {
+    method: 'post',
+    path: `${orgsBase}/{orgId}/ownership-transfer/accept`,
+    summary: 'Accept organization ownership transfer',
+    body: orgs.ownershipTransferAcceptSchema,
+    response: orgs.ownershipTransferAcceptResponseSchema,
   },
   {
     method: 'post',

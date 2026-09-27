@@ -11,7 +11,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { apiGet, apiPost } from '../api/client';
-import { AuthFrame, AuthLink, Button, ErrorBox, Field } from '../ui/auth';
+import {
+  AuthFrame,
+  AuthLink,
+  Button,
+  Checkbox,
+  ErrorBox,
+  Field,
+  Input,
+} from '../ui/auth';
 
 import { TurnstileWidget } from './TurnstileWidget';
 
@@ -103,21 +111,21 @@ export function SignUp(): React.JSX.Element {
                 required
                 error={errors.firstName?.message}
               >
-                <input autoComplete="given-name" {...register('firstName')} />
+                <Input autoComplete="given-name" {...register('firstName')} />
               </Field>
               <Field
                 label="Last name"
                 required
                 error={errors.lastName?.message}
               >
-                <input autoComplete="family-name" {...register('lastName')} />
+                <Input autoComplete="family-name" {...register('lastName')} />
               </Field>
               <Field
                 label="Email address"
                 required
                 error={errors.email?.message}
               >
-                <input
+                <Input
                   type="email"
                   autoComplete="email"
                   {...register('email')}
@@ -128,14 +136,14 @@ export function SignUp(): React.JSX.Element {
                 required
                 error={errors.dateOfBirth?.message}
               >
-                <input
+                <Input
                   type="date"
                   autoComplete="bday"
                   {...register('dateOfBirth')}
                 />
               </Field>
               <Field label="Password" required error={errors.password?.message}>
-                <input
+                <Input
                   type="password"
                   autoComplete="new-password"
                   {...register('password')}
@@ -146,8 +154,8 @@ export function SignUp(): React.JSX.Element {
                 <p>{legal.data.terms.text}</p>
               </details>
               <label className="consent">
-                <input type="checkbox" {...register('termsAccepted')} /> I have
-                read and accept the Terms of service.
+                <Checkbox {...register('termsAccepted')} /> I have read and
+                accept the Terms of service.
               </label>
               {errors.termsAccepted && (
                 <small className="field-error" role="alert">
@@ -159,8 +167,8 @@ export function SignUp(): React.JSX.Element {
                 <p>{legal.data.privacy.text}</p>
               </details>
               <label className="consent">
-                <input type="checkbox" {...register('privacyAccepted')} /> I
-                have read and accept the Privacy notice.
+                <Checkbox {...register('privacyAccepted')} /> I have read and
+                accept the Privacy notice.
               </label>
               {errors.privacyAccepted && (
                 <small className="field-error" role="alert">

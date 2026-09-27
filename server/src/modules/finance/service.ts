@@ -55,6 +55,22 @@ export interface CreatedPaymentIntent {
   quote: PaymentQuote;
 }
 
+export class PaymentConflictError extends Error {}
+
+/** Record the intent and its invoice allocation before exposing its secret. */
+export interface PaymentRecordStore {
+  recordPending(input: {
+    orgId: string;
+    checkoutId: string;
+    invoiceId: string;
+    accountId: string;
+    paymentIntentId: string;
+    amountCents: number;
+    applicationFeeCents: number;
+    idempotencyKey: string;
+  }): Promise<void>;
+}
+
 export type PaymentAttemptReservation =
   | { kind: 'reserved' }
   | { kind: 'replay'; result: CreatedPaymentIntent }
@@ -153,6 +169,7 @@ export class CheckoutPaymentService {
       PaymentsGateway,
       'retrieveAccount' | 'createDestinationPayment'
     >,
+    private readonly records: PaymentRecordStore,
   ) {}
 
   async create(
@@ -173,9 +190,11 @@ export class CheckoutPaymentService {
     });
     if (reservation.kind === 'replay') return reservation.result;
     if (reservation.kind === 'busy')
-      throw new Error('Payment attempt is already in progress');
+      throw new PaymentConflictError('Payment attempt is already in progress');
     if (reservation.kind === 'conflict')
-      throw new Error('Idempotency-Key was used for a different payment');
+      throw new PaymentConflictError(
+        'Idempotency-Key was used for a different payment',
+      );
     let externalStarted = false;
     try {
       const charge = await this.reader.load(input);
@@ -226,6 +245,16 @@ export class CheckoutPaymentService {
         status: intent.status,
         quote,
       };
+      await this.records.recordPending({
+        orgId: input.orgId,
+        checkoutId: input.checkoutId,
+        invoiceId: input.invoiceId,
+        accountId: input.accountId,
+        paymentIntentId: intent.id,
+        amountCents: quote.amountCents,
+        applicationFeeCents: quote.applicationFeeCents,
+        idempotencyKey: input.idempotencyKey,
+      });
       await this.attempts.complete({
         orgId: input.orgId,
         checkoutId: input.checkoutId,

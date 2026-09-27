@@ -10,6 +10,7 @@ import '@fontsource/barlow-semi-condensed/latin-600.css';
 import '@fontsource/barlow-semi-condensed/latin-700.css';
 
 import { App } from './app';
+import './lib/i18n';
 import './ui/sign-in.css';
 
 const root = document.getElementById('root');

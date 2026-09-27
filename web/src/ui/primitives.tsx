@@ -168,14 +168,13 @@ export function Radio(
 }
 export function Switch({
   label,
-  checked,
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & {
   label: string;
 }): React.JSX.Element {
   return (
     <label className="ui-switch">
-      <input {...props} type="checkbox" role="switch" checked={checked} />
+      <input {...props} type="checkbox" role="switch" />
       <span className="ui-switch-track" aria-hidden="true" />
       <span>{label}</span>
     </label>
@@ -414,7 +413,7 @@ export function Tabs({
 }): React.JSX.Element {
   return (
     <div className={join('tabs', className)} role="tablist" aria-label={label}>
-      {items.map((item) => (
+      {items.map((item, index) => (
         <button
           type="button"
           role="tab"
@@ -422,6 +421,28 @@ export function Tabs({
           tabIndex={value === item ? 0 : -1}
           className={value === item ? 'active' : ''}
           key={item}
+          onKeyDown={(event) => {
+            if (!items.length) return;
+            const lastIndex = items.length - 1;
+            const nextIndex =
+              event.key === 'ArrowRight'
+                ? (index + 1) % items.length
+                : event.key === 'ArrowLeft'
+                  ? (index - 1 + items.length) % items.length
+                  : event.key === 'Home'
+                    ? 0
+                    : event.key === 'End'
+                      ? lastIndex
+                      : index;
+            if (nextIndex === index) return;
+            event.preventDefault();
+            const tabs =
+              event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+                '[role="tab"]',
+              );
+            tabs?.[nextIndex]?.focus();
+            onChange(items[nextIndex] ?? value);
+          }}
           onClick={() => {
             onChange(item);
           }}

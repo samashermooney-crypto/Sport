@@ -59,7 +59,58 @@ export async function listOrgStaff(
         .where('revoked_at', 'is', null)
         .orderBy('created_at', 'desc')
         .execute();
+      const seasons = await trx
+        .selectFrom('seasons')
+        .select(['id', 'name'])
+        .where('org_id', '=', input.orgId)
+        .orderBy('name')
+        .execute();
+      const programs = await trx
+        .selectFrom('programs')
+        .select(['id', 'name'])
+        .where('org_id', '=', input.orgId)
+        .orderBy('name')
+        .execute();
+      const divisions = await trx
+        .selectFrom('divisions')
+        .select(['id', 'name'])
+        .where('org_id', '=', input.orgId)
+        .orderBy('name')
+        .execute();
+      const teams = await trx
+        .selectFrom('team_seasons')
+        .innerJoin('teams', (join) =>
+          join
+            .onRef('teams.org_id', '=', 'team_seasons.org_id')
+            .onRef('teams.id', '=', 'team_seasons.team_id'),
+        )
+        .select(['team_seasons.id', 'teams.name', 'team_seasons.display_name'])
+        .where('team_seasons.org_id', '=', input.orgId)
+        .orderBy('teams.name')
+        .execute();
       return orgStaffResponseSchema.parse({
+        scopes: [
+          ...seasons.map((item) => ({
+            id: item.id,
+            name: item.name,
+            scopeType: 'season',
+          })),
+          ...programs.map((item) => ({
+            id: item.id,
+            name: item.name,
+            scopeType: 'program',
+          })),
+          ...divisions.map((item) => ({
+            id: item.id,
+            name: item.name,
+            scopeType: 'division',
+          })),
+          ...teams.map((item) => ({
+            id: item.id,
+            name: item.display_name ?? item.name,
+            scopeType: 'team_season',
+          })),
+        ],
         members: members.map((member) => ({
           accountId: member.account_id,
           email: member.email,

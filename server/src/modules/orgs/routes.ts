@@ -5,6 +5,7 @@ import {
   acceptedOrgInvitationResponseSchema,
   createOrgResponseSchema,
   createOrgSchema,
+  myOrganizationsSchema,
   orgCredentialSchema,
   orgCredentialsResponseSchema,
   orgInvitationResponseSchema,
@@ -12,6 +13,12 @@ import {
   orgStaffResponseSchema,
   orgMemberRolesResponseSchema,
   orgMemberStatusResponseSchema,
+  orgProfileSchema,
+  orgWorkspaceSchema,
+  ownershipTransferAcceptResponseSchema,
+  ownershipTransferAcceptSchema,
+  ownershipTransferRequestResponseSchema,
+  ownershipTransferRequestSchema,
   scopedRoleResponseSchema,
   orgSlugAvailabilitySchema,
   orgSlugSchema,
@@ -19,6 +26,7 @@ import {
   updateOrgCredentialSchema,
   updateOrgMemberRolesSchema,
   updateOrgMemberStatusSchema,
+  updateOrgProfileSchema,
   updateScopedRoleSchema,
 } from '@shared/schemas/orgs';
 import express from 'express';
@@ -43,7 +51,14 @@ import {
   setOrgMemberStatus,
   setScopedRole,
 } from './memberRoles';
+import { listMyOrganizations } from './mine';
+import {
+  acceptOwnershipTransfer,
+  requestOwnershipTransfer,
+} from './ownershipTransfer';
+import { getOrgProfile, updateOrgProfile } from './profile';
 import { isOrgSlugAvailable } from './slug';
+import { getOrgWorkspace } from './workspace';
 
 class OrgCredentialsError extends Error {
   constructor(
@@ -101,6 +116,37 @@ export function createOrgRouter(
         .orderBy('name')
         .execute();
       response.json(sportTemplateCatalogSchema.parse(templates));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/mine', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      response.json(
+        myOrganizationsSchema.parse(
+          await listMyOrganizations(dependencies.database, session.accountId),
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/:orgId/workspace', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      response.json(
+        orgWorkspaceSchema.parse(
+          await getOrgWorkspace(
+            dependencies.database,
+            orgId,
+            session.accountId,
+          ),
+        ),
+      );
     } catch (error) {
       sendError(response, error);
     }
@@ -167,6 +213,50 @@ export function createOrgRouter(
       throw new OrgCredentialsError(404, 'NOT_FOUND', 'Organization not found');
     return { context, session };
   }
+
+  router.get('/:orgId/profile', async (request, response) => {
+    try {
+      const { context, session } = await ownerContext(request);
+      const result = await getOrgProfile(
+        dependencies.database,
+        context.orgId,
+        session.accountId,
+      );
+      response.json(orgProfileSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.patch('/:orgId/profile', async (request, response) => {
+    try {
+      if (!mutationOriginIsValid(request, dependencies.appUrl))
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Request origin could not be verified',
+        );
+      const { context, session } = await ownerContext(request);
+      if (
+        !session.elevatedUntil ||
+        session.elevatedUntil <= dependencies.clock()
+      )
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Confirm your identity before changing organization settings',
+        );
+      const result = await updateOrgProfile(dependencies.database, {
+        orgId: context.orgId,
+        actorId: session.accountId,
+        changes: updateOrgProfileSchema.parse(request.body),
+        now: dependencies.clock(),
+      });
+      response.json(orgProfileSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
 
   const monthsSchema = z.strictObject({
     months: z.number().int().min(1).max(120),
@@ -378,6 +468,63 @@ export function createOrgRouter(
           now: dependencies.clock(),
         });
         response.json(scopedRoleResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post('/:orgId/ownership-transfer', async (request, response) => {
+    try {
+      if (!mutationOriginIsValid(request, dependencies.appUrl))
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Request origin could not be verified',
+        );
+      const { context, session } = await ownerContext(request);
+      if (
+        !session.elevatedUntil ||
+        session.elevatedUntil <= dependencies.clock()
+      )
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Confirm your identity before transferring ownership',
+        );
+      const body = ownershipTransferRequestSchema.parse(request.body);
+      const result = await requestOwnershipTransfer(dependencies, {
+        orgId: context.orgId,
+        actorId: session.accountId,
+        recipientAccountId: body.recipientAccountId,
+        expectedVersion: body.expectedVersion,
+        now: dependencies.clock(),
+      });
+      response
+        .status(201)
+        .json(ownershipTransferRequestResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/:orgId/ownership-transfer/accept',
+    async (request, response) => {
+      try {
+        if (!mutationOriginIsValid(request, dependencies.appUrl))
+          throw new OrgMemberRolesError(
+            403,
+            'FORBIDDEN',
+            'Request origin could not be verified',
+          );
+        const session = await requireSession(dependencies, request);
+        const body = ownershipTransferAcceptSchema.parse(request.body);
+        const result = await acceptOwnershipTransfer(dependencies.database, {
+          orgId: z.uuid().parse(request.params.orgId),
+          recipientId: session.accountId,
+          token: body.token,
+          now: dependencies.clock(),
+        });
+        response.json(ownershipTransferAcceptResponseSchema.parse(result));
       } catch (error) {
         sendError(response, error);
       }

@@ -5,14 +5,31 @@ import {
   assertTestStripeKey,
   type DestinationPaymentInput,
   type GatewayBalanceTransaction,
+  type GatewayDispute,
   type GatewayPaymentMethod,
   type GatewayPaymentIntent,
+  type GatewayRefund,
   type GatewayPayout,
   type PaymentsGateway,
 } from './gateway.js';
 import { parseStripeWebhookEvent } from './webhooks.js';
 
 function paymentIntentView(intent: Stripe.PaymentIntent): GatewayPaymentIntent {
+  const charge =
+    typeof intent.latest_charge === 'string' ? null : intent.latest_charge;
+  const details = charge?.payment_method_details;
+  const wallet = details?.type === 'card' ? details.card?.wallet?.type : null;
+  const paymentMethod =
+    typeof intent.payment_method === 'string' ? null : intent.payment_method;
+  const type = details?.type ?? paymentMethod?.type ?? null;
+  const method =
+    wallet === 'apple_pay'
+      ? ('apple_pay' as const)
+      : wallet === 'google_pay'
+        ? ('google_pay' as const)
+        : type === 'card' || type === 'us_bank_account' || type === 'link'
+          ? type
+          : null;
   return {
     id: intent.id,
     clientSecret: intent.client_secret,
@@ -22,6 +39,13 @@ function paymentIntentView(intent: Stripe.PaymentIntent): GatewayPaymentIntent {
       typeof intent.latest_charge === 'string'
         ? intent.latest_charge
         : (intent.latest_charge?.id ?? null),
+    method,
+    failureCode:
+      intent.last_payment_error?.decline_code ??
+      intent.last_payment_error?.code ??
+      null,
+    failureMessage: intent.last_payment_error?.message ?? null,
+    orgId: intent.metadata.org_id ?? null,
   };
 }
 
@@ -99,6 +123,7 @@ export class StripeSdkGateway implements PaymentsGateway {
     const account = await this.stripe.accounts.retrieve(accountId);
     return {
       id: account.id,
+      orgId: account.metadata?.org_id ?? null,
       chargesEnabled: account.charges_enabled,
       payoutsEnabled: account.payouts_enabled,
       detailsSubmitted: account.details_submitted,
@@ -144,6 +169,48 @@ export class StripeSdkGateway implements PaymentsGateway {
     if (!intent.client_secret)
       throw new Error('Stripe SetupIntent has no client secret');
     return { id: intent.id, clientSecret: intent.client_secret };
+  }
+
+  async retrieveSetupIntent(setupIntentId: string) {
+    const intent = await this.stripe.setupIntents.retrieve(setupIntentId);
+    return {
+      id: intent.id,
+      status: intent.status,
+      customerId:
+        typeof intent.customer === 'string'
+          ? intent.customer
+          : (intent.customer?.id ?? null),
+      paymentMethodId:
+        typeof intent.payment_method === 'string'
+          ? intent.payment_method
+          : (intent.payment_method?.id ?? null),
+    };
+  }
+
+  async retrievePaymentMethod(paymentMethodId: string) {
+    const method = await this.stripe.paymentMethods.retrieve(paymentMethodId);
+    const type =
+      method.type === 'card'
+        ? ('card' as const)
+        : method.type === 'us_bank_account'
+          ? ('us_bank_account' as const)
+          : method.type === 'link'
+            ? ('link' as const)
+            : null;
+    if (!type) throw new Error('Unsupported Stripe payment method type');
+    return {
+      id: method.id,
+      type,
+      brand: method.card?.brand ?? null,
+      last4: method.card?.last4 ?? method.us_bank_account?.last4 ?? null,
+      expMonth: method.card?.exp_month ?? null,
+      expYear: method.card?.exp_year ?? null,
+      bankName: method.us_bank_account?.bank_name ?? null,
+      customerId:
+        typeof method.customer === 'string'
+          ? method.customer
+          : (method.customer?.id ?? null),
+    };
   }
 
   async listPaymentMethods(
@@ -211,6 +278,9 @@ export class StripeSdkGateway implements PaymentsGateway {
           org_id: input.orgId,
           invoice_id: input.invoiceId,
           ...(input.checkoutId ? { checkout_id: input.checkoutId } : {}),
+          ...(input.installmentId
+            ? { installment_id: input.installmentId }
+            : {}),
         },
       },
       { idempotencyKey: input.idempotencyKey },
@@ -220,7 +290,9 @@ export class StripeSdkGateway implements PaymentsGateway {
 
   async retrievePaymentIntent(paymentIntentId: string) {
     return paymentIntentView(
-      await this.stripe.paymentIntents.retrieve(paymentIntentId),
+      await this.stripe.paymentIntents.retrieve(paymentIntentId, {
+        expand: ['payment_method', 'latest_charge'],
+      }),
     );
   }
 
@@ -235,6 +307,7 @@ export class StripeSdkGateway implements PaymentsGateway {
   }
 
   async createRefund(input: {
+    orgId?: string;
     paymentIntentId: string;
     amountCents: number;
     reverseTransfer: boolean;
@@ -250,6 +323,7 @@ export class StripeSdkGateway implements PaymentsGateway {
         amount: input.amountCents,
         reverse_transfer: input.reverseTransfer,
         refund_application_fee: input.refundApplicationFee,
+        ...(input.orgId ? { metadata: { org_id: input.orgId } } : {}),
       },
       { idempotencyKey: input.idempotencyKey },
     );
@@ -257,6 +331,34 @@ export class StripeSdkGateway implements PaymentsGateway {
       id: refund.id,
       status: refund.status ?? 'pending',
       amountCents: refund.amount,
+    };
+  }
+
+  async retrieveRefund(refundId: string): Promise<GatewayRefund> {
+    const refund = await this.stripe.refunds.retrieve(refundId);
+    return this.refundView(refund);
+  }
+
+  async listRefundsForCharge(chargeId: string): Promise<GatewayRefund[]> {
+    const page = await this.stripe.refunds.list({
+      charge: chargeId,
+      limit: 100,
+    });
+    if (page.has_more)
+      throw new Error('Stripe charge refunds require pagination');
+    return page.data.map((refund) => this.refundView(refund));
+  }
+
+  private refundView(refund: Stripe.Refund): GatewayRefund {
+    return {
+      id: refund.id,
+      status: refund.status ?? 'pending',
+      amountCents: refund.amount,
+      paymentIntentId:
+        typeof refund.payment_intent === 'string'
+          ? refund.payment_intent
+          : (refund.payment_intent?.id ?? null),
+      orgId: refund.metadata?.org_id ?? null,
     };
   }
 
@@ -274,6 +376,86 @@ export class StripeSdkGateway implements PaymentsGateway {
       { idempotencyKey: input.idempotencyKey },
     );
     return { id: reversal.id, amountCents: reversal.amount };
+  }
+
+  async retrieveDispute(disputeId: string): Promise<GatewayDispute> {
+    const dispute = await this.stripe.disputes.retrieve(disputeId);
+    const chargeId =
+      typeof dispute.charge === 'string' ? dispute.charge : dispute.charge.id;
+    const charge = await this.stripe.charges.retrieve(chargeId);
+    const paymentIntentId =
+      typeof dispute.payment_intent === 'string'
+        ? dispute.payment_intent
+        : (dispute.payment_intent?.id ?? null);
+    const chargePaymentIntentId =
+      typeof charge.payment_intent === 'string'
+        ? charge.payment_intent
+        : (charge.payment_intent?.id ?? null);
+    if (paymentIntentId && chargePaymentIntentId !== paymentIntentId)
+      throw new Error('Stripe dispute charge PaymentIntent mismatch');
+    const transferId =
+      typeof charge.transfer === 'string'
+        ? charge.transfer
+        : (charge.transfer?.id ?? null);
+    const withdrawals = dispute.balance_transactions.filter(
+      (item) => item.amount < 0,
+    );
+    const reinstatements = dispute.balance_transactions.filter(
+      (item) => item.amount > 0,
+    );
+    return {
+      id: dispute.id,
+      chargeId,
+      paymentIntentId: paymentIntentId ?? chargePaymentIntentId,
+      transferId,
+      status: dispute.status,
+      amountCents: dispute.amount,
+      feeCents: withdrawals.reduce((sum, item) => sum + item.fee, 0),
+      reason: dispute.reason,
+      evidenceDueBy: dispute.evidence_details.due_by,
+      fundsWithdrawn: withdrawals.length > 0,
+      fundsReinstated: reinstatements.length > 0,
+      reinstatedNetCents: reinstatements.reduce(
+        (sum, item) => sum + item.net,
+        0,
+      ),
+    };
+  }
+
+  async retrieveTransfer(transferId: string) {
+    const transfer = await this.stripe.transfers.retrieve(transferId);
+    const destinationAccountId =
+      typeof transfer.destination === 'string'
+        ? transfer.destination
+        : transfer.destination?.id;
+    if (!destinationAccountId)
+      throw new Error('Stripe transfer has no destination account');
+    return {
+      id: transfer.id,
+      amountCents: transfer.amount,
+      amountReversedCents: transfer.amount_reversed,
+      destinationAccountId,
+    };
+  }
+
+  async createTransfer(input: {
+    destinationAccountId: string;
+    amountCents: number;
+    disputeId: string;
+    idempotencyKey: string;
+  }) {
+    if (!Number.isSafeInteger(input.amountCents) || input.amountCents < 1)
+      throw new RangeError('Transfer amount must be positive integer cents');
+    const transfer = await this.stripe.transfers.create(
+      {
+        amount: input.amountCents,
+        currency: 'usd',
+        destination: input.destinationAccountId,
+        metadata: { dispute_id: input.disputeId },
+      },
+      { idempotencyKey: input.idempotencyKey },
+    );
+    return { id: transfer.id, amountCents: transfer.amount };
   }
 
   async submitDisputeEvidence(input: {
@@ -309,11 +491,33 @@ export class StripeSdkGateway implements PaymentsGateway {
     return { items, hasMore: page.has_more };
   }
 
-  async listBalanceTransactions(accountId: string, payoutId: string) {
+  async retrievePayout(
+    accountId: string,
+    payoutId: string,
+  ): Promise<GatewayPayout> {
+    const payout = await this.stripe.payouts.retrieve(
+      payoutId,
+      {},
+      { stripeAccount: accountId },
+    );
+    return {
+      id: payout.id,
+      amountCents: payout.amount,
+      status: payout.status,
+      arrivalDate: payout.arrival_date,
+    };
+  }
+
+  async listBalanceTransactions(
+    accountId: string,
+    payoutId: string,
+    startingAfter?: string,
+  ) {
     const page = await this.stripe.balanceTransactions.list(
       {
         payout: payoutId,
         limit: 100,
+        ...(startingAfter ? { starting_after: startingAfter } : {}),
       },
       { stripeAccount: accountId },
     );

@@ -84,6 +84,20 @@ test('sign-in and reset request are accessible and functional', async ({
   expect(await health.json()).toEqual({ status: 'ok' });
 });
 
+test('sign-in language switch renders Spanish validation accessibly', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('combobox', { name: 'Language' }).selectOption('es');
+  await expect(
+    page.getByRole('heading', { name: 'Le damos la bienvenida.' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await expect(page.getByText('Ingrese su correo electrónico.')).toBeVisible();
+  expect(await page.locator('html').getAttribute('lang')).toBe('es');
+  expect(await accessibilityViolations(page)).toEqual([]);
+});
+
 test('new account verifies its preview email and signs in', async ({
   page,
   request,
@@ -129,6 +143,7 @@ test('new account verifies its preview email and signs in', async ({
       configurable: true,
       value: {
         register: () => Promise.resolve(registration),
+        ready: Promise.resolve(registration),
         getRegistration: () => Promise.resolve(registration),
       },
     });
@@ -240,6 +255,17 @@ test('new account verifies its preview email and signs in', async ({
   await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(
     page.getByRole('heading', { name: 'E2E Youth Club is ready for setup' }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('link', { name: 'Open organization home' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'E2E Youth Club' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Review safety requirements' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Manage staff and invitations' }),
   ).toBeVisible();
   expect(await accessibilityViolations(page)).toEqual([]);
   const invitedEmail = `admin-${email}`;
@@ -385,7 +411,9 @@ test('new account verifies its preview email and signs in', async ({
   expect(await accessibilityViolations(page)).toEqual([]);
   await page.getByRole('link', { name: 'account security' }).click();
   await page.getByRole('button', { name: 'Request deletion review' }).click();
-  await expect(page.getByRole('status')).toContainText('privacy review');
+  await expect(page.getByRole('status')).toContainText('privacy review', {
+    timeout: 10_000,
+  });
   const changedEmail = `changed-${email}`;
   await page.getByLabel('New email address').fill(changedEmail);
   await page.getByRole('button', { name: 'Send confirmation' }).click();

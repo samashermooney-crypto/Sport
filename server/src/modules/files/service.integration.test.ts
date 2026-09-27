@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 
 import pg from 'pg';
+import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
+import { SharpImageProcessor } from '../../integrations/storage/image-processor';
 import { MemoryStorage } from '../../integrations/storage/storage';
 
 import type { FileAuthorization } from './service';
@@ -70,6 +73,52 @@ afterAll(async () => {
 });
 
 describe('files tenancy and lifecycle', () => {
+  it.each(['image', 'document'] as const)(
+    'strips GPS and EXIF from %s images and every stored size',
+    async (purpose) => {
+      const source = await readFile(
+        new URL('../../../test/fixtures/gps-photo.jpg', import.meta.url),
+      );
+      const sourceMetadata = await sharp(source).metadata();
+      expect(sourceMetadata.exif).toBeDefined();
+      const imageService = new FilesService(
+        storage,
+        authorization,
+        new SharpImageProcessor(),
+        createWithOrg(database),
+      );
+      const pending = await imageService.beginUpload({
+        context: contextA,
+        purpose,
+        mime: 'image/jpeg',
+        bytes: source.byteLength,
+      });
+      await imageService.uploadLocalBytes(contextA, pending.fileId, source);
+      const completed = await imageService.completeUpload(
+        contextA,
+        pending.fileId,
+      );
+      expect(completed.mime).toBe('image/webp');
+      const primary = await imageService.readLocalContent(
+        contextA,
+        pending.fileId,
+      );
+      const base = completed.storageKey.replace(/\.[^.]+$/, '');
+      const variants = [
+        primary.bytes,
+        (await storage.get(`${base}-medium.webp`))?.bytes,
+        (await storage.get(`${base}-thumbnail.webp`))?.bytes,
+      ];
+      for (const bytes of variants) {
+        if (!bytes) throw new Error('Processed image variant is missing');
+        const metadata = await sharp(bytes).metadata();
+        expect(metadata.exif).toBeUndefined();
+        expect(metadata.xmp).toBeUndefined();
+        expect(metadata.iptc).toBeUndefined();
+      }
+    },
+  );
+
   it('validates, completes, and audits a local preview upload', async () => {
     const bytes = new TextEncoder().encode('%PDF-1.7');
     const pending = await service.beginUpload({

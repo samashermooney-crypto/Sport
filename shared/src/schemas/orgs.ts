@@ -102,6 +102,22 @@ export const createOrgResponseSchema = z.strictObject({
   status: z.literal('onboarding'),
 });
 
+export const myOrganizationsSchema = z.array(
+  z.strictObject({
+    id: z.uuid(),
+    name: z.string(),
+    slug: orgSlugSchema,
+  }),
+);
+
+export const orgWorkspaceSchema = z.strictObject({
+  id: z.uuid(),
+  name: z.string(),
+  slug: orgSlugSchema,
+  canManage: z.boolean(),
+  canAudit: z.boolean(),
+});
+
 export const orgCredentialSchema = z.strictObject({
   id: z.uuid(),
   key: z.string(),
@@ -119,6 +135,66 @@ export const orgCredentialSchema = z.strictObject({
 });
 
 export const orgCredentialsResponseSchema = z.array(orgCredentialSchema);
+
+const brandColorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
+function contrastOnWhite(hex: string): number {
+  const components = [1, 3, 5].map((start) => {
+    const value = Number.parseInt(hex.slice(start, start + 2), 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return (
+    1.05 /
+    (0.2126 * (components[0] ?? 0) +
+      0.7152 * (components[1] ?? 0) +
+      0.0722 * (components[2] ?? 0) +
+      0.05)
+  );
+}
+const orgBrandSchema = z.strictObject({
+  primaryColor: brandColorSchema.refine(
+    (value) => contrastOnWhite(value) >= 4.5,
+    'Primary color needs 4.5:1 contrast on white',
+  ),
+  accentColor: brandColorSchema.refine(
+    (value) => contrastOnWhite(value) >= 4.5,
+    'Accent color needs 4.5:1 contrast on white',
+  ),
+});
+
+export const orgProfileSchema = z.strictObject({
+  id: z.uuid(),
+  name: z.string().trim().min(2).max(160),
+  slug: orgSlugSchema,
+  legalName: z.string().trim().max(160).nullable(),
+  kind: orgKindSchema,
+  timezone: createOrgSchema.shape.timezone,
+  address: orgAddressSchema.nullable(),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+1\d{10}$/)
+    .nullable(),
+  email: z.email().nullable(),
+  websiteUrl: z
+    .url()
+    .refine(
+      (value) => new URL(value).protocol === 'https:',
+      'Website URL must use HTTPS',
+    )
+    .nullable(),
+  defaultLocale: z.enum(['en', 'es']),
+  brand: orgBrandSchema,
+  logoFileId: z.uuid().nullable(),
+  nonprofit: z.boolean(),
+  version: z.number().int().positive(),
+});
+
+export const updateOrgProfileSchema = orgProfileSchema
+  .omit({ id: true, slug: true, kind: true })
+  .extend({
+    expectedVersion: z.number().int().positive(),
+  })
+  .omit({ version: true });
 
 export const updateOrgCredentialSchema = z.strictObject({
   name: z.string().trim().min(2).max(120),
@@ -183,6 +259,26 @@ export const scopedRoleResponseSchema = z.strictObject({
   pendingMfa: z.boolean(),
 });
 
+export const ownershipTransferRequestSchema = z.strictObject({
+  recipientAccountId: z.uuid(),
+  expectedVersion: z.number().int().positive(),
+});
+
+export const ownershipTransferRequestResponseSchema = z.strictObject({
+  recipientAccountId: z.uuid(),
+  expiresAt: z.iso.datetime(),
+});
+
+export const ownershipTransferAcceptSchema = z.strictObject({
+  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+});
+
+export const ownershipTransferAcceptResponseSchema = z.strictObject({
+  orgId: z.uuid(),
+  previousOwnerId: z.uuid(),
+  ownerId: z.uuid(),
+});
+
 export const orgInvitationSchema = z
   .strictObject({
     email: z.email().max(254),
@@ -221,6 +317,13 @@ export const orgInvitationResponseSchema = z.strictObject({
 });
 
 export const orgStaffResponseSchema = z.strictObject({
+  scopes: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      name: z.string(),
+      scopeType: z.enum(['season', 'program', 'division', 'team_season']),
+    }),
+  ),
   members: z.array(
     z.strictObject({
       accountId: z.uuid(),
