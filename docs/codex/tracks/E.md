@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Staff installment due-date, split and consented method-switch actions are versioned, idempotent and audited; the portal captures payer mandate consent for one invoice and saved method. Installment waiver remains in the Phase 4 queue; finance notice worker delivery waits for A's system actor contract.
+Current: Staff installment due-date, split, consented method-switch and waiver actions are versioned, idempotent and audited; waiver posts a balancing discount and refuses unsettled payments. The portal captures payer consent; finance notice worker delivery waits for A's system actor contract.
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
@@ -38,6 +38,7 @@ Ready for integration: local `7e8c968..HEAD` — staff installment due-date and 
 Ready for integration: local `059b13e..HEAD` — staff method switch requires an active saved method and an unrevoked payer mandate for the exact invoice; full gate green (671 tests, 34 browser tests).
 Ready for integration: local `da4a859..HEAD` — payer-owned, exact-invoice staff-method consent capture with versioned text hash, request evidence and UUID replay key; full gate green (672 tests, 36 browser tests).
 Ready for integration: local `1b44435..HEAD` — portal consent selector with payer-scoped eligible invoices, saved methods, required versioned text and stable retry key; full gate green (673 tests, 36 browser tests).
+Ready for integration: local `818ad18..HEAD` — installment waiver posts a negative discount ledger line, reduces invoice total, excludes waived installments from delinquency and blocks in-flight payments; full gate green (674 tests, 36 browser tests).
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
