@@ -60,7 +60,13 @@ test('owner creates, edits and archives a person from the console', async ({
       page.getByRole('heading', { name: 'Alex Rivera' }),
     ).toBeVisible();
     await page.getByRole('textbox', { name: 'Preferred name' }).fill('Lex');
+    const savedPerson = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        response.url().includes(`/api/v1/people/orgs/${actor.orgId}/`),
+    );
     await page.getByRole('button', { name: 'Save person' }).click();
+    expect((await savedPerson).ok()).toBe(true);
     await expect(
       page.getByRole('textbox', { name: 'Preferred name' }),
     ).toHaveValue('Lex');
@@ -80,6 +86,20 @@ test('owner creates, edits and archives a person from the console', async ({
     await expect(
       page.getByRole('button', { name: 'Save person' }),
     ).toBeVisible();
+    await page.goto(`/console/orgs/${actor.orgId}/households`);
+    await page
+      .getByRole('textbox', { name: 'Household name' })
+      .fill('Rivera household');
+    await page.getByRole('button', { name: 'Create household' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Rivera household' }),
+    ).toBeVisible();
+    await page
+      .getByRole('combobox', { name: 'Person' })
+      .selectOption({ label: 'Alex Rivera' });
+    await page.getByRole('button', { name: 'Add member' }).click();
+    await expect(page.getByRole('link', { name: 'Alex Rivera' })).toBeVisible();
+    expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
     await database.destroy();
   }

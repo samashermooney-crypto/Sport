@@ -478,3 +478,11 @@
 - **Decision:** Calculate current age on the organization's local calendar date. Calculate grade from graduation year with an August 1 school-year rollover, stored as `peopleSchoolYearCutoff` in organization settings for later configuration. Never store the derived age or grade on a person.
 - **Why:** This keeps directory and eligibility values current across birthdays and school years without bulk data updates.
 - **Consequences / follow-ups:** Filters use the same local date and cutoff. A later organization settings control can expose the cutoff after its validation and audit flow is built.
+
+### DEC-070 — Keep household primary contacts and balances explicit
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 households
+- **Context:** The data model allows multiple households per person and invoices in different currencies; the task does not define primary-contact replacement or balance aggregation.
+- **Decision:** A household may have one primary contact, who must have an adult household role. Adding a new primary contact clears the former flag in the same locked transaction. Show invoice balances grouped by currency and never add amounts from different currencies.
+- **Why:** The rule prevents ambiguous contact routing and misleading financial totals.
+- **Consequences / follow-ups:** Member editing and removal must preserve or deliberately reassign the primary contact. Household address and membership changes are audited and versioned.

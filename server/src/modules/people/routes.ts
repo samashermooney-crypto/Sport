@@ -1,4 +1,9 @@
 import {
+  householdCreateSchema,
+  householdMemberCreateSchema,
+  householdUpdateSchema,
+} from '@shared/schemas/households';
+import {
   peopleQuerySchema,
   personCreateSchema,
   personUpdateSchema,
@@ -10,6 +15,7 @@ import { requestImpersonation } from '../../lib/tenant-guard';
 import type { AuthDependencies } from '../auth/routes';
 import { requireSession } from '../auth/routes';
 
+import { createHouseholdsRepository } from './households';
 import { createPeopleRepository, PeopleError } from './repo';
 
 const archiveBodySchema = z.strictObject({
@@ -63,6 +69,7 @@ export function createPeopleRouter(
 ): express.Router {
   const router = express.Router();
   const people = createPeopleRepository(dependencies.database);
+  const households = createHouseholdsRepository(dependencies.database);
   router.use(express.json({ limit: '32kb' }));
   router.use((_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
@@ -194,5 +201,116 @@ export function createPeopleRouter(
       sendError(response, error);
     }
   });
+  router.get('/households/orgs/:orgId', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const cursor =
+        request.query.cursor === undefined
+          ? undefined
+          : z.uuid().parse(request.query.cursor);
+      response.json(
+        await households.list(
+          orgId,
+          session.accountId,
+          cursor,
+          Boolean(requestImpersonation(request)),
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get(
+    '/households/orgs/:orgId/:householdId',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const householdId = z.uuid().parse(request.params.householdId);
+        response.json(
+          await households.get(
+            orgId,
+            session.accountId,
+            householdId,
+            Boolean(requestImpersonation(request)),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post('/households/orgs/:orgId', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+      if (!validWriteOrigin(request, dependencies.appUrl))
+        throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+      const orgId = z.uuid().parse(request.params.orgId);
+      response
+        .status(201)
+        .json(
+          await households.create(
+            orgId,
+            session.accountId,
+            householdCreateSchema.parse(request.body),
+          ),
+        );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.patch(
+    '/households/orgs/:orgId/:householdId',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        const orgId = z.uuid().parse(request.params.orgId);
+        const householdId = z.uuid().parse(request.params.householdId);
+        response.json(
+          await households.update(
+            orgId,
+            session.accountId,
+            householdId,
+            householdUpdateSchema.parse(request.body),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post(
+    '/households/orgs/:orgId/:householdId/members',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        const orgId = z.uuid().parse(request.params.orgId);
+        const householdId = z.uuid().parse(request.params.householdId);
+        response
+          .status(201)
+          .json(
+            await households.addMember(
+              orgId,
+              session.accountId,
+              householdId,
+              householdMemberCreateSchema.parse(request.body),
+            ),
+          );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   return router;
 }
