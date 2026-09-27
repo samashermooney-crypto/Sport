@@ -1,24 +1,204 @@
-# Phase 0 reference shape. Production readiness is gated by docs/codex/13-PHASE-PRODUCTION.md.
+# Reference deployment only. Create managed Postgres with PITR (14+ days) and
+# a versioned private object bucket separately; no credentials belong here.
+envVarGroups:
+  - name: athlentry-production-runtime
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: '10000'
+      - key: DELIVERY_MODE
+        value: live
+      - key: LOG_LEVEL
+        value: info
+      - key: LEGAL_DOCS_APPROVED
+        value: 'false'
+
 services:
   - type: web
     name: athlentry-web
     runtime: docker
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /healthz
+    plan: 2c-4g
+    numInstances: 2
+    healthCheckPath: /readyz
+    preDeployCommand: npm run db:migrate
     envVars:
-      - key: NODE_ENV
-        value: production
+      - fromGroup: athlentry-production-runtime
+      - key: ATHLENTRY_PROCESS_TYPE
+        value: web
+      - key: APP_URL
+        sync: false
+      - key: APP_DOMAIN
+        sync: false
+      - key: ATHLENTRY_SECURITY_CONTACT
+        sync: false
+      - key: ATHLENTRY_SECURITY_POLICY_URL
+        sync: false
+      - key: ATHLENTRY_STORAGE_PUBLIC_ORIGIN
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: DATABASE_ADMIN_URL
         sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: DATA_ENCRYPTION_KEYS
+        sync: false
+      - key: DATA_ENCRYPTION_ACTIVE_KID
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_CONNECT_WEBHOOK_SECRET
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: CAMPAIGN_EMAIL_FROM
+        sync: false
+      - key: COMMUNICATIONS_UNSUBSCRIBE_SECRET
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_MESSAGING_SERVICE_SID
+        sync: false
+      - key: TWILIO_INBOUND_CALLBACK_URL
+        sync: false
+      - key: TWILIO_STATUS_CALLBACK_URL
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      - key: CHECKR_API_KEY
+        sync: false
+      - key: CHECKR_BASE_URL
+        sync: false
+      - key: CHECKR_ENABLED
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AI_PROVIDER
+        value: none
+      - key: AI_MODEL
+        value: claude-sonnet-5
   - type: worker
     name: athlentry-worker
     runtime: docker
     dockerfilePath: ./Dockerfile
+    plan: 1c-2g
     dockerCommand: npm run worker
+    numInstances: 1
+    envVars:
+      - fromGroup: athlentry-production-runtime
+      - key: ATHLENTRY_PROCESS_TYPE
+        value: worker
+      - key: DATABASE_URL
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: CAMPAIGN_EMAIL_FROM
+        sync: false
+      - key: COMMUNICATIONS_UNSUBSCRIBE_SECRET
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_MESSAGING_SERVICE_SID
+        sync: false
+      - key: TWILIO_STATUS_CALLBACK_URL
+        sync: false
+      - key: DATA_ENCRYPTION_KEYS
+        sync: false
+      - key: DATA_ENCRYPTION_ACTIVE_KID
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: CHECKR_API_KEY
+        sync: false
+      - key: CHECKR_BASE_URL
+        sync: false
+      - key: CHECKR_ENABLED
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+  - type: cron
+    name: athlentry-backup
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: 0.5c-512mb
+    schedule: '0 2 * * *'
+    dockerCommand: node --import tsx scripts/backup.ts
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
+      - key: ATHLENTRY_PROCESS_TYPE
+        value: backup
+      - key: BACKUP_DATABASE_URL
+        sync: false
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
+      - key: BACKUP_DIR
+        value: /tmp/athlentry/backups
+      - key: BACKUP_S3_ENDPOINT
+        sync: false
+      - key: BACKUP_S3_REGION
+        sync: false
+      - key: BACKUP_S3_BUCKET
+        sync: false
+      - key: BACKUP_S3_ACCESS_KEY_ID
+        sync: false
+      - key: BACKUP_S3_SECRET_ACCESS_KEY
         sync: false

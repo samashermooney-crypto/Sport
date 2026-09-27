@@ -1,9 +1,11 @@
 # Track H — communications and chat
 
+Requests from OPS: Confirm the campaign enqueue/status API contract for a 20,000-recipient fan-out using only preview/fake delivery adapters, including a durable completed-recipient count for the k6 scenario (2026-09-27).
+
 Status: Phase 10 H-owned work is ready for integration; Phase 11 is in progress; Phase 13 belongs to Track J
 Branch: `track/h-comms` (local only; no push)
-Merged trunk at sprint start: `rebuild/trunk` / `d991fee`; current sync includes `5ae54998` and must also absorb latest `rebuild/trunk` `f091afce`
-Sprint local range: `af353fc..HEAD` (local only; no push)
+Merged trunk at sprint start: `rebuild/trunk` / `d991fee`; synchronized branch includes `rebuild/trunk` `f091afce`
+Sprint local range: `f091afce..HEAD` (local only; no push)
 Migration ranges: Phase 10 `4000–4006`; Phase 11 `8000–8499` (Phase 13 is J's `6000–6999`)
 
 ## Delivered
@@ -54,6 +56,7 @@ Track B's catalog/preferences and Track C's provider-ID interface are on the mer
 
 ### Open requests
 
+- **OPS:** Confirm the campaign enqueue/status API contract for 20,000-recipient fan-out using preview/fake adapters and expose a durable completed-recipient count for k6.
 - **E:** Implement the guest donation payment completion contract used by `server/src/modules/fundraising/checkout.ts`; provide sponsor billing-account semantics and registration add-on inventory reservation integration.
 - **B:** Register Phase 11 catalog IDs: `fundraising.donation_receipt`, `fundraising.campaign_update`, `sponsor.renewal_reminder`, `store.order_update`, `store.low_stock`, `volunteer.shift_reminder`, `volunteer.requirement_behind`, `team.fee_assessed`, and `team.reimbursement_decided`; provide volunteer administration picklists.
 - **C:** Dispatch signed payment completion/failure webhooks, mount generated server/web registries and H routes, and wire jobs.
