@@ -317,6 +317,21 @@ const orgRoutes: OpenApiRoute[] = [
     response: orgs.orgMemberRolesResponseSchema,
   },
   {
+    method: 'post',
+    path: `${orgsBase}/{orgId}/invitations`,
+    summary: 'Invite organization member',
+    body: orgs.orgInvitationSchema,
+    response: orgs.orgInvitationResponseSchema,
+    status: 201,
+  },
+  {
+    method: 'post',
+    path: `${orgsBase}/{orgId}/invitations/accept`,
+    summary: 'Accept organization invitation',
+    body: orgs.acceptOrgInvitationSchema,
+    response: orgs.acceptedOrgInvitationResponseSchema,
+  },
+  {
     method: 'get',
     path: `${orgsBase}/slug-availability`,
     summary: 'Check organization slug',
