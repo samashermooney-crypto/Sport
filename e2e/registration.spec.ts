@@ -11,7 +11,6 @@ test('family registers two siblings together, signs waivers, and chooses uniform
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
-  const startedAt = Date.now();
   const database = createDatabase(
     `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
   );
@@ -184,9 +183,16 @@ test('family registers two siblings together, signs waivers, and chooses uniform
     await page
       .getByRole('link', { name: 'Register Maya Sibling again' })
       .click();
-    await expect(
-      page.getByRole('heading', { name: 'Find a program' }),
-    ).toBeVisible();
+    const journeyStartedAt = Date.now();
+    const visitedScreens = new Set<string>();
+    const expectJourneyScreen = async (name: string, timeout = 5000) => {
+      await expect(page.getByRole('heading', { name })).toBeVisible({
+        timeout,
+      });
+      visitedScreens.add(name);
+      expect(visitedScreens.size).toBeLessThanOrEqual(4);
+    };
+    await expectJourneyScreen('Find a program');
     const firstParticipant = participants[0];
     const secondParticipant = participants[1];
     if (!firstParticipant || !secondParticipant)
@@ -208,9 +214,7 @@ test('family registers two siblings together, signs waivers, and chooses uniform
     await expect(cart.getByText('Noah Sibling')).toBeVisible();
     await page.getByRole('button', { name: 'Continue to review' }).click();
 
-    await expect(
-      page.getByRole('heading', { name: 'Participant details' }),
-    ).toBeVisible();
+    await expectJourneyScreen('Participant details');
     const parent = await createWithOrg(database)(actor, (trx) =>
       trx
         .selectFrom('accounts')
@@ -240,20 +244,17 @@ test('family registers two siblings together, signs waivers, and chooses uniform
     }
     await page.getByRole('button', { name: 'Continue to review' }).click();
 
-    await expect(
-      page.getByRole('heading', { name: 'Review your registration' }),
-    ).toBeVisible();
+    await expectJourneyScreen('Review your registration');
     await page
       .getByRole('checkbox', {
         name: 'I have read and accept these refund terms.',
       })
       .check();
     await page.getByRole('button', { name: 'Continue to payment' }).click();
-    await expect(
-      page.getByRole('heading', { name: 'Registration confirmed' }),
-    ).toBeVisible({ timeout: 30_000 });
+    await expectJourneyScreen('Registration confirmed', 30_000);
+    expect(visitedScreens.size).toBe(4);
 
-    expect(Date.now() - startedAt).toBeLessThan(120_000);
+    expect(Date.now() - journeyStartedAt).toBeLessThan(120_000);
     const registrations = await createWithOrg(database)(actor, (trx) =>
       trx
         .selectFrom('registrations')
