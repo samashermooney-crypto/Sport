@@ -460,22 +460,15 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
 async function declaredRouteKeys(): Promise<Set<string>> {
   const keys = new Set<string>();
   for (const module of serverModules) {
-    if (!module.router) continue;
-    const source = await readFile(
-      `server/src/modules/${module.name}/routes.ts`,
-      'utf8',
-    );
-    for (const match of source.matchAll(
-      /router\.(get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]/g,
-    )) {
-      const method = match[1];
-      const suffix = match[2];
-      if (!method || !suffix) continue;
-      const path = `${module.path}${suffix === '/' ? '' : suffix}`.replace(
-        /:([a-zA-Z][a-zA-Z0-9_]*)/g,
-        '{$1}',
+    if (module.router) {
+      const primaryPath = `server/src/modules/${module.name}/routes.ts`;
+      const primarySource = ts.createSourceFile(
+        primaryPath,
+        await readFile(primaryPath, 'utf8'),
+        ts.ScriptTarget.Latest,
+        true,
       );
-      keys.add(`${method} ${path}`);
+      collectRouteCalls(primarySource, module.path, keys);
     }
     for (const extra of module.extraRouters ?? []) {
       const directory = `server/src/modules/${module.name}`;
@@ -500,29 +493,7 @@ async function declaredRouteKeys(): Promise<Set<string>> {
           )
             continue;
           foundFactory = true;
-          const visit = (node: ts.Node): void => {
-            if (
-              ts.isCallExpression(node) &&
-              ts.isPropertyAccessExpression(node.expression) &&
-              ts.isIdentifier(node.expression.expression) &&
-              node.expression.expression.text === 'router' &&
-              ['get', 'post', 'put', 'patch', 'delete'].includes(
-                node.expression.name.text,
-              ) &&
-              node.arguments[0] &&
-              ts.isStringLiteral(node.arguments[0])
-            ) {
-              const suffix = node.arguments[0].text;
-              const routePath =
-                `${extra.path}${suffix === '/' ? '' : suffix}`.replace(
-                  /:([a-zA-Z][a-zA-Z0-9_]*)/g,
-                  '{$1}',
-                );
-              keys.add(`${node.expression.name.text} ${routePath}`);
-            }
-            ts.forEachChild(node, visit);
-          };
-          visit(declaration.body);
+          collectRouteCalls(declaration.body, extra.path, keys);
         }
       }
       if (!foundFactory)
@@ -532,6 +503,38 @@ async function declaredRouteKeys(): Promise<Set<string>> {
     }
   }
   return keys;
+}
+
+function collectRouteCalls(
+  node: ts.Node,
+  mountPath: string,
+  keys: Set<string>,
+): void {
+  const visit = (current: ts.Node): void => {
+    if (
+      ts.isCallExpression(current) &&
+      ts.isPropertyAccessExpression(current.expression) &&
+      ts.isIdentifier(current.expression.expression) &&
+      current.expression.expression.text === 'router' &&
+      ['get', 'post', 'put', 'patch', 'delete'].includes(
+        current.expression.name.text,
+      )
+    ) {
+      const argument = current.arguments[0];
+      if (!argument || !ts.isStringLiteral(argument))
+        throw new Error(
+          `OpenAPI cannot inspect a dynamic ${current.expression.name.text} route in ${current.getSourceFile().fileName}`,
+        );
+      const suffix = argument.text;
+      const path = `${mountPath}${suffix === '/' ? '' : suffix}`.replace(
+        /:([a-zA-Z][a-zA-Z0-9_]*)/g,
+        '{$1}',
+      );
+      keys.add(`${current.expression.name.text} ${path}`);
+    }
+    ts.forEachChild(current, visit);
+  };
+  visit(node);
 }
 
 const moduleRoutes = serverModules.flatMap((module) => {
@@ -555,8 +558,12 @@ const routes: OpenApiRoute[] = [
 ];
 const keys = new Set(routes.map((route) => `${route.method} ${route.path}`));
 if (keys.size !== routes.length) throw new Error('Duplicate OpenAPI operation');
-for (const key of await declaredRouteKeys())
+const declaredKeys = await declaredRouteKeys();
+for (const key of declaredKeys)
   if (!keys.has(key)) throw new Error(`Route missing from OpenAPI: ${key}`);
+for (const key of keys)
+  if (key !== 'get /healthz' && !declaredKeys.has(key))
+    throw new Error(`OpenAPI operation has no route: ${key}`);
 const paths: Record<string, Record<string, unknown>> = {};
 for (const route of routes) {
   const operations = paths[route.path] ?? {};
