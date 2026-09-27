@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 
+import { i18n as appI18n } from '../../lib/i18n';
 import { Button, Card, Field, FileUpload, Select, Textarea } from '../../ui';
 
 import './portal-messages.css';
@@ -66,7 +68,7 @@ async function request<T>(
       },
     );
   } catch {
-    throw new Error('Cannot connect. Check your connection and try again.');
+    throw new Error(appI18n.t('portal:messageCenter.connectFailed'));
   }
   const result: unknown = await response.json().catch(() => null);
   if (!response.ok) {
@@ -80,7 +82,7 @@ async function request<T>(
         'message' in error &&
         typeof error.message === 'string'
         ? error.message
-        : 'The request could not be completed.',
+        : appI18n.t('portal:messageCenter.requestFailed'),
     );
   }
   return result as T;
@@ -91,6 +93,7 @@ export function MessagesPortal({
 }: {
   orgId: string;
 }): React.JSX.Element {
+  const { t, i18n } = useTranslation('portal');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -160,13 +163,13 @@ export function MessagesPortal({
         setError(
           cause instanceof Error
             ? cause.message
-            : 'Could not load conversations.',
+            : t('messageCenter.conversationsLoadFailed'),
         );
     });
     return () => {
       active = false;
     };
-  }, [loadConversations]);
+  }, [loadConversations, t]);
   useEffect(() => {
     if (requestedConversationId) setActiveConversation(requestedConversationId);
   }, [requestedConversationId]);
@@ -177,13 +180,13 @@ export function MessagesPortal({
         setError(
           cause instanceof Error
             ? cause.message
-            : 'Could not load SMS consent.',
+            : t('messageCenter.consentLoadFailed'),
         );
     });
     return () => {
       active = false;
     };
-  }, [loadSmsConsent]);
+  }, [loadSmsConsent, t]);
   useEffect(() => {
     void request<{ id: string }>('/api/v1/auth/me')
       .then((result) => {
@@ -196,13 +199,15 @@ export function MessagesPortal({
     void loadMessages().catch((cause: unknown) => {
       if (active)
         setError(
-          cause instanceof Error ? cause.message : 'Could not load messages.',
+          cause instanceof Error
+            ? cause.message
+            : t('messageCenter.messagesLoadFailed'),
         );
     });
     return () => {
       active = false;
     };
-  }, [loadMessages]);
+  }, [loadMessages, t]);
   useEffect(() => {
     const source = new EventSource('/api/v1/stream', { withCredentials: true });
     const onNotification = () => {
@@ -251,7 +256,7 @@ export function MessagesPortal({
       setError(
         cause instanceof Error
           ? cause.message
-          : 'Could not open team conversation.',
+          : t('messageCenter.teamOpenFailed'),
       );
     } finally {
       setBusy(false);
@@ -267,7 +272,10 @@ export function MessagesPortal({
       await request(
         `${base}/chat/conversations/${encodeURIComponent(activeConversation)}/messages`,
         'POST',
-        { body: body.trim() || 'Attachment', attachments: attachmentIds },
+        {
+          body: body.trim() || t('messageCenter.attachmentBody'),
+          attachments: attachmentIds,
+        },
       );
       setBody('');
       setAttachmentIds([]);
@@ -275,7 +283,9 @@ export function MessagesPortal({
       await loadConversations();
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : 'Could not send message.',
+        cause instanceof Error
+          ? cause.message
+          : t('messageCenter.messageSendFailed'),
       );
     } finally {
       setBusy(false);
@@ -284,11 +294,11 @@ export function MessagesPortal({
   const uploadFile = async (file: File) => {
     const mime = file.type;
     if (!(mime.startsWith('image/') || mime === 'application/pdf')) {
-      setError('Choose a supported image or PDF.');
+      setError(t('messageCenter.unsupportedFile'));
       return;
     }
     if (file.size > 15 * 1024 * 1024) {
-      setError('Files must be 15 MB or smaller.');
+      setError(t('messageCenter.fileTooLarge'));
       return;
     }
     const purpose = mime.startsWith('image/') ? 'image' : 'document';
@@ -309,7 +319,7 @@ export function MessagesPortal({
           sensitivity: 'internal',
         }),
       });
-      if (!created.ok) throw new Error('File upload could not start.');
+      if (!created.ok) throw new Error(t('messageCenter.uploadStartFailed'));
       const { fileId, uploadUrl } = (await created.json()) as {
         fileId: string;
         uploadUrl: string;
@@ -324,17 +334,22 @@ export function MessagesPortal({
         },
         body: await file.arrayBuffer(),
       });
-      if (!uploaded.ok) throw new Error('File upload failed.');
+      if (!uploaded.ok) throw new Error(t('messageCenter.uploadFailed'));
       const completed = await fetch(
         `/api/v1/files/uploads/${encodeURIComponent(fileId)}/complete`,
         { method: 'POST', credentials: 'include', headers, body: '{}' },
       );
-      if (!completed.ok) throw new Error('File could not be finalized.');
+      if (!completed.ok)
+        throw new Error(t('messageCenter.uploadFinalizeFailed'));
       setAttachmentIds((items) => [...items, fileId]);
-      setNotice(`${file.name} is ready to attach.`);
+      setNotice(t('messageCenter.fileReady', { name: file.name }));
       setError('');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'File upload failed.');
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : t('messageCenter.uploadFailed'),
+      );
     }
   };
   const downloadAttachment = async (fileId: string) => {
@@ -343,7 +358,8 @@ export function MessagesPortal({
         `/api/v1/files/${encodeURIComponent(fileId)}/content`,
         { credentials: 'include', headers: { 'X-Athlentry-Org': orgId } },
       );
-      if (!response.ok) throw new Error('Attachment is not available.');
+      if (!response.ok)
+        throw new Error(t('messageCenter.attachmentUnavailableError'));
       const url = URL.createObjectURL(await response.blob());
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -354,7 +370,7 @@ export function MessagesPortal({
       setError(
         cause instanceof Error
           ? cause.message
-          : 'Could not download attachment.',
+          : t('messageCenter.downloadFailed'),
       );
     }
   };
@@ -373,10 +389,12 @@ export function MessagesPortal({
       );
       setReportId('');
       setReportDetails('');
-      setNotice('Your report was sent to the organization compliance team.');
+      setNotice(t('messageCenter.reportSent'));
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : 'Could not submit the report.',
+        cause instanceof Error
+          ? cause.message
+          : t('messageCenter.reportFailed'),
       );
     } finally {
       setBusy(false);
@@ -400,7 +418,7 @@ export function MessagesPortal({
       setError(
         cause instanceof Error
           ? cause.message
-          : 'Could not update SMS consent.',
+          : t('messageCenter.consentUpdateFailed'),
       );
     } finally {
       setBusy(false);
@@ -416,14 +434,16 @@ export function MessagesPortal({
     <main className="portal-messages">
       <header className="portal-messages__header">
         <div>
-          <p className="portal-messages__eyebrow">FAMILY PORTAL</p>
-          <h1>Messages</h1>
-          <p>Stay connected with your teams and organization.</p>
+          <p className="portal-messages__eyebrow">
+            {t('messageCenter.eyebrow')}
+          </p>
+          <h1>{t('messageCenter.messageTitle')}</h1>
+          <p>{t('messageCenter.messageSubtitle')}</p>
         </div>
         <span className="portal-live" role="status">
           {liveState === 'live'
-            ? 'Live updates on'
-            : 'Live updates reconnecting'}
+            ? t('messageCenter.liveOn')
+            : t('messageCenter.liveReconnecting')}
         </span>
       </header>
       {error && (
@@ -439,7 +459,10 @@ export function MessagesPortal({
           {notice}
         </div>
       )}
-      <nav className="portal-message-tabs" aria-label="Message center sections">
+      <nav
+        className="portal-message-tabs"
+        aria-label={t('messageCenter.messageSections')}
+      >
         <Button
           type="button"
           secondary
@@ -449,16 +472,16 @@ export function MessagesPortal({
             );
           }}
         >
-          Notifications and preferences
+          {t('messageCenter.notificationsAndPreferences')}
         </Button>
       </nav>
       <div className="portal-chat-layout">
         <Card className="portal-chat-list">
-          <h2>Conversations</h2>
+          <h2>{t('messageCenter.conversations')}</h2>
           {teams.length > 0 && (
             <>
               <fieldset className="portal-team-list">
-                <legend>Team chats</legend>
+                <legend>{t('messageCenter.teamChats')}</legend>
                 {teams.map((team) => (
                   <Button
                     key={team.teamSeasonId}
@@ -473,7 +496,7 @@ export function MessagesPortal({
               </fieldset>
               {teams.some((team) => team.staffAccess) && (
                 <fieldset className="portal-team-list">
-                  <legend>Staff channels</legend>
+                  <legend>{t('messageCenter.staffChannels')}</legend>
                   {teams
                     .filter((team) => team.staffAccess)
                     .map((team) => (
@@ -486,7 +509,7 @@ export function MessagesPortal({
                           void openTeam(team.teamSeasonId, 'team_staff')
                         }
                       >
-                        {team.label} staff
+                        {t('messageCenter.staffSuffix', { team: team.label })}
                       </Button>
                     ))}
                 </fieldset>
@@ -507,15 +530,19 @@ export function MessagesPortal({
                     <span>
                       {conversation.title ||
                         (conversation.kind === 'team'
-                          ? 'Team conversation'
-                          : 'Direct message')}
+                          ? t('messageCenter.teamConversation')
+                          : t('messageCenter.directMessage'))}
                     </span>
                     <small>
                       {conversation.guardianCopied
-                        ? 'Guardian included'
-                        : conversation.kind.replace('_', ' ')}
+                        ? t('messageCenter.guardianIncluded')
+                        : conversation.kind === 'team_staff'
+                          ? t('messageCenter.staffChannel')
+                          : conversation.kind === 'team'
+                            ? t('messageCenter.teamConversation')
+                            : t('messageCenter.directMessage')}
                       {conversation.unreadCount
-                        ? ` · ${String(conversation.unreadCount)} unread`
+                        ? ` · ${t('messageCenter.unread', { count: conversation.unreadCount })}`
                         : ''}
                     </small>
                   </button>
@@ -523,18 +550,21 @@ export function MessagesPortal({
               ))}
             </ul>
           ) : teams.length ? (
-            <p>Choose a team above to open its conversation.</p>
+            <p>{t('messageCenter.chooseTeam')}</p>
           ) : (
-            <p>No conversations are available for this account.</p>
+            <p>{t('messageCenter.noConversations')}</p>
           )}
         </Card>
-        <section className="portal-chat-thread" aria-label="Conversation">
+        <section
+          className="portal-chat-thread"
+          aria-label={t('messageCenter.conversation')}
+        >
           {activeConversation ? (
             <Card>
               <div className="portal-thread-heading">
                 <h2>
                   {conversations.find((item) => item.id === activeConversation)
-                    ?.title || 'Conversation'}
+                    ?.title || t('messageCenter.conversation')}
                 </h2>
                 <Button
                   type="button"
@@ -559,23 +589,23 @@ export function MessagesPortal({
                         );
                         setNotice(
                           muted
-                            ? 'Conversation unmuted.'
-                            : 'Conversation muted.',
+                            ? t('messageCenter.conversationUnmuted')
+                            : t('messageCenter.conversationMuted'),
                         );
                       })
                       .catch((cause: unknown) => {
                         setError(
                           cause instanceof Error
                             ? cause.message
-                            : 'Could not update mute setting.',
+                            : t('messageCenter.muteUpdateFailed'),
                         );
                       });
                   }}
                 >
                   {conversations.find((item) => item.id === activeConversation)
                     ?.muted
-                    ? 'Unmute'
-                    : 'Mute'}
+                    ? t('messageCenter.unmute')
+                    : t('messageCenter.mute')}
                 </Button>
               </div>
               <ol className="portal-message-list" aria-live="polite">
@@ -585,7 +615,9 @@ export function MessagesPortal({
                       <header>
                         <strong>{message.authorName}</strong>
                         <time dateTime={message.createdAt}>
-                          {new Date(message.createdAt).toLocaleString()}
+                          {new Date(message.createdAt).toLocaleString(
+                            i18n.resolvedLanguage,
+                          )}
                         </time>
                       </header>
                       <p>{message.body}</p>
@@ -601,10 +633,14 @@ export function MessagesPortal({
                                     void downloadAttachment(attachment.fileId)
                                   }
                                 >
-                                  Download attachment ({attachment.mime})
+                                  {t('messageCenter.downloadAttachment', {
+                                    mime: attachment.mime,
+                                  })}
                                 </Button>
                               ) : (
-                                <span>Attachment access unavailable</span>
+                                <span>
+                                  {t('messageCenter.attachmentUnavailable')}
+                                </span>
                               )}
                             </li>
                           ))}
@@ -612,7 +648,7 @@ export function MessagesPortal({
                       )}
                       {message.deletedAt ? (
                         <p className="portal-removed">
-                          This message was removed.
+                          {t('messageCenter.messageRemoved')}
                         </p>
                       ) : (
                         <div className="portal-message-actions">
@@ -626,7 +662,7 @@ export function MessagesPortal({
                               setReportDetails('');
                             }}
                           >
-                            Report
+                            {t('messageCenter.report')}
                           </Button>
                           {message.authorAccountId === accountId && (
                             <Button
@@ -635,7 +671,7 @@ export function MessagesPortal({
                               onClick={() => {
                                 if (
                                   window.confirm(
-                                    'Hide this message for participants?',
+                                    t('messageCenter.hideConfirmation'),
                                   )
                                 )
                                   void request(
@@ -647,12 +683,12 @@ export function MessagesPortal({
                                       setError(
                                         cause instanceof Error
                                           ? cause.message
-                                          : 'Could not hide message.',
+                                          : t('messageCenter.hideFailed'),
                                       );
                                     });
                               }}
                             >
-                              Hide
+                              {t('messageCenter.hide')}
                             </Button>
                           )}
                         </div>
@@ -665,7 +701,7 @@ export function MessagesPortal({
                             void report(message.id);
                           }}
                         >
-                          <Field label="Report reason">
+                          <Field label={t('messageCenter.reportReason')}>
                             <Select
                               value={reportReason}
                               onChange={(event) => {
@@ -674,18 +710,26 @@ export function MessagesPortal({
                               options={[
                                 {
                                   value: 'safesport_concern',
-                                  label: 'SafeSport concern',
+                                  label: t('messageCenter.safeSportConcern'),
                                 },
-                                { value: 'harassment', label: 'Harassment' },
+                                {
+                                  value: 'harassment',
+                                  label: t('messageCenter.harassment'),
+                                },
                                 {
                                   value: 'inappropriate_content',
-                                  label: 'Inappropriate content',
+                                  label: t(
+                                    'messageCenter.inappropriateContent',
+                                  ),
                                 },
-                                { value: 'other', label: 'Other' },
+                                {
+                                  value: 'other',
+                                  label: t('messageCenter.other'),
+                                },
                               ]}
                             />
                           </Field>
-                          <Field label="Details (optional)">
+                          <Field label={t('messageCenter.detailsOptional')}>
                             <Textarea
                               rows={3}
                               maxLength={2000}
@@ -696,7 +740,7 @@ export function MessagesPortal({
                             />
                           </Field>
                           <Button disabled={busy} type="submit">
-                            Send report
+                            {t('messageCenter.sendReport')}
                           </Button>
                         </form>
                       )}
@@ -708,7 +752,7 @@ export function MessagesPortal({
                 className="portal-compose"
                 onSubmit={(event) => void sendMessage(event)}
               >
-                <Field label="Write a message">
+                <Field label={t('messageCenter.writeMessage')}>
                   <Textarea
                     rows={3}
                     maxLength={5000}
@@ -721,7 +765,7 @@ export function MessagesPortal({
                 <div className="portal-compose__actions">
                   {attachmentCapabilities.canUpload && (
                     <FileUpload
-                      label="Attach image or PDF"
+                      label={t('messageCenter.attachImagePdf')}
                       accept="image/jpeg,image/png,image/webp,application/pdf"
                       onFiles={(files) => {
                         const file = files?.[0];
@@ -730,7 +774,11 @@ export function MessagesPortal({
                     />
                   )}
                   {attachmentIds.length > 0 && (
-                    <span>{attachmentIds.length} attachment ready</span>
+                    <span>
+                      {t('messageCenter.attachmentReady', {
+                        count: attachmentIds.length,
+                      })}
+                    </span>
                   )}
                   <Button
                     disabled={
@@ -738,28 +786,26 @@ export function MessagesPortal({
                     }
                     type="submit"
                   >
-                    Send message
+                    {t('messageCenter.sendMessage')}
                   </Button>
                 </div>
               </form>
             </Card>
           ) : (
             <Card className="portal-empty-thread">
-              <h2>Choose a conversation</h2>
-              <p>
-                Your team conversations include guardians when an athlete under
-                18 participates.
-              </p>
+              <h2>{t('messageCenter.chooseConversation')}</h2>
+              <p>{t('messageCenter.guardianExplanation')}</p>
             </Card>
           )}
         </section>
       </div>
       <Card>
-        <h2>Text message consent</h2>
+        <h2>{t('messageCenter.smsConsent')}</h2>
         {smsConsent?.phoneE164 ? (
           <>
             <p>
-              Phone on file: <strong>{smsConsent.phoneE164}</strong>
+              {t('messageCenter.phoneOnFile')}{' '}
+              <strong>{smsConsent.phoneE164}</strong>
             </p>
             {!smsConsent.accepted && (
               <label className="portal-consent">
@@ -778,15 +824,12 @@ export function MessagesPortal({
               onClick={() => void setSms()}
             >
               {smsConsent.accepted
-                ? 'Turn off SMS messages'
-                : 'Agree and enable SMS'}
+                ? t('messageCenter.turnOffSms')
+                : t('messageCenter.enableSms')}
             </Button>
           </>
         ) : (
-          <p>
-            A verified phone number is required before SMS consent can be
-            recorded.
-          </p>
+          <p>{t('messageCenter.verifiedPhoneRequired')}</p>
         )}
       </Card>
     </main>
