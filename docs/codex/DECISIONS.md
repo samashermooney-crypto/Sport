@@ -271,3 +271,11 @@
 - **Decision:** Store a tenant's primary and accent colors for public and communication surfaces without changing admin UI tokens. Use the frozen blue values as defaults, require each color to reach 4.5:1 contrast on white, and accept HTTPS website URLs. Logo changes require a completed same-organization image from the files module and a version-checked owner profile update.
 - **Why:** This preserves design parity and prevents unsafe URLs, unreadable brand text and cross-tenant or incomplete logo attachment.
 - **Consequences / follow-ups:** Public site and email rendering use these brand values when their phases land; the admin console keeps `tokens.css` values.
+
+### DEC-033 — Fail closed on production auth configuration
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 public authentication
+- **Context:** Local auth uses preview email and an AlwaysPass CAPTCHA; production needs explicit delivery and Turnstile configuration. Expired PostgreSQL rate-limit rows otherwise accumulate indefinitely.
+- **Decision:** Production startup requires approved legal documents, a strong session secret, HTTPS app URL, live delivery mode, database and encryption settings, Resend sender, Turnstile site and secret keys, and a VAPID public key. It uses server-side Turnstile verification and the configured Resend sender. An hourly registered worker job deletes only expired rate-limit rows; unexpired counters remain intact.
+- **Why:** Missing protection or credentials cannot silently fall back to local adapters in production, while scheduled cleanup bounds storage without resetting active limits.
+- **Consequences / follow-ups:** Deployment must provide these values before startup. Local development and tests continue to use preview/fake delivery; production service calls are not exercised in tests.
