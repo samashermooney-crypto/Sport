@@ -157,6 +157,17 @@ describe('organization invitations', () => {
     ]);
   });
   it('lists, resends and revokes invitations without exposing other organizations', async () => {
+    const factory = createTestFactories(database);
+    const scope = await factory.program({
+      orgId,
+      accountId: ownerId,
+      actor: { accountId: ownerId },
+    });
+    const foreignScope = await factory.program({
+      orgId: otherOrgId,
+      accountId: ownerId,
+      actor: { accountId: ownerId },
+    });
     const inviteEmail = `resend-${randomUUID()}@example.invalid`;
     const dependencies = {
       database,
@@ -180,6 +191,14 @@ describe('organization invitations', () => {
       actorId: ownerId,
       now,
     });
+    expect(listed.scopes).toContainEqual({
+      id: scope.programId,
+      name: 'Fixture League',
+      scopeType: 'program',
+    });
+    expect(
+      listed.scopes.some((item) => item.id === foreignScope.programId),
+    ).toBe(false);
     expect(listed.invitations).toContainEqual(
       expect.objectContaining({ id: original.id, email: inviteEmail }),
     );
