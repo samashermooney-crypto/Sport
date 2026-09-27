@@ -172,6 +172,103 @@
   overflow-wrap: anywhere;
 }
 
+.schedule-resource-scroll {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-3);
+}
+
+.schedule-resource-calendar {
+  min-width: 1900px;
+  background: var(--panel);
+}
+
+.schedule-resource-row {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  border-top: 1px solid var(--line-2);
+}
+
+.schedule-resource-row > [role='rowheader'],
+.schedule-resource-row--header > [role='columnheader'] {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  padding: var(--space-8);
+  background: var(--panel);
+  border-right: 1px solid var(--line-2);
+}
+
+.schedule-resource-row > [role='rowheader'] small {
+  display: block;
+  color: var(--muted);
+  font-size: var(--font-size-11);
+  font-weight: 400;
+}
+
+.schedule-resource-row--header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--head);
+}
+
+.schedule-resource-hours {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(72px, 1fr));
+}
+
+.schedule-resource-row--header .schedule-resource-hours > time {
+  padding: var(--space-8) var(--space-4);
+  color: var(--muted);
+  border-right: 1px solid var(--line-2);
+  font-size: var(--font-size-11);
+  font-weight: 700;
+}
+
+.schedule-resource-slot {
+  display: flex;
+  min-height: 86px;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-right: 1px solid var(--line-2);
+  transition: background-color 120ms ease;
+}
+
+.schedule-resource-slot:hover,
+.schedule-resource-slot:focus-within {
+  background: var(--head);
+}
+
+.schedule-resource-event {
+  display: grid;
+  justify-items: start;
+  min-width: 0;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.schedule-resource-event span {
+  color: var(--muted);
+  font-size: var(--font-size-11);
+}
+
+.schedule-resource-empty {
+  padding: var(--space-12);
+  color: var(--muted);
+}
+
+.schedule-resource-move > p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 @media (max-width: 860px) {
   .schedule-page {
     padding: var(--space-12);

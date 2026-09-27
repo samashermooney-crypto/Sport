@@ -4,6 +4,8 @@ import type { SubmitEvent } from 'react';
 
 import { Badge, Button, Field, Input, Select, Textarea } from '../../ui';
 
+import { ResourceScheduleCalendar } from './ResourceScheduleCalendar';
+import type { ResourceScheduleEvent } from './ResourceScheduleCalendar';
 import './schedule.css';
 
 type ScheduleEvent = {
@@ -365,6 +367,9 @@ export function ScheduleConsole({
           locationText: formText(form, 'locationText') || null,
           arrivalMinutesBefore: Number(form.get('arrivalMinutesBefore') || 0),
           published: false,
+          ...(formText(form, 'overrideReason').trim()
+            ? { overrideReason: formText(form, 'overrideReason').trim() }
+            : {}),
           participants: [
             ...(home ? [{ type: 'team', id: home, side: 'home' }] : []),
             ...(away ? [{ type: 'team', id: away, side: 'away' }] : []),
@@ -401,11 +406,47 @@ export function ScheduleConsole({
             ),
             timezone: selected.timezone,
             locationText: formText(form, 'editLocation') || null,
+            ...(formText(form, 'editOverrideReason').trim()
+              ? {
+                  overrideReason: formText(form, 'editOverrideReason').trim(),
+                }
+              : {}),
           }),
         },
       );
       await loadEvents();
     }, 'Event updated.');
+  }
+
+  async function moveCalendarEvent(
+    event: ResourceScheduleEvent,
+    destination: {
+      startsAt: string;
+      endsAt: string;
+      spaceId: string | null;
+      timezone: string;
+      overrideReason?: string;
+    },
+  ): Promise<void> {
+    await api(
+      `${base(orgId, 'scheduling')}/events/${encodeURIComponent(event.id)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expectedVersion: event.version,
+          startsAt: destination.startsAt,
+          endsAt: destination.endsAt,
+          timezone: destination.timezone,
+          spaceId: destination.spaceId,
+          locationText: destination.spaceId ? null : event.locationText,
+          ...(destination.overrideReason
+            ? { overrideReason: destination.overrideReason }
+            : {}),
+        }),
+      },
+    );
+    await loadEvents();
   }
 
   async function createGeneration(
@@ -542,6 +583,11 @@ export function ScheduleConsole({
           startTime: formText(form, 'startTime'),
           durationMinutes: Number(form.get('durationMinutes')),
           timezone,
+          ...(formText(form, 'seriesOverrideReason').trim()
+            ? {
+                overrideReason: formText(form, 'seriesOverrideReason').trim(),
+              }
+            : {}),
           template: {
             kind: formText(form, 'kind'),
             title: formText(form, 'title'),
@@ -573,6 +619,9 @@ export function ScheduleConsole({
       scope,
       occurrenceStartsAt,
       expectedVersion: Number(form.get('seriesVersion')),
+      ...(formText(form, 'seriesOverrideReason').trim()
+        ? { overrideReason: formText(form, 'seriesOverrideReason').trim() }
+        : {}),
     };
     const title = formText(form, 'title').trim();
     if (title) payload.template = { title };
@@ -710,6 +759,19 @@ export function ScheduleConsole({
         </div>
       )}
 
+      <ResourceScheduleCalendar
+        events={events}
+        resources={spaces.map((space) => ({
+          id: space.id,
+          name: space.name,
+          timezone:
+            facilities.find((facility) => facility.id === space.facility_id)
+              ?.timezone ?? timezone,
+        }))}
+        timezone={timezone}
+        onMove={moveCalendarEvent}
+      />
+
       <section
         className="schedule-card"
         aria-labelledby="schedule-events-heading"
@@ -838,6 +900,16 @@ export function ScheduleConsole({
                   name="editLocation"
                   maxLength={500}
                   defaultValue={selected.locationText ?? ''}
+                />
+              </Field>
+              <Field
+                label="Soft conflict override reason"
+                hint="Only used if the server reports an overridable team, coach, or official conflict. Space conflicts cannot be overridden."
+              >
+                <Input
+                  name="editOverrideReason"
+                  minLength={10}
+                  maxLength={500}
                 />
               </Field>
               <Button type="submit" disabled={loading}>
@@ -994,6 +1066,12 @@ export function ScheduleConsole({
             </Field>
             <Field label="Free-text location">
               <Input name="locationText" maxLength={500} />
+            </Field>
+            <Field
+              label="Soft conflict override reason"
+              hint="Only used if the server reports an overridable team, coach, or official conflict. Space conflicts cannot be overridden."
+            >
+              <Input name="overrideReason" minLength={10} maxLength={500} />
             </Field>
             <Field label="Arrival time before event (minutes)">
               <Input
@@ -1475,6 +1553,16 @@ export function ScheduleConsole({
               <Field label="Location">
                 <Input name="locationText" />
               </Field>
+              <Field
+                label="Soft conflict override reason"
+                hint="Only used if the server reports an overridable team, coach, or official conflict. Space conflicts cannot be overridden."
+              >
+                <Input
+                  name="seriesOverrideReason"
+                  minLength={10}
+                  maxLength={500}
+                />
+              </Field>
               <Button type="submit" disabled={loading}>
                 Create weekly series
               </Button>
@@ -1549,6 +1637,16 @@ export function ScheduleConsole({
                   min={5}
                   max={720}
                   defaultValue={60}
+                />
+              </Field>
+              <Field
+                label="Soft conflict override reason"
+                hint="Only used if the server reports an overridable team, coach, or official conflict. Space conflicts cannot be overridden."
+              >
+                <Input
+                  name="seriesOverrideReason"
+                  minLength={10}
+                  maxLength={500}
                 />
               </Field>
               <Button type="submit" disabled={loading || !seriesId}>
