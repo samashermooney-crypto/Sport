@@ -228,4 +228,115 @@ describe('staff installment schedule actions', () => {
       }),
     ).rejects.toThrow('payer mandate');
   });
+
+  it('waives the collectible installment with a balancing invoice discount', async () => {
+    const invoice = await new PostgresInvoiceRepository(
+      database,
+      context,
+    ).issue({
+      orgId: context.orgId,
+      accountId: payerAccountId,
+      source: 'tuition',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'tuition',
+          description: 'Second tuition',
+          amountCents: 900,
+          refundable: true,
+        },
+      ],
+    });
+    const targetId = newId();
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .insertInto('installments')
+        .values({
+          id: targetId,
+          org_id: context.orgId,
+          invoice_id: invoice.id,
+          sequence: 1,
+          due_on: '2026-10-01',
+          amount_cents: 900,
+        })
+        .execute(),
+    );
+    const pendingPaymentId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('payments')
+        .values({
+          id: pendingPaymentId,
+          org_id: context.orgId,
+          account_id: payerAccountId,
+          method: 'card',
+          status: 'processing',
+          amount_cents: 900,
+        })
+        .execute();
+      await trx
+        .insertInto('payment_allocations')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          payment_id: pendingPaymentId,
+          invoice_id: invoice.id,
+          installment_id: targetId,
+          amount_cents: 900,
+        })
+        .execute();
+    });
+    const repo = new PostgresInstallmentStaffActions(database, context, now);
+    const key = randomUUID();
+    const action = {
+      action: 'waive' as const,
+      expectedVersion: 1,
+      reason: 'Approved hardship waiver',
+    };
+    await expect(repo.perform(targetId, key, action)).rejects.toThrow(
+      'payment in progress',
+    );
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('payments')
+        .set({ status: 'canceled' })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', pendingPaymentId)
+        .execute(),
+    );
+    const result = await repo.perform(targetId, key, action);
+    expect(result).toMatchObject({ version: 2, waivedCents: 900 });
+    expect(await repo.perform(targetId, key, action)).toEqual(result);
+    const state = await createWithOrg(database)(context, async (trx) => ({
+      invoice: await trx
+        .selectFrom('invoices')
+        .select(['total_cents', 'discount_cents', 'balance_cents', 'status'])
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', invoice.id)
+        .executeTakeFirstOrThrow(),
+      lines: await trx
+        .selectFrom('invoice_lines')
+        .select(['kind', 'amount_cents'])
+        .where('org_id', '=', context.orgId)
+        .where('invoice_id', '=', invoice.id)
+        .execute(),
+      installment: await trx
+        .selectFrom('installments')
+        .select(['status', 'autopay'])
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', targetId)
+        .executeTakeFirstOrThrow(),
+    }));
+    expect(state.invoice).toMatchObject({
+      total_cents: 0,
+      discount_cents: 900,
+      balance_cents: 0,
+      status: 'paid',
+    });
+    expect(state.lines.map((line) => line.amount_cents)).toEqual([900, -900]);
+    expect(state.installment).toMatchObject({
+      status: 'waived',
+      autopay: false,
+    });
+  });
 });

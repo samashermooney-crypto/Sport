@@ -30,8 +30,11 @@ import {
 import { PostgresPaymentAttemptStore } from './attempt-repo.js';
 import {
   autopayAuthorizationListSchema,
+  AutopayAuthorizationConflictError,
   AutopayAuthorizationNotFoundError,
   PostgresAutopayAuthorizations,
+  STAFF_METHOD_CONSENT_VERSION,
+  staffMethodOptionsSchema,
 } from './autopay-authorizations.js';
 import { ConnectConflictError, ConnectOnboardingService } from './connect.js';
 import {
@@ -127,6 +130,16 @@ import {
 export const autopayRevocationResponseSchema = z.strictObject({
   revoked: z.boolean(),
   stoppedInstallments: z.number().int().nonnegative(),
+});
+export const staffMethodConsentBodySchema = z.strictObject({
+  invoiceId: z.uuid(),
+  stripePaymentMethodId: z.string().regex(/^pm_[A-Za-z0-9_]+$/),
+  consentVersion: z.literal(STAFF_METHOD_CONSENT_VERSION),
+  accepted: z.literal(true),
+});
+export const staffMethodConsentResponseSchema = z.strictObject({
+  id: z.uuid(),
+  paymentMethodId: z.uuid(),
 });
 
 export const offlinePaymentBodySchema = z.strictObject({
@@ -437,6 +450,7 @@ function sendError(response: Response, error: unknown): void {
           error instanceof PaymentConflictError ||
           error instanceof InstallmentTemplateConflictError ||
           error instanceof InstallmentStaffConflictError ||
+          error instanceof AutopayAuthorizationConflictError ||
           error instanceof InvoiceConflictError ||
           error instanceof AidAwardConflictError ||
           error instanceof AidProgramConflictError ||
@@ -534,6 +548,57 @@ export function createFinanceRouter(
       sendError(response, error);
     }
   });
+  router.post(
+    '/orgs/:orgId/me/autopay/staff-method-consents',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const input = staffMethodConsentBodySchema.parse(
+          request.body as unknown,
+        );
+        const operationKey = z.uuid().parse(request.get('Idempotency-Key'));
+        const result = await new PostgresAutopayAuthorizations(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).authorizeStaffMethod({
+          invoiceId: input.invoiceId,
+          stripePaymentMethodId: input.stripePaymentMethodId,
+          accepted: input.accepted,
+          operationKey,
+          ip: request.ip ?? null,
+          userAgent: request.get('User-Agent') ?? null,
+        });
+        response
+          .status(201)
+          .json(staffMethodConsentResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/me/autopay/staff-method-options',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const result = await new PostgresAutopayAuthorizations(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).staffMethodOptions();
+        response.json(staffMethodOptionsSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   router.get(
     '/orgs/:orgId/me/invoices/:invoiceId/pdf',
     async (request, response) => {

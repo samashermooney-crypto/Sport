@@ -407,6 +407,7 @@ export async function recomputeInvoiceStatus(
   }>`
     SELECT due_on::text, amount_cents, paid_cents FROM installments
     WHERE org_id = ${orgId}::uuid AND invoice_id = ${invoiceId}::uuid
+      AND status NOT IN ('waived', 'canceled')
   `.execute(trx);
   const state = deriveInvoiceState({
     totalCents: row.total_cents,
