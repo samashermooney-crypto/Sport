@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link as RouterLink } from 'react-router';
 
 import {
   Avatar,
+  Banner,
   Badge,
   Board,
   Bracket,
   Button,
   Calendar,
+  Checkbox,
   ChatThread,
   Chart,
   Combobox,
@@ -17,28 +19,38 @@ import {
   DataTable,
   DateInput,
   DateRangeInput,
+  EmptyState,
+  ErrorState,
   Field,
+  FieldGroup,
   FileUpload,
   GlobalSearch,
+  IconButton,
   Input,
+  Link,
   MoneyInput,
   PageHeader,
   Pagination,
   PhoneInput,
   PrintLayout,
   QRCode,
+  Radio,
   RichTextEditor,
   Select,
   SignaturePad,
+  Skeleton,
   StatTile,
+  StatusPill,
   Stepper,
+  Switch,
   Tag,
   Textarea,
+  Toast,
   TimeInput,
   Timeline,
   Tabs,
 } from '../index';
-import { Dialog, Drawer, Sheet } from '../overlays';
+import { Dialog, Drawer, Sheet, ToastRegion } from '../overlays';
 import { AppShell } from '../shell';
 
 type DemoRow = { id: string; program: string; season: string; status: string };
@@ -200,6 +212,12 @@ export function Showcase(): React.JSX.Element {
   const [search, setSearch] = useState('');
   const [searchSubmitted, setSearchSubmitted] = useState('');
   const [selectedFile, setSelectedFile] = useState('');
+  const [emailUpdates, setEmailUpdates] = useState(true);
+  const [scheduleAlerts, setScheduleAlerts] = useState(true);
+  const [contactMethod, setContactMethod] = useState('email');
+  const [retryCount, setRetryCount] = useState(0);
+  const [extraSample, setExtraSample] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
 
   const boardColumns = columnDefinitions.map((column) => ({
     ...column,
@@ -225,12 +243,12 @@ export function Showcase(): React.JSX.Element {
       orgName="Northstar Youth Sports"
       orgSwitcher={
         <>
-          <Link to="/__ui" className="org-name">
+          <RouterLink to="/__ui" className="org-name">
             Northstar Youth Sports <ShowcaseIcon name="chevron" size={13} />
-          </Link>
-          <Link to="/__ui" className="site-link">
+          </RouterLink>
+          <RouterLink to="/__ui" className="site-link">
             Site
-          </Link>
+          </RouterLink>
         </>
       }
       actions={
@@ -389,6 +407,133 @@ export function Showcase(): React.JSX.Element {
             selected={selected}
             onSelectionChange={setSelected}
           />
+        </section>
+
+        <section
+          className="ui-showcase-section"
+          aria-label="States and feedback"
+        >
+          <h2>States, choices and feedback</h2>
+          <div className="ui-showcase-grid ui-showcase-state-grid">
+            <Card>
+              <h3>Choices and links</h3>
+              <FieldGroup label="Notification preferences">
+                <label className="ui-showcase-choice">
+                  <Checkbox
+                    checked={emailUpdates}
+                    onChange={(event) => {
+                      setEmailUpdates(event.target.checked);
+                    }}
+                  />
+                  Email updates
+                </label>
+                <label className="ui-showcase-choice">
+                  <Radio
+                    name="showcase-contact-method"
+                    value="email"
+                    checked={contactMethod === 'email'}
+                    onChange={(event) => {
+                      setContactMethod(event.target.value);
+                    }}
+                  />
+                  Email contact
+                </label>
+                <label className="ui-showcase-choice">
+                  <Radio
+                    name="showcase-contact-method"
+                    value="phone"
+                    checked={contactMethod === 'phone'}
+                    onChange={(event) => {
+                      setContactMethod(event.target.value);
+                    }}
+                  />
+                  Phone contact
+                </label>
+                <Switch
+                  label="Allow schedule alerts"
+                  checked={scheduleAlerts}
+                  onChange={(event) => {
+                    setScheduleAlerts(event.target.checked);
+                  }}
+                />
+              </FieldGroup>
+              <div className="ui-showcase-inline">
+                <Badge tone="confirmed">Confirmed</Badge>
+                <StatusPill tone="pending">Needs review</StatusPill>
+                <IconButton
+                  label="Reset notification preferences"
+                  onClick={() => {
+                    setEmailUpdates(true);
+                    setScheduleAlerts(true);
+                    setContactMethod('email');
+                  }}
+                >
+                  ↺
+                </IconButton>
+                <Link to="/__ui">View this design system</Link>
+              </div>
+            </Card>
+            <Card>
+              <h3>Message and loading states</h3>
+              <Banner tone="info" title="Preview environment">
+                This sample shows the organization’s current state.
+              </Banner>
+              <ErrorState
+                title="Sample request failed"
+                onRetry={() => {
+                  setRetryCount((count) => count + 1);
+                }}
+              >
+                {retryCount
+                  ? `Retry attempted ${retryCount.toString()} times.`
+                  : 'The sample is ready to retry.'}
+              </ErrorState>
+              <EmptyState
+                title={extraSample ? 'Sample added' : 'No extra samples'}
+                action={
+                  !extraSample && (
+                    <Button
+                      type="button"
+                      secondary
+                      onClick={() => {
+                        setExtraSample(true);
+                      }}
+                    >
+                      Add sample
+                    </Button>
+                  )
+                }
+              >
+                {extraSample
+                  ? 'The added sample is available in this showcase.'
+                  : 'Add one to preview the populated state.'}
+              </EmptyState>
+              <div className="ui-showcase-skeleton-sample">
+                <span>Loading state</span>
+                <Skeleton aria-label="Loading sample" />
+              </div>
+              <Button
+                type="button"
+                onClick={() => {
+                  setToastVisible(true);
+                }}
+              >
+                Show notification
+              </Button>
+            </Card>
+          </div>
+          <ToastRegion>
+            {toastVisible && (
+              <Toast
+                tone="success"
+                onDismiss={() => {
+                  setToastVisible(false);
+                }}
+              >
+                Sample notification shown.
+              </Toast>
+            )}
+          </ToastRegion>
         </section>
 
         <section className="ui-showcase-section" aria-label="Form controls">

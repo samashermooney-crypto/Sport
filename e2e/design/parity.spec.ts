@@ -145,6 +145,26 @@ test('interactive controls meet 44px targets at phone width', async ({
       }),
     );
   expect(smallChoiceLabels).toEqual([]);
+
+  for (const [trigger, name] of [
+    ['Open dialog', 'Example dialog'],
+    ['Open drawer', 'Example drawer'],
+    ['Open sheet', 'Example sheet'],
+  ] as const) {
+    await page.getByRole('button', { name: trigger }).click();
+    const overlay = page.getByRole('dialog', { name });
+    await expect(overlay).toBeVisible();
+    const closeSize = await overlay
+      .getByRole('button', { name: 'Close dialog' })
+      .evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      });
+    expect(closeSize.width).toBeGreaterThanOrEqual(44);
+    expect(closeSize.height).toBeGreaterThanOrEqual(44);
+    await page.keyboard.press('Escape');
+    await expect(overlay).toBeHidden();
+  }
 });
 
 test('shared components preserve the frozen desktop design', async ({
@@ -167,6 +187,7 @@ test('shared components preserve the frozen desktop design', async ({
 
   for (const [label, snapshot] of [
     ['Core components', 'ui-core-1440.png'],
+    ['States and feedback', 'ui-feedback-1440.png'],
     ['Form controls', 'ui-controls-1440.png'],
     ['Scheduling', 'ui-scheduling-1440.png'],
     ['Team and tournament views', 'ui-team-1440.png'],
@@ -213,6 +234,26 @@ test('shared components preserve the frozen desktop design', async ({
   });
   await page.keyboard.press('Escape');
   await expect(sheet).toBeHidden();
+});
+
+test('tabs support arrow and boundary-key navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/__ui');
+  const tabs = page.getByRole('tablist', { name: 'Sections' });
+  const overview = tabs.getByRole('tab', { name: 'Overview' });
+  const components = tabs.getByRole('tab', { name: 'Components' });
+  const states = tabs.getByRole('tab', { name: 'States' });
+
+  await overview.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(components).toBeFocused();
+  await expect(
+    page.getByText('Selected tab: Components', { exact: false }),
+  ).toBeVisible();
+  await page.keyboard.press('End');
+  await expect(states).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(overview).toBeFocused();
 });
 
 test('calendar supports all schedule views and the resource time grid', async ({
@@ -324,6 +365,10 @@ test('shell stays within phone width and exposes bottom tabs and keyboard palett
     'ui-controls-390.png',
     { animations: 'disabled' },
   );
+  await expect(page.locator(showcase('States and feedback'))).toHaveScreenshot(
+    'ui-feedback-390.png',
+    { animations: 'disabled' },
+  );
 
   await page.keyboard.press('/');
   await expect(
@@ -333,6 +378,11 @@ test('shell stays within phone width and exposes bottom tabs and keyboard palett
   await expect(
     page.getByRole('dialog', { name: 'Command palette' }),
   ).toBeHidden();
+  await page.keyboard.press('Control+k');
+  await expect(
+    page.getByRole('dialog', { name: 'Command palette' }),
+  ).toBeVisible();
+  await page.keyboard.press('Escape');
   await page.evaluate(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   });
