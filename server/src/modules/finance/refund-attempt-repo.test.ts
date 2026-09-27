@@ -109,6 +109,20 @@ describe('Postgres refund attempt store', () => {
     await expect(store.fail(input)).rejects.toThrow('state changed');
     await store.complete({ ...input, result });
     expect(await store.reserve(input)).toEqual({ kind: 'replay', result });
+    const separateKeys = [request(), request()];
+    const outcomes = await Promise.all(
+      separateKeys.map((item) => store.reserve(item)),
+    );
+    expect(outcomes.map((item) => item.kind).sort()).toEqual([
+      'busy',
+      'reserved',
+    ]);
+    const reservedIndex = outcomes.findIndex(
+      (item) => item.kind === 'reserved',
+    );
+    const reserved = separateKeys[reservedIndex];
+    if (!reserved) throw new Error('No reserved refund attempt');
+    await store.fail(reserved);
   });
 
   it('retries only a pre-external failure', async () => {

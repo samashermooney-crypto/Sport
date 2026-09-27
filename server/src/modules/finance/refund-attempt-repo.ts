@@ -58,6 +58,52 @@ export class PostgresRefundAttemptStore implements RefundAttemptStore {
   }): Promise<RefundReservation> {
     this.assertOrg(input.orgId);
     return this.withOrg(this.context, async (trx) => {
+      const payment = await trx
+        .selectFrom('payments')
+        .select('id')
+        .where('org_id', '=', input.orgId)
+        .where('id', '=', input.paymentId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!payment)
+        throw new Error('Refund payment does not belong to organization');
+      const prior = await sql<AttemptRow & { idempotency_key: string }>`
+        SELECT idempotency_key, request_hash, status, result
+        FROM refund_attempts WHERE org_id = ${input.orgId}::uuid
+          AND payment_id = ${input.paymentId}::uuid
+          AND idempotency_key = ${input.key}::uuid
+        FOR UPDATE
+      `.execute(trx);
+      const original = prior.rows[0];
+      if (
+        original?.request_hash !== undefined &&
+        original.request_hash !== input.requestHash
+      )
+        return { kind: 'conflict' };
+      if (original?.status === 'completed')
+        return { kind: 'replay', result: resultSchema.parse(original.result) };
+      if (
+        original?.status === 'reserved' ||
+        original?.status === 'external_started'
+      )
+        return { kind: 'busy' };
+      const active = await sql<{ id: string }>`
+        SELECT id FROM refund_attempts
+        WHERE org_id = ${input.orgId}::uuid
+          AND payment_id = ${input.paymentId}::uuid
+          AND status IN ('reserved', 'external_started')
+        LIMIT 1
+      `.execute(trx);
+      if (active.rows.length) return { kind: 'busy' };
+      if (original?.status === 'failed_pre_external') {
+        await sql`
+          UPDATE refund_attempts SET status = 'reserved', version = version + 1
+          WHERE org_id = ${input.orgId}::uuid
+            AND payment_id = ${input.paymentId}::uuid
+            AND idempotency_key = ${input.key}::uuid
+        `.execute(trx);
+        return { kind: 'reserved' };
+      }
       const inserted = await sql<{ id: string }>`
         INSERT INTO refund_attempts
           (id, org_id, payment_id, idempotency_key, request_hash, status)
@@ -68,29 +114,7 @@ export class PostgresRefundAttemptStore implements RefundAttemptStore {
         RETURNING id
       `.execute(trx);
       if (inserted.rows.length) return { kind: 'reserved' };
-      const existing = await sql<AttemptRow>`
-        SELECT request_hash, status, result FROM refund_attempts
-        WHERE org_id = ${input.orgId}::uuid
-          AND payment_id = ${input.paymentId}::uuid
-          AND idempotency_key = ${input.key}::uuid
-        FOR UPDATE
-      `.execute(trx);
-      const row = existing.rows[0];
-      if (!row) throw new Error('Refund attempt reservation disappeared');
-      if (row.request_hash !== input.requestHash) return { kind: 'conflict' };
-      if (row.status === 'completed') {
-        return { kind: 'replay', result: resultSchema.parse(row.result) };
-      }
-      if (row.status === 'failed_pre_external') {
-        await sql`
-          UPDATE refund_attempts SET status = 'reserved', version = version + 1
-          WHERE org_id = ${input.orgId}::uuid
-            AND payment_id = ${input.paymentId}::uuid
-            AND idempotency_key = ${input.key}::uuid
-        `.execute(trx);
-        return { kind: 'reserved' };
-      }
-      return { kind: 'busy' };
+      throw new Error('Refund attempt reservation disappeared');
     });
   }
 
