@@ -9,7 +9,7 @@ Additional ready for integration: local `4e97356..c7dd637` — spine-independent
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1003 merge (2026-09-26).
 Requests to other tracks: B: confirm whether `generateInstallments` must support `weekly` from `02 §L` (current `20 §3` algorithm and shared function cover fixed dates/monthly only) (2026-09-26).
 Blocked on: None; schema spine and test factories are on `rebuild/trunk`.
-Next: connect refund-as-credit to the ledger, implement dispute and payout reconciliation, then register finance jobs/handlers once Track A mounts the worker.
+Next: implement dispute and payout reconciliation, then register finance jobs/handlers once Track A mounts the worker.
 Gateway: Stripe SDK 22.6.2 dependency-only commit `cf83f4c`; real SDK adapter covers Connect, Customers, payment methods, intents, refunds, reversals, disputes, payouts, Billing and domains.
 Gateway tests: 36 passed, including stripe-mock Express account and destination PaymentIntent; typecheck and targeted lint green.
 Gateway review: test-only keys and events enforced; raw webhook bytes verified; exact destination fee and idempotency key asserted.
@@ -46,6 +46,7 @@ Checkout pricing: `checkout/pricing.ts` freezes Track B pricing from repository-
 Refund core: `finance/refunds.ts` applies Track B refund policy with proportional service-fee reversal, two-person threshold, ACH-processing block and stable idempotent Stripe refunds; 7 targeted tests pass.
 Refund attempts: migration 1003 and `finance/refund-attempt-repo.ts` persist scoped request-hash conflicts, pre-external retries, external fences and exact replay results; 2 real-Postgres tests pass.
 Stripe refund settlement: `finance/refund-record-repo.ts` records pending Stripe refunds with line/service-fee allocations before an attempt completes; latest-state `charge.refunded` and `charge.refund.updated` handlers settle invoice refunded cents once; 2 real-Postgres and 2 handler tests pass.
+Refund to credit: migration 1014 links a succeeded internal refund to one issued credit; `finance/credit-refunds.ts` applies Track B policy and two-person approval, while `credit-refund-repo.ts` atomically writes refund allocations, invoice reopening and account/household credit; 1 real-Postgres and 2 policy tests pass.
 Invoice issuance: migration 1004 adds product-tax lines and creation keys; `finance/invoice-repo.ts` atomically numbers, dedupes and reconciles header/lines with the spine triggers; 2 real-Postgres tests pass.
 Invoice state: `finance/invoice-repo.ts` now recomputes Track B-derived status inside money transactions, audits issuance/voids and permits void only after net payments and credits reach zero; 2 further real-Postgres tests pass.
 Waitlist holds: `checkout/waitlist.ts` sets family-local send times and expiry from send, with one-transaction repository contract for capacity, offer and outbox; 2 targeted tests pass.

@@ -9,6 +9,8 @@ import { createDatabase } from '../../db/kysely.js';
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 
+import { PostgresCreditRefundRepository } from './credit-refund-repo.js';
+import { PostgresCreditLedger } from './credits.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
@@ -225,5 +227,48 @@ describe('pending Stripe refund records', () => {
         },
       }),
     ).rejects.toThrow('exceed the successful payment');
+  });
+
+  it('reopens the invoice and issues credit atomically for the remaining refund', async () => {
+    const credits = new PostgresCreditRefundRepository(database, context, () =>
+      Temporal.Instant.from('2026-09-26T12:00:00Z'),
+    );
+    const input = {
+      orgId: context.orgId,
+      paymentId,
+      cancellationDate: '2026-09-26',
+      requestedByAccountId: context.actor.accountId,
+      idempotencyKey: randomUUID(),
+      recipient: 'account' as const,
+    };
+    const proposal = {
+      lines: [{ lineId: registrationLineId, amountCents: 450 }],
+      serviceFeeCents: 50,
+      totalCents: 500,
+      refundBps: 5000,
+    };
+    const requestHash = 'a'.repeat(64);
+    const result = await credits.apply(input, requestHash, proposal);
+    expect(result.amountCents).toBe(500);
+    expect(await credits.replay(input, requestHash)).toEqual(result);
+    expect(await credits.apply(input, requestHash, proposal)).toEqual(result);
+    await expect(credits.replay(input, 'b'.repeat(64))).rejects.toThrow(
+      'conflicts',
+    );
+    const invoice = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('invoices')
+        .select(['refunded_cents', 'balance_cents'])
+        .where('org_id', '=', context.orgId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(invoice).toEqual({ refunded_cents: 1000, balance_cents: 1000 });
+    expect(
+      await new PostgresCreditLedger(database, context).balance({
+        orgId: context.orgId,
+        accountId: context.actor.accountId,
+        todayLocal: '2026-09-26',
+      }),
+    ).toBe(500);
   });
 });
