@@ -2,7 +2,7 @@ import { formatMoney } from '@shared/money';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { z } from 'zod';
 
 import { apiGet, apiPost } from '../../api/client';
@@ -75,7 +75,9 @@ export function RegistrationScreen({
   orgId: string;
 }): React.JSX.Element {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { i18n } = useTranslation();
+  const returningPersonId = searchParams.get('participantId');
   const [sport, setSport] = useState('');
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -101,8 +103,14 @@ export function RegistrationScreen({
   );
   const visible =
     catalog.data?.items.filter((item) => !sport || item.sport === sport) ?? [];
+  const returningParticipant = participants.data?.people.find(
+    (person) => person.personId === returningPersonId,
+  );
+  const preferredChoice = returningParticipant
+    ? `${returningParticipant.personId}:${returningParticipant.householdId}`
+    : '';
   const add = (item: CatalogItem): void => {
-    const choice = selected[item.offeringId];
+    const choice = selected[item.offeringId] ?? preferredChoice;
     const participant = participants.data?.people.find(
       (person) => `${person.personId}:${person.householdId}` === choice,
     );
@@ -166,7 +174,7 @@ export function RegistrationScreen({
     }
   };
   const joinWaitlist = async (item: CatalogItem): Promise<void> => {
-    const choice = selected[item.offeringId];
+    const choice = selected[item.offeringId] ?? preferredChoice;
     const participant = participants.data?.people.find(
       (person) => `${person.personId}:${person.householdId}` === choice,
     );
@@ -268,7 +276,7 @@ export function RegistrationScreen({
                       </label>
                       <select
                         id={`participant-${item.offeringId}`}
-                        value={selected[item.offeringId] ?? ''}
+                        value={selected[item.offeringId] ?? preferredChoice}
                         onChange={(event) => {
                           setSelected((current) => ({
                             ...current,
@@ -289,7 +297,9 @@ export function RegistrationScreen({
                       <button
                         className="button"
                         type="button"
-                        disabled={!selected[item.offeringId]}
+                        disabled={
+                          !(selected[item.offeringId] ?? preferredChoice)
+                        }
                         onClick={() => {
                           add(item);
                         }}
@@ -310,7 +320,7 @@ export function RegistrationScreen({
                       </label>
                       <select
                         id={`waitlist-participant-${item.offeringId}`}
-                        value={selected[item.offeringId] ?? ''}
+                        value={selected[item.offeringId] ?? preferredChoice}
                         onChange={(event) => {
                           setSelected((current) => ({
                             ...current,
@@ -329,8 +339,9 @@ export function RegistrationScreen({
                         ))}
                       </select>
                       {(() => {
-                        const choice = selected[item.offeringId];
-                        const selectedPersonId = choice?.split(':')[0] ?? '';
+                        const choice =
+                          selected[item.offeringId] ?? preferredChoice;
+                        const selectedPersonId = choice.split(':')[0] ?? '';
                         const position =
                           waitlistPositions[
                             `${item.offeringId}:${selectedPersonId}`

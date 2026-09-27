@@ -19,6 +19,7 @@ test('family registers two siblings together, signs waivers, and chooses uniform
     const factories = createTestFactories(database);
     const actor = await factories.actor();
     const program = await factories.program(actor);
+    const previousProgram = await factories.program(actor);
     const householdId = await factories.household(actor);
     const participants = [
       {
@@ -146,6 +147,15 @@ test('family registers two siblings together, signs waivers, and chooses uniform
         )
         .execute();
     });
+    const returningParticipant = participants[0];
+    if (!returningParticipant)
+      throw new Error('Returning participant fixture is missing');
+    await factories.registration(
+      actor,
+      previousProgram,
+      returningParticipant.id,
+      householdId,
+    );
 
     const session = await database.transaction().execute((trx) =>
       issueSession(
@@ -170,7 +180,10 @@ test('family registers two siblings together, signs waivers, and chooses uniform
       },
     ]);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`/portal/orgs/${actor.orgId}/register`);
+    await page.goto(`/portal/orgs/${actor.orgId}/registrations`);
+    await page
+      .getByRole('link', { name: 'Register Maya Sibling again' })
+      .click();
     await expect(
       page.getByRole('heading', { name: 'Find a program' }),
     ).toBeVisible();
@@ -179,6 +192,9 @@ test('family registers two siblings together, signs waivers, and chooses uniform
     if (!firstParticipant || !secondParticipant)
       throw new Error('Family participant fixtures are missing');
     const participantPicker = page.getByLabel('Participant');
+    await expect(participantPicker).toHaveValue(
+      `${firstParticipant.id}:${householdId}`,
+    );
     await participantPicker.selectOption(
       `${firstParticipant.id}:${householdId}`,
     );
@@ -248,6 +264,7 @@ test('family registers two siblings together, signs waivers, and chooses uniform
           'in',
           participants.map((participant) => participant.id),
         )
+        .where('program_id', '=', program.programId)
         .execute(),
     );
     expect(registrations).toHaveLength(2);

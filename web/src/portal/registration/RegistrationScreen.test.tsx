@@ -82,20 +82,22 @@ describe('family registration discovery', () => {
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <MemoryRouter>
+        <MemoryRouter
+          initialEntries={[
+            `/portal/orgs/${orgId}/register?participantId=${personId}`,
+          ]}
+        >
           <RegistrationScreen orgId={orgId} />
         </MemoryRouter>
       </QueryClientProvider>,
     );
 
     expect(await screen.findByText('Full')).toBeTruthy();
-    fireEvent.change(
-      await screen.findByLabelText(
-        'Participant for Summer Soccer · U12 waitlist',
-      ),
-      {
-        target: { value: `${personId}:${householdId}` },
-      },
+    const participant = await screen.findByLabelText(
+      'Participant for Summer Soccer · U12 waitlist',
+    );
+    expect((participant as HTMLSelectElement).value).toBe(
+      `${personId}:${householdId}`,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
 

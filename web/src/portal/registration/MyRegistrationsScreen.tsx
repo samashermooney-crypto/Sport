@@ -226,6 +226,13 @@ export function MyRegistrationsScreen({
                   <p>
                     {registration.personName} · {registration.offeringName}
                   </p>
+                  <p>
+                    <Link
+                      to={`/portal/orgs/${orgId}/register?participantId=${encodeURIComponent(registration.personId)}`}
+                    >
+                      Register {registration.personName} again
+                    </Link>
+                  </p>
                   {registration.statusReason ? (
                     <p>{registration.statusReason}</p>
                   ) : null}

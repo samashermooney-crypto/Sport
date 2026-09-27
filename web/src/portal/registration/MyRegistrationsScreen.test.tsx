@@ -80,6 +80,13 @@ describe('family registration list', () => {
     );
 
     expect(await screen.findByText('Fall Soccer')).toBeTruthy();
+    expect(
+      screen
+        .getByRole('link', { name: 'Register Maya One again' })
+        .getAttribute('href'),
+    ).toBe(
+      `/portal/orgs/${orgId}/register?participantId=0199a413-a221-7000-8000-000000000013`,
+    );
     fireEvent.click(
       screen.getByRole('button', { name: 'Review cancellation' }),
     );
