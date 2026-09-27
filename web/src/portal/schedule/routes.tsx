@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
 import { FamilySchedule } from './FamilySchedule';
+import { PracticeSlotPicker } from './PracticeSlotPicker';
 import { PublicFacilityPage } from './PublicFacilityPage';
 import { PublicStandingsPage } from './PublicStandingsPage';
 import { PublicTournamentPage } from './PublicTournamentPage';
@@ -21,6 +22,20 @@ function FamilyScheduleRoute(): React.JSX.Element {
   ) : (
     <main className="schedule-page">
       Choose a team and athlete to view this schedule.
+    </main>
+  );
+}
+
+function PracticeSlotPickerRoute(): React.JSX.Element {
+  const { orgId, teamSeasonId } = useParams<{
+    orgId: string;
+    teamSeasonId: string;
+  }>();
+  return orgId && teamSeasonId ? (
+    <PracticeSlotPicker orgId={orgId} teamSeasonId={teamSeasonId} />
+  ) : (
+    <main className="schedule-page">
+      Choose a team to request practice time.
     </main>
   );
 }
@@ -72,6 +87,10 @@ function PublicDivisionStandingsRoute(): React.JSX.Element {
 }
 
 export const portalScheduleRoutes: readonly RouteObject[] = [
+  {
+    path: '/portal/orgs/:orgId/schedule/teams/:teamSeasonId/practice-slots',
+    element: <PracticeSlotPickerRoute />,
+  },
   {
     path: '/portal/orgs/:orgId/schedule/teams/:teamSeasonId/people/:personId',
     element: <FamilyScheduleRoute />,

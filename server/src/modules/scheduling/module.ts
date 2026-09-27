@@ -252,6 +252,12 @@ const openapiRoutes = [
     { body: version, response: z.object({ status: z.string() }) },
   ),
   route(
+    'get',
+    '/orgs/{orgId}/team-seasons/{teamSeasonId}/practice-allocations',
+    'List practice allocations for a team slot picker',
+    { response: z.object({ items: z.array(json) }) },
+  ),
+  route(
     'post',
     '/orgs/{orgId}/allocations',
     'Allocate recurring facility time',

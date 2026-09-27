@@ -38,6 +38,7 @@ import {
   createClosure,
   decideAllocationRequest,
   decideRescheduleRequest,
+  listTeamPracticeAllocations,
   listAllocationRequests,
   listRescheduleRequests,
   previewClosure,
@@ -738,6 +739,22 @@ export function createSchedulingRouter(
       handleError(response, error);
     }
   });
+
+  router.get(
+    '/orgs/:orgId/team-seasons/:teamSeasonId/practice-allocations',
+    async (request, response) => {
+      try {
+        response.json({
+          items: await listTeamPracticeAllocations(
+            await authenticatedContext(dependencies, request),
+            idSchema.parse(request.params.teamSeasonId),
+          ),
+        });
+      } catch (error) {
+        handleError(response, error);
+      }
+    },
+  );
 
   router.post(
     '/orgs/:orgId/allocations/:allocationId/requests',

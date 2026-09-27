@@ -48079,13 +48079,11 @@
                     ]
                   },
                   "arrivalMinutesBefore": {
-                    "default": 0,
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 1440
                   },
                   "participants": {
-                    "default": [],
                     "maxItems": 100,
                     "type": "array",
                     "items": {
@@ -48168,7 +48166,7 @@
                       ]
                     }
                   },
-                  "published": { "default": false, "type": "boolean" },
+                  "published": { "type": "boolean" },
                   "expectedVersion": {
                     "type": "integer",
                     "exclusiveMinimum": 0,
@@ -50977,6 +50975,78 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/scheduling/orgs/{orgId}/team-seasons/{teamSeasonId}/practice-allocations": {
+      "get": {
+        "operationId": "get_api_v1_scheduling_orgs_orgId_team_seasons_teamSeasonId_practice_allocations",
+        "summary": "List practice allocations for a team slot picker",
+        "tags": ["scheduling"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/$defs/__schema0" }
+                    }
+                  },
+                  "required": ["items"],
+                  "additionalProperties": false,
+                  "$defs": {
+                    "__schema0": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "number" },
+                        { "type": "boolean" },
+                        { "type": "null" },
+                        {
+                          "type": "array",
+                          "items": { "$ref": "#/$defs/__schema0" }
+                        },
+                        {
+                          "type": "object",
+                          "propertyNames": { "type": "string" },
+                          "additionalProperties": {
+                            "$ref": "#/$defs/__schema0"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "teamSeasonId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
       }
     },
     "/api/v1/scheduling/orgs/{orgId}/allocations": {
