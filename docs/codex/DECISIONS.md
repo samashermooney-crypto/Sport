@@ -196,9 +196,9 @@
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 1 files integration
 - **Context:** The file adapter initially allowed nullable organization ids, while the global RLS invariant requires tenant-owned file records. The file service leaves authorization to the application composition root.
-- **Decision:** Require `files.org_id` for every record. Local file routes require an authenticated active organization member and the request's organization header. Uploads require an active org-level owner, admin or registrar role with completed MFA; restricted downloads require owner or admin, sensitive downloads permit registrar, and internal/public downloads permit active members. Mutating routes verify origin and request header.
+- **Decision:** Require `files.org_id` for every record. Local file routes require an authenticated actor in the organization and the request's organization header. General uploads require an active org-level owner, admin or registrar role with completed MFA. A verified active guardian link may upload restricted evidence only for its represented person and an approved credential or return-to-play clearance purpose. Restricted downloads require an active owner or compliance role with completed MFA and an audited content read; sensitive downloads permit registrar, and internal/public downloads permit active members. Mutating routes verify origin and request header.
 - **Why:** Privacy and child safety require an explicit tenant and narrow authorization before upload or download. Public website assets are published through a separate later flow.
-- **Consequences / follow-ups:** Phase 1 file acceptance must verify these role boundaries over HTTP. Later public asset publishing must copy approved assets into a separate public delivery path without exposing private file URLs.
+- **Consequences / follow-ups:** Phase 1 and Phase 7 file acceptance must verify these role boundaries over HTTP, including guardian ownership and 404 denial for unauthorized Restricted reads. Later public asset publishing must copy approved assets into a separate public delivery path without exposing private file URLs.
 
 ### DEC-024 — Separate campaign mail sender
 - **Date:** 2026-09-26

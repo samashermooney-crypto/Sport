@@ -23,8 +23,10 @@ export interface PushSender {
   send(
     subscription: PushSubscription,
     message: PushMessage,
-  ): Promise<'sent' | 'invalid-subscription'>;
+  ): Promise<PushDeliveryResult>;
 }
+export type PushDeliveryResult =
+  { status: 'sent'; providerId?: string } | { status: 'invalid-subscription' };
 export interface PushSubscriptionCleanup {
   removeInvalidEndpoint(endpoint: string): Promise<void>;
 }
@@ -33,9 +35,9 @@ export async function sendPushAndCleanup(
   subscription: PushSubscription,
   message: PushMessage,
   cleanup: PushSubscriptionCleanup,
-): Promise<'sent' | 'invalid-subscription'> {
+): Promise<PushDeliveryResult> {
   const outcome = await sender.send(subscription, message);
-  if (outcome === 'invalid-subscription')
+  if (outcome.status === 'invalid-subscription')
     await cleanup.removeInvalidEndpoint(subscription.endpoint);
   return outcome;
 }
@@ -46,7 +48,10 @@ export class FakePushSender implements PushSender {
   }> = [];
   send(subscription: PushSubscription, message: PushMessage) {
     this.deliveries.push({ subscription, message });
-    return Promise.resolve('sent' as const);
+    return Promise.resolve({
+      status: 'sent' as const,
+      providerId: `fake-push-${String(this.deliveries.length)}`,
+    });
   }
 }
 export class PreviewPushSender extends FakePushSender {}
@@ -68,21 +73,44 @@ export class WebPushSender implements PushSender {
   async send(
     subscription: PushSubscription,
     message: PushMessage,
-  ): Promise<'sent' | 'invalid-subscription'> {
+  ): Promise<PushDeliveryResult> {
     try {
-      await this.client.sendNotification(
+      const response = await this.client.sendNotification(
         subscription,
         JSON.stringify(message),
         { TTL: 3600, urgency: 'normal' },
       );
-      return 'sent';
+      const providerId = pushProviderId(response);
+      return { status: 'sent', ...(providerId ? { providerId } : {}) };
     } catch (error) {
       const status =
         error && typeof error === 'object' && 'statusCode' in error
           ? error.statusCode
           : undefined;
-      if (status === 404 || status === 410) return 'invalid-subscription';
+      if (status === 404 || status === 410)
+        return { status: 'invalid-subscription' };
       throw error;
     }
   }
+}
+
+function pushProviderId(response: unknown): string | undefined {
+  if (!response || typeof response !== 'object') return undefined;
+  const responseRecord = response as Record<string, unknown>;
+  for (const key of ['providerId', 'messageId', 'id']) {
+    const value = responseRecord[key];
+    if (typeof value === 'string' && value) return value;
+  }
+  const headers = responseRecord.headers;
+  if (!headers || typeof headers !== 'object') return undefined;
+  if (typeof Headers !== 'undefined' && headers instanceof Headers)
+    return (
+      headers.get('x-message-id') ?? headers.get('message-id') ?? undefined
+    );
+  const headerRecord = headers as Record<string, unknown>;
+  for (const key of ['x-message-id', 'message-id']) {
+    const value = headerRecord[key];
+    if (typeof value === 'string' && value) return value;
+  }
+  return undefined;
 }

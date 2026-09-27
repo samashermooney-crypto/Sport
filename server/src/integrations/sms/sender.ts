@@ -6,7 +6,7 @@ export interface SmsMessage {
   idempotencyKey?: string;
 }
 export interface SmsSender {
-  send(message: SmsMessage): Promise<{ providerId?: string }>;
+  send(message: SmsMessage): Promise<{ providerId: string }>;
 }
 export class FakeSmsSender implements SmsSender {
   readonly messages: SmsMessage[] = [];
@@ -77,7 +77,8 @@ export function createTwilioSmsSender(options: {
         typeof result.sid === 'string'
           ? result.sid
           : undefined;
-      return { ...(sid ? { providerId: sid } : {}) };
+      if (!sid) throw new Error('Twilio response did not include a message ID');
+      return { providerId: sid };
     },
   };
 }
