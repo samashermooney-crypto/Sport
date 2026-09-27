@@ -293,6 +293,18 @@ const fileRoutes: OpenApiRoute[] = [
 const orgRoutes: OpenApiRoute[] = [
   {
     method: 'get',
+    path: `${orgsBase}/mine`,
+    summary: 'List organizations for the current account',
+    response: orgs.myOrganizationsSchema,
+  },
+  {
+    method: 'get',
+    path: `${orgsBase}/{orgId}/workspace`,
+    summary: 'Get the active organization workspace and available actions',
+    response: orgs.orgWorkspaceSchema,
+  },
+  {
+    method: 'get',
     path: `${orgsBase}/{orgId}/profile`,
     summary: 'Get organization profile and branding',
     response: orgs.orgProfileSchema,

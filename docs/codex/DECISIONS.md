@@ -303,3 +303,11 @@
 - **Decision:** Use the existing `--muted` token for shared empty-state copy while preserving its size, layout and surrounding styles.
 - **Why:** Accessibility is the only permitted visual adjustment under `01 §11a`; the existing muted token is the smallest passing change.
 - **Consequences / follow-ups:** Empty-state copy is darker than the original legacy color; the palette and all other captured values stay unchanged.
+
+### DEC-037 — Enumerate account organizations through the identity index
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 organization switcher
+- **Context:** Tenant rows cannot be scanned without an organization scope, while an account needs to list its own organizations.
+- **Decision:** Read only the signed-in account's global `linked_org_ids` index, then enter `withOrg` separately for each ID and include only active memberships in active or onboarding organizations. A workspace summary also reads roles inside `withOrg` and exposes only actions that the account can actually use.
+- **Why:** Account-specific discovery does not bypass tenant RLS or expose a removed, suspended or unrelated organization.
+- **Consequences / follow-ups:** The console switcher uses this list; every newly linked organization continues to update the account index through the existing membership trigger.
