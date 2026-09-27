@@ -879,3 +879,11 @@
 - **Decision:** Create two fictional member clubs with active parent-child relationships and enable only `team_entries` sharing. Do not grant demo sharing for rosters, compliance status, or discipline records.
 - **Why:** This exercises the inter-club workflow while protecting children’s roster and compliance information.
 - **Consequences / follow-ups:** The six named demo profiles remain the primary organizations; the two additional Metro club records are subordinate members using `example.test` identities.
+
+### DEC-121 — Keep Northstar demo billing scoped to each family
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 academy demo profile
+- **Context:** The required Northstar profile needs 300 students actively enrolled across 40 tuition classes, while demo subscriptions must not expose one household's billing link to another.
+- **Decision:** Seed 300 students, 300 household-specific guardian accounts, and one active tuition subscription and class enrollment per student. Distribute students evenly across the 40 classes (8 per class) and use only synthetic `example.test` identities.
+- **Why:** The profile exercises class, family, and tuition screens with valid guardian links while remaining below each class's 18-seat capacity.
+- **Consequences / follow-ups:** These accounts share the documented demo password and remain fictional; no payment is created or charged by seeding.

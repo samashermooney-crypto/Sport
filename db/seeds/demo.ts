@@ -176,7 +176,7 @@ const ORGS: OrgSpec[] = [
     facilityNames: ['Northstar Gymnastics Center', 'Northstar Aquatic Center'],
     facilityKind: 'mat',
     teamCount: 0,
-    households: 80,
+    households: 300,
     programs: Array.from({ length: 40 }, (_, index) => ({
       name: `${index % 2 === 0 ? 'Gymnastics' : 'Swim'} Level ${String(Math.floor(index / 4) + 1)} Class ${String(index + 1).padStart(2, '0')}`,
       mode: 'class' as const,
@@ -946,6 +946,7 @@ export async function seedDemo(database: Kysely<DB>): Promise<void> {
       }
 
       const people: Insertable<DB['people']>[] = [];
+      const accounts: Insertable<DB['accounts']>[] = [];
       const households: Insertable<DB['households']>[] = [];
       const householdMembers: Insertable<DB['household_members']>[] = [];
       const accountLinks: Insertable<DB['person_account_links']>[] = [];
@@ -1061,6 +1062,27 @@ export async function seedDemo(database: Kysely<DB>): Promise<void> {
             relationship: 'guardian',
             verified_at: SEED_TIME,
           });
+        } else if (spec.seed === 'northstar' && guardianId) {
+          linkedAccount = stableId(
+            `demo-family-account-${spec.seed}-${String(index)}`,
+          );
+          accounts.push({
+            id: linkedAccount,
+            email: `family${String(index)}@${spec.slug}.example.test`,
+            first_name: 'Demo',
+            last_name: `Guardian ${String(index + 1)}`,
+            date_of_birth: '1986-06-15',
+            password_hash: passwordHash,
+            email_verified_at: SEED_TIME,
+          });
+          accountLinks.push({
+            id: stableId(`demo-family-link-${spec.seed}-${String(index)}`),
+            org_id: orgId,
+            account_id: linkedAccount,
+            person_id: guardianId,
+            relationship: 'guardian',
+            verified_at: SEED_TIME,
+          });
         }
         participants.push({
           id: participantId,
@@ -1069,6 +1091,7 @@ export async function seedDemo(database: Kysely<DB>): Promise<void> {
           accountId: linkedAccount,
         });
       }
+      await insertChunks(trx, 'accounts', accounts);
       await insertChunks(trx, 'people', people);
       await insertChunks(trx, 'households', households);
       await insertChunks(trx, 'household_members', householdMembers);
@@ -1270,44 +1293,45 @@ export async function seedDemo(database: Kysely<DB>): Promise<void> {
         await insertChunks(trx, 'class_schedules', schedules);
         await insertChunks(trx, 'class_sessions', sessions);
 
-        const firstParticipant = valueAt(
-          participants,
-          0,
-          'academy participant',
-        );
-        const firstOffering = valueAt(offerings, 0, 'academy class offering');
-        const academyAccountId = firstParticipant.accountId ?? familyAccountId;
-        const tuitionSubscriptionId = stableId(
-          'demo-tuition-subscription-northstar',
-        );
-        await trx
-          .insertInto('tuition_subscriptions')
-          .values({
+        const tuitionSubscriptions: Insertable<DB['tuition_subscriptions']>[] =
+          [];
+        const classEnrollments: Insertable<DB['class_enrollments']>[] = [];
+        for (const [index, participant] of participants.entries()) {
+          const offering = valueAt(
+            offerings,
+            index % offerings.length,
+            'academy class offering',
+          );
+          const accountId = participant.accountId;
+          if (!accountId) throw new Error('Missing Northstar guardian account');
+          const tuitionSubscriptionId = stableId(
+            `demo-tuition-subscription-northstar-${String(index)}`,
+          );
+          tuitionSubscriptions.push({
             id: tuitionSubscriptionId,
             org_id: orgId,
-            account_id: academyAccountId,
-            household_id: firstParticipant.householdId,
+            account_id: accountId,
+            household_id: participant.householdId,
             billing_day: 1,
             next_bill_on: '2026-10-01',
             status: 'active',
             proration: 'session_count',
-          })
-          .execute();
-        await trx
-          .insertInto('class_enrollments')
-          .values({
-            id: stableId('demo-class-enrollment-northstar'),
+          });
+          classEnrollments.push({
+            id: stableId(`demo-class-enrollment-northstar-${String(index)}`),
             org_id: orgId,
-            class_offering_id: firstOffering.id,
-            person_id: firstParticipant.id,
-            household_id: firstParticipant.householdId,
-            account_id: academyAccountId,
+            class_offering_id: offering.id,
+            person_id: participant.id,
+            household_id: participant.householdId,
+            account_id: accountId,
             status: 'active',
             starts_on: '2026-08-01',
             ends_on: '2026-12-31',
             billing_subscription_id: tuitionSubscriptionId,
-          })
-          .execute();
+          });
+        }
+        await insertChunks(trx, 'tuition_subscriptions', tuitionSubscriptions);
+        await insertChunks(trx, 'class_enrollments', classEnrollments);
       }
 
       const teamStaff: Insertable<DB['team_staff']>[] = teams
