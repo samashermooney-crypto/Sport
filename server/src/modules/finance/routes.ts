@@ -10,6 +10,7 @@ import { requestImpersonation } from '../../lib/tenant-guard.js';
 import { requireSession } from '../auth/routes.js';
 import type { AuthDependencies } from '../auth/routes.js';
 
+import { ConnectConflictError, ConnectOnboardingService } from './connect.js';
 import { PostgresCreditRefundRepository } from './credit-refund-repo.js';
 import { CreditRefundService } from './credit-refunds.js';
 import {
@@ -37,6 +38,7 @@ import {
   RefundConflictError,
   StripeRefundService,
 } from './refunds.js';
+import { PostgresConnectAccountRepository } from './repo.js';
 import { FinanceAccessError, requireFinanceStaff } from './staff-access.js';
 
 export const offlinePaymentBodySchema = z.strictObject({
@@ -120,6 +122,17 @@ export const savedPaymentMethodsResponseSchema = z.strictObject({
 export const paymentMethodActionResponseSchema = z.strictObject({
   success: z.literal(true),
 });
+export const connectLinkResponseSchema = z.strictObject({
+  url: z.url().startsWith('https://'),
+});
+export const connectStatusResponseSchema = z.strictObject({
+  stripeAccountId: z.string().startsWith('acct_'),
+  chargesEnabled: z.boolean(),
+  payoutsEnabled: z.boolean(),
+  detailsSubmitted: z.boolean(),
+  requirementsDue: z.array(z.string()),
+  disabledReason: z.string().nullable(),
+});
 
 class FinanceDependencyError extends Error {
   readonly status = 503;
@@ -150,7 +163,8 @@ function sendError(response: Response, error: unknown): void {
       : error instanceof OfflinePaymentConflictError ||
           error instanceof RefundConflictError ||
           error instanceof JournalExportError ||
-          error instanceof PayerMethodConflictError
+          error instanceof PayerMethodConflictError ||
+          error instanceof ConnectConflictError
         ? 409
         : error instanceof FinanceDependencyError
           ? 503
@@ -203,6 +217,20 @@ export function createFinanceRouter(
       gatewayFactory(),
       new PostgresSavedPaymentMethodRepository(dependencies.database),
     );
+  const connect = (orgId: string, accountId: string) => {
+    const repository = new PostgresConnectAccountRepository(
+      dependencies.database,
+      { orgId, actor: { accountId } },
+    );
+    const base = dependencies.appUrl.replace(/\/$/, '');
+    return {
+      repository,
+      service: new ConnectOnboardingService(repository, gatewayFactory(), {
+        returnUrl: (id) => `${base}/orgs/${id}/money/connect/return`,
+        refreshUrl: (id) => `${base}/orgs/${id}/money/connect/refresh`,
+      }),
+    };
+  };
   router.post('/me/setup-intents', async (request, response) => {
     try {
       if (
@@ -283,6 +311,106 @@ export function createFinanceRouter(
       }
     },
   );
+  router.post('/orgs/:orgId/connect/onboarding', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      await requireFinanceStaff(dependencies.database, {
+        orgId,
+        actor: { accountId: session.accountId },
+      });
+      const account = await dependencies.database
+        .selectFrom('accounts')
+        .select('email')
+        .where('id', '=', session.accountId)
+        .executeTakeFirstOrThrow();
+      const result = await connect(orgId, session.accountId).service.create(
+        orgId,
+        account.email,
+      );
+      response.status(201).json(connectLinkResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/connect/continue', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      await requireFinanceStaff(dependencies.database, {
+        orgId,
+        actor: { accountId: session.accountId },
+      });
+      const result = await connect(orgId, session.accountId).service.continue(
+        orgId,
+      );
+      response.json(connectLinkResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/connect/dashboard', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      await requireFinanceStaff(dependencies.database, {
+        orgId,
+        actor: { accountId: session.accountId },
+      });
+      const result = await connect(orgId, session.accountId).service.dashboard(
+        orgId,
+      );
+      response.json(connectLinkResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/orgs/:orgId/connect/status', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      await requireFinanceStaff(dependencies.database, {
+        orgId,
+        actor: { accountId: session.accountId },
+      });
+      const connected = connect(orgId, session.accountId);
+      const stored = await connected.repository.load(orgId);
+      if (!stored)
+        throw new ConnectConflictError('Stripe account has not been created');
+      const latest = await connected.service.refresh(
+        orgId,
+        stored.stripeAccountId,
+      );
+      response.json(
+        connectStatusResponseSchema.parse({
+          stripeAccountId: latest.stripeAccountId,
+          chargesEnabled: latest.chargesEnabled,
+          payoutsEnabled: latest.payoutsEnabled,
+          detailsSubmitted: latest.detailsSubmitted,
+          requirementsDue: latest.requirementsDue,
+          disabledReason: latest.disabledReason,
+        }),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
   router.post('/orgs/:orgId/offline-payments', async (request, response) => {
     try {
       if (!writeOriginValid(request, dependencies.appUrl))

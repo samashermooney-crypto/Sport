@@ -13,6 +13,8 @@ import {
   setupIntentResponseSchema,
   savedPaymentMethodsResponseSchema,
   paymentMethodActionResponseSchema,
+  connectLinkResponseSchema,
+  connectStatusResponseSchema,
 } from './routes.js';
 
 export const moduleDefinition = {
@@ -47,6 +49,30 @@ export const moduleDefinition = {
       path: '/api/v1/finance/me/payment-methods/{paymentMethodId}',
       summary: 'Detach a saved payment method and revoke its autopay mandates',
       response: paymentMethodActionResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/connect/onboarding',
+      summary: 'Create or resume Stripe Express onboarding',
+      response: connectLinkResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/connect/continue',
+      summary: 'Create a fresh Stripe Express onboarding link',
+      response: connectLinkResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/connect/dashboard',
+      summary: 'Open the enabled Stripe Express dashboard',
+      response: connectLinkResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/connect/status',
+      summary: 'Refresh Stripe Express requirements and payment capability',
+      response: connectStatusResponseSchema,
     },
     {
       method: 'post',

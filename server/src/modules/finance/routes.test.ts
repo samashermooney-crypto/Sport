@@ -51,6 +51,23 @@ const listPaymentMethods = vi.fn().mockResolvedValue([
 ]);
 const setDefaultPaymentMethod = vi.fn().mockResolvedValue(undefined);
 const detachPaymentMethod = vi.fn().mockResolvedValue(undefined);
+const createExpressAccount = vi.fn().mockResolvedValue({ id: 'acct_route' });
+const createAccountLink = vi.fn().mockResolvedValue({
+  url: 'https://connect.stripe.com/onboard/test',
+});
+const createExpressLoginLink = vi.fn().mockResolvedValue({
+  url: 'https://dashboard.stripe.com/express/test',
+});
+const retrieveAccount = vi.fn().mockResolvedValue({
+  id: 'acct_route',
+  chargesEnabled: false,
+  payoutsEnabled: false,
+  detailsSubmitted: false,
+  requirements: {
+    currentlyDue: ['business_profile.url'],
+    disabledReason: null,
+  },
+});
 
 beforeAll(async () => {
   database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
@@ -203,6 +220,10 @@ beforeAll(async () => {
           listPaymentMethods,
           setDefaultPaymentMethod,
           detachPaymentMethod,
+          createExpressAccount,
+          createAccountLink,
+          createExpressLoginLink,
+          retrieveAccount,
         }) as unknown as PaymentsGateway,
     ),
   );
@@ -552,5 +573,61 @@ describe('signed-in payer method HTTP', () => {
     });
     expect(removed.status).toBe(200);
     expect(detachPaymentMethod).toHaveBeenCalledWith('pm_route');
+  });
+});
+
+describe('Connect Express finance HTTP', () => {
+  it('creates onboarding, surfaces requirements and gates the dashboard', async () => {
+    const path = `${baseUrl}/orgs/${context.orgId}/connect`;
+    const headers = {
+      Cookie: `__Host-athlentry_session=${token}`,
+      Origin: origin,
+      'X-Athlentry-Request': '1',
+    };
+    const start = await fetch(`${path}/onboarding`, {
+      method: 'POST',
+      headers,
+    });
+    expect(start.status).toBe(201);
+    expect(await start.json()).toEqual({
+      url: 'https://connect.stripe.com/onboard/test',
+    });
+    expect(createExpressAccount).toHaveBeenCalledTimes(1);
+    const linkArgs = createAccountLink.mock.calls[0]?.[0] as unknown as {
+      accountId: string;
+      returnUrl: string;
+      refreshUrl: string;
+    };
+    expect(linkArgs.accountId).toBe('acct_route');
+    expect(linkArgs.returnUrl).toContain('/money/connect/return');
+    expect(linkArgs.refreshUrl).toContain('/money/connect/refresh');
+    const status = await fetch(`${path}/status`, {
+      headers: { Cookie: headers.Cookie },
+    });
+    expect(status.status).toBe(200);
+    expect(await status.json()).toMatchObject({
+      stripeAccountId: 'acct_route',
+      chargesEnabled: false,
+      requirementsDue: ['business_profile.url'],
+    });
+    expect(
+      (await fetch(`${path}/dashboard`, { method: 'POST', headers })).status,
+    ).toBe(409);
+    retrieveAccount.mockResolvedValue({
+      id: 'acct_route',
+      chargesEnabled: true,
+      payoutsEnabled: true,
+      detailsSubmitted: true,
+      requirements: { currentlyDue: [], disabledReason: null },
+    });
+    const dashboard = await fetch(`${path}/dashboard`, {
+      method: 'POST',
+      headers,
+    });
+    expect(dashboard.status).toBe(200);
+    expect(await dashboard.json()).toEqual({
+      url: 'https://dashboard.stripe.com/express/test',
+    });
+    expect(createExpressLoginLink).toHaveBeenCalledWith('acct_route');
   });
 });
