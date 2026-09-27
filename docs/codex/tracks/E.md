@@ -1,10 +1,10 @@
 # Track E — Stripe, finance, and registration
 
-Status: in-progress
+Status: working
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
 Current: Phase 5 WIP includes family discovery/cart/eligibility/requirements/add-ons/buyout, checkout lifecycle, staff approvals/waitlists/transfers/cancellations, scoped registration/CSV/pace/uniform reports, transactional email/in-app notices, and one-time scheduled checkout/waitlist reminders. Exact-line transfer refund execution, discount-aware transfer pricing, staff-created enrollment, team entries, multi-family fast path, scheduled waitlist expiry/advance, and end-to-end journeys remain in queue.
-Latest Phase 5 slice: `rebuild/trunk` synced through `9b934b0`; the registration WIP checkpoint `e6c6e1c` now has 13 focused tests passing, with one 5-second checkout test timeout in the multi-file run that passed when isolated (6/6). Transfer tests pass (2), reminder test passes (1), and typecheck/lint pass. Full suite, Playwright and build remain pending.
+Latest merge-gate slice: synced `rebuild/trunk` through merge commit `7026ebb`; migration `1062_registration_fk_indexes.sql` repairs all five registration-spine foreign-key index checks. Typecheck and lint pass, registration tests pass (14/14), spine-schema tests pass (4/4), and the full suite passes (862 tests, 1 skipped). Chromium and build remain pending; no E merge has reached trunk yet.
 Requests to other tracks: A: expose strict `settings.refundTerms` in org finance settings using E's `refundTermsSchema`; paid registration fails closed without a published policy and saves the accepted snapshot/hash (2026-09-27).
 Requests to other tracks: A: expose `settings.lateFeeCents` in org finance settings (integer 0–10000 cents, absent/zero disables); E's late-fee and checkout readers fail closed on malformed amounts. C: record this protective cap in DECISIONS and regenerate DB types after merging migrations 1052–1053 (2026-09-27).
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
@@ -264,30 +264,3 @@ Money notices: migrations 1034–1035 and 1048–1049 add an indexed tenant outb
 Manual installment pay: migration 1040 records an org-scoped claim and links a pre-Stripe pending payment to exact invoice/installment and line allocations. Payer ownership, active Connect/Customer, collectible balance and pending charges are checked under locks; uncertain external calls remain fenced. The mounted portal screen checks displayed cents against the returned intent and uses only a `pk_test_` client key. Recorded manual failures do not consume off-session dunning retries; Postgres tests cover failure, new-key retry, success, cross-payer denial and concurrent keys.
 Installment charge worker: `installments.charge` runs every minute with a test-key-only gateway, uses the seeded system actor and a stable UTC instant, drains at most 100 due claims per active org and reports errors after scanning other orgs; 8 focused job/dunning/Postgres tests pass.
 Stripe replay worker: `stripe.replay` scans up to 100 stored unprocessed events each minute after enqueue loss or lease expiry, dispatches through the same 27 typed handlers, continues past poison events and reports failures; 9 focused repository/worker tests pass.
-
-## HANDOFF
-
-Done: Stripe SDK 22.6.2 test-mode adapter, webhook/Connect foundations, checkout/payment/refund core, and the current Phase 5 family/staff registration slice are in this branch. `rebuild/trunk` was merged through `9b934b0` by merge commit `a8adbaa`; generated files and migrations were regenerated. Working tree was clean before this handoff edit. No live Stripe keys or real messages were used.
-
-In progress (no uncommitted code edit at handoff):
-- `server/src/modules/registration/lifecycle.ts` — transfer workflow; `refund_difference` still returns 409 before mutation.
-- `server/src/modules/registration/transfers.test.ts` — replace the safe-rejection-only case with exact-line refund, replay, and failure-fencing coverage.
-- `server/src/modules/finance/refunds.ts`, `server/src/modules/finance/refund-source-repo.ts`, and `server/src/modules/finance/refund-record-repo.ts` — extend the existing policy, funded-line source, and allocation services for transfer-scoped refunds.
-- `server/src/modules/registration/routes.ts` — add transfer refund approval handling if the existing finance approval API cannot represent the scoped proposal.
-- `server/src/modules/registration/registration-pricing-source.ts` and `server/src/modules/registration/checkout-quote.ts` — complete discount/aid-aware transfer price calculation.
-- `server/src/modules/registration/checkout-start.ts`, `server/src/modules/registration/lifecycle.ts`, `web/src/console/registration/RegistrationStaffScreen.tsx`, `web/src/portal/registration/RegistrationScreen.tsx`, and their adjacent tests — remaining staff-created entries, team entries, returning-family flow, and waitlist expiry/advance work.
-
-Next steps, in order:
-1. Finish the remaining Phase 4 acceptance run and fixes; run the full suite, Chromium acceptance journeys, and build before calling Phase 4 complete.
-2. Implement transfer refunds against the exact funded source registration line. Reserve a durable request before Stripe, call Stripe outside the seat-mutation transaction, require the existing two-person approval rule over threshold, and make retry/replay safe. Add real-Postgres tests for multiple payments, partial funding, prior refunds, failure before seat mutation, and exact replay.
-3. Apply frozen discounts/aid to transfer pricing, then finish staff-created registration, team entries/captain invitations, returning-family fast path, and scheduled waitlist expiry/advance.
-4. Complete Phase 5 family/staff browser journeys (including cancellation/refund policy, transfer charge/refund, waitlist expiry, and team entry), reports, emails, and uniform report; run the required phase gate.
-5. Merge `rebuild/trunk` into this branch before the next work session, then use the sprint merge gate and self-merge protocol only after the candidate passes.
-
-Known test status: `server/src/modules/registration/transfers.test.ts` passes 2 tests but currently verifies the intentional 409 for `refund_difference`. The registration module suite passed 13 tests and had one five-second timeout in `server/src/modules/registration/checkout-start.test.ts` (“freezes one paid quote…”); rerunning that file alone passed 6/6. Reminder tests passed 1/1. Typecheck and lint passed after the trunk sync. Full suite, Playwright, and build have not passed as a post-sync gate. An attempted `e2e/crawler/routes.spec.ts` invocation found no tests because that spec is owned by QA and is absent from this checkout.
-
-Open requests recorded by Track E: Track A to expose strict org `refundTerms` and `lateFeeCents`, regenerate installment-template finance OpenAPI, and copy the finance playbook lines when its owned document exists; Track C to record the late-fee cap decision and regenerate types for migrations 1052–1053; OPS to publish the stable registration-open API and fake-adapter 2,000-family load fixture with the no-oversell query; Track A to regenerate types after migrations 1050–1051 and surface installment failure/ACH return events in Action Center; Track H/C to add consented push/SMS for installment failure notices. Verify older requests in this file against trunk before carrying them forward.
-
-Stack: `COMPOSE_PROJECT_NAME=athlentry_e`, `PORT_OFFSET=500`.
-
-HANDED OFF 13:58
