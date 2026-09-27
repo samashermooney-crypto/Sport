@@ -223,6 +223,7 @@ export class PostgresCreditLedger {
             WHERE h.org_id = ${input.orgId}::uuid
               AND h.id = ${input.householdId ?? null}::uuid
               AND h.status = 'active'
+              AND hm.removed_at IS NULL
               AND hm.financially_responsible = true
               AND hm.role IN ('guardian', 'other_adult')
               AND pal.account_id = ${input.payerAccountId}::uuid

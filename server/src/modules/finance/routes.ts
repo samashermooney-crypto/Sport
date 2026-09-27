@@ -1129,6 +1129,7 @@ export function createFinanceRouter(
               .where('pal.revoked_at', 'is', null)
               .where('pal.verified_at', 'is not', null)
               .where('hm.household_id', '=', input.householdId)
+              .where('hm.removed_at', 'is', null)
               .where('hm.financially_responsible', '=', true)
               .where('h.status', '=', 'active')
               .executeTakeFirst();

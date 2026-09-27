@@ -57,6 +57,7 @@ export class PostgresPayerCreditBalances {
           AND pal.person_id = hm.person_id
         WHERE h.org_id = ${this.context.orgId}::uuid
           AND h.status = 'active'
+          AND hm.removed_at IS NULL
           AND hm.financially_responsible = true
           AND hm.role IN ('guardian', 'other_adult')
           AND pal.account_id = ${this.context.actor.accountId}::uuid

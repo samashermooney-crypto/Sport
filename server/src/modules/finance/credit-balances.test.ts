@@ -174,6 +174,31 @@ describe('payer credit balance', () => {
     });
     await createWithOrg(database)(context, (trx) =>
       trx
+        .updateTable('household_members')
+        .set({ removed_at: new Date() })
+        .where('org_id', '=', context.orgId)
+        .where('household_id', '=', householdId)
+        .where('person_id', '=', personId)
+        .execute()
+        .then(() => undefined),
+    );
+    expect(await read()).toMatchObject({
+      accountBalanceCents: 700,
+      householdBalances: [],
+      totalAvailableCents: 700,
+    });
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('household_members')
+        .set({ removed_at: null })
+        .where('org_id', '=', context.orgId)
+        .where('household_id', '=', householdId)
+        .where('person_id', '=', personId)
+        .execute()
+        .then(() => undefined),
+    );
+    await createWithOrg(database)(context, (trx) =>
+      trx
         .updateTable('person_account_links')
         .set({ revoked_at: new Date() })
         .where('org_id', '=', context.orgId)
