@@ -134,12 +134,24 @@ export const REPORT_DATASETS: readonly Dataset[] = [
     label: 'Registrations',
     description: 'Program registrations with participant and program context',
     table: 'registrations',
-    requiredTables: ['registrations', 'people', 'programs', 'divisions'],
+    requiredTables: [
+      'registrations',
+      'people',
+      'programs',
+      'divisions',
+      'households',
+    ],
     joins: [
       {
         alias: 'p',
         table: 'people',
         on: 'p.id = t.person_id AND p.org_id = t.org_id',
+        kind: 'left',
+      },
+      {
+        alias: 'h',
+        table: 'households',
+        on: 'h.id = t.household_id AND h.org_id = t.org_id',
         kind: 'left',
       },
       {
@@ -188,7 +200,21 @@ export const REPORT_DATASETS: readonly Dataset[] = [
         'sensitive',
         'p.date_of_birth',
       ),
+      col(
+        'person_gender',
+        'Participant gender',
+        'enum',
+        'sensitive',
+        'p.gender',
+      ),
       col('person_email', 'Participant email', 'text', 'sensitive', 'p.email'),
+      col(
+        'household_postal_code',
+        'Household ZIP/postal code',
+        'text',
+        'sensitive',
+        "h.address ->> 'postalCode'",
+      ),
       col('program_name', 'Program', 'text', 'internal', 'pr.name'),
       col('division_name', 'Division', 'text', 'internal', 'd.name'),
       col('age_label', 'Age group', 'text', 'internal', 'd.age_label'),

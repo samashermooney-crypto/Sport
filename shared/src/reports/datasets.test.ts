@@ -50,6 +50,29 @@ describe('report dataset catalog', () => {
     );
   });
 
+  it('keeps demographic registration cuts on sensitive source columns', () => {
+    const registrations = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'registrations',
+    );
+    expect(registrations?.joins).toContainEqual({
+      alias: 'h',
+      table: 'households',
+      on: 'h.id = t.household_id AND h.org_id = t.org_id',
+      kind: 'left',
+    });
+    expect(
+      registrations?.columns.find((column) => column.key === 'person_gender'),
+    ).toMatchObject({ tier: 'sensitive', source: 'p.gender' });
+    expect(
+      registrations?.columns.find(
+        (column) => column.key === 'household_postal_code',
+      ),
+    ).toMatchObject({
+      tier: 'sensitive',
+      source: "h.address ->> 'postalCode'",
+    });
+  });
+
   it('keeps aid details and uniform reports on the intended source fields', () => {
     const aidAwards = REPORT_DATASETS.find(
       (candidate) => candidate.key === 'aid_awards',

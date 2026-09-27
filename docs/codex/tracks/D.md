@@ -17,7 +17,7 @@ Completed:
 - Phase 14 migrations 7000–7010, generated DB types, report dataset/query/schema/service/router/module, CSV/XLSX serializers, ZIP helper, org-local schedule CRUD, durable outbox delivery, and per-recipient outcomes are present. D and H migrations through 8010 apply on the isolated Track D database, and the 246-table DB types have been regenerated.
 - Website foundation: role-checked page editing, optimistic versions and revision history, public published-page JSON, sitemap output, structured safe-content schemas, a console editor, public page surface, legacy site CSS port, and an SSR document renderer. Focused schema tests pass 3/3 and the Postgres service tests pass 2/2 on a fresh isolated stack.
 - Public pricing now lists only active plans and exposes only name, key, monthly cents, and the custom-pricing flag; the `/pricing` page renders that API response and handles loading, empty, and error states. Marketing pricing/legal/i18n tests pass 4/4 and website PostgreSQL service tests pass 3/3 on the fresh verification stack; focused ESLint and typecheck pass.
-- Standard reports now include registration by program and age group, payout amounts by settlement status, official pay by official, and donations by campaign. Payouts are restricted to money-report roles and the amount column retains the Sensitive tier; report query tests pass 7/7 and the builder UI test passes 1/1.
+- Standard reports now include registration by gender and household ZIP/postal code. Their source columns remain Sensitive-tier and are only surfaced to roles allowed to query them. The report builder preset UI and dataset contract tests pass for both cuts.
 
 In progress (exact paths):
 - `db/migrations/7000_website_core.sql`

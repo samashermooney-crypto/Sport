@@ -96,6 +96,22 @@ const reportPresets: readonly ReportPreset[] = [
     sortColumn: 'age_label',
   },
   {
+    label: 'Registration by gender',
+    dataset: 'registrations',
+    columns: ['person_gender'],
+    groupBy: ['person_gender'],
+    aggregate: { fn: 'count', column: 'id' },
+    sortColumn: 'person_gender',
+  },
+  {
+    label: 'Registration by ZIP/postal code',
+    dataset: 'registrations',
+    columns: ['household_postal_code'],
+    groupBy: ['household_postal_code'],
+    aggregate: { fn: 'count', column: 'id' },
+    sortColumn: 'household_postal_code',
+  },
+  {
     label: 'Aging receivables',
     dataset: 'invoices',
     columns: ['aging_bucket'],

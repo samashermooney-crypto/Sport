@@ -48,6 +48,18 @@ it('limits reports to available role columns and previews the selected definitio
                   type: 'datetime',
                   tier: 'internal',
                 },
+                {
+                  key: 'person_gender',
+                  label: 'Participant gender',
+                  type: 'enum',
+                  tier: 'sensitive',
+                },
+                {
+                  key: 'household_postal_code',
+                  label: 'Household ZIP/postal code',
+                  type: 'text',
+                  tier: 'sensitive',
+                },
               ],
             },
             {
@@ -128,4 +140,18 @@ it('limits reports to available role columns and previews the selected definitio
   await screen.findByText('open');
   expect(previewRequestBody).toContain('"dataset":"payouts"');
   expect(previewRequestBody).toContain('"amount_cents"');
+
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Registration by gender' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Preview report' }));
+  await screen.findByText('open');
+  expect(previewRequestBody).toContain('"person_gender"');
+
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Registration by ZIP/postal code' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Preview report' }));
+  await screen.findByText('open');
+  expect(previewRequestBody).toContain('"household_postal_code"');
 });
