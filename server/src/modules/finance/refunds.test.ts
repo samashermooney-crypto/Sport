@@ -31,7 +31,10 @@ const source: RefundSource = {
 };
 
 class AttemptStore implements RefundAttemptStore {
-  readonly records = new Map<string, { hash: string; result?: RefundResult }>();
+  readonly records = new Map<
+    string,
+    { hash: string; externalStarted?: boolean; result?: RefundResult }
+  >();
   reserve({ key, requestHash }: { key: string; requestHash: string }) {
     const previous = this.records.get(key);
     if (previous?.hash !== undefined && previous.hash !== requestHash) {
@@ -46,6 +49,12 @@ class AttemptStore implements RefundAttemptStore {
     this.records.set(key, { hash: requestHash });
     return Promise.resolve({ kind: 'reserved' as const });
   }
+  beginExternal({ key }: { key: string }) {
+    const record = this.records.get(key);
+    if (!record) throw new Error('Missing reservation');
+    record.externalStarted = true;
+    return Promise.resolve();
+  }
   complete({ key, result }: { key: string; result: RefundResult }) {
     const record = this.records.get(key);
     if (!record) throw new Error('Missing reservation');
@@ -53,6 +62,9 @@ class AttemptStore implements RefundAttemptStore {
     return Promise.resolve();
   }
   fail({ key }: { key: string }) {
+    if (this.records.get(key)?.externalStarted) {
+      throw new Error('External attempt cannot be released');
+    }
     this.records.delete(key);
     return Promise.resolve();
   }
@@ -148,6 +160,35 @@ describe('refund policy application', () => {
     await expect(
       test.service.refund({ ...test.input, cancellationDate: '2026-10-02' }),
     ).rejects.toThrow('different refund');
+    expect(test.createRefund).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the key fenced when Stripe may have created a refund', async () => {
+    const test = fixture();
+    test.createRefund.mockRejectedValueOnce(new Error('network lost'));
+    await expect(test.service.refund(test.input)).rejects.toThrow(
+      'network lost',
+    );
+    expect(
+      test.attempts.records.get(test.input.idempotencyKey)?.externalStarted,
+    ).toBe(true);
+    await expect(test.service.refund(test.input)).rejects.toThrow(
+      'already in progress',
+    );
+    expect(test.createRefund).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the key fenced when recording a created refund fails', async () => {
+    const test = fixture();
+    vi.spyOn(test.attempts, 'complete').mockRejectedValueOnce(
+      new Error('database lost'),
+    );
+    await expect(test.service.refund(test.input)).rejects.toThrow(
+      'database lost',
+    );
+    await expect(test.service.refund(test.input)).rejects.toThrow(
+      'already in progress',
+    );
     expect(test.createRefund).toHaveBeenCalledTimes(1);
   });
 });

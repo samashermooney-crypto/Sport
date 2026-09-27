@@ -55,6 +55,12 @@ export interface RefundAttemptStore {
     key: string;
     requestHash: string;
   }): Promise<RefundReservation>;
+  /** Durable fence: after this commits, the key stays blocked until reconciled. */
+  beginExternal(input: {
+    orgId: string;
+    paymentId: string;
+    key: string;
+  }): Promise<void>;
   complete(input: {
     orgId: string;
     paymentId: string;
@@ -130,6 +136,7 @@ export class StripeRefundService {
       throw new Error('Refund attempt is already in progress');
     if (reservation.kind === 'conflict')
       throw new Error('Idempotency-Key was used for a different refund');
+    let externalStarted = false;
     try {
       const source = await this.reader.load(input.orgId, input.paymentId);
       if (
@@ -154,6 +161,12 @@ export class StripeRefundService {
           throw new Error('A separate finance approver is required');
         }
       }
+      await this.attempts.beginExternal({
+        orgId: input.orgId,
+        paymentId: input.paymentId,
+        key: input.idempotencyKey,
+      });
+      externalStarted = true;
       const refund = await this.gateway.createRefund({
         paymentIntentId: source.paymentIntentId,
         amountCents: proposal.totalCents,
@@ -170,11 +183,13 @@ export class StripeRefundService {
       });
       return result;
     } catch (error) {
-      await this.attempts.fail({
-        orgId: input.orgId,
-        paymentId: input.paymentId,
-        key: input.idempotencyKey,
-      });
+      if (!externalStarted) {
+        await this.attempts.fail({
+          orgId: input.orgId,
+          paymentId: input.paymentId,
+          key: input.idempotencyKey,
+        });
+      }
       throw error;
     }
   }

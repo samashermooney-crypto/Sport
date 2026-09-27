@@ -69,6 +69,12 @@ export interface PaymentAttemptStore {
     key: string;
     requestHash: string;
   }): Promise<PaymentAttemptReservation>;
+  /** Durable fence: after this commits, the key stays blocked until reconciled. */
+  beginExternal(input: {
+    orgId: string;
+    checkoutId: string;
+    key: string;
+  }): Promise<void>;
   complete(input: {
     orgId: string;
     checkoutId: string;
@@ -170,6 +176,7 @@ export class CheckoutPaymentService {
       throw new Error('Payment attempt is already in progress');
     if (reservation.kind === 'conflict')
       throw new Error('Idempotency-Key was used for a different payment');
+    let externalStarted = false;
     try {
       const charge = await this.reader.load(input);
       if (
@@ -190,6 +197,12 @@ export class CheckoutPaymentService {
       );
       if (!account.chargesEnabled)
         throw new Error('Stripe account cannot accept charges');
+      await this.attempts.beginExternal({
+        orgId: input.orgId,
+        checkoutId: input.checkoutId,
+        key: input.idempotencyKey,
+      });
+      externalStarted = true;
       const intent = await this.gateway.createDestinationPayment({
         amountCents: quote.amountCents,
         applicationFeeCents: quote.applicationFeeCents,
@@ -221,11 +234,13 @@ export class CheckoutPaymentService {
       });
       return result;
     } catch (error) {
-      await this.attempts.fail({
-        orgId: input.orgId,
-        checkoutId: input.checkoutId,
-        key: input.idempotencyKey,
-      });
+      if (!externalStarted) {
+        await this.attempts.fail({
+          orgId: input.orgId,
+          checkoutId: input.checkoutId,
+          key: input.idempotencyKey,
+        });
+      }
       throw error;
     }
   }

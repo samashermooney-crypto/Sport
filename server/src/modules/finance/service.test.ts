@@ -31,7 +31,7 @@ const charge: FrozenCharge = {
 class AttemptStore implements PaymentAttemptStore {
   readonly records = new Map<
     string,
-    { hash: string; result?: CreatedPaymentIntent }
+    { hash: string; externalStarted?: boolean; result?: CreatedPaymentIntent }
   >();
   reserve({ key, requestHash }: { key: string; requestHash: string }) {
     const record = this.records.get(key);
@@ -47,6 +47,12 @@ class AttemptStore implements PaymentAttemptStore {
     this.records.set(key, { hash: requestHash });
     return Promise.resolve({ kind: 'reserved' as const });
   }
+  beginExternal({ key }: { key: string }) {
+    const record = this.records.get(key);
+    if (!record) throw new Error('Missing reservation');
+    record.externalStarted = true;
+    return Promise.resolve();
+  }
   complete({ key, result }: { key: string; result: CreatedPaymentIntent }) {
     const record = this.records.get(key);
     if (!record) throw new Error('Missing reservation');
@@ -54,6 +60,9 @@ class AttemptStore implements PaymentAttemptStore {
     return Promise.resolve();
   }
   fail({ key }: { key: string }) {
+    if (this.records.get(key)?.externalStarted) {
+      throw new Error('External attempt cannot be released');
+    }
     this.records.delete(key);
     return Promise.resolve();
   }
@@ -187,5 +196,36 @@ describe('finance PaymentIntent orchestration', () => {
     await expect(test.service.create(test.input)).rejects.toThrow('integer');
     expect(test.attempts.records.size).toBe(0);
     expect(test.createDestinationPayment).not.toHaveBeenCalled();
+  });
+
+  it('keeps the key fenced when Stripe may have created an intent', async () => {
+    const test = fixture();
+    test.createDestinationPayment.mockRejectedValueOnce(
+      new Error('network lost'),
+    );
+    await expect(test.service.create(test.input)).rejects.toThrow(
+      'network lost',
+    );
+    expect(
+      test.attempts.records.get(test.input.idempotencyKey)?.externalStarted,
+    ).toBe(true);
+    await expect(test.service.create(test.input)).rejects.toThrow(
+      'already in progress',
+    );
+    expect(test.createDestinationPayment).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the key fenced when recording a created intent fails', async () => {
+    const test = fixture();
+    vi.spyOn(test.attempts, 'complete').mockRejectedValueOnce(
+      new Error('database lost'),
+    );
+    await expect(test.service.create(test.input)).rejects.toThrow(
+      'database lost',
+    );
+    await expect(test.service.create(test.input)).rejects.toThrow(
+      'already in progress',
+    );
+    expect(test.createDestinationPayment).toHaveBeenCalledTimes(1);
   });
 });
