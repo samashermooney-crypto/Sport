@@ -3,15 +3,21 @@ import { chmodSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
+import { composePortEnv, localPorts } from './ports.mjs';
+
 const e2e = process.argv.includes('--e2e');
 const dbName = e2e ? 'athlentry_e2e' : 'athlentry_dev';
+const ports = localPorts();
 const env = {
-  ...process.env,
-  ...(e2e
-    ? { APP_URL: 'https://127.0.0.1:5173', ATHLENTRY_E2E_HTTPS: '1' }
-    : {}),
-  DATABASE_URL: `postgres://athlentry_app@127.0.0.1:5432/${dbName}`,
-  DATABASE_ADMIN_URL: `postgres://athlentry_admin@127.0.0.1:5432/${dbName}`,
+  ...composePortEnv(),
+  APP_URL: `${e2e ? 'https' : 'http'}://127.0.0.1:${String(ports.web)}`,
+  ...(e2e ? { ATHLENTRY_E2E_HTTPS: '1' } : {}),
+  DATABASE_URL: `postgres://athlentry_app@127.0.0.1:${String(ports.postgres)}/${dbName}`,
+  DATABASE_ADMIN_URL: `postgres://athlentry_admin@127.0.0.1:${String(ports.postgres)}/${dbName}`,
+  PORT: String(ports.api),
+  ATHLENTRY_VITE_PORT: String(ports.web),
+  ATHLENTRY_API_PORT: String(ports.api),
+  ATHLENTRY_MAILPIT_SMTP_PORT: String(ports.mailpitSmtp),
 };
 const colors = {
   compose: '\x1b[36m',

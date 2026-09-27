@@ -1,12 +1,18 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const offset = Number(process.env.PORT_OFFSET ?? '0');
+if (!Number.isInteger(offset) || offset < 0 || offset > 10_000) {
+  throw new Error('PORT_OFFSET must be an integer from 0 to 10000');
+}
+const webUrl = `https://127.0.0.1:${String(5173 + offset)}`;
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
-    baseURL: 'https://127.0.0.1:5173',
+    baseURL: webUrl,
     ignoreHTTPSErrors: true,
     trace: 'retain-on-failure',
   },
@@ -22,7 +28,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'node scripts/dev.mjs --e2e',
-    url: 'https://127.0.0.1:5173',
+    url: webUrl,
     ignoreHTTPSErrors: true,
     reuseExistingServer: false,
     timeout: 180_000,

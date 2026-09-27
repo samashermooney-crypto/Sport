@@ -6,7 +6,7 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
       POSTGRES_DB: postgres
     ports:
-      - '127.0.0.1:5432:5432'
+      - '127.0.0.1:${ATHLENTRY_POSTGRES_PORT:-5432}:5432'
     volumes:
       - athlentry-postgres:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
@@ -18,7 +18,7 @@ services:
   stripe-mock:
     image: stripe/stripe-mock:latest
     ports:
-      - '127.0.0.1:12111:12111'
+      - '127.0.0.1:${ATHLENTRY_STRIPE_MOCK_PORT:-12111}:12111'
     healthcheck:
       test: ['CMD', 'stripe-mock', '-version']
       interval: 5s
@@ -27,8 +27,8 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     ports:
-      - '127.0.0.1:8025:8025'
-      - '127.0.0.1:1025:1025'
+      - '127.0.0.1:${ATHLENTRY_MAILPIT_API_PORT:-8025}:8025'
+      - '127.0.0.1:${ATHLENTRY_MAILPIT_SMTP_PORT:-1025}:1025'
     healthcheck:
       test: ['CMD', '/mailpit', 'readyz']
       interval: 5s
