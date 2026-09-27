@@ -6,7 +6,9 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import type { GatewayPaymentIntent } from '../../integrations/stripe/gateway.js';
 import { appendAuditEvent } from '../audit/service.js';
+import { createNotification } from '../notifications/service.js';
 
+import { activeFinanceNotificationRecipients } from './finance-notification-recipients.js';
 import { recomputeInvoiceStatus } from './invoice-repo.js';
 import { enqueueFinanceNotice } from './money-notices.js';
 import type {
@@ -248,6 +250,36 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
               allocation.invoice_id,
               todayLocal,
             );
+            if (!payment.account_id)
+              throw new Error('Failed installment lacks a payer account');
+            const queued = await enqueueFinanceNotice(trx, context, {
+              kind: retry.retry
+                ? 'installment_failed'
+                : 'installment_final_notice',
+              sourceId: payment.id,
+              accountId: payment.account_id,
+            });
+            if (
+              queued &&
+              method === 'us_bank_account' &&
+              payment.processing_started_at
+            ) {
+              const staff = await activeFinanceNotificationRecipients(
+                trx,
+                input.orgId,
+              );
+              for (const accountId of staff) {
+                if (accountId === payment.account_id) continue;
+                await createNotification(trx, context, {
+                  accountId,
+                  type: 'installment.failed',
+                  payload: {
+                    resourceType: 'payment',
+                    resourceId: payment.id,
+                  },
+                });
+              }
+            }
           }
         }
       }
