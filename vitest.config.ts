@@ -23,6 +23,7 @@ export default defineConfig({
           name: 'server',
           include: ['server/src/**/*.test.ts'],
           environment: 'node',
+          sequence: { hooks: 'stack' },
           globalSetup: ['server/test/global-setup.ts'],
           setupFiles: ['server/test/setup.ts'],
         },
