@@ -149,9 +149,16 @@ describe('sign-in entry points', () => {
     );
     expect(generic).toContain('If this address has an account');
     expect(email.messages).toHaveLength(0);
+    await database
+      .updateTable('accounts')
+      .set({ locale: 'es' })
+      .where('id', '=', accountId)
+      .execute();
     expect(await requestMagicLink(dependencies, 'member@example.invalid')).toBe(
       generic,
     );
+    expect(email.messages[0]?.subject).toBe('Inicie sesión en Athlentry');
+    expect(email.messages[0]?.html).toContain('<html lang="es">');
     const raw = email.messages[0]?.text.match(
       /\/magic\/([A-Za-z0-9_-]{43})/,
     )?.[1];
@@ -162,6 +169,11 @@ describe('sign-in entry points', () => {
     await expect(signInWithMagicLink(dependencies, raw)).rejects.toBeInstanceOf(
       InvalidCredentialsError,
     );
+    await database
+      .updateTable('accounts')
+      .set({ locale: 'en' })
+      .where('id', '=', accountId)
+      .execute();
   });
 
   it('requires a one-use TOTP challenge for an active owner role', async () => {

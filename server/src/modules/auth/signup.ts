@@ -8,6 +8,7 @@ import type { Kysely } from 'kysely';
 import type { DB } from '../../db/types';
 import type { CaptchaProvider } from '../../integrations/captcha/provider';
 import type { EmailSender } from '../../integrations/email/sender';
+import { createAuthEmail } from '../../integrations/email/templates/auth';
 
 import { AuthDomainError } from './domain-error';
 import { localLegalDocuments } from './legal';
@@ -75,6 +76,7 @@ export async function signUp(
             first_name: parsed.firstName,
             last_name: parsed.lastName,
             date_of_birth: parsed.dateOfBirth,
+            locale: parsed.locale ?? 'en',
           })
           .execute();
         await trx
@@ -127,11 +129,14 @@ export async function signUp(
       return notice;
     throw error;
   }
-  await dependencies.email.send({
-    to: email,
-    subject: 'Verify your Athlentry email',
-    text: `Verify your email by opening ${dependencies.appUrl}/verify/${rawToken}. This link expires in 24 hours.`,
-  });
+  await dependencies.email.send(
+    createAuthEmail({
+      kind: 'verification',
+      to: email,
+      url: `${dependencies.appUrl}/verify/${rawToken}`,
+      locale: parsed.locale ?? 'en',
+    }),
+  );
   return notice;
 }
 

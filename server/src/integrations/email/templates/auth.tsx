@@ -1,3 +1,5 @@
+import React from 'react';
+
 import type { EmailMessage } from '../sender';
 
 import { renderEmailLayout } from './layout';
@@ -13,15 +15,15 @@ const copy = {
   en: {
     verification: [
       'Verify your email',
-      'Use the secure link below to verify your email address.',
+      'Use the secure link below to verify your email address. This link expires in 24 hours.',
     ],
     'magic-link': [
       'Sign in to Athlentry',
-      'Use this one-time link to sign in.',
+      'Use this one-time link to sign in. This link expires in 15 minutes.',
     ],
     'password-reset': [
       'Reset your password',
-      'Use the secure link below to choose a new password.',
+      'Use the secure link below to choose a new password. This link expires in 1 hour.',
     ],
     invitation: [
       'You are invited',
@@ -35,15 +37,15 @@ const copy = {
   es: {
     verification: [
       'Verifique su correo electrónico',
-      'Use el enlace seguro para verificar su correo electrónico.',
+      'Use el enlace seguro para verificar su correo electrónico. Este enlace vence en 24 horas.',
     ],
     'magic-link': [
       'Inicie sesión en Athlentry',
-      'Use este enlace de un solo uso para iniciar sesión.',
+      'Use este enlace de un solo uso para iniciar sesión. Este enlace vence en 15 minutos.',
     ],
     'password-reset': [
       'Restablezca su contraseña',
-      'Use el enlace seguro para elegir una contraseña nueva.',
+      'Use el enlace seguro para elegir una contraseña nueva. Este enlace vence en 1 hora.',
     ],
     invitation: [
       'Tiene una invitación',
@@ -73,7 +75,7 @@ export function createAuthEmail(input: {
     locale: input.locale,
     title: subject,
     children: (
-      <>
+      <React.Fragment>
         <p>{introduction}</p>
         {input.url ? (
           <p>
@@ -82,7 +84,7 @@ export function createAuthEmail(input: {
             </a>
           </p>
         ) : null}
-      </>
+      </React.Fragment>
     ),
   });
   return {

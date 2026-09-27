@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { DB } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { EmailSender } from '../../integrations/email/sender';
+import { createAuthEmail } from '../../integrations/email/templates/auth';
 import type { EncryptionKeys } from '../../lib/crypto';
 
 import { verifyAndConsumeTotp } from './mfa';
@@ -215,7 +216,7 @@ export async function requestMagicLink(
   const parsed = z.email().parse(email).toLowerCase();
   const account = await dependencies.database
     .selectFrom('accounts')
-    .select(['id', 'status', 'email_verified_at'])
+    .select(['id', 'status', 'email_verified_at', 'locale'])
     .where('email', '=', parsed)
     .executeTakeFirst();
   if (account?.status === 'active' && account.email_verified_at) {
@@ -228,11 +229,14 @@ export async function requestMagicLink(
           dependencies.clock(),
         ),
       );
-    await dependencies.email.send({
-      to: parsed,
-      subject: 'Your Athlentry sign-in link',
-      text: `Sign in by opening ${dependencies.appUrl}/magic/${token}. This link expires in 15 minutes.`,
-    });
+    await dependencies.email.send(
+      createAuthEmail({
+        kind: 'magic-link',
+        to: parsed,
+        url: `${dependencies.appUrl}/magic/${token}`,
+        locale: account.locale === 'es' ? 'es' : 'en',
+      }),
+    );
   }
   return 'If this address has an account, check your email for a sign-in link.';
 }
