@@ -87,4 +87,29 @@ describe('signup and email verification', () => {
     expect(await verifyEmail(database, raw, now)).toBe(true);
     expect(await verifyEmail(database, raw, now)).toBe(false);
   });
+
+  it('stores the selected locale and renders a Spanish verification preview', async () => {
+    const address = 'spanish-owner@example.invalid';
+    await signUp(
+      {
+        database,
+        captcha: new AlwaysPassCaptcha(),
+        email,
+        appUrl: 'http://127.0.0.1:5173',
+        clock: () => now,
+      },
+      { ...baseInput, email: address, locale: 'es' },
+    );
+    const account = await database
+      .selectFrom('accounts')
+      .select('locale')
+      .where('email', '=', address)
+      .executeTakeFirstOrThrow();
+    expect(account.locale).toBe('es');
+    const message = email.messages.find((sent) => sent.to === address);
+    expect(message?.subject).toBe('Verifique su correo electrónico');
+    expect(message?.html).toContain('<html lang="es">');
+    expect(message?.text).toContain('/verify/');
+    expect(message?.text).toContain('24 horas');
+  });
 });

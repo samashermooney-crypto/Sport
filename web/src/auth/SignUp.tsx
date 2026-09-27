@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { apiGet, apiPost } from '../api/client';
+import { i18n } from '../lib/i18n';
 import {
   AuthFrame,
   AuthLink,
@@ -66,7 +67,7 @@ export function SignUp(): React.JSX.Element {
     try {
       const result = await apiPost(
         '/auth/sign-up',
-        values,
+        { ...values, locale: i18n.resolvedLanguage === 'es' ? 'es' : 'en' },
         authMessageResponseSchema,
       );
       setMessage(result.message);
