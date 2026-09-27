@@ -9,6 +9,7 @@ Requests to other tracks: A: expose strict `settings.refundTerms` in org finance
 Requests to other tracks: A: expose `settings.lateFeeCents` in org finance settings (integer 0–10000 cents, absent/zero disables); E's late-fee and checkout readers fail closed on malformed amounts. C: record this protective cap in DECISIONS and regenerate DB types after merging migrations 1052–1053 (2026-09-27).
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).
+Requests from OPS: Publish the stable Phase 5 family checkout/registration-open API path and a test-mode/fake-adapter load fixture for the 2,000-family capacity scenario; report the capacity-counter verification query and expected no-oversell invariant (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
 Ready for integration: local `5e14320..385d96a` — frozen checkout persistence and fail-closed database offering source; queue work continues.
 Ready for integration: local `385d96a..d63eaba` — payer-owned PaymentIntent HTTP API, replay guard and portal Payment Element binding; queue work continues.
