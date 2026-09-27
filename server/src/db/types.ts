@@ -1505,6 +1505,22 @@ export interface Organizations {
   website_url: string | null;
 }
 
+export interface OrgBillingInvoices {
+  amount_due_cents: number;
+  amount_paid_cents: number;
+  created_at: Generated<Timestamp>;
+  currency: string;
+  id: string;
+  org_id: string;
+  status: string;
+  stripe_created_at: Timestamp;
+  stripe_customer_id: string;
+  stripe_invoice_id: string;
+  stripe_subscription_id: string;
+  total_cents: number;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface OrgCounters {
   created_at: Generated<Timestamp>;
   name: string;
@@ -2628,6 +2644,7 @@ export interface DB {
   official_pay_lines: OfficialPayLines;
   official_positions: OfficialPositions;
   official_profiles: OfficialProfiles;
+  org_billing_invoices: OrgBillingInvoices;
   org_counters: OrgCounters;
   org_memberships: OrgMemberships;
   org_subscriptions: OrgSubscriptions;
