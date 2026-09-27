@@ -3,11 +3,9 @@
 Status: working
 Model: Codex GPT-6 Luna Extra High
 Branch: `track/a-core`
-Current: Track A owns Phase 1 remaining tasks 3–8 and 16–17, then Phase 2 to acceptance. People, household, age/grade, identity, medical, and retained emergency-contact work is already on `rebuild/trunk`. The current branch slice fixes imports/guardian WIP `47adf1a` and adds the first import console test; typecheck, lint, focused PostgreSQL tests, and the import console component test pass. Phase 1 task 4 and design parity/localization in task 16, role-aware medical compliance, and the remaining Phase 2 acceptance are open. Track C owns wiring and `PROGRESS.md`.
-Ready for self-merge: none yet. The import slice needs a Chromium journey and the current-trunk branch gate before merge. Track C owns app/worker/router/registry/OpenAPI wiring and hourly full gates.
-Requests to other tracks: C — the trunk full suite repeatedly hit Vitest's default 10-second hook timeout across orgs, platform, communications, chat, compliance and audit plus the 20-second finance property limit under concurrent track load, while the same affected A tests passed on its isolated stack. Please account for concurrent full-gate contention in the hourly gate. Track A is testing a bounded-worker merge run; no assertion or timeout has been weakened.
-Requests to other tracks: E — proceed with Phase 4 against the spine now on trunk.
-Requests to other tracks: D — identity screens in task 3 are stable for your auth restyle queue; console Home in task 17 remains with A.
+Current: Track A owns Phase 1 remaining tasks 3–8 and 16–17, then Phase 2 to acceptance. People, household, age/grade, identity, medical, and retained emergency-contact work is already on `rebuild/trunk`. The current branch slice repairs imports/guardian WIP `47adf1a`, adds CSV/XLSX import UI coverage and an import browser journey, and regenerates OpenAPI for the import routes. Typecheck, full lint, 17 focused PostgreSQL tests (including the 2,000-row timing/rollback case), the UI component test, and five Chromium People/guardian/import tests pass. Phase 1 task 4 and design parity/localization in task 16, role-aware medical compliance, and the remaining Phase 2 acceptance are open. Track C owns wiring and `PROGRESS.md`.
+Ready for self-merge: Track A import/guardian slice at `f833868` plus `e2e/people-import.spec.ts` and refreshed `docs/api/openapi.json`; current branch sync is `7717740`. Its typecheck, full lint, focused PostgreSQL tests, and the People, guardian, and import Chromium journeys pass. This is a partial Phase 2 slice; continue the remaining Phase 1/2 work after integration. Track C owns app/worker/router/registry wiring and hourly full gates.
+Requests to other tracks: none. Track C continues app/worker/router/registry wiring, hourly full gates, and `PROGRESS.md`.
 Blocked on: none
 
 ## Requests from SEC
