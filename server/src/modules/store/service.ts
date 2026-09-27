@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { newId } from '@shared/ids';
 import { percentOf } from '@shared/money';
 import { sql, type Kysely } from 'kysely';
@@ -24,12 +26,293 @@ export class StoreAccessError extends Error {
   readonly code = 'FORBIDDEN';
 }
 
+interface StoreProductVariant {
+  id: string;
+  sku: string;
+  size: string | null;
+  color: string | null;
+  priceCents: number;
+  taxRateId: string | null;
+  onHand: number;
+  reserved: number;
+  available: number;
+  lowStockThreshold: number | null;
+}
+
+interface StoreProduct {
+  id: string;
+  name: string;
+  description: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+  kind: 'uniform' | 'spirit_wear' | 'other';
+  requiredForRegistration: boolean;
+  active: boolean;
+  variants: StoreProductVariant[];
+}
+
+function presentProductCategory(row: {
+  id: string;
+  name: string;
+  sort_order: number;
+  archived_at: Date | string | null;
+  version: number;
+}) {
+  return {
+    id: row.id,
+    name: row.name,
+    sortOrder: row.sort_order,
+    archivedAt:
+      row.archived_at instanceof Date
+        ? row.archived_at.toISOString()
+        : row.archived_at,
+    version: row.version,
+  };
+}
+
+export async function createProductCategory(
+  database: Kysely<DB>,
+  context: OrgContext,
+  input: { name: string; sortOrder?: number | undefined },
+) {
+  return createWithOrg(database)(context, async (trx) => {
+    const category = await trx
+      .insertInto('product_categories')
+      .values({
+        org_id: context.orgId,
+        name: input.name.trim(),
+        sort_order: input.sortOrder ?? 0,
+      })
+      .returning(['id', 'name', 'sort_order', 'archived_at', 'version'])
+      .executeTakeFirstOrThrow();
+    await appendAuditEvent(trx, context, {
+      action: 'store.product_category_created',
+      entityType: 'product_category',
+      entityId: category.id,
+      changes: {
+        name: { tier: 'internal', after: category.name },
+      },
+    });
+    return presentProductCategory(category);
+  });
+}
+
+export async function listProductCategories(
+  database: Kysely<DB>,
+  context: OrgContext,
+) {
+  return createWithOrg(database)(context, async (trx) => {
+    const rows = await trx
+      .selectFrom('product_categories')
+      .select(['id', 'name', 'sort_order', 'archived_at', 'version'])
+      .where('org_id', '=', context.orgId)
+      .orderBy('archived_at', 'asc')
+      .orderBy('sort_order')
+      .orderBy('name')
+      .execute();
+    return rows.map(presentProductCategory);
+  });
+}
+
+export async function updateProductCategory(
+  database: Kysely<DB>,
+  context: OrgContext,
+  categoryId: string,
+  input: {
+    name?: string | undefined;
+    sortOrder?: number | undefined;
+    archived?: boolean | undefined;
+    expectedVersion: number;
+  },
+) {
+  return createWithOrg(database)(context, async (trx) => {
+    const category = await trx
+      .updateTable('product_categories')
+      .set({
+        ...(input.name === undefined ? {} : { name: input.name.trim() }),
+        ...(input.sortOrder === undefined
+          ? {}
+          : { sort_order: input.sortOrder }),
+        ...(input.archived === undefined
+          ? {}
+          : { archived_at: input.archived ? new Date() : null }),
+        version: sql`version + 1`,
+        updated_at: new Date(),
+      })
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', categoryId)
+      .where('version', '=', input.expectedVersion)
+      .returning(['id', 'name', 'sort_order', 'archived_at', 'version'])
+      .executeTakeFirst();
+    if (!category)
+      throw new StoreConflictError(
+        'Product category was updated by another user',
+      );
+    await appendAuditEvent(trx, context, {
+      action: input.archived
+        ? 'store.product_category_archived'
+        : 'store.product_category_updated',
+      entityType: 'product_category',
+      entityId: category.id,
+      changes: {
+        name: { tier: 'internal', after: category.name },
+        sortOrder: { tier: 'internal', after: category.sort_order },
+        archived: { tier: 'internal', after: category.archived_at !== null },
+      },
+    });
+    return presentProductCategory(category);
+  });
+}
+
+async function issueOrderInvoice(
+  database: Kysely<DB>,
+  context: OrgContext,
+  orderId: string,
+  idempotencyKey: string,
+  now: Date,
+) {
+  const withOrg = createWithOrg(database);
+  const snapshot = await withOrg(context, async (trx) => {
+    const order = await trx
+      .selectFrom('store_orders')
+      .select([
+        'account_id',
+        'household_id',
+        'subtotal_cents',
+        'tax_cents',
+        'tax_rate_bps',
+        'status',
+        'invoice_id',
+      ])
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', orderId)
+      .executeTakeFirst();
+    if (!order || order.status === 'canceled' || order.status === 'draft')
+      throw new StoreConflictError('Store order cannot be invoiced');
+    if (order.invoice_id) return { order, lines: [] };
+    const lines = await trx
+      .selectFrom('store_order_lines')
+      .select(['description', 'amount_cents'])
+      .where('org_id', '=', context.orgId)
+      .where('order_id', '=', orderId)
+      .orderBy('created_at')
+      .orderBy('id')
+      .execute();
+    if (!lines.length)
+      throw new StoreConflictError('Store order has no invoice lines');
+    return { order, lines };
+  });
+  if (snapshot.order.invoice_id) return snapshot.order.invoice_id;
+  const issued = await new PostgresInvoiceRepository(database, context).issue({
+    orgId: context.orgId,
+    accountId: snapshot.order.account_id,
+    ...(snapshot.order.household_id
+      ? { householdId: snapshot.order.household_id }
+      : {}),
+    source: 'order',
+    creationKey: idempotencyKey,
+    memo: 'Store order',
+    lines: [
+      ...snapshot.lines.map((line) => ({
+        kind: 'product' as const,
+        description: line.description,
+        amountCents: line.amount_cents,
+        refundable: true,
+      })),
+      ...(snapshot.order.tax_cents > 0
+        ? [
+            {
+              kind: 'tax' as const,
+              description: 'Sales tax',
+              amountCents: snapshot.order.tax_cents,
+              refundable: true,
+              taxRateBps: snapshot.order.tax_rate_bps,
+            },
+          ]
+        : []),
+    ],
+  });
+  await withOrg(context, async (trx) => {
+    await trx
+      .updateTable('store_orders')
+      .set({ invoice_id: issued.id, updated_at: now })
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', orderId)
+      .where('invoice_id', 'is', null)
+      .execute();
+    await appendAuditEvent(trx, context, {
+      action: 'store.order_placed',
+      entityType: 'store_order',
+      entityId: orderId,
+      changes: {
+        subtotalCents: {
+          tier: 'internal',
+          after: snapshot.order.subtotal_cents,
+        },
+        taxCents: { tier: 'internal', after: snapshot.order.tax_cents },
+        invoiceId: { tier: 'internal', after: issued.id },
+      },
+    });
+  });
+  return issued.id;
+}
+
+interface ExistingStoreOrder {
+  id: string;
+  invoice_id: string | null;
+  subtotal_cents: number;
+  tax_cents: number;
+  status: string;
+  request_hash: string;
+}
+
+async function replayStoreOrder(
+  database: Kysely<DB>,
+  context: OrgContext,
+  existing: ExistingStoreOrder,
+  requestHash: string,
+  idempotencyKey: string,
+  now: Date,
+) {
+  if (existing.request_hash !== requestHash)
+    throw new StoreConflictError(
+      'Store order idempotency key was already used with different details',
+    );
+  if (existing.status === 'canceled')
+    throw new StoreConflictError('Store order was canceled');
+  const invoiceId =
+    existing.invoice_id ??
+    (await issueOrderInvoice(
+      database,
+      context,
+      existing.id,
+      idempotencyKey,
+      now,
+    ));
+  const linked = await createWithOrg(database)(context, (trx) =>
+    trx
+      .selectFrom('store_orders')
+      .select(['id', 'invoice_id', 'subtotal_cents', 'tax_cents', 'status'])
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', existing.id)
+      .executeTakeFirstOrThrow(),
+  );
+  return {
+    id: linked.id,
+    invoiceId: linked.invoice_id ?? invoiceId,
+    subtotalCents: linked.subtotal_cents,
+    taxCents: linked.tax_cents,
+    status: linked.status,
+  };
+}
+
 export async function createProduct(
   database: Kysely<DB>,
   context: OrgContext,
   input: {
     name: string;
     description?: string | null | undefined;
+    categoryId?: string | null | undefined;
     kind: 'uniform' | 'spirit_wear' | 'other';
     requiredForRegistration: boolean;
     variants: {
@@ -44,13 +327,23 @@ export async function createProduct(
 ) {
   const withOrg = createWithOrg(database);
   return withOrg(context, async (trx) => {
+    if (input.categoryId) {
+      const category = await trx
+        .selectFrom('product_categories')
+        .select('id')
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', input.categoryId)
+        .where('archived_at', 'is', null)
+        .executeTakeFirst();
+      if (!category) throw new StoreNotFoundError('Product category not found');
+    }
     const productId = newId();
     await trx
       .insertInto('products')
       .values({
         id: productId,
         org_id: context.orgId,
-        category_id: null,
+        category_id: input.categoryId ?? null,
         name: input.name,
         description: input.description ?? null,
         kind: input.kind,
@@ -84,39 +377,32 @@ export async function listProducts(database: Kysely<DB>, context: OrgContext) {
       id: string;
       name: string;
       description: string | null;
+      category_id: string | null;
+      category_name: string | null;
       kind: 'uniform' | 'spirit_wear' | 'other';
       required_for_registration: boolean;
       active: boolean;
       variant_id: string | null;
-      sku: string | null;
+      sku: string;
       size: string | null;
       color: string | null;
-      price_cents: number | null;
+      price_cents: number;
       tax_rate_id: string | null;
-      on_hand: number | null;
-      reserved: number | null;
-      available: number | null;
+      on_hand: number;
+      reserved: number;
+      available: number;
       low_stock_threshold: number | null;
-    }>`SELECT product.id, product.name, product.description, product.kind, product.required_for_registration, product.active,
+    }>`SELECT product.id, product.name, product.description, product.category_id,
+       category.name AS category_name, product.kind, product.required_for_registration, product.active,
        variant.id AS variant_id, variant.sku, variant.size, variant.color, variant.price_cents, variant.tax_rate_id, variant.low_stock_threshold,
        COALESCE(balance.on_hand, 0)::int AS on_hand, COALESCE(balance.reserved, 0)::int AS reserved, COALESCE(balance.available, 0)::int AS available
-      FROM products product LEFT JOIN product_variants variant ON variant.org_id = product.org_id AND variant.product_id = product.id AND variant.archived_at IS NULL
+      FROM products product LEFT JOIN product_categories category ON category.org_id = product.org_id AND category.id = product.category_id
+      LEFT JOIN product_variants variant ON variant.org_id = product.org_id AND variant.product_id = product.id AND variant.archived_at IS NULL
       LEFT JOIN inventory_balances balance ON balance.org_id = variant.org_id AND balance.product_variant_id = variant.id
       WHERE product.org_id = ${context.orgId} AND product.active = true ORDER BY product.name, variant.sku`.execute(
       trx,
     );
-    const products = new Map<
-      string,
-      {
-        id: string;
-        name: string;
-        description: string | null;
-        kind: 'uniform' | 'spirit_wear' | 'other';
-        requiredForRegistration: boolean;
-        active: boolean;
-        variants: unknown[];
-      }
-    >();
+    const products = new Map<string, StoreProduct>();
     for (const row of result.rows) {
       let product = products.get(row.id);
       if (!product) {
@@ -124,6 +410,8 @@ export async function listProducts(database: Kysely<DB>, context: OrgContext) {
           id: row.id,
           name: row.name,
           description: row.description,
+          categoryId: row.category_id,
+          categoryName: row.category_name,
           kind: row.kind,
           requiredForRegistration: row.required_for_registration,
           active: row.active,
@@ -188,23 +476,48 @@ export async function placeStoreOrder(
   now = new Date(),
 ) {
   const withOrg = createWithOrg(database);
+  const requestHash = createHash('sha256')
+    .update(
+      JSON.stringify({
+        orgId: context.orgId,
+        accountId: context.actor.accountId,
+        householdId: input.householdId ?? null,
+        registrationId: input.registrationId ?? null,
+        teamSeasonId: input.teamSeasonId ?? null,
+        fulfillmentMethod: input.fulfillmentMethod,
+        lines: input.lines.map((line) => ({
+          variantId: line.variantId,
+          quantity: line.quantity,
+          personId: line.personId ?? null,
+        })),
+      }),
+    )
+    .digest('hex');
   const existing = await withOrg(context, (trx) =>
     trx
       .selectFrom('store_orders')
-      .select(['id', 'invoice_id', 'subtotal_cents', 'tax_cents', 'status'])
+      .select([
+        'id',
+        'invoice_id',
+        'subtotal_cents',
+        'tax_cents',
+        'status',
+        'request_hash',
+      ])
       .where('org_id', '=', context.orgId)
       .where('account_id', '=', context.actor.accountId)
       .where('idempotency_key', '=', input.idempotencyKey)
       .executeTakeFirst(),
   );
   if (existing)
-    return {
-      id: existing.id,
-      invoiceId: existing.invoice_id,
-      subtotalCents: existing.subtotal_cents,
-      taxCents: existing.tax_cents,
-      status: existing.status,
-    };
+    return replayStoreOrder(
+      database,
+      context,
+      existing,
+      requestHash,
+      input.idempotencyKey,
+      now,
+    );
   const orderId = newId();
   type OrderLine = {
     id: string;
@@ -261,6 +574,20 @@ export async function placeStoreOrder(
             'Registration not found for this household',
           );
       }
+      await trx
+        .insertInto('store_orders')
+        .values({
+          id: orderId,
+          org_id: context.orgId,
+          account_id: context.actor.accountId,
+          household_id: input.householdId ?? null,
+          registration_id: input.registrationId ?? null,
+          team_season_id: input.teamSeasonId ?? null,
+          status: 'draft',
+          idempotency_key: input.idempotencyKey,
+          request_hash: requestHash,
+        })
+        .execute();
       const lines: OrderLine[] = [];
       let subtotalCents = 0;
       let taxableSubtotalCents = 0;
@@ -356,20 +683,16 @@ export async function placeStoreOrder(
         ? percentOf(taxableSubtotalCents, taxRateBps)
         : 0;
       await trx
-        .insertInto('store_orders')
-        .values({
-          id: orderId,
-          org_id: context.orgId,
-          account_id: context.actor.accountId,
-          household_id: input.householdId ?? null,
-          registration_id: input.registrationId ?? null,
-          team_season_id: input.teamSeasonId ?? null,
+        .updateTable('store_orders')
+        .set({
           status: 'awaiting_payment',
           subtotal_cents: subtotalCents,
           tax_cents: taxCents,
-          invoice_id: null,
-          idempotency_key: input.idempotencyKey,
+          tax_rate_bps: taxRateBps,
+          updated_at: now,
         })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', orderId)
         .execute();
       await trx
         .insertInto('store_fulfillments')
@@ -383,6 +706,41 @@ export async function placeStoreOrder(
       return { subtotalCents, taxCents, taxRateBps, lineItems: lines };
     });
   } catch (error) {
+    const pgError =
+      error instanceof Error && 'code' in error && 'constraint' in error
+        ? (error as Error & { code: string; constraint?: string })
+        : null;
+    if (
+      pgError?.code === '23505' &&
+      pgError.constraint ===
+        'store_orders_org_id_account_id_idempotency_key_key'
+    ) {
+      const concurrent = await withOrg(context, (trx) =>
+        trx
+          .selectFrom('store_orders')
+          .select([
+            'id',
+            'invoice_id',
+            'subtotal_cents',
+            'tax_cents',
+            'status',
+            'request_hash',
+          ])
+          .where('org_id', '=', context.orgId)
+          .where('account_id', '=', context.actor.accountId)
+          .where('idempotency_key', '=', input.idempotencyKey)
+          .executeTakeFirst(),
+      );
+      if (concurrent)
+        return replayStoreOrder(
+          database,
+          context,
+          concurrent,
+          requestHash,
+          input.idempotencyKey,
+          now,
+        );
+    }
     if (
       error instanceof Error &&
       'code' in error &&

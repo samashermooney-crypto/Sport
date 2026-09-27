@@ -40,6 +40,15 @@ const route = (
   ...(body ? { body } : {}),
 });
 const openapiRoutes = [
+  route('get', '/categories', 'List product categories', z.json()),
+  route('post', '/categories', 'Create a product category', z.json(), z.json()),
+  route(
+    'patch',
+    '/categories/{categoryId}',
+    'Update or archive a product category',
+    z.json(),
+    z.json(),
+  ),
   route('get', '/products', 'List active products and inventory', z.json()),
   route(
     'post',

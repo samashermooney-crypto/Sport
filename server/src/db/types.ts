@@ -2600,9 +2600,11 @@ export interface StoreOrders {
   invoice_id: string | null;
   org_id: string;
   registration_id: string | null;
+  request_hash: Generated<string>;
   status: Generated<string>;
   subtotal_cents: Generated<number>;
   tax_cents: Generated<number>;
+  tax_rate_bps: Generated<number>;
   team_season_id: string | null;
   updated_at: Generated<Timestamp>;
 }

@@ -6,6 +6,7 @@ const cents = z.number().int().min(0).max(100_000_000);
 export const productBodySchema = z.strictObject({
   name: z.string().trim().min(1).max(160),
   description: z.string().trim().max(4000).nullable().optional(),
+  categoryId: uuid.nullable().optional(),
   kind: z.enum(['uniform', 'spirit_wear', 'other']),
   requiredForRegistration: z.boolean().default(false),
   variants: z
@@ -32,6 +33,8 @@ export const productSchema = z.strictObject({
   id: uuid,
   name: z.string(),
   description: z.string().nullable(),
+  categoryId: uuid.nullable(),
+  categoryName: z.string().nullable(),
   kind: z.enum(['uniform', 'spirit_wear', 'other']),
   requiredForRegistration: z.boolean(),
   active: z.boolean(),
@@ -52,6 +55,26 @@ export const productSchema = z.strictObject({
 });
 export const productListSchema = z.strictObject({
   products: z.array(productSchema),
+});
+export const productCategorySchema = z.strictObject({
+  id: uuid,
+  name: z.string(),
+  sortOrder: z.number().int(),
+  archivedAt: z.iso.datetime({ offset: true }).nullable(),
+  version: z.number().int().positive(),
+});
+export const productCategoryListSchema = z.strictObject({
+  categories: z.array(productCategorySchema),
+});
+export const productCategoryBodySchema = z.strictObject({
+  name: z.string().trim().min(1).max(100),
+  sortOrder: z.number().int().min(-100_000).max(100_000).optional(),
+});
+export const productCategoryUpdateSchema = z.strictObject({
+  name: z.string().trim().min(1).max(100).optional(),
+  sortOrder: z.number().int().min(-100_000).max(100_000).optional(),
+  archived: z.boolean().optional(),
+  expectedVersion: z.number().int().positive(),
 });
 export const stockBodySchema = z.strictObject({
   quantity: z.number().int().min(1).max(10000),

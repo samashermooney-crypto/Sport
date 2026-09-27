@@ -15,6 +15,10 @@ import {
   fulfillmentSchema,
   orderBodySchema,
   orderSchema,
+  productCategoryBodySchema,
+  productCategoryListSchema,
+  productCategorySchema,
+  productCategoryUpdateSchema,
   productBodySchema,
   productListSchema,
   productSchema,
@@ -23,12 +27,15 @@ import {
 } from './schema';
 import {
   createProduct,
+  createProductCategory,
+  listProductCategories,
   listMyStoreOrders,
   listProducts,
   listStoreOrders,
   placeStoreOrder,
   receiveStock,
   uniformSizeReport,
+  updateProductCategory,
   updateFulfillment,
 } from './service';
 
@@ -73,6 +80,48 @@ export function createStoreRouter(
         sendModuleError(response, error);
       }
     };
+
+  router.get(
+    '/orgs/:orgId/categories',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      response.json(
+        productCategoryListSchema.parse({
+          categories: await listProductCategories(
+            dependencies.database,
+            actor.context,
+          ),
+        }),
+      );
+    }),
+  );
+  router.post(
+    '/orgs/:orgId/categories',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      requireAnyRole(actor.roles, managers);
+      const category = await createProductCategory(
+        dependencies.database,
+        actor.context,
+        productCategoryBodySchema.parse(request.body as unknown),
+      );
+      response.status(201).json(productCategorySchema.parse(category));
+    }),
+  );
+  router.patch(
+    '/orgs/:orgId/categories/:categoryId',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      requireAnyRole(actor.roles, managers);
+      const category = await updateProductCategory(
+        dependencies.database,
+        actor.context,
+        uuid(request.params.categoryId),
+        productCategoryUpdateSchema.parse(request.body as unknown),
+      );
+      response.json(productCategorySchema.parse(category));
+    }),
+  );
 
   router.get(
     '/orgs/:orgId/products',
