@@ -491,8 +491,19 @@ test('new account verifies its preview email and signs in', async ({
   ).toBeVisible();
   await page.getByRole('link', { name: 'Account security' }).click();
   expect(await accessibilityViolations(page)).toEqual([]);
-  await page.getByRole('button', { name: 'Revoke' }).click();
+  await page.getByRole('combobox', { name: 'Language' }).selectOption('es');
   await expect(
-    page.getByRole('heading', { name: 'Welcome back.' }),
+    page.getByRole('heading', { name: 'Seguridad de la cuenta' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Notificaciones del navegador' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Solicitar revisión de eliminación' }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('button', { name: 'Revocar', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Le damos la bienvenida.' }),
   ).toBeVisible();
 });
