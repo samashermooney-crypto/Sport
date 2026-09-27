@@ -130,6 +130,17 @@ export interface PaymentsGateway {
     status: string;
     currentPeriodEnd: number | null;
   }>;
+  retrieveBillingInvoice(invoiceId: string): Promise<{
+    id: string;
+    customerId: string | null;
+    subscriptionId: string | null;
+    status: string | null;
+    currency: string;
+    totalCents: number;
+    amountPaidCents: number;
+    amountDueCents: number;
+    created: number;
+  }>;
   registerPaymentMethodDomain(
     domainName: string,
   ): Promise<{ id: string; applePayStatus: string }>;
