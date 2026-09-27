@@ -3,7 +3,7 @@
 Status: Phase 10 complete on trunk; sprint Phase 11 and explicitly assigned Phase 13 work are WIP
 Branch: `track/h-comms` (local only; no push)
 Merged trunk at sprint start: `rebuild/trunk` / `d991fee`
-Sprint local range: starts at `d991fee`; WIP is committed in the handoff range below
+Sprint local range: `d991fee..HEAD` (WIP implementation and handoff checkpoints; local only)
 Migration ranges: Phase 10 `4000–4006`; Phase 11 `8000–8499`; Phase 13 files use H-range `8400–8401` per the direct owner assignment (SPRINT.md otherwise lists Phase 13 under J)
 
 ## Delivered
@@ -93,4 +93,4 @@ Status: WIP; do not treat the old Phase 10 verification above as a Phase 11/13 g
 
 ### Current local range
 
-- `d991fee..` (WIP commit: recorded in the following handoff commit).
+- `d991fee..HEAD` (local WIP, no push; includes the implementation and handoff commits).
