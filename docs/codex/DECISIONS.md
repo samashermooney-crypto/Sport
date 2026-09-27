@@ -191,3 +191,19 @@
 - **Decision:** Keep `stripe_events` global with its unique provider event identifier and immutable payload. Resolve the organization only when processing the event, then perform tenant reads and writes through `withOrg`.
 - **Why:** Rejecting or misattributing an unresolved financial event risks incorrect charges and reconciliation. Global ingestion preserves the evidence without bypassing tenant isolation for business records.
 - **Consequences / follow-ups:** The finance worker must restrict event access to its narrow processor, audit resolution failures, and never expose raw event payloads through tenant APIs.
+
+### DEC-023 — Tenant-owned files and local access policy
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 files integration
+- **Context:** The file adapter initially allowed nullable organization ids, while the global RLS invariant requires tenant-owned file records. The file service leaves authorization to the application composition root.
+- **Decision:** Require `files.org_id` for every record. Local file routes require an authenticated active organization member and the request's organization header. Uploads require an active org-level owner, admin or registrar role with completed MFA; restricted downloads require owner or admin, sensitive downloads permit registrar, and internal/public downloads permit active members. Mutating routes verify origin and request header.
+- **Why:** Privacy and child safety require an explicit tenant and narrow authorization before upload or download. Public website assets are published through a separate later flow.
+- **Consequences / follow-ups:** Phase 1 file acceptance must verify these role boundaries over HTTP. Later public asset publishing must copy approved assets into a separate public delivery path without exposing private file URLs.
+
+### DEC-024 — Separate campaign mail sender
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 email adapters
+- **Context:** The spec requires branded organization messages and security mail but does not specify whether campaigns share the security sender domain.
+- **Decision:** Keep a separately configured campaign sender domain in the Resend adapter. Local and test delivery use preview/fake adapters; no live delivery is enabled by this integration.
+- **Why:** Separating bulk mail reputation from security mail protects verification and reset delivery.
+- **Consequences / follow-ups:** Production adapter setup must verify both sender domains and their credentials before enabling delivery.
