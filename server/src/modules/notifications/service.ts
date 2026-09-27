@@ -206,7 +206,7 @@ export async function listPreferences(
           return preferenceSchema.parse({
             category,
             channel,
-            enabled: current?.enabled ?? true,
+            enabled: current?.enabled ?? category !== 'marketing',
             version: current?.version ?? 0,
           });
         }),
@@ -241,7 +241,7 @@ export async function updatePreference(
     const current = {
       category: input.category,
       channel: input.channel,
-      enabled: existing?.enabled ?? true,
+      enabled: existing?.enabled ?? input.category !== 'marketing',
       version: existing?.version ?? 0,
     };
     if (current.version !== input.expectedVersion)

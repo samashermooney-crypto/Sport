@@ -121,7 +121,11 @@ describe('notification inbox and preferences', () => {
     const defaults = await listPreferences(context, runWithOrg);
     expect(defaults.items).toHaveLength(8);
     expect(
-      defaults.items.every((item) => item.enabled && item.version === 0),
+      defaults.items.every(
+        (item) =>
+          item.version === 0 &&
+          item.enabled === (item.category !== 'marketing'),
+      ),
     ).toBe(true);
     const email = await updatePreference(
       context,
