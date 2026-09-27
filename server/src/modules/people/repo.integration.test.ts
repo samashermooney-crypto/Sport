@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
+import { ageOnDate, orgToday } from '@shared/dates';
 import { newId } from '@shared/ids';
+import {
+  gradeFromGraduationYear,
+  gradeLabel,
+  schoolYearEndYear,
+} from '@shared/sport/age';
 import type { Kysely } from 'kysely';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
@@ -77,12 +83,53 @@ it('scopes people, versions edits, archives instead of deleting, and audits writ
     lastName: 'Rivera',
     preferredName: null,
     dateOfBirth: '2011-04-12',
+    graduationYear: 2029,
     gender: 'female',
     email: 'alex@example.invalid',
     phoneE164: null,
     mediaConsent: 'unknown',
   });
   expect(created.version).toBe(1);
+  const today = orgToday('UTC');
+  const age = ageOnDate('2011-04-12', today);
+  expect(created).toMatchObject({
+    age,
+    graduationYear: 2029,
+    grade: gradeLabel(
+      gradeFromGraduationYear(2029, schoolYearEndYear(today, '08-01')),
+    ),
+  });
+  const matching = await people.list(owner.orgId, owner.accountId, {
+    status: 'active',
+    gender: 'female',
+    minAge: age,
+    maxAge: age,
+    grade: gradeFromGraduationYear(2029, schoolYearEndYear(today, '08-01')),
+    limit: 30,
+  });
+  expect(matching.items.map((person) => person.id)).toEqual([created.id]);
+  expect(
+    (
+      await people.list(owner.orgId, owner.accountId, {
+        status: 'active',
+        gender: 'male',
+        limit: 30,
+      })
+    ).items,
+  ).toEqual([]);
+  await expect(
+    people.create(owner.orgId, owner.accountId, {
+      firstName: 'Future',
+      lastName: 'Child',
+      preferredName: null,
+      dateOfBirth: '2200-01-01',
+      graduationYear: null,
+      gender: 'unspecified',
+      email: null,
+      phoneE164: null,
+      mediaConsent: 'unknown',
+    }),
+  ).rejects.toMatchObject({ status: 400 });
   expect(
     (
       await people.list(owner.orgId, owner.accountId, {

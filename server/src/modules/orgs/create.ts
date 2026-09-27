@@ -115,6 +115,7 @@ export async function createOrganization(
             serviceFeePassThrough: false,
             registrationApprovalRequired: false,
             communicationsOptInDefault: false,
+            peopleSchoolYearCutoff: '08-01',
           },
         })
         .execute();

@@ -1,5 +1,12 @@
+import { Temporal } from '@js-temporal/polyfill';
+import { ageOnDate, orgToday } from '@shared/dates';
 import { newId } from '@shared/ids';
 import { peopleListSchema, personResponseSchema } from '@shared/schemas/people';
+import {
+  gradeFromGraduationYear,
+  gradeLabel,
+  schoolYearEndYear,
+} from '@shared/sport/age';
 import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import type { z } from 'zod';
@@ -10,8 +17,8 @@ import type { OrgTransaction } from '../../db/withOrg';
 
 export class PeopleError extends Error {
   constructor(
-    readonly status: 403 | 404 | 409,
-    readonly code: 'FORBIDDEN' | 'NOT_FOUND' | 'CONFLICT',
+    readonly status: 400 | 403 | 404 | 409,
+    readonly code: 'VALIDATION_ERROR' | 'FORBIDDEN' | 'NOT_FOUND' | 'CONFLICT',
     message: string,
   ) {
     super(message);
@@ -36,6 +43,7 @@ const selection = [
   'last_name',
   'preferred_name',
   'date_of_birth',
+  'graduation_year',
   'gender',
   'email',
   'phone_e164',
@@ -44,30 +52,76 @@ const selection = [
   'version',
 ] as const;
 
-function mapPerson(row: {
-  id: string;
-  org_id: string;
-  first_name: string;
-  last_name: string;
-  preferred_name: string | null;
-  date_of_birth: Date;
-  gender: string;
-  email: string | null;
-  phone_e164: string | null;
-  media_consent: string;
-  status: string;
-  version: number;
-}): Person {
+type Presentation = { today: string; schoolYearEnd: number };
+
+async function presentation(
+  trx: OrgTransaction,
+  orgId: string,
+): Promise<Presentation> {
+  const org = await trx
+    .selectFrom('organizations')
+    .select(['timezone', 'settings'])
+    .where('id', '=', orgId)
+    .executeTakeFirst();
+  if (!org) throw new PeopleError(404, 'NOT_FOUND', 'Organization not found');
+  const today = orgToday(org.timezone);
+  const settings = org.settings;
+  const configured =
+    settings && typeof settings === 'object' && !Array.isArray(settings)
+      ? settings.peopleSchoolYearCutoff
+      : undefined;
+  const cutoff = configured === undefined ? '08-01' : configured;
+  if (typeof cutoff !== 'string')
+    throw new Error('Invalid organization school-year cutoff');
+  return { today, schoolYearEnd: schoolYearEndYear(today, cutoff) };
+}
+
+function validateBirthDate(dateOfBirth: string, context: Presentation): void {
+  if (dateOfBirth > context.today)
+    throw new PeopleError(
+      400,
+      'VALIDATION_ERROR',
+      'Date of birth cannot be in the future',
+    );
+}
+
+function mapPerson(
+  row: {
+    id: string;
+    org_id: string;
+    first_name: string;
+    last_name: string;
+    preferred_name: string | null;
+    date_of_birth: Date;
+    graduation_year: number | null;
+    gender: string;
+    email: string | null;
+    phone_e164: string | null;
+    media_consent: string;
+    status: string;
+    version: number;
+  },
+  context: Presentation,
+): Person {
+  const birth =
+    row.date_of_birth instanceof Date
+      ? row.date_of_birth.toISOString().slice(0, 10)
+      : row.date_of_birth;
   return personResponseSchema.parse({
     id: row.id,
     orgId: row.org_id,
     firstName: row.first_name,
     lastName: row.last_name,
     preferredName: row.preferred_name,
-    dateOfBirth:
-      row.date_of_birth instanceof Date
-        ? row.date_of_birth.toISOString().slice(0, 10)
-        : row.date_of_birth,
+    dateOfBirth: birth,
+    graduationYear: row.graduation_year,
+    age: ageOnDate(birth, context.today),
+    grade:
+      row.graduation_year === null
+        ? null
+        : gradeLabel(
+            gradeFromGraduationYear(row.graduation_year, context.schoolYearEnd),
+          ),
     gender: row.gender,
     email: row.email,
     phoneE164: row.phone_e164,
@@ -140,11 +194,50 @@ export function createPeopleRepository(database: Kysely<DB>) {
     ) {
       return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
         await requireStaff(trx, orgId, actorId, impersonating);
+        const context = await presentation(trx, orgId);
+        if (
+          query.minAge !== undefined &&
+          query.maxAge !== undefined &&
+          query.minAge > query.maxAge
+        )
+          throw new PeopleError(
+            400,
+            'VALIDATION_ERROR',
+            'Minimum age exceeds maximum age',
+          );
         let statement = trx
           .selectFrom('people')
           .select(selection)
           .where('org_id', '=', orgId)
           .where('status', '=', query.status);
+        if (query.gender)
+          statement = statement.where('gender', '=', query.gender);
+        if (query.grade !== undefined)
+          statement = statement.where(
+            'graduation_year',
+            '=',
+            context.schoolYearEnd + 12 - query.grade,
+          );
+        if (query.minAge !== undefined) {
+          const latestBirth = Temporal.PlainDate.from(context.today)
+            .subtract({ years: query.minAge })
+            .toString();
+          statement = statement.where(
+            'date_of_birth',
+            '<=',
+            new Date(`${latestBirth}T00:00:00Z`),
+          );
+        }
+        if (query.maxAge !== undefined) {
+          const earliestBirth = Temporal.PlainDate.from(context.today)
+            .subtract({ years: query.maxAge + 1 })
+            .toString();
+          statement = statement.where(
+            'date_of_birth',
+            '>',
+            new Date(`${earliestBirth}T00:00:00Z`),
+          );
+        }
         if (query.cursor) statement = statement.where('id', '>', query.cursor);
         if (query.q) {
           const term = `%${query.q.replaceAll('%', '\\%').replaceAll('_', '\\_')}%`;
@@ -163,7 +256,7 @@ export function createPeopleRepository(database: Kysely<DB>) {
           .execute();
         const page = rows.slice(0, query.limit);
         return peopleListSchema.parse({
-          items: page.map(mapPerson),
+          items: page.map((row) => mapPerson(row, context)),
           nextCursor: rows.length > query.limit ? page.at(-1)?.id : null,
         });
       });
@@ -176,6 +269,7 @@ export function createPeopleRepository(database: Kysely<DB>) {
     ) {
       return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
         await requireStaff(trx, orgId, actorId, impersonating);
+        const context = await presentation(trx, orgId);
         const row = await trx
           .selectFrom('people')
           .select(selection)
@@ -183,12 +277,14 @@ export function createPeopleRepository(database: Kysely<DB>) {
           .where('id', '=', personId)
           .executeTakeFirst();
         if (!row) throw new PeopleError(404, 'NOT_FOUND', 'Person not found');
-        return mapPerson(row);
+        return mapPerson(row, context);
       });
     },
     async create(orgId: string, actorId: string, input: Create) {
       return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
         await requireStaff(trx, orgId, actorId, false);
+        const context = await presentation(trx, orgId);
+        validateBirthDate(input.dateOfBirth, context);
         const id = newId();
         const row = await trx
           .insertInto('people')
@@ -199,6 +295,7 @@ export function createPeopleRepository(database: Kysely<DB>) {
             last_name: input.lastName,
             preferred_name: input.preferredName,
             date_of_birth: input.dateOfBirth,
+            graduation_year: input.graduationYear,
             gender: input.gender,
             email: input.email,
             phone_e164: input.phoneE164,
@@ -207,7 +304,7 @@ export function createPeopleRepository(database: Kysely<DB>) {
           .returning(selection)
           .executeTakeFirstOrThrow();
         await audit(trx, orgId, actorId, id, 'person.created', row.version);
-        return mapPerson(row);
+        return mapPerson(row, context);
       });
     },
     async update(
@@ -218,6 +315,9 @@ export function createPeopleRepository(database: Kysely<DB>) {
     ) {
       return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
         await requireStaff(trx, orgId, actorId, false);
+        const context = await presentation(trx, orgId);
+        if (input.dateOfBirth !== undefined)
+          validateBirthDate(input.dateOfBirth, context);
         const fields = {
           ...(input.firstName !== undefined
             ? { first_name: input.firstName }
@@ -230,6 +330,9 @@ export function createPeopleRepository(database: Kysely<DB>) {
             : {}),
           ...(input.dateOfBirth !== undefined
             ? { date_of_birth: input.dateOfBirth }
+            : {}),
+          ...(input.graduationYear !== undefined
+            ? { graduation_year: input.graduationYear }
             : {}),
           ...(input.gender !== undefined ? { gender: input.gender } : {}),
           ...(input.email !== undefined ? { email: input.email } : {}),
@@ -263,7 +366,7 @@ export function createPeopleRepository(database: Kysely<DB>) {
           'person.updated',
           row.version,
         );
-        return mapPerson(row);
+        return mapPerson(row, context);
       });
     },
     async archive(
@@ -274,6 +377,7 @@ export function createPeopleRepository(database: Kysely<DB>) {
     ) {
       return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
         await requireStaff(trx, orgId, actorId, false);
+        const context = await presentation(trx, orgId);
         const row = await trx
           .updateTable('people')
           .set({ status: 'archived', version: sql`version + 1` })
@@ -297,7 +401,7 @@ export function createPeopleRepository(database: Kysely<DB>) {
           'person.archived',
           row.version,
         );
-        return mapPerson(row);
+        return mapPerson(row, context);
       });
     },
     async restore(
@@ -308,6 +412,7 @@ export function createPeopleRepository(database: Kysely<DB>) {
     ) {
       return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
         await requireStaff(trx, orgId, actorId, false);
+        const context = await presentation(trx, orgId);
         const row = await trx
           .updateTable('people')
           .set({ status: 'active', version: sql`version + 1` })
@@ -331,7 +436,7 @@ export function createPeopleRepository(database: Kysely<DB>) {
           'person.restored',
           row.version,
         );
-        return mapPerson(row);
+        return mapPerson(row, context);
       });
     },
   };
