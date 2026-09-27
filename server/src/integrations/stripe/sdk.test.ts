@@ -69,6 +69,26 @@ describe('Stripe SDK gateway', () => {
       currentPeriodEnd: 1_900_000_000,
     });
     expect(retrieve).toHaveBeenCalledWith('sub_billing');
+    vi.spyOn(test.stripe.invoices, 'retrieve').mockResolvedValue({
+      id: 'in_billing',
+      customer: 'cus_billing',
+      parent: { subscription_details: { subscription: 'sub_billing' } },
+      status: 'paid',
+      currency: 'usd',
+      total: 2500,
+      amount_paid: 2500,
+      amount_due: 0,
+      created: 1_800_000_000,
+    } as unknown as Stripe.Response<Stripe.Invoice>);
+    expect(
+      await test.gateway.retrieveBillingInvoice('in_billing'),
+    ).toMatchObject({
+      id: 'in_billing',
+      customerId: 'cus_billing',
+      subscriptionId: 'sub_billing',
+      status: 'paid',
+      amountPaidCents: 2500,
+    });
   });
   it('creates controller-based Express accounts', async () => {
     const test = gateway();

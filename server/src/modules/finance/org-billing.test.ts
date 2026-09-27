@@ -12,6 +12,7 @@ import {
   BillingCheckoutService,
   PostgresBillingCheckoutClaims,
 } from './billing-checkout.js';
+import { PostgresBillingInvoices } from './billing-invoices.js';
 import { PostgresOrgBilling } from './org-billing.js';
 
 let database: Kysely<DB>;
@@ -116,6 +117,32 @@ it('syncs only a reserved test Customer and applies plan fees once to new charge
     `.execute(trx),
   );
   expect(claim.rows[0]?.status).toBe('fulfilled');
+  const invoices = new PostgresBillingInvoices(database, context);
+  const bill = {
+    id: 'in_test_billing_mirror',
+    customerId: 'cus_billing_test',
+    subscriptionId: latest.id,
+    status: 'open',
+    currency: 'usd',
+    totalCents: 2500,
+    amountPaidCents: 0,
+    amountDueCents: 2500,
+    created: 1_800_000_000,
+  };
+  expect(await invoices.applyLatest(bill)).toBe('applied');
+  expect(await invoices.applyLatest(bill)).toBe('unchanged');
+  expect(
+    await invoices.applyLatest({
+      ...bill,
+      status: 'paid',
+      amountPaidCents: 2500,
+      amountDueCents: 0,
+    }),
+  ).toBe('applied');
+  await expect(invoices.applyLatest(bill)).rejects.toThrow('regressed');
+  await expect(
+    invoices.applyLatest({ ...bill, customerId: 'cus_other' }),
+  ).rejects.toThrow('not owned');
   const org = await database
     .selectFrom('organizations')
     .select(['plan_id', 'application_fee_bps', 'application_fee_fixed_cents'])
