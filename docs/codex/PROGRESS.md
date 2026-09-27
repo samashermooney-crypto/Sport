@@ -5,6 +5,7 @@
 ## Next steps
 - M0 is on `main` at `d0f59a1`. The spine, ready B/C/D/E/F/H ranges, Phase 1 tasks 5–9, 11–13 and 17, and Track B's infrastructure are integrated on `rebuild/trunk`. Track A continues tasks 4 and 16; Track E finance work is integrated through migration 1027. Track F's Phase 7 foundation is integrated with 46 documented HTTP operations and mounted safety screens. Phase 7 acceptance remains open for coach/official/volunteer gating, the concussion roster journey, QR privacy, Checkr fixture behavior, and detailed response contracts. Inspect E/F/G/H readiness at every task boundary and keep each phase open until every acceptance criterion passes.
 - Track E's later year-end statement and autopay commits are marked ready, but selecting them alone conflicts with shared finance code in intervening commits that are not marked ready. The attempted cherry-pick was aborted cleanly; integrate after Track E marks the prerequisite range ready or provides an isolated branch.
+- Track A has begun the Phase 2 people exemplar: tenant-scoped, audited create/list/search/read/versioned update/archive/restore, a console flow and browser coverage are integrated on trunk. The merged gate passed typecheck, lint, 632 tests (one operator smoke skipped), 34 browser tests (four guarded design skips), build, size and generated-file freshness. Finish task 1's remaining filters, computed age/grade, photos and full acceptance before checking it off.
 
 ## Phase status
 
@@ -12,7 +13,7 @@
 |---|---|---|---|
 | 0 | Repository reset and tooling | complete | Local gate green; [GitHub Actions run 36279198481](https://github.com/samashermooney-crypto/Sport/actions/runs/36279198481) passed all 9 jobs on `rebuild/phase-0`. |
 | 1 | Platform core | in progress | Branch `rebuild/phase-1` created from green Phase 0. |
-| 2 | People, households, forms, imports | not started | |
+| 2 | People, households, forms, imports | in progress on Track A | People CRUD/search slice integrated with a green trunk gate; task 1 and phase acceptance remain open. |
 | 3 | Sport engine, programs, teams, facilities | not started | |
 | 4 | Payments and finance | in progress | Test-mode Stripe gateway and finance migrations 1000–1027 integrated; durable webhook, Connect UI and full phase acceptance remain. |
 | 5 | Registration | in progress | Checkout capacity, frozen pricing, payment terms, unique invoice binding and the payer-owned PaymentIntent API from Track E are integrated; registration flows and acceptance remain. |
@@ -144,3 +145,7 @@
 - [x] Images uploaded have no EXIF (test with `server/test/fixtures/gps-photo.jpg`): image and document photo uploads are re-encoded, and Sharp metadata checks confirm no EXIF, XMP or IPTC on the stored original, medium and thumbnail.
 - [ ] Design parity (`01 §11a`): `e2e/visual-reference/` exists; the new shell (header/chrome, navigation, page header) and ported components match the legacy screenshots within tolerance at 1440px and 390px; a unit test proves `tokens.css` values equal `e2e/visual-reference/tokens.json`; no dark theme, CSS framework or styled component library is installed.
 - [x] OpenAPI document generated and committed with route coverage for current auth, org, files and audit operations; `npm run openapi` passes on merged trunk.
+
+### Phase 2 — People, households, forms, imports
+
+- [ ] 1. People CRUD, search, filters, archive/restore, photos and computed age/grade. The first slice adds a versioned people API with real PostgreSQL tenant/role denial, audit history, no hard delete, name search and a trigram index (migration 0200). The console list/editor and Chromium/WebKit journey create, edit, archive and restore a person with axe. The merged trunk gate passed 632 tests and 34 browser tests. Remaining: age, grade, gender/program/team/household/balance/compliance filters, photo consent/crop flow, and full task acceptance.
