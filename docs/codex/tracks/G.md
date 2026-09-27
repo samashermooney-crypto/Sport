@@ -8,7 +8,10 @@ Status: working; integration readiness is pending because Phase 8/9 acceptance e
 
 ## Owned work and progress
 
-- [x] G migration range `3000–3999` currently contains migrations `3000–3016`; on the isolated `athlentry_g` stack these and dependency migrations `0605`/`0606` are applied. Tenant-scoped services use `withOrg`.
+- [x] G migration range `3000–3999` currently contains migrations `3000–3017`; on the isolated `athlentry_g` stack these and dependency migrations `0605`/`0606` are applied. Tenant-scoped services use `withOrg`.
+- [x] Phase 9 officials acceptance integration test: ten games each crewed with referee + two assistants, one decline, reassignment to the same position, and a pay batch totaling $1,395 across fees plus mileage. The test exposed a defect: declined/no-show assignments permanently blocked the position; the occupancy check and `official_assignments_active_position_idx` now hold only `offered`/`accepted`/`confirmed` (migration `3017`).
+- [x] Phase 9 timed-meet acceptance integration test: 40 swimmers across six events seeded into heat/lane slots, timed results with ties sharing places, and team scores rolled up from configured place points. The test exposed two defects fixed here: `createContest` wrote the invalid stage `tournament` (now constrained to the data-model enum; seeded bracket matches persist as `playoff`), and person entrants had no team attribution (now resolved through active program roster entries; `listContestResults` returns `teamScores`).
+- [x] Phase 8 ICS acceptance: the calendar feed is now parsed with `ical.js` and asserted as a VCALENDAR containing one VEVENT with stable UID, moved `DTSTART`, and version-matched `SEQUENCE`.
 - [x] Phase 8 G-owned services/UI: facilities and spaces, recurring series edits, conflict rules and overrides, allocations, generator jobs/reports, manual shift/swap, CSV import/export, publish/closure/reschedule operations, ICS, resource calendar drag/drop and keyboard moves, and facility pages.
 - [x] Phase 9 G-owned services/UI: attendance/RSVP, offline coach game-day screen, results and stat workflows, standings snapshots/visibility, timed meet assignments, pools/brackets/tournament scheduling, officials assignment/pay, and season-end operations.
 - [x] Browser print/PDF output for schedules, results, standings and tournament brackets; safer CSV quoting/formula escaping and location round-trip; named standings rows plus visibility/config in staff UI; team-stat aggregation and public athlete personal-best views; and persistence/visibility regression tests.
@@ -20,9 +23,9 @@ Status: working; integration readiness is pending because Phase 8/9 acceptance e
 
 ## Verification
 
-- [x] `npm run typecheck` and `npm run lint` passed after syncing trunk through `4660724`; post-edit typecheck and targeted ESLint pass.
+- [x] `npm run typecheck` and `npm run lint` passed after syncing trunk through `9b5b430` (merge `7bd217f`); post-edit typecheck and targeted ESLint pass.
 - [x] Production `npm run build` passed after the final attendance audit-boundary edit.
-- [x] Current focused database regressions pass: attendance suspension/audit, contest personal bests and standings snapshots: 3 files / 3 tests. Earlier focused scheduling, generator, access and competition database suites also passed.
+- [x] Current focused database regressions pass: officials crew/pay acceptance, timed-meet acceptance, ICS parser checks, scheduling integration (DST, closures, moved-game ICS) and access integration: 6 files / 11 tests green after the latest fixes.
 - [x] Schedule export/calendar and public standings component tests: 3 files / 8 tests passed.
 - [x] Updated scheduling access integration passes, including official closure recipients and emergency batch timing; the focused 13-team bracket regression fails because the shared algorithm does not advance bye winners through the losers bracket to GF1.
 - [x] Chromium + WebKit mobile baseline E2E: 38 passed, 4 failed, 4 skipped; failures were unrelated sign-in, ownership-transfer and people journeys, and no G schedule journey ran.
@@ -34,7 +37,7 @@ Status: working; integration readiness is pending because Phase 8/9 acceptance e
 
 - **Track C (sprint wiring owner):** mount the registered schedule console/portal routes and navigation; coordinate Phase 8/9 Chromium + WebKit mobile journeys with axe; provide a safe public URL/serving contract for approved facility layout files. The public facility API currently returns a layout file ID and the page renders facility details, directions, parking and spaces, but cannot safely render the image without that contract.
 - **Track A:** investigate the four baseline Playwright failures in sign-in, ownership transfer and the people flow before the full browser gate.
-- **Track B:** repair the 48-team generator's runtime/home-away imbalance and shared double-elimination bye progression. The 13-team G acceptance fixture cannot complete the losers bracket, leaving the GF1 losers champion empty.
+- **Track B:** repair the 48-team generator's runtime/home-away imbalance and shared double-elimination bye progression. The 13-team G acceptance fixture cannot complete the losers bracket, leaving the GF1 losers champion empty. Also align shared `contestStageSchema` with `02-DATA-MODEL.md`: it accepts `tournament` (rejected by `contests_stage_check`) and omits `championship`/`consolation`/`exhibition`; G's service/routes now follow the data-model enum.
 - **Track H:** expose volunteer assignments by event so emergency closure notifications can reach affected volunteers. No volunteer assignment module or table is present on current trunk.
 - **Track F / discipline service owner:** expose the transaction-scoped result-to-discipline creation and finalized-game-served operation needed for automatic card/ejection suspensions. The current service provides `assertNotSuspendedForLineup`, which G calls, but does not provide `createFromContestResult` or automatic games-served counting. Result finalization therefore rejects card finalization with an explicit service-unavailable conflict instead of silently skipping discipline enforcement.
 - **Track B / C notifications integration:** connect emergency closure notification events to the notification fan-out contract. G batches changes and emits through Track B's notification service; that service currently marks only `in_app`, so the required Mailpit email journey is not yet evidenced. G must not implement a separate messaging pipeline.
@@ -42,13 +45,13 @@ Status: working; integration readiness is pending because Phase 8/9 acceptance e
 ## Decisions and review
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
-- G decisions are `DEC-080–096` in `docs/codex/DECISIONS.md`; the latest trunk decisions are preserved through `DEC-079`.
-- Last completed trunk syncs: `925d8ff` (through `d991fee`) and `69bd7c9` (through `4660724`). The most recent lock-protected merge attempt failed the unit gate and was rolled back. All changes remain local on `track/g-schedule`; nothing was pushed.
+- G decisions are `DEC-080–099` in `docs/codex/DECISIONS.md`; the latest trunk decisions are preserved through `DEC-079`.
+- Last completed trunk syncs: `7bd217f` (through `9b5b430`), `925d8ff` (through `d991fee`) and `69bd7c9` (through `4660724`). The most recent lock-protected merge attempt failed the unit gate and was rolled back. All changes remain local on `track/g-schedule`; nothing was pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys, generator acceptance and full gates pass.
 
 ## HANDOFF
 
-- **Done:** G-owned Phase 8/9 service and UI implementation is committed on local `track/g-schedule`; the branch includes trunk through `4660724`. Recent closure work includes assigned-official recipients and immediate emergency batches. The focused Chromium sign-in, ownership-transfer and people journeys all pass.
+- **Done:** G-owned Phase 8/9 service and UI implementation is committed on local `track/g-schedule`; the branch includes trunk through `9b5b430` (merge `7bd217f`). Phase 8/9 acceptance evidence added in `55fe1a3`: officials crew acceptance (10 games x ref+2 ARs, decline -> reassign, $1,395 pay batch), timed-meet acceptance (40 athletes, 6 events, seeded heats, tied places, team scores) and an `ical.js` parser-based ICS check. Fixing those tests flushed out three bugs now fixed: declined-assignment position occupancy (migration `3017`), the invalid `tournament` contest stage (now `playoff`), and missing person->team attribution for meet scoring (via active program rosters). Focused suites: 6 files / 11 tests green; typecheck and lint green.
 - **In progress / blocked paths:** `server/src/modules/tournaments/bracket-acceptance.test.ts` is a committed 13-team double-elimination regression that cannot complete GF1 because Track B's shared algorithm does not advance losers-bracket bye winners. `server/src/modules/scheduling/generator.test.ts`'s 48-team case exceeds its 60-second limit (82.1s in the latest full unit run). There are no uncommitted implementation edits. G's actual schedule Playwright journeys are not present because the registered routes are not mounted.
 - **Next steps, in order:**
   1. Ask Track B to repair the shared 48-team generator runtime/fairness and loser-bracket bye progression; rerun the two targeted generator/bracket regressions and unit gate.
@@ -62,4 +65,4 @@ Status: working; integration readiness is pending because Phase 8/9 acceptance e
 - **Open requests:** Track B: generator and bracket fixes; Track C: route mounting, schedule journeys/axe and facility image contract; Track B/C: notification email fan-out; Track H: volunteer assignments; Track F: discipline transaction/game-served APIs; Track A: baseline browser failures.
 - **Local test stack:** `COMPOSE_PROJECT_NAME=athlentry_g PORT_OFFSET=700`.
 - **Integration state:** `track/g-schedule` is local and unpushed. The trunk merge attempt failed the full unit gate and was rolled back; skip self-merge while the gate remains red.
-HANDED OFF 08:24
+HANDED OFF 08:24; CONTINUED 08:55 — Phase 8/9 acceptance evidence completed on-branch (officials, timed meet, ICS parse); trunk still `9b5b430`, cross-track blockers unchanged.
