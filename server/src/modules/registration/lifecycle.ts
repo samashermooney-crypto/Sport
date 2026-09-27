@@ -159,6 +159,7 @@ export const registrationTransferResponseSchema = z.strictObject({
   refund: z
     .strictObject({
       refundId: z.string().startsWith('re_'),
+      refundIds: z.array(z.string().startsWith('re_')).min(1).optional(),
       status: z.string().min(1),
       amountCents: z.number().int().positive(),
     })
@@ -2341,6 +2342,10 @@ export class PostgresRegistrationLifecycle {
             refund: z
               .strictObject({
                 refundId: z.string().startsWith('re_'),
+                refundIds: z
+                  .array(z.string().startsWith('re_'))
+                  .min(1)
+                  .optional(),
                 status: z.string().min(1),
                 amountCents: z.number().int().positive(),
               })
@@ -2806,6 +2811,7 @@ export class PostgresRegistrationLifecycle {
           ? {
               refund: {
                 refundId: refund.refundId,
+                ...(refund.refundIds ? { refundIds: refund.refundIds } : {}),
                 status: refund.status,
                 amountCents: refund.amountCents,
               },

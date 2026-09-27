@@ -11,6 +11,7 @@ import {
   PostgresRegistrationLifecycle,
   registrationTransferResponseSchema,
 } from './lifecycle.js';
+import { PostgresRegistrationTransferRefunds } from './transfer-refunds.js';
 
 let database: ReturnType<typeof createDatabase>;
 
@@ -320,6 +321,152 @@ async function fixture(destinationPriceCents: number) {
 }
 
 describe('registration transfer money handling', () => {
+  it('splits a transfer refund across the immutable shares of multiple payments', async () => {
+    const data = await fixture(500);
+    const paymentIds = [newId(), newId()];
+    await createWithOrg(database)(data.context, async (trx) => {
+      await trx
+        .updateTable('registrations')
+        .set({ status: 'confirmed' })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.registrationId)
+        .execute();
+      await trx
+        .updateTable('capacity_counters')
+        .set({ confirmed: 1 })
+        .where('org_id', '=', data.orgId)
+        .where('subject_id', 'in', [
+          data.sourceProgramId,
+          data.sourceDivisionId,
+          data.sourceOfferingId,
+        ])
+        .execute();
+      await trx
+        .updateTable('invoices')
+        .set({
+          status: 'paid',
+          paid_cents: 2500,
+          refund_terms: {
+            policy: {
+              rules: [],
+              afterLastBps: 10_000,
+              serviceFeeRefund: 'none',
+            },
+            approvalThresholdCents: 1500,
+            refundApplicationFee: true,
+          },
+        })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.invoiceId)
+        .execute();
+      await trx
+        .insertInto('payments')
+        .values(
+          paymentIds.map((id, index) => ({
+            id,
+            org_id: data.orgId,
+            account_id: data.payerAccountId,
+            amount_cents: 1250,
+            status: 'succeeded',
+            method: 'card',
+            stripe_payment_intent_id: `pi_transfer_split_${String(index)}`,
+            succeeded_at: new Date(),
+          })),
+        )
+        .execute();
+      await trx
+        .insertInto('payment_allocations')
+        .values(
+          paymentIds.map((paymentId) => ({
+            id: newId(),
+            org_id: data.orgId,
+            payment_id: paymentId,
+            invoice_id: data.invoiceId,
+            amount_cents: 1250,
+          })),
+        )
+        .execute();
+      await trx
+        .insertInto('payment_line_allocations')
+        .values(
+          paymentIds.map((paymentId) => ({
+            id: newId(),
+            org_id: data.orgId,
+            payment_id: paymentId,
+            invoice_id: data.invoiceId,
+            invoice_line_id: data.invoiceLineId,
+            amount_cents: 1250,
+          })),
+        )
+        .execute();
+    });
+    const createRefund = vi.fn(
+      (input: { paymentIntentId: string; amountCents: number }) =>
+        Promise.resolve({
+          id: `re_${input.paymentIntentId}`,
+          status: 'pending',
+          amountCents: input.amountCents,
+        }),
+    );
+    const refunds = new PostgresRegistrationTransferRefunds(
+      database,
+      data.context,
+      { createRefund },
+    );
+    const lifecycle = new PostgresRegistrationLifecycle(
+      database,
+      data.context,
+      () => new Date('2026-09-27T17:00:00.000Z'),
+      refunds,
+    );
+    const request = {
+      orgId: data.orgId,
+      registrationId: data.registrationId,
+      toOfferingId: data.destinationOfferingId,
+      financialTreatment: 'refund_difference' as const,
+      idempotencyKey: randomUUID(),
+    };
+
+    await expect(lifecycle.transfer(request)).rejects.toMatchObject({
+      code: 'NOT_TRANSFERABLE',
+    });
+    expect(createRefund).not.toHaveBeenCalled();
+    await createWithOrg(database)(data.context, (trx) =>
+      trx
+        .updateTable('invoices')
+        .set({
+          refund_terms: {
+            policy: {
+              rules: [],
+              afterLastBps: 10_000,
+              serviceFeeRefund: 'none',
+            },
+            approvalThresholdCents: 10_000,
+            refundApplicationFee: true,
+          },
+        })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.invoiceId)
+        .execute(),
+    );
+    const approvedRequest = { ...request, idempotencyKey: randomUUID() };
+
+    const result = registrationTransferResponseSchema.parse(
+      await lifecycle.transfer(approvedRequest),
+    );
+    expect(result.differenceCents).toBe(-2000);
+    expect(result.refund?.refundIds).toHaveLength(2);
+    expect(result.refund?.amountCents).toBe(2000);
+    expect(createRefund).toHaveBeenCalledTimes(2);
+    expect(
+      createRefund.mock.calls
+        .map(([call]) => call.amountCents)
+        .sort((left, right) => left - right),
+    ).toEqual([750, 1250]);
+    expect(await lifecycle.transfer(approvedRequest)).toEqual(result);
+    expect(createRefund).toHaveBeenCalledTimes(2);
+  });
+
   it('records an exact-line refund before transferring and replays the result', async () => {
     const data = await fixture(1500);
     await createWithOrg(database)(data.context, async (trx) => {

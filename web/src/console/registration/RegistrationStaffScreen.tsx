@@ -104,6 +104,7 @@ const transferResultSchema = z.strictObject({
   refund: z
     .strictObject({
       refundId: z.string().startsWith('re_'),
+      refundIds: z.array(z.string().startsWith('re_')).min(1).optional(),
       status: z.string().min(1),
       amountCents: z.number().int().positive(),
     })
@@ -398,9 +399,14 @@ export function RegistrationStaffScreen({
         keyFor('transfer', registrationId),
       );
       keys.current.delete(`transfer:${registrationId}`);
+      const refundIds = result.refund
+        ? (result.refund.refundIds ?? [result.refund.refundId])
+        : [];
+      const refundLabel = refundIds.length === 1 ? 'Refund' : 'Refunds';
+      const refundVerb = refundIds.length === 1 ? 'is' : 'are';
       setNotice(
         result.refund
-          ? `Transfer recorded. Refund ${result.refund.refundId} is ${result.refund.status} for ${formatMoney(result.refund.amountCents, i18n.language)}.`
+          ? `Transfer recorded. ${refundLabel} ${refundIds.join(', ')} ${refundVerb} ${result.refund.status} for ${formatMoney(result.refund.amountCents, i18n.language)}.`
           : `Transfer recorded. Price difference: ${formatMoney(result.differenceCents, i18n.language)}.`,
       );
       setTransferIds((current) => ({ ...current, [registrationId]: '' }));
