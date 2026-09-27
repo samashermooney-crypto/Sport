@@ -1,0 +1,21 @@
+.money-lines {
+  margin: 0 0 var(--space-20);
+}
+
+.money-lines > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-8) 0;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.money-lines dt,
+.money-lines dd {
+  margin: 0;
+}
+
+.money-total {
+  color: var(--ink);
+  font-weight: 700;
+}

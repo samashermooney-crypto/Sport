@@ -13,3 +13,4 @@ Gateway review: test-only keys and events enforced; raw webhook bytes verified; 
 Gateway review: no live keys, no real payment or email sent; test-mode smoke script needs operator test credentials and onboarding.
 Gateway gate: 83 tests, typecheck, lint, build, registry/OpenAPI/codegen freshness green; no gateway screens for Playwright.
 Webhooks: platform/Connect raw-body routes, separate signatures, account scope check and atomic repository/dispatch contracts; 6 targeted HTTP/dispatch tests pass.
+Money UI: Stripe React/JS dependency `73bdd07`; unmounted Connect onboarding and Payment Element components use token CSS, frozen quote lines and test-key guards; 4 component tests pass.
