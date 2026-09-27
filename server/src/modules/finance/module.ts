@@ -4,6 +4,8 @@ import {
   createFinanceRouter,
   offlinePaymentBodySchema,
   offlinePaymentReceiptSchema,
+  refundBodySchema,
+  refundResponseSchema,
 } from './routes.js';
 
 export const moduleDefinition = {
@@ -21,6 +23,13 @@ export const moduleDefinition = {
       summary: 'Record an offline invoice payment',
       body: offlinePaymentBodySchema,
       response: offlinePaymentReceiptSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/refunds',
+      summary: 'Create a policy-based refund to original method or credit',
+      body: refundBodySchema,
+      response: refundResponseSchema,
     },
   ],
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };

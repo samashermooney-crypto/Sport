@@ -4,6 +4,7 @@ import type { ProposedRefund } from '@shared/policies/refund-policy';
 
 import {
   refundProposal,
+  RefundConflictError,
   type RefundApprovalPolicy,
   type RefundRequest,
   type RefundSourceReader,
@@ -70,10 +71,10 @@ export class CreditRefundService {
       source.orgId !== input.orgId ||
       source.paymentId !== input.paymentId
     )
-      throw new Error('Payment not found');
+      throw new RefundConflictError('Payment not found');
     const proposal = refundProposal(source, input.cancellationDate);
     if (proposal.totalCents < 1)
-      throw new Error('No refundable amount remains');
+      throw new RefundConflictError('No refundable amount remains');
     if (proposal.totalCents > source.approvalThresholdCents) {
       if (
         !input.approvedByAccountId ||
@@ -83,7 +84,9 @@ export class CreditRefundService {
           input.approvedByAccountId,
         ))
       )
-        throw new Error('A separate finance approver is required');
+        throw new RefundConflictError(
+          'A separate finance approver is required',
+        );
     }
     return this.repository.apply(input, hash, proposal);
   }

@@ -1,16 +1,26 @@
 import { apiErrorSchema } from '@shared/schemas/errors';
 import express from 'express';
 import type { Request, Response } from 'express';
+import Stripe from 'stripe';
 import { z } from 'zod';
 
+import type { PaymentsGateway } from '../../integrations/stripe/gateway.js';
+import { StripeSdkGateway } from '../../integrations/stripe/sdk.js';
 import { requestImpersonation } from '../../lib/tenant-guard.js';
 import { requireSession } from '../auth/routes.js';
 import type { AuthDependencies } from '../auth/routes.js';
 
+import { PostgresCreditRefundRepository } from './credit-refund-repo.js';
+import { CreditRefundService } from './credit-refunds.js';
 import {
   OfflinePaymentConflictError,
   PostgresOfflinePayments,
 } from './offline-payments.js';
+import { PostgresRefundApprovalPolicy } from './refund-approval-repo.js';
+import { PostgresRefundAttemptStore } from './refund-attempt-repo.js';
+import { PostgresRefundRecordStore } from './refund-record-repo.js';
+import { PostgresRefundSourceReader } from './refund-source-repo.js';
+import { RefundConflictError, StripeRefundService } from './refunds.js';
 import { FinanceAccessError, requireFinanceStaff } from './staff-access.js';
 
 export const offlinePaymentBodySchema = z.strictObject({
@@ -24,6 +34,44 @@ export const offlinePaymentReceiptSchema = z.strictObject({
   receiptNumber: z.number().int().positive(),
   amountCents: z.number().int().positive(),
 });
+export const refundBodySchema = z.discriminatedUnion('destination', [
+  z.strictObject({
+    destination: z.literal('original_method'),
+    paymentId: z.uuid(),
+    cancellationDate: z.iso.date(),
+  }),
+  z.strictObject({
+    destination: z.literal('credit'),
+    paymentId: z.uuid(),
+    cancellationDate: z.iso.date(),
+    recipient: z.enum(['account', 'household']),
+  }),
+]);
+export const refundResponseSchema = z.discriminatedUnion('destination', [
+  z.strictObject({
+    destination: z.literal('original_method'),
+    refundId: z.string().startsWith('re_'),
+    status: z.string(),
+    amountCents: z.number().int().positive(),
+  }),
+  z.strictObject({
+    destination: z.literal('credit'),
+    refundId: z.uuid(),
+    creditId: z.uuid(),
+    amountCents: z.number().int().positive(),
+  }),
+]);
+
+class FinanceDependencyError extends Error {
+  readonly status = 503;
+}
+
+function testGateway(): PaymentsGateway {
+  const secret = process.env.STRIPE_SECRET_KEY;
+  if (!secret || !secret.startsWith('sk_test_'))
+    throw new FinanceDependencyError('Stripe test gateway is unavailable');
+  return new StripeSdkGateway(secret, new Stripe(secret));
+}
 
 function writeOriginValid(request: Request, appUrl: string): boolean {
   const bearer =
@@ -40,13 +88,18 @@ function sendError(response: Response, error: unknown): void {
   const status =
     error instanceof FinanceAccessError
       ? 403
-      : error instanceof OfflinePaymentConflictError
+      : error instanceof OfflinePaymentConflictError ||
+          error instanceof RefundConflictError
         ? 409
-        : error instanceof z.ZodError || error instanceof RangeError
-          ? 400
-          : error instanceof Error && 'status' in error && error.status === 401
-            ? 401
-            : 500;
+        : error instanceof FinanceDependencyError
+          ? 503
+          : error instanceof z.ZodError || error instanceof RangeError
+            ? 400
+            : error instanceof Error &&
+                'status' in error &&
+                error.status === 401
+              ? 401
+              : 500;
   response.status(status).json(
     apiErrorSchema.parse({
       error: {
@@ -55,11 +108,13 @@ function sendError(response: Response, error: unknown): void {
             ? 'FORBIDDEN'
             : status === 409
               ? 'CONFLICT'
-              : status === 400
-                ? 'VALIDATION_ERROR'
-                : status === 401
-                  ? 'UNAUTHENTICATED'
-                  : 'INTERNAL_ERROR',
+              : status === 503
+                ? 'DEPENDENCY_UNAVAILABLE'
+                : status === 400
+                  ? 'VALIDATION_ERROR'
+                  : status === 401
+                    ? 'UNAUTHENTICATED'
+                    : 'INTERNAL_ERROR',
         message:
           status === 500
             ? 'The request could not be completed'
@@ -73,6 +128,7 @@ function sendError(response: Response, error: unknown): void {
 
 export function createFinanceRouter(
   dependencies: AuthDependencies,
+  gatewayFactory: () => PaymentsGateway = testGateway,
 ): express.Router {
   const router = express.Router();
   router.use(express.json({ limit: '16kb' }));
@@ -103,6 +159,71 @@ export function createFinanceRouter(
         idempotencyKey,
       });
       response.status(201).json(offlinePaymentReceiptSchema.parse(receipt));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/refunds', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const input = refundBodySchema.parse(request.body as unknown);
+      const idempotencyKey = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const reader = new PostgresRefundSourceReader(
+        dependencies.database,
+        context,
+      );
+      const approvals = new PostgresRefundApprovalPolicy(dependencies.database);
+      const common = {
+        orgId,
+        paymentId: input.paymentId,
+        cancellationDate: input.cancellationDate,
+        requestedByAccountId: session.accountId,
+        idempotencyKey,
+      };
+      if (input.destination === 'credit') {
+        const service = new CreditRefundService(
+          reader,
+          approvals,
+          new PostgresCreditRefundRepository(dependencies.database, context),
+        );
+        const result = await service.refund({
+          ...common,
+          recipient: input.recipient,
+        });
+        response.status(201).json(
+          refundResponseSchema.parse({
+            destination: 'credit',
+            refundId: result.refundId,
+            creditId: result.creditId,
+            amountCents: result.amountCents,
+          }),
+        );
+        return;
+      }
+      const service = new StripeRefundService(
+        reader,
+        approvals,
+        new PostgresRefundAttemptStore(dependencies.database, context),
+        gatewayFactory(),
+        new PostgresRefundRecordStore(dependencies.database, context),
+      );
+      const result = await service.refund(common);
+      response.status(201).json(
+        refundResponseSchema.parse({
+          destination: 'original_method',
+          refundId: result.id,
+          status: result.status,
+          amountCents: result.proposal.totalCents,
+        }),
+      );
     } catch (error) {
       sendError(response, error);
     }

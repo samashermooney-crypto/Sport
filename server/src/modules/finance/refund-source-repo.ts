@@ -5,7 +5,11 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 
 import { refundTermsSchema } from './refund-terms.js';
-import type { RefundSource, RefundSourceReader } from './refunds.js';
+import {
+  RefundConflictError,
+  type RefundSource,
+  type RefundSourceReader,
+} from './refunds.js';
 
 interface PaymentSourceRow {
   payment_id: string;
@@ -31,7 +35,9 @@ function stripeMethod(value: string): RefundSource['method'] {
     value === 'google_pay'
   )
     return value;
-  throw new Error('Original-method refunds require a Stripe payment method');
+  throw new RefundConflictError(
+    'Original-method refunds require a Stripe payment method',
+  );
 }
 
 /** Reads immutable invoice terms and a fully paid, one-payment invoice. */
@@ -66,7 +72,7 @@ export class PostgresRefundSourceReader implements RefundSourceReader {
       if (source.rows.length === 0) return null;
       const row = source.rows[0];
       if (source.rows.length !== 1 || !row)
-        throw new Error(
+        throw new RefundConflictError(
           'Refund source payment has multiple invoice allocations',
         );
       if (
@@ -76,11 +82,15 @@ export class PostgresRefundSourceReader implements RefundSourceReader {
         row.invoice_disputed_cents !== 0 ||
         row.invoice_dispute_lost_cents !== 0
       )
-        throw new Error(
+        throw new RefundConflictError(
           'Refund source requires one fully paid, undisputed invoice',
         );
       if (!row.stripe_payment_intent_id)
-        throw new Error('Refund source has no Stripe PaymentIntent');
+        throw new RefundConflictError(
+          'Refund source has no Stripe PaymentIntent',
+        );
+      if (!row.refund_terms)
+        throw new RefundConflictError('Invoice has no frozen refund terms');
       const terms = refundTermsSchema.parse(row.refund_terms);
       const method = stripeMethod(row.method);
       const lines = await trx
