@@ -551,10 +551,26 @@
 - **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
 - **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
 
-### DEC-080 — Require a staff-issued, email-bound adult profile claim
+### DEC-080 — Keep global security-header policy in reusable middleware
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 security headers
+- **Context:** `server/src/app.ts` is owned by Track C, while Phase 16 security tests and policy are owned by Track SEC.
+- **Decision:** Implement the strict, testable header policy as a new reusable middleware under `server/src/lib/security/`; Track C mounts it at the application boundary before API/static routes. Keep production-only HSTS conditional and give `/embed/*` an explicit framing exception.
+- **Why:** Security behavior stays independently testable without crossing the app-wiring ownership boundary, and the app applies one header policy consistently.
+- **Consequences / follow-ups:** Track C must mount the middleware and preserve its embedding exception before global header acceptance is complete.
+
+### DEC-081 — Discover encryption-rotation tenants through the account index
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 key rotation
+- **Context:** Rotation must cover all known tenant ciphertext while every tenant row read or write remains under `withOrg`.
+- **Decision:** Use `accounts.linked_org_ids` only to discover candidate organization IDs, then process every organization-owned ciphertext batch in its own `withOrg` transaction. Continue to process global MFA factor ciphertext in a normal transaction. Append a tenant audit event for each rewrapped tenant value and a global security event for each rewrapped MFA secret; record only the table/entity ID and key IDs.
+- **Why:** The append-only account index supports cross-organization discovery without scanning protected organization rows outside the scoped helper; each candidate is still authorized by transaction-local tenant context and RLS. Audit evidence preserves the maintenance history without recording Restricted plaintext or ciphertext.
+- **Consequences / follow-ups:** Any new organization-creation path must maintain the candidate index. Rotation defaults to a dry run; operators pass `--apply` only after validating the candidate keyring.
+
+### DEC-082 — Require a staff-issued, email-bound adult profile claim
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 2 adult self links
-- **Context:** An adult person may need to claim an existing profile, but a typed email search would let an account attach itself to another person's record.
+- **Context:** An adult person may need to claim an existing profile, but a typed email search would let an account attach itself to another person's record. This decision was recorded on Track J's pre-merge history as DEC-080 and renumbered after trunk landed a different DEC-080.
 - **Decision:** Staff issue a seven-day one-use invitation for an active adult person. A nonblank profile email must equal the invited email; a blank profile email is filled only at redemption. The token is bound to person, organization and email. Redemption requires an active, email-verified adult account, rechecks the current profile email against its issuance snapshot, rejects another person's use of that email, and allows only one active self link. The same global account may hold organization staff roles and a self person link.
 - **Why:** Staff approval and email control authorize the exact profile attachment, while the redemption recheck closes the stale-record window. A shared account model lets an adult also serve as staff without creating a duplicate identity.
 - **Consequences / follow-ups:** Email changes invalidate pending claims. Staff must issue a new invitation after a profile email change; existing verified links are handled through the account and person privacy flows.

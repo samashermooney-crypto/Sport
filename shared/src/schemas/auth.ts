@@ -143,7 +143,9 @@ export const authMeResponseSchema = z.strictObject({
 export const accountLocaleBodySchema = z.strictObject({
   locale: z.enum(['en', 'es']),
 });
-export const accountLocaleResponseSchema = accountLocaleBodySchema;
+export const accountLocaleResponseSchema = z.strictObject({
+  locale: z.enum(['en', 'es']),
+});
 export const mfaEnrollmentResponseSchema = z.strictObject({
   manualKey: z.string(),
   otpauthUrl: z.string(),

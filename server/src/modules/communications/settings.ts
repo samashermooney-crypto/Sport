@@ -20,7 +20,7 @@ import {
   requireCommunicationsRole,
 } from './service';
 
-export const SMS_CONSENT_DISCLOSURE = {
+const SMS_CONSENT_DISCLOSURE = {
   en: 'I agree to receive recurring SMS messages from this organization. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out or HELP for help. Consent is not a condition of participation.',
   es: 'Acepto recibir mensajes SMS recurrentes de esta organización. La frecuencia de los mensajes varía. Pueden aplicarse tarifas de mensajes y datos. Responde STOP para cancelar o HELP para obtener ayuda. El consentimiento no es condición para participar.',
 } as const;
