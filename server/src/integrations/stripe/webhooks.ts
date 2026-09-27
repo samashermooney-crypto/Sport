@@ -31,6 +31,7 @@ export const handledStripeEventTypes = [
   'invoice.payment_failed',
   'invoice.voided',
 ] as const;
+export type HandledStripeEventType = (typeof handledStripeEventTypes)[number];
 
 const eventSchema = z.object({
   id: z.string().startsWith('evt_'),
