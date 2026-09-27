@@ -3,10 +3,10 @@
 Status: working
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/a-core`
-Current: Schema spine migrations 0100–0113, shared entity contracts, Kysely types, test factories, and split-space booking are locally green and ready for trunk integration. Then merge ready B/C/D ranges and resume remaining Phase 1 work.
-Ready for integration: schema spine and factories from the next Track A commit; B complete queue, C adapters, and D primitives are also marked ready in their local track files.
-Requests to other tracks: E — begin Phase 4 once the spine lands on `rebuild/trunk`.
+Current: Spine and ready B/C/D ranges are integrated and pushed on `rebuild/trunk`. Track A is finishing Phase 1 tasks 3–8 and 16–17. Authenticated `/start` and the built-in sport catalog are locally green; task 6 still needs credential editing and disabling.
+Ready for integration: `/start` onboarding milestone after its Track A commit.
+Requests to other tracks: E — proceed with Phase 4 against the spine now on trunk.
 Blocked on: none
 Self-review: Server app, worker and configuration consume the generated module/integration registry; web routing consumes generated feature routes.
 Self-review: Existing auth routes keep `/api/v1/auth`; full browser sign-up, Mailpit verification, MFA and device journey passes on Chromium and WebKit.
-Self-review: Generated errors and permissions are sorted/deduplicated; CI checks all four generated files for freshness. `PORT_OFFSET` SMTP delivery waits on Track C's sender change.
+Self-review: Generated errors and permissions are sorted/deduplicated; CI checks all four generated files for freshness. Track C's SMTP port offset passes isolated browser tests.

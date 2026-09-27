@@ -3,6 +3,7 @@ import {
   createOrgSchema,
   orgSlugAvailabilitySchema,
   orgSlugSchema,
+  sportTemplateCatalogSchema,
 } from '@shared/schemas/orgs';
 import express from 'express';
 import { z } from 'zod';
@@ -30,6 +31,20 @@ export function createOrgRouter(
       const slug = orgSlugSchema.parse(request.query.slug);
       const available = await isOrgSlugAvailable(dependencies.database, slug);
       response.json(orgSlugAvailabilitySchema.parse({ slug, available }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/sport-templates', async (request, response) => {
+    try {
+      await requireSession(dependencies, request);
+      const templates = await dependencies.database
+        .selectFrom('sport_templates')
+        .select(['key', 'name'])
+        .orderBy('name')
+        .execute();
+      response.json(sportTemplateCatalogSchema.parse(templates));
     } catch (error) {
       sendError(response, error);
     }

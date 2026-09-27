@@ -89,6 +89,13 @@ export const orgSlugAvailabilitySchema = z.strictObject({
   available: z.boolean(),
 });
 
+export const sportTemplateCatalogSchema = z.array(
+  z.strictObject({
+    key: z.string(),
+    name: z.string(),
+  }),
+);
+
 export const createOrgResponseSchema = z.strictObject({
   id: z.uuid(),
   slug: orgSlugSchema,
