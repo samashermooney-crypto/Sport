@@ -480,7 +480,7 @@ async function orgBranding(context: OrgContext, runWithOrg: typeof withOrg) {
   });
 }
 
-async function subscriptionsForAccount(
+export async function subscriptionsForAccount(
   context: OrgContext,
   accountId: string,
   runWithOrg: typeof withOrg,
@@ -681,7 +681,7 @@ function ReactMarkup(html: string): React.ReactElement {
   });
 }
 
-async function removePushEndpoint(
+export async function removePushEndpoint(
   context: OrgContext,
   endpoint: string,
   runWithOrg: typeof withOrg,
