@@ -1,0 +1,9 @@
+import { createOfficialsRouter } from './routes.js';
+
+// Adapt dependencies to ServerModule after routes, permissions, and schemas are specialized.
+export const __camel__Module = {
+  name: 'officials',
+  path: '/api/v1/officials',
+  router: createOfficialsRouter,
+  permissions: ['officials.read', 'officials.write'],
+};

@@ -1,0 +1,6 @@
+// Map these operations to the authoritative permission matrix before activation.
+export const __camel__Permissions = {
+  list: 'tournaments.read',
+  get: 'tournaments.read',
+  create: 'tournaments.write',
+} as const;
