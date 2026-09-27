@@ -355,6 +355,7 @@ export interface Checkouts {
   first_payment_failed_at: Timestamp | null;
   id: string;
   idempotency_key: string | null;
+  invoice_id: string | null;
   items: Generated<Json>;
   org_id: string;
   payment_intent_id: string | null;
