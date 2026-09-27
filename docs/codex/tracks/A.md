@@ -59,3 +59,4 @@ Self-review: People reads and writes run inside `withOrg`, require an active sta
 
 - `COMPOSE_PROJECT_NAME=athlentry_a`
 - `PORT_OFFSET=3000` (Postgres port `8432`)
+HANDED OFF 13:35
