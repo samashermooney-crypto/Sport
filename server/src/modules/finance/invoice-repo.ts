@@ -226,11 +226,14 @@ export async function recomputeInvoiceStatus(
     total_cents: number;
     paid_cents: number;
     refunded_cents: number;
+    disputed_cents: number;
+    dispute_lost_cents: number;
     credit_applied_cents: number;
     balance_cents: number;
     due_on: string | null;
   }>`
     SELECT status, total_cents, paid_cents, refunded_cents,
+           disputed_cents, dispute_lost_cents,
            credit_applied_cents, balance_cents, due_on::text
     FROM invoices WHERE org_id = ${orgId}::uuid AND id = ${invoiceId}::uuid
     FOR UPDATE
@@ -249,7 +252,8 @@ export async function recomputeInvoiceStatus(
   const state = deriveInvoiceState({
     totalCents: row.total_cents,
     succeededAllocationsCents: row.paid_cents,
-    refundedToMethodCents: row.refunded_cents,
+    refundedToMethodCents: row.refunded_cents + row.dispute_lost_cents,
+    disputedCents: row.disputed_cents,
     creditAppliedCents: row.credit_applied_cents,
     installments: installments.rows.map((item) => ({
       dueOn: item.due_on,

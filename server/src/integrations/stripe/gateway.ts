@@ -75,6 +75,12 @@ export interface PaymentsGateway {
     amountCents: number;
     idempotencyKey: string;
   }): Promise<{ id: string; amountCents: number }>;
+  retrieveDispute(disputeId: string): Promise<GatewayDispute>;
+  retrieveTransfer(transferId: string): Promise<{
+    id: string;
+    amountCents: number;
+    amountReversedCents: number;
+  }>;
   submitDisputeEvidence(input: {
     disputeId: string;
     evidence: Record<string, string>;
@@ -141,6 +147,20 @@ export interface GatewayRefund {
   amountCents: number;
   paymentIntentId: string | null;
   orgId: string | null;
+}
+
+export interface GatewayDispute {
+  id: string;
+  chargeId: string;
+  paymentIntentId: string | null;
+  transferId: string | null;
+  status: string;
+  amountCents: number;
+  feeCents: number;
+  reason: string;
+  evidenceDueBy: number | null;
+  fundsWithdrawn: boolean;
+  fundsReinstated: boolean;
 }
 
 export interface GatewayPaymentMethod {

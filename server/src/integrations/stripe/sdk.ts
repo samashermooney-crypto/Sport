@@ -5,6 +5,7 @@ import {
   assertTestStripeKey,
   type DestinationPaymentInput,
   type GatewayBalanceTransaction,
+  type GatewayDispute,
   type GatewayPaymentMethod,
   type GatewayPaymentIntent,
   type GatewayRefund,
@@ -374,6 +375,55 @@ export class StripeSdkGateway implements PaymentsGateway {
       { idempotencyKey: input.idempotencyKey },
     );
     return { id: reversal.id, amountCents: reversal.amount };
+  }
+
+  async retrieveDispute(disputeId: string): Promise<GatewayDispute> {
+    const dispute = await this.stripe.disputes.retrieve(disputeId);
+    const chargeId =
+      typeof dispute.charge === 'string' ? dispute.charge : dispute.charge.id;
+    const charge = await this.stripe.charges.retrieve(chargeId);
+    const paymentIntentId =
+      typeof dispute.payment_intent === 'string'
+        ? dispute.payment_intent
+        : (dispute.payment_intent?.id ?? null);
+    const chargePaymentIntentId =
+      typeof charge.payment_intent === 'string'
+        ? charge.payment_intent
+        : (charge.payment_intent?.id ?? null);
+    if (paymentIntentId && chargePaymentIntentId !== paymentIntentId)
+      throw new Error('Stripe dispute charge PaymentIntent mismatch');
+    const transferId =
+      typeof charge.transfer === 'string'
+        ? charge.transfer
+        : (charge.transfer?.id ?? null);
+    const withdrawals = dispute.balance_transactions.filter(
+      (item) => item.amount < 0,
+    );
+    const reinstatements = dispute.balance_transactions.filter(
+      (item) => item.amount > 0,
+    );
+    return {
+      id: dispute.id,
+      chargeId,
+      paymentIntentId: paymentIntentId ?? chargePaymentIntentId,
+      transferId,
+      status: dispute.status,
+      amountCents: dispute.amount,
+      feeCents: withdrawals.reduce((sum, item) => sum + item.fee, 0),
+      reason: dispute.reason,
+      evidenceDueBy: dispute.evidence_details.due_by,
+      fundsWithdrawn: withdrawals.length > 0,
+      fundsReinstated: reinstatements.length > 0,
+    };
+  }
+
+  async retrieveTransfer(transferId: string) {
+    const transfer = await this.stripe.transfers.retrieve(transferId);
+    return {
+      id: transfer.id,
+      amountCents: transfer.amount,
+      amountReversedCents: transfer.amount_reversed,
+    };
   }
 
   async submitDisputeEvidence(input: {
