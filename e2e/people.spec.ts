@@ -13,6 +13,7 @@ const offset = Number(process.env.PORT_OFFSET ?? '0');
 test('owner creates, edits and archives a person from the console', async ({
   page,
 }, testInfo) => {
+  test.setTimeout(60_000);
   const database = createDatabase(
     `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
   );
@@ -70,9 +71,48 @@ test('owner creates, edits and archives a person from the console', async ({
     await page.getByRole('button', { name: 'Save person' }).click();
     expect((await savedPerson).ok()).toBe(true);
     await expect(
+      page.getByRole('button', { name: 'Save person' }),
+    ).toBeEnabled();
+    await expect(
       page.getByRole('textbox', { name: 'Preferred name' }),
     ).toHaveValue('Lex');
     const personId = page.url().split('/').at(-1) ?? '';
+    await expect(
+      page.getByText(
+        'Grant media consent in this profile before adding a photo.',
+      ),
+    ).toBeVisible();
+    await page
+      .getByRole('combobox', { name: 'Media consent' })
+      .selectOption('granted');
+    const consentSaved = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        response
+          .url()
+          .includes(`/api/v1/people/orgs/${actor.orgId}/${personId}`),
+    );
+    await page.getByRole('button', { name: 'Save person' }).click();
+    expect((await consentSaved).ok()).toBe(true);
+    await expect(page.getByLabel('Choose photo')).toBeVisible();
+    await page
+      .getByLabel('Choose photo')
+      .setInputFiles('server/test/fixtures/gps-photo.jpg');
+    await page.getByRole('button', { name: 'Crop and upload photo' }).click();
+    await expect(page.getByRole('img', { name: 'Alex Rivera' })).toBeVisible();
+    await page
+      .getByRole('combobox', { name: 'Media consent' })
+      .selectOption('denied');
+    const consentRevoked = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        response
+          .url()
+          .includes(`/api/v1/people/orgs/${actor.orgId}/${personId}`),
+    );
+    await page.getByRole('button', { name: 'Save person' }).click();
+    expect((await consentRevoked).ok()).toBe(true);
+    await expect(page.getByRole('img', { name: 'Alex Rivera' })).toHaveCount(0);
     expect(await accessibilityViolations(page)).toEqual([]);
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Archive person' }).click();
