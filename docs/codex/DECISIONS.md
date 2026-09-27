@@ -344,7 +344,79 @@
 - **Why:** A choice made on the sign-in screen should survive navigation, while private-browsing storage failures must not block access.
 - **Consequences / follow-ups:** Account preference synchronization and complete auth/portal/site translations remain part of Task 16.
 
-### DEC-042 — Preserve only representable legacy recurrence rules
+### DEC-046 — Preserve SMS consent evidence and global STOP state
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 10 communications consent
+- **Context:** The spine stores account/phone data and tenant suppressions, but it has no versioned SMS consent evidence and its suppression policy permits global reads but not global signed STOP writes.
+- **Decision:** Record SMS consent as append-only, tenant-scoped events containing the exact disclosure, version, phone, account, timestamp, IP and user agent. A verified Twilio STOP creates a global SMS-only suppression; signed START removes that global STOP row and appends a new consent event with the inbound text as evidence.
+- **Why:** SMS delivery must fail closed without explicit, auditable consent, and STOP must take effect across every organization immediately.
+- **Consequences / follow-ups:** Restrict global suppression writes to signed SMS webhook code; keep all tenant reads/writes inside `withOrg`; apply shared quiet-hours policy at delivery time.
+
+### DEC-047 — Treat registration and balance as audience refinements
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 campaign audience
+- **Context:** `AudienceSpec` defines include/exclude selectors but does not define how registration status and balance combine with a team, program or role selection.
+- **Decision:** Include selectors form the candidate audience, exclusions remove matches, then registration status and past-due balance refinements narrow the remaining audience. A past-due balance matches only the invoice's bill-to account; other guardians are not shown or sent account-specific balance messages.
+- **Why:** This gives predictable U10-plus-past-due targeting and protects household financial privacy when an athlete has multiple guardians.
+- **Consequences / follow-ups:** Keep filters inside the tenant-scoped audience resolver and cover payer-only routing with database-backed tests.
+
+### DEC-048 — Link in-app campaign deliveries to their inbox notification
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 in-app delivery
+- **Context:** A campaign's in-app channel creates a Track B inbox notification, while the delivery spine requires exactly one of `campaign_id` or `notification_id`; storing both links would fail the existing constraint.
+- **Decision:** Keep source exclusivity for email, SMS, push and standalone notification deliveries. Permit both source links only for `in_app` campaign delivery so its campaign stats and Track B inbox/SSE event share one delivery record.
+- **Why:** The one-row link preserves campaign stats and retry idempotency while reusing Track B's inbox and stream service.
+- **Consequences / follow-ups:** The allowed dual link is constrained to `in_app` and covered by a database-backed integration test.
+
+### DEC-049 — Require an explicit program setting for athlete team chat
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 team conversations
+- **Context:** The Phase 10 team roster includes athletes aged 13+ only "if enabled," but the schema and UX do not name a setting or default.
+- **Decision:** Keep athlete accounts out of team conversations unless `programs.settings.communications.athleteChatEnabled` is exactly `true`. Continue to include active team staff and guardians for every minor; additions run through the shared SafeSport policy. The default is off.
+- **Why:** Youth accounts should not become visible in a staff/family communication channel until an authorized organization setting explicitly enables that audience.
+- **Consequences / follow-ups:** Track A must expose this setting in program/team communication settings. H's team conversation service reads the setting and is covered by a database-backed membership test.
+
+### DEC-050 — Soft-revoke chat membership when team eligibility changes
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 team conversation membership
+- **Context:** Roster, staff assignment, guardian link, or athlete-chat setting changes can make a previously included account ineligible, while chat history must remain retained.
+- **Decision:** Keep conversation membership rows and message history, mark ineligible members with `revoked_at`, and filter revoked rows from access, recipient, unread and read-receipt queries. Team and staff conversation synchronization applies both additions and revocations through the shared SafeSport policy and audits the membership delta.
+- **Why:** Removed families and staff immediately lose access without erasing retained messages or compliance evidence.
+- **Consequences / follow-ups:** Track A must invoke the H synchronization functions after roster and staff assignment changes; the service reconciles the active membership set.
+
+### DEC-051 — Show attachment actions only for current Files access
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 chat attachments
+- **Context:** Track C's Files routes currently require active organization membership for all access and owner/admin/registrar for upload, while household portal access can come from person-account links alone.
+- **Decision:** The chat API reports attachment capabilities using the current Files authorization contract. The portal renders upload/download actions only when those capabilities allow them; chat messages remain visible with a neutral access-unavailable label otherwise.
+- **Why:** A family-facing button that predictably receives 403 is not a working feature, and membership must not grant file access outside the Files policy.
+- **Consequences / follow-ups:** Track C must extend Files upload/download authorization to active same-organization conversation members for approved chat image/PDF attachments; then remove any stale capability duplication if Files exposes an authorization API.
+
+### DEC-052 — Measure the web entry chunk separately from lazy area chunks
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 bundle budget and Track H integration
+- **Context:** The build generated an entry chunk and a separate lazy shared UI chunk, both named `index-*.js`. The existing size-limit glob summed them as one entry after message routes were mounted.
+- **Decision:** Name the actual Vite entry `app-*.js`, keep lazy chunks separately named, and apply the 200 KB gzip entry budget to `app-*.js`. Lazy message screens load on their routes.
+- **Why:** This measures the specification's entry budget without treating route-level code as initial JavaScript.
+- **Consequences / follow-ups:** The merged entry is 173 KB gzip; area chunks remain below their 250 KB gzip budget and must continue to be checked as new routes land.
+
+### DEC-053 — Localize generic account request confirmations in the browser
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 auth i18n
+- **Context:** Password-reset, magic-link and sign-up endpoints deliberately return generic confirmations to prevent account enumeration. Their English message bodies would remain untranslated when a user selects Spanish.
+- **Decision:** Show a fixed, translated generic confirmation for each successful request in the browser. Keep the server's generic response behavior and preserve error details for diagnosis.
+- **Why:** Both languages communicate the same privacy-preserving outcome without leaking whether an address has an account.
+- **Consequences / follow-ups:** Localize remaining auth screens and server-provided legal text before Task 16 acceptance.
+
+### DEC-054 — Preview draft campaign audiences without persisting campaign state
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 campaign composer
+- **Context:** The composer needs a live recipient count while staff change selectors, categories and channels before saving a campaign.
+- **Decision:** Use a read-only draft audience preview endpoint backed by the same recipient resolver and channel eligibility calculation as saved campaign preview. Require campaign permissions and owner/admin authorization for emergency audiences; debounce composer requests and skip preview until a selector and channel are present.
+- **Why:** Staff can check routing while editing without persisting every draft and preview counts remain aligned with send-time policy.
+- **Consequences / follow-ups:** Cover saved and unsaved preview paths with tenant and permission integration tests.
+
+### DEC-055 — Preserve only representable legacy recurrence rules
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 recurrence migration
 - **Context:** The existing spine uses RFC recurrence text in availability and allocation rows; binding clarification C1 supports structured one-time, weekly and monthly-nth-weekday rules only.
@@ -352,7 +424,7 @@
 - **Why:** An incorrect availability window can create unsafe or impossible bookings; migration failure keeps source data intact for an explicit repair.
 - **Consequences / follow-ups:** Verify the isolated database has only representable rules before applying migration 3000.
 
-### DEC-043 — Treat non-space schedule conflicts as reasoned overrides
+### DEC-056 — Treat non-space schedule conflicts as reasoned overrides
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 conflict policy
 - **Context:** The event specification permits override reasons for soft conflicts and explicitly says space double-booking is never overridable, but does not classify team, coach and official overlap severity.
@@ -360,7 +432,7 @@
 - **Why:** The database remains the final protection against unsafe venue double-booking, while staff retain a documented path to resolve calendar edge cases.
 - **Consequences / follow-ups:** Every override is written to the audit log and exposed in the conflict report.
 
-### DEC-044 — Preserve materialized schedule history during series edits
+### DEC-057 — Preserve materialized schedule history during series edits
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 recurring events
 - **Context:** The series edit scopes must update future materialized events while preserving references from contests, attendance, audit and results.
@@ -368,7 +440,7 @@
 - **Why:** Event identity carries operational history; hard deletion or rewriting completed occurrences would orphan that history.
 - **Consequences / follow-ups:** Migration 3006 adds `event_series.active`; generated recurrence extension skips inactive series.
 
-### DEC-045 — Store coach schedule blackout requests as approved date ranges
+### DEC-058 — Store coach schedule blackout requests as approved date ranges
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 schedule generator
 - **Context:** The shared generator accepts team blackout dates, but the inherited spine has no request table or approval workflow for those dates.
@@ -376,7 +448,7 @@
 - **Why:** This preserves a clear approval boundary and avoids silently making a coach preference a hard scheduling rule.
 - **Consequences / follow-ups:** Migration 3007 adds the request aggregate and indexed status; generator input includes approved request dates.
 
-### DEC-046 — Snapshot sport profiles with a database trigger
+### DEC-059 — Snapshot sport profiles with a database trigger
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 9 result format history
 - **Context:** Contests must use the exact sport profile format version they were created against, but the inherited spine has no append-only profile version table.
@@ -384,15 +456,15 @@
 - **Why:** Historical result validation and rendering must remain tied to the format configuration used at contest creation.
 - **Consequences / follow-ups:** Migration 3008 adds the version table, snapshot trigger, and contest foreign key; sport-profile editing continues to use the current profile row.
 
-### DEC-047 — Snapshot sport profiles after the source row is written
+### DEC-060 — Snapshot sport profiles after the source row is written
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 result format history
-- **Context:** The insert trigger added with DEC-046 attempted to insert its version row before the referenced sport profile existed, violating the composite tenant foreign key during profile creation.
+- **Context:** The insert trigger added with DEC-059 attempted to insert its version row before the referenced sport profile existed, violating the composite tenant foreign key during profile creation.
 - **Decision:** Set the next profile version in a `BEFORE UPDATE` trigger, then append the immutable version snapshot in an `AFTER INSERT OR UPDATE` trigger.
 - **Why:** The source profile must exist at the referenced version before the snapshot row is inserted; this preserves the composite foreign key and append-only history.
 - **Consequences / follow-ups:** Migration 3013 repairs trigger timing without rewriting migration 3008; verify factory profile creation and profile edits in the database test suite.
 
-### DEC-048 — Keep survey responses anonymous in staff summaries
+### DEC-061 — Keep survey responses anonymous in staff summaries
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 season end
 - **Context:** Family feedback needs a simple NPS and free text, while the response table must prevent duplicate submissions per account.
@@ -400,7 +472,7 @@
 - **Why:** The organization can prevent duplicate voting and restrict results to scoped staff while keeping feedback content unattributed.
 - **Consequences / follow-ups:** A staff member with program schedule management permission can read comments; schedule batches now create in-app records through Track B's notification service, while email fan-out remains Phase 10 work.
 
-### DEC-049 — Use the browser print dialog for season award PDFs
+### DEC-062 — Use the browser print dialog for season award PDFs
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 season end
 - **Context:** The owned web feature needs printable award certificates, but no PDF-generation service exists in Track G's paths.
@@ -408,7 +480,7 @@
 - **Why:** This creates a usable PDF path without adding a generator dependency or persisting an unsafe user-uploaded file.
 - **Consequences / follow-ups:** Certificates are local browser output, not a server-rendered or stored artifact; connect to the files/PDF service if a reusable downloadable certificate is required.
 
-### DEC-050 — Seed pool elimination rounds from finalized standings
+### DEC-063 — Seed pool elimination rounds from finalized standings
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 pool tournaments
 - **Context:** Pool tournaments need a deterministic transition from round-robin results to elimination play, while late corrections must not silently invalidate already-started playoff matches.
@@ -416,7 +488,7 @@
 - **Why:** Tournament progression must use the same standings and bracket rules as other sport operations, and the seeded playoff must stay stable once it begins.
 - **Consequences / follow-ups:** Pool standings must have enough results to satisfy sport-specific tiebreakers. Bracket foreign-key links are attached only after all round rows exist.
 
-### DEC-051 — Assign timed meet lanes as a versioned contest operation
+### DEC-064 — Assign timed meet lanes as a versioned contest operation
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 individual-sport meets
 - **Context:** Contest participants already have seed, heat, and lane fields, but timed meets had no scoped operation for assigning them before results were entered.
@@ -424,7 +496,7 @@
 - **Why:** Meet lanes and seeds affect the official result workflow and need the same tenant, permission, and stale-write protections as scores.
 - **Consequences / follow-ups:** Timed meet assignments close before final results; other multi-event format scheduling can reuse this aggregate operation if the sport rules require it.
 
-### DEC-052 — Return only public tournament display fields
+### DEC-065 — Return only public tournament display fields
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 public tournament pages
 - **Context:** Tournament brackets are readable by slug without an authenticated organization context, while the internal bracket record also contains tenant, program, and configuration identifiers.

@@ -8,6 +8,7 @@ import type { IntegrationConfig, ServerModule } from '../lib/module-contract';
 import { moduleDefinition as attendanceModule } from '../modules/attendance/module';
 import { moduleDefinition as auditModule } from '../modules/audit/module';
 import { moduleDefinition as authModule } from '../modules/auth/module';
+import { moduleDefinition as communicationsModule } from '../modules/communications/module';
 import { moduleDefinition as contestsModule } from '../modules/contests/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
@@ -24,6 +25,7 @@ export const serverModules: readonly ServerModule[] = [
   attendanceModule,
   auditModule,
   authModule,
+  communicationsModule,
   contestsModule,
   filesModule,
   financeModule,

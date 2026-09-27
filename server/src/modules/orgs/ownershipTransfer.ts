@@ -10,6 +10,7 @@ import { z as zod } from 'zod';
 import type { DB } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { EmailSender } from '../../integrations/email/sender';
+import { createAuthEmail } from '../../integrations/email/templates/auth';
 import { revokeSessions } from '../auth/sessions';
 import { consumeAuthToken, issueAuthToken } from '../auth/tokens';
 
@@ -31,9 +32,9 @@ export async function requestOwnershipTransfer(
   const result = await withOrg(
     { orgId: input.orgId, actor: { accountId: input.actorId } },
     async (trx) => {
-      await trx
+      const org = await trx
         .selectFrom('organizations')
-        .select('id')
+        .select(['id', 'name'])
         .where('id', '=', input.orgId)
         .forUpdate()
         .executeTakeFirstOrThrow();
@@ -75,6 +76,7 @@ export async function requestOwnershipTransfer(
           'org_memberships.version',
           'org_memberships.status',
           'accounts.email',
+          'accounts.locale',
           'accounts.email_verified_at',
         ])
         .where('org_memberships.org_id', '=', input.orgId)
@@ -148,6 +150,8 @@ export async function requestOwnershipTransfer(
       return {
         token,
         email: recipient.email,
+        locale: recipient.locale,
+        organizationName: org.name,
         tokenId: record.id,
         response: ownershipTransferRequestResponseSchema.parse({
           recipientAccountId: input.recipientAccountId,
@@ -158,10 +162,13 @@ export async function requestOwnershipTransfer(
   );
   try {
     await dependencies.email.send({
-      to: result.email,
-      subject: 'Accept Athlentry organization ownership',
-      text: `An organization owner has requested to transfer ownership to you. Open ${dependencies.appUrl}/ownership-transfer/${input.orgId}/${result.token} while signed in to accept. This link expires in 24 hours.`,
-      kind: 'security',
+      ...createAuthEmail({
+        kind: 'ownership-transfer',
+        to: result.email,
+        url: `${dependencies.appUrl}/ownership-transfer/${input.orgId}/${result.token}`,
+        locale: result.locale === 'es' ? 'es' : 'en',
+        branding: { organizationName: result.organizationName },
+      }),
       idempotencyKey: result.tokenId,
     });
   } catch (error) {

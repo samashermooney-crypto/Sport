@@ -1,6 +1,7 @@
 import { authStatusResponseSchema } from '@shared/schemas/auth';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 
 import { apiPost } from '../api/client';
@@ -19,6 +20,7 @@ interface ResetFields {
 }
 
 export function ResetConfirm(): React.JSX.Element {
+  const { t } = useTranslation('auth');
   const { token } = useParams();
   const [error, setError] = useState('');
   const [complete, setComplete] = useState(false);
@@ -41,26 +43,26 @@ export function ResetConfirm(): React.JSX.Element {
       setComplete(true);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : 'Password reset failed.',
+        caught instanceof Error ? caught.message : t('passwordResetFailed'),
       );
     }
   }
 
   return (
-    <AuthFrame footer={<AuthLink to="/">Back to sign in</AuthLink>}>
-      <h1>Choose a new password</h1>
+    <AuthFrame footer={<AuthLink to="/">{t('backToSignIn')}</AuthLink>}>
+      <h1>{t('choosePassword')}</h1>
       {complete ? (
-        <p role="status">Password changed. You can now sign in.</p>
+        <p role="status">{t('passwordChanged')}</p>
       ) : (
         <>
-          <p>Use at least 10 characters. Avoid a password you use elsewhere.</p>
+          <p>{t('passwordAdvice')}</p>
           <ErrorBox error={error} />
           <form
             onSubmit={(event) => void handleSubmit(submit)(event)}
             noValidate
           >
             <Field
-              label="New password"
+              label={t('newPassword')}
               required
               error={errors.newPassword?.message}
             >
@@ -68,16 +70,16 @@ export function ResetConfirm(): React.JSX.Element {
                 type="password"
                 autoComplete="new-password"
                 {...register('newPassword', {
-                  required: 'Enter a new password.',
+                  required: t('newPasswordRequired'),
                   minLength: {
                     value: 10,
-                    message: 'Use at least 10 characters.',
+                    message: t('passwordMinLength'),
                   },
                 })}
               />
             </Field>
             <Field
-              label="Confirm new password"
+              label={t('confirmPassword')}
               required
               error={errors.confirmPassword?.message}
             >
@@ -85,14 +87,14 @@ export function ResetConfirm(): React.JSX.Element {
                 type="password"
                 autoComplete="new-password"
                 {...register('confirmPassword', {
-                  required: 'Confirm your new password.',
+                  required: t('confirmPasswordRequired'),
                   validate: (value) =>
-                    value === watch('newPassword') || 'Passwords do not match.',
+                    value === watch('newPassword') || t('passwordMismatch'),
                 })}
               />
             </Field>
             <Button type="submit" disabled={isSubmitting || !token}>
-              {isSubmitting ? 'Updating…' : 'Reset password'}
+              {isSubmitting ? t('updating') : t('resetPassword')}
             </Button>
           </form>
         </>

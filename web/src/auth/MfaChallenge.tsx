@@ -1,6 +1,7 @@
 import { authStatusResponseSchema } from '@shared/schemas/auth';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
 
 import { apiPost } from '../api/client';
@@ -18,6 +19,7 @@ interface ChallengeState {
 }
 
 export function MfaChallenge(): React.JSX.Element {
+  const { t } = useTranslation('auth');
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as ChallengeState | null;
@@ -33,9 +35,9 @@ export function MfaChallenge(): React.JSX.Element {
   if (!state?.challengeToken) {
     return (
       <AuthFrame>
-        <h1>Sign in again</h1>
-        <p>Your verification challenge is no longer available.</p>
-        <AuthLink to="/">Return to sign in</AuthLink>
+        <h1>{t('signInAgain')}</h1>
+        <p>{t('challengeExpired')}</p>
+        <AuthLink to="/">{t('returnToSignIn')}</AuthLink>
       </AuthFrame>
     );
   }
@@ -55,36 +57,34 @@ export function MfaChallenge(): React.JSX.Element {
       void navigate('/me', { replace: true, state: null });
     } catch (caught) {
       setError(
-        caught instanceof Error
-          ? caught.message
-          : 'Verification failed. Sign in again.',
+        caught instanceof Error ? caught.message : t('verificationFailed'),
       );
     }
   }
 
   return (
-    <AuthFrame footer={<AuthLink to="/">Start over</AuthLink>}>
-      <h1>Verify it’s you</h1>
+    <AuthFrame footer={<AuthLink to="/">{t('startOver')}</AuthLink>}>
+      <h1>{t('verifyIdentity')}</h1>
       <p>
         {method === 'totp'
-          ? 'Enter the six-digit code from your authenticator app.'
-          : 'Enter one unused recovery code.'}
+          ? t('authenticatorInstructions')
+          : t('recoveryInstructions')}
       </p>
       <ErrorBox error={error} />
       <form onSubmit={(event) => void handleSubmit(submit)(event)} noValidate>
         <Field
-          label={method === 'totp' ? 'Authenticator code' : 'Recovery code'}
+          label={method === 'totp' ? t('authenticatorCode') : t('recoveryCode')}
           required
           error={errors.code?.message}
         >
           <Input
             autoComplete="one-time-code"
             inputMode={method === 'totp' ? 'numeric' : 'text'}
-            {...register('code', { required: 'Enter your code.' })}
+            {...register('code', { required: t('codeRequired') })}
           />
         </Field>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Verifying…' : 'Verify and sign in'}
+          {isSubmitting ? t('verifying') : t('verifyAndSignIn')}
         </Button>
       </form>
       <p className="auth-secondary">
@@ -97,9 +97,7 @@ export function MfaChallenge(): React.JSX.Element {
             setError('');
           }}
         >
-          {method === 'totp'
-            ? 'Use a recovery code'
-            : 'Use an authenticator code'}
+          {method === 'totp' ? t('useRecoveryCode') : t('useAuthenticatorCode')}
         </button>
       </p>
     </AuthFrame>

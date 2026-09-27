@@ -5,6 +5,7 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import { appendAuditEvent } from '../audit/service.js';
 
+import { assertPaymentFundsRefund } from './payment-line-allocations.js';
 import type { RefundRecordStore } from './refunds.js';
 
 /** Records the external refund and every line allocation before webhook settlement. */
@@ -178,6 +179,13 @@ export class PostgresRefundRecordStore implements RefundRecordStore {
         )
           throw new Error('Refund line exceeds its remaining paid amount');
       }
+      await assertPaymentFundsRefund(trx, {
+        orgId: input.orgId,
+        paymentId: input.paymentId,
+        invoiceId,
+        paymentAmountCents: payment.amount_cents,
+        lines: mapped,
+      });
       const refundId = newId();
       await trx
         .insertInto('refunds')

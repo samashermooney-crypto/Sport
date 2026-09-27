@@ -112,7 +112,7 @@
   },
   "size-limit": [
     {
-      "path": "dist/web/assets/index-*.js",
+      "path": "dist/web/assets/app-*.js",
       "gzip": true,
       "limit": "200 KB"
     }
