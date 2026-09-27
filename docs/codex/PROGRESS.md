@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- M0 is on `main` at `d0f59a1`. The spine and ready B/C/D ranges are integrated and pushed on `rebuild/trunk`. Track A has completed Phase 1 task 6 locally and is integrating it into trunk, then continues tasks 3–5, 7–8 and 16–17. Track B owns tasks 9–10 and 13–15; Track C owns 11–12. Keep Phase 1 open until every task and acceptance criterion passes.
+- M0 is on `main` at `d0f59a1`. The spine, ready B/C/D ranges and Phase 1 task 6 are integrated on `rebuild/trunk`. Track B’s jobs, API conventions and audit range is merged and green locally, pending publication. Track A continues tasks 3–5, 7–8 and 16–17; Track B owns tasks 9 and 13, while Track C owns 11–12. Keep Phase 1 open until every task and acceptance criterion passes.
 
 ## Phase status
 
@@ -32,7 +32,7 @@
 | Track | Scope | Model | Status | Branch |
 |---|---|---|---|---|
 | A | Core and integration | GPT-6 Sol until S1 | working | `track/a-core` |
-| B | Sport engine, algorithms, policies; platform infrastructure | GPT-6 Sol | full logic queue integrated; Phase 1 tasks 9, 10, 13–15 in progress | `track/b-logic` |
+| B | Sport engine, algorithms, policies; platform infrastructure | GPT-6 Sol | logic queue and Phase 1 tasks 10, 14–15 integrated; tasks 9 and 13 in progress | `track/b-logic` |
 | C | Files and provider adapters | GPT-6 Luna | complete adapter queue integrated; files API mounted, acceptance still open | `track/c-adapters` |
 | D | Design system | GPT-6 Luna | shared primitives, extended controls, shell and dev showcase integrated; auth restyle still open | `track/d-design` |
 | E | Stripe and finance | GPT-6 Sol | test-mode gateway ready slice integrated; money core awaiting trunk spine | `track/e-finance` |
@@ -47,6 +47,7 @@
 - [x] Integrated the spine into `rebuild/trunk` at `f4295a0`; merged trunk passed typecheck, lint, 228 tests (one operator-credential smoke skipped), four browser e2e tests, and build. Trunk publication follows this progress commit; Track E can resume Phase 4 from trunk.
 - [x] Integrated Track B's complete logic queue through `5c01024`; merged trunk passed typecheck, lint and 310 tests. Track B's new infrastructure queue is separate and remains open.
 - [x] Integrated Track C's adapter queue through `d47dc0f`. Added the files module to the generated registry, local tenant/role authorization, Sharp/Web Push dependencies, migration 0502 for the `files.created_by` FK index, and generated types for 127 tables. Isolated-port browser tests pass with Track C's SMTP offset support; 337 unit/integration tests pass. Task 11 and 12 acceptance remains open pending full API/provider checks.
+- [x] Integrated Track B's ready Phase 1 infrastructure range through `727cfe9`: pg-boss worker and heartbeat, redacted audit API/viewer, OpenAPI route coverage, pagination, idempotency and version helpers. Registered the worker and audit route, reconciled files/onboarding API paths, and passed typecheck, lint, 359 tests (one operator-credential smoke skipped), 9 browser tests (3 guarded WebKit design skips), build and knip.
 - [x] Integrated Track D's ready design range through `a0a20f2`, including frozen tokens, primitives, extended controls, shell and development-only `/__ui` through the feature registry. The merged app passed typecheck, lint, 342 tests, 9 browser e2e tests (3 WebKit design cases intentionally skipped), build and a zero-advisory production audit. Auth restyle and the full Phase 1 design acceptance remain open.
 
 ## Phase checklists
@@ -91,12 +92,12 @@
 - [ ] 9. Platform console `/platform`: org list/search, org detail (plan, fees, status, Stripe status), suspend/reactivate org, plan management, feature flags, platform staff management, audited impersonation (reason required, read-only by default, banner in UI, auto-expire 60 minutes), system health (queues, webhooks, worker heartbeat), bootstrap script `scripts/create-platform-admin.ts` with hidden password prompt.
 
 **Infrastructure modules**
-- [ ] 10. pg-boss setup, job registry, worker heartbeat, failed-job visibility.
+- [x] 10. pg-boss setup, job registry, worker heartbeat, failed-job visibility. Migration 0600, registered worker with graceful stop, heartbeat and redacted failed-job health reader pass the merged local gate.
 - [ ] 11. **Track C:** Files module (`01 §7`) with S3, local-disk and memory adapters; image processing with EXIF stripping; permission-checked download links.
 - [ ] 12. **Track C:** Email module: React Email layout with org branding, `EmailSender` adapters (Resend, Mailpit SMTP via `nodemailer`, Fake), preview mode; send auth emails (verification, magic link, reset, invitations, security alerts) in en/es.
 - [ ] 13. Notifications core: `notification_types` catalog in code, `notifications` table, in-app inbox API + SSE stream (`01 §5`), preferences API. (Channels other than in-app/email wired in Phase 10.)
-- [ ] 14. Audit module with redaction; audit viewer component.
-- [ ] 15. OpenAPI generation, error code enum, pagination helpers, idempotency middleware, version-check helpers.
+- [x] 14. Audit module with redaction; audit viewer component. Append-only service, Restricted-field redaction/read audit, role-scoped cursor API and functional console viewer pass merged tests; route is mounted through the web registry.
+- [x] 15. OpenAPI generation, error code enum, pagination helpers, idempotency middleware, version-check helpers. The generated OpenAPI document covers current auth, org, files and audit operations; route coverage check, helper tests and merged full gate pass.
 
 **Web app shell**
 - [ ] 16. **Track D:** Design system per `01 §11a`: capture the legacy visual reference screenshots and `tokens.json` first, extract tokens verbatim from the legacy CSS, port legacy components with identical appearance, then build the remaining components in `01 §11` from those tokens (Storybook-free visual test pages under `/__ui` in development only; light theme only). Then i18n setup (en/es), TanStack Query client, API client with typed endpoints generated from shared schemas, error boundary (port legacy behavior), toast system, layout shells for console/portal/platform/public, org switcher, global search stub wired to `people` once Phase 2 lands (hidden until then), command palette. In progress: isolated legacy worktree at `9ef77bb` generated 12 desktop and 12 mobile screenshots in `e2e/visual-reference/`, including sign-in, dashboard, lists/editors, team, invoice, schedule, public site, member portal and modal. The extracted `tokens.json` freezes all legacy custom properties plus recurring colors, type sizes, spacing, radii, heights and shadows; `web/src/ui/tokens.css` contains those exact values. A Vitest assertion checks CSS against the frozen snapshot after formatting normalization (41 tests pass). Component ports and shell parity remain open.
@@ -109,4 +110,4 @@
 - [ ] Platform admin can impersonate read-only with banner; every impersonated request is audited with the impersonation id.
 - [ ] Images uploaded have no EXIF (test with a GPS-tagged fixture).
 - [ ] Design parity (`01 §11a`): `e2e/visual-reference/` exists; the new shell (header/chrome, navigation, page header) and ported components match the legacy screenshots within tolerance at 1440px and 390px; a unit test proves `tokens.css` values equal `e2e/visual-reference/tokens.json`; no dark theme, CSS framework or styled component library is installed.
-- [ ] OpenAPI document generated and committed.
+- [x] OpenAPI document generated and committed with route coverage for current auth, org, files and audit operations; `npm run openapi` passes on merged trunk.
