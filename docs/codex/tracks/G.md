@@ -2,6 +2,8 @@
 
 Implementation commits: `10dde5b`, `e26dee4`, `074b533`, `535746f`, `2bc22b6`, and `dc661ea`. Track notes: `c4454b4`, `5970856`, `6c60d66`. Branch: `track/g-schedule`, local only (not pushed). The latest `rebuild/trunk` sync is merge `841ad80`, bringing in `3f0f157`.
 
+Local integration range: `rebuild/trunk..track/g-schedule` (not pushed).
+
 Status: working; integration readiness is pending because the Phase 8/9 acceptance criteria and full gate are not yet met.
 
 ## Owned work and progress
