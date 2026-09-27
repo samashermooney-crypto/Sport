@@ -42,14 +42,15 @@ export async function listenSse(
   response.write(': connected\n\n');
   const heartbeat = setInterval(() => {
     if (!options.authorize) {
-      if (!response.destroyed) response.write(': heartbeat\n\n');
+      if (!closed && !response.destroyed) response.write(': heartbeat\n\n');
       return;
     }
     void options
       .authorize()
       .then((authorized) => {
         if (!authorized) close();
-        else if (!response.destroyed) response.write(': heartbeat\n\n');
+        else if (!closed && !response.destroyed)
+          response.write(': heartbeat\n\n');
       })
       .catch(close);
   }, options.heartbeatMs ?? 20_000);
@@ -68,7 +69,8 @@ export async function listenSse(
     if (message.channel !== options.channel || !message.payload) return;
     try {
       const event = options.accept(message.payload);
-      if (event && !response.destroyed) writeSseEvent(response, event);
+      if (event && !closed && !response.destroyed)
+        writeSseEvent(response, event);
     } catch {
       close();
     }
