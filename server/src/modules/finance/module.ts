@@ -15,6 +15,8 @@ import {
   paymentMethodActionResponseSchema,
   connectLinkResponseSchema,
   connectStatusResponseSchema,
+  checkoutPaymentBodySchema,
+  checkoutPaymentResponseSchema,
 } from './routes.js';
 
 export const moduleDefinition = {
@@ -26,6 +28,14 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/checkout-payment-intents',
+      summary:
+        'Create an idempotent test-mode PaymentIntent for a frozen checkout',
+      body: checkoutPaymentBodySchema,
+      response: checkoutPaymentResponseSchema,
+    },
     {
       method: 'post',
       path: '/api/v1/finance/me/setup-intents',

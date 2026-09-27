@@ -55,6 +55,8 @@ export interface CreatedPaymentIntent {
   quote: PaymentQuote;
 }
 
+export class PaymentConflictError extends Error {}
+
 /** Record the intent and its invoice allocation before exposing its secret. */
 export interface PaymentRecordStore {
   recordPending(input: {
@@ -188,9 +190,11 @@ export class CheckoutPaymentService {
     });
     if (reservation.kind === 'replay') return reservation.result;
     if (reservation.kind === 'busy')
-      throw new Error('Payment attempt is already in progress');
+      throw new PaymentConflictError('Payment attempt is already in progress');
     if (reservation.kind === 'conflict')
-      throw new Error('Idempotency-Key was used for a different payment');
+      throw new PaymentConflictError(
+        'Idempotency-Key was used for a different payment',
+      );
     let externalStarted = false;
     try {
       const charge = await this.reader.load(input);

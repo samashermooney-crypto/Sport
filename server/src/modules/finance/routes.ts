@@ -10,9 +10,11 @@ import { requestImpersonation } from '../../lib/tenant-guard.js';
 import { requireSession } from '../auth/routes.js';
 import type { AuthDependencies } from '../auth/routes.js';
 
+import { PostgresPaymentAttemptStore } from './attempt-repo.js';
 import { ConnectConflictError, ConnectOnboardingService } from './connect.js';
 import { PostgresCreditRefundRepository } from './credit-refund-repo.js';
 import { CreditRefundService } from './credit-refunds.js';
+import { PostgresFrozenChargeReader } from './frozen-charge-repo.js';
 import {
   JournalExportError,
   payoutJournalCsv,
@@ -28,6 +30,7 @@ import {
 } from './payer-methods.js';
 import { PostgresPayerProfileRepository } from './payer-repo.js';
 import { PostgresSavedPaymentMethodRepository } from './payment-method-repo.js';
+import { PostgresPaymentRecordStore } from './payment-repo.js';
 import { PostgresPayoutReconciliation } from './reconciliation.js';
 import { PostgresRefundApprovalPolicy } from './refund-approval-repo.js';
 import { PostgresRefundAttemptStore } from './refund-attempt-repo.js';
@@ -39,6 +42,7 @@ import {
   StripeRefundService,
 } from './refunds.js';
 import { PostgresConnectAccountRepository } from './repo.js';
+import { CheckoutPaymentService, PaymentConflictError } from './service.js';
 import { FinanceAccessError, requireFinanceStaff } from './staff-access.js';
 
 export const offlinePaymentBodySchema = z.strictObject({
@@ -133,6 +137,23 @@ export const connectStatusResponseSchema = z.strictObject({
   requirementsDue: z.array(z.string()),
   disabledReason: z.string().nullable(),
 });
+export const checkoutPaymentBodySchema = z.strictObject({
+  checkoutId: z.uuid(),
+  invoiceId: z.uuid(),
+  saveForAutopay: z.boolean(),
+});
+export const checkoutPaymentResponseSchema = z.strictObject({
+  id: z.string().startsWith('pi_'),
+  clientSecret: z.string().min(1),
+  status: z.string().min(1),
+  quote: z.strictObject({
+    baseCents: z.number().int().nonnegative(),
+    serviceFeeCents: z.number().int().nonnegative(),
+    taxCents: z.number().int().nonnegative(),
+    amountCents: z.number().int().positive(),
+    applicationFeeCents: z.number().int().nonnegative(),
+  }),
+});
 
 class FinanceDependencyError extends Error {
   readonly status = 503;
@@ -164,7 +185,8 @@ function sendError(response: Response, error: unknown): void {
           error instanceof RefundConflictError ||
           error instanceof JournalExportError ||
           error instanceof PayerMethodConflictError ||
-          error instanceof ConnectConflictError
+          error instanceof ConnectConflictError ||
+          error instanceof PaymentConflictError
         ? 409
         : error instanceof FinanceDependencyError
           ? 503
@@ -231,6 +253,39 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.post(
+    '/orgs/:orgId/checkout-payment-intents',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const input = checkoutPaymentBodySchema.parse(request.body as unknown);
+        const idempotencyKey = z.uuid().parse(request.get('Idempotency-Key'));
+        const context = { orgId, actor: { accountId: session.accountId } };
+        const result = await new CheckoutPaymentService(
+          new PostgresFrozenChargeReader(dependencies.database, context),
+          new PostgresPaymentAttemptStore(dependencies.database, context),
+          gatewayFactory(),
+          new PostgresPaymentRecordStore(dependencies.database, context),
+        ).create({
+          orgId,
+          checkoutId: input.checkoutId,
+          invoiceId: input.invoiceId,
+          accountId: session.accountId,
+          idempotencyKey,
+          saveForAutopay: input.saveForAutopay,
+        });
+        response.status(201).json(checkoutPaymentResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   router.post('/me/setup-intents', async (request, response) => {
     try {
       if (
