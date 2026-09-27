@@ -6,6 +6,7 @@ import type {
   PaymentsGateway,
 } from '../../integrations/stripe/gateway.js';
 import type { StripeWebhookEvent } from '../../integrations/stripe/webhooks.js';
+import type { CheckoutPaymentEventService } from '../checkout/payment-events.js';
 
 const paymentObject = z.object({
   id: z.string().startsWith('pi_'),
@@ -34,6 +35,10 @@ export class PaymentIntentEventService {
   constructor(
     private readonly repository: PaymentEventRepository,
     private readonly gateway: Pick<PaymentsGateway, 'retrievePaymentIntent'>,
+    private readonly checkout?: Pick<
+      CheckoutPaymentEventService,
+      'applyLatest'
+    >,
   ) {}
 
   async handle(event: StripeWebhookEvent): Promise<PaymentEventResult> {
@@ -45,11 +50,19 @@ export class PaymentIntentEventService {
     if (latest.id !== payment.id) {
       throw new Error('Stripe returned a different PaymentIntent');
     }
-    return this.repository.applyLatest({
+    const result = await this.repository.applyLatest({
       orgId: payment.metadata.org_id,
       paymentIntentId: payment.id,
       latest,
     });
+    await this.checkout?.applyLatest({
+      orgId: payment.metadata.org_id,
+      paymentIntentId: payment.id,
+      status: latest.status,
+      amountCents: latest.amountCents,
+      method: latest.method ?? null,
+    });
+    return result;
   }
 }
 

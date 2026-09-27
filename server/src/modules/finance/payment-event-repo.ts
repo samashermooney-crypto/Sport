@@ -64,6 +64,9 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
       const payment = await trx
         .selectFrom('payments')
         .select(['id', 'amount_cents', 'status', 'method', 'stripe_charge_id'])
+        .select(
+          sql<Date | null>`processing_started_at`.as('processing_started_at'),
+        )
         .where('org_id', '=', input.orgId)
         .where('stripe_payment_intent_id', '=', input.paymentIntentId)
         .forUpdate()
@@ -113,6 +116,8 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
         .toString();
       const firstSuccess =
         target === 'succeeded' && payment.status !== 'succeeded';
+      const firstProcessing =
+        target === 'processing' && payment.processing_started_at === null;
       await trx
         .updateTable('payments')
         .set({
@@ -127,6 +132,12 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
         .where('org_id', '=', input.orgId)
         .where('id', '=', payment.id)
         .execute();
+      if (firstProcessing) {
+        await sql`
+          UPDATE payments SET processing_started_at = ${new Date(this.now().epochMilliseconds)}
+          WHERE org_id = ${input.orgId}::uuid AND id = ${payment.id}::uuid
+        `.execute(trx);
+      }
       if (firstSuccess) {
         await trx
           .updateTable('invoices')

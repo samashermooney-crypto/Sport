@@ -327,6 +327,11 @@ export class PostgresCheckoutHoldRepository implements CheckoutCapacityRepositor
       const checkout = await trx
         .selectFrom('checkouts')
         .select('status')
+        .select(
+          sql<Date | null>`first_payment_failed_at`.as(
+            'first_payment_failed_at',
+          ),
+        )
         .where('org_id', '=', input.orgId)
         .where('id', '=', input.checkoutId)
         .forUpdate()
@@ -336,6 +341,7 @@ export class PostgresCheckoutHoldRepository implements CheckoutCapacityRepositor
         !['awaiting_payment', 'completed'].includes(checkout.status)
       )
         throw new Error('Checkout is unavailable for a failed-payment hold');
+      if (checkout.first_payment_failed_at) return;
       const holds = await trx
         .selectFrom('capacity_holds')
         .select([
@@ -399,6 +405,11 @@ export class PostgresCheckoutHoldRepository implements CheckoutCapacityRepositor
         .where('org_id', '=', input.orgId)
         .where('id', '=', input.checkoutId)
         .execute();
+      await sql`
+        UPDATE checkouts
+        SET first_payment_failed_at = ${new Date(this.now().epochMilliseconds)}
+        WHERE org_id = ${input.orgId}::uuid AND id = ${input.checkoutId}::uuid
+      `.execute(trx);
       await trx
         .updateTable('registrations')
         .set({ status: 'pending_payment', version: sql`version + 1` })
