@@ -12,8 +12,12 @@ import { collectRegisteredJobs } from './registry';
 
 describe('job registry', () => {
   it('accepts every generated module job at worker startup', () => {
-    const names = collectRegisteredJobs(serverModules).map((job) => job.name);
+    const jobs = collectRegisteredJobs(serverModules);
+    const names = jobs.map((job) => job.name);
+    const stripeEvent = jobs.find((job) => job.name === 'stripe.event');
     expect(names).toContain('communications.deliver-due');
+    expect(stripeEvent?.name).toBe('stripe.event');
+    expect(typeof stripeEvent?.run).toBe('function');
   });
 
   it('collects executable jobs from module descriptors', async () => {
