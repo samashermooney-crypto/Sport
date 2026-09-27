@@ -91,6 +91,10 @@ describe('credential and privacy requests', () => {
     expect(
       await resetPassword(dependencies, raw, 'new amber hillside phrase 41'),
     ).toBe(true);
+    expect(email.messages.at(-1)?.subject).toBe(
+      'Se restableció su contraseña de Athlentry',
+    );
+    expect(email.messages.at(-1)?.html).toContain('<html lang="es">');
     expect(
       await resetPassword(dependencies, raw, 'new amber hillside phrase 41'),
     ).toBe(false);

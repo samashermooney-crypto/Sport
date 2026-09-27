@@ -4,6 +4,7 @@ import type { Kysely } from 'kysely';
 import type { DB } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { EmailSender } from '../../integrations/email/sender';
+import { createAuthEmail } from '../../integrations/email/templates/auth';
 import { encryptRestricted } from '../../lib/crypto';
 import type { EncryptionKeys } from '../../lib/crypto';
 
@@ -174,14 +175,16 @@ export async function confirmMfaEnrollment(
   await activatePendingRoles(dependencies.database, session.accountId);
   const account = await dependencies.database
     .selectFrom('accounts')
-    .select('email')
+    .select(['email', 'locale'])
     .where('id', '=', session.accountId)
     .executeTakeFirstOrThrow();
-  await dependencies.email.send({
-    to: account.email,
-    subject: 'Athlentry MFA enabled',
-    text: 'Multi-factor authentication was enabled on your account. If you did not make this change, contact Athlentry support immediately.',
-  });
+  await dependencies.email.send(
+    createAuthEmail({
+      kind: 'mfa-enabled',
+      to: account.email,
+      locale: account.locale === 'es' ? 'es' : 'en',
+    }),
+  );
   return codes;
 }
 
@@ -213,14 +216,16 @@ export async function regenerateRecoveryCodes(
     });
   const account = await dependencies.database
     .selectFrom('accounts')
-    .select('email')
+    .select(['email', 'locale'])
     .where('id', '=', session.accountId)
     .executeTakeFirstOrThrow();
-  await dependencies.email.send({
-    to: account.email,
-    subject: 'Athlentry recovery codes changed',
-    text: 'Your MFA recovery codes were regenerated. If you did not make this change, contact Athlentry support immediately.',
-  });
+  await dependencies.email.send(
+    createAuthEmail({
+      kind: 'recovery-codes-changed',
+      to: account.email,
+      locale: account.locale === 'es' ? 'es' : 'en',
+    }),
+  );
   return codes;
 }
 
