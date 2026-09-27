@@ -63,6 +63,7 @@ import {
 import type { DeliveryDependencies } from './delivery';
 import {
   campaignDraftSchema,
+  campaignAudiencePreviewSchema,
   campaignPreviewSchema,
   campaignStatsSchema,
   campaignSummarySchema,
@@ -83,6 +84,7 @@ import {
   listAudienceOptions,
   listCampaigns,
   previewCampaign,
+  previewCampaignDraft,
   scheduleCampaign,
   updateCampaign,
 } from './service';
@@ -416,6 +418,23 @@ export function createCommunicationsRouter(
       response.json(
         audienceOptionsSchema.parse(
           await listAudienceOptions(context, search, withOrg),
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/audience-preview', async (request, response) => {
+    try {
+      const { context } = await sessionContext(dependencies, request);
+      response.json(
+        campaignPreviewSchema.parse(
+          await previewCampaignDraft(
+            context,
+            campaignAudiencePreviewSchema.parse(request.body as unknown),
+            dependencies.clock(),
+            withOrg,
+          ),
         ),
       );
     } catch (error) {

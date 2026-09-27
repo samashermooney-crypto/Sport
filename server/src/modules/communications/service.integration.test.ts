@@ -8,12 +8,15 @@ import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 
 import { createCommunicationNotificationSink } from './adapters';
+import { campaignPreviewSchema } from './schema';
 import {
   CommunicationsAccessError,
   CommunicationsPermissionError,
   createCampaign,
   getCampaignDetail,
   listCampaigns,
+  previewCampaign,
+  previewCampaignDraft,
 } from './service';
 
 let database: ReturnType<typeof createDatabase>;
@@ -28,6 +31,10 @@ const personId = randomUUID();
 const contextA: OrgContext = { orgId: orgA, actor: { accountId: ownerA } };
 const contextB: OrgContext = { orgId: orgB, actor: { accountId: ownerB } };
 const noRoleContext: OrgContext = { orgId: orgC, actor: { accountId: noRole } };
+const noRoleInOrgAContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: noRole },
+};
 
 beforeAll(async () => {
   const admin = new pg.Client({
@@ -55,6 +62,7 @@ beforeAll(async () => {
       );
     for (const [orgId, accountId] of [
       [orgA, ownerA],
+      [orgA, noRole],
       [orgB, ownerB],
       [orgC, noRole],
     ] as const)
@@ -130,6 +138,79 @@ describe('communications tenancy and permissions', () => {
     });
     await expect(
       createCampaign(noRoleContext, draft(), 'https://athlentry.test', withOrg),
+    ).rejects.toBeInstanceOf(CommunicationsPermissionError);
+  });
+
+  it('previews an unsaved audience draft inside the organization scope', async () => {
+    const preview = await previewCampaignDraft(
+      contextA,
+      {
+        audience: {
+          include: { personIds: [personId], roles: ['board'] },
+          exclude: {},
+          filters: {},
+        },
+        category: 'announcement',
+        channels: ['email'],
+      },
+      new Date('2026-09-27T12:00:00.000Z'),
+      withOrg,
+    );
+    expect(preview.recipientCount).toBe(1);
+    expect(campaignPreviewSchema.parse(preview).counts).toEqual({ email: 1 });
+    expect(preview.recipients[0]).toMatchObject({
+      displayName: 'Campaign A Owner',
+      channels: ['email'],
+    });
+
+    const otherOrgPreview = await previewCampaignDraft(
+      contextB,
+      {
+        audience: {
+          include: { personIds: [personId] },
+          exclude: {},
+          filters: {},
+        },
+        category: 'announcement',
+        channels: ['email'],
+      },
+      new Date('2026-09-27T12:00:00.000Z'),
+      withOrg,
+    );
+    expect(otherOrgPreview.recipientCount).toBe(0);
+  });
+
+  it('requires emergency owner or admin authorization for unsaved previews', async () => {
+    await expect(
+      previewCampaignDraft(
+        noRoleContext,
+        {
+          audience: {
+            include: { personIds: [personId] },
+            exclude: {},
+            filters: {},
+          },
+          category: 'emergency',
+          channels: ['email'],
+        },
+        new Date('2026-09-27T12:00:00.000Z'),
+        withOrg,
+      ),
+    ).rejects.toBeInstanceOf(CommunicationsPermissionError);
+
+    const emergencyCampaign = await createCampaign(
+      contextA,
+      { ...draft(), category: 'emergency' },
+      'https://athlentry.test',
+      withOrg,
+    );
+    await expect(
+      previewCampaign(
+        noRoleInOrgAContext,
+        emergencyCampaign.id,
+        new Date('2026-09-27T12:00:00.000Z'),
+        withOrg,
+      ),
     ).rejects.toBeInstanceOf(CommunicationsPermissionError);
   });
 

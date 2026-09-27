@@ -229,7 +229,7 @@
 .messages-preview h3 {
   margin-bottom: var(--space-8);
 }
-.messages-preview ul {
+.messages-preview__counts {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-16);
@@ -237,13 +237,37 @@
   margin: 0;
   padding: 0;
 }
-.messages-preview li {
+.messages-preview__counts li {
   display: flex;
   gap: var(--space-6);
+}
+.messages-preview h4 {
+  margin: var(--space-12) 0 var(--space-4);
+  font-size: var(--font-size-14);
+}
+.messages-preview ul.messages-preview__recipients {
+  display: grid;
+  width: 100%;
+  gap: 0;
+}
+.messages-preview ul.messages-preview__recipients li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-6) 0;
+  border-top: 1px solid var(--accent-line);
+}
+.messages-preview__recipients span {
+  color: var(--muted);
+  font-size: var(--font-size-12);
 }
 .messages-preview p {
   margin-bottom: 0;
   font-size: var(--font-size-12);
+}
+.messages-preview-status {
+  color: var(--muted);
+  margin: 0;
 }
 .messages-schedule {
   justify-content: flex-start;

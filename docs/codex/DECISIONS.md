@@ -407,3 +407,11 @@
 - **Decision:** Show a fixed, translated generic confirmation for each successful request in the browser. Keep the server's generic response behavior and preserve error details for diagnosis.
 - **Why:** Both languages communicate the same privacy-preserving outcome without leaking whether an address has an account.
 - **Consequences / follow-ups:** Localize remaining auth screens and server-provided legal text before Task 16 acceptance.
+
+### DEC-054 — Preview draft campaign audiences without persisting campaign state
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 campaign composer
+- **Context:** The composer needs a live recipient count while staff change selectors, categories and channels before saving a campaign.
+- **Decision:** Use a read-only draft audience preview endpoint backed by the same recipient resolver and channel eligibility calculation as saved campaign preview. Require campaign permissions and owner/admin authorization for emergency audiences; debounce composer requests and skip preview until a selector and channel are present.
+- **Why:** Staff can check routing while editing without persisting every draft and preview counts remain aligned with send-time policy.
+- **Consequences / follow-ups:** Cover saved and unsaved preview paths with tenant and permission integration tests.

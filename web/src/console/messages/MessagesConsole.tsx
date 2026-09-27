@@ -13,6 +13,7 @@ import {
 
 import type {
   AudienceOptions,
+  AudienceSpec,
   Campaign,
   CampaignDetail,
   CampaignDraft,
@@ -56,6 +57,15 @@ const roleOptions = [
   { id: 'volunteers', label: 'Volunteers' },
   { id: 'board', label: 'Owners and administrators' },
 ];
+function hasAudienceSelector(audience: AudienceSpec): boolean {
+  const included = audience.include;
+  return Boolean(
+    included.personIds?.length ||
+    included.teamSeasonIds?.length ||
+    included.programIds?.length ||
+    included.roles?.length,
+  );
+}
 type ConsoleView = 'campaigns' | 'sender' | 'moderation' | 'chat';
 type CampaignStats = {
   id: string;
@@ -81,6 +91,7 @@ export function MessagesConsole({
   const [search, setSearch] = useState('');
   const [locale, setLocale] = useState<'en' | 'es'>('en');
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [previewPending, setPreviewPending] = useState(false);
   const [scheduleAt, setScheduleAt] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -89,6 +100,7 @@ export function MessagesConsole({
   const [stats, setStats] = useState<CampaignStats | null>(null);
 
   const base = `/orgs/${encodeURIComponent(orgId)}`;
+  const canEdit = status === 'new' || status === 'draft';
   const reload = useCallback(async () => {
     try {
       const response = await communicationsRequest<{ items: Campaign[] }>(
@@ -128,11 +140,51 @@ export function MessagesConsole({
     };
   }, [base, search]);
 
+  useEffect(() => {
+    if (
+      view !== 'campaigns' ||
+      !canEdit ||
+      !draft.channels.length ||
+      !hasAudienceSelector(draft.audience)
+    ) {
+      setPreview(null);
+      setPreviewPending(false);
+      return;
+    }
+    setPreview(null);
+    setPreviewPending(true);
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void communicationsRequest<Preview>(`${base}/audience-preview`, 'POST', {
+        audience: draft.audience,
+        category: draft.category,
+        channels: draft.channels,
+      })
+        .then((result) => {
+          if (!cancelled) setPreview(result);
+        })
+        .catch((cause: unknown) => {
+          if (!cancelled)
+            setError(
+              cause instanceof Error
+                ? cause.message
+                : 'Could not update audience preview.',
+            );
+        })
+        .finally(() => {
+          if (!cancelled) setPreviewPending(false);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [base, canEdit, draft.audience, draft.category, draft.channels, view]);
+
   const selectedSummary = useMemo(
     () => campaigns.find((item) => item.id === selectedId),
     [campaigns, selectedId],
   );
-  const canEdit = status === 'new' || status === 'draft';
   const setAudience = (
     side: 'include' | 'exclude',
     key: 'personIds' | 'teamSeasonIds' | 'programIds' | 'roles',
@@ -633,6 +685,7 @@ export function MessagesConsole({
                                     (value) => value !== channel.id,
                                   ),
                             }));
+                            setPreview(null);
                           }}
                         />
                         {channel.label}
@@ -987,7 +1040,7 @@ export function MessagesConsole({
               {preview && (
                 <div className="messages-preview" aria-live="polite">
                   <h3>Audience preview · {preview.recipientCount} people</h3>
-                  <ul>
+                  <ul className="messages-preview__counts">
                     {Object.entries(preview.counts).map(([channel, count]) => (
                       <li key={channel}>
                         <strong>{channel}</strong>
@@ -995,11 +1048,42 @@ export function MessagesConsole({
                       </li>
                     ))}
                   </ul>
-                  <p>
-                    Showing up to 50 people with guardian routing already
-                    applied.
-                  </p>
+                  <h4>Recipient preview</h4>
+                  {preview.recipients.length ? (
+                    <ul
+                      aria-label="Audience recipients"
+                      className="messages-preview__recipients"
+                    >
+                      {preview.recipients.map((recipient, index) => (
+                        <li
+                          key={`${recipient.aboutPersonId ?? recipient.displayName}-${String(index)}`}
+                        >
+                          <strong>{recipient.displayName}</strong>
+                          <span>
+                            {recipient.locale === 'es' ? 'Español' : 'English'}
+                            {' · '}
+                            {recipient.channels.length
+                              ? recipient.channels.join(', ')
+                              : 'No eligible channel'}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>No recipients match this audience.</p>
+                  )}
+                  {preview.recipientCount > preview.recipients.length && (
+                    <p>
+                      Showing {preview.recipients.length} of{' '}
+                      {preview.recipientCount} recipients.
+                    </p>
+                  )}
                 </div>
+              )}
+              {previewPending && (
+                <p className="messages-preview-status" role="status">
+                  Updating audience preview…
+                </p>
               )}
               <div className="messages-schedule">
                 <Field label="Schedule date and time">

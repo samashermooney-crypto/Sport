@@ -1,6 +1,6 @@
 # Track H — communications and chat
 
-Status: ready-for-integration (H-owned slice; Phase 10 completion awaits cross-track work)
+Status: ready-for-integration (H-owned slice and live draft audience preview; Phase 10 completion awaits cross-track work)
 Branch: `track/h-comms` (local only; no push)
 Base: merged `rebuild/trunk` at `8553f4b` before this task; prior H checkpoint `a9d9916`
 Local branch range: `a9d9916..HEAD` (includes the `8553f4b` trunk merge and this readiness commit)
@@ -15,6 +15,7 @@ Migration range: `4000–4004`
 - Attachments: completed internal image/PDF references are tenant-validated and stored on messages; portal actions follow current Files authorization. Family-only file access remains blocked by Track C authorization and is listed below.
 - Preferences: H keeps SMS consent and tokenized email unsubscribe; portal links to Track B's notification inbox/preferences instead of duplicating those controls.
 - Decisions recorded: `DEC-046` through `DEC-051`; schema indexes added in `4004` after the full gate found missing foreign-key lookup indexes.
+- The ready `1912463` commit adds a live unsaved-audience preview backed by the saved recipient resolver and channel-eligibility rules, with emergency owner/admin authorization; the decision is recorded as `DEC-054` on trunk.
 - Generator requirement: ran `npm run gen:module communications`; it refused to overwrite the existing module, so existing module patterns were preserved.
 
 ## Verification
