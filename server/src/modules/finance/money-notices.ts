@@ -17,7 +17,8 @@ export type FinanceNoticeKind =
   | 'invoice_issued'
   | 'payment_received'
   | 'installment_failed'
-  | 'installment_final_notice';
+  | 'installment_final_notice'
+  | 'card_expiring';
 interface NoticeRow {
   id: string;
   account_id: string;
@@ -53,20 +54,35 @@ export async function enqueueFinanceNotice(
             .where('account_id', '=', input.accountId)
             .where('status', '=', 'succeeded')
             .executeTakeFirst()
-        : await trx
-            .selectFrom('payments as payment')
-            .innerJoin('payment_allocations as allocation', (join) =>
-              join
-                .onRef('allocation.org_id', '=', 'payment.org_id')
-                .onRef('allocation.payment_id', '=', 'payment.id'),
-            )
-            .select('payment.id')
-            .where('payment.org_id', '=', context.orgId)
-            .where('payment.id', '=', input.sourceId)
-            .where('payment.account_id', '=', input.accountId)
-            .where('payment.status', '=', 'failed')
-            .where('allocation.installment_id', 'is not', null)
-            .executeTakeFirst();
+        : input.kind === 'card_expiring'
+          ? await trx
+              .selectFrom('installments as installment')
+              .innerJoin('invoices as invoice', (join) =>
+                join
+                  .onRef('invoice.org_id', '=', 'installment.org_id')
+                  .onRef('invoice.id', '=', 'installment.invoice_id'),
+              )
+              .select('installment.id')
+              .where('installment.org_id', '=', context.orgId)
+              .where('installment.id', '=', input.sourceId)
+              .where('installment.autopay', '=', true)
+              .where('installment.status', '=', 'scheduled')
+              .where('invoice.account_id', '=', input.accountId)
+              .executeTakeFirst()
+          : await trx
+              .selectFrom('payments as payment')
+              .innerJoin('payment_allocations as allocation', (join) =>
+                join
+                  .onRef('allocation.org_id', '=', 'payment.org_id')
+                  .onRef('allocation.payment_id', '=', 'payment.id'),
+              )
+              .select('payment.id')
+              .where('payment.org_id', '=', context.orgId)
+              .where('payment.id', '=', input.sourceId)
+              .where('payment.account_id', '=', input.accountId)
+              .where('payment.status', '=', 'failed')
+              .where('allocation.installment_id', 'is not', null)
+              .executeTakeFirst();
   if (!owned) throw new Error('Finance notice recipient does not own source');
   const id = newId();
   const key = newId();
@@ -79,7 +95,12 @@ export async function enqueueFinanceNotice(
     ON CONFLICT (org_id, kind, source_id) DO NOTHING RETURNING id
   `.execute(trx);
   if (!inserted.rows.length) return false;
-  const resourceType = input.kind === 'invoice_issued' ? 'invoice' : 'payment';
+  const resourceType =
+    input.kind === 'invoice_issued'
+      ? 'invoice'
+      : input.kind === 'card_expiring'
+        ? 'installment'
+        : 'payment';
   await createNotification(trx, context, {
     accountId: input.accountId,
     type:
@@ -89,7 +110,9 @@ export async function enqueueFinanceNotice(
           ? 'payment.succeeded'
           : input.kind === 'installment_final_notice'
             ? 'installment.final_notice'
-            : 'installment.failed',
+            : input.kind === 'card_expiring'
+              ? 'autopay.card_expiring'
+              : 'installment.failed',
     payload: { resourceType, resourceId: input.sourceId },
   });
   await appendAuditEvent(trx, context, {
@@ -156,13 +179,17 @@ export class PostgresFinanceNoticeDelivery {
           ? 'Your payment receipt is ready'
           : notice.kind === 'installment_final_notice'
             ? 'Your installment needs a new payment method'
-            : 'Your installment payment failed';
+            : notice.kind === 'card_expiring'
+              ? 'Your saved card will expire before an installment'
+              : 'Your installment payment failed';
     const path =
       notice.kind === 'invoice_issued'
         ? `/portal/orgs/${this.context.orgId}/money/invoices`
         : notice.kind === 'payment_received'
           ? `/portal/orgs/${this.context.orgId}/money/receipts`
-          : `/portal/orgs/${this.context.orgId}/money/installments`;
+          : notice.kind === 'card_expiring'
+            ? `/portal/orgs/${this.context.orgId}/money/autopay`
+            : `/portal/orgs/${this.context.orgId}/money/installments`;
     const url = new URL(path, this.appUrl).toString();
     try {
       const pdf = await this.attachment(notice, recipient.email);
@@ -201,7 +228,8 @@ export class PostgresFinanceNoticeDelivery {
   ): Promise<Buffer | null> {
     if (
       notice.kind === 'installment_failed' ||
-      notice.kind === 'installment_final_notice'
+      notice.kind === 'installment_final_notice' ||
+      notice.kind === 'card_expiring'
     ) {
       if (notice.delivery_email) return null;
       await this.withOrg(this.context, async (trx) => {

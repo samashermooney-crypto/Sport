@@ -376,11 +376,19 @@ describe('durable installment charges', () => {
     expect(attempt.installmentId).toBe(another);
     await repo.beginExternal(attempt);
     await repo.recordIntent(attempt, 'pi_test_expired_card');
-    await new PostgresPaymentEventRepository(
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('organizations')
+        .set({ settings: { lateFeeCents: 100 } })
+        .where('id', '=', context.orgId)
+        .execute(),
+    );
+    const events = new PostgresPaymentEventRepository(
       database,
       context.actor.accountId,
       () => Temporal.Instant.from('2026-10-05T16:00:00Z'),
-    ).applyLatest({
+    );
+    const failure = {
       orgId: context.orgId,
       paymentIntentId: 'pi_test_expired_card',
       latest: {
@@ -392,7 +400,39 @@ describe('durable installment charges', () => {
         method: 'card',
         failureCode: 'expired_card',
       },
+    } as const;
+    await events.applyLatest(failure);
+    expect(await events.applyLatest(failure)).toBe('unchanged');
+    expect(
+      await events.applyLatest({
+        ...failure,
+        latest: { ...failure.latest, failureMessage: 'Issuer declined' },
+      }),
+    ).toBe('applied');
+    const charged = await createWithOrg(database)(context, async (trx) => ({
+      invoice: await trx
+        .selectFrom('invoices')
+        .select(['subtotal_cents', 'total_cents', 'balance_cents'])
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', invoice.id)
+        .executeTakeFirstOrThrow(),
+      lines: await sql<{
+        amount_cents: number;
+        late_fee_installment_id: string;
+      }>`
+        SELECT amount_cents, late_fee_installment_id FROM invoice_lines
+        WHERE org_id = ${context.orgId}::uuid
+          AND invoice_id = ${invoice.id}::uuid AND kind = 'late_fee'
+      `.execute(trx),
+    }));
+    expect(charged.invoice).toMatchObject({
+      subtotal_cents: 600,
+      total_cents: 600,
+      balance_cents: 600,
     });
+    expect(charged.lines.rows).toEqual([
+      { amount_cents: 100, late_fee_installment_id: another },
+    ]);
     const stopped = await createWithOrg(database)(context, (trx) =>
       trx
         .selectFrom('installments')
@@ -418,6 +458,13 @@ describe('durable installment charges', () => {
     expect(
       await repo.claimDue(context.orgId, '2026-10-06T15:00:00Z'),
     ).toBeNull();
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('organizations')
+        .set({ settings: {} })
+        .where('id', '=', context.orgId)
+        .execute(),
+    );
   });
 
   it('notifies finance once when an ACH installment fails after processing', async () => {
