@@ -88,6 +88,57 @@ function setTarget(
   else source.loserTo = { matchId: target.id, slot };
 }
 
+function propagateFinalizedMatches(matches: BracketMatch[]): void {
+  for (const match of matches) {
+    if (!match.finalized) continue;
+    const participants = [match.home.entrantId, match.away.entrantId];
+    const loserId =
+      match.winnerId === null
+        ? null
+        : (participants.find((id) => id !== match.winnerId) ?? null);
+    for (const [target, entrantId] of [
+      [match.winnerTo, match.winnerId],
+      [match.loserTo, loserId],
+    ] as const) {
+      if (!target) continue;
+      const downstream = matches.find((item) => item.id === target.matchId);
+      if (!downstream) throw new Error('Bracket target missing');
+      downstream[target.slot].entrantId = entrantId;
+    }
+  }
+}
+
+function slotIsResolved(slot: BracketSlot, matches: readonly BracketMatch[]) {
+  if (!slot.sourceMatchId) return true;
+  return (
+    matches.find((match) => match.id === slot.sourceMatchId)?.finalized ?? false
+  );
+}
+
+function resolveAutomaticByes(matches: BracketMatch[]): void {
+  let changed = true;
+  while (changed) {
+    changed = false;
+    propagateFinalizedMatches(matches);
+    for (const match of matches) {
+      if (
+        match.finalized ||
+        match.bracket === 'final' ||
+        !slotIsResolved(match.home, matches) ||
+        !slotIsResolved(match.away, matches)
+      )
+        continue;
+      const homeId = match.home.entrantId;
+      const awayId = match.away.entrantId;
+      if (homeId && awayId) continue;
+      match.winnerId = homeId ?? awayId;
+      match.finalized = true;
+      changed = true;
+    }
+  }
+  propagateFinalizedMatches(matches);
+}
+
 export function generateSingleElimination(
   entrants: readonly BracketEntrant[],
 ): Bracket {
@@ -134,6 +185,7 @@ export function generateSingleElimination(
         target[index % 2 === 0 ? 'home' : 'away'].entrantId = match.winnerId;
     });
   }
+  resolveAutomaticByes(matches);
   return { kind: 'single', size, matches, resetFinalId: null };
 }
 
@@ -232,6 +284,7 @@ export function generateDoubleElimination(
       winnerTo: null,
       loserTo: null,
     });
+  resolveAutomaticByes(matches);
   return {
     kind: 'double',
     size: single.size,
@@ -325,5 +378,6 @@ export function finalizeBracketMatch(
       downstream.finalized = false;
     }
   }
+  resolveAutomaticByes(matches);
   return { ...bracket, matches };
 }

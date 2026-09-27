@@ -54,8 +54,8 @@ export async function listSeasonSurveys(
     return trx
       .selectFrom('season_survey_campaigns')
       .selectAll()
-      .where('org_id', '=', context.orgId)
-      .where('program_id', '=', programId)
+      .where('season_survey_campaigns.org_id', '=', context.orgId)
+      .where('season_survey_campaigns.program_id', '=', programId)
       .orderBy('created_at', 'desc')
       .execute();
   });
@@ -552,8 +552,8 @@ export async function listSeasonAwards(context: OrgContext, programId: string) {
         'people.last_name as recipient_last_name',
         'team_seasons.display_name as recipient_team_name',
       ])
-      .where('org_id', '=', context.orgId)
-      .where('program_id', '=', programId)
+      .where('season_awards.org_id', '=', context.orgId)
+      .where('season_awards.program_id', '=', programId)
       .orderBy('issued_at', 'desc')
       .execute();
   });

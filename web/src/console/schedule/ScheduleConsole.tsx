@@ -100,6 +100,13 @@ type ContestExportResult = {
   status: string;
   score_detail: unknown;
 };
+type ContestStatDefinition = {
+  key: string;
+  label: { en: string; es: string };
+  abbreviation: string;
+  level: 'athlete' | 'team';
+  valueType: string;
+};
 type StandingsRow = {
   teamId: string;
   rank: number;
@@ -130,12 +137,48 @@ type TeamStatsSnapshot = {
   }>;
   summary: Record<string, number>;
 };
+type ProgramStatLeaderboards = {
+  items: Array<{
+    key: string;
+    label: { en: string; es: string };
+    abbreviation: string;
+    level: 'athlete' | 'team';
+    valueType: string;
+    leaders: Array<{
+      subjectId: string;
+      subjectLabel: string;
+      value: number;
+      rank: number;
+    }>;
+  }>;
+};
+type ProgramStatSettings = {
+  programId: string;
+  version: number;
+  enabledStatKeys: string[];
+  definitions: Array<{
+    key: string;
+    label: { en: string; es: string };
+    abbreviation: string;
+    level: 'athlete' | 'team';
+    valueType: string;
+    public: boolean;
+  }>;
+};
 
 const base = (orgId: string, module: string) =>
   `/api/v1/${module}/orgs/${encodeURIComponent(orgId)}`;
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { credentials: 'include', ...init });
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const headers = new Headers(init?.headers);
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method))
+    headers.set('X-Athlentry-Request', '1');
+  const response = await fetch(url, {
+    credentials: 'include',
+    ...init,
+    headers,
+  });
   const value =
     response.status === 204
       ? null
@@ -234,6 +277,7 @@ export function ScheduleConsole({
     format?: { format: string; lanes?: number; heats?: boolean };
     participants?: MeetParticipant[];
     results?: ContestExportResult[];
+    statDefinitions?: ContestStatDefinition[];
     event?: { title: string; starts_at: string; timezone: string };
   } | null>(null);
   const [standingsScopeType, setStandingsScopeType] = useState<
@@ -243,6 +287,10 @@ export function ScheduleConsole({
   const [standings, setStandings] = useState<StandingsSnapshot | null>(null);
   const [teamStatsTeamId, setTeamStatsTeamId] = useState('');
   const [teamStats, setTeamStats] = useState<TeamStatsSnapshot | null>(null);
+  const [programStatLeaders, setProgramStatLeaders] =
+    useState<ProgramStatLeaderboards | null>(null);
+  const [programStatSettings, setProgramStatSettings] =
+    useState<ProgramStatSettings | null>(null);
 
   const loadEvents = useCallback(async () => {
     setError('');
@@ -448,6 +496,64 @@ export function ScheduleConsole({
         ),
       );
     }, 'Team statistics loaded.');
+  }
+
+  async function loadProgramStatLeaders(): Promise<void> {
+    if (!programId.trim()) {
+      setError('Enter a program ID before loading its leaderboards.');
+      return;
+    }
+    const query = new URLSearchParams();
+    if (divisionId.trim()) query.set('divisionId', divisionId.trim());
+    await perform(async () => {
+      setProgramStatLeaders(
+        await api<ProgramStatLeaderboards>(
+          `${base(orgId, 'contests')}/programs/${encodeURIComponent(programId.trim())}/stats/leaders?${query}`,
+        ),
+      );
+    }, 'Program statistics loaded.');
+  }
+
+  async function loadProgramStatSettings(): Promise<void> {
+    if (!programId.trim()) {
+      setError('Enter a program ID before configuring its statistics.');
+      return;
+    }
+    await perform(async () => {
+      setProgramStatSettings(
+        await api<ProgramStatSettings>(
+          `${base(orgId, 'contests')}/programs/${encodeURIComponent(programId.trim())}/stats/settings`,
+        ),
+      );
+    }, 'Program statistics settings loaded.');
+  }
+
+  async function saveProgramStatSettings(
+    event: SubmitEvent<HTMLFormElement>,
+  ): Promise<void> {
+    event.preventDefault();
+    if (!programStatSettings) {
+      setError('Load program statistic settings before saving.');
+      return;
+    }
+    await perform(async () => {
+      const result = await api<
+        Pick<ProgramStatSettings, 'version' | 'enabledStatKeys'>
+      >(
+        `${base(orgId, 'contests')}/programs/${encodeURIComponent(programStatSettings.programId)}/stats/settings`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            expectedVersion: programStatSettings.version,
+            enabledStatKeys: programStatSettings.enabledStatKeys,
+          }),
+        },
+      );
+      setProgramStatSettings({ ...programStatSettings, ...result });
+      setProgramStatLeaders(null);
+      await loadContest();
+    }, 'Program statistics settings saved.');
   }
 
   async function saveStandingsVisibility(
@@ -1039,6 +1145,7 @@ export function ScheduleConsole({
       participants: MeetParticipant[];
       format: { format: string; lanes?: number; heats?: boolean };
       results: ContestExportResult[];
+      statDefinitions: ContestStatDefinition[];
       event: { title: string; starts_at: string; timezone: string };
     }>(`${base(orgId, 'contests')}/contests/${result.contest.id}`);
     setContest({
@@ -1046,6 +1153,7 @@ export function ScheduleConsole({
       format: detail.format,
       participants: detail.participants,
       results: detail.results,
+      statDefinitions: detail.statDefinitions,
       event: detail.event,
     });
   }
@@ -1063,6 +1171,49 @@ export function ScheduleConsole({
       setError('Enter valid JSON that matches the contest format.');
       return;
     }
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      setError('Result JSON must be an object.');
+      return;
+    }
+    const statInputs = (contest.statDefinitions ?? []).flatMap((definition) =>
+      (contest.participants ?? []).flatMap((participant) => {
+        const eligible =
+          definition.level === 'athlete'
+            ? participant.person_id !== null
+            : participant.team_season_id !== null;
+        if (!eligible) return [];
+        const fieldName = `stat:${participant.id}:${definition.key}`;
+        const value = form.get(fieldName);
+        if (typeof value !== 'string' || value.trim() === '') return [];
+        return [
+          {
+            participantId: participant.id,
+            statKey: definition.key,
+            abbreviation: definition.abbreviation,
+            valueType: definition.valueType,
+            value: Number(value),
+          },
+        ];
+      }),
+    );
+    const invalidStat = statInputs.find(
+      (stat) =>
+        !Number.isFinite(stat.value) ||
+        stat.value < 0 ||
+        (stat.valueType === 'integer' && !Number.isSafeInteger(stat.value)),
+    );
+    if (invalidStat) {
+      setError(
+        `${invalidStat.abbreviation} must be a valid non-negative value.`,
+      );
+      return;
+    }
+    const enteredStats = statInputs.map((stat) => ({
+      participantId: stat.participantId,
+      statKey: stat.statKey,
+      value: stat.value,
+    }));
+    result = { ...result, stats: enteredStats };
     await perform(async () => {
       const response = await api<{ version: number; status: string }>(
         `${base(orgId, 'contests')}/contests/${contest.id}/results`,
@@ -1386,6 +1537,8 @@ export function ScheduleConsole({
                 value={programId}
                 onChange={(event) => {
                   setProgramId(event.target.value);
+                  setProgramStatSettings(null);
+                  setProgramStatLeaders(null);
                 }}
               />
             </Field>
@@ -1474,6 +1627,8 @@ export function ScheduleConsole({
                 value={programId}
                 onChange={(event) => {
                   setProgramId(event.target.value);
+                  setProgramStatSettings(null);
+                  setProgramStatLeaders(null);
                 }}
                 required
               />
@@ -2304,6 +2459,38 @@ export function ScheduleConsole({
                   }
                 />
               </Field>
+              {contest.statDefinitions?.flatMap((definition) =>
+                (contest.participants ?? [])
+                  .filter((participant) =>
+                    definition.level === 'athlete'
+                      ? participant.person_id !== null
+                      : participant.team_season_id !== null,
+                  )
+                  .map((participant) => {
+                    const participantLabel =
+                      participant.person_id ??
+                      participant.team_season_id ??
+                      participant.id;
+                    const label =
+                      definition.label[
+                        document.documentElement.lang === 'es' ? 'es' : 'en'
+                      ] || definition.abbreviation;
+                    return (
+                      <Field
+                        key={`${participant.id}:${definition.key}`}
+                        label={`${label} · ${participantLabel}`}
+                      >
+                        <Input
+                          aria-label={`${label} for ${participantLabel}`}
+                          name={`stat:${participant.id}:${definition.key}`}
+                          type="number"
+                          min={0}
+                          step={definition.valueType === 'integer' ? 1 : 'any'}
+                        />
+                      </Field>
+                    );
+                  }),
+              )}
               <label className="schedule-check">
                 <input name="finalize" type="checkbox" /> Finalize result and
                 update standings
@@ -2941,6 +3128,133 @@ export function ScheduleConsole({
           )}
         </section>
       </div>
+      <section
+        className="schedule-card"
+        aria-labelledby="schedule-stat-settings-heading"
+      >
+        <h2 id="schedule-stat-settings-heading">Program statistic settings</h2>
+        <p>
+          Choose which sport statistics can be entered for this program. Public
+          athlete statistics appear in leaderboards and personal bests; private
+          athlete statistics stay staff-only.
+        </p>
+        <div className="schedule-actions">
+          <Button
+            type="button"
+            secondary
+            disabled={loading || !programId.trim()}
+            onClick={() => void loadProgramStatSettings()}
+          >
+            Load statistic settings
+          </Button>
+        </div>
+        {programStatSettings && (
+          <form
+            className="schedule-form"
+            onSubmit={(event) => void saveProgramStatSettings(event)}
+          >
+            {programStatSettings.definitions.map((definition) => {
+              const enabled = programStatSettings.enabledStatKeys.includes(
+                definition.key,
+              );
+              const label =
+                definition.label[
+                  document.documentElement.lang === 'es' ? 'es' : 'en'
+                ] || definition.abbreviation;
+              return (
+                <label className="schedule-check" key={definition.key}>
+                  <input
+                    type="checkbox"
+                    checked={enabled}
+                    onChange={(event) => {
+                      const enabledStatKeys = new Set(
+                        programStatSettings.enabledStatKeys,
+                      );
+                      if (event.currentTarget.checked)
+                        enabledStatKeys.add(definition.key);
+                      else enabledStatKeys.delete(definition.key);
+                      setProgramStatSettings({
+                        ...programStatSettings,
+                        enabledStatKeys: [...enabledStatKeys],
+                      });
+                    }}
+                  />
+                  {label} ({definition.level}) ·{' '}
+                  {definition.public ? 'public' : 'staff only'}
+                </label>
+              );
+            })}
+            {!programStatSettings.definitions.length && (
+              <p>No statistics are defined in this sport profile.</p>
+            )}
+            <Button
+              type="submit"
+              disabled={loading || !programStatSettings.definitions.length}
+            >
+              Save statistic settings
+            </Button>
+          </form>
+        )}
+      </section>
+      <section
+        className="schedule-card"
+        aria-labelledby="schedule-stat-leaderboards-heading"
+      >
+        <h2 id="schedule-stat-leaderboards-heading">
+          Program and division leaderboards
+        </h2>
+        <p>Only configured statistics marked public are shown.</p>
+        <Button
+          type="button"
+          disabled={loading || !programId.trim()}
+          onClick={() => void loadProgramStatLeaders()}
+        >
+          Load leaderboards
+        </Button>
+        {programStatLeaders &&
+          (programStatLeaders.items.length ? (
+            programStatLeaders.items.map((item) => (
+              <div className="table-scroll" key={item.key}>
+                <h3>
+                  {item.label[
+                    document.documentElement.lang === 'es' ? 'es' : 'en'
+                  ] || item.abbreviation}
+                </h3>
+                <table className="ui-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Rank</th>
+                      <th scope="col">
+                        {item.level === 'athlete' ? 'Athlete' : 'Team'}
+                      </th>
+                      <th scope="col">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {item.leaders.map((leader) => (
+                      <tr key={leader.subjectId}>
+                        <td>{leader.rank}</td>
+                        <th scope="row">{leader.subjectLabel}</th>
+                        <td>
+                          {item.valueType === 'time_ms'
+                            ? `${(leader.value / 1000).toFixed(2)} s`
+                            : leader.value}
+                        </td>
+                      </tr>
+                    ))}
+                    {!item.leaders.length && (
+                      <tr>
+                        <td colSpan={3}>No finalized results yet.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ))
+          ) : (
+            <p>No configured public statistics are available.</p>
+          ))}
+      </section>
       <ScheduleRequestsPanel orgId={orgId} />
       <TournamentPanel orgId={orgId} programId={programId} />
       <OfficialsPanel orgId={orgId} programId={programId} />

@@ -13,6 +13,7 @@ import { contestFormatSchema, sportProfileSchema } from '@shared/sport/schema';
 import type { ContestFormatConfig, SportProfile } from '@shared/sport/schema';
 import { aggregateStats, statLeaders } from '@shared/sport/stats';
 
+import type { JsonObject } from '../../db/types';
 import { withOrg } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 import { VersionConflictError } from '../../lib/version-check';
@@ -66,6 +67,21 @@ function statNumericValue(value: number | string): number {
   if (!Number.isFinite(result))
     throw new SchedulingRuleError('A stored statistic is not numeric.', 409);
   return result;
+}
+
+function enabledProgramStatKeys(settings: unknown): Set<string> {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings))
+    return new Set();
+  const keys = (settings as Record<string, unknown>).statsEnabled;
+  return Array.isArray(keys)
+    ? new Set(keys.filter((key): key is string => typeof key === 'string'))
+    : new Set();
+}
+
+function programSettingsObject(settings: unknown): JsonObject {
+  return settings && typeof settings === 'object' && !Array.isArray(settings)
+    ? (settings as JsonObject)
+    : {};
 }
 
 async function contestBundle(
@@ -146,7 +162,14 @@ export async function createContest(
   eventId: string,
   input: {
     formatIndex: number;
-    stage: 'regular' | 'pool' | 'playoff' | 'tournament' | 'friendly';
+    stage:
+      | 'regular'
+      | 'pool'
+      | 'playoff'
+      | 'championship'
+      | 'consolation'
+      | 'friendly'
+      | 'exhibition';
     countsForStandings: boolean;
   },
 ) {
@@ -288,11 +311,7 @@ export async function createContest(
         profile_version: sportProfile.version,
         format: format.format,
         format_config: format as unknown as import('../../db/types').Json,
-        stage: scheduledMatch
-          ? poolMatch
-            ? 'pool'
-            : 'tournament'
-          : input.stage,
+        stage: scheduledMatch ? (poolMatch ? 'pool' : 'playoff') : input.stage,
         counts_for_standings: scheduledMatch
           ? poolMatch
           : input.countsForStandings,
@@ -506,11 +525,64 @@ type ComputedRow = {
   detail: Record<string, unknown>;
 };
 
+async function teamAttributionByPerson(
+  trx: OrgTransaction,
+  orgId: string,
+  participants: readonly ContestParticipant[],
+  programId: string | null,
+  divisionId: string | null,
+): Promise<Map<string, string>> {
+  const personIds = participants
+    .map((participant) => participant.person_id)
+    .filter((id): id is string => Boolean(id));
+  if (!personIds.length || !programId) return new Map();
+  const rows = await trx
+    .selectFrom('roster_entries')
+    .innerJoin('team_seasons', (join) =>
+      join
+        .onRef('team_seasons.org_id', '=', 'roster_entries.org_id')
+        .onRef('team_seasons.id', '=', 'roster_entries.team_season_id'),
+    )
+    .select([
+      'roster_entries.person_id',
+      'roster_entries.team_season_id',
+      'roster_entries.created_at',
+      'team_seasons.division_id',
+    ])
+    .where('roster_entries.org_id', '=', orgId)
+    .where('roster_entries.person_id', 'in', personIds)
+    .where('roster_entries.status', 'in', ['active', 'injured', 'suspended'])
+    .where('team_seasons.program_id', '=', programId)
+    .orderBy('roster_entries.created_at')
+    .execute();
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    if (!row.person_id || map.has(row.person_id)) continue;
+    if (divisionId && row.division_id !== divisionId) continue;
+    map.set(row.person_id, row.team_season_id);
+  }
+  return map;
+}
+
+function participantTeamId(
+  participant: ContestParticipant | undefined,
+  teamsByPerson: ReadonlyMap<string, string>,
+): string | undefined {
+  if (!participant) return undefined;
+  return (
+    participant.team_season_id ??
+    (participant.person_id
+      ? teamsByPerson.get(participant.person_id)
+      : undefined)
+  );
+}
+
 function computeResultRows(
   format: ContestFormatConfig,
   participants: readonly ContestParticipant[],
   input: ResultInput,
   bracket: boolean,
+  teamsByPerson: ReadonlyMap<string, string> = new Map(),
 ): ComputedRow[] {
   const bySide = new Map(participants.map((item) => [item.side, item]));
   const homeParticipant = bySide.get('home');
@@ -658,9 +730,9 @@ function computeResultRows(
     const ranked: RankedEntry[] = input.entries.map((entry) => ({
       id: entry.participantId,
       value: numeric(entry.value),
-      ...(known.get(entry.participantId)?.team_season_id
-        ? { teamId: known.get(entry.participantId)?.team_season_id as string }
-        : {}),
+      ...((id) => (id === undefined ? {} : { teamId: id }))(
+        participantTeamId(known.get(entry.participantId), teamsByPerson),
+      ),
       ...(entry.status ? { status: entry.status } : {}),
       ...(entry.relay === undefined ? {} : { relay: entry.relay }),
     }));
@@ -671,9 +743,9 @@ function computeResultRows(
       input.entries.map((entry) => ({
         id: entry.participantId,
         attempts: entry.attempts ?? [],
-        ...(known.get(entry.participantId)?.team_season_id
-          ? { teamId: known.get(entry.participantId)?.team_season_id as string }
-          : {}),
+        ...((id) => (id === undefined ? {} : { teamId: id }))(
+          participantTeamId(known.get(entry.participantId), teamsByPerson),
+        ),
         ...(entry.status ? { status: entry.status } : {}),
       })),
     );
@@ -683,9 +755,9 @@ function computeResultRows(
       input.entries.map((entry) => ({
         id: entry.participantId,
         sheets: entry.sheets ?? [],
-        ...(known.get(entry.participantId)?.team_season_id
-          ? { teamId: known.get(entry.participantId)?.team_season_id as string }
-          : {}),
+        ...((id) => (id === undefined ? {} : { teamId: id }))(
+          participantTeamId(known.get(entry.participantId), teamsByPerson),
+        ),
       })),
     );
   } else {
@@ -693,9 +765,9 @@ function computeResultRows(
       input.entries.map((entry) => ({
         id: entry.participantId,
         place: entry.place ?? 0,
-        ...(known.get(entry.participantId)?.team_season_id
-          ? { teamId: known.get(entry.participantId)?.team_season_id as string }
-          : {}),
+        ...((id) => (id === undefined ? {} : { teamId: id }))(
+          participantTeamId(known.get(entry.participantId), teamsByPerson),
+        ),
       })),
       format.placePoints,
     );
@@ -809,13 +881,21 @@ async function updateStatLines(
   participants: readonly ContestParticipant[],
   stats: ResultInput['stats'],
   profile: SportProfile,
+  enabledStatKeys: ReadonlySet<string>,
 ): Promise<void> {
-  if (!stats?.length) return;
+  if (!stats) return;
+  await trx
+    .deleteFrom('stat_lines')
+    .where('org_id', '=', orgId)
+    .where('contest_id', '=', contestId)
+    .execute();
   const participantById = new Map(
     participants.map((participant) => [participant.id, participant]),
   );
   const definitions = new Map(
-    profile.stats.map((definition) => [definition.key, definition]),
+    profile.stats
+      .filter((definition) => enabledStatKeys.has(definition.key))
+      .map((definition) => [definition.key, definition]),
   );
   for (const stat of stats) {
     const participant = participantById.get(stat.participantId);
@@ -928,6 +1008,15 @@ export async function submitContestResult(
       results: bundle.results,
     };
     const bracket = Boolean(bundle.contest.bracket_match_id);
+    const teamsByPerson = input.result.abandoned
+      ? new Map<string, string>()
+      : await teamAttributionByPerson(
+          trx,
+          context.orgId,
+          bundle.participants,
+          bundle.event.program_id,
+          bundle.event.division_id,
+        );
     const computed = input.result.abandoned
       ? []
       : computeResultRows(
@@ -935,8 +1024,18 @@ export async function submitContestResult(
           bundle.participants,
           input.result,
           bracket,
+          teamsByPerson,
         );
     await replaceContestResults(trx, context.orgId, computed);
+    const programSettings =
+      input.result.stats?.length && bundle.event.program_id
+        ? await trx
+            .selectFrom('programs')
+            .select('settings')
+            .where('org_id', '=', context.orgId)
+            .where('id', '=', bundle.event.program_id)
+            .executeTakeFirst()
+        : undefined;
     await updateStatLines(
       trx,
       context.orgId,
@@ -944,6 +1043,7 @@ export async function submitContestResult(
       bundle.participants,
       input.result.stats,
       bundle.profile,
+      enabledProgramStatKeys(programSettings?.settings),
     );
     let status = input.result.abandoned
       ? 'abandoned'
@@ -1168,19 +1268,21 @@ export async function contestDetail(context: OrgContext, contestId: string) {
       bundle.contest.event_id,
     );
     let permitted = false;
+    let canManage = false;
     if (scope) {
       try {
-        await assertSchedulePermission(trx, context, 'results.read', scope);
+        await assertSchedulePermission(trx, context, 'results.manage', scope);
         permitted = true;
+        canManage = true;
       } catch {
-        /* A linked family member or rostered participant may read through person-scoped access. */
+        /* Read access is checked independently below. */
       }
       if (!permitted) {
         try {
-          await assertSchedulePermission(trx, context, 'results.manage', scope);
+          await assertSchedulePermission(trx, context, 'results.read', scope);
           permitted = true;
         } catch {
-          /* Coaches can read the contest for their assigned team. */
+          /* A linked family member or rostered participant may read through person-scoped access. */
         }
       }
     }
@@ -1191,6 +1293,18 @@ export async function contestDetail(context: OrgContext, contestId: string) {
           : participant.team_season_id
             ? { teamSeasonId: participant.team_season_id }
             : {};
+        if (participant.team_season_id) {
+          try {
+            await assertSchedulePermission(trx, context, 'results.manage', {
+              teamSeasonId: participant.team_season_id,
+            });
+            permitted = true;
+            canManage = true;
+            break;
+          } catch {
+            /* Check read access for this participant next. */
+          }
+        }
         try {
           await assertSchedulePermission(
             trx,
@@ -1201,17 +1315,7 @@ export async function contestDetail(context: OrgContext, contestId: string) {
           permitted = true;
           break;
         } catch {
-          if (participant.team_season_id) {
-            try {
-              await assertSchedulePermission(trx, context, 'results.manage', {
-                teamSeasonId: participant.team_season_id,
-              });
-              permitted = true;
-              break;
-            } catch {
-              /* Continue until a permitted participant scope is found. */
-            }
-          }
+          /* Continue until a permitted participant scope is found. */
         }
       }
     if (!permitted)
@@ -1220,6 +1324,15 @@ export async function contestDetail(context: OrgContext, contestId: string) {
         403,
         'FORBIDDEN',
       );
+    const programSettings = bundle.event.program_id
+      ? await trx
+          .selectFrom('programs')
+          .select('settings')
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', bundle.event.program_id)
+          .executeTakeFirst()
+      : undefined;
+    const enabledStatKeys = enabledProgramStatKeys(programSettings?.settings);
     return {
       contest: bundle.contest,
       event: bundle.event,
@@ -1227,6 +1340,19 @@ export async function contestDetail(context: OrgContext, contestId: string) {
       results: bundle.results,
       format: bundle.format,
       profileVersion: bundle.contest.profile_version,
+      statDefinitions: bundle.profile.stats
+        .filter(
+          (definition) =>
+            (definition.public || canManage) &&
+            enabledStatKeys.has(definition.key),
+        )
+        .map((definition) => ({
+          key: definition.key,
+          label: definition.label,
+          abbreviation: definition.abbreviation,
+          level: definition.level,
+          valueType: definition.valueType,
+        })),
     };
   });
 }
@@ -1438,7 +1564,31 @@ export async function listContestResults(context: OrgContext, eventId: string) {
           'FORBIDDEN',
         );
     }
-    return contestBundle(trx, context.orgId, contest.id);
+    const bundle = await contestBundle(trx, context.orgId, contest.id);
+    const teamsByPerson = await teamAttributionByPerson(
+      trx,
+      context.orgId,
+      bundle.participants,
+      bundle.event.program_id,
+      bundle.event.division_id,
+    );
+    const teamScores = new Map<string, number>();
+    for (const row of bundle.results) {
+      const teamId =
+        row.team_season_id ??
+        (row.person_id ? teamsByPerson.get(row.person_id) : undefined);
+      if (!teamId) continue;
+      const awarded: unknown = row.points_awarded;
+      const points = typeof awarded === 'number' ? awarded : Number(awarded);
+      teamScores.set(teamId, (teamScores.get(teamId) ?? 0) + points);
+    }
+    return {
+      ...bundle,
+      teamScores: [...teamScores.entries()].map(([teamSeasonId, points]) => ({
+        teamSeasonId,
+        points,
+      })),
+    };
   });
 }
 
@@ -1545,14 +1695,24 @@ export async function listTeamStats(
           .onRef('sport_profiles.org_id', '=', 'programs.org_id')
           .onRef('sport_profiles.id', '=', 'programs.sport_profile_id'),
       )
-      .select(['team_seasons.program_id', 'sport_profiles.profile'])
+      .select([
+        'team_seasons.program_id',
+        'sport_profiles.profile',
+        'programs.settings',
+      ])
       .where('team_seasons.org_id', '=', context.orgId)
       .where('team_seasons.id', '=', scope.teamSeasonId)
       .executeTakeFirstOrThrow();
     const profile = sportProfileSchema.parse(team.profile);
+    const enabledStatKeys = enabledProgramStatKeys(team.settings);
     const permitted = new Set(
       profile.stats
-        .filter((item) => item.level === 'team' && item.public)
+        .filter(
+          (item) =>
+            item.level === 'team' &&
+            item.public &&
+            enabledStatKeys.has(item.key),
+        )
         .map((item) => item.key),
     );
     if (scope.statKey && !permitted.has(scope.statKey))
@@ -1563,14 +1723,26 @@ export async function listTeamStats(
       );
     let query = trx
       .selectFrom('stat_lines')
-      .select(['stat_key', 'value', 'contest_id'])
-      .where('org_id', '=', context.orgId)
-      .where('team_season_id', '=', scope.teamSeasonId)
-      .where('stat_key', 'in', [...permitted]);
-    if (scope.statKey) query = query.where('stat_key', '=', scope.statKey);
-    const stats = await query.execute();
+      .innerJoin('contests', (join) =>
+        join
+          .onRef('contests.org_id', '=', 'stat_lines.org_id')
+          .onRef('contests.id', '=', 'stat_lines.contest_id'),
+      )
+      .select([
+        'stat_lines.stat_key',
+        'stat_lines.value',
+        'stat_lines.contest_id',
+      ])
+      .where('stat_lines.org_id', '=', context.orgId)
+      .where('stat_lines.team_season_id', '=', scope.teamSeasonId)
+      .where('stat_lines.stat_key', 'in', [...permitted])
+      .where('contests.status', 'in', ['final', 'forfeit']);
+    if (scope.statKey)
+      query = query.where('stat_lines.stat_key', '=', scope.statKey);
+    const stats = permitted.size ? await query.execute() : [];
     const definitions = profile.stats.filter(
-      (item) => item.level === 'team' && item.public,
+      (item) =>
+        item.level === 'team' && item.public && enabledStatKeys.has(item.key),
     );
     const aggregate = aggregateStats(
       profile.stats,
@@ -1590,6 +1762,307 @@ export async function listTeamStats(
           aggregate?.[definition.key] ?? 0,
         ]),
       ),
+    };
+  });
+}
+
+export async function getProgramStatSettings(
+  context: OrgContext,
+  programId: string,
+) {
+  return withOrg(context, async (trx) => {
+    await assertSchedulePermission(trx, context, 'results.manage', {
+      programId,
+    });
+    const program = await trx
+      .selectFrom('programs')
+      .innerJoin('sport_profiles', (join) =>
+        join
+          .onRef('sport_profiles.org_id', '=', 'programs.org_id')
+          .onRef('sport_profiles.id', '=', 'programs.sport_profile_id'),
+      )
+      .select([
+        'programs.id',
+        'programs.version',
+        'programs.settings',
+        'sport_profiles.profile',
+      ])
+      .where('programs.org_id', '=', context.orgId)
+      .where('programs.id', '=', programId)
+      .executeTakeFirst();
+    if (!program)
+      throw new SchedulingRuleError('Program not found.', 404, 'NOT_FOUND');
+    const profile = sportProfileSchema.parse(program.profile);
+    return {
+      programId: program.id,
+      version: program.version,
+      enabledStatKeys: [...enabledProgramStatKeys(program.settings)].sort(),
+      definitions: profile.stats.map((definition) => ({
+        key: definition.key,
+        label: definition.label,
+        abbreviation: definition.abbreviation,
+        level: definition.level,
+        valueType: definition.valueType,
+        public: definition.public,
+      })),
+    };
+  });
+}
+
+export async function updateProgramStatSettings(
+  context: OrgContext,
+  programId: string,
+  input: { expectedVersion: number; enabledStatKeys: string[] },
+) {
+  return withOrg(context, async (trx) => {
+    await assertSchedulePermission(trx, context, 'results.manage', {
+      programId,
+    });
+    const program = await trx
+      .selectFrom('programs')
+      .select(['id', 'version', 'settings', 'sport_profile_id'])
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', programId)
+      .executeTakeFirst();
+    if (!program)
+      throw new SchedulingRuleError('Program not found.', 404, 'NOT_FOUND');
+    if (program.version !== input.expectedVersion)
+      throw new VersionConflictError(program);
+    const profileRow = await trx
+      .selectFrom('sport_profiles')
+      .select('profile')
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', program.sport_profile_id)
+      .executeTakeFirst();
+    if (!profileRow)
+      throw new SchedulingRuleError(
+        'Program sport profile not found.',
+        409,
+        'CONFLICT',
+      );
+    const availableKeys = new Set(
+      sportProfileSchema
+        .parse(profileRow.profile)
+        .stats.map((item) => item.key),
+    );
+    if (
+      new Set(input.enabledStatKeys).size !== input.enabledStatKeys.length ||
+      input.enabledStatKeys.some((key) => !availableKeys.has(key))
+    )
+      throw new SchedulingRuleError(
+        'Enabled statistics must be unique keys from the program sport profile.',
+      );
+    const settings = {
+      ...programSettingsObject(program.settings),
+      statsEnabled: input.enabledStatKeys,
+    };
+    const updated = await trx
+      .updateTable('programs')
+      .set({ settings, version: program.version + 1 })
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', programId)
+      .where('version', '=', input.expectedVersion)
+      .returning('version')
+      .executeTakeFirst();
+    if (!updated) throw new VersionConflictError(program);
+    await appendAuditEvent(trx, context, {
+      action: 'program.stats.configure',
+      entityType: 'program',
+      entityId: programId,
+      changes: {
+        statsEnabled: {
+          tier: 'internal',
+          before: [...enabledProgramStatKeys(program.settings)].sort(),
+          after: [...input.enabledStatKeys].sort(),
+        },
+      },
+    });
+    return {
+      programId,
+      version: updated.version,
+      enabledStatKeys: [...input.enabledStatKeys].sort(),
+    };
+  });
+}
+
+export async function listProgramStatLeaders(
+  context: OrgContext,
+  scope: { programId: string; divisionId?: string },
+) {
+  return withOrg(context, async (trx) => {
+    await assertSchedulePermission(trx, context, 'results.read', scope);
+    if (scope.divisionId) {
+      const division = await trx
+        .selectFrom('divisions')
+        .select('id')
+        .where('org_id', '=', context.orgId)
+        .where('program_id', '=', scope.programId)
+        .where('id', '=', scope.divisionId)
+        .executeTakeFirst();
+      if (!division)
+        throw new SchedulingRuleError(
+          'Division not found in this program.',
+          404,
+          'NOT_FOUND',
+        );
+    }
+    const program = await trx
+      .selectFrom('programs')
+      .innerJoin('sport_profiles', (join) =>
+        join
+          .onRef('sport_profiles.org_id', '=', 'programs.org_id')
+          .onRef('sport_profiles.id', '=', 'programs.sport_profile_id'),
+      )
+      .select(['programs.settings', 'sport_profiles.profile', 'programs.id'])
+      .where('programs.org_id', '=', context.orgId)
+      .where('programs.id', '=', scope.programId)
+      .executeTakeFirst();
+    if (!program)
+      throw new SchedulingRuleError('Program not found.', 404, 'NOT_FOUND');
+
+    const profile = sportProfileSchema.parse(program.profile);
+    const enabledKeys = enabledProgramStatKeys(program.settings);
+    const definitions = profile.stats.filter(
+      (definition) => enabledKeys.has(definition.key) && definition.public,
+    );
+    if (!definitions.length)
+      return {
+        programId: program.id,
+        divisionId: scope.divisionId ?? null,
+        items: [],
+      };
+
+    let query = trx
+      .selectFrom('stat_lines')
+      .innerJoin('contests', (join) =>
+        join
+          .onRef('contests.org_id', '=', 'stat_lines.org_id')
+          .onRef('contests.id', '=', 'stat_lines.contest_id'),
+      )
+      .innerJoin('events', (join) =>
+        join
+          .onRef('events.org_id', '=', 'contests.org_id')
+          .onRef('events.id', '=', 'contests.event_id'),
+      )
+      .select([
+        'stat_lines.contest_id',
+        'stat_lines.stat_key',
+        'stat_lines.value',
+        'stat_lines.team_season_id',
+        'stat_lines.person_id',
+      ])
+      .where('stat_lines.org_id', '=', context.orgId)
+      .where('events.program_id', '=', scope.programId)
+      .where('contests.status', 'in', ['final', 'forfeit'])
+      .where(
+        'stat_lines.stat_key',
+        'in',
+        [...enabledKeys].filter((key) =>
+          profile.stats.some((definition) => definition.key === key),
+        ),
+      );
+    if (scope.divisionId)
+      query = query.where('events.division_id', '=', scope.divisionId);
+    const rows = await query.execute();
+    const definitionByKey = new Map(
+      profile.stats.map((definition) => [definition.key, definition]),
+    );
+    const entriesByLevel = new Map<
+      'athlete' | 'team',
+      Map<string, { subjectId: string; values: Record<string, number> }>
+    >([
+      ['athlete', new Map()],
+      ['team', new Map()],
+    ]);
+    for (const row of rows) {
+      const definition = definitionByKey.get(row.stat_key);
+      if (!definition || !enabledKeys.has(definition.key)) continue;
+      const subjectId =
+        definition.level === 'athlete' ? row.person_id : row.team_season_id;
+      if (!subjectId) continue;
+      const entries = entriesByLevel.get(definition.level);
+      if (!entries) continue;
+      const entryKey = `${subjectId}:${row.contest_id}`;
+      const entry = entries.get(entryKey) ?? {
+        subjectId,
+        values: {},
+      };
+      entry.values[definition.key] = statNumericValue(row.value);
+      entries.set(entryKey, entry);
+    }
+
+    const summaries = new Map<
+      'athlete' | 'team',
+      ReturnType<typeof aggregateStats>
+    >();
+    for (const level of ['athlete', 'team'] as const) {
+      const entries = [...(entriesByLevel.get(level)?.values() ?? [])];
+      const levelDefinitions = profile.stats.filter(
+        (definition) => definition.level === level,
+      );
+      summaries.set(level, aggregateStats(levelDefinitions, entries));
+    }
+    const labels = new Map<string, string>();
+    const teamSeasonIds = [
+      ...new Set(
+        definitions.some((definition) => definition.level === 'team')
+          ? (summaries.get('team') ?? []).map((entry) => entry.subjectId)
+          : [],
+      ),
+    ];
+    if (teamSeasonIds.length) {
+      const teams = await trx
+        .selectFrom('team_seasons')
+        .innerJoin('teams', (join) =>
+          join
+            .onRef('teams.org_id', '=', 'team_seasons.org_id')
+            .onRef('teams.id', '=', 'team_seasons.team_id'),
+        )
+        .select(['team_seasons.id', 'teams.name'])
+        .where('team_seasons.org_id', '=', context.orgId)
+        .where('team_seasons.id', 'in', teamSeasonIds)
+        .execute();
+      for (const team of teams) labels.set(team.id, team.name);
+    }
+    const personIds = [
+      ...new Set(
+        definitions.some((definition) => definition.level === 'athlete')
+          ? (summaries.get('athlete') ?? []).map((entry) => entry.subjectId)
+          : [],
+      ),
+    ];
+    if (personIds.length) {
+      const people = await trx
+        .selectFrom('people')
+        .select(['id', 'first_name', 'last_name'])
+        .where('org_id', '=', context.orgId)
+        .where('id', 'in', personIds)
+        .execute();
+      for (const person of people)
+        labels.set(
+          person.id,
+          `${person.first_name} ${person.last_name}`.trim(),
+        );
+    }
+
+    const items = definitions.map((definition) => ({
+      key: definition.key,
+      label: definition.label,
+      abbreviation: definition.abbreviation,
+      level: definition.level,
+      valueType: definition.valueType,
+      leaders: statLeaders(definition, summaries.get(definition.level) ?? [], {
+        youth: true,
+        viewerCanSeePrivate: false,
+      }).map((leader) => ({
+        ...leader,
+        subjectLabel: labels.get(leader.subjectId) ?? 'Participant',
+      })),
+    }));
+    return {
+      programId: program.id,
+      divisionId: scope.divisionId ?? null,
+      items,
     };
   });
 }
@@ -1674,6 +2147,11 @@ export async function listPersonPersonalBests(
           .onRef('events.org_id', '=', 'contests.org_id')
           .onRef('events.id', '=', 'contests.event_id'),
       )
+      .leftJoin('programs', (join) =>
+        join
+          .onRef('programs.org_id', '=', 'events.org_id')
+          .onRef('programs.id', '=', 'events.program_id'),
+      )
       .innerJoin('sport_profile_versions as profile_version', (join) =>
         join
           .onRef('profile_version.org_id', '=', 'contests.org_id')
@@ -1691,6 +2169,7 @@ export async function listPersonPersonalBests(
         'contests.sport_profile_id',
         'contests.profile_version',
         'events.starts_at',
+        'programs.settings as program_settings',
         'profile_version.profile as profile_snapshot',
       ])
       .where('stat_lines.org_id', '=', context.orgId)
@@ -1711,6 +2190,8 @@ export async function listPersonPersonalBests(
       }
     >();
     for (const record of records) {
+      if (!enabledProgramStatKeys(record.program_settings).has(record.stat_key))
+        continue;
       const profileKey = `${record.sport_profile_id}:${String(record.profile_version)}`;
       let group = profiles.get(profileKey);
       if (!group) {

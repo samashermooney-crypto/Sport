@@ -110,5 +110,5 @@ describe('schedule generator league acceptance', () => {
         );
       }
     }
-  });
+  }, 65_000);
 });

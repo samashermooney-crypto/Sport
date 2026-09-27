@@ -1,5 +1,6 @@
 import { familyResponseSchema } from '@shared/schemas/people';
 import { useQuery } from '@tanstack/react-query';
+import { Link as RouterLink } from 'react-router';
 
 import { apiGet } from '../api/client';
 import { AuthLink } from '../ui/auth';
@@ -54,7 +55,13 @@ export function FamilyHome(): React.JSX.Element {
                   {person.firstName} {person.lastName} · Age {person.age} ·{' '}
                   {person.relationship === 'guardian'
                     ? 'Guardian access'
-                    : 'Your profile'}
+                    : 'Your profile'}{' '}
+                  ·{' '}
+                  <RouterLink
+                    to={`/me/family/${org.orgId}/${person.personId}/medical`}
+                  >
+                    Medical profile
+                  </RouterLink>
                 </li>
               ))}
             </ul>

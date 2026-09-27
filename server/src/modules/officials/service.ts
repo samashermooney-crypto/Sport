@@ -768,7 +768,7 @@ async function createAssignment(
     .where('org_id', '=', context.orgId)
     .where('contest_id', '=', input.contestId)
     .where('position_key', '=', input.positionKey)
-    .where('status', '!=', 'canceled')
+    .where('status', 'in', ['offered', 'accepted', 'confirmed'])
     .executeTakeFirst();
   if (assigned)
     throw new SchedulingRuleError(

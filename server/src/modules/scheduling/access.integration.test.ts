@@ -18,7 +18,7 @@ import {
 import { getStandings } from '../standings/service';
 import { createBracket, getBracket } from '../tournaments/service';
 
-import { eventRecipients } from './events';
+import { eventRecipients, queueChangeBatch } from './events';
 
 let database: ReturnType<typeof createDatabase>;
 type TestActor = OrgContext & { accountId: string };
@@ -284,6 +284,29 @@ describe('schedule module access boundaries', () => {
       eventRecipients(trx, orgId, [], eventId),
     );
     expect(closureRecipients).toContain(member.accountId);
+    const emergencyBatch = await createWithOrg(database)(owner, async (trx) => {
+      await queueChangeBatch(
+        trx,
+        owner,
+        {
+          id: eventId,
+          title: 'Rainout',
+          startsAt: '2026-10-10T16:00:00.000Z',
+          endsAt: '2026-10-10T17:00:00.000Z',
+        },
+        [member.accountId],
+        'postponed',
+        'safety.emergency',
+      );
+      return trx
+        .selectFrom('schedule_change_batches')
+        .select(['notification_type', 'emit_after'])
+        .where('org_id', '=', orgId)
+        .where('recipient_account_id', '=', member.accountId)
+        .executeTakeFirstOrThrow();
+    });
+    expect(emergencyBatch.notification_type).toBe('safety.emergency');
+    expect(emergencyBatch.emit_after.getTime()).toBeLessThanOrEqual(Date.now());
     const offered = await createWithOrg(database)(owner, (trx) =>
       trx
         .selectFrom('notifications')
