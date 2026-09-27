@@ -16,7 +16,7 @@ function NotificationRoute(): React.JSX.Element {
   );
 }
 
-export const notificationPortalRoutes: readonly RouteObject[] = [
+export const portalNotificationsRoutes: readonly RouteObject[] = [
   {
     path: '/portal/orgs/:orgId/notifications',
     element: <NotificationRoute />,
