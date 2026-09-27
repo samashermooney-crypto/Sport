@@ -82,3 +82,54 @@ Status: WIP — Phase 11 services drafted; federation removed per owner reassign
 ### Current local range
 
 - `d991fee..HEAD` (local WIP, no push; includes the implementation and handoff commits).
+
+## HANDOFF
+
+### State at handoff
+
+- Track H checkout is clean on `track/h-comms` at `8aa4d97`, with merge base `9b5b430` (`rebuild/trunk`). Local range: `9b5b430..HEAD`; no push.
+- Phase 10 H-owned work is recorded above as complete. Phase 11 is WIP and has not passed its acceptance gate. Phase 13 is not in this checkout; `track/j-federation` is at `c7a9561` and remains unreviewed/unmerged. The owner directed H to finish Phase 13 after Phase 11 by merging J's work.
+- Current H-owned Phase 11 implementation files:
+  - `db/migrations/8000_phase11_program_operations.sql`
+  - `db/migrations/8001_volunteer_scope.sql`
+  - `db/migrations/8002_store_product_tax_rates.sql`
+  - `db/migrations/8003_guest_donation_checkout.sql`
+  - `db/migrations/8004_sponsor_renewal_notice.sql`
+  - `db/migrations/8005_store_low_stock.sql`
+  - `server/src/db/types.ts`
+  - `server/src/generated/registry.ts`
+  - `shared/src/generated/errors.ts`
+  - `shared/src/generated/permissions.ts`
+  - `server/src/modules/volunteers/{module,routes,schema,service}.ts`
+  - `server/src/modules/team-finance/{module,routes,schema,service}.ts`
+  - `server/src/modules/fundraising/{checkout,module,preview-checkout,routes,schema,service}.ts`
+  - `server/src/modules/sponsors/{module,routes,schema,service}.ts`
+  - `server/src/modules/store/{module,routes,schema,service}.ts`
+- No Phase 11 web UI or Phase 11 Playwright journeys exist yet. Relevant H-owned web paths to create are `web/src/console/volunteers/**`, `web/src/console/team-finance/**`, `web/src/console/fundraising/**`, `web/src/console/sponsors/**`, `web/src/console/store/**`, and corresponding portal/public fundraising/store paths where required by the Phase 11 journeys. Route mounting remains a Track C interface/wiring request.
+- Migrations `8000`–`8003` were reported applied to the isolated H database by the prior session. Application of `8004`–`8005` is unverified. Isolated stack identity: `COMPOSE_PROJECT_NAME=athlentry_h`, `PORT_OFFSET=800` (previously recorded ports: Postgres 6232, Mailpit API 8825, stripe-mock 12911; health not checked during this handoff).
+
+### Verification and known failures
+
+- The prior session reported `npm run typecheck` and `npm run lint` passing after the Phase 11 WIP commits. This handoff did not rerun them.
+- No known failing test is confirmed for the current WIP. Phase 11 targeted database tests, the full suite, Phase 11 Playwright journeys, and the sprint merge gate have not been run against these commits. Do not treat unrun tests as passing.
+- No Phase 11/13 work has been merged to `rebuild/trunk`; no merge gate was established as green, so no self-merge was attempted.
+- No real email, SMS, push, or payment was sent or processed.
+
+### Exact next steps
+
+1. Merge current `rebuild/trunk` into `track/h-comms`; inspect conflicts and generated registries/types, then apply and verify migrations `8000`–`8005` on the isolated H database.
+2. Review the Phase 11 service code in the paths above against the Phase 11 acceptance criteria, correct financial/tenant/privacy issues, and finish the guest donation completion/receipt flow using E's invoice/payment interfaces and fake/preview providers only.
+3. Request B to register the Phase 11 notification types, and request C to wire the signed payment completion/failure dispatch and discover/mount the Phase 11 API and web routes. Build against their interfaces while they are pending; do not duplicate B's notification catalog or edit C-owned routers.
+4. Add and run targeted database/permission tests for volunteer shifts, compliance and buyout; installment assessment/payment and reimbursement approval; guest donation completion/receipt; sponsor invoices/renewals; uniform add-on reporting; and concurrent inventory reservation. Use the isolated H stack and never skip DB-backed tests.
+5. Implement the missing console, portal and public Phase 11 flows using only `web/src/ui` components/tokens. Cover volunteer signup/check-in/credit/buyout, team fee ledger and reimbursement, fundraising/donation, sponsor management, store/fulfillment and uniform reporting. Add the possible Phase 11 Playwright acceptance journeys for Chromium desktop and WebKit mobile with axe; invoke every Playwright run and full-suite run through `~/athlentry-sprint/heavy.sh`.
+6. Run the full sprint merge gate, fix failures without weakening tests, and self-merge H's green Phase 11 work using the trunk lock and no-commit protocol.
+7. Merge `track/j-federation` into H, review its WIP and migration `6000` within the assigned `6000–6999` range, complete the federation acceptance criteria, and add targeted tenancy/permission and Chromium/WebKit-mobile axe journeys. Log product/engineering decisions in `docs/codex/DECISIONS.md`.
+8. Run the full gate for Phase 13 and self-merge only when green. Update this track file with exact local ranges, outstanding other-track requests, and the verified acceptance state; only then mark the sprint complete.
+
+### Open requests / dependencies
+
+- **E:** Finish the guest donation payment completion interface in `server/src/modules/fundraising/checkout.ts` using E's payment services, preserving guest donations without synthetic Athlentry accounts or invoices.
+- **B:** Register H's Phase 11 notification IDs: `fundraising.donation_receipt`, `fundraising.campaign_update`, `sponsor.renewal_reminder`, `store.order_update`, `volunteer.shift_reminder`, `volunteer.requirement_behind`, `team.fee_assessed`, and `team.reimbursement_decided`.
+- **C:** Dispatch signed payment completion/failure webhooks to fundraising handlers; wire generated server/web registries and feature routes.
+- **J:** Review and merge `track/j-federation` (`c7a9561`) after Phase 11, then complete Phase 13 on H as directed by the owner.
+- **A/C (Phase 10 follow-ups):** Profile message-history links, verified-phone consent capture, `athleteChatEnabled`, conversation sync calls, and chat attachment authorization remain external dependencies listed above.
