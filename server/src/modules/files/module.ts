@@ -1,6 +1,8 @@
 import express from 'express';
+import type { Kysely } from 'kysely';
 import { z } from 'zod';
 
+import type { DB } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import { SharpImageProcessor } from '../../integrations/storage/image-processor';
 import { LocalDiskStorage } from '../../integrations/storage/storage';
@@ -10,18 +12,24 @@ import type { AuthDependencies } from '../auth/routes';
 
 import { createFilesRouter } from './routes';
 import { FilePermissionError, FilesService } from './service';
-import type { FileAuthorization, FileRecord } from './service';
+import type {
+  FileAuthorization,
+  FilePurpose,
+  FileRecord,
+  FileSensitivity,
+} from './service';
 
-function createMountedFilesRouter(
-  dependencies: AuthDependencies,
-): express.Router {
-  const router = express.Router();
-  const scoped = createWithOrg(dependencies.database);
-  const elevated = ['owner', 'admin'];
-  const canAccess = async (
-    context: { orgId: string; actor: { accountId: string } },
-    file?: FileRecord,
-  ): Promise<boolean> =>
+export function createFilesAuthorization(
+  database: Kysely<DB>,
+): FileAuthorization {
+  const scoped = createWithOrg(database);
+  const uploadRoles = ['owner', 'admin', 'registrar'];
+  const restrictedReaderRoles = ['owner', 'compliance'];
+
+  const membershipRoles = async (context: {
+    orgId: string;
+    actor: { accountId: string };
+  }): Promise<string[]> =>
     scoped(context, async (trx) => {
       const membership = await trx
         .selectFrom('org_memberships')
@@ -30,7 +38,7 @@ function createMountedFilesRouter(
         .where('account_id', '=', context.actor.accountId)
         .where('status', '=', 'active')
         .executeTakeFirst();
-      if (!membership) return false;
+      if (!membership) return [];
       const roles = await trx
         .selectFrom('role_assignments')
         .select('role')
@@ -40,23 +48,113 @@ function createMountedFilesRouter(
         .where('revoked_at', 'is', null)
         .where('pending_mfa', '=', false)
         .execute();
-      const permitted = new Set(roles.map((role) => role.role));
-      if (!file)
-        return [...permitted].some((role) =>
-          [...elevated, 'registrar'].includes(role),
-        );
-      if (file.sensitivity === 'restricted')
-        return [...permitted].some((role) => elevated.includes(role));
-      if (file.sensitivity === 'sensitive')
-        return [...permitted].some((role) =>
-          [...elevated, 'registrar'].includes(role),
-        );
-      return true;
+      return roles.map((role) => role.role);
     });
-  const authorization: FileAuthorization = {
-    canUpload: (context) => canAccess(context),
-    canDownload: (context, file) => canAccess(context, file),
+
+  const isVerifiedGuardianForPerson = async (
+    context: { orgId: string; actor: { accountId: string } },
+    personId: string,
+  ): Promise<boolean> =>
+    scoped(context, async (trx) => {
+      const link = await trx
+        .selectFrom('person_account_links')
+        .innerJoin('people', (join) =>
+          join
+            .onRef('people.org_id', '=', 'person_account_links.org_id')
+            .onRef('people.id', '=', 'person_account_links.person_id'),
+        )
+        .select('person_account_links.id')
+        .where('person_account_links.org_id', '=', context.orgId)
+        .where('person_account_links.person_id', '=', personId)
+        .where('person_account_links.account_id', '=', context.actor.accountId)
+        .where('person_account_links.relationship', '=', 'guardian')
+        .where('person_account_links.verified_at', 'is not', null)
+        .where('person_account_links.revoked_at', 'is', null)
+        .executeTakeFirst();
+      return Boolean(link);
+    });
+
+  const restrictedOwnerPersonId = async (
+    context: { orgId: string; actor: { accountId: string } },
+    ownerType: string,
+    ownerId: string,
+  ): Promise<string | null> =>
+    scoped(context, async (trx) => {
+      if (ownerType === 'person' || ownerType === 'person_credential') {
+        const person = await trx
+          .selectFrom('people')
+          .select('id')
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', ownerId)
+          .executeTakeFirst();
+        return person?.id ?? null;
+      }
+      if (ownerType === 'return_to_play_clearance') {
+        const report = await trx
+          .selectFrom('injury_reports')
+          .innerJoin('people', (join) =>
+            join
+              .onRef('people.org_id', '=', 'injury_reports.org_id')
+              .onRef('people.id', '=', 'injury_reports.person_id'),
+          )
+          .select('injury_reports.person_id')
+          .where('injury_reports.org_id', '=', context.orgId)
+          .where('injury_reports.id', '=', ownerId)
+          .executeTakeFirst();
+        return report?.person_id ?? null;
+      }
+      return null;
+    });
+
+  return {
+    canUpload: async (
+      context,
+      _purpose: FilePurpose,
+      ownerType?: string,
+      ownerId?: string,
+      sensitivity: FileSensitivity = 'internal',
+    ) => {
+      const roles = await membershipRoles(context);
+      if (sensitivity !== 'restricted')
+        return roles.some((role) => uploadRoles.includes(role));
+      if (!ownerType || !ownerId) return false;
+      const personId = await restrictedOwnerPersonId(
+        context,
+        ownerType,
+        ownerId,
+      );
+      if (!personId) return false;
+      if (roles.some((role) => uploadRoles.includes(role))) return true;
+      return isVerifiedGuardianForPerson(context, personId);
+    },
+    canDownload: async (context, file: FileRecord) => {
+      const roles = await membershipRoles(context);
+      if (file.sensitivity === 'restricted') {
+        if (
+          !roles.some((role) => restrictedReaderRoles.includes(role)) ||
+          !file.ownerType ||
+          !file.ownerId
+        )
+          return false;
+        return Boolean(
+          await restrictedOwnerPersonId(context, file.ownerType, file.ownerId),
+        );
+      }
+      if (file.sensitivity === 'sensitive')
+        return roles.some((role) =>
+          ['owner', 'admin', 'registrar'].includes(role),
+        );
+      return roles.length > 0;
+    },
   };
+}
+
+function createMountedFilesRouter(
+  dependencies: AuthDependencies,
+): express.Router {
+  const router = express.Router();
+  const scoped = createWithOrg(dependencies.database);
+  const authorization = createFilesAuthorization(dependencies.database);
   const service = new FilesService(
     new LocalDiskStorage('data/uploads'),
     authorization,
