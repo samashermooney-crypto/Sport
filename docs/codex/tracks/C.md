@@ -4,6 +4,7 @@ Branch: `track/c-adapters`
 Current: trunk test/Knip repair `9b5b430` is reported green; Track D owns the remaining design-parity job. SEC-002 metadata, generated permission matrix, and nonmember-concealment commits are `a981e0d`, `5b64492`, and `8290731`; all four security browser checks pass. The branch's full PostgreSQL, Chromium, WebKit-mobile, build, Knip, audit, typecheck, lint, and generated-file freshness gates pass. Wiring and hourly trunk gates continue. Phase 15 remains owned by Track K.
 Ready for integration: no; commit the generator/app validation follow-up, then merge and gate on trunk.
 Requests to other tracks: Track A — reconcile DEC-023 with verified-guardian restricted uploads and owner/compliance-only restricted downloads. Track E — registration module/route and checkout contracts are prerequisites for registration UI wiring.
+Requests from OPS: Register `/readyz` and public `/status` through the generated module registry; initialize the OPS structured logger and Sentry hooks in web and worker startup; add `@sentry/node` and npm scripts `keys:generate` / `keys:vapid`; wire heartbeat, queue depth/failed-job, Stripe webhook-silence, payment-failure and email-bounce alert checks; remove `DATABASE_ADMIN_URL` from web runtime after pre-deploy (2026-09-27).
 Blocked on: GitHub access is currently unavailable from this environment; local gates remain available.
 
 ## Completed Track C work
