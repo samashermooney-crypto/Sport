@@ -10,7 +10,13 @@ export { Button, Checkbox, Field, Input, Select } from './primitives';
 export function AuthFrame({
   children,
   footer,
-}: PropsWithChildren<{ footer?: ReactNode }>): React.JSX.Element {
+  onLanguageChange,
+  languageDisabled = false,
+}: PropsWithChildren<{
+  footer?: ReactNode;
+  onLanguageChange?: (language: 'en' | 'es') => void;
+  languageDisabled?: boolean;
+}>): React.JSX.Element {
   const { t } = useTranslation('auth');
   return (
     <main className="login-page">
@@ -27,12 +33,15 @@ export function AuthFrame({
         <Select
           id="auth-language"
           value={i18n.resolvedLanguage ?? 'en'}
+          disabled={languageDisabled}
           options={[
             { value: 'en', label: t('english') },
             { value: 'es', label: t('spanish') },
           ]}
           onChange={(event) => {
-            void i18n.changeLanguage(event.target.value);
+            const language = event.target.value === 'es' ? 'es' : 'en';
+            if (onLanguageChange) onLanguageChange(language);
+            else void i18n.changeLanguage(language);
           }}
         />
       </div>

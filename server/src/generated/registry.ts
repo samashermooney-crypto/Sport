@@ -9,7 +9,9 @@ import { moduleDefinition as attendanceModule } from '../modules/attendance/modu
 import { moduleDefinition as auditModule } from '../modules/audit/module';
 import { moduleDefinition as authModule } from '../modules/auth/module';
 import { moduleDefinition as communicationsModule } from '../modules/communications/module';
+import { moduleDefinition as complianceModule } from '../modules/compliance/module';
 import { moduleDefinition as contestsModule } from '../modules/contests/module';
+import { moduleDefinition as disciplineModule } from '../modules/discipline/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
@@ -17,6 +19,7 @@ import { moduleDefinition as notificationsModule } from '../modules/notification
 import { moduleDefinition as officialsModule } from '../modules/officials/module';
 import { moduleDefinition as orgsModule } from '../modules/orgs/module';
 import { moduleDefinition as platformModule } from '../modules/platform/module';
+import { moduleDefinition as safetyModule } from '../modules/safety/module';
 import { moduleDefinition as schedulingModule } from '../modules/scheduling/module';
 import { moduleDefinition as standingsModule } from '../modules/standings/module';
 import { moduleDefinition as tournamentsModule } from '../modules/tournaments/module';
@@ -26,7 +29,9 @@ export const serverModules: readonly ServerModule[] = [
   auditModule,
   authModule,
   communicationsModule,
+  complianceModule,
   contestsModule,
+  disciplineModule,
   filesModule,
   financeModule,
   jobsModule,
@@ -34,6 +39,7 @@ export const serverModules: readonly ServerModule[] = [
   officialsModule,
   orgsModule,
   platformModule,
+  safetyModule,
   schedulingModule,
   standingsModule,
   tournamentsModule,

@@ -146,7 +146,49 @@ describe('auth HTTP contract', () => {
       email: input.email,
       mfaEnabled: false,
       client: 'web',
+      locale: 'en',
     });
+    const rejectedLocale = await fetch(`${baseUrl}/locale`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: cookie,
+        'X-Athlentry-Request': '1',
+        'Content-Type': 'application/json',
+        Origin: 'https://elsewhere.invalid',
+      },
+      body: JSON.stringify({ locale: 'es' }),
+    });
+    expect(rejectedLocale.status).toBe(403);
+    const savedLocale = await fetch(`${baseUrl}/locale`, {
+      method: 'PATCH',
+      headers: {
+        Cookie: cookie,
+        'X-Athlentry-Request': '1',
+        'Content-Type': 'application/json',
+        Origin: origin,
+      },
+      body: JSON.stringify({ locale: 'es' }),
+    });
+    expect(savedLocale.status).toBe(200);
+    expect(await savedLocale.json()).toEqual({ locale: 'es' });
+    const updatedMe = await fetch(`${baseUrl}/me`, {
+      headers: { Cookie: cookie },
+    });
+    expect(await updatedMe.json()).toMatchObject({ locale: 'es' });
+    expect(
+      (
+        await fetch(`${baseUrl}/locale`, {
+          method: 'PATCH',
+          headers: {
+            Cookie: cookie,
+            'X-Athlentry-Request': '1',
+            'Content-Type': 'application/json',
+            Origin: origin,
+          },
+          body: JSON.stringify({ locale: 'en' }),
+        })
+      ).status,
+    ).toBe(200);
 
     const enrollment = await post('/mfa/enroll/start', {}, cookie);
     expect(enrollment.status).toBe(200);

@@ -433,7 +433,46 @@
 - **Why:** The consent audit trail must match the language and wording the person saw before accepting.
 - **Consequences / follow-ups:** A qualified legal reviewer must replace and approve both language versions before launch; publish future revisions as distinct immutable versions.
 
-### DEC-057 — Preserve only representable legacy recurrence rules
+### DEC-057 — Save account language separately from the browser preference
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 internationalization and Phase 10 SMS consent
+- **Context:** The browser's local language choice could differ from the account locale used to choose an auditable SMS consent disclosure.
+- **Decision:** Return the saved `en`/`es` account locale from `/api/v1/auth/me` and let an authenticated account update it through a versioned API route. The account page follows the saved locale, and a successful language change updates both the account and browser preference.
+- **Why:** The displayed account language and the server's SMS consent version need one durable source of truth across devices.
+- **Consequences / follow-ups:** Authenticated portal and platform entry points should load the account locale before rendering consent-bearing content; the public unauthenticated experience continues to use the browser preference.
+### DEC-058 — Compare compliance dates as organization calendar dates
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 7 credential eligibility and expiry
+- **Context:** PostgreSQL `date` values are returned through the driver as JavaScript `Date` objects; comparing those instants against an organization-local calendar day can shift eligibility at timezone boundaries.
+- **Decision:** Convert stored dates to `YYYY-MM-DD` values and compare them as SQL `date` values for eligibility, overrides and expiry.
+- **Why:** Credential and FCRA deadlines are calendar dates, not UTC instants.
+- **Consequences / follow-ups:** Tests cover timezone-safe expiry, credential review and override boundaries.
+
+### DEC-059 — Accept linked guardian injury reports
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 7 injuries and return to play
+- **Context:** The family portal presents injury reporting for a linked athlete, while the Phase 7 text does not narrow reporting to staff.
+- **Decision:** Permit a verified self or guardian link to submit and read that person's injury record; encrypt the narrative, write Restricted-read audits, notify guardians, and automatically hold rosters for suspected concussion reports.
+- **Why:** Families need a direct safety reporting path and concussion holds must not wait for staff review.
+- **Consequences / follow-ups:** Staff still review return-to-play evidence before roster restoration; role authorization remains tenant-scoped.
+
+### DEC-060 — Associate restricted uploads with the represented person
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 7 credential evidence
+- **Context:** Restricted file IDs are opaque, but a same-organization file ID could otherwise be attached to another person's credential.
+- **Decision:** Credential evidence must be a completed restricted file whose owner type is `person_credential` and owner id is the credential subject. The Files module must authorize guardian uploads and compliance reviewer downloads with its own audited policy.
+- **Why:** Organization scope alone does not prevent one person's protected document from appearing on another person's safety record.
+- **Consequences / follow-ups:** Track C must extend the Files module's current owner/admin-only access without weakening its tenant, consent, or audit checks.
+
+### DEC-061 — Keep volunteer-paid background checks disabled without invoicing
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 7 FCRA configuration
+- **Context:** The settings contract includes a volunteer-paid fee option, but the finance invoice service is not yet available to Track F.
+- **Decision:** Reject enabling volunteer-paid mode until Track E exposes an invoice-backed flow; manual and configured Checkr checks remain available without collecting money.
+- **Why:** A background-check flow must not collect or promise a fee without an auditable invoice and reconciliation path.
+- **Consequences / follow-ups:** Track E can unblock the option by providing its documented invoice service; no live payment path is introduced here.
+
+### DEC-062 — Preserve only representable legacy recurrence rules
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 recurrence migration
 - **Context:** The existing spine uses RFC recurrence text in availability and allocation rows; binding clarification C1 supports structured one-time, weekly and monthly-nth-weekday rules only.
@@ -441,7 +480,7 @@
 - **Why:** An incorrect availability window can create unsafe or impossible bookings; migration failure keeps source data intact for an explicit repair.
 - **Consequences / follow-ups:** Verify the isolated database has only representable rules before applying migration 3000.
 
-### DEC-058 — Treat non-space schedule conflicts as reasoned overrides
+### DEC-063 — Treat non-space schedule conflicts as reasoned overrides
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 conflict policy
 - **Context:** The event specification permits override reasons for soft conflicts and explicitly says space double-booking is never overridable, but does not classify team, coach and official overlap severity.
@@ -449,7 +488,7 @@
 - **Why:** The database remains the final protection against unsafe venue double-booking, while staff retain a documented path to resolve calendar edge cases.
 - **Consequences / follow-ups:** Every override is written to the audit log and exposed in the conflict report.
 
-### DEC-059 — Preserve materialized schedule history during series edits
+### DEC-064 — Preserve materialized schedule history during series edits
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 recurring events
 - **Context:** The series edit scopes must update future materialized events while preserving references from contests, attendance, audit and results.
@@ -457,7 +496,7 @@
 - **Why:** Event identity carries operational history; hard deletion or rewriting completed occurrences would orphan that history.
 - **Consequences / follow-ups:** Migration 3006 adds `event_series.active`; generated recurrence extension skips inactive series.
 
-### DEC-060 — Store coach schedule blackout requests as approved date ranges
+### DEC-065 — Store coach schedule blackout requests as approved date ranges
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 schedule generator
 - **Context:** The shared generator accepts team blackout dates, but the inherited spine has no request table or approval workflow for those dates.
@@ -465,7 +504,7 @@
 - **Why:** This preserves a clear approval boundary and avoids silently making a coach preference a hard scheduling rule.
 - **Consequences / follow-ups:** Migration 3007 adds the request aggregate and indexed status; generator input includes approved request dates.
 
-### DEC-061 — Snapshot sport profiles with a database trigger
+### DEC-066 — Snapshot sport profiles with a database trigger
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 9 result format history
 - **Context:** Contests must use the exact sport profile format version they were created against, but the inherited spine has no append-only profile version table.
@@ -473,15 +512,15 @@
 - **Why:** Historical result validation and rendering must remain tied to the format configuration used at contest creation.
 - **Consequences / follow-ups:** Migration 3008 adds the version table, snapshot trigger, and contest foreign key; sport-profile editing continues to use the current profile row.
 
-### DEC-062 — Snapshot sport profiles after the source row is written
+### DEC-067 — Snapshot sport profiles after the source row is written
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 result format history
-- **Context:** The insert trigger added with DEC-061 attempted to insert its version row before the referenced sport profile existed, violating the composite tenant foreign key during profile creation.
+- **Context:** The insert trigger added with DEC-066 attempted to insert its version row before the referenced sport profile existed, violating the composite tenant foreign key during profile creation.
 - **Decision:** Set the next profile version in a `BEFORE UPDATE` trigger, then append the immutable version snapshot in an `AFTER INSERT OR UPDATE` trigger.
 - **Why:** The source profile must exist at the referenced version before the snapshot row is inserted; this preserves the composite foreign key and append-only history.
 - **Consequences / follow-ups:** Migration 3013 repairs trigger timing without rewriting migration 3008; verify factory profile creation and profile edits in the database test suite.
 
-### DEC-063 — Keep survey responses anonymous in staff summaries
+### DEC-068 — Keep survey responses anonymous in staff summaries
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 season end
 - **Context:** Family feedback needs a simple NPS and free text, while the response table must prevent duplicate submissions per account.
@@ -489,7 +528,7 @@
 - **Why:** The organization can prevent duplicate voting and restrict results to scoped staff while keeping feedback content unattributed.
 - **Consequences / follow-ups:** A staff member with program schedule management permission can read comments; schedule batches now create in-app records through Track B's notification service, while email fan-out remains Phase 10 work.
 
-### DEC-064 — Use the browser print dialog for season award PDFs
+### DEC-069 — Use the browser print dialog for season award PDFs
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 season end
 - **Context:** The owned web feature needs printable award certificates, but no PDF-generation service exists in Track G's paths.
@@ -497,7 +536,7 @@
 - **Why:** This creates a usable PDF path without adding a generator dependency or persisting an unsafe user-uploaded file.
 - **Consequences / follow-ups:** Certificates are local browser output, not a server-rendered or stored artifact; connect to the files/PDF service if a reusable downloadable certificate is required.
 
-### DEC-065 — Seed pool elimination rounds from finalized standings
+### DEC-070 — Seed pool elimination rounds from finalized standings
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 pool tournaments
 - **Context:** Pool tournaments need a deterministic transition from round-robin results to elimination play, while late corrections must not silently invalidate already-started playoff matches.
@@ -505,7 +544,7 @@
 - **Why:** Tournament progression must use the same standings and bracket rules as other sport operations, and the seeded playoff must stay stable once it begins.
 - **Consequences / follow-ups:** Pool standings must have enough results to satisfy sport-specific tiebreakers. Bracket foreign-key links are attached only after all round rows exist.
 
-### DEC-066 — Assign timed meet lanes as a versioned contest operation
+### DEC-071 — Assign timed meet lanes as a versioned contest operation
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 individual-sport meets
 - **Context:** Contest participants already have seed, heat, and lane fields, but timed meets had no scoped operation for assigning them before results were entered.
@@ -513,7 +552,7 @@
 - **Why:** Meet lanes and seeds affect the official result workflow and need the same tenant, permission, and stale-write protections as scores.
 - **Consequences / follow-ups:** Timed meet assignments close before final results; other multi-event format scheduling can reuse this aggregate operation if the sport rules require it.
 
-### DEC-067 — Return only public tournament display fields
+### DEC-072 — Return only public tournament display fields
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 public tournament pages
 - **Context:** Tournament brackets are readable by slug without an authenticated organization context, while the internal bracket record also contains tenant, program, and configuration identifiers.
@@ -521,7 +560,7 @@
 - **Why:** Visitors need match information, while internal configuration and aggregate metadata do not help them follow a tournament.
 - **Consequences / follow-ups:** Add any additional public-facing tournament content through an explicit allowlisted response shape.
 
-### DEC-068 — Persist tournament schedule reservations separately from bracket matches
+### DEC-073 — Persist tournament schedule reservations separately from bracket matches
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 tournament scheduling
 - **Context:** Pool games can be scheduled before their match rows are played, while elimination match rows for pool tournaments are not created until final pool standings are known.
@@ -529,7 +568,7 @@
 - **Why:** The shared tournament generator can reserve real space and time before the bracket is seeded without inventing placeholder bracket rows or losing schedule-to-match links.
 - **Consequences / follow-ups:** Tournament event creation and match binding must run transactionally, and bracket views must expose reservation times only through the authorized tournament response.
 
-### DEC-069 — Keep resource-calendar moves in the schedule feature
+### DEC-074 — Keep resource-calendar moves in the schedule feature
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 8 resource calendar
 - **Context:** The shared calendar renders read-only resource slots, while the schedule acceptance requires event moves by drag-and-drop and an equivalent keyboard path. Track G cannot change Track D’s owned design-system components.

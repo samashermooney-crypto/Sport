@@ -16,6 +16,11 @@ test('family portal shell navigates between working pages in Spanish', async ({
   );
   try {
     const actor = await createTestFactories(database).actor();
+    await database
+      .updateTable('accounts')
+      .set({ locale: 'es' })
+      .where('id', '=', actor.accountId)
+      .execute();
     const session = await database.transaction().execute((trx) =>
       issueSession(
         trx,
@@ -39,7 +44,7 @@ test('family portal shell navigates between working pages in Spanish', async ({
       },
     ]);
     await page.addInitScript(() => {
-      localStorage.setItem('athlentry-language', 'es');
+      localStorage.setItem('athlentry-language', 'en');
     });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/portal/orgs/${actor.orgId}/notifications`);
@@ -75,6 +80,22 @@ test('family portal shell navigates between working pages in Spanish', async ({
     expect(await accessibilityViolations(page)).toEqual([]);
     await nav.getByRole('link', { name: 'Cuenta' }).click();
     await expect(page).toHaveURL('/me');
+    await expect(
+      page.getByRole('heading', { name: /Le damos la bienvenida/ }),
+    ).toBeVisible();
+    await page.getByRole('combobox', { name: 'Idioma' }).selectOption('en');
+    await expect(page.getByRole('heading', { name: /Welcome/ })).toBeVisible();
+    await expect
+      .poll(async () =>
+        database
+          .selectFrom('accounts')
+          .select('locale')
+          .where('id', '=', actor.accountId)
+          .executeTakeFirstOrThrow()
+          .then((account) => account.locale),
+      )
+      .toBe('en');
+    await page.getByRole('combobox', { name: 'Language' }).selectOption('es');
     await expect(
       page.getByRole('heading', { name: /Le damos la bienvenida/ }),
     ).toBeVisible();
