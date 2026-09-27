@@ -15,6 +15,7 @@ import { moduleDefinition as financeModule } from '../modules/finance/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
 import { moduleDefinition as notificationsModule } from '../modules/notifications/module';
 import { moduleDefinition as orgsModule } from '../modules/orgs/module';
+import { moduleDefinition as peopleModule } from '../modules/people/module';
 import { moduleDefinition as platformModule } from '../modules/platform/module';
 import { moduleDefinition as safetyModule } from '../modules/safety/module';
 
@@ -29,6 +30,7 @@ export const serverModules: readonly ServerModule[] = [
   jobsModule,
   notificationsModule,
   orgsModule,
+  peopleModule,
   platformModule,
   safetyModule,
 ];
