@@ -1,3 +1,5 @@
 import type { NavItem } from '../api/features';
 
-export const portalNav: readonly NavItem[] = [];
+import { schedulePortalNav } from './schedule/nav';
+
+export const portalNav: readonly NavItem[] = [...schedulePortalNav];

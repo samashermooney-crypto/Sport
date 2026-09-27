@@ -11,7 +11,7 @@ import { apiGet } from './api/client';
 import { webNestedRoutes } from './generated/nested-routes';
 import { webFeatures } from './generated/registry';
 import { i18n } from './lib/i18n';
-import { ImpersonationBanner } from './platform/PlatformConsole';
+import { ImpersonationBanner } from './platform/ImpersonationBanner';
 import { PlatformShell } from './ui/PlatformShell';
 import { AppErrorBoundary, ToastProvider } from './ui/app-feedback';
 

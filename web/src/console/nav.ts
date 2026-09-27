@@ -1,3 +1,5 @@
 import type { NavItem } from '../api/features';
 
-export const consoleNav: readonly NavItem[] = [];
+import { scheduleConsoleNav } from './schedule/nav';
+
+export const consoleNav: readonly NavItem[] = [...scheduleConsoleNav];
