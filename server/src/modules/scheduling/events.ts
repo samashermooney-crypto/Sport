@@ -358,6 +358,20 @@ export async function eventRecipients(
       .where('official_assignments.status', 'not in', ['declined', 'canceled'])
       .execute();
     personIds.push(...officials.map((row) => row.person_id));
+    const volunteers = await trx
+      .selectFrom('volunteer_shifts as shift')
+      .innerJoin('volunteer_signups as signup', (join) =>
+        join
+          .onRef('signup.org_id', '=', 'shift.org_id')
+          .onRef('signup.volunteer_shift_id', '=', 'shift.id'),
+      )
+      .select('signup.person_id')
+      .where('shift.org_id', '=', orgId)
+      .where('shift.event_id', '=', eventId)
+      .where('shift.status', 'not in', ['completed', 'canceled'])
+      .where('signup.status', 'in', ['signed_up', 'confirmed', 'checked_in'])
+      .execute();
+    personIds.push(...volunteers.map((row) => row.person_id));
   }
   if (!personIds.length) return [];
   const links = await trx

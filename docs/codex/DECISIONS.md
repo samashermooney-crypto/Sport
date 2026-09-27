@@ -846,3 +846,11 @@
 - **Decision:** Keep the all-route authorization, permission-matrix, and tenancy-fuzz Playwright checks marked `test.fixme` until Track C publishes operation metadata, real synthetic out-of-tenant resource fixtures, and a reviewed allow/deny row for every route. Do not count a random nonexistent ID as proof that an existing foreign resource is isolated.
 - **Why:** The checks must fail on real authorization gaps without inventing route policy or hiding a cross-tenant read behind an unrelated 404.
 - **Consequences / follow-ups:** Track C owns the generated contracts and CI wiring; the precise requests are recorded in `docs/codex/tracks/SEC.md` and `docs/codex/tracks/C.md`. Remove the `test.fixme` markers when those contracts are available and the checks can exercise real fixtures.
+
+### DEC-115 — Include active event volunteers in closure notices
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 8 closures and schedule-change notifications
+- **Context:** Track H's volunteer shifts can be linked to schedule events, but closure recipient lookup previously covered only event participants and assigned officials.
+- **Decision:** Resolve event-linked volunteer signups in `signed_up`, `confirmed` or `checked_in` status through active, verified guardian/self account links. Exclude canceled signups and shifts that are completed or canceled; deduplicate recipients before writing the emergency batch.
+- **Why:** A facility closure must reach volunteers already assigned to the affected event while respecting revoked or unverified family links and avoiding notices to canceled assignments.
+- **Consequences / follow-ups:** One recipient receives one emergency batch containing all affected event changes. Track B's notification service emits the in-app notice; email fan-out remains a Track B integration request.

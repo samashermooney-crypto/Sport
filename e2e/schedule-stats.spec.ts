@@ -5,6 +5,7 @@ import { builtInSportTemplates } from '@shared/sport/templates';
 import { createDatabase } from '../server/src/db/kysely';
 import { createWithOrg } from '../server/src/db/withOrg';
 import { issueSession } from '../server/src/modules/auth/sessions';
+import { emitPendingScheduleBatches } from '../server/src/modules/scheduling/generator';
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
@@ -42,9 +43,17 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     const program = await factories.program(actor);
     const home = await factories.team(actor, program);
     const away = await factories.team(actor, program);
+    const closurePersonId = await factories.person(actor, {
+      firstName: 'North',
+      lastName: 'Park Volunteer',
+      dateOfBirth: '1988-06-12',
+    });
+    const closureHouseholdId = await factories.household(actor);
     const facilityId = newId();
     const spaceId = newId();
-    const closureEventId = newId();
+    const volunteerRoleId = newId();
+    const closureEventIds = Array.from({ length: 24 }, () => newId());
+    const volunteerShiftIds = closureEventIds.map(() => newId());
     const closureEventStartsAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
     closureEventStartsAt.setSeconds(0, 0);
     const closureEventEndsAt = new Date(
@@ -131,6 +140,27 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
           suitability: { sportProfileIds: [program.sportProfileId] },
         })
         .execute();
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: newId(),
+          org_id: actor.orgId,
+          person_id: closurePersonId,
+          account_id: actor.accountId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute();
+      await trx
+        .insertInto('volunteer_roles')
+        .values({
+          id: volunteerRoleId,
+          org_id: actor.orgId,
+          name: 'North Park field volunteer',
+          minimum_age: 18,
+          created_by: actor.accountId,
+        })
+        .execute();
       const eventId = newId();
       const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await trx
@@ -169,19 +199,52 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
         .execute();
       await trx
         .insertInto('events')
-        .values({
-          id: closureEventId,
-          org_id: actor.orgId,
-          program_id: program.programId,
-          division_id: program.divisionId,
-          kind: 'game',
-          title: 'Rainout closure game',
-          starts_at: closureEventStartsAt,
-          ends_at: closureEventEndsAt,
-          timezone: 'America/Chicago',
-          space_id: spaceId,
-          published: true,
-        })
+        .values(
+          closureEventIds.map((id, index) => ({
+            id,
+            org_id: actor.orgId,
+            program_id: program.programId,
+            division_id: program.divisionId,
+            kind: 'game' as const,
+            title: `North Park rainout game ${String(index + 1)}`,
+            starts_at: closureEventStartsAt,
+            ends_at: closureEventEndsAt,
+            timezone: 'America/Chicago',
+            space_id: spaceId,
+            published: true,
+          })),
+        )
+        .execute();
+      await trx
+        .insertInto('volunteer_shifts')
+        .values(
+          closureEventIds.map((eventId, index) => ({
+            id: volunteerShiftIds[index] ?? newId(),
+            org_id: actor.orgId,
+            volunteer_role_id: volunteerRoleId,
+            event_id: eventId,
+            facility_id: facilityId,
+            starts_at: closureEventStartsAt,
+            ends_at: closureEventEndsAt,
+            slots: 1,
+            credit_hours: 1,
+            created_by: actor.accountId,
+          })),
+        )
+        .execute();
+      await trx
+        .insertInto('volunteer_signups')
+        .values(
+          volunteerShiftIds.map((volunteerShiftId) => ({
+            id: newId(),
+            org_id: actor.orgId,
+            volunteer_shift_id: volunteerShiftId,
+            person_id: closurePersonId,
+            household_id: closureHouseholdId,
+            status: 'confirmed',
+            created_by: actor.accountId,
+          })),
+        )
         .execute();
     });
     const session = await database.transaction().execute((trx) =>
@@ -324,17 +387,58 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     await expect(page.getByRole('status')).toHaveText(
       'Closure recorded and affected events updated.',
     );
-    expect(closureDialog).toContain('postpone 1 affected events');
-    const closedEvent = await createWithOrg(database)(actor, (trx) =>
+    expect(closureDialog).toContain('postpone 24 affected events');
+    const closedEvents = await createWithOrg(database)(actor, (trx) =>
       trx
         .selectFrom('events')
         .select(['status', 'status_reason'])
         .where('org_id', '=', actor.orgId)
-        .where('id', '=', closureEventId)
+        .where('id', 'in', closureEventIds)
+        .execute(),
+    );
+    expect(closedEvents).toHaveLength(24);
+    expect(
+      closedEvents.every(
+        (event) =>
+          event.status === 'postponed' &&
+          /^closure:/.test(event.status_reason ?? ''),
+      ),
+    ).toBe(true);
+    const emergencyBatch = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('schedule_change_batches')
+        .select(['id', 'changes', 'emit_after', 'notification_type'])
+        .where('org_id', '=', actor.orgId)
+        .where('recipient_account_id', '=', actor.accountId)
+        .execute(),
+    );
+    expect(emergencyBatch).toHaveLength(1);
+    expect(emergencyBatch[0]?.notification_type).toBe('safety.emergency');
+    expect(emergencyBatch[0]?.emit_after.getTime()).toBeLessThanOrEqual(
+      Date.now(),
+    );
+    expect(emergencyBatch[0]?.changes).toHaveLength(24);
+    for (const eventId of closureEventIds) {
+      expect(emergencyBatch[0]?.changes).toContainEqual(
+        expect.objectContaining({ eventId }),
+      );
+    }
+    await emitPendingScheduleBatches(database);
+    const emergencyNotice = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('notifications')
+        .select(['type', 'payload', 'delivered_channels'])
+        .where('org_id', '=', actor.orgId)
+        .where('account_id', '=', actor.accountId)
+        .where('type', '=', 'safety.emergency')
         .executeTakeFirstOrThrow(),
     );
-    expect(closedEvent.status).toBe('postponed');
-    expect(closedEvent.status_reason).toMatch(/^closure:/);
+    expect(emergencyNotice.delivered_channels).toEqual(['in_app']);
+    expect(emergencyNotice.payload).toMatchObject({
+      resourceType: 'schedule_change_batch',
+      resourceId: emergencyBatch[0]?.id,
+      href: '/me/schedule',
+    });
     await expect(page.getByRole('alert')).toHaveCount(0);
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
