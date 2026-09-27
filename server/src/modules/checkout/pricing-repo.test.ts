@@ -13,6 +13,7 @@ import { PostgresInvoiceRepository } from '../finance/invoice-repo.js';
 import { PostgresPayerProfileRepository } from '../finance/payer-repo.js';
 import { quoteCharge } from '../finance/service.js';
 
+import { PostgresCheckoutInvoiceLinker } from './invoice-link-repo.js';
 import {
   PostgresCheckoutPricingRepository,
   type CheckoutPricingSourceLoader,
@@ -163,6 +164,10 @@ describe('durable checkout pricing freeze', () => {
         },
       ],
     });
+    await new PostgresCheckoutInvoiceLinker(database, context).link(
+      checkoutId,
+      invoice.id,
+    );
     await createWithOrg(database)(context, (trx) =>
       trx
         .insertInto('payment_accounts')

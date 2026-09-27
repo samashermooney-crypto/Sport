@@ -21,6 +21,7 @@ import { PostgresPaymentRecordStore } from '../finance/payment-repo.js';
 import { PostgresCheckoutHoldRepository } from './capacity-repo.js';
 import { CheckoutPaymentEventService } from './payment-events.js';
 import { CheckoutService } from './service.js';
+import { bindFixtureInvoice } from './test-fixtures.js';
 
 let database: Kysely<DB>;
 let context: OrgContext;
@@ -115,6 +116,7 @@ beforeAll(async () => {
     expiresAt: '2026-09-26T12:20:00Z',
     idempotencyKey: randomUUID(),
   });
+  await bindFixtureInvoice(database, context, checkoutId, invoiceId);
   await new PostgresPaymentRecordStore(database, context).recordPending({
     orgId,
     checkoutId,

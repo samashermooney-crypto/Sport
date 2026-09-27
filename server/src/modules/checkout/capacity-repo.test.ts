@@ -14,6 +14,7 @@ import { PostgresPaymentRecordStore } from '../finance/payment-repo.js';
 
 import { PostgresCheckoutHoldRepository } from './capacity-repo.js';
 import type { SubjectQuantity } from './service.js';
+import { bindFixtureInvoice } from './test-fixtures.js';
 
 let database: Kysely<DB>;
 let context: OrgContext;
@@ -192,6 +193,7 @@ describe('transactional checkout capacity', () => {
       ],
     });
     const paymentIntentId = `pi_${randomUUID()}`;
+    await bindFixtureInvoice(database, context, firstCheckout, invoice.id);
     await new PostgresPaymentRecordStore(database, context).recordPending({
       orgId: context.orgId,
       checkoutId: firstCheckout,

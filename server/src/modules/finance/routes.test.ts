@@ -12,6 +12,7 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import type { PaymentsGateway } from '../../integrations/stripe/gateway.js';
 import type { AuthDependencies } from '../auth/routes.js';
+import { bindFixtureInvoice } from '../checkout/test-fixtures.js';
 
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
@@ -155,6 +156,7 @@ beforeAll(async () => {
       })
       .execute(),
   );
+  await bindFixtureInvoice(database, context, checkoutId, invoice.id);
   await new PostgresPaymentRecordStore(database, context).recordPending({
     orgId,
     checkoutId,
@@ -371,6 +373,7 @@ describe('staff refund HTTP', () => {
         })
         .execute(),
     );
+    await bindFixtureInvoice(database, context, checkoutId, invoice.id);
     await new PostgresPaymentRecordStore(database, context).recordPending({
       orgId: context.orgId,
       checkoutId,
