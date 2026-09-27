@@ -6,6 +6,8 @@ export const modulePermissions = [
   'chat.moderate',
   'chat.read',
   'chat.send',
+  'classes.instruct',
+  'classes.manage',
   'communications.manage',
   'communications.read',
   'evaluations.manage',
