@@ -18,6 +18,7 @@ import { aidProgramSchema } from './aid-programs.js';
 import { autopayAuthorizationListSchema } from './autopay-authorizations.js';
 import { creditBalanceSchema } from './credit-balances.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
+import { payerReceiptListSchema } from './payer-receipts.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
 import {
@@ -377,6 +378,41 @@ describe('payer year-end statement HTTP', () => {
       totalPaidCents: 1000,
       donationPaidCents: 0,
     });
+  });
+});
+
+describe('payer money PDF HTTP', () => {
+  it('returns binary invoice and reconciled receipt only with a session', async () => {
+    const allocation = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('payment_allocations')
+        .select('invoice_id')
+        .where('org_id', '=', context.orgId)
+        .where('payment_id', '=', paymentId)
+        .executeTakeFirstOrThrow(),
+    );
+    const invoicePath = `${baseUrl}/orgs/${context.orgId}/me/invoices/${allocation.invoice_id}/pdf`;
+    const receiptPath = `${baseUrl}/orgs/${context.orgId}/me/payments/${paymentId}/receipt.pdf`;
+    expect((await fetch(invoicePath)).status).toBe(401);
+    for (const path of [invoicePath, receiptPath]) {
+      const response = await fetch(path, {
+        headers: { Cookie: `__Host-athlentry_session=${token}` },
+      });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain('application/pdf');
+      expect(
+        Buffer.from(await response.arrayBuffer())
+          .subarray(0, 5)
+          .toString(),
+      ).toBe('%PDF-');
+    }
+    const feed = await fetch(`${baseUrl}/orgs/${context.orgId}/me/receipts`, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(feed.status).toBe(200);
+    expect(
+      payerReceiptListSchema.parse((await feed.json()) as unknown),
+    ).toMatchObject({ receipts: [{ paymentId, amountCents: 1000 }] });
   });
 });
 

@@ -136,6 +136,12 @@ export function InvoiceBalanceScreen({
                   </div>
                 ) : null}
               </dl>
+              <a
+                className="button money-document-link"
+                href={`/api/v1/finance/orgs/${encodeURIComponent(orgId)}/me/invoices/${invoice.id}/pdf`}
+              >
+                Download invoice PDF
+              </a>
             </li>
           ))}
         </ul>

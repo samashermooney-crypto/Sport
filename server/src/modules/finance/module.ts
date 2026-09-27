@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import type { ServerModule } from '../../lib/module-contract.js';
 
 import {
@@ -18,6 +20,7 @@ import {
   installmentTemplateSchema,
   installmentTemplateListSchema,
 } from './installment-templates.js';
+import { payerReceiptListSchema } from './payer-receipts.js';
 import {
   createFinanceRouter,
   offlinePaymentBodySchema,
@@ -66,6 +69,26 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/me/receipts',
+      summary: 'List payer-owned settled payment receipts',
+      response: payerReceiptListSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/me/invoices/{invoiceId}/pdf',
+      summary: 'Download a payer-owned invoice PDF',
+      response: z.string(),
+      binary: true,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/me/payments/{paymentId}/receipt.pdf',
+      summary: 'Download a reconciled payer payment receipt PDF',
+      response: z.string(),
+      binary: true,
+    },
     {
       method: 'get',
       path: '/api/v1/finance/orgs/{orgId}/me/autopay',

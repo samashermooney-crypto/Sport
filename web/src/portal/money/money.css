@@ -153,3 +153,10 @@
 .money-autopay-list button {
   min-height: var(--control-height-44);
 }
+
+.money-document-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height-44);
+  margin-top: var(--space-12);
+}

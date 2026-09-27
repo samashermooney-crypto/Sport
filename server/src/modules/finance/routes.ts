@@ -64,6 +64,11 @@ import {
   payoutJournalLines,
 } from './journal-export.js';
 import {
+  MoneyDocumentNotFoundError,
+  MoneyDocumentUnavailableError,
+  PostgresMoneyDocuments,
+} from './money-documents.js';
+import {
   OfflinePaymentConflictError,
   PostgresOfflinePayments,
 } from './offline-payments.js';
@@ -72,6 +77,10 @@ import {
   PayerMethodConflictError,
   PayerMethodsService,
 } from './payer-methods.js';
+import {
+  payerReceiptListSchema,
+  PostgresPayerReceipts,
+} from './payer-receipts.js';
 import { PostgresPayerProfileRepository } from './payer-repo.js';
 import { PostgresSavedPaymentMethodRepository } from './payment-method-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
@@ -425,10 +434,12 @@ function sendError(response: Response, error: unknown): void {
           error instanceof AidReviewConflictError ||
           error instanceof CreditLedgerConflictError ||
           error instanceof TaxRateConflictError ||
-          error instanceof StatementUnavailableError
+          error instanceof StatementUnavailableError ||
+          error instanceof MoneyDocumentUnavailableError
         ? 409
         : error instanceof InvoiceNotFoundError ||
-            error instanceof AutopayAuthorizationNotFoundError
+            error instanceof AutopayAuthorizationNotFoundError ||
+            error instanceof MoneyDocumentNotFoundError
           ? 404
           : error instanceof FinanceDependencyError
             ? 503
@@ -508,6 +519,67 @@ export function createFinanceRouter(
         context,
       ).list();
       response.json(autopayAuthorizationListSchema.parse({ authorizations }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get(
+    '/orgs/:orgId/me/invoices/:invoiceId/pdf',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const invoiceId = z.uuid().parse(request.params.invoiceId);
+        const document = await new PostgresMoneyDocuments(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).invoice(invoiceId);
+        response.setHeader('Content-Type', 'application/pdf');
+        response.setHeader(
+          'Content-Disposition',
+          `attachment; filename="invoice-${invoiceId}.pdf"`,
+        );
+        response.send(Buffer.from(document));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/me/payments/:paymentId/receipt.pdf',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const paymentId = z.uuid().parse(request.params.paymentId);
+        const document = await new PostgresMoneyDocuments(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).receipt(paymentId);
+        response.setHeader('Content-Type', 'application/pdf');
+        response.setHeader(
+          'Content-Disposition',
+          `attachment; filename="receipt-${paymentId}.pdf"`,
+        );
+        response.send(Buffer.from(document));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get('/orgs/:orgId/me/receipts', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const cursor = z.string().optional().parse(request.query.cursor);
+      const result = await new PostgresPayerReceipts(dependencies.database, {
+        orgId,
+        actor: { accountId: session.accountId },
+      }).list(cursor);
+      response.json(payerReceiptListSchema.parse(result));
     } catch (error) {
       sendError(response, error);
     }

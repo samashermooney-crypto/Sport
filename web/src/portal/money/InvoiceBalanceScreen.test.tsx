@@ -56,6 +56,13 @@ describe('payer invoice balance screen', () => {
     );
     expect(await screen.findByText('Invoice #2')).toBeTruthy();
     expect(screen.getByText('$15.00')).toBeTruthy();
+    expect(
+      screen
+        .getByRole('link', { name: 'Download invoice PDF' })
+        .getAttribute('href'),
+    ).toBe(
+      '/api/v1/finance/orgs/0199a413-a221-7000-8000-000000000003/me/invoices/0199a413-a221-7000-8000-000000000001/pdf',
+    );
     fireEvent.click(
       screen.getByRole('button', {
         name: 'Load more invoices',
