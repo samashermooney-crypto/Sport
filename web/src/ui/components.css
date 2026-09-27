@@ -357,6 +357,9 @@ small {
 .ui-empty-state p {
   margin: 0 0 var(--space-12);
 }
+.ui-empty-state {
+  color: var(--muted);
+}
 .error-box {
   background: #fff0ed;
   color: #9b3524;
@@ -502,6 +505,34 @@ small {
 .modal::backdrop {
   background: #293a4660;
 }
+.ui-dialog {
+  border-color: var(--line);
+  border-radius: var(--radius-10);
+  box-shadow: var(--shadow-14);
+  color: var(--ink-2);
+}
+.ui-dialog .modal-title {
+  padding: 18px 24px;
+  background: var(--panel);
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+}
+.ui-dialog .modal-title h2 {
+  font-size: var(--font-size-20);
+}
+.ui-dialog .modal-title > button {
+  width: var(--control-height-32);
+  height: var(--control-height-32);
+  color: var(--muted);
+  border-radius: var(--radius-6);
+}
+.ui-dialog .modal-title > button:hover {
+  background: var(--head);
+}
+.ui-dialog .modal-body {
+  padding: 24px;
+  max-height: calc(86vh - 67px);
+}
 .modal-title {
   display: flex;
   justify-content: space-between;
@@ -545,7 +576,7 @@ small {
   border-radius: 0;
 }
 .ui-drawer .modal-body {
-  max-height: calc(100dvh - 56px);
+  max-height: calc(100dvh - 67px);
 }
 .ui-sheet {
   position: fixed;
@@ -897,6 +928,22 @@ small {
   display: flex;
   align-items: center;
   gap: var(--space-8);
+}
+.ui-showcase-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: var(--control-height-44);
+}
+.ui-showcase-skeleton-sample {
+  display: grid;
+  gap: var(--space-4);
+  color: var(--muted);
+  font-size: var(--font-size-11);
+}
+.ui-showcase-skeleton-sample .ui-skeleton {
+  width: 180px;
+  max-width: 100%;
 }
 .ui-showcase-metrics {
   display: grid;
@@ -1631,6 +1678,18 @@ small {
     width: 100%;
     max-width: none;
   }
+  .ui-dialog .modal-title {
+    padding: 11px var(--space-18);
+  }
+  .ui-dialog .modal-title > button {
+    width: var(--control-height-44);
+    min-width: var(--control-height-44);
+    height: var(--control-height-44);
+    min-height: var(--control-height-44);
+  }
+  .ui-dialog .modal-body {
+    padding: 18px;
+  }
   .ui-app-shell
     :is(
       button,
@@ -1687,6 +1746,12 @@ small {
     gap: var(--space-8);
     padding: var(--space-12);
     border-bottom: 1px solid var(--line);
+  }
+  .ui-data-table.has-mobile-cards .ui-mobile-row article > label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    min-height: var(--control-height-44);
   }
   .ui-data-table.has-mobile-cards .ui-mobile-row article > div {
     min-width: 0;

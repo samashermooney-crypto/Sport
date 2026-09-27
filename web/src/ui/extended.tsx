@@ -98,15 +98,22 @@ export function MoneyInput({
         step="0.01"
         value={value === '' ? '' : (value / 100).toFixed(2)}
         onChange={(event) => {
-          onChange(
-            event.target.value === ''
-              ? ''
-              : Math.round(Number(event.target.value) * 100),
-          );
+          onChange(dollarsToCents(event.target.value));
         }}
       />
     </span>
   );
+}
+
+function dollarsToCents(value: string): number | '' {
+  if (value === '') return '';
+  const match = /^(\d*)(?:\.(\d*))?$/.exec(value);
+  if (!match) return '';
+  const whole = BigInt(match[1] || '0');
+  const fraction = match[2] ?? '';
+  const cents = BigInt((fraction + '00').slice(0, 2));
+  const rounded = cents + (Number(fraction[2] ?? '0') >= 5 ? 1n : 0n);
+  return Number(whole * 100n + rounded);
 }
 export function PhoneInput(
   props: InputHTMLAttributes<HTMLInputElement>,
@@ -131,7 +138,9 @@ export function Combobox({
   onQueryChange?: (query: string) => void;
 }): React.JSX.Element {
   const id = useId();
+  const [query, setQuery] = useState<string | null>(null);
   const selected = options.find((option) => option.value === value);
+  const inputValue = query ?? selected?.label ?? value;
   return (
     <span className="ui-combobox">
       <input
@@ -139,13 +148,20 @@ export function Combobox({
         aria-busy={loading}
         aria-autocomplete="list"
         list={`${id}-options`}
-        value={selected?.label ?? value}
+        value={inputValue}
         placeholder={placeholder}
         onChange={(event) => {
           const query = event.target.value;
           const option = options.find((candidate) => candidate.label === query);
-          onChange(option?.value ?? query);
-          onQueryChange?.(option?.label ?? query);
+          if (option) {
+            setQuery(null);
+            onChange(option.value);
+            onQueryChange?.('');
+            return;
+          }
+          setQuery(query);
+          if (!query) onChange('');
+          onQueryChange?.(query);
         }}
       />
       <datalist id={`${id}-options`}>
@@ -618,12 +634,19 @@ export function StatTile({
 export function Chart({
   title,
   values,
-  color = 'var(--accent)',
+  tone = 'accent',
 }: {
   title: string;
   values: { label: string; value: number }[];
-  color?: string;
+  tone?: 'accent' | 'ok' | 'warn' | 'bad' | 'chrome';
 }): React.JSX.Element {
+  const colors = {
+    accent: 'var(--accent)',
+    ok: 'var(--ok)',
+    warn: 'var(--warn)',
+    bad: 'var(--bad)',
+    chrome: 'var(--chrome)',
+  } as const;
   const label = `${title}: ${values
     .map((item) => `${item.label} ${item.value.toString()}`)
     .join(', ')}`;
@@ -643,7 +666,7 @@ export function Chart({
               tickLine={{ stroke: 'var(--line)' }}
               tick={{
                 fill: 'var(--muted)',
-                fontSize: 11,
+                fontSize: 'var(--font-size-11)',
                 fontFamily: 'var(--font-app)',
               }}
             />
@@ -653,7 +676,7 @@ export function Chart({
               tickLine={{ stroke: 'var(--line)' }}
               tick={{
                 fill: 'var(--muted)',
-                fontSize: 11,
+                fontSize: 'var(--font-size-11)',
                 fontFamily: 'var(--font-app)',
               }}
             />
@@ -670,7 +693,7 @@ export function Chart({
               labelStyle={{ color: 'var(--muted)', fontWeight: 600 }}
               itemStyle={{ color: 'var(--accent-600)' }}
             />
-            <Bar dataKey="value" fill={color} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="value" fill={colors[tone]} radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
