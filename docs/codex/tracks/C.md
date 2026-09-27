@@ -49,4 +49,4 @@ Self-review: file and conversation lookups stay within `withOrg`; revoked or arc
 - The red trunk cases reported before `9b5b430` were compliance Phase 7 integration (3), installment-charge repo (3), chat attachment integration, finance credit route, and Knip; the owner reports the test and Knip jobs now pass.
 - After merge `63871e0`, only the pre-commit lint/format and typecheck hook plus the targeted 12-test onboarding/AI/help suite are verified. The full post-merge test/E2E/static/build gate is outstanding. Before K merged, C's full test suite passed 726 tests with 1 existing skip and E2E passed 42 with 4 configured skips.
 - C stack: `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=900`, Postgres `127.0.0.1:6332`, Mailpit 1925, Stripe mock 13011. Offset 500 was occupied by Track E when this stack was started; check availability before changing it.
-- `/Users/sammooney/Sport-trunk` is clean at `56f2789` (ahead of origin by four commits). `/tmp/athlentry-trunk.lock` is absent.
+- `/Users/sammooney/Sport-trunk` is clean at `af353fc` (ahead of origin by seven commits). `/tmp/athlentry-trunk.lock` is absent.
