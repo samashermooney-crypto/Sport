@@ -42,6 +42,32 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
       firstName: 'Mia',
       lastName: 'Rivera',
     });
+    const siblingId = await factories.person(staff, {
+      firstName: 'Ava',
+      lastName: 'Rivera',
+    });
+    const householdId = await factories.household(staff);
+    await createWithOrg(database)(staff, async (trx) => {
+      await trx
+        .insertInto('household_members')
+        .values([
+          {
+            id: newId(),
+            org_id: staff.orgId,
+            household_id: householdId,
+            person_id: childId,
+            role: 'athlete',
+          },
+          {
+            id: newId(),
+            org_id: staff.orgId,
+            household_id: householdId,
+            person_id: siblingId,
+            role: 'athlete',
+          },
+        ])
+        .execute();
+    });
     const guardianId = newId();
     const guardianEmail = `guardian-${randomUUID()}@example.invalid`;
     await database
@@ -55,8 +81,21 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
         email_verified_at: new Date(),
       })
       .execute();
+    await createWithOrg(database)(staff, async (trx) => {
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: newId(),
+          org_id: staff.orgId,
+          person_id: siblingId,
+          account_id: guardianId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute();
+    });
     const secondOrg = await factories.actor();
-    const secondChildId = await factories.person(secondOrg, {
+    const crossOrgChildId = await factories.person(secondOrg, {
       firstName: 'Zoe',
       lastName: 'Morgan',
     });
@@ -66,7 +105,7 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
         .values({
           id: newId(),
           org_id: secondOrg.orgId,
-          person_id: secondChildId,
+          person_id: crossOrgChildId,
           account_id: guardianId,
           relationship: 'guardian',
           verified_at: new Date(),
@@ -174,6 +213,7 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
       guardianPage.getByRole('heading', { name: 'Your family' }),
     ).toBeVisible();
     await expect(guardianPage.getByText('Mia Rivera')).toBeVisible();
+    await expect(guardianPage.getByText('Ava Rivera')).toBeVisible();
     await expect(guardianPage.getByText('Zoe Morgan')).toBeVisible();
     expect(await accessibilityViolations(guardianPage)).toEqual([]);
     await guardianPage.goto(`/me/family/${staff.orgId}/${childId}/medical`);
@@ -224,6 +264,24 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
     expect(links).toHaveLength(1);
     expect(links[0]?.account_id).toBe(guardianId);
     expect(links[0]?.verified_at).not.toBeNull();
+    const householdMembers = await createWithOrg(database)(staff, (trx) =>
+      trx
+        .selectFrom('household_members')
+        .select(['person_id', 'role'])
+        .where('org_id', '=', staff.orgId)
+        .where('household_id', '=', householdId)
+        .where('removed_at', 'is', null)
+        .execute(),
+    );
+    expect(
+      householdMembers
+        .filter((member) => member.role === 'athlete')
+        .map((member) => member.person_id)
+        .sort(),
+    ).toEqual([childId, siblingId].sort());
+    expect(householdMembers.some((member) => member.role === 'guardian')).toBe(
+      true,
+    );
   } finally {
     await guardianContext.close();
     await database.destroy();
