@@ -293,6 +293,19 @@ const fileRoutes: OpenApiRoute[] = [
 const orgRoutes: OpenApiRoute[] = [
   {
     method: 'get',
+    path: `${orgsBase}/{orgId}/profile`,
+    summary: 'Get organization profile and branding',
+    response: orgs.orgProfileSchema,
+  },
+  {
+    method: 'patch',
+    path: `${orgsBase}/{orgId}/profile`,
+    summary: 'Update versioned organization profile and branding',
+    body: orgs.updateOrgProfileSchema,
+    response: orgs.orgProfileSchema,
+  },
+  {
+    method: 'get',
     path: `${orgsBase}/sport-templates`,
     summary: 'List built-in sport templates',
     response: orgs.sportTemplateCatalogSchema,

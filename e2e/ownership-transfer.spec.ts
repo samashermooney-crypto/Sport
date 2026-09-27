@@ -110,6 +110,24 @@ test('recipient accepts owner transfer from the staff screen', async ({
         sameSite: 'Lax',
       },
     ]);
+    await page.goto(`/orgs/${actor.orgId}/profile`);
+    await expect(
+      page.getByRole('heading', { name: 'Organization profile' }),
+    ).toBeVisible();
+    await page
+      .getByRole('textbox', { name: /Organization name/ })
+      .fill('Updated Fixture Club');
+    await page.getByRole('button', { name: 'Save profile' }).click();
+    await expect(page.getByRole('status')).toContainText('profile saved');
+    await page
+      .getByLabel('Choose logo')
+      .setInputFiles('e2e/visual-reference/sign-in-390.png');
+    await page.getByRole('button', { name: 'Upload logo and save' }).click();
+    await expect(page.getByRole('status')).toContainText('Logo uploaded');
+    await expect(
+      page.getByRole('img', { name: 'Updated Fixture Club logo' }),
+    ).toBeVisible();
+    expect(await accessibilityViolations(page)).toEqual([]);
     await page.goto(`/orgs/${actor.orgId}/staff`);
     const member = page.getByRole('region', { name: 'Roles for Future Owner' });
     await expect(member).toBeVisible();
