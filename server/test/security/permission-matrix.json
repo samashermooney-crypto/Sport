@@ -1,0 +1,29 @@
+{
+  "formatVersion": 1,
+  "roles": [
+    "anonymous",
+    "owner",
+    "admin",
+    "registrar",
+    "finance",
+    "scheduler",
+    "compliance",
+    "communications",
+    "director",
+    "evaluator",
+    "volunteer_coordinator",
+    "reporter",
+    "guardian",
+    "self",
+    "head_coach",
+    "assistant_coach",
+    "team_manager",
+    "treasurer",
+    "official",
+    "volunteer",
+    "platform_super_admin",
+    "platform_support",
+    "platform_finance_ops"
+  ],
+  "operations": {}
+}

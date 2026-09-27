@@ -24,7 +24,7 @@ export class NotificationAccessError extends Error {
   readonly code = 'NOT_FOUND';
 }
 
-export class NotificationSuspendedError extends Error {
+class NotificationSuspendedError extends Error {
   readonly status = 403;
   readonly code = 'FORBIDDEN';
 }
