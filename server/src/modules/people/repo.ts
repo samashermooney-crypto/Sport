@@ -212,6 +212,25 @@ export function createPeopleRepository(database: Kysely<DB>) {
           .where('status', '=', query.status);
         if (query.gender)
           statement = statement.where('gender', '=', query.gender);
+        if (query.householdId)
+          statement = statement.where(sql<boolean>`EXISTS (
+            SELECT 1 FROM household_members hm
+            WHERE hm.org_id = people.org_id AND hm.person_id = people.id
+              AND hm.household_id = ${query.householdId}::uuid
+              AND hm.removed_at IS NULL
+          )`);
+        if (query.hasBalance !== undefined) {
+          const outstanding = sql<boolean>`EXISTS (
+            SELECT 1 FROM invoice_lines il
+            JOIN invoices invoice ON invoice.org_id = il.org_id AND invoice.id = il.invoice_id
+            WHERE il.org_id = people.org_id AND il.person_id = people.id
+              AND invoice.status NOT IN ('void', 'draft')
+              AND invoice.balance_cents > 0
+          )`;
+          statement = statement.where(
+            query.hasBalance ? outstanding : sql<boolean>`NOT ${outstanding}`,
+          );
+        }
         if (query.grade !== undefined)
           statement = statement.where(
             'graduation_year',

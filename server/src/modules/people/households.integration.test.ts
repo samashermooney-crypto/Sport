@@ -290,6 +290,14 @@ it('scopes household members and preserves primary contact, version and audit', 
       (item) => item.id,
     ),
   ).toContain(created.id);
+  expect(
+    (await repo.list(owner.orgId, owner.accountId, { q: 'Rivera' })).items.map(
+      (item) => item.id,
+    ),
+  ).toContain(created.id);
+  expect(
+    (await repo.list(owner.orgId, owner.accountId, { q: 'No match' })).items,
+  ).toEqual([]);
   const audit = await withOrg(owner, (trx) =>
     trx
       .selectFrom('audit_log')
