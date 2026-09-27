@@ -248,6 +248,31 @@ test('new account verifies its preview email and signs in', async ({
     .getByRole('link', { name: 'Manage staff and invitations' })
     .click();
   const staffUrl = page.url();
+  const staffOrgId = /\/orgs\/([0-9a-f-]{36})\/staff$/.exec(
+    new URL(staffUrl).pathname,
+  )?.[1];
+  expect(staffOrgId).toBeTruthy();
+  expect(
+    (
+      await page.request.get(
+        `/api/v1/me/notifications/orgs/${String(staffOrgId)}/inbox`,
+      )
+    ).status(),
+  ).toBe(200);
+  expect(
+    (
+      await page.request.get(
+        `/api/v1/orgs/${String(staffOrgId)}/notifications/inbox`,
+      )
+    ).status(),
+  ).toBe(200);
+  await page.goto(`/portal/orgs/${String(staffOrgId)}/notifications`);
+  await expect(
+    page.getByRole('heading', { name: 'Notifications' }),
+  ).toBeVisible();
+  await expect(page.getByText('No notifications yet.')).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.goto(staffUrl);
   await expect(
     page.getByRole('heading', { name: 'Users and roles' }),
   ).toBeVisible();
