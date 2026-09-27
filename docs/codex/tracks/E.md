@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Staff installment due-date and split actions are versioned, idempotent and audited; waive and consented method switch remain in the Phase 4 queue. Finance notice worker delivery waits for A's system actor contract.
+Current: Staff installment due-date, split and consented method-switch actions are versioned, idempotent and audited; waiver and payer mandate capture remain in the Phase 4 queue. Finance notice worker delivery waits for A's system actor contract.
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
@@ -35,6 +35,7 @@ Ready for integration: local `017746b..d957580` — payer-owned autopay mandate 
 Ready for integration: local `b498f3a..5af9888` — payer invoice/receipt PDFs, paginated receipt feed, portal links and embedded Open Sans font; latest full gate green.
 Ready for integration: local `f35ae22..e76945f` — tenant-scoped invoice/payment notice outbox and fake-adapter delivery contract with durable provider keys; automatic worker dispatch awaits A's system actor.
 Ready for integration: local `7e8c968..HEAD` — staff installment due-date and split API with immutable action receipts; full gate green (669 tests, 32 browser tests).
+Ready for integration: local `059b13e..HEAD` — staff method switch requires an active saved method and an unrevoked payer mandate for the exact invoice; full gate green (671 tests, 34 browser tests).
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).

@@ -24,6 +24,13 @@ export const installmentStaffActionSchema = z.discriminatedUnion('action', [
     newDueOn: z.iso.date(),
     reason: z.string().trim().min(5).max(500),
   }),
+  z.strictObject({
+    action: z.literal('switch_payment_method'),
+    expectedVersion: z.number().int().positive(),
+    paymentMethodId: z.uuid(),
+    consentMandateId: z.uuid(),
+    reason: z.string().trim().min(5).max(500),
+  }),
 ]);
 export const installmentStaffResultSchema = z.strictObject({
   installmentId: z.uuid(),
@@ -32,6 +39,8 @@ export const installmentStaffResultSchema = z.strictObject({
   amountCents: z.number().int().positive(),
   addedInstallmentId: z.uuid().nullable(),
   addedAmountCents: z.number().int().positive().nullable(),
+  paymentMethodId: z.uuid().nullable().optional(),
+  consentMandateId: z.uuid().nullable().optional(),
 });
 export type InstallmentStaffAction = z.output<
   typeof installmentStaffActionSchema
@@ -114,7 +123,7 @@ export class PostgresInstallmentStaffActions {
         throw new InstallmentStaffConflictError('Installment version changed');
       const invoice = await trx
         .selectFrom('invoices')
-        .select(['status', 'balance_cents', 'disputed_cents'])
+        .select(['account_id', 'status', 'balance_cents', 'disputed_cents'])
         .where('org_id', '=', this.context.orgId)
         .where('id', '=', installment.invoice_id)
         .forUpdate()
@@ -154,7 +163,7 @@ export class PostgresInstallmentStaffActions {
         .toZonedDateTimeISO(org.timezone)
         .toPlainDate()
         .toString();
-      if (input.newDueOn <= today)
+      if (input.action !== 'switch_payment_method' && input.newDueOn <= today)
         throw new InstallmentStaffConflictError(
           'New due date must be in the future',
         );
@@ -191,7 +200,7 @@ export class PostgresInstallmentStaffActions {
           addedInstallmentId: null,
           addedAmountCents: null,
         };
-      } else {
+      } else if (input.action === 'split') {
         if (
           installment.status !== 'scheduled' ||
           installment.attempt_count !== 0 ||
@@ -242,6 +251,53 @@ export class PostgresInstallmentStaffActions {
           amountCents: installment.amount_cents - input.splitCents,
           addedInstallmentId: addedId,
           addedAmountCents: input.splitCents,
+        };
+      } else {
+        const mandate = await sql<{ id: string }>`
+          SELECT mandate.id FROM autopay_authorizations mandate
+          JOIN payment_methods method
+            ON method.id = mandate.payment_method_id
+            AND method.account_id = mandate.account_id
+          WHERE mandate.org_id = ${this.context.orgId}::uuid
+            AND mandate.id = ${input.consentMandateId}::uuid
+            AND mandate.invoice_id = ${installment.invoice_id}::uuid
+            AND mandate.account_id = ${invoice.account_id}::uuid
+            AND mandate.payment_method_id = ${input.paymentMethodId}::uuid
+            AND mandate.revoked_at IS NULL
+            AND method.status = 'active'
+            AND method.type IN ('card', 'us_bank_account', 'link')
+          FOR UPDATE OF mandate
+        `.execute(trx);
+        if (!mandate.rows[0])
+          throw new InstallmentStaffConflictError(
+            'An active payer mandate for this invoice and method is required',
+          );
+        if (
+          installment.status === 'failed' &&
+          installment.next_attempt_at === null
+        )
+          throw new InstallmentStaffConflictError(
+            'This failed installment requires payer action',
+          );
+        await trx
+          .updateTable('installments')
+          .set({
+            payment_method_id: input.paymentMethodId,
+            autopay: true,
+            version: sql`version + 1`,
+          })
+          .where('org_id', '=', this.context.orgId)
+          .where('id', '=', id)
+          .execute();
+        result = {
+          installmentId: id,
+          version: installment.version + 1,
+          dueOn: installment.due_on,
+          amountCents: installment.amount_cents,
+          addedInstallmentId: null,
+          addedAmountCents: null,
+          paymentMethodId: input.paymentMethodId,
+          consentMandateId: input.consentMandateId,
         };
       }
       await sql`

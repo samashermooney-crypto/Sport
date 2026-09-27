@@ -16,11 +16,13 @@ let database: Kysely<DB>;
 let context: OrgContext;
 let installmentId: string;
 let invoiceId: string;
+let payerAccountId: string;
 const now = () => Temporal.Instant.from('2026-09-27T15:00:00Z');
 
 beforeAll(async () => {
   database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
   const accountId = newId();
+  payerAccountId = accountId;
   const orgId = newId();
   installmentId = newId();
   await database
@@ -151,5 +153,79 @@ describe('staff installment schedule actions', () => {
         reason: 'Another requested split',
       }),
     ).rejects.toThrow('final installment');
+  });
+
+  it('switches only to an active payer-owned method with invoice consent', async () => {
+    const methodId = newId();
+    const mandateId = newId();
+    await database
+      .insertInto('payment_methods')
+      .values({
+        id: methodId,
+        account_id: payerAccountId,
+        stripe_payment_method_id: `pm_${randomUUID()}`,
+        type: 'card',
+        status: 'active',
+      })
+      .execute();
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .insertInto('autopay_authorizations')
+        .values({
+          id: mandateId,
+          org_id: context.orgId,
+          account_id: payerAccountId,
+          invoice_id: invoiceId,
+          payment_method_id: methodId,
+          mandate_text_version: 'mandate-v1',
+        })
+        .execute(),
+    );
+    const repo = new PostgresInstallmentStaffActions(database, context, now);
+    const action = {
+      action: 'switch_payment_method' as const,
+      expectedVersion: 3,
+      paymentMethodId: methodId,
+      consentMandateId: mandateId,
+      reason: 'Family authorized this saved payment method',
+    };
+    await expect(
+      repo.perform(installmentId, randomUUID(), {
+        ...action,
+        consentMandateId: randomUUID(),
+      }),
+    ).rejects.toThrow('payer mandate');
+    const result = await repo.perform(installmentId, randomUUID(), action);
+    expect(result).toMatchObject({
+      version: 4,
+      paymentMethodId: methodId,
+      consentMandateId: mandateId,
+    });
+    const stored = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('installments')
+        .select(['payment_method_id', 'autopay'])
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', installmentId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(stored).toMatchObject({
+      payment_method_id: methodId,
+      autopay: true,
+    });
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('autopay_authorizations')
+        .set({ revoked_at: new Date() })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', mandateId)
+        .execute(),
+    );
+    await expect(
+      repo.perform(installmentId, randomUUID(), {
+        ...action,
+        expectedVersion: 4,
+      }),
+    ).rejects.toThrow('payer mandate');
   });
 });
