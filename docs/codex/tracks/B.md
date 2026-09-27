@@ -63,3 +63,5 @@ Pending Phase 3 gate: full tests, owned Playwright journeys, OpenAPI freshness a
 - Known failing or unverified tests: the focused season and facility Postgres suites most recently passed (2 files, 15 tests); targeted ESLint passed. Typecheck passed before the final small season-filter edit and should be rerun. The full suite and Phase 3 Playwright acceptance journeys are unverified/not yet available. An earlier full-suite attempt timed out in unrelated auth, compliance, communications, finance, and chat tests; rerun via `heavy.sh` before integration. No current targeted test failure is known.
 - Open requests: Track C — mount `web/src/console/{programs,teams,facilities}/routes.tsx`, add console navigation, and regenerate OpenAPI for the facilities availability PATCH. Track QA — add Phase 3 setup and rollover journeys on Chromium and WebKit mobile, with axe and 390px coverage. Track H — provide the volunteer-requirement rollover extras contract/table used by `SeasonRolloverExtras`.
 - Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_b`, `PORT_OFFSET=2500`; Postgres is `127.0.0.1:7932`.
+
+HANDED OFF 11:35
