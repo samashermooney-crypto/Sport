@@ -122,8 +122,8 @@ export class PostgresFinanceNoticeDelivery {
         : 'Your payment receipt is ready';
     const path =
       notice.kind === 'invoice_issued'
-        ? `/orgs/${this.context.orgId}/money/invoices`
-        : `/orgs/${this.context.orgId}/money/receipts`;
+        ? `/portal/orgs/${this.context.orgId}/money/invoices`
+        : `/portal/orgs/${this.context.orgId}/money/receipts`;
     const url = new URL(path, this.appUrl).toString();
     try {
       const sent = await this.sender.send({

@@ -50,6 +50,14 @@ import {
 } from './credits.js';
 import { PostgresFrozenChargeReader } from './frozen-charge-repo.js';
 import {
+  glCodeBodySchema,
+  GlCodeConflictError,
+  glCodeListSchema,
+  glCodeReplaceSchema,
+  glCodeSchema,
+  PostgresGlCodes,
+} from './gl-codes.js';
+import {
   installmentStaffActionSchema,
   installmentStaffListSchema,
   installmentStaffResultSchema,
@@ -74,6 +82,14 @@ import {
   payoutJournalCsv,
   payoutJournalLines,
 } from './journal-export.js';
+import {
+  journalAccounts,
+  JournalMappingConflictError,
+  journalMappingResponseSchema,
+  journalMappingSaveSchema,
+  journalMappingSchema,
+  PostgresJournalMapping,
+} from './journal-mapping.js';
 import {
   manualInstallmentIntentSchema,
   manualInstallmentListSchema,
@@ -382,6 +398,9 @@ export const payoutJournalResponseSchema = z.strictObject({
   journalNo: z.string().min(1),
   lineCount: z.number().int().nonnegative(),
 });
+export const savedJournalResponseSchema = payoutJournalResponseSchema.extend({
+  mappingVersion: z.number().int().positive(),
+});
 export const setupIntentResponseSchema = z.strictObject({
   id: z.string().startsWith('seti_'),
   clientSecret: z.string().min(1),
@@ -460,6 +479,7 @@ function sendError(response: Response, error: unknown): void {
       : error instanceof OfflinePaymentConflictError ||
           error instanceof RefundConflictError ||
           error instanceof JournalExportError ||
+          error instanceof JournalMappingConflictError ||
           error instanceof PayerMethodConflictError ||
           error instanceof ConnectConflictError ||
           error instanceof PaymentConflictError ||
@@ -472,6 +492,7 @@ function sendError(response: Response, error: unknown): void {
           error instanceof AidProgramConflictError ||
           error instanceof AidReviewConflictError ||
           error instanceof CreditLedgerConflictError ||
+          error instanceof GlCodeConflictError ||
           error instanceof TaxRateConflictError ||
           error instanceof StatementUnavailableError ||
           error instanceof MoneyDocumentUnavailableError ||
@@ -788,6 +809,66 @@ export function createFinanceRouter(
         context,
       ).replace(rateId, body);
       response.json(taxRateSchema.parse(rate));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/orgs/:orgId/gl-codes', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const codes = await new PostgresGlCodes(
+        dependencies.database,
+        context,
+      ).list();
+      response.json(glCodeListSchema.parse({ codes }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/gl-codes', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = glCodeBodySchema.parse(request.body as unknown);
+      const key = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const created = await new PostgresGlCodes(
+        dependencies.database,
+        context,
+      ).create(body, key);
+      response.status(201).json(glCodeSchema.parse(created));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.put('/orgs/:orgId/gl-codes/:codeId', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const codeId = z.uuid().parse(request.params.codeId);
+      const body = glCodeReplaceSchema.parse(request.body as unknown);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const replaced = await new PostgresGlCodes(
+        dependencies.database,
+        context,
+      ).replace(codeId, body);
+      response.json(glCodeSchema.parse(replaced));
     } catch (error) {
       sendError(response, error);
     }
@@ -1844,6 +1925,80 @@ export function createFinanceRouter(
             csv: payoutJournalCsv(lines),
             journalNo: `PAYOUT-${payoutId}`,
             lineCount: lines.length,
+          }),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get('/orgs/:orgId/journal-mapping', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const mapping = await new PostgresJournalMapping(
+        dependencies.database,
+        context,
+      ).read();
+      response.json(journalMappingResponseSchema.parse({ mapping }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.put('/orgs/:orgId/journal-mapping', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = journalMappingSaveSchema.parse(request.body as unknown);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const mapping = await new PostgresJournalMapping(
+        dependencies.database,
+        context,
+      ).save(body);
+      response.json(journalMappingSchema.parse(mapping));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get(
+    '/orgs/:orgId/payouts/:payoutId/journal-export',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const payoutId = z
+          .string()
+          .regex(/^po_[A-Za-z0-9_]+$/)
+          .parse(request.params.payoutId);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const mapping = await new PostgresJournalMapping(
+          dependencies.database,
+          context,
+        ).read();
+        if (!mapping)
+          throw new JournalMappingConflictError('Journal mapping is required');
+        const report = await new PostgresPayoutReconciliation(
+          dependencies.database,
+          context,
+        ).read(payoutId);
+        const lines = payoutJournalLines(report, journalAccounts(mapping));
+        response.json(
+          savedJournalResponseSchema.parse({
+            csv: payoutJournalCsv(lines),
+            journalNo: `PAYOUT-${payoutId}`,
+            lineCount: lines.length,
+            mappingVersion: mapping.version,
           }),
         );
       } catch (error) {

@@ -13,6 +13,7 @@ import {
 } from '../../integrations/email/sender.js';
 
 import { PostgresInvoiceRepository } from './invoice-repo.js';
+import { deliverFinanceNotices } from './money-notice-job.js';
 import {
   enqueueFinanceNotice,
   PostgresFinanceNoticeDelivery,
@@ -103,6 +104,12 @@ it('queues one notice per money event and delivers through the fake adapter', as
   expect(await delivery.deliverOne()).toBe('sent');
   expect(await delivery.deliverOne()).toBe('empty');
   expect(sender.messages).toHaveLength(2);
+  expect(sender.messages[0]?.text).toContain(
+    `/portal/orgs/${context.orgId}/money/invoices`,
+  );
+  expect(sender.messages[1]?.text).toContain(
+    `/portal/orgs/${context.orgId}/money/receipts`,
+  );
   expect(
     sender.messages.every(
       (message) =>
@@ -118,6 +125,41 @@ it('queues one notice per money event and delivers through the fake adapter', as
   expect(state.rows.every((row) => row.status === 'sent' && row.sent_at)).toBe(
     true,
   );
+});
+
+it('drains the org outbox from the registered worker contract using the system actor', async () => {
+  await new PostgresInvoiceRepository(database, context).issue({
+    orgId: context.orgId,
+    accountId: context.actor.accountId,
+    source: 'staff',
+    creationKey: randomUUID(),
+    lines: [
+      {
+        kind: 'tuition',
+        description: 'Worker test',
+        amountCents: 750,
+        refundable: true,
+      },
+    ],
+  });
+  const sender = new FakeEmailSender();
+  expect(
+    await deliverFinanceNotices({
+      database,
+      sender,
+      appUrl: 'http://127.0.0.1:5173',
+      organizationIds: [context.orgId],
+    }),
+  ).toEqual({ sent: 1, suppressed: 0 });
+  expect(sender.messages).toHaveLength(1);
+  expect(
+    await deliverFinanceNotices({
+      database,
+      sender,
+      appUrl: 'http://127.0.0.1:5173',
+      organizationIds: [context.orgId],
+    }),
+  ).toEqual({ sent: 0, suppressed: 0 });
 });
 
 it('refuses a finance notice addressed to another account', async () => {
