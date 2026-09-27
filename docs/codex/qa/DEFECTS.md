@@ -142,6 +142,26 @@
 - **Request:** register the notification type/template and enqueue a deduplicated purchaser notification from the successful fulfillment transaction; add an integration assertion using the notification outbox.
 - **Status:** open Phase 11 behavior gap; static service review found no notification call.
 
+### QA-ACC-044 — Production guest donations have no checkout provider
+
+- **Owner:** Tracks H/E/C (fundraising route, payment adapter, and production wiring)
+- **Phase:** 11 acceptance criterion 3
+- **Evidence:** `server/src/modules/fundraising/routes.ts` selects `PreviewGuestDonationCheckout` only outside production. In production, it uses `dependencies.donationCheckout`, but the generated `ServerModule` router contract accepts only `AuthDependencies`, `createFundraisingRouter` is registered directly in `fundraising/module.ts`, and no `donationCheckout` provider or production adapter exists elsewhere in `server/src`. A valid public donation therefore returns `503 CHECKOUT_UNAVAILABLE` before creating a checkout.
+- **Reproduce:** configure a published campaign in a production-mode deployment and submit a valid, Turnstile-verified guest donation with an `Idempotency-Key`. The handler responds `503` because `donationCheckout` is undefined. The preview adapter succeeds only in non-production.
+- **Expected:** a production donation creates a test-mode hosted checkout for the organization's connected account, and signed payment-completion/failure events settle the donation and deliver the receipt exactly once. Do not use live Stripe keys or real payments during implementation or tests.
+- **Request:** H should extend its fundraising route/module contract to accept the payment boundary; E should provide the test-mode connected-account checkout adapter and settle/receipt callbacks; C should inject that adapter through module wiring and route signed callbacks through the existing Stripe webhook dispatcher. Add a regression using a fake provider and signed synthetic webhook payloads.
+- **Status:** open Phase 11 launch blocker; source inspection confirms production returns 503, while the database/browser reproduction awaits the isolated QA stack.
+
+### QA-ACC-045 — Sponsor renewal reminders are disabled by the missing catalog type
+
+- **Owner:** Tracks H and B
+- **Phase:** 11 task 4 (sponsor renewal reminders)
+- **Evidence:** `server/src/modules/sponsors/module.ts` registers a daily renewal job and `runSponsorRenewalJob()` finds expiring active contracts, but it returns `{ notified: 0 }` immediately unless `isNotificationType('sponsor.renewal_reminder')` is true. The string is absent from `server/src/modules/notifications/catalog.ts`, so the job cannot create any notification. No test asserts a renewal notification.
+- **Reproduce:** create an active sponsor whose contract ends within the 30-day renewal window, run `runSponsorRenewalJob()`, and inspect the owner's notifications; the guard returns before querying organizations and no reminder is inserted. `e2e/phase11-sponsor-renewal.spec.ts` records the expected notification as `test.fixme`.
+- **Expected:** a single idempotent renewal reminder is inserted for each applicable owner/admin/finance recipient, and repeat daily job runs do not duplicate it.
+- **Request:** B should register the operational catalog entry and localized templates; H should retain the job and add duplicate-run coverage that proves the reminder is persisted once for an expiring contract.
+- **Status:** high-confidence Phase 11 behavior gap; the daily job is registered but its catalog gate makes it inert until the notification type is added.
+
 ### QA-SEC-010 — Revoked guardians retain access to class waitlist entries
 
 - **Owner:** Track I

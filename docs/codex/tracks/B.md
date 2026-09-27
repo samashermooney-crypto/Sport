@@ -49,3 +49,7 @@ Self-review: Notification SSE revalidates its session on every 20-second heartbe
 Self-review: B-owned audit/notification tenant reads carry the impersonation header; notification writes are hidden or disabled while impersonating, and banner end/expiry synchronizes the read-only state.
 Self-review: Task 9 checked against Phase 1 task 9; platform writes use admin role where app grants are revoked, plan and org changes carry versions, last active super admin is protected, and impersonation requests log IDs without record payloads.
 Self-review: Full unit/integration suite passes (550 tests, 1 existing skip) after E/F/H changes; typecheck, lint, build, registry and 109-operation OpenAPI generation pass; full Chromium/WebKit gate passes (26 pass, 4 existing skips) including platform, SMS/push preferences, mounted stream and axe.
+
+## Requests from QA
+
+- QA-ACC-045 (coordinate H) — add the `sponsor.renewal_reminder` operational notification catalog entry and English/Spanish templates. H registers a daily job, but its `isNotificationType()` guard currently exits before scanning sponsors, so no renewal notice can be created. See `docs/codex/qa/DEFECTS.md` (2026-09-27).
