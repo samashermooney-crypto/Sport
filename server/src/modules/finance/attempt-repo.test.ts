@@ -122,6 +122,30 @@ describe('Postgres PaymentIntent attempt store', () => {
     ).rejects.toThrow('organization mismatch');
   });
 
+  it('never replays a client secret to a different signed-in payer', async () => {
+    const replayCheckoutId = newId();
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .insertInto('checkouts')
+        .values({
+          id: replayCheckoutId,
+          org_id: context.orgId,
+          account_id: context.actor.accountId,
+          expires_at: new Date('2027-01-01T00:00:00Z'),
+        })
+        .execute(),
+    );
+    const input = { ...request(), checkoutId: replayCheckoutId };
+    expect(await store.reserve(input)).toEqual({ kind: 'reserved' });
+    await store.beginExternal(input);
+    await store.complete({ ...input, result });
+    const other = new PostgresPaymentAttemptStore(database, {
+      orgId: context.orgId,
+      actor: { accountId: newId() },
+    });
+    await expect(other.reserve(input)).rejects.toThrow('another payer');
+  });
+
   it('fences a second key until the first checkout payment fails', async () => {
     const competingCheckoutId = newId();
     await createWithOrg(database)(context, (trx) =>

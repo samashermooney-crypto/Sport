@@ -57,12 +57,14 @@ export class PostgresPaymentAttemptStore implements PaymentAttemptStore {
     return this.withOrg(this.context, async (trx) => {
       const checkout = await trx
         .selectFrom('checkouts')
-        .select('status')
+        .select(['status', 'account_id'])
         .where('org_id', '=', input.orgId)
         .where('id', '=', input.checkoutId)
         .forUpdate()
         .executeTakeFirst();
       if (!checkout) throw new Error('Payment checkout is unavailable');
+      if (checkout.account_id !== this.context.actor.accountId)
+        throw new Error('Payment checkout belongs to another payer');
       const existing = await sql<AttemptRow>`
         SELECT request_hash, status, result FROM payment_attempts
         WHERE org_id = ${input.orgId}::uuid
