@@ -28,6 +28,7 @@ Branch: `track/qa`
 - G — QA-ACC-015–020: add the missing Phase 8/9 browser flows and complete the partial rainout and offline game-day flows; details and exact gaps are in `docs/codex/qa/DEFECTS.md`.
 - H — QA-ACC-021: extend the communications browser journey through quiet-hour deferral and tokenized unsubscribe. Details are in `docs/codex/qa/DEFECTS.md`.
 - H — QA-ACC-037: run the Phase 11 $300 donation acceptance flow from an anonymous browser context; its current scenario retains the authenticated setup session. Details are in `docs/codex/qa/DEFECTS.md`.
+- H — QA-SEC-009: restrict household volunteer ledger reads to a verified guardian of that household or an authorized volunteer oversight role; the current service grants any active organization membership access. A scoped-director regression is marked `test.fixme` in `e2e/security/volunteer-household-ledger.spec.ts`.
 - I — QA-ACC-024: extend the academy browser flow to cover monthly tuition/proration and level promotion in addition to its current make-up booking and attendance coverage. Details are in `docs/codex/qa/DEFECTS.md`.
 - I — release or move the active `athlentry_i` stack from the QA-required `PORT_OFFSET=1500`; its Postgres, Mailpit, and Stripe mock mappings collide with ports `6932`, `2525/9525`, and `13611`. Do not stop the other track's containers from QA.
 
@@ -48,6 +49,8 @@ Branch: `track/qa`
 - Filed QA-ACC-035 after finding that `federation_sharing_guard()` allows camelCase `teamEntries`/`complianceStatus` while the shared schema and service persist snake_case. Existing tests exercise those keys, but runtime behavior remains unverified until QA Postgres is available.
 - Filed QA-ACC-036: Phase 13 journey 25 submits both field windows but schedules one game only, so it cannot prove both clubs' availability affects the generated schedule.
 - Audited the integrated Phase 11 journeys: journey 23 now records its volunteer acceptance flow as covered but awaiting QA execution; QA-ACC-037 asks H to exercise the donation acceptance path without the setup session.
+- Static privacy audit found QA-SEC-009: a scoped director with an active org membership can read unrelated household volunteer ledger data because the ledger service checks membership but not role scope. Added a focused `test.fixme` request test; runtime verification is blocked by the QA stack collision.
+- Selected isolated SSRF, stored-XSS, security-header, and `security.txt` Vitest checks pass (15 tests) using a temporary config without the PostgreSQL global setup; full database and browser suites remain blocked by the occupied QA offset.
 - Filed QA-SEC-008: `readMemberCompliance` has no real-Postgres test for the status-only allow-list, denied-sharing response, or dual-org audit.
 - Re-ran `npm run knip` on the post-Phase 13 tree: 8 unused files, 44 exports, 28 types, and 1 duplicate. The new federation dead exports and demo helper are routed through the Track C quality-gate request.
 - Post-Phase 13 `npm run typecheck`, `npm run lint`, and `npm run build` pass; build warns that the 1.35 MB app entry chunk exceeds Vite's 500 KB warning threshold. `npm run size` measures 404.93 KB gzip against a 200 KB limit. Targeted federation/crawler Chromium exits before test collection because its configured web server cannot start; the stack conflict remains with Track I.

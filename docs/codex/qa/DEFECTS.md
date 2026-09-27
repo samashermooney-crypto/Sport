@@ -72,6 +72,16 @@
 - **Request:** keep the authenticated setup for nonprofit settings, then use a fresh anonymous browser context (or clear the session cookie) for public donation and assert the context has no session before checkout.
 - **Status:** open acceptance gap; the existing scenario may still exercise the payment route but does not prove guest access.
 
+### QA-SEC-009 — Scoped organization members can read unrelated household volunteer ledgers
+
+- **Owner:** Track H
+- **Phase:** 11; privacy/permission model in `docs/codex/04-PERMISSIONS-AND-PRIVACY.md`
+- **Evidence:** `householdVolunteerLedger()` authorizes any active `org_memberships` row or verified guardian link. The route has no role/scope check. Organization invitations can create active memberships with program-scoped roles; `orgActor()` reports no org-wide role for those users, but the ledger service still grants access to every household ID in the organization.
+- **Reproduce:** an active program-scoped `director` requests `/api/v1/volunteers/orgs/:orgId/households/:householdId/ledger` for a household outside their volunteer relationship. `e2e/security/volunteer-household-ledger.spec.ts` records the expected 404 as `test.fixme`; current code returns the household ledger.
+- **Expected:** only a verified guardian of that household or a role with organization-wide volunteer oversight can read the ledger; unrelated and out-of-scope members receive 404 with no household data.
+- **Request:** replace the broad active-membership check with explicit owner/admin/volunteer-coordinator authorization (including the applicable scope policy) or verified guardian access, and add an integration regression for a program-scoped director.
+- **Status:** high-confidence static access-control defect; database-backed HTTP execution awaits the isolated QA stack.
+
 ### QA-OPS-001 — Render health probes have no `/readyz` handler and public status is missing
 
 - **Owner:** Track C
