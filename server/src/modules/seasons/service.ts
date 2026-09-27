@@ -74,8 +74,16 @@ export type RolloverIdMap = {
   seasonId: string;
   programIds: ReadonlyMap<string, string>;
   divisionIds: ReadonlyMap<string, string>;
+  offeringIds: ReadonlyMap<string, string>;
   teamSeasonIds: ReadonlyMap<string, string>;
   staffIds: ReadonlyMap<string, string>;
+  dateShift: {
+    offsetDays: number;
+    dateMap: DateMap;
+    timeZone: string;
+    shiftDate: (value: Date) => string;
+    shiftInstant: (value: Date | null) => Date | null;
+  };
 };
 export type SeasonRolloverExtras = (
   trx: OrgTransaction,
@@ -396,6 +404,7 @@ export class SeasonsService {
       .executeTakeFirstOrThrow();
     const programIds = new Map<string, string>();
     const divisionIds = new Map<string, string>();
+    const offeringIds = new Map<string, string>();
     const teamSeasonIds = new Map<string, string>();
     const suffix = value.startsOn.slice(0, 4);
     for (const old of oldPrograms) {
@@ -512,6 +521,8 @@ export class SeasonsService {
         .where('program_id', '=', old.id)
         .execute();
       for (const offering of offerings) {
+        const offeringId = newId();
+        offeringIds.set(offering.id, offeringId);
         const pricing = offeringPricingSchema.parse(offering.pricing);
         const copiedPricing = {
           ...pricing,
@@ -539,7 +550,7 @@ export class SeasonsService {
         await trx
           .insertInto('registration_offerings')
           .values({
-            id: newId(),
+            id: offeringId,
             org_id: this.context.orgId,
             program_id: id,
             division_id: offering.division_id
@@ -717,8 +728,22 @@ export class SeasonsService {
       seasonId: target.id,
       programIds,
       divisionIds,
+      offeringIds,
       teamSeasonIds,
       staffIds,
+      dateShift: {
+        offsetDays: value.offsetDays,
+        dateMap: value.dateMap,
+        timeZone: org.timezone,
+        shiftDate: (date) => resolveDate(date, value.offsetDays, value.dateMap),
+        shiftInstant: (instant) =>
+          resolveInstant(
+            instant,
+            value.offsetDays,
+            value.dateMap,
+            org.timezone,
+          ),
+      },
     };
     for (const extra of this.extras) await extra(trx, ids);
     return {

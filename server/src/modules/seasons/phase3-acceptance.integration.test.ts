@@ -329,7 +329,18 @@ describe('season rollover acceptance', () => {
     expect(captured).toHaveLength(1);
     expect(captured[0]?.seasonId).toBe(copy.season.id);
     expect(captured[0]?.programIds.size).toBe(1);
+    expect(captured[0]?.offeringIds.has(sourceOffering.id)).toBe(true);
     expect(captured[0]?.teamSeasonIds.size).toBe(1);
+    expect(captured[0]?.dateShift.offsetDays).toBe(365);
+    expect(captured[0]?.dateShift.timeZone).toBe('America/Chicago');
+    expect(captured[0]?.dateShift.shiftDate(new Date(2026, 11, 1))).toBe(
+      '2027-12-10',
+    );
+    expect(
+      captured[0]?.dateShift
+        .shiftInstant(new Date('2026-11-15T23:59:00-06:00'))
+        ?.toISOString(),
+    ).toBe('2027-11-16T05:59:00.000Z');
     const copiedDetail = await programs.get(copied.id);
     expect(copiedDetail.offerings).toHaveLength(1);
     expect(copiedDetail.offerings[0]).toMatchObject({
