@@ -91,6 +91,7 @@ export class PostgresFrozenChargeReader implements FrozenChargeReader {
           'expires_at',
           'version',
           'pricing_snapshot',
+          sql<string | null>`invoice_id`.as('invoice_id'),
         ])
         .where('org_id', '=', input.orgId)
         .where('id', '=', input.checkoutId)
@@ -98,6 +99,7 @@ export class PostgresFrozenChargeReader implements FrozenChargeReader {
       if (!checkout) return null;
       if (
         checkout.account_id !== input.accountId ||
+        checkout.invoice_id !== input.invoiceId ||
         checkout.status !== 'awaiting_payment' ||
         checkout.expires_at.getTime() <= Date.now()
       )

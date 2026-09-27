@@ -11,6 +11,7 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import type { PaymentsGateway } from '../../integrations/stripe/gateway.js';
 import type { AuthDependencies } from '../auth/routes.js';
+import { PostgresCheckoutInvoiceLinker } from '../checkout/invoice-link-repo.js';
 
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPayerProfileRepository } from './payer-repo.js';
@@ -110,6 +111,10 @@ beforeAll(async () => {
       })
       .execute();
   });
+  await new PostgresCheckoutInvoiceLinker(database, context).link(
+    checkoutId,
+    invoiceId,
+  );
   const profiles = new PostgresPayerProfileRepository(database);
   expect(await profiles.reserve(accountId)).toEqual({ kind: 'reserved' });
   await profiles.save(accountId, 'cus_payment_route');

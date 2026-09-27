@@ -99,7 +99,11 @@ export class PostgresPaymentRecordStore implements PaymentRecordStore {
         .executeTakeFirst();
       const checkout = await trx
         .selectFrom('checkouts')
-        .select(['account_id', 'status'])
+        .select([
+          'account_id',
+          'status',
+          sql<string | null>`invoice_id`.as('invoice_id'),
+        ])
         .where('org_id', '=', input.orgId)
         .where('id', '=', input.checkoutId)
         .forUpdate()
@@ -109,6 +113,7 @@ export class PostgresPaymentRecordStore implements PaymentRecordStore {
         invoice.account_id !== input.accountId ||
         !checkout ||
         checkout.account_id !== input.accountId ||
+        checkout.invoice_id !== input.invoiceId ||
         checkout.status !== 'awaiting_payment' ||
         ['draft', 'void', 'paid', 'uncollectible'].includes(invoice.status)
       ) {

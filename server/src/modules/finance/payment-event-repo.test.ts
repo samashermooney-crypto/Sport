@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../../db/kysely.js';
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
+import { bindFixtureInvoice } from '../checkout/test-fixtures.js';
 
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
@@ -76,6 +77,7 @@ beforeAll(async () => {
       .execute(),
   );
   records = new PostgresPaymentRecordStore(database, context);
+  await bindFixtureInvoice(database, context, checkoutId, invoiceId);
   events = new PostgresPaymentEventRepository(database, accountId, () =>
     Temporal.Instant.from('2026-09-26T12:00:00Z'),
   );

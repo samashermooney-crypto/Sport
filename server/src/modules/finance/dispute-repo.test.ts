@@ -9,6 +9,7 @@ import { createDatabase } from '../../db/kysely.js';
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import type { GatewayDispute } from '../../integrations/stripe/gateway.js';
+import { bindFixtureInvoice } from '../checkout/test-fixtures.js';
 
 import { PostgresDisputeLiabilityRepository } from './dispute-liability-repo.js';
 import { PostgresDisputeRepository } from './dispute-repo.js';
@@ -77,6 +78,7 @@ beforeAll(async () => {
       })
       .execute(),
   );
+  await bindFixtureInvoice(database, context, checkoutId, invoiceId);
   await new PostgresPaymentRecordStore(database, context).recordPending({
     orgId,
     checkoutId,
