@@ -32,10 +32,10 @@
 | Track | Scope | Model | Status | Branch |
 |---|---|---|---|---|
 | A | Core and integration | GPT-6 Sol until S1 | working | `track/a-core` |
-| B | Sport engine, algorithms, policies | GPT-6 Sol | awaiting kickoff | `track/b-logic` |
-| C | Files and provider adapters | GPT-6 Luna | awaiting kickoff | `track/c-adapters` |
-| D | Design system | GPT-6 Luna | awaiting kickoff | `track/d-design` |
-| E | Stripe and finance | GPT-6 Sol | awaiting kickoff | `track/e-finance` |
+| B | Sport engine, algorithms, policies | GPT-6 Sol | ready slice integrated; further queue active | `track/b-logic` |
+| C | Files and provider adapters | GPT-6 Luna | working | `track/c-adapters` |
+| D | Design system | GPT-6 Luna | working | `track/d-design` |
+| E | Stripe and finance | GPT-6 Sol | test-mode gateway ready slice integrated; money core awaiting spine | `track/e-finance` |
 
 ## Phase checklists
 
