@@ -1,9 +1,3 @@
-import {
-  importBatchCreateSchema,
-  importBatchListSchema,
-  importBatchPreviewSchema,
-  importBatchSchema,
-} from '@shared/schemas/imports';
 import { z } from 'zod';
 
 import {
@@ -125,59 +119,5 @@ export const phase15ImportOpenApiRoutes = [
     summary: 'List extended column-mapping presets',
     query: { kind: phase15ImportKindSchema.optional() },
     response: z.object({ items: z.array(looseObject) }),
-  },
-  {
-    method: 'get',
-    path: '/api/v1/imports/orgs/{orgId}/batches',
-    summary: 'List legacy import batches',
-    response: importBatchListSchema,
-  },
-  {
-    method: 'post',
-    path: '/api/v1/imports/orgs/{orgId}/batches',
-    summary: 'Create and preview a legacy import batch',
-    body: importBatchCreateSchema,
-    response: importBatchPreviewSchema,
-    status: 201,
-  },
-  {
-    method: 'get',
-    path: '/api/v1/imports/orgs/{orgId}/batches/{batchId}',
-    summary: 'Read a legacy import batch preview',
-    response: importBatchPreviewSchema,
-  },
-  {
-    method: 'post',
-    path: '/api/v1/imports/orgs/{orgId}/batches/{batchId}/commit',
-    summary: 'Commit a legacy import batch',
-    response: importBatchSchema,
-  },
-  {
-    method: 'post',
-    path: '/api/v1/imports/orgs/{orgId}/batches/{batchId}/rollback',
-    summary: 'Roll back a legacy import batch',
-    response: importBatchSchema,
-  },
-  {
-    method: 'get',
-    path: '/api/v1/imports/orgs/{orgId}/presets',
-    summary: 'List legacy column-mapping presets',
-    query: {
-      kind: z
-        .enum(['people', 'households', 'guardians', 'emergency_contacts'])
-        .optional(),
-    },
-    response: z.object({ items: z.array(looseObject) }),
-  },
-  {
-    method: 'post',
-    path: '/api/v1/imports/orgs/{orgId}/presets',
-    summary: 'Save a legacy column-mapping preset',
-    body: z.object({
-      kind: z.enum(['people', 'households', 'guardians', 'emergency_contacts']),
-      name: z.string().min(1).max(120),
-      mapping: z.record(z.string(), z.string()),
-    }),
-    response: looseObject,
   },
 ] as const;

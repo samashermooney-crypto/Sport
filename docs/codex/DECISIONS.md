@@ -863,3 +863,19 @@
 - **Decision:** Default the `load` profile to the initialized development database, where it adds a deterministic 2,000-person load organization. Keep `DATABASE_ADMIN_URL` as the explicit override for teams that provision a separate load database.
 - **Why:** The documented command works with the repository's default local stack without needing database initialization outside Track K's seed ownership.
 - **Consequences / follow-ups:** Running `load` locally adds the synthetic load organization alongside the demo profile; use a separate `DATABASE_ADMIN_URL` when isolated load data is preferred.
+
+### DEC-119 — Keep seeded finance and communications examples inert
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 demo data
+- **Context:** Demo organizations should exercise the main finance and communications console areas, while local seeding must not move money or send messages.
+- **Decision:** Seed one clearly labeled, open fictional invoice plus a draft campaign and internal sample chat per demo organization. Do not create payments or schedule/send campaigns; any invoice notice stays in the existing local outbox and uses the fake/preview delivery adapter.
+- **Why:** This gives the finance and communications screens realistic rows without moving money or contacting families through a real provider.
+- **Consequences / follow-ups:** The invoice remains a normal demo balance and uses only fake `example.test` accounts; campaign and chat content state that they are examples.
+
+### DEC-120 — Limit sharing in seeded federation relationships
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 demo data and Phase 13 federation
+- **Context:** The Metro demo requires first-class member-club relationships and inter-club entries, while federation can optionally share roster, compliance, and discipline data.
+- **Decision:** Create two fictional member clubs with active parent-child relationships and enable only `team_entries` sharing. Do not grant demo sharing for rosters, compliance status, or discipline records.
+- **Why:** This exercises the inter-club workflow while protecting children’s roster and compliance information.
+- **Consequences / follow-ups:** The six named demo profiles remain the primary organizations; the two additional Metro club records are subordinate members using `example.test` identities.

@@ -20,6 +20,7 @@ if (profile !== 'e2e' && profile !== 'demo' && profile !== 'load') {
     process.env.DATABASE_ADMIN_URL ??
     `postgres://athlentry_admin@127.0.0.1:5432/athlentry_${profile === 'e2e' ? 'e2e' : 'dev'}`;
   (async () => {
+    process.env.DATABASE_ADMIN_URL ??= url;
     await migrate(url);
     const client = new pg.Client({ connectionString: url });
     await client.connect();

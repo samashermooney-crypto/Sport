@@ -6,8 +6,14 @@ import type { Insertable, Kysely } from 'kysely';
 
 import type { DB } from '../../server/src/db/types';
 import { createWithOrg } from '../../server/src/db/withOrg';
-import type { OrgTransaction } from '../../server/src/db/withOrg';
+import type { OrgContext, OrgTransaction } from '../../server/src/db/withOrg';
 import { hashPassword } from '../../server/src/modules/auth/password';
+import {
+  acceptRelationship,
+  createRelationship,
+  listRelationships,
+} from '../../server/src/modules/federation/relationships';
+import { PostgresInvoiceRepository } from '../../server/src/modules/finance/invoice-repo';
 
 function stableId(seed: string): string {
   const digest = createHash('sha256').update(seed).digest('hex');
@@ -81,6 +87,7 @@ interface OrgSpec {
   households: number;
   adultMembers?: boolean;
   externalTeams?: string[];
+  memberClubSeeds?: string[];
   officialCount?: number;
   closure?: boolean;
 }
@@ -179,6 +186,52 @@ const ORGS: OrgSpec[] = [
     })),
   },
   {
+    seed: 'metro-north-club',
+    slug: 'riverbend-sc',
+    name: 'Riverbend Soccer Club',
+    kind: 'club',
+    timezone: 'America/Chicago',
+    city: 'Joliet',
+    state: 'IL',
+    sports: ['soccer'],
+    facilityNames: ['Riverbend Field 1'],
+    facilityKind: 'field',
+    teamCount: 2,
+    households: 20,
+    programs: [
+      {
+        name: 'Riverbend U12 Club',
+        mode: 'club',
+        sportKey: 'soccer',
+        priceCents: 0,
+        divisions: ['U12'],
+      },
+    ],
+  },
+  {
+    seed: 'metro-south-club',
+    slug: 'harbor-city-fc',
+    name: 'Harbor City FC',
+    kind: 'club',
+    timezone: 'America/Chicago',
+    city: 'Aurora',
+    state: 'IL',
+    sports: ['soccer'],
+    facilityNames: ['Harbor City Field 1'],
+    facilityKind: 'field',
+    teamCount: 2,
+    households: 20,
+    programs: [
+      {
+        name: 'Harbor City U12 Club',
+        mode: 'club',
+        sportKey: 'soccer',
+        priceCents: 0,
+        divisions: ['U12'],
+      },
+    ],
+  },
+  {
     seed: 'metro',
     slug: 'metro-youth-sports-association',
     name: 'Metro Youth Sports Association',
@@ -192,13 +245,15 @@ const ORGS: OrgSpec[] = [
     teamCount: 8,
     households: 40,
     officialCount: 8,
-    externalTeams: ['Metro Member Club North', 'Metro Member Club South'],
+    externalTeams: ['Riverbend SC U12', 'Harbor City FC U12'],
+    memberClubSeeds: ['metro-north-club', 'metro-south-club'],
     programs: [
       {
         name: 'Metro Inter-Club League',
         mode: 'league',
         sportKey: 'soccer',
         priceCents: 0,
+        teamEntryPriceCents: 0,
         divisions: ['U12', 'U14'],
       },
     ],
@@ -291,6 +346,217 @@ async function insertChunks<T extends keyof DB>(
       .insertInto(table)
       .values(rows.slice(offset, offset + 300))
       .execute();
+  }
+}
+
+async function seedConsoleExamples(
+  database: Kysely<DB>,
+  spec: OrgSpec,
+  orgId: string,
+  adminId: string,
+  familyAccountId: string,
+): Promise<void> {
+  const context = { orgId, actor: { accountId: adminId } };
+  const withOrg = createWithOrg(database);
+  const familyId = stableId(`demo-participant-${spec.seed}-0`);
+  const householdId = stableId(`demo-household-${spec.seed}-0`);
+  const campaignId = stableId(`demo-campaign-${spec.seed}`);
+  const conversationId = stableId(`demo-conversation-${spec.seed}`);
+
+  await withOrg(context, async (trx) => {
+    await trx
+      .insertInto('message_campaigns')
+      .values({
+        id: campaignId,
+        org_id: orgId,
+        author_account_id: adminId,
+        channels: ['email'],
+        subject: '2026 season welcome — draft',
+        body_text:
+          'This fictional sample is a draft only. No email or other message has been sent.',
+        locale_variants: {
+          en: {
+            subject: '2026 season welcome',
+            bodyHtml: '',
+            bodyText: 'Welcome to the fictional 2026 season.',
+            smsText: '',
+            pushText: '',
+          },
+          es: {
+            subject: 'Bienvenidos a la temporada 2026',
+            bodyHtml: '',
+            bodyText: 'Les damos la bienvenida a la temporada ficticia 2026.',
+            smsText: '',
+            pushText: '',
+          },
+        },
+        audience: {
+          include: { personIds: [familyId] },
+          exclude: {},
+          filters: {},
+        },
+        category: 'announcement',
+        status: 'draft',
+      })
+      .onConflict((oc) => oc.column('id').doNothing())
+      .execute();
+
+    await trx
+      .insertInto('conversations')
+      .values({
+        id: conversationId,
+        org_id: orgId,
+        kind: 'announcement',
+        title: '2026 season welcome',
+        created_by: adminId,
+      })
+      .onConflict((oc) => oc.column('id').doNothing())
+      .execute();
+    await trx
+      .insertInto('conversation_members')
+      .values([
+        {
+          id: stableId(`demo-conversation-admin-${spec.seed}`),
+          org_id: orgId,
+          conversation_id: conversationId,
+          account_id: adminId,
+          role: 'owner',
+        },
+        {
+          id: stableId(`demo-conversation-family-${spec.seed}`),
+          org_id: orgId,
+          conversation_id: conversationId,
+          account_id: familyAccountId,
+          role: 'member',
+        },
+      ])
+      .onConflict((oc) => oc.column('id').doNothing())
+      .execute();
+    await trx
+      .insertInto('chat_messages')
+      .values({
+        id: stableId(`demo-chat-message-${spec.seed}`),
+        org_id: orgId,
+        conversation_id: conversationId,
+        author_account_id: adminId,
+        body: 'Welcome to the fictional 2026 season. This is sample chat content; no external message was sent.',
+      })
+      .onConflict((oc) => oc.column('id').doNothing())
+      .execute();
+  });
+
+  const invoices = new PostgresInvoiceRepository(database, context);
+  await invoices.issue({
+    orgId,
+    accountId: familyAccountId,
+    householdId,
+    source: 'staff',
+    dueOn: '2026-12-15',
+    memo: 'Fictional demo invoice. No payment has been processed.',
+    creationKey: stableId(`demo-invoice-${spec.seed}`),
+    lines: [
+      {
+        kind: 'registration',
+        description: 'Example program balance — demo data only',
+        amountCents: 12_500,
+        refundable: true,
+      },
+    ],
+  });
+}
+
+async function seedFederationMembers(
+  database: Kysely<DB>,
+  spec: OrgSpec,
+  orgId: string,
+  adminId: string,
+): Promise<void> {
+  if (!spec.memberClubSeeds?.length) return;
+  const context: OrgContext = { orgId, actor: { accountId: adminId } };
+  const current = await listRelationships(database, context);
+
+  for (const [index, memberSeed] of spec.memberClubSeeds.entries()) {
+    const childOrgId = stableId(`demo-org-${memberSeed}`);
+    const childAdminId = stableId(`demo-admin-${memberSeed}`);
+    const existing = current.find(
+      (relationship) =>
+        relationship.parentOrgId === orgId &&
+        relationship.childOrgId === childOrgId &&
+        ['invited', 'active', 'suspended'].includes(relationship.status),
+    );
+    if (!existing) {
+      const invitation = await createRelationship(database, context, {
+        direction: 'invite',
+        organizationId: childOrgId,
+        type: 'member_club',
+        dataSharing: { team_entries: true },
+        note: 'Fictional demo membership; only league team entries are shared.',
+      });
+      await acceptRelationship(
+        { orgId: childOrgId, actor: { accountId: childAdminId } },
+        invitation.id,
+      );
+    } else if (existing.status === 'invited') {
+      await acceptRelationship(
+        { orgId: childOrgId, actor: { accountId: childAdminId } },
+        existing.id,
+      );
+    }
+
+    const divisionIndex = index % 2;
+    await createWithOrg(database)(context, async (trx) => {
+      const programId = stableId(`demo-program-${spec.seed}-0`);
+      const divisionId = stableId(
+        `demo-division-${spec.seed}-0-${String(divisionIndex)}`,
+      );
+      const offeringId = stableId(
+        `demo-offering-${spec.seed}-0-${String(divisionIndex)}-team`,
+      );
+      await trx
+        .insertInto('registration_offerings')
+        .values({
+          id: offeringId,
+          org_id: orgId,
+          program_id: programId,
+          division_id: divisionId,
+          name: 'Inter-club team entry',
+          registrant_role: 'team_entry',
+          price_cents: 0,
+          visibility: 'public',
+          active: true,
+          sort_order: 1,
+        })
+        .onConflict((oc) => oc.column('id').doNothing())
+        .execute();
+      await trx
+        .updateTable('external_teams')
+        .set({ linked_org_id: childOrgId })
+        .where(
+          'id',
+          '=',
+          stableId(`demo-external-team-${spec.seed}-${String(index)}`),
+        )
+        .where('linked_org_id', 'is', null)
+        .execute();
+      await trx
+        .insertInto('team_entries')
+        .values({
+          id: stableId(`demo-federation-entry-${spec.seed}-${String(index)}`),
+          org_id: orgId,
+          program_id: programId,
+          division_id: divisionId,
+          offering_id: offeringId,
+          external_team_id: stableId(
+            `demo-external-team-${spec.seed}-${String(index)}`,
+          ),
+          entrant_org_id: childOrgId,
+          contact_account_id: childAdminId,
+          status: 'accepted',
+          seed_hint: index + 1,
+        })
+        .onConflict((oc) => oc.column('id').doNothing())
+        .execute();
+    });
   }
 }
 
@@ -1073,6 +1339,9 @@ export async function seedDemo(database: Kysely<DB>): Promise<void> {
               'external team sport',
             ),
             age_label: 'U14',
+            linked_org_id: spec.memberClubSeeds?.[index]
+              ? stableId(`demo-org-${spec.memberClubSeeds[index]}`)
+              : null,
           }));
         await insertChunks(trx, 'external_teams', externals);
         if (eventRows[0]) {
@@ -1258,6 +1527,8 @@ export async function seedDemo(database: Kysely<DB>): Promise<void> {
           })
           .execute();
     });
+    await seedConsoleExamples(database, spec, orgId, adminId, familyAccountId);
+    await seedFederationMembers(database, spec, orgId, adminId);
   }
 }
 
