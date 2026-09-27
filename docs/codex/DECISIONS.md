@@ -263,3 +263,11 @@
 - **Decision:** Send a single-use 24-hour transfer link to an active member's verified account. Acceptance requires that account's authenticated session and confirmed MFA; it checks both membership versions and both roles under the organization lock, grants the new owner first, revokes the previous owner's assignment, audits the action and revokes both accounts' sessions. A failed email send revokes the request.
 - **Why:** Consent, identity and tenant checks precede the authority change; stale transfers cannot override later membership changes.
 - **Consequences / follow-ups:** A changed membership requires a new request. The recipient signs in again after accepting because both sessions are revoked.
+
+### DEC-032 — Keep organization branding separate from the admin chrome
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 organization profile
+- **Context:** Organization branding must be editable, while the owner's existing web design system is fixed. The spec leaves default brand colors and URL validation open.
+- **Decision:** Store a tenant's primary and accent colors for public and communication surfaces without changing admin UI tokens. Use the frozen blue values as defaults, require each color to reach 4.5:1 contrast on white, and accept HTTPS website URLs. Logo changes require a completed same-organization image from the files module and a version-checked owner profile update.
+- **Why:** This preserves design parity and prevents unsafe URLs, unreadable brand text and cross-tenant or incomplete logo attachment.
+- **Consequences / follow-ups:** Public site and email rendering use these brand values when their phases land; the admin console keeps `tokens.css` values.

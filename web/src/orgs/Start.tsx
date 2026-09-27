@@ -130,6 +130,11 @@ export function Start(): React.JSX.Element {
               Manage staff and invitations
             </AuthLink>
           </p>
+          <p>
+            <AuthLink to={`/orgs/${created.id}/profile`}>
+              Edit organization profile and logo
+            </AuthLink>
+          </p>
         </>
       )}
       {account.isSuccess && !created && (

@@ -1637,6 +1637,512 @@
         }
       }
     },
+    "/api/v1/orgs/{orgId}/profile": {
+      "get": {
+        "operationId": "get_api_v1_orgs_orgId_profile",
+        "summary": "Get organization profile and branding",
+        "tags": ["orgs"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 2,
+                      "maxLength": 160
+                    },
+                    "slug": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 40,
+                      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                    },
+                    "legalName": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 160 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "club",
+                        "league",
+                        "association",
+                        "academy",
+                        "school",
+                        "parks_rec",
+                        "tournament_operator",
+                        "other"
+                      ]
+                    },
+                    "timezone": { "type": "string" },
+                    "address": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "line1": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160
+                            },
+                            "line2": { "type": "string", "maxLength": 160 },
+                            "city": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100
+                            },
+                            "region": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 2,
+                              "pattern": "^[A-Z]{2}$"
+                            },
+                            "postalCode": {
+                              "type": "string",
+                              "pattern": "^\\d{5}(?:-\\d{4})?$"
+                            },
+                            "country": { "type": "string", "const": "US" }
+                          },
+                          "required": [
+                            "line1",
+                            "city",
+                            "region",
+                            "postalCode",
+                            "country"
+                          ],
+                          "additionalProperties": false
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "phone": {
+                      "anyOf": [
+                        { "type": "string", "pattern": "^\\+1\\d{10}$" },
+                        { "type": "null" }
+                      ]
+                    },
+                    "email": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "email",
+                          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "websiteUrl": {
+                      "anyOf": [
+                        { "type": "string", "format": "uri" },
+                        { "type": "null" }
+                      ]
+                    },
+                    "defaultLocale": { "type": "string", "enum": ["en", "es"] },
+                    "brand": {
+                      "type": "object",
+                      "properties": {
+                        "primaryColor": {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}$"
+                        },
+                        "accentColor": {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}$"
+                        }
+                      },
+                      "required": ["primaryColor", "accentColor"],
+                      "additionalProperties": false
+                    },
+                    "logoFileId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "nonprofit": { "type": "boolean" },
+                    "version": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "slug",
+                    "legalName",
+                    "kind",
+                    "timezone",
+                    "address",
+                    "phone",
+                    "email",
+                    "websiteUrl",
+                    "defaultLocale",
+                    "brand",
+                    "logoFileId",
+                    "nonprofit",
+                    "version"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "patch_api_v1_orgs_orgId_profile",
+        "summary": "Update versioned organization profile and branding",
+        "tags": ["orgs"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 2,
+                      "maxLength": 160
+                    },
+                    "slug": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 40,
+                      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                    },
+                    "legalName": {
+                      "anyOf": [
+                        { "type": "string", "maxLength": 160 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "club",
+                        "league",
+                        "association",
+                        "academy",
+                        "school",
+                        "parks_rec",
+                        "tournament_operator",
+                        "other"
+                      ]
+                    },
+                    "timezone": { "type": "string" },
+                    "address": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "line1": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160
+                            },
+                            "line2": { "type": "string", "maxLength": 160 },
+                            "city": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100
+                            },
+                            "region": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 2,
+                              "pattern": "^[A-Z]{2}$"
+                            },
+                            "postalCode": {
+                              "type": "string",
+                              "pattern": "^\\d{5}(?:-\\d{4})?$"
+                            },
+                            "country": { "type": "string", "const": "US" }
+                          },
+                          "required": [
+                            "line1",
+                            "city",
+                            "region",
+                            "postalCode",
+                            "country"
+                          ],
+                          "additionalProperties": false
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "phone": {
+                      "anyOf": [
+                        { "type": "string", "pattern": "^\\+1\\d{10}$" },
+                        { "type": "null" }
+                      ]
+                    },
+                    "email": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "email",
+                          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "websiteUrl": {
+                      "anyOf": [
+                        { "type": "string", "format": "uri" },
+                        { "type": "null" }
+                      ]
+                    },
+                    "defaultLocale": { "type": "string", "enum": ["en", "es"] },
+                    "brand": {
+                      "type": "object",
+                      "properties": {
+                        "primaryColor": {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}$"
+                        },
+                        "accentColor": {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}$"
+                        }
+                      },
+                      "required": ["primaryColor", "accentColor"],
+                      "additionalProperties": false
+                    },
+                    "logoFileId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "nonprofit": { "type": "boolean" },
+                    "version": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "slug",
+                    "legalName",
+                    "kind",
+                    "timezone",
+                    "address",
+                    "phone",
+                    "email",
+                    "websiteUrl",
+                    "defaultLocale",
+                    "brand",
+                    "logoFileId",
+                    "nonprofit",
+                    "version"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 160
+                  },
+                  "legalName": {
+                    "anyOf": [
+                      { "type": "string", "maxLength": 160 },
+                      { "type": "null" }
+                    ]
+                  },
+                  "timezone": { "type": "string" },
+                  "address": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "line1": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "line2": { "type": "string", "maxLength": 160 },
+                          "city": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          },
+                          "region": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 2,
+                            "pattern": "^[A-Z]{2}$"
+                          },
+                          "postalCode": {
+                            "type": "string",
+                            "pattern": "^\\d{5}(?:-\\d{4})?$"
+                          },
+                          "country": { "type": "string", "const": "US" }
+                        },
+                        "required": [
+                          "line1",
+                          "city",
+                          "region",
+                          "postalCode",
+                          "country"
+                        ],
+                        "additionalProperties": false
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "phone": {
+                    "anyOf": [
+                      { "type": "string", "pattern": "^\\+1\\d{10}$" },
+                      { "type": "null" }
+                    ]
+                  },
+                  "email": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "email",
+                        "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "websiteUrl": {
+                    "anyOf": [
+                      { "type": "string", "format": "uri" },
+                      { "type": "null" }
+                    ]
+                  },
+                  "defaultLocale": { "type": "string", "enum": ["en", "es"] },
+                  "brand": {
+                    "type": "object",
+                    "properties": {
+                      "primaryColor": {
+                        "type": "string",
+                        "pattern": "^#[0-9A-Fa-f]{6}$"
+                      },
+                      "accentColor": {
+                        "type": "string",
+                        "pattern": "^#[0-9A-Fa-f]{6}$"
+                      }
+                    },
+                    "required": ["primaryColor", "accentColor"],
+                    "additionalProperties": false
+                  },
+                  "logoFileId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "nonprofit": { "type": "boolean" },
+                  "expectedVersion": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "name",
+                  "legalName",
+                  "timezone",
+                  "address",
+                  "phone",
+                  "email",
+                  "websiteUrl",
+                  "defaultLocale",
+                  "brand",
+                  "logoFileId",
+                  "nonprofit",
+                  "expectedVersion"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/orgs/sport-templates": {
       "get": {
         "operationId": "get_api_v1_orgs_sport_templates",
@@ -2564,6 +3070,31 @@
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "type": "object",
                   "properties": {
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "name": { "type": "string" },
+                          "scopeType": {
+                            "type": "string",
+                            "enum": [
+                              "season",
+                              "program",
+                              "division",
+                              "team_season"
+                            ]
+                          }
+                        },
+                        "required": ["id", "name", "scopeType"],
+                        "additionalProperties": false
+                      }
+                    },
                     "members": {
                       "type": "array",
                       "items": {
@@ -2730,7 +3261,7 @@
                       }
                     }
                   },
-                  "required": ["members", "invitations"],
+                  "required": ["scopes", "members", "invitations"],
                   "additionalProperties": false
                 }
               }
