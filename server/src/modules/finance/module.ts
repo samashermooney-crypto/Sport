@@ -10,6 +10,9 @@ import {
   refundApprovalDecisionSchema,
   payoutJournalBodySchema,
   payoutJournalResponseSchema,
+  setupIntentResponseSchema,
+  savedPaymentMethodsResponseSchema,
+  paymentMethodActionResponseSchema,
 } from './routes.js';
 
 export const moduleDefinition = {
@@ -21,6 +24,30 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'post',
+      path: '/api/v1/finance/me/setup-intents',
+      summary: 'Create a test-mode SetupIntent for the signed-in payer',
+      response: setupIntentResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/me/payment-methods',
+      summary: 'List saved payment methods for the signed-in payer',
+      response: savedPaymentMethodsResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/me/payment-methods/{paymentMethodId}/default',
+      summary: 'Set the signed-in payer default payment method',
+      response: paymentMethodActionResponseSchema,
+    },
+    {
+      method: 'delete',
+      path: '/api/v1/finance/me/payment-methods/{paymentMethodId}',
+      summary: 'Detach a saved payment method and revoke its autopay mandates',
+      response: paymentMethodActionResponseSchema,
+    },
     {
       method: 'post',
       path: '/api/v1/finance/orgs/{orgId}/offline-payments',

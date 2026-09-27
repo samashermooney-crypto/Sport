@@ -33,6 +33,24 @@ let baseUrl: string;
 const createRefund = vi
   .fn()
   .mockResolvedValue({ id: 're_route', status: 'pending', amountCents: 500 });
+const createCustomer = vi.fn().mockResolvedValue({ id: 'cus_route' });
+const createSetupIntent = vi.fn().mockResolvedValue({
+  id: 'seti_route',
+  clientSecret: 'seti_route_secret_test',
+});
+const listPaymentMethods = vi.fn().mockResolvedValue([
+  {
+    id: 'pm_route',
+    type: 'card',
+    brand: 'visa',
+    last4: '4242',
+    expMonth: 12,
+    expYear: 2030,
+    bankName: null,
+  },
+]);
+const setDefaultPaymentMethod = vi.fn().mockResolvedValue(undefined);
+const detachPaymentMethod = vi.fn().mockResolvedValue(undefined);
 
 beforeAll(async () => {
   database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
@@ -177,7 +195,15 @@ beforeAll(async () => {
         appUrl: origin,
         clock: () => now,
       } as AuthDependencies,
-      () => ({ createRefund }) as unknown as PaymentsGateway,
+      () =>
+        ({
+          createRefund,
+          createCustomer,
+          createSetupIntent,
+          listPaymentMethods,
+          setDefaultPaymentMethod,
+          detachPaymentMethod,
+        }) as unknown as PaymentsGateway,
     ),
   );
   server = app.listen(0);
@@ -475,5 +501,56 @@ describe('finance payout journal HTTP', () => {
     expect(result.lineCount).toBe(5);
     expect(result.csv).toContain('Date,Journal No,Account,Debits,Credits');
     expect(result.csv).toContain('9.70');
+  });
+});
+
+describe('signed-in payer method HTTP', () => {
+  it('creates one test SetupIntent and manages only payer-attached methods', async () => {
+    const headers = {
+      Cookie: `__Host-athlentry_session=${token}`,
+      Origin: origin,
+      'X-Athlentry-Request': '1',
+      'Idempotency-Key': randomUUID(),
+    };
+    const blocked = await fetch(`${baseUrl}/me/setup-intents`, {
+      method: 'POST',
+      headers: { ...headers, Origin: 'https://attacker.example' },
+    });
+    expect(blocked.status).toBe(403);
+    const setup = await fetch(`${baseUrl}/me/setup-intents`, {
+      method: 'POST',
+      headers,
+    });
+    expect(setup.status).toBe(201);
+    expect(await setup.json()).toMatchObject({
+      id: 'seti_route',
+      clientSecret: 'seti_route_secret_test',
+    });
+    expect(createCustomer).toHaveBeenCalledTimes(1);
+    const listed = await fetch(`${baseUrl}/me/payment-methods`, {
+      headers: { Cookie: headers.Cookie },
+    });
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toMatchObject({
+      methods: [{ id: 'pm_route', last4: '4242' }],
+    });
+    const defaulted = await fetch(
+      `${baseUrl}/me/payment-methods/pm_route/default`,
+      {
+        method: 'POST',
+        headers,
+      },
+    );
+    expect(defaulted.status).toBe(200);
+    expect(setDefaultPaymentMethod).toHaveBeenCalledWith(
+      'cus_route',
+      'pm_route',
+    );
+    const removed = await fetch(`${baseUrl}/me/payment-methods/pm_route`, {
+      method: 'DELETE',
+      headers,
+    });
+    expect(removed.status).toBe(200);
+    expect(detachPaymentMethod).toHaveBeenCalledWith('pm_route');
   });
 });

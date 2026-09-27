@@ -8,6 +8,8 @@ export type PayerReservation =
   | { kind: 'reserved' }
   | { kind: 'busy' };
 
+export class PayerMethodConflictError extends Error {}
+
 /**
  * Global account-scoped repository. reserve permanently fences an uncertain
  * Stripe customer creation until a reconciler locates it by account metadata.
@@ -91,10 +93,13 @@ export class PayerMethodsService {
     paymentMethodId: string,
   ): Promise<string> {
     const customerId = await this.profiles.load(accountId);
-    if (!customerId) throw new Error('Payer has no Stripe Customer');
+    if (!customerId)
+      throw new PayerMethodConflictError('Payer has no Stripe Customer');
     const methods = await this.gateway.listPaymentMethods(customerId);
     if (!methods.some((method) => method.id === paymentMethodId))
-      throw new Error('Payment method is not attached to this payer');
+      throw new PayerMethodConflictError(
+        'Payment method is not attached to this payer',
+      );
     await this.methods?.sync(accountId, methods);
     return customerId;
   }
@@ -103,7 +108,9 @@ export class PayerMethodsService {
     const reservation = await this.profiles.reserve(accountId);
     if (reservation.kind === 'existing') return reservation.customerId;
     if (reservation.kind === 'busy') {
-      throw new Error('Stripe customer creation is already in progress');
+      throw new PayerMethodConflictError(
+        'Stripe customer creation is already in progress',
+      );
     }
     const customer = await this.gateway.createCustomer({
       accountId,

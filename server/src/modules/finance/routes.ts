@@ -21,6 +21,12 @@ import {
   OfflinePaymentConflictError,
   PostgresOfflinePayments,
 } from './offline-payments.js';
+import {
+  PayerMethodConflictError,
+  PayerMethodsService,
+} from './payer-methods.js';
+import { PostgresPayerProfileRepository } from './payer-repo.js';
+import { PostgresSavedPaymentMethodRepository } from './payment-method-repo.js';
 import { PostgresPayoutReconciliation } from './reconciliation.js';
 import { PostgresRefundApprovalPolicy } from './refund-approval-repo.js';
 import { PostgresRefundAttemptStore } from './refund-attempt-repo.js';
@@ -95,6 +101,25 @@ export const payoutJournalResponseSchema = z.strictObject({
   journalNo: z.string().min(1),
   lineCount: z.number().int().nonnegative(),
 });
+export const setupIntentResponseSchema = z.strictObject({
+  id: z.string().startsWith('seti_'),
+  clientSecret: z.string().min(1),
+});
+export const savedPaymentMethodSchema = z.strictObject({
+  id: z.string().startsWith('pm_'),
+  type: z.enum(['card', 'us_bank_account', 'link']),
+  brand: z.string().nullable(),
+  last4: z.string().nullable(),
+  expMonth: z.number().int().nullable(),
+  expYear: z.number().int().nullable(),
+  bankName: z.string().nullable(),
+});
+export const savedPaymentMethodsResponseSchema = z.strictObject({
+  methods: z.array(savedPaymentMethodSchema),
+});
+export const paymentMethodActionResponseSchema = z.strictObject({
+  success: z.literal(true),
+});
 
 class FinanceDependencyError extends Error {
   readonly status = 503;
@@ -124,7 +149,8 @@ function sendError(response: Response, error: unknown): void {
       ? 403
       : error instanceof OfflinePaymentConflictError ||
           error instanceof RefundConflictError ||
-          error instanceof JournalExportError
+          error instanceof JournalExportError ||
+          error instanceof PayerMethodConflictError
         ? 409
         : error instanceof FinanceDependencyError
           ? 503
@@ -171,6 +197,92 @@ export function createFinanceRouter(
     response.setHeader('Cache-Control', 'no-store');
     next();
   });
+  const payerMethods = () =>
+    new PayerMethodsService(
+      new PostgresPayerProfileRepository(dependencies.database),
+      gatewayFactory(),
+      new PostgresSavedPaymentMethodRepository(dependencies.database),
+    );
+  router.post('/me/setup-intents', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const idempotencyKey = z.uuid().parse(request.get('Idempotency-Key'));
+      const account = await dependencies.database
+        .selectFrom('accounts')
+        .select('email')
+        .where('id', '=', session.accountId)
+        .executeTakeFirstOrThrow();
+      const result = await payerMethods().createSetupIntent({
+        accountId: session.accountId,
+        email: account.email,
+        idempotencyKey,
+      });
+      response.status(201).json(setupIntentResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/me/payment-methods', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const methods = await payerMethods().list(session.accountId);
+      response.json(savedPaymentMethodsResponseSchema.parse({ methods }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/me/payment-methods/:paymentMethodId/default',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const id = z
+          .string()
+          .regex(/^pm_[A-Za-z0-9_]+$/)
+          .parse(request.params.paymentMethodId);
+        await payerMethods().setDefault(session.accountId, id);
+        response.json(
+          paymentMethodActionResponseSchema.parse({ success: true }),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.delete(
+    '/me/payment-methods/:paymentMethodId',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const id = z
+          .string()
+          .regex(/^pm_[A-Za-z0-9_]+$/)
+          .parse(request.params.paymentMethodId);
+        await payerMethods().remove(session.accountId, id);
+        response.json(
+          paymentMethodActionResponseSchema.parse({ success: true }),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   router.post('/orgs/:orgId/offline-payments', async (request, response) => {
     try {
       if (!writeOriginValid(request, dependencies.appUrl))
