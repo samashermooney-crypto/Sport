@@ -17,6 +17,11 @@ const Requirements = lazy(() =>
     ({ CheckoutRequirementsScreen: component }) => ({ default: component }),
   ),
 );
+const MyRegistrations = lazy(() =>
+  import('./MyRegistrationsScreen').then(
+    ({ MyRegistrationsScreen: component }) => ({ default: component }),
+  ),
+);
 
 function CatalogRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
@@ -54,8 +59,22 @@ function RequirementsRoute(): React.JSX.Element {
   );
 }
 
+function MyRegistrationsRoute(): React.JSX.Element {
+  const { orgId } = useParams<{ orgId: string }>();
+  if (!orgId) return <main>Organization not found.</main>;
+  return (
+    <Suspense fallback={<p role="status">Loading registrations…</p>}>
+      <MyRegistrations orgId={orgId} />
+    </Suspense>
+  );
+}
+
 export const registrationPortalRoutes: readonly RouteObject[] = [
   { path: '/portal/orgs/:orgId/register', element: <CatalogRoute /> },
+  {
+    path: '/portal/orgs/:orgId/registrations',
+    element: <MyRegistrationsRoute />,
+  },
   {
     path: '/portal/orgs/:orgId/register/checkouts/:checkoutId/requirements',
     element: <RequirementsRoute />,

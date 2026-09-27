@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import { Temporal } from '@js-temporal/polyfill';
 import { newId } from '@shared/ids';
 import { allocate } from '@shared/money';
 import { quietHoursDecision } from '@shared/policies/quiet-hours';
@@ -71,6 +72,27 @@ export const myRegistrationListSchema = z.strictObject({
       createdAt: z.string(),
     }),
   ),
+});
+
+export const staffRegistrationSchema = z.strictObject({
+  id: z.uuid(),
+  personId: z.uuid(),
+  personName: z.string(),
+  householdId: z.uuid(),
+  programId: z.uuid(),
+  programName: z.string(),
+  offeringId: z.uuid(),
+  offeringName: z.string(),
+  status: z.string(),
+  statusReason: z.string().nullable(),
+  checkoutId: z.uuid().nullable(),
+  invoiceId: z.uuid().nullable(),
+  approvalPaymentDueAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+export const staffRegistrationListSchema = z.strictObject({
+  registrations: z.array(staffRegistrationSchema),
 });
 
 export const waitlistEntrySchema = z.strictObject({
@@ -185,6 +207,123 @@ async function loadRegistration(
       'Registration is unavailable',
     );
   return registration;
+}
+
+async function requireRegistrationStaff(
+  trx: OrgTransaction,
+  context: OrgContext,
+  scope: {
+    programId: string;
+    divisionId?: string | null;
+    seasonId?: string | null;
+    teamSeasonId?: string | null;
+  },
+): Promise<void> {
+  const membership = await trx
+    .selectFrom('org_memberships')
+    .select('id')
+    .where('org_id', '=', context.orgId)
+    .where('account_id', '=', context.actor.accountId)
+    .where('status', '=', 'active')
+    .executeTakeFirst();
+  if (!membership)
+    throw new RegistrationCheckoutError(
+      403,
+      'FORBIDDEN',
+      'Registration staff access is required',
+    );
+  const scopes = [
+    ...(scope.programId
+      ? [
+          {
+            scope_type: 'program',
+            scope_id: scope.programId,
+          },
+        ]
+      : []),
+    ...(scope.divisionId
+      ? [
+          {
+            scope_type: 'division',
+            scope_id: scope.divisionId,
+          },
+        ]
+      : []),
+    ...(scope.seasonId
+      ? [
+          {
+            scope_type: 'season',
+            scope_id: scope.seasonId,
+          },
+        ]
+      : []),
+    ...(scope.teamSeasonId
+      ? [
+          {
+            scope_type: 'team_season',
+            scope_id: scope.teamSeasonId,
+          },
+        ]
+      : []),
+  ];
+  const assignment = await trx
+    .selectFrom('role_assignments')
+    .select('id')
+    .where('org_id', '=', context.orgId)
+    .where('account_id', '=', context.actor.accountId)
+    .where('role', 'in', ['owner', 'admin', 'registrar', 'director'])
+    .where('pending_mfa', '=', false)
+    .where('revoked_at', 'is', null)
+    .where((eb) =>
+      eb.or([
+        eb.and([eb('scope_type', '=', 'org'), eb('scope_id', 'is', null)]),
+        ...scopes.map(({ scope_type, scope_id }) =>
+          eb.and([
+            eb('scope_type', '=', scope_type),
+            eb('scope_id', '=', scope_id),
+          ]),
+        ),
+      ]),
+    )
+    .executeTakeFirst();
+  if (!assignment)
+    throw new RegistrationCheckoutError(
+      403,
+      'FORBIDDEN',
+      'Registration staff access is required',
+    );
+}
+
+async function staffScopeForProgram(
+  trx: OrgTransaction,
+  orgId: string,
+  programId: string,
+  divisionId?: string | null,
+  teamSeasonId?: string | null,
+): Promise<{
+  programId: string;
+  divisionId: string | null;
+  seasonId: string;
+  teamSeasonId: string | null;
+}> {
+  const program = await trx
+    .selectFrom('programs')
+    .select('season_id')
+    .where('org_id', '=', orgId)
+    .where('id', '=', programId)
+    .executeTakeFirst();
+  if (!program)
+    throw new RegistrationCheckoutError(
+      404,
+      'NOT_FOUND',
+      'Program is unavailable',
+    );
+  return {
+    programId,
+    divisionId: divisionId ?? null,
+    seasonId: program.season_id,
+    teamSeasonId: teamSeasonId ?? null,
+  };
 }
 
 async function history(
@@ -394,6 +533,39 @@ async function scopedRefundLines(
   };
 }
 
+async function registrationRefundPreview(
+  trx: OrgTransaction,
+  orgId: string,
+  registration: RegistrationRow,
+  scope: Awaited<ReturnType<typeof scopedRefundLines>>,
+  now: Date,
+): Promise<z.output<typeof registrationRefundPreviewSchema> | null> {
+  if (!scope.terms || !scope.lines.length || scope.paidCents < 1) return null;
+  const organization = await trx
+    .selectFrom('organizations')
+    .select('timezone')
+    .where('id', '=', orgId)
+    .executeTakeFirstOrThrow();
+  const today = Temporal.Instant.from(now.toISOString())
+    .toZonedDateTimeISO(organization.timezone)
+    .toPlainDate()
+    .toString();
+  const computed = proposeRefund(
+    scope.lines,
+    scope.paidServiceFeeShareCents,
+    today,
+    scope.terms.policy,
+  );
+  return registrationRefundPreviewSchema.parse({
+    registrationId: registration.id,
+    refundCents: computed.totalCents,
+    refundBps: computed.refundBps,
+    requiresApproval: computed.totalCents > scope.terms.approvalThresholdCents,
+    approvalThresholdCents: scope.terms.approvalThresholdCents,
+    paidCents: scope.paidCents,
+  });
+}
+
 export class PostgresRegistrationLifecycle {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
 
@@ -467,6 +639,173 @@ export class PostgresRegistrationLifecycle {
     });
   }
 
+  /** Registrar queue, filtered by the actor's active role scope. */
+  async listForStaff(input: {
+    orgId: string;
+    status?: string;
+  }): Promise<z.output<typeof staffRegistrationListSchema>> {
+    const rows = await this.withOrg(this.context, async (trx) => {
+      const assignment = await trx
+        .selectFrom('role_assignments')
+        .innerJoin('org_memberships', (join) =>
+          join
+            .onRef('org_memberships.org_id', '=', 'role_assignments.org_id')
+            .onRef(
+              'org_memberships.account_id',
+              '=',
+              'role_assignments.account_id',
+            ),
+        )
+        .select('role_assignments.id')
+        .where('role_assignments.org_id', '=', input.orgId)
+        .where('role_assignments.account_id', '=', this.context.actor.accountId)
+        .where('role_assignments.role', 'in', [
+          'owner',
+          'admin',
+          'registrar',
+          'director',
+        ])
+        .where('role_assignments.pending_mfa', '=', false)
+        .where('role_assignments.revoked_at', 'is', null)
+        .where('org_memberships.status', '=', 'active')
+        .executeTakeFirst();
+      if (!assignment)
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Registration staff access is required',
+        );
+      const result = await sql<{
+        id: string;
+        person_id: string;
+        person_name: string;
+        household_id: string;
+        program_id: string;
+        program_name: string;
+        offering_id: string;
+        offering_name: string;
+        status: string;
+        status_reason: string | null;
+        checkout_id: string | null;
+        invoice_id: string | null;
+        approval_payment_due_at: Date | null;
+        created_at: Date;
+      }>`
+        SELECT r.id, r.person_id,
+          person.first_name || ' ' || person.last_name AS person_name,
+          r.household_id, r.program_id, p.name AS program_name,
+          r.offering_id, o.name AS offering_name,
+          r.status, r.status_reason, r.checkout_id,
+          il.invoice_id, r.approval_payment_due_at, r.created_at
+        FROM registrations r
+        JOIN people person ON person.org_id = r.org_id AND person.id = r.person_id
+        JOIN programs p ON p.org_id = r.org_id AND p.id = r.program_id
+        JOIN registration_offerings o ON o.org_id = r.org_id AND o.id = r.offering_id
+        LEFT JOIN invoice_lines il ON il.org_id = r.org_id AND il.id = r.invoice_line_id
+        WHERE r.org_id = ${input.orgId}::uuid
+          AND (${input.status ?? null}::text IS NULL OR r.status = ${input.status ?? null}::text)
+          AND EXISTS (
+            SELECT 1 FROM role_assignments ra
+            JOIN org_memberships membership ON membership.org_id = ra.org_id
+              AND membership.account_id = ra.account_id AND membership.status = 'active'
+            WHERE ra.org_id = r.org_id AND ra.account_id = ${this.context.actor.accountId}::uuid
+              AND ra.role IN ('owner', 'admin', 'registrar', 'director')
+              AND ra.pending_mfa = false AND ra.revoked_at IS NULL
+              AND (
+                ra.scope_type = 'org' OR
+                (ra.scope_type = 'program' AND ra.scope_id = r.program_id) OR
+                (ra.scope_type = 'division' AND ra.scope_id = r.division_id) OR
+                (ra.scope_type = 'season' AND ra.scope_id = p.season_id) OR
+                (ra.scope_type = 'team_season' AND ra.scope_id = r.team_season_id)
+              )
+          )
+        ORDER BY CASE WHEN r.status = 'pending_approval' THEN 0 ELSE 1 END,
+          r.created_at DESC, r.id LIMIT 500
+      `.execute(trx);
+      return result.rows;
+    });
+    return staffRegistrationListSchema.parse({
+      registrations: rows.map((row) => ({
+        id: row.id,
+        personId: row.person_id,
+        personName: row.person_name,
+        householdId: row.household_id,
+        programId: row.program_id,
+        programName: row.program_name,
+        offeringId: row.offering_id,
+        offeringName: row.offering_name,
+        status: row.status,
+        statusReason: row.status_reason,
+        checkoutId: row.checkout_id,
+        invoiceId: row.invoice_id,
+        approvalPaymentDueAt:
+          row.approval_payment_due_at?.toISOString() ?? null,
+        createdAt: row.created_at.toISOString(),
+      })),
+    });
+  }
+
+  async previewCancellation(input: {
+    orgId: string;
+    registrationId: string;
+    staff: boolean;
+  }): Promise<z.output<typeof registrationRefundPreviewSchema> | null> {
+    return this.withOrg(this.context, async (trx) => {
+      const registration = await loadRegistration(
+        trx,
+        input.orgId,
+        input.registrationId,
+      );
+      if (input.staff)
+        await requireRegistrationStaff(
+          trx,
+          this.context,
+          await staffScopeForProgram(
+            trx,
+            input.orgId,
+            registration.program_id,
+            registration.division_id,
+          ),
+        );
+      else {
+        const owned = await sql<{ ok: boolean }>`
+          SELECT EXISTS (
+            SELECT 1 FROM person_account_links link
+            WHERE link.org_id = ${input.orgId}::uuid
+              AND link.person_id = ${registration.person_id}::uuid
+              AND link.account_id = ${this.context.actor.accountId}::uuid
+              AND link.relationship IN ('self', 'guardian')
+              AND link.revoked_at IS NULL AND link.verified_at IS NOT NULL
+          ) AS ok
+        `.execute(trx);
+        if (!owned.rows[0]?.ok)
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Registration is unavailable',
+          );
+      }
+      if (
+        !['confirmed', 'pending_payment', 'pending_approval'].includes(
+          registration.status,
+        )
+      )
+        throw new RegistrationCheckoutError(
+          409,
+          'NOT_CANCELABLE',
+          `A ${registration.status} registration cannot be canceled`,
+        );
+      const scope = await scopedRefundLines(trx, input.orgId, registration);
+      return registrationRefundPreview(
+        trx,
+        input.orgId,
+        registration,
+        scope,
+        this.now(),
+      );
+    });
+  }
+
   /**
    * Family or staff cancel/withdraw. Computes the refund from the invoice's
    * frozen terms; refunds beyond the threshold return a proposal for the
@@ -500,6 +839,17 @@ export class PostgresRegistrationLifecycle {
         input.orgId,
         input.registrationId,
       );
+      if (input.staff)
+        await requireRegistrationStaff(
+          trx,
+          this.context,
+          await staffScopeForProgram(
+            trx,
+            input.orgId,
+            registration.program_id,
+            registration.division_id,
+          ),
+        );
       if (
         registration.cancel_idempotency_key ||
         registration.cancel_request_hash ||
@@ -550,29 +900,18 @@ export class PostgresRegistrationLifecycle {
       const previous = registration.status;
       const toStatus = input.staff ? 'canceled' : 'withdrawn';
       const scope = await scopedRefundLines(trx, input.orgId, registration);
-      let proposal: z.output<typeof registrationRefundPreviewSchema> | null =
-        null;
-      if (previous === 'confirmed') {
-        const today = this.now().toISOString().slice(0, 10);
-        if (scope.terms && scope.lines.length && scope.paidCents > 0) {
-          const computed = proposeRefund(
-            scope.lines,
-            scope.paidServiceFeeShareCents,
-            today,
-            scope.terms.policy,
-          );
-          proposal = registrationRefundPreviewSchema.parse({
-            registrationId: registration.id,
-            refundCents: computed.totalCents,
-            refundBps: computed.refundBps,
-            requiresApproval:
-              computed.totalCents > scope.terms.approvalThresholdCents,
-            approvalThresholdCents: scope.terms.approvalThresholdCents,
-            paidCents: scope.paidCents,
-          });
-        }
+      const proposal = await registrationRefundPreview(
+        trx,
+        input.orgId,
+        registration,
+        scope,
+        this.now(),
+      );
+      if (
+        previous === 'confirmed' ||
+        (previous === 'pending_approval' && scope.paidCents > 0)
+      )
         await releaseConfirmedSeat(trx, this.context, registration);
-      }
       await trx
         .updateTable('registrations')
         .set({
@@ -742,6 +1081,16 @@ export class PostgresRegistrationLifecycle {
         trx,
         input.orgId,
         input.registrationId,
+      );
+      await requireRegistrationStaff(
+        trx,
+        this.context,
+        await staffScopeForProgram(
+          trx,
+          input.orgId,
+          registration.program_id,
+          registration.division_id,
+        ),
       );
       const prior = await trx
         .selectFrom('registration_approvals')
@@ -1290,6 +1639,80 @@ export class PostgresRegistrationLifecycle {
     };
   }
 
+  async listWaitlistForStaff(input: {
+    orgId: string;
+    offeringId: string;
+  }): Promise<{ entries: z.output<typeof waitlistEntrySchema>[] }> {
+    const rows = await this.withOrg(this.context, async (trx) => {
+      const offering = await trx
+        .selectFrom('registration_offerings')
+        .select(['program_id', 'division_id'])
+        .where('org_id', '=', input.orgId)
+        .where('id', '=', input.offeringId)
+        .executeTakeFirst();
+      if (!offering)
+        throw new RegistrationCheckoutError(
+          404,
+          'NOT_FOUND',
+          'Offering is unavailable',
+        );
+      await requireRegistrationStaff(
+        trx,
+        this.context,
+        await staffScopeForProgram(
+          trx,
+          input.orgId,
+          offering.program_id,
+          offering.division_id,
+        ),
+      );
+      const result = await sql<{
+        id: string;
+        offering_id: string;
+        offering_name: string;
+        program_name: string;
+        person_id: string;
+        person_name: string;
+        position: number;
+        status: string;
+        checkout_id: string | null;
+        offered_at: Date | null;
+        offer_expires_at: Date | null;
+      }>`
+        SELECT w.id, w.offering_id, o.name AS offering_name,
+          p.name AS program_name, w.person_id,
+          person.first_name || ' ' || person.last_name AS person_name,
+          w.position, w.status, w.checkout_id, w.offered_at, w.offer_expires_at
+        FROM waitlist_entries w
+        JOIN registration_offerings o ON o.org_id = w.org_id AND o.id = w.offering_id
+        JOIN programs p ON p.org_id = w.org_id AND p.id = o.program_id
+        JOIN people person ON person.org_id = w.org_id AND person.id = w.person_id
+        WHERE w.org_id = ${input.orgId}::uuid
+          AND w.offering_id = ${input.offeringId}::uuid
+          AND w.status IN ('waiting', 'offered')
+        ORDER BY w.position, w.created_at LIMIT 500
+      `.execute(trx);
+      return result.rows;
+    });
+    return {
+      entries: rows.map((row) =>
+        waitlistEntrySchema.parse({
+          id: row.id,
+          offeringId: row.offering_id,
+          offeringName: row.offering_name,
+          programName: row.program_name,
+          personId: row.person_id,
+          personName: row.person_name,
+          position: row.position,
+          status: row.status,
+          checkoutId: row.checkout_id,
+          offeredAt: row.offered_at?.toISOString() ?? null,
+          offerExpiresAt: row.offer_expires_at?.toISOString() ?? null,
+        }),
+      ),
+    };
+  }
+
   async declineWaitlist(input: {
     orgId: string;
     entryId: string;
@@ -1418,33 +1841,6 @@ export class PostgresRegistrationLifecycle {
       )
       .digest('hex');
     return this.withOrg(this.context, async (trx) => {
-      const replay = await trx
-        .selectFrom('checkouts')
-        .select(['id', 'creation_hash'])
-        .where('org_id', '=', input.orgId)
-        .where('account_id', '=', this.context.actor.accountId)
-        .where('creation_key', '=', reservationKey)
-        .executeTakeFirst();
-      if (replay) {
-        if (replay.creation_hash !== requestHash)
-          throw new RegistrationCheckoutError(
-            409,
-            'IDEMPOTENCY_CONFLICT',
-            'Waitlist offer key was used for a different request',
-          );
-        const priorEntry = await trx
-          .selectFrom('waitlist_entries')
-          .select(['id', 'offer_expires_at'])
-          .where('org_id', '=', input.orgId)
-          .where('checkout_id', '=', replay.id)
-          .executeTakeFirst();
-        if (!priorEntry?.offer_expires_at)
-          throw new Error('Waitlist offer replay has no expiry');
-        return {
-          entryId: priorEntry.id,
-          expiresAt: priorEntry.offer_expires_at.toISOString(),
-        };
-      }
       const offering = await trx
         .selectFrom('registration_offerings')
         .select([
@@ -1460,6 +1856,36 @@ export class PostgresRegistrationLifecycle {
         .where('id', '=', input.offeringId)
         .forUpdate()
         .executeTakeFirstOrThrow();
+      await requireRegistrationStaff(
+        trx,
+        this.context,
+        await staffScopeForProgram(
+          trx,
+          input.orgId,
+          offering.program_id,
+          offering.division_id,
+        ),
+      );
+      const replay = await trx
+        .selectFrom('waitlist_entries')
+        .select(['id', 'offer_expires_at', 'offer_request_hash'])
+        .where('org_id', '=', input.orgId)
+        .where('offer_idempotency_key', '=', reservationKey)
+        .executeTakeFirst();
+      if (replay) {
+        if (replay.offer_request_hash?.toString('hex') !== requestHash)
+          throw new RegistrationCheckoutError(
+            409,
+            'IDEMPOTENCY_CONFLICT',
+            'Waitlist offer key was used for a different request',
+          );
+        if (!replay.offer_expires_at)
+          throw new Error('Waitlist offer replay has no expiry');
+        return {
+          entryId: replay.id,
+          expiresAt: replay.offer_expires_at.toISOString(),
+        };
+      }
       const program = await trx
         .selectFrom('programs')
         .select(['settings', 'name'])
@@ -1605,6 +2031,8 @@ export class PostgresRegistrationLifecycle {
           offered_at: sendAt,
           offer_expires_at: expiresAt,
           checkout_id: checkoutId,
+          offer_idempotency_key: reservationKey,
+          offer_request_hash: Buffer.from(requestHash, 'hex'),
           version: sql`version + 1`,
         })
         .where('org_id', '=', input.orgId)
@@ -1859,6 +2287,16 @@ export class PostgresRegistrationLifecycle {
         input.orgId,
         input.registrationId,
       );
+      await requireRegistrationStaff(
+        trx,
+        this.context,
+        await staffScopeForProgram(
+          trx,
+          input.orgId,
+          source.program_id,
+          source.division_id,
+        ),
+      );
       if (
         !['confirmed', 'pending_payment', 'pending_approval'].includes(
           source.status,
@@ -1924,6 +2362,16 @@ export class PostgresRegistrationLifecycle {
           'DESTINATION_UNAVAILABLE',
           'Destination offering is unavailable',
         );
+      await requireRegistrationStaff(
+        trx,
+        this.context,
+        await staffScopeForProgram(
+          trx,
+          input.orgId,
+          destination.program_id,
+          destination.division_id,
+        ),
+      );
       const duplicate = await trx
         .selectFrom('registrations')
         .select('id')

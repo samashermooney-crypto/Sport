@@ -5,6 +5,7 @@ import { newId } from '@shared/ids';
 import express from 'express';
 import type { Kysely } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import { createDatabase } from '../../db/kysely.js';
 import type { DB } from '../../db/types.js';
@@ -14,7 +15,10 @@ import type { AuthDependencies } from '../auth/routes.js';
 
 import { PostgresRegistrationCheckoutQuote } from './checkout-quote.js';
 import { PostgresRegistrationCheckoutStart } from './checkout-start.js';
-import { PostgresRegistrationLifecycle } from './lifecycle.js';
+import {
+  PostgresRegistrationLifecycle,
+  waitlistEntrySchema,
+} from './lifecycle.js';
 import { PostgresCheckoutPolicyAcceptance } from './policy-acceptance.js';
 import { waiverDocumentHash } from './requirements.js';
 import { createRegistrationRouter } from './routes.js';
@@ -22,6 +26,7 @@ import { createRegistrationRouter } from './routes.js';
 let database: Kysely<DB>;
 const accountId = newId();
 const otherAccountId = newId();
+const staffAccountId = newId();
 const orgId = newId();
 const personId = newId();
 const householdId = newId();
@@ -29,6 +34,7 @@ const programId = newId();
 const divisionId = newId();
 const offeringId = newId();
 const context = { orgId, actor: { accountId } };
+const staffContext = { orgId, actor: { accountId: staffAccountId } };
 const encryption: EncryptionKeys = {
   activeKid: 'registration-test',
   keys: new Map([['registration-test', randomBytes(32)]]),
@@ -44,6 +50,7 @@ const cart = {
   ],
 };
 let token: string;
+let staffToken: string;
 let server: ReturnType<express.Express['listen']>;
 let baseUrl: string;
 let startedCheckoutId: string;
@@ -67,6 +74,13 @@ beforeAll(async () => {
         last_name: 'Family',
         date_of_birth: '1990-01-01',
       },
+      {
+        id: staffAccountId,
+        email: `register-staff-${randomUUID()}@example.invalid`,
+        first_name: 'Registrar',
+        last_name: 'One',
+        date_of_birth: '1990-01-01',
+      },
     ])
     .execute();
   await database
@@ -79,6 +93,29 @@ beforeAll(async () => {
       timezone: 'America/Chicago',
     })
     .execute();
+  await createWithOrg(database)(context, async (trx) => {
+    await trx
+      .insertInto('org_memberships')
+      .values({
+        id: newId(),
+        org_id: orgId,
+        account_id: staffAccountId,
+        status: 'active',
+      })
+      .execute();
+    await trx
+      .insertInto('role_assignments')
+      .values({
+        id: newId(),
+        org_id: orgId,
+        account_id: staffAccountId,
+        role: 'registrar',
+        scope_type: 'org',
+        scope_id: null,
+        pending_mfa: false,
+      })
+      .execute();
+  });
   await createWithOrg(database)(context, async (trx) => {
     const profileId = newId();
     const seasonId = newId();
@@ -216,12 +253,26 @@ beforeAll(async () => {
       .execute();
   });
   token = randomBytes(32).toString('base64url');
+  staffToken = randomBytes(32).toString('base64url');
   await database
     .insertInto('sessions')
     .values({
       id: newId(),
       account_id: accountId,
       token_hash: createHash('sha256').update(token).digest(),
+      kind: 'cookie',
+      client: 'web',
+      privileged: false,
+      idle_expires_at: new Date(Date.now() + 60 * 60_000),
+      absolute_expires_at: new Date(Date.now() + 24 * 60 * 60_000),
+    })
+    .execute();
+  await database
+    .insertInto('sessions')
+    .values({
+      id: newId(),
+      account_id: staffAccountId,
+      token_hash: createHash('sha256').update(staffToken).digest(),
       kind: 'cookie',
       client: 'web',
       privileged: false,
@@ -267,6 +318,23 @@ describe('registration checkout start', () => {
     expect(await family.json()).toMatchObject({
       people: [{ personId, householdId }],
     });
+    const familyRegistrations = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/registrations`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(familyRegistrations.status).toBe(200);
+    expect(await familyRegistrations.json()).toEqual({ registrations: [] });
+    const familyStaffQueue = await fetch(
+      `${baseUrl}/orgs/${orgId}/registrations`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(familyStaffQueue.status).toBe(403);
+    const registrarQueue = await fetch(
+      `${baseUrl}/orgs/${orgId}/registrations?status=pending_approval`,
+      { headers: { Cookie: `__Host-athlentry_session=${staffToken}` } },
+    );
+    expect(registrarQueue.status).toBe(200);
+    expect(await registrarQueue.json()).toEqual({ registrations: [] });
   });
 
   it('reserves one seat for an eligible child and replays an exact cart key', async () => {
@@ -414,6 +482,30 @@ describe('registration checkout start', () => {
     );
     expect(replay.status).toBe(200);
     expect(await replay.json()).toEqual(first);
+    const familyRegistrations = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/registrations`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(familyRegistrations.status).toBe(200);
+    expect(await familyRegistrations.json()).toMatchObject({
+      registrations: [
+        {
+          personId,
+          programId,
+          offeringId,
+          status: 'pending_payment',
+          invoiceId: first.invoiceId,
+        },
+      ],
+    });
+    const staffRegistrations = await fetch(
+      `${baseUrl}/orgs/${orgId}/registrations?status=pending_payment`,
+      { headers: { Cookie: `__Host-athlentry_session=${staffToken}` } },
+    );
+    expect(staffRegistrations.status).toBe(200);
+    expect(await staffRegistrations.json()).toMatchObject({
+      registrations: [{ invoiceId: first.invoiceId }],
+    });
     const state = await createWithOrg(database)(context, async (trx) => ({
       invoice: await trx
         .selectFrom('invoices')
@@ -743,6 +835,10 @@ describe('registration checkout start', () => {
     });
 
     const lifecycle = new PostgresRegistrationLifecycle(database, context);
+    const staffLifecycle = new PostgresRegistrationLifecycle(
+      database,
+      staffContext,
+    );
     const registration = await createWithOrg(database)(context, (trx) =>
       trx
         .selectFrom('registrations')
@@ -786,12 +882,22 @@ describe('registration checkout start', () => {
         .where('subject_id', '=', secondOfferingId)
         .execute();
     });
-    const waitlist = await lifecycle.joinWaitlist({
-      orgId,
-      offeringId: secondOfferingId,
-      personId,
-      householdId,
+    const joinResponse = await fetch(`${baseUrl}/orgs/${orgId}/me/waitlist`, {
+      method: 'POST',
+      headers: {
+        Cookie: `__Host-athlentry_session=${token}`,
+        Origin: 'http://127.0.0.1:5173',
+        'X-Athlentry-Request': '1',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        offeringId: secondOfferingId,
+        personId,
+        householdId,
+      }),
     });
+    expect(joinResponse.status).toBe(201);
+    const waitlist = waitlistEntrySchema.parse(await joinResponse.json());
     expect(
       await lifecycle.joinWaitlist({
         orgId,
@@ -810,26 +916,69 @@ describe('registration checkout start', () => {
         .execute(),
     );
     const offerKey = randomUUID();
-    const offer = await lifecycle.offerWaitlist({
-      orgId,
-      offeringId: secondOfferingId,
-      entryId: waitlist.id,
-      idempotencyKey: offerKey,
-    });
-    if (typeof offer === 'string')
-      throw new Error(`Waitlist offer failed: ${offer}`);
+    const familyOffer = await fetch(
+      `${baseUrl}/orgs/${orgId}/waitlist/offers`,
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: 'http://127.0.0.1:5173',
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': randomUUID(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          offeringId: secondOfferingId,
+          entryId: waitlist.id,
+        }),
+      },
+    );
+    expect(familyOffer.status).toBe(403);
+    const offerResponse = await fetch(
+      `${baseUrl}/orgs/${orgId}/waitlist/offers`,
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${staffToken}`,
+          Origin: 'http://127.0.0.1:5173',
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': offerKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          offeringId: secondOfferingId,
+          entryId: waitlist.id,
+        }),
+      },
+    );
+    expect(offerResponse.status).toBe(200);
+    const offer = z
+      .strictObject({ entryId: z.uuid(), expiresAt: z.iso.datetime() })
+      .parse(await offerResponse.json());
+    expect(offer.entryId).toBe(waitlist.id);
     expect(
-      await lifecycle.offerWaitlist({
+      await staffLifecycle.offerWaitlist({
         orgId,
         offeringId: secondOfferingId,
         entryId: waitlist.id,
         idempotencyKey: offerKey,
       }),
     ).toEqual(offer);
-    const acceptedOffer = await lifecycle.acceptWaitlist({
-      orgId,
-      entryId: waitlist.id,
-    });
+    const acceptResponse = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/waitlist/${waitlist.id}/accept`,
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: 'http://127.0.0.1:5173',
+          'X-Athlentry-Request': '1',
+        },
+      },
+    );
+    expect(acceptResponse.status).toBe(200);
+    const acceptedOffer = z
+      .strictObject({ checkoutId: z.uuid() })
+      .parse(await acceptResponse.json());
     expect(acceptedOffer.checkoutId).toMatch(/^[0-9a-f-]{36}$/i);
     const accepted = await createWithOrg(database)(context, (trx) =>
       trx

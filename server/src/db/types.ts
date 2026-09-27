@@ -2773,6 +2773,8 @@ export interface WaitlistEntries {
   household_id: string;
   id: string;
   offer_expires_at: Timestamp | null;
+  offer_idempotency_key: string | null;
+  offer_request_hash: Buffer | null;
   offered_at: Timestamp | null;
   offering_id: string;
   org_id: string;

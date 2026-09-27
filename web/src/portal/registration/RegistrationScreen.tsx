@@ -159,6 +159,10 @@ export function RegistrationScreen({
         />
         <p>
           <Link to="/me/family">Manage family members</Link>
+          {' · '}
+          <Link to={`/portal/orgs/${orgId}/registrations`}>
+            My registrations
+          </Link>
         </p>
         {(catalog.isLoading || participants.isLoading) && (
           <p role="status">Loading programs…</p>

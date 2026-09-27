@@ -17,6 +17,18 @@ import {
   startedCheckoutSchema,
 } from './checkout-start.js';
 import {
+  approveBodySchema,
+  cancelBodySchema,
+  myRegistrationListSchema,
+  PostgresRegistrationLifecycle,
+  registrationCancelResponseSchema,
+  registrationRefundPreviewSchema,
+  staffRegistrationListSchema,
+  transferBodySchema,
+  waitlistEntrySchema,
+  waitlistJoinBodySchema,
+} from './lifecycle.js';
+import {
   checkoutPolicyReviewSchema,
   PostgresCheckoutPolicyAcceptance,
 } from './policy-acceptance.js';
@@ -57,6 +69,38 @@ export const registrationParticipantsSchema = z.strictObject({
 export const checkoutViewSchema = startedCheckoutSchema.extend({
   cart: registrationCartSchema,
 });
+
+const staffApprovalBodySchema = approveBodySchema.extend({
+  decision: z.enum(['approved', 'declined']),
+});
+
+const staffWaitlistOfferBodySchema = z.strictObject({
+  offeringId: z.uuid(),
+  entryId: z.uuid().optional(),
+});
+
+const registrationStatusQuerySchema = z.strictObject({
+  status: z
+    .enum([
+      'pending_payment',
+      'pending_approval',
+      'waitlisted',
+      'offered',
+      'confirmed',
+      'canceled',
+      'withdrawn',
+      'transferred_out',
+    ])
+    .optional(),
+});
+
+const staffWaitlistQuerySchema = z.strictObject({ offeringId: z.uuid() });
+
+const waitlistOfferResponseSchema = z.union([
+  z.strictObject({ entryId: z.uuid(), expiresAt: z.iso.datetime() }),
+  z.literal('full'),
+  z.literal('empty'),
+]);
 
 interface CatalogRow {
   program_id: string;
@@ -130,7 +174,6 @@ export function createRegistrationRouter(
     response.setHeader('Referrer-Policy', 'no-referrer');
     next();
   });
-
   router.get('/orgs/:orgId/catalog', async (request, response) => {
     try {
       const session = await requireSession(dependencies, request);
@@ -248,6 +291,407 @@ export function createRegistrationRouter(
           })),
         }),
       );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/orgs/:orgId/me/registrations', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Impersonation is unavailable',
+        );
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await new PostgresRegistrationLifecycle(
+        dependencies.database,
+        { orgId, actor: { accountId: session.accountId } },
+      ).listMine({ orgId });
+      response.json(myRegistrationListSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/orgs/:orgId/me/waitlist', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Impersonation is unavailable',
+        );
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await new PostgresRegistrationLifecycle(
+        dependencies.database,
+        { orgId, actor: { accountId: session.accountId } },
+      ).listMyWaitlist({ orgId });
+      response.json(result);
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get(
+    '/orgs/:orgId/me/registrations/:registrationId/cancellation-preview',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Impersonation is unavailable',
+          );
+        const orgId = z.uuid().parse(request.params.orgId);
+        const registrationId = z.uuid().parse(request.params.registrationId);
+        const result = await new PostgresRegistrationLifecycle(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).previewCancellation({ orgId, registrationId, staff: false });
+        response.json(registrationRefundPreviewSchema.nullable().parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.get(
+    '/orgs/:orgId/registrations/:registrationId/cancellation-preview',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Impersonation is unavailable',
+          );
+        const orgId = z.uuid().parse(request.params.orgId);
+        const registrationId = z.uuid().parse(request.params.registrationId);
+        const result = await new PostgresRegistrationLifecycle(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).previewCancellation({ orgId, registrationId, staff: true });
+        response.json(registrationRefundPreviewSchema.nullable().parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.get('/orgs/:orgId/registrations', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Impersonation is unavailable',
+        );
+      const orgId = z.uuid().parse(request.params.orgId);
+      const query = registrationStatusQuerySchema.parse({
+        status: request.query.status,
+      });
+      const result = await new PostgresRegistrationLifecycle(
+        dependencies.database,
+        { orgId, actor: { accountId: session.accountId } },
+      ).listForStaff({
+        orgId,
+        ...(query.status ? { status: query.status } : {}),
+      });
+      response.json(staffRegistrationListSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/orgs/:orgId/waitlist', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Impersonation is unavailable',
+        );
+      const orgId = z.uuid().parse(request.params.orgId);
+      const query = staffWaitlistQuerySchema.parse({
+        offeringId: request.query.offeringId,
+      });
+      const result = await new PostgresRegistrationLifecycle(
+        dependencies.database,
+        { orgId, actor: { accountId: session.accountId } },
+      ).listWaitlistForStaff({ orgId, offeringId: query.offeringId });
+      response.json(result);
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.post('/orgs/:orgId/me/waitlist', async (request, response) => {
+    try {
+      if (
+        !validWriteOrigin(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Waitlist entry is unavailable',
+        );
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = waitlistJoinBodySchema.parse(request.body);
+      const result = await new PostgresRegistrationLifecycle(
+        dependencies.database,
+        { orgId, actor: { accountId: session.accountId } },
+      ).joinWaitlist({ orgId, ...body });
+      response.status(201).json(waitlistEntrySchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.post(
+    '/orgs/:orgId/me/waitlist/:entryId/accept',
+    async (request, response) => {
+      try {
+        if (
+          !validWriteOrigin(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Waitlist offer is unavailable',
+          );
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const entryId = z.uuid().parse(request.params.entryId);
+        const result = await new PostgresRegistrationLifecycle(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).acceptWaitlist({ orgId, entryId });
+        response.json(z.strictObject({ checkoutId: z.uuid() }).parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/me/waitlist/:entryId/decline',
+    async (request, response) => {
+      try {
+        if (
+          !validWriteOrigin(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Waitlist entry is unavailable',
+          );
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const entryId = z.uuid().parse(request.params.entryId);
+        z.strictObject({}).parse(request.body);
+        const result = await new PostgresRegistrationLifecycle(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).declineWaitlist({ orgId, entryId, reason: 'declined' });
+        response.json(z.strictObject({ ok: z.literal(true) }).parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/me/registrations/:registrationId/cancel',
+    async (request, response) => {
+      try {
+        if (
+          !validWriteOrigin(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Registration cancellation is unavailable',
+          );
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const registrationId = z.uuid().parse(request.params.registrationId);
+        const body = cancelBodySchema.parse(request.body);
+        const idempotencyKey = z.uuid().parse(request.get('Idempotency-Key'));
+        const result = await new PostgresRegistrationLifecycle(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).cancel({
+          orgId,
+          registrationId,
+          reason: body.reason,
+          staff: false,
+          idempotencyKey,
+        });
+        response.json(registrationCancelResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/registrations/:registrationId/cancel',
+    async (request, response) => {
+      try {
+        if (
+          !validWriteOrigin(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Registration cancellation is unavailable',
+          );
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const registrationId = z.uuid().parse(request.params.registrationId);
+        const body = cancelBodySchema.parse(request.body);
+        const idempotencyKey = z.uuid().parse(request.get('Idempotency-Key'));
+        const result = await new PostgresRegistrationLifecycle(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).cancel({
+          orgId,
+          registrationId,
+          reason: body.reason,
+          staff: true,
+          idempotencyKey,
+        });
+        response.json(registrationCancelResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/registrations/:registrationId/approval',
+    async (request, response) => {
+      try {
+        if (
+          !validWriteOrigin(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Registration decision is unavailable',
+          );
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const registrationId = z.uuid().parse(request.params.registrationId);
+        const body = staffApprovalBodySchema.parse(request.body);
+        const idempotencyKey = z.uuid().parse(request.get('Idempotency-Key'));
+        const result = await new PostgresRegistrationLifecycle(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).decideApproval({
+          orgId,
+          registrationId,
+          decision: body.decision,
+          ...(body.note ? { note: body.note } : {}),
+          idempotencyKey,
+        });
+        response.json(
+          z
+            .strictObject({
+              status: z.string(),
+              paymentDueAt: z.iso.datetime().nullable(),
+            })
+            .parse(result),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/registrations/:registrationId/transfer',
+    async (request, response) => {
+      try {
+        if (
+          !validWriteOrigin(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Registration transfer is unavailable',
+          );
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const registrationId = z.uuid().parse(request.params.registrationId);
+        const body = transferBodySchema.parse(request.body);
+        const idempotencyKey = z.uuid().parse(request.get('Idempotency-Key'));
+        const result = await new PostgresRegistrationLifecycle(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).transfer({
+          orgId,
+          registrationId,
+          toOfferingId: body.toOfferingId,
+          financialTreatment: body.financialTreatment,
+          ...(body.note ? { note: body.note } : {}),
+          idempotencyKey,
+        });
+        response.json(
+          z
+            .strictObject({
+              toRegistrationId: z.uuid(),
+              differenceCents: z.number().int().nonnegative(),
+            })
+            .parse(result),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post('/orgs/:orgId/waitlist/offers', async (request, response) => {
+    try {
+      if (
+        !validWriteOrigin(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Waitlist offer is unavailable',
+        );
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = staffWaitlistOfferBodySchema.parse(request.body);
+      const idempotencyKey = z.uuid().parse(request.get('Idempotency-Key'));
+      const result = await new PostgresRegistrationLifecycle(
+        dependencies.database,
+        { orgId, actor: { accountId: session.accountId } },
+      ).offerWaitlist({
+        orgId,
+        offeringId: body.offeringId,
+        ...(body.entryId ? { entryId: body.entryId } : {}),
+        idempotencyKey,
+      });
+      response.json(waitlistOfferResponseSchema.parse(result));
     } catch (error) {
       sendError(response, error);
     }
