@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Sprint assignment: finish Phase 4 acceptance, then own Phase 5 registration and checkout end to end; final installment failures now apply an opt-in, once-per-installment late fee.
+Current: Sprint assignment: finish Phase 4 acceptance, then own Phase 5 registration and checkout end to end; Connect onboarding now returns to a mounted staff route.
 Requests to other tracks: A: expose `settings.lateFeeCents` in org finance settings (integer 0–10000 cents, absent/zero disables); E's late-fee and checkout readers fail closed on malformed amounts. C: record this protective cap in DECISIONS and regenerate DB types after merging migrations 1052–1053 (2026-09-27).
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).

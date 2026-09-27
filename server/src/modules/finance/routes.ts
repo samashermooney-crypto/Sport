@@ -610,8 +610,8 @@ export function createFinanceRouter(
     return {
       repository,
       service: new ConnectOnboardingService(repository, gatewayFactory(), {
-        returnUrl: (id) => `${base}/orgs/${id}/money/connect/return`,
-        refreshUrl: (id) => `${base}/orgs/${id}/money/connect/refresh`,
+        returnUrl: (id) => `${base}/console/orgs/${id}/money/connect/return`,
+        refreshUrl: (id) => `${base}/console/orgs/${id}/money/connect/refresh`,
       }),
     };
   };

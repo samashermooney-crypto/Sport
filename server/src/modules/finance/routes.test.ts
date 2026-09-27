@@ -1443,7 +1443,9 @@ describe('Connect Express finance HTTP', () => {
       refreshUrl: string;
     };
     expect(linkArgs.accountId).toBe('acct_route');
+    expect(linkArgs.returnUrl).toContain('/console/orgs/');
     expect(linkArgs.returnUrl).toContain('/money/connect/return');
+    expect(linkArgs.refreshUrl).toContain('/console/orgs/');
     expect(linkArgs.refreshUrl).toContain('/money/connect/refresh');
     const status = await fetch(`${path}/status`, {
       headers: { Cookie: headers.Cookie },

@@ -18,6 +18,73 @@ const Billing = lazy(() =>
     default: component,
   })),
 );
+const Connect = lazy(() =>
+  import('./ConnectScreen').then(({ ConnectScreen: component }) => ({
+    default: component,
+  })),
+);
+const ConnectReturnPage = lazy(() =>
+  import('./ConnectScreen').then(({ ConnectReturn: component }) => ({
+    default: component,
+  })),
+);
+const ConnectRefreshPage = lazy(() =>
+  import('./ConnectScreen').then(({ ConnectRefresh: component }) => ({
+    default: component,
+  })),
+);
+
+function ConnectRoute({
+  stage,
+}: {
+  stage: 'start' | 'return' | 'refresh';
+}): React.JSX.Element {
+  const { orgId } = useParams<{ orgId: string }>();
+  const workspace = useQuery({
+    queryKey: ['orgs', orgId, 'workspace'],
+    queryFn: () =>
+      apiGet(`/orgs/${String(orgId)}/workspace`, orgWorkspaceSchema),
+    enabled: Boolean(orgId),
+  });
+  if (!orgId) return <main>Organization not found.</main>;
+  const content =
+    stage === 'return' ? (
+      <ConnectReturnPage orgId={orgId} />
+    ) : stage === 'refresh' ? (
+      <ConnectRefreshPage orgId={orgId} />
+    ) : (
+      <Connect orgId={orgId} />
+    );
+  return (
+    <AppShell
+      orgName={workspace.data?.name ?? 'Athlentry'}
+      navigation={[
+        {
+          label: 'Manage',
+          items: [
+            { label: 'Home', to: `/console/orgs/${orgId}` },
+            { label: 'Account', to: '/me' },
+          ],
+        },
+      ]}
+      mobileTabs={[
+        { label: 'Home', to: `/console/orgs/${orgId}` },
+        { label: 'Account', to: '/me' },
+      ]}
+    >
+      <main className="console-home">
+        <PageHeader
+          kicker="FINANCE"
+          title="Stripe connection"
+          description="Set up and review payment collection for this organization."
+        />
+        <Suspense fallback={<p role="status">Loading connection…</p>}>
+          {content}
+        </Suspense>
+      </main>
+    </AppShell>
+  );
+}
 
 function BillingRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
@@ -103,6 +170,18 @@ function StaffInstallmentsRoute(): React.JSX.Element {
 }
 
 export const moneyConsoleRoutes: readonly RouteObject[] = [
+  {
+    path: '/console/orgs/:orgId/money/connect',
+    element: <ConnectRoute stage="start" />,
+  },
+  {
+    path: '/console/orgs/:orgId/money/connect/return',
+    element: <ConnectRoute stage="return" />,
+  },
+  {
+    path: '/console/orgs/:orgId/money/connect/refresh',
+    element: <ConnectRoute stage="refresh" />,
+  },
   {
     path: '/console/orgs/:orgId/money/billing',
     element: <BillingRoute />,
