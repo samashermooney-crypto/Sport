@@ -2,12 +2,17 @@ import { randomUUID } from 'node:crypto';
 
 import { newId } from '@shared/ids';
 import { sql, type Kysely } from 'kysely';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 
 import { createDatabase } from '../../db/kysely.js';
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 
+import {
+  BillingCheckoutService,
+  PostgresBillingCheckoutClaims,
+} from './billing-checkout.js';
+import { PostgresBillingInvoices } from './billing-invoices.js';
 import { PostgresOrgBilling } from './org-billing.js';
 
 let database: Kysely<DB>;
@@ -76,6 +81,22 @@ it('syncs only a reserved test Customer and applies plan fees once to new charge
   await expect(repo.reserveCustomer('cus_other')).rejects.toThrow(
     'another Stripe Customer',
   );
+  const checkout = new BillingCheckoutService(
+    new PostgresBillingCheckoutClaims(database, context),
+    {
+      createBillingCheckout: vi.fn().mockResolvedValue({
+        id: 'cs_test_billing_mirror',
+        url: 'https://checkout.stripe.com/test/billing-mirror',
+      }),
+    },
+  );
+  await checkout.start({
+    orgId: context.orgId,
+    planId,
+    requestKey: randomUUID(),
+    successUrl: 'https://app.example.test/return',
+    cancelUrl: 'https://app.example.test/cancel',
+  });
   const latest = {
     id: 'sub_billing_test',
     orgId: context.orgId,
@@ -89,6 +110,39 @@ it('syncs only a reserved test Customer and applies plan fees once to new charge
   ).rejects.toThrow('unverified');
   expect(await repo.syncLatest(latest)).toBe('applied');
   expect(await repo.syncLatest(latest)).toBe('unchanged');
+  const claim = await createWithOrg(database)(context, (trx) =>
+    sql<{ status: string }>`
+      SELECT status FROM billing_checkout_claims
+      WHERE org_id = ${context.orgId}::uuid
+    `.execute(trx),
+  );
+  expect(claim.rows[0]?.status).toBe('fulfilled');
+  const invoices = new PostgresBillingInvoices(database, context);
+  const bill = {
+    id: 'in_test_billing_mirror',
+    customerId: 'cus_billing_test',
+    subscriptionId: latest.id,
+    status: 'open',
+    currency: 'usd',
+    totalCents: 2500,
+    amountPaidCents: 0,
+    amountDueCents: 2500,
+    created: 1_800_000_000,
+  };
+  expect(await invoices.applyLatest(bill)).toBe('applied');
+  expect(await invoices.applyLatest(bill)).toBe('unchanged');
+  expect(
+    await invoices.applyLatest({
+      ...bill,
+      status: 'paid',
+      amountPaidCents: 2500,
+      amountDueCents: 0,
+    }),
+  ).toBe('applied');
+  await expect(invoices.applyLatest(bill)).rejects.toThrow('regressed');
+  await expect(
+    invoices.applyLatest({ ...bill, customerId: 'cus_other' }),
+  ).rejects.toThrow('not owned');
   const org = await database
     .selectFrom('organizations')
     .select(['plan_id', 'application_fee_bps', 'application_fee_fixed_cents'])

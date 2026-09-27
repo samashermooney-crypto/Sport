@@ -1,6 +1,7 @@
 import { apiErrorSchema } from '@shared/schemas/errors';
 import express from 'express';
 import type { Request, Response } from 'express';
+import { sql } from 'kysely';
 import Stripe from 'stripe';
 import { z } from 'zod';
 
@@ -36,6 +37,18 @@ import {
   STAFF_METHOD_CONSENT_VERSION,
   staffMethodOptionsSchema,
 } from './autopay-authorizations.js';
+import {
+  BillingCheckoutConflictError,
+  BillingCheckoutService,
+  billingCheckoutInputSchema,
+  billingCheckoutResponseSchema,
+  PostgresBillingCheckoutClaims,
+} from './billing-checkout.js';
+import {
+  BillingCustomerConflictError,
+  BillingCustomerService,
+  PostgresBillingCustomerClaims,
+} from './billing-customer.js';
 import { ConnectConflictError, ConnectOnboardingService } from './connect.js';
 import {
   creditBalanceSchema,
@@ -106,6 +119,7 @@ import {
   OfflinePaymentConflictError,
   PostgresOfflinePayments,
 } from './offline-payments.js';
+import { OrgBillingConflictError } from './org-billing.js';
 import { PostgresPayerInvoices } from './payer-invoices.js';
 import {
   PayerMethodConflictError,
@@ -139,6 +153,7 @@ import { CheckoutPaymentService, PaymentConflictError } from './service.js';
 import {
   FinanceAccessError,
   requireAidStaff,
+  requireBillingOwner,
   requireFinanceStaff,
 } from './staff-access.js';
 import {
@@ -401,6 +416,32 @@ export const payoutJournalResponseSchema = z.strictObject({
 export const savedJournalResponseSchema = payoutJournalResponseSchema.extend({
   mappingVersion: z.number().int().positive(),
 });
+export const billingOverviewSchema = z.strictObject({
+  plans: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      name: z.string(),
+      monthlyPriceCents: z.number().int().nonnegative(),
+    }),
+  ),
+  subscription: z
+    .strictObject({
+      planId: z.uuid().nullable(),
+      status: z.string(),
+      currentPeriodEnd: z.iso.datetime().nullable(),
+    })
+    .nullable(),
+  checkout: z
+    .strictObject({
+      planId: z.uuid(),
+      status: z.enum(['reserved', 'external_started', 'created']),
+      url: z.url().nullable(),
+    })
+    .nullable(),
+});
+export const billingPortalResponseSchema = z.strictObject({
+  url: z.url().startsWith('https://billing.stripe.com/'),
+});
 export const setupIntentResponseSchema = z.strictObject({
   id: z.string().startsWith('seti_'),
   clientSecret: z.string().min(1),
@@ -480,6 +521,9 @@ function sendError(response: Response, error: unknown): void {
           error instanceof RefundConflictError ||
           error instanceof JournalExportError ||
           error instanceof JournalMappingConflictError ||
+          error instanceof BillingCheckoutConflictError ||
+          error instanceof BillingCustomerConflictError ||
+          error instanceof OrgBillingConflictError ||
           error instanceof PayerMethodConflictError ||
           error instanceof ConnectConflictError ||
           error instanceof PaymentConflictError ||
@@ -1673,6 +1717,175 @@ export function createFinanceRouter(
         orgId,
       );
       response.json(connectLinkResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/orgs/:orgId/billing', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireBillingOwner(dependencies.database, context);
+      const overview = await createWithOrg(dependencies.database)(
+        context,
+        async (trx) => {
+          const plans = await trx
+            .selectFrom('plans')
+            .select(['id', 'name', 'monthly_price_cents'])
+            .where('active', '=', true)
+            .where('stripe_price_id', 'is not', null)
+            .orderBy('monthly_price_cents')
+            .execute();
+          const subscription = await sql<{
+            plan_id: string | null;
+            status: string;
+            current_period_end: Date | null;
+          }>`
+          SELECT plan_id, status, current_period_end FROM org_subscriptions
+          WHERE org_id = ${orgId}::uuid
+        `.execute(trx);
+          const checkout = await sql<{
+            plan_id: string;
+            status: 'reserved' | 'external_started' | 'created';
+            checkout_url: string | null;
+          }>`
+          SELECT plan_id, status, checkout_url FROM billing_checkout_claims
+          WHERE org_id = ${orgId}::uuid
+            AND status IN ('reserved', 'external_started', 'created')
+        `.execute(trx);
+          const current = subscription.rows[0];
+          const pendingCheckout = checkout.rows[0];
+          return {
+            plans: plans.map((plan) => ({
+              id: plan.id,
+              name: plan.name,
+              monthlyPriceCents: plan.monthly_price_cents,
+            })),
+            subscription: current
+              ? {
+                  planId: current.plan_id,
+                  status: current.status,
+                  currentPeriodEnd:
+                    current.current_period_end?.toISOString() ?? null,
+                }
+              : null,
+            checkout: pendingCheckout
+              ? {
+                  planId: pendingCheckout.plan_id,
+                  status: pendingCheckout.status,
+                  url: pendingCheckout.checkout_url,
+                }
+              : null,
+          };
+        },
+      );
+      response.json(billingOverviewSchema.parse(overview));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/billing/checkout', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const { planId } = billingCheckoutInputSchema.parse(
+        request.body as unknown,
+      );
+      const requestKey = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireBillingOwner(dependencies.database, context);
+      const profile = await createWithOrg(dependencies.database)(
+        context,
+        async (trx) => {
+          const org = await trx
+            .selectFrom('organizations')
+            .select(['name', 'email', 'status'])
+            .where('id', '=', orgId)
+            .executeTakeFirstOrThrow();
+          const account = await trx
+            .selectFrom('accounts')
+            .select('email')
+            .where('id', '=', session.accountId)
+            .executeTakeFirstOrThrow();
+          const plan = await trx
+            .selectFrom('plans')
+            .select('id')
+            .where('id', '=', planId)
+            .where('active', '=', true)
+            .where('stripe_price_id', 'is not', null)
+            .executeTakeFirst();
+          if (!plan || org.status === 'closed' || org.status === 'suspended')
+            throw new BillingCheckoutConflictError(
+              'Active Billing plan is unavailable',
+            );
+          return { name: org.name, email: org.email ?? account.email };
+        },
+      );
+      const gateway = gatewayFactory();
+      await new BillingCustomerService(
+        new PostgresBillingCustomerClaims(dependencies.database, context),
+        gateway,
+      ).getOrCreate({ orgId, ...profile });
+      const returnUrl = new URL(
+        `/console/orgs/${orgId}/money/billing`,
+        dependencies.appUrl,
+      ).toString();
+      const result = await new BillingCheckoutService(
+        new PostgresBillingCheckoutClaims(dependencies.database, context),
+        gateway,
+      ).start({
+        orgId,
+        planId,
+        requestKey,
+        successUrl: returnUrl,
+        cancelUrl: returnUrl,
+      });
+      response.status(201).json(billingCheckoutResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/billing/portal', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireBillingOwner(dependencies.database, context);
+      const customer = await createWithOrg(dependencies.database)(
+        context,
+        async (trx) => {
+          const row = await sql<{ stripe_customer_id: string | null }>`
+          SELECT stripe_customer_id FROM org_subscriptions
+          WHERE org_id = ${orgId}::uuid AND customer_claim_status = 'complete'
+        `.execute(trx);
+          return row.rows[0]?.stripe_customer_id ?? null;
+        },
+      );
+      if (!customer)
+        throw new BillingCheckoutConflictError(
+          'Billing Customer is unavailable',
+        );
+      const returnUrl = new URL(
+        `/console/orgs/${orgId}/money/billing`,
+        dependencies.appUrl,
+      ).toString();
+      const result = await gatewayFactory().createBillingPortal({
+        customerId: customer,
+        returnUrl,
+      });
+      response.json(billingPortalResponseSchema.parse(result));
     } catch (error) {
       sendError(response, error);
     }

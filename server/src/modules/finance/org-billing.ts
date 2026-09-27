@@ -151,6 +151,13 @@ export class PostgresOrgBilling {
             version = version + 1
           WHERE id = ${this.context.orgId}::uuid
         `.execute(trx);
+        await sql`
+          UPDATE billing_checkout_claims SET status = 'fulfilled'
+          WHERE org_id = ${this.context.orgId}::uuid
+            AND stripe_customer_id = ${latest.customerId}
+            AND stripe_price_id = ${latest.priceIds[0]}
+            AND status = 'created'
+        `.execute(trx);
       }
       await appendAuditEvent(trx, this.context, {
         action: 'org_subscription.synced',

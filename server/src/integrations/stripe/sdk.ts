@@ -603,6 +603,28 @@ export class StripeSdkGateway implements PaymentsGateway {
     };
   }
 
+  async retrieveBillingInvoice(invoiceId: string) {
+    const invoice = await this.stripe.invoices.retrieve(invoiceId);
+    const subscription = invoice.parent?.subscription_details?.subscription;
+    return {
+      id: invoice.id,
+      customerId:
+        typeof invoice.customer === 'string'
+          ? invoice.customer
+          : (invoice.customer?.id ?? null),
+      subscriptionId:
+        typeof subscription === 'string'
+          ? subscription
+          : (subscription?.id ?? null),
+      status: invoice.status,
+      currency: invoice.currency,
+      totalCents: invoice.total,
+      amountPaidCents: invoice.amount_paid,
+      amountDueCents: invoice.amount_due,
+      created: invoice.created,
+    };
+  }
+
   async registerPaymentMethodDomain(domainName: string) {
     const domain = await this.stripe.paymentMethodDomains.create({
       domain_name: domainName,

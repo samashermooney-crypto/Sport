@@ -17,6 +17,10 @@ import {
   autopayAuthorizationListSchema,
   staffMethodOptionsSchema,
 } from './autopay-authorizations.js';
+import {
+  billingCheckoutInputSchema,
+  billingCheckoutResponseSchema,
+} from './billing-checkout.js';
 import { creditBalanceSchema } from './credit-balances.js';
 import {
   glCodeBodySchema,
@@ -57,6 +61,8 @@ import {
   payoutJournalBodySchema,
   payoutJournalResponseSchema,
   savedJournalResponseSchema,
+  billingOverviewSchema,
+  billingPortalResponseSchema,
   setupIntentResponseSchema,
   savedPaymentMethodsResponseSchema,
   staffCreditIssueSchema,
@@ -81,6 +87,7 @@ import {
   staffMethodConsentResponseSchema,
   stripeClientConfigSchema,
 } from './routes.js';
+import { runFinanceStripeEventJob } from './stripe-event-job.js';
 import {
   taxRateBodySchema,
   taxRateListSchema,
@@ -95,6 +102,10 @@ export const moduleDefinition = {
   router: createFinanceRouter,
   jobs: [
     {
+      name: 'stripe.event',
+      run: runFinanceStripeEventJob,
+    },
+    {
       name: 'finance.deliver-notices',
       cron: '* * * * *',
       run: runFinanceNoticeJob,
@@ -104,6 +115,25 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/billing',
+      summary: 'Read available test-mode platform plans and org subscription',
+      response: billingOverviewSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/billing/checkout',
+      summary: 'Start an owner-only platform subscription Checkout',
+      body: billingCheckoutInputSchema,
+      response: billingCheckoutResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/billing/portal',
+      summary: 'Open the organization Stripe Billing portal',
+      response: billingPortalResponseSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/finance/orgs/{orgId}/me/receipts',

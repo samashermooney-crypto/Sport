@@ -3,8 +3,8 @@
 Status: working
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/a-core`
-Current: Track A's People CRUD, derived age/grade, household membership, household/balance filters and the ready B/C/D/E/F/H ranges are integrated on `rebuild/trunk`. The latest merged gate passed 697 tests and 40 browser tests plus typecheck, lint, build, size and generated-file freshness. Phase 1 tasks 4 and 16, Phase 2 task 1's compliance and photo work, and all later phase acceptance remain open. Track G is still working and has no ready range.
-Ready for integration: the exact People credential-record filter passed its local full gate: typecheck, lint, 699 tests (one operator smoke skipped), 40 browser tests (four guarded design skips), build, size and generated-file freshness. PostgreSQL checks pending, verified and absent records; Chromium/WebKit covers the staff control. Role-aware compliance remains open after the merged trunk gate.
+Current: Track A's People CRUD, derived age/grade, household membership, household/balance/program/team/credential-record filters, consent-aware photos and the ready B/C/D/E/F/H ranges are integrated on `rebuild/trunk`. The latest merged gate passed 710 tests and 40 browser tests plus typecheck, lint, build, size and generated-file freshness. Phase 1 tasks 4 and 16, Phase 2 role-aware compliance and later acceptance remain open. Track G has no ready range.
+Ready for integration: none on A. Continue Phase 2 guardian links and the role-aware compliance view; inspect other local tracks at each task boundary and keep the full trunk gate green.
 Requests to other tracks: E — proceed with Phase 4 against the spine now on trunk.
 Requests to other tracks: D — identity screens in task 3 are stable for your auth restyle queue; console Home in task 17 remains with A.
 Blocked on: none

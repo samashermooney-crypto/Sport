@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Platform Billing now has a durable, pre-Stripe org Customer claim that fences ambiguous creation; subscription state and future-charge fee sync are committed. Owner Checkout and invoice event sync remain in the queue.
+Current: Stripe event worker now composes every Phase 4 handler, including checkout settlement and Billing mirrors; the A-owned app must mount the raw webhook router and enqueue `stripe.event`.
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
@@ -48,6 +48,15 @@ Ready for integration: local `a6bd8d4..HEAD` — finance-only GL code catalog wi
 Ready for integration: local `383ee0b..HEAD` — versioned, org-scoped payout journal mapping and saved-mapping export; full gate green (686 tests, 36 browser tests).
 Ready for integration: local `71b805f..HEAD` — test-mode Billing Customer/Checkout metadata, fresh subscription gateway read and tenant-scoped subscription mirror; full gate green (689 tests, 36 browser tests).
 Ready for integration: local `9c43f03..HEAD` — durable org Billing Customer claim before Stripe, exact-key replay and ambiguous-call fence; full gate green (696 tests, 40 browser tests).
+Ready for integration: local `3e87818..HEAD` — one-active-per-org Billing Checkout claim, owner-only API and mounted console billing screen with safe Stripe destinations and resume; full gate green (704 tests, 40 browser tests).
+Ready for integration: local `9b6abd8..HEAD` — latest-state Billing invoice SDK read, order-independent subscription-first handler and tenant-owned invoice mirror; full gate green (705 tests, 40 browser tests).
+Ready for integration: local `fac0518..HEAD` — registered `stripe.event` worker dispatches every accepted webhook type with endpoint checks and checkout capacity transitions; full gate green (708 tests, 40 browser tests).
+Requests to other tracks: A: mount `createStripeWebhookRouter` before JSON middleware with the test-mode gateway, `PostgresStripeEventRepository`, and pg-boss enqueue of `{ eventId }` to `stripe.event`; E has registered the worker and all 27 handlers (2026-09-27).
+Review: Worker mapping covers every accepted event type and rejects platform money events on the Connect endpoint; focused tests pass.
+Review: PaymentIntent handling now settles money and confirms or releases checkout holds through the same retried event; event leases and handler failures remain retryable.
+Review: `stripe.event` has no cron; verified typecheck, lint, 708 unit/integration tests, 40 browser tests and build with test-only Stripe configuration.
+Requests to other tracks: A: regenerate DB types after migration 1047 when merging E; platform Billing invoice mirrors stay separate from payer invoices (2026-09-27).
+Requests to other tracks: A: regenerate DB types after migration 1046, finance OpenAPI for the Billing routes, and add an owner-facing link to `/console/orgs/{orgId}/money/billing` in the A-owned console navigation after merging E (2026-09-27).
 Requests to other tracks: A: regenerate DB types after migration 1045 when merging E; ambiguous Billing Customer creation remains fenced for staff reconciliation (2026-09-27).
 Requests to other tracks: A: regenerate DB types after migrations 1043–1044 when merging E; the `org_subscriptions` mirror preserves frozen charge terms while active plan fees change only for new charges (2026-09-27).
 Requests to other tracks: A: regenerate DB types after migration 1041 and finance OpenAPI for the new `gl-codes` routes when merging E (2026-09-27).
