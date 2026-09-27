@@ -16,7 +16,11 @@ import type { AuthDependencies } from '../auth/routes.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
-import { createFinanceRouter, refundResponseSchema } from './routes.js';
+import {
+  createFinanceRouter,
+  payoutJournalResponseSchema,
+  refundResponseSchema,
+} from './routes.js';
 
 const origin = 'http://127.0.0.1:5173';
 const now = new Date('2026-09-27T12:00:00Z');
@@ -401,5 +405,75 @@ describe('staff refund HTTP', () => {
     });
     expect((await post('refunds', token)).status).toBe(201);
     expect(createRefund).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('finance payout journal HTTP', () => {
+  it('returns a balanced CSV only for an authorized reconciled payout', async () => {
+    const payoutId = `po_${randomUUID().replaceAll('-', '')}`;
+    const transactionId = `txn_${randomUUID().replaceAll('-', '')}`;
+    const chargeId = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('payments')
+        .select('stripe_charge_id')
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', paymentId)
+        .executeTakeFirstOrThrow(),
+    );
+    if (!chargeId.stripe_charge_id)
+      throw new Error('Payment charge is missing');
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('payouts')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          stripe_payout_id: payoutId,
+          amount_cents: 970,
+          arrival_date: '2026-09-27',
+          status: 'paid',
+          balance_transaction_ids: [transactionId],
+        })
+        .execute();
+      await trx
+        .insertInto('balance_transactions')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          stripe_balance_transaction_id: transactionId,
+          stripe_payout_id: payoutId,
+          type: 'charge',
+          amount_cents: 1000,
+          fee_cents: 30,
+          net_cents: 970,
+          source_id: chargeId.stripe_charge_id,
+        })
+        .execute();
+    });
+    const response = await fetch(
+      `${baseUrl}/orgs/${context.orgId}/payouts/${payoutId}/journal-export`,
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: origin,
+          'X-Athlentry-Request': '1',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bank: '1000',
+          stripeClearing: '1010',
+          processingFees: '6200',
+          transactionTypes: { charge: '4000' },
+        }),
+      },
+    );
+    expect(response.status).toBe(200);
+    const result = payoutJournalResponseSchema.parse(
+      (await response.json()) as unknown,
+    );
+    expect(result.lineCount).toBe(5);
+    expect(result.csv).toContain('Date,Journal No,Account,Debits,Credits');
+    expect(result.csv).toContain('9.70');
   });
 });

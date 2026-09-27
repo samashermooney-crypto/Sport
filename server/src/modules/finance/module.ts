@@ -8,6 +8,8 @@ import {
   refundResponseSchema,
   refundApprovalResponseSchema,
   refundApprovalDecisionSchema,
+  payoutJournalBodySchema,
+  payoutJournalResponseSchema,
 } from './routes.js';
 
 export const moduleDefinition = {
@@ -45,6 +47,13 @@ export const moduleDefinition = {
       path: '/api/v1/finance/orgs/{orgId}/refund-approvals/{approvalId}/approve',
       summary: 'Approve a refund with a separate stepped-up finance session',
       response: refundApprovalDecisionSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/payouts/{payoutId}/journal-export',
+      summary: 'Export a reconciled payout journal with explicit GL codes',
+      body: payoutJournalBodySchema,
+      response: payoutJournalResponseSchema,
     },
   ],
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };

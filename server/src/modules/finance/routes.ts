@@ -13,9 +13,15 @@ import type { AuthDependencies } from '../auth/routes.js';
 import { PostgresCreditRefundRepository } from './credit-refund-repo.js';
 import { CreditRefundService } from './credit-refunds.js';
 import {
+  JournalExportError,
+  payoutJournalCsv,
+  payoutJournalLines,
+} from './journal-export.js';
+import {
   OfflinePaymentConflictError,
   PostgresOfflinePayments,
 } from './offline-payments.js';
+import { PostgresPayoutReconciliation } from './reconciliation.js';
 import { PostgresRefundApprovalPolicy } from './refund-approval-repo.js';
 import { PostgresRefundAttemptStore } from './refund-attempt-repo.js';
 import { PostgresRefundRecordStore } from './refund-record-repo.js';
@@ -73,6 +79,22 @@ export const refundApprovalResponseSchema = z.strictObject({
 export const refundApprovalDecisionSchema = z.strictObject({
   approved: z.literal(true),
 });
+export const payoutJournalBodySchema = z.strictObject({
+  bank: z.string().trim().min(1).max(80),
+  stripeClearing: z.string().trim().min(1).max(80),
+  processingFees: z.string().trim().min(1).max(80),
+  transactionTypes: z.record(
+    z.string().min(1),
+    z.string().trim().min(1).max(80),
+  ),
+  name: z.string().max(120).optional(),
+  className: z.string().max(120).optional(),
+});
+export const payoutJournalResponseSchema = z.strictObject({
+  csv: z.string().min(1),
+  journalNo: z.string().min(1),
+  lineCount: z.number().int().nonnegative(),
+});
 
 class FinanceDependencyError extends Error {
   readonly status = 503;
@@ -101,7 +123,8 @@ function sendError(response: Response, error: unknown): void {
     error instanceof FinanceAccessError
       ? 403
       : error instanceof OfflinePaymentConflictError ||
-          error instanceof RefundConflictError
+          error instanceof RefundConflictError ||
+          error instanceof JournalExportError
         ? 409
         : error instanceof FinanceDependencyError
           ? 503
@@ -309,6 +332,53 @@ export function createFinanceRouter(
           session.accountId,
         );
         response.json(refundApprovalDecisionSchema.parse({ approved: true }));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post(
+    '/orgs/:orgId/payouts/:payoutId/journal-export',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const payoutId = z
+          .string()
+          .regex(/^po_[A-Za-z0-9_]+$/)
+          .parse(request.params.payoutId);
+        const input = payoutJournalBodySchema.parse(request.body as unknown);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const report = await new PostgresPayoutReconciliation(
+          dependencies.database,
+          context,
+        ).read(payoutId);
+        const lines = payoutJournalLines(
+          report,
+          {
+            bank: input.bank,
+            stripeClearing: input.stripeClearing,
+            processingFees: input.processingFees,
+            transactionTypes: input.transactionTypes,
+          },
+          {
+            ...(input.name ? { name: input.name } : {}),
+            ...(input.className ? { className: input.className } : {}),
+          },
+        );
+        response.json(
+          payoutJournalResponseSchema.parse({
+            csv: payoutJournalCsv(lines),
+            journalNo: `PAYOUT-${payoutId}`,
+            lineCount: lines.length,
+          }),
+        );
       } catch (error) {
         sendError(response, error);
       }
