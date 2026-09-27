@@ -140,6 +140,20 @@ export interface AthleteCards {
   version: Generated<number>;
 }
 
+export interface AthleteSkillRecords {
+  assessed_at: Generated<Timestamp>;
+  assessed_by: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  note: string | null;
+  org_id: string;
+  person_id: string;
+  skill_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Attendance {
   checked_in_at: Timestamp | null;
   checked_in_by: string | null;
@@ -498,6 +512,138 @@ export interface Checkouts {
   payment_intent_id: string | null;
   payment_plan_choice: Json | null;
   pricing_snapshot: Json | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassEnrollments {
+  account_id: string;
+  annual_fee_next_on: Timestamp | null;
+  billing_subscription_id: string | null;
+  class_offering_id: string;
+  classes_per_week: Generated<number>;
+  created_at: Generated<Timestamp>;
+  creation_key: string | null;
+  ends_on: Timestamp | null;
+  household_id: string;
+  id: string;
+  org_id: string;
+  pause_from: Timestamp | null;
+  pause_to: Timestamp | null;
+  person_id: string;
+  starts_on: Timestamp;
+  status: Generated<string>;
+  trial_session_id: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+  withdraw_effective_on: Timestamp | null;
+  withdrawal_reason: string | null;
+  withdrawn_at: Timestamp | null;
+}
+
+export interface ClassInstructors {
+  added_by: string;
+  class_schedule_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  org_id: string;
+  person_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassOfferings {
+  age_max_months: number | null;
+  age_min_months: number | null;
+  annual_fee_cents: Generated<number>;
+  annual_fee_interval_months: Generated<number>;
+  billing: string;
+  capacity: number;
+  created_at: Generated<Timestamp>;
+  description: string | null;
+  gl_code: string | null;
+  id: string;
+  instructor_ratio: Numeric;
+  makeup_policy: Generated<Json>;
+  name: string;
+  org_id: string;
+  price_cents: Generated<number>;
+  program_id: string;
+  punch_card_uses: number | null;
+  sibling_discount_bps: Generated<number[]>;
+  skill_level_id: string | null;
+  status: Generated<string>;
+  trial_allowed: Generated<boolean>;
+  trial_price_cents: Generated<number>;
+  tuition_tiers: Generated<Json>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassSchedules {
+  class_offering_id: string;
+  created_at: Generated<Timestamp>;
+  duration_minutes: number;
+  id: string;
+  location_text: string | null;
+  org_id: string;
+  recurrence: Json;
+  space_id: string | null;
+  start_time: string;
+  status: Generated<string>;
+  term_end: Timestamp;
+  term_start: Timestamp;
+  timezone: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassSessionBookings {
+  account_id: string;
+  class_session_id: string;
+  created_at: Generated<Timestamp>;
+  creation_key: string | null;
+  household_id: string;
+  id: string;
+  invoice_id: string | null;
+  kind: string;
+  makeup_credit_id: string | null;
+  org_id: string;
+  person_id: string;
+  punch_card_id: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassSessions {
+  capacity: number | null;
+  class_offering_id: string;
+  class_schedule_id: string;
+  created_at: Generated<Timestamp>;
+  event_id: string;
+  holiday_skipped: Generated<boolean>;
+  id: string;
+  org_id: string;
+  substitute_person_id: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassWaitlistEntries {
+  account_id: string;
+  class_offering_id: string;
+  created_at: Generated<Timestamp>;
+  enrollment_id: string | null;
+  household_id: string;
+  id: string;
+  offer_expires_at: Timestamp | null;
+  offered_at: Timestamp | null;
+  org_id: string;
+  person_id: string;
+  position: number;
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
@@ -1341,6 +1487,27 @@ export interface Invoices {
   voided_at: Timestamp | null;
 }
 
+export interface LevelPromotions {
+  certificate_issued_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  decided_at: Timestamp | null;
+  decided_by_account_id: string | null;
+  from_level_id: string | null;
+  id: string;
+  note: string | null;
+  org_id: string;
+  person_id: string;
+  recommended_at: Generated<Timestamp>;
+  recommended_by: string;
+  source_enrollment_id: string | null;
+  status: Generated<string>;
+  target_class_offering_id: string | null;
+  target_enrollment_id: string | null;
+  to_level_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Lineups {
   contest_id: string;
   created_at: Generated<Timestamp>;
@@ -1351,6 +1518,21 @@ export interface Lineups {
   submitted_by: string | null;
   team_season_id: string;
   updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface MakeupCredits {
+  class_offering_id: string;
+  created_at: Generated<Timestamp>;
+  expires_on: Timestamp;
+  id: string;
+  org_id: string;
+  person_id: string;
+  source_event_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  used_at: Timestamp | null;
+  used_event_id: string | null;
   version: Generated<number>;
 }
 
@@ -2056,6 +2238,24 @@ export interface ProviderDeliveryKeys {
   updated_at: Generated<Timestamp>;
 }
 
+export interface PunchCards {
+  account_id: string;
+  class_offering_id: string;
+  created_at: Generated<Timestamp>;
+  creation_key: string | null;
+  expires_on: Timestamp | null;
+  household_id: string;
+  id: string;
+  invoice_id: string;
+  org_id: string;
+  person_id: string;
+  remaining_uses: number;
+  status: Generated<string>;
+  total_uses: number;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface RateLimitPoints {
   expire: number | null;
   key: string;
@@ -2458,6 +2658,32 @@ export interface Sessions {
   user_agent: string | null;
 }
 
+export interface SkillLevels {
+  created_at: Generated<Timestamp>;
+  description: string | null;
+  id: string;
+  name: string;
+  org_id: string;
+  sort_order: number;
+  sport_profile_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface Skills {
+  archived_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  description: string | null;
+  id: string;
+  name: string;
+  org_id: string;
+  skill_level_id: string;
+  sort_order: Generated<number>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+  video_url: string | null;
+}
+
 export interface SpaceAvailability {
   cost_per_hour_cents: number | null;
   created_at: Generated<Timestamp>;
@@ -2734,6 +2960,38 @@ export interface Transfers {
   updated_at: Generated<Timestamp>;
 }
 
+export interface TuitionInvoices {
+  created_at: Generated<Timestamp>;
+  id: string;
+  invoice_id: string;
+  org_id: string;
+  period_end: Timestamp;
+  period_start: Timestamp;
+  tuition_subscription_id: string;
+}
+
+export interface TuitionSubscriptions {
+  account_id: string;
+  billing_day: number;
+  created_at: Generated<Timestamp>;
+  creation_key: string | null;
+  ended_at: Timestamp | null;
+  household_id: string;
+  id: string;
+  mandate_accepted_at: Timestamp | null;
+  mandate_text_version: string | null;
+  next_bill_on: Timestamp;
+  org_id: string;
+  paused_until: Timestamp | null;
+  payment_method_id: string | null;
+  proration: Generated<string>;
+  status: Generated<string>;
+  tier_change_mode: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+  withdrawal_notice_days: Generated<number>;
+}
+
 export interface WaitlistEntries {
   created_at: Generated<Timestamp>;
   household_id: string;
@@ -2801,6 +3059,7 @@ export interface DB {
   allocation_requests: AllocationRequests;
   allocations: Allocations;
   athlete_cards: AthleteCards;
+  athlete_skill_records: AthleteSkillRecords;
   attendance: Attendance;
   audit_log: AuditLog;
   auth_tokens: AuthTokens;
@@ -2824,6 +3083,13 @@ export interface DB {
   chat_reports: ChatReports;
   checkout_capacity_refund_claims: CheckoutCapacityRefundClaims;
   checkouts: Checkouts;
+  class_enrollments: ClassEnrollments;
+  class_instructors: ClassInstructors;
+  class_offerings: ClassOfferings;
+  class_schedules: ClassSchedules;
+  class_session_bookings: ClassSessionBookings;
+  class_sessions: ClassSessions;
+  class_waitlist_entries: ClassWaitlistEntries;
   closures: Closures;
   coach_player_ratings: CoachPlayerRatings;
   communication_consent_events: CommunicationConsentEvents;
@@ -2874,7 +3140,9 @@ export interface DB {
   installments: Installments;
   invoice_lines: InvoiceLines;
   invoices: Invoices;
+  level_promotions: LevelPromotions;
   lineups: Lineups;
+  makeup_credits: MakeupCredits;
   manual_installment_payment_attempts: ManualInstallmentPaymentAttempts;
   medical_profiles: MedicalProfiles;
   message_campaigns: MessageCampaigns;
@@ -2923,6 +3191,7 @@ export interface DB {
   privacy_requests: PrivacyRequests;
   programs: Programs;
   provider_delivery_keys: ProviderDeliveryKeys;
+  punch_cards: PunchCards;
   rate_limit_points: RateLimitPoints;
   refund_allocations: RefundAllocations;
   refund_approvals: RefundApprovals;
@@ -2950,6 +3219,8 @@ export interface DB {
   seasons: Seasons;
   security_events: SecurityEvents;
   sessions: Sessions;
+  skill_levels: SkillLevels;
+  skills: Skills;
   space_availability: SpaceAvailability;
   space_blackouts: SpaceBlackouts;
   space_bookings: SpaceBookings;
@@ -2970,6 +3241,8 @@ export interface DB {
   tournament_entries: TournamentEntries;
   tournament_schedule_reservations: TournamentScheduleReservations;
   transfers: Transfers;
+  tuition_invoices: TuitionInvoices;
+  tuition_subscriptions: TuitionSubscriptions;
   waitlist_entries: WaitlistEntries;
   waiver_documents: WaiverDocuments;
   waiver_signatures: WaiverSignatures;
