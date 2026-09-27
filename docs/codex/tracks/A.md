@@ -3,8 +3,8 @@
 Status: working
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/a-core`
-Current: Registry-based auth/API/web wiring and CI freshness check pass locally; module generator is next; preview SMTP offset remains Track C handoff.
-Ready for integration: `83b6e16`–`7bd63d2` — typecheck, lint, 47 tests, 4 browser tests, build, knip and generated registry freshness pass locally.
+Current: Registry checkpoint is on trunk; module generator implemented and in gate verification. Phase 1 tasks 3–5, 6–10, 13–15, 17 remain; preview SMTP offset remains Track C handoff.
+Ready for integration: none
 Requests to other tracks: C — make `createMailpitEmailSender` use `ATHLENTRY_MAILPIT_SMTP_PORT` (default 1025) so offset Playwright email journeys use their own Mailpit container.
 Blocked on: none
 Self-review: Server app, worker and configuration consume the generated module/integration registry; web routing consumes generated feature routes.

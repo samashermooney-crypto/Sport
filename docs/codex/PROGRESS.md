@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- M0 is on `main` at `d0f59a1`; `rebuild/trunk` and `track/a-core` start at `ff24020`. Track A follows `50-PARALLEL-PLAN.md §4`; other tracks start in separate worktrees from trunk. Phase 1 remains open until every task and acceptance criterion passes its gate.
+- M0 is on `main` at `d0f59a1`. `rebuild/trunk` holds the port-offset and registry checkpoints; Track A is verifying the module generator, then resumes Phase 1 tasks 3–5, 6–10, 13–15 and 17. Tracks B–E work in separate sibling worktrees. Phase 1 remains open until every task and acceptance criterion passes its gate.
 
 ## Phase status
 

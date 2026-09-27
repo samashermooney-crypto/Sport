@@ -1,0 +1,12 @@
+// Instantiate inside withOrg; never use an unscoped database handle here.
+export interface __PASCAL__Repository {
+  list(): Promise<readonly __PASCAL__Record[]>;
+  get(id: string): Promise<__PASCAL__Record | null>;
+  create(input: { name: string }): Promise<__PASCAL__Record>;
+}
+
+export interface __PASCAL__Record {
+  id: string;
+  orgId: string;
+  name: string;
+}
