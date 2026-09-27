@@ -12,12 +12,17 @@ import { moduleDefinition as complianceModule } from '../modules/compliance/modu
 import { moduleDefinition as disciplineModule } from '../modules/discipline/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
+import { moduleDefinition as fundraisingModule } from '../modules/fundraising/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
 import { moduleDefinition as notificationsModule } from '../modules/notifications/module';
 import { moduleDefinition as orgsModule } from '../modules/orgs/module';
 import { moduleDefinition as peopleModule } from '../modules/people/module';
 import { moduleDefinition as platformModule } from '../modules/platform/module';
 import { moduleDefinition as safetyModule } from '../modules/safety/module';
+import { moduleDefinition as sponsorsModule } from '../modules/sponsors/module';
+import { moduleDefinition as storeModule } from '../modules/store/module';
+import { moduleDefinition as teamFinanceModule } from '../modules/team-finance/module';
+import { moduleDefinition as volunteersModule } from '../modules/volunteers/module';
 
 export const serverModules: readonly ServerModule[] = [
   auditModule,
@@ -27,12 +32,17 @@ export const serverModules: readonly ServerModule[] = [
   disciplineModule,
   filesModule,
   financeModule,
+  fundraisingModule,
   jobsModule,
   notificationsModule,
   orgsModule,
   peopleModule,
   platformModule,
   safetyModule,
+  sponsorsModule,
+  storeModule,
+  teamFinanceModule,
+  volunteersModule,
 ];
 export const integrationConfigs: readonly IntegrationConfig[] = [
   backgroundCheckConfig,

@@ -324,7 +324,11 @@ export async function createGuestDonation(
     idempotencyKey: input.idempotencyKey,
   });
   const parsedUrl = new URL(checkoutResult.url);
-  if (parsedUrl.protocol !== 'https:')
+  const appOrigin = new URL(input.appUrl).origin;
+  if (
+    parsedUrl.protocol !== 'https:' &&
+    (process.env.NODE_ENV === 'production' || parsedUrl.origin !== appOrigin)
+  )
     throw new FundraisingCheckoutUnavailableError(
       'Donation checkout must use a hosted HTTPS URL',
     );
@@ -486,7 +490,7 @@ export async function markDonationPaid(
   },
   now = new Date(),
 ) {
-  const donation = await createWithOrg(database)(context, async (trx) => {
+  const outcome = await createWithOrg(database)(context, async (trx) => {
     const current = await trx
       .selectFrom('donations')
       .select([
@@ -509,7 +513,7 @@ export async function markDonationPaid(
     if (current.status === 'paid') {
       if (current.provider_payment_id !== input.providerPaymentId)
         throw new FundraisingConflictError('Donation payment ID mismatch');
-      return current;
+      return { donation: current, alreadyPaid: true };
     }
     const paid = await trx
       .updateTable('donations')
@@ -546,8 +550,14 @@ export async function markDonationPaid(
         receiptNumber: { tier: 'internal', after: paid.receipt_number },
       },
     });
-    return paid;
+    return { donation: paid, alreadyPaid: false };
   });
+  const donation = outcome.donation;
+  if (outcome.alreadyPaid)
+    return {
+      donationId: donation.id,
+      receiptNumber: donation.receipt_number,
+    };
   const config = await fundraisingSettings(database, context, encryption);
   const settings = await createWithOrg(database)(context, async (trx) =>
     trx
@@ -599,6 +609,51 @@ export async function markDonationPaid(
       .execute(),
   );
   return { donationId: donation.id, receiptNumber: donation.receipt_number };
+}
+
+export async function markDonationFailed(
+  database: Kysely<DB>,
+  context: OrgContext,
+  input: {
+    donationId: string;
+    checkoutSessionId: string;
+    reason?: string | undefined;
+  },
+  now = new Date(),
+) {
+  return createWithOrg(database)(context, async (trx) => {
+    const current = await trx
+      .selectFrom('donations')
+      .select(['id', 'status', 'receipt_number'])
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', input.donationId)
+      .where('checkout_session_id', '=', input.checkoutSessionId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!current)
+      throw new FundraisingNotFoundError('Donation checkout not found');
+    if (current.status !== 'pending')
+      return { donationId: current.id, status: current.status };
+    await trx
+      .updateTable('donations')
+      .set({ status: 'failed', updated_at: now })
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', input.donationId)
+      .where('status', '=', 'pending')
+      .execute();
+    await appendAuditEvent(trx, context, {
+      action: 'fundraising.donation_failed',
+      entityType: 'donation',
+      entityId: current.id,
+      changes: {
+        status: { tier: 'internal', before: 'pending', after: 'failed' },
+        ...(input.reason
+          ? { reason: { tier: 'internal', after: input.reason.slice(0, 200) } }
+          : {}),
+      },
+    });
+    return { donationId: current.id, status: 'failed' };
+  });
 }
 
 function escapeHtml(value: string) {

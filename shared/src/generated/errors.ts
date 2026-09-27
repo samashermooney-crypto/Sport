@@ -1,1 +1,1 @@
-export const moduleErrorCodes = [] as const;
+export const moduleErrorCodes = ['CHECKOUT_UNAVAILABLE'] as const;

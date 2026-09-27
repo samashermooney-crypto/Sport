@@ -2493,6 +2493,7 @@ export interface Sponsors {
   name: string;
   org_id: string;
   placements: Generated<Json>;
+  renewal_notified_at: Timestamp | null;
   status: Generated<string>;
   tier: string;
   updated_at: Generated<Timestamp>;

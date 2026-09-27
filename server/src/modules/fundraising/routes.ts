@@ -1,6 +1,8 @@
 import express from 'express';
+import { sql } from 'kysely';
 import { z } from 'zod';
 
+import { createWithOrg } from '../../db/withOrg';
 import type { AuthDependencies } from '../auth/routes';
 import {
   mutationOriginIsValid,
@@ -8,8 +10,10 @@ import {
   requireAnyRole,
   sendModuleError,
 } from '../compliance/access';
+import { systemWorkerActorId } from '../jobs/credentials-expiry';
 
 import type { GuestDonationCheckoutPort } from './checkout';
+import { PreviewGuestDonationCheckout } from './preview-checkout';
 import {
   campaignBodySchema,
   campaignListSchema,
@@ -28,6 +32,7 @@ import {
   donorStatement,
   fundraisingSettings,
   listCampaigns,
+  markDonationPaid,
   publicCampaign,
   saveFundraisingSettings,
   setCampaignStatus,
@@ -41,6 +46,12 @@ export function createFundraisingRouter(
     donationCheckout?: GuestDonationCheckoutPort | undefined;
   },
 ): express.Router {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const donationCheckout =
+    dependencies.donationCheckout ??
+    (isProduction
+      ? undefined
+      : new PreviewGuestDonationCheckout(dependencies.appUrl));
   const router = express.Router();
   router.use((_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
@@ -51,14 +62,12 @@ export function createFundraisingRouter(
       ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) &&
       !mutationOriginIsValid(request, dependencies.appUrl)
     ) {
-      response
-        .status(403)
-        .json({
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Request origin could not be verified',
-          },
-        });
+      response.status(403).json({
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Request origin could not be verified',
+        },
+      });
       return;
     }
     next();
@@ -95,25 +104,21 @@ export function createFundraisingRouter(
     endpoint(async (request, response) => {
       const body = guestDonationBodySchema.parse(request.body as unknown);
       if (!(await dependencies.captcha.verify(body.captchaToken, request.ip))) {
-        response
-          .status(403)
-          .json({
-            error: {
-              code: 'FORBIDDEN',
-              message: 'Donation verification failed',
-            },
-          });
+        response.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Donation verification failed',
+          },
+        });
         return;
       }
-      if (!dependencies.donationCheckout) {
-        response
-          .status(503)
-          .json({
-            error: {
-              code: 'CHECKOUT_UNAVAILABLE',
-              message: 'Guest donation checkout is not connected',
-            },
-          });
+      if (!donationCheckout) {
+        response.status(503).json({
+          error: {
+            code: 'CHECKOUT_UNAVAILABLE',
+            message: 'Guest donation checkout is not connected',
+          },
+        });
         return;
       }
       const campaign = await publicCampaign(
@@ -123,7 +128,7 @@ export function createFundraisingRouter(
       );
       const result = await createGuestDonation(
         dependencies.database,
-        dependencies.donationCheckout,
+        donationCheckout,
         {
           orgId: campaign.orgId,
           campaignId: campaign.id,
@@ -137,19 +142,17 @@ export function createFundraisingRouter(
         },
         dependencies.clock(),
       );
-      response
-        .status(201)
-        .json(
-          donationCheckoutSchema.parse({
-            donationId: result.donationId,
-            checkoutUrl:
-              'checkoutUrl' in result
-                ? result.checkoutUrl
-                : `${dependencies.appUrl}/donation-checkout/${result.checkoutSessionId}`,
-            receiptNumber: result.receiptNumber,
-            amountCents: result.amountCents,
-          }),
-        );
+      response.status(201).json(
+        donationCheckoutSchema.parse({
+          donationId: result.donationId,
+          checkoutUrl:
+            'checkoutUrl' in result
+              ? result.checkoutUrl
+              : `${dependencies.appUrl}/donation-checkout/${result.checkoutSessionId}`,
+          receiptNumber: result.receiptNumber,
+          amountCents: result.amountCents,
+        }),
+      );
     }),
   );
   router.post(
@@ -246,5 +249,63 @@ export function createFundraisingRouter(
       );
     }),
   );
+  if (!isProduction) {
+    router.get(
+      '/preview-checkout/:orgId/:checkoutSessionId/complete',
+      async (request, response) => {
+        try {
+          const orgId = uuid(request.params.orgId);
+          const checkoutSessionId = z
+            .string()
+            .regex(/^preview_[0-9a-f-]{36}$/)
+            .parse(request.params.checkoutSessionId);
+          const donationId = uuid(request.query.donation);
+          const context = {
+            orgId,
+            actor: { accountId: systemWorkerActorId },
+          };
+          await markDonationPaid(
+            dependencies.database,
+            context,
+            dependencies.encryption,
+            dependencies.email,
+            {
+              donationId,
+              checkoutSessionId,
+              providerPaymentId: `pi_preview_${checkoutSessionId}`,
+            },
+            dependencies.clock(),
+          );
+          const landing = await createWithOrg(dependencies.database)(
+            context,
+            async (trx) => {
+              const result = await sql<{
+                org_slug: string;
+                campaign_slug: string;
+              }>`
+                SELECT organization.slug AS org_slug, campaign.slug AS campaign_slug
+                FROM donations donation
+                JOIN fundraising_campaigns campaign
+                  ON campaign.org_id = donation.org_id
+                 AND campaign.id = donation.campaign_id
+                JOIN organizations organization ON organization.id = donation.org_id
+                WHERE donation.org_id = ${orgId}::uuid AND donation.id = ${donationId}::uuid
+              `.execute(trx);
+              return result.rows[0];
+            },
+          );
+          if (landing) {
+            response.redirect(
+              `/site/${encodeURIComponent(landing.org_slug)}/fundraisers/${encodeURIComponent(landing.campaign_slug)}?status=success`,
+            );
+          } else {
+            response.redirect('/');
+          }
+        } catch {
+          response.redirect('/');
+        }
+      },
+    );
+  }
   return router;
 }
