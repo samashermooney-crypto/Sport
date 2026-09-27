@@ -6,6 +6,18 @@ const PeopleList = lazy(() =>
     default: Component,
   })),
 );
+const ImportsConsole = lazy(() =>
+  import('./ImportsConsole').then(({ ImportsConsole: Component }) => ({
+    default: Component,
+  })),
+);
+const AcceptAthleteInvitation = lazy(() =>
+  import('./AcceptAthleteInvitation').then(
+    ({ AcceptAthleteInvitation: Component }) => ({
+      default: Component,
+    }),
+  ),
+);
 const AcceptGuardianInvitation = lazy(() =>
   import('./AcceptGuardianInvitation').then(
     ({ AcceptGuardianInvitation: Component }) => ({
@@ -15,6 +27,11 @@ const AcceptGuardianInvitation = lazy(() =>
 );
 const FamilyHome = lazy(() =>
   import('./FamilyHome').then(({ FamilyHome: Component }) => ({
+    default: Component,
+  })),
+);
+const FamilyMedical = lazy(() =>
+  import('./FamilyMedical').then(({ FamilyMedical: Component }) => ({
     default: Component,
   })),
 );
@@ -57,6 +74,22 @@ export const peopleRoutes: readonly RouteObject[] = [
     ),
   },
   {
+    path: '/me/family/:orgId/:personId/medical',
+    element: (
+      <Suspense fallback={<main role="status">Loading medical profile…</main>}>
+        <FamilyMedical />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/athlete-invitations/:orgId/:token',
+    element: (
+      <Suspense fallback={<main role="status">Loading invitation…</main>}>
+        <AcceptAthleteInvitation />
+      </Suspense>
+    ),
+  },
+  {
     path: '/guardian-invitations/:orgId/:token',
     element: (
       <Suspense fallback={<main role="status">Loading invitation…</main>}>
@@ -89,10 +122,26 @@ export const peopleRoutes: readonly RouteObject[] = [
     ),
   },
   {
+    path: '/console/orgs/:orgId/imports',
+    element: (
+      <Suspense fallback={<main role="status">Loading imports…</main>}>
+        <ImportsConsole />
+      </Suspense>
+    ),
+  },
+  {
     path: '/console/orgs/:orgId/people/:personId',
     element: (
       <Suspense fallback={<main role="status">Loading person…</main>}>
         <PersonDetail />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/console/orgs/:orgId/people/:personId/medical',
+    element: (
+      <Suspense fallback={<main role="status">Loading medical profile…</main>}>
+        <FamilyMedical />
       </Suspense>
     ),
   },

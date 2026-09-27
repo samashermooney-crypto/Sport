@@ -39,11 +39,18 @@ test('two member clubs complete a U12 inter-club season', async ({
     }
     const leagueProgram = await factories.program(league);
     await withOrg(league, (trx) =>
-      trx
-        .updateTable('divisions')
-        .set({ age_label: 'U12' })
-        .where('id', '=', leagueProgram.divisionId)
-        .execute(),
+      Promise.all([
+        trx
+          .updateTable('divisions')
+          .set({ age_label: 'U12' })
+          .where('id', '=', leagueProgram.divisionId)
+          .execute(),
+        trx
+          .updateTable('registration_offerings')
+          .set({ registrant_role: 'team_entry', active: true })
+          .where('id', '=', leagueProgram.offeringId)
+          .execute(),
+      ]).then(() => undefined),
     );
 
     const teamA = await seedClubTeam(
@@ -102,7 +109,7 @@ test('two member clubs complete a U12 inter-club season', async ({
       clubA,
       league,
       teamA,
-      'Riverside Athletic',
+      'Riverside U12',
     );
     await submitClubTeam(
       page,
@@ -112,7 +119,7 @@ test('two member clubs complete a U12 inter-club season', async ({
       clubB,
       league,
       teamB,
-      'Northside Athletic',
+      'Northside U12',
     );
 
     await loginAs(
@@ -154,7 +161,7 @@ test('two member clubs complete a U12 inter-club season', async ({
         .getByLabel('Field or court')
         .selectOption({ label: `${fieldName} · ${fieldName} Facility` });
       await page.getByLabel('Available from').fill('2026-10-10T09:00');
-      await page.getByLabel('Available until').fill('2026-10-10T10:00');
+      await page.getByLabel('Available until').fill('2026-10-10T10:30');
       await page.getByRole('button', { name: 'Offer availability' }).click();
       await expect(
         page.getByText('Availability offered to the league.'),
@@ -180,6 +187,7 @@ test('two member clubs complete a U12 inter-club season', async ({
         'Schedule draft generated from league and member-club availability.',
       ),
     ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/1 games · 0 unscheduled/)).toBeVisible();
     await page.getByRole('button', { name: 'Apply schedule' }).click();
     await expect(
       page.getByText('Schedule applied to league and home-club calendars.'),
@@ -199,10 +207,19 @@ test('two member clubs complete a U12 inter-club season', async ({
     await loginAs(page, testInfo.project.use.baseURL, database, withOrg, host);
     await page.goto(`/console/federation/${host.orgId}`);
     await page.getByRole('button', { name: 'Competition' }).click();
-    await page.getByLabel('League').last().selectOption(league.orgId);
     await page
-      .getByLabel('Your league program')
-      .selectOption(leagueProgram.programId);
+      .getByRole('combobox', { name: 'League', exact: true })
+      .last()
+      .selectOption({ label: 'Metro Youth Sports Association' });
+    const hostProgram = page.getByRole('combobox', {
+      name: 'Your league program',
+      exact: true,
+    });
+    await hostProgram.selectOption('');
+    await hostProgram.selectOption({ label: 'Fixture League' });
+    await expect(
+      page.getByRole('heading', { name: 'Open standings' }),
+    ).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Enter home result' }),
     ).toBeVisible();
@@ -226,15 +243,23 @@ test('two member clubs complete a U12 inter-club season', async ({
     );
     await page.goto(`/console/federation/${league.orgId}`);
     await page.getByRole('button', { name: 'Competition' }).click();
-    await page
-      .getByLabel('League program')
-      .first()
-      .selectOption(leagueProgram.programId);
+    const leagueProgramPicker = page
+      .getByRole('combobox', {
+        name: 'League program',
+        exact: true,
+      })
+      .first();
+    await leagueProgramPicker.selectOption('');
+    await leagueProgramPicker.selectOption(leagueProgram.programId);
     await expect(
       page.getByRole('heading', { name: 'Open standings' }),
     ).toBeVisible();
-    await expect(page.getByText('Riverside U12')).toBeVisible();
-    await expect(page.getByText('Northside U12')).toBeVisible();
+    await expect(
+      page.getByRole('rowheader', { name: 'Riverside U12', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('rowheader', { name: 'Northside U12', exact: true }),
+    ).toBeVisible();
     expect(await accessibilityViolations(page)).toEqual([]);
 
     const nonHost = host.orgId === clubA.orgId ? clubB : clubA;
@@ -247,12 +272,22 @@ test('two member clubs complete a U12 inter-club season', async ({
     );
     await page.goto(`/console/federation/${nonHost.orgId}`);
     await page.getByRole('button', { name: 'Competition' }).click();
-    await page.getByLabel('League').last().selectOption(league.orgId);
     await page
-      .getByLabel('Your league program')
-      .selectOption(leagueProgram.programId);
-    await expect(page.getByText('Riverside U12')).toBeVisible();
-    await expect(page.getByText('Northside U12')).toBeVisible();
+      .getByRole('combobox', { name: 'League', exact: true })
+      .last()
+      .selectOption({ label: 'Metro Youth Sports Association' });
+    const nonHostProgram = page.getByRole('combobox', {
+      name: 'Your league program',
+      exact: true,
+    });
+    await nonHostProgram.selectOption('');
+    await nonHostProgram.selectOption({ label: 'Fixture League' });
+    await expect(
+      page.getByRole('rowheader', { name: 'Riverside U12', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('rowheader', { name: 'Northside U12', exact: true }),
+    ).toBeVisible();
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
     await database.destroy();
@@ -386,15 +421,24 @@ async function inviteClub(
   clubName: string,
 ): Promise<void> {
   await page.getByLabel('Name, organization slug, or owner email').fill(slug);
-  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('button', { name: 'Select', exact: true }).click();
-  await page.getByRole('checkbox', { name: 'Submitted rosters' }).check();
-  await page.getByRole('checkbox', { name: 'Staff compliance status' }).check();
-  await page.getByRole('checkbox', { name: 'Team entry information' }).check();
-  await page.getByRole('checkbox', { name: 'Federation discipline' }).check();
+  const proposedAgreement = page.getByRole('group').first();
+  await proposedAgreement
+    .getByRole('checkbox', { name: 'Submitted rosters' })
+    .check();
+  await proposedAgreement
+    .getByRole('checkbox', { name: 'Staff compliance status' })
+    .check();
+  await proposedAgreement
+    .getByRole('checkbox', { name: 'Team entry information' })
+    .check();
+  await proposedAgreement
+    .getByRole('checkbox', { name: 'Federation discipline' })
+    .check();
   await page.getByRole('button', { name: 'Send relationship request' }).click();
   await expect(page.getByText('Relationship request sent.')).toBeVisible();
-  await expect(page.getByText(clubName)).toBeVisible();
+  await expect(page.getByText(clubName, { exact: true })).toBeVisible();
 }
 
 async function submitClubTeam(
@@ -405,20 +449,28 @@ async function submitClubTeam(
   club: ActorFixture,
   league: ActorFixture,
   team: { teamSeasonId: string },
-  clubName: string,
+  teamName: string,
 ): Promise<void> {
   await loginAs(page, baseUrl, database, withOrg, club);
   await page.goto(`/console/federation/${club.orgId}`);
   await page.getByRole('button', { name: 'Competition' }).click();
-  await page.getByLabel('League').first().selectOption(league.orgId);
-  await page.getByLabel('Team season').selectOption(team.teamSeasonId);
   await page
-    .getByLabel('League program')
-    .selectOption({ label: 'Fixture League' });
-  await page.getByLabel('Division').selectOption({ label: 'Open · U12' });
+    .getByRole('combobox', { name: 'League', exact: true })
+    .first()
+    .selectOption(league.orgId);
+  await page.getByLabel('Team season').selectOption(team.teamSeasonId);
+  const leagueProgramSelect = page.getByRole('combobox', {
+    name: 'League program',
+    exact: true,
+  });
+  await expect(leagueProgramSelect).toContainText('Fixture League');
+  await leagueProgramSelect.selectOption({ label: 'Fixture League' });
+  await page
+    .getByRole('combobox', { name: 'Division', exact: true })
+    .selectOption({ label: 'Open · U12' });
   await page.getByRole('button', { name: 'Submit team' }).click();
   await expect(
     page.getByText('Team entry submitted with a roster snapshot.'),
   ).toBeVisible();
-  await expect(page.getByText(`${clubName} · Fixture League`)).toBeVisible();
+  await expect(page.getByText(teamName, { exact: true })).toBeVisible();
 }

@@ -1,19 +1,36 @@
-# Track C — files and adapters
-Status: ready-for-integration
+# Track C — files, adapters, and wiring
+Status: working
 Branch: `track/c-adapters`
-Current: Merged `rebuild/trunk` at `fd229db`; completed Track F's restricted-file authorization request and Track H's provider-ID request.
-Ready for integration: local commit range `fd229db..0011b8b` (implementation and adapter docs); this final status note is also on the branch. No push. Track A can merge the shared local branch.
-Requests to other tracks: A — update DEC-023 in `docs/codex/DECISIONS.md` to reflect the newly authorized verified-guardian restricted uploads and owner/compliance-only restricted downloads; the current decision still says owner/admin downloads.
-Blocked on: none for Track C implementation; DEC-023 reconciliation belongs to Track A during integration.
+Current: merged the locally available `rebuild/trunk` at `af353fc`; Track C is resuming the trunk gates and wiring queue. Phase 15 remains owned by Track K.
+Ready for integration: no; trunk merge and current wiring changes need the required gates.
+Requests to other tracks: Track A — reconcile DEC-023 with verified-guardian restricted uploads and owner/compliance-only restricted downloads. Track E — registration module/route and checkout contracts are prerequisites for registration UI wiring.
+Blocked on: GitHub access is currently unavailable from this environment; local gates remain available.
 
-## Requests from SEC
+## Completed Track C work
 
-- SEC-001 — mount `server/src/lib/security/security-headers.ts` in `server/src/app.ts` before API and static routes; preserve production-only HSTS and the `/embed/*` framing exception. The app factory currently has no global CSP, HSTS, frame, referrer, or permissions headers (2026-09-27).
-- SEC-002 — add generated `permission`, `resource`, and scope (`organization`, `account`, `platform`, `public`) metadata to every API operation and expose it to OpenAPI/route tests. Every ID-bearing organization-scoped GET/PATCH/DELETE route needs a tenancy-fixture marker; PATCH/DELETE fixtures must include schema-valid synthetic request bodies. The fuzzer authenticates as an org owner, substitutes a real foreign org ID, fuzzes other ID parameters, and requires 404 for each route. Current OpenAPI operations lack route metadata, so route-wide authorization, matrix completeness, and tenancy fuzzing are blocked (2026-09-27).
-- SEC-003 — mount Stripe and Connect webhook routers before JSON parsing so signature verification receives raw request bytes; signature unit tests exist but production `app.ts` does not mount them (2026-09-27).
-- SEC-004 — add gitleaks to CI and publish `docs/security/security.txt` at `/.well-known/security.txt`; replace its reserved `.example` contact/domain before production (2026-09-27).
-Queue notes: 1) Verified linked guardians can upload restricted `person_credential` and `return_to_play_clearance` evidence; owner/compliance roles can download; restricted reads go through the audited API route and return 404 to other readers. 2) Email returns SMTP/Resend IDs; fakes return stable fake IDs; bilingual templates remain available. 3) Stripe belongs to Track E. 4) Twilio, preview and fake SMS return provider IDs; signed inbound/status callbacks and STOP/START/HELP suppression remain supported. 5) Push returns a provider ID when the service response exposes one, preserves invalid-endpoint cleanup and propagates transient errors. 6) Manual/Checkr providers and the recorded fixture are implemented. 7) Nominatim is optional, cached, limited to one request per second per process, privacy-filtered, HTTPS allow-listed, and exposes attribution.
-Self-review: file authorization resolves person, credential and return-to-play owners only inside the current org; guardian links must be verified and active; Restricted downloads require an active membership plus an org-level owner or compliance role with MFA complete. Direct object URLs are not issued for Restricted files, so each content read is re-authorized and audited. Email and Twilio IDs map to their delivery webhook IDs; Web Push exposes an ID only when the service supplies one. No real provider keys or messages were used.
-Verification: `npm run typecheck`, `npm run lint`, `npm run build`, `npm test` (143 files passed, 1 skipped; 544 tests passed, 1 skipped), and `npm run test:e2e` (26 passed, 4 skipped) passed. Focused provider/files tests passed (20); the file authorization, audit and 404 cases ran against real PostgreSQL. Offset 500 was occupied by Track E on port 5932, so the isolated `athlentry_c` stack used offset 510 (Postgres 5942) without disturbing E.
+- Track F restricted-file authorization: verified linked guardians can upload restricted credential and return-to-play evidence; owner/compliance downloads are authorized, every Restricted read is audited, and other readers receive 404.
+- Track H chat attachments: active same-organization conversation members can upload and download images/PDF; image metadata is stripped; nonmembers receive 404 and Restricted reads remain audited.
+- Track H provider IDs: email, SMS, and push adapters return provider message IDs when supplied; fake adapters return stable IDs. Mailpit SMTP reads `ATHLENTRY_MAILPIT_SMTP_PORT` (default 1025).
+- Existing adapter wiring: raw Stripe webhook ingress and worker registration, finance module and routes, generated registry/OpenAPI and nested route discovery. Stripe remains test-mode only.
+- Trunk CI repair `9b5b430` was reported by the owner as fixing the test and Knip jobs; Track D owns the remaining design-parity CI job.
+- Phase 15 remains owned by Track K. C removed merge `63871e0` after the corrected full PostgreSQL gate found two schema failures in migration `8500_phase15_growth.sql`; K must carry and resolve that work on its branch.
 
-Track C complete
+## Wiring queue
+
+- SEC-001: **implemented** — security headers are mounted before API/static routes; production security.txt requires configured staffed contact/policy values; Stripe/Turnstile and configured storage origins remain allowed and HSTS stays production-only.
+- SEC-002: add generated permission/resource/scope metadata to API operations and expose it to OpenAPI and route tests. ID-bearing org-scoped reads/writes need tenancy-fuzzer fixtures; mutations need schema-valid synthetic bodies.
+- SEC-003: **verified** — raw Stripe and Connect ingress is mounted before feature routers; the webhook router consumes raw bytes for signature verification.
+- SEC-004: `/.well-known/security.txt` is served; production contact/policy values are deployment-configured and fail closed until staffed values are supplied. Add gitleaks to CI.
+- Track B: mount Programs, Teams, and Facilities route arrays and navigation when their module paths land; move file and B module contracts to shared Zod, use version helpers for mutable org routes, and align `FILE_INVALID` with the shared error envelope.
+- Track E: register and mount registration once its module and route land; regenerate registry/OpenAPI and DB types. Mount checkout UI only after payer-owned IDs and frozen quote contracts exist, linking checkout/invoice before PaymentIntent. Regenerate OpenAPI for new finance routes and binary PDF media types.
+- Track OPS: wire `/readyz` and public `/status`; initialize structured logger/Sentry in web and worker; add key-generation scripts and health/queue/payment/email alert checks; remove `DATABASE_ADMIN_URL` from web runtime after pre-deploy.
+- Track H: wire `installment.failed` and `installment.final_notice` fanout to consented push/SMS when comms workers and event contracts are available.
+- Review requests addressed to Track A across all `docs/codex/tracks/*.md` for wiring ownership and record completion here.
+
+## Verification and environment
+
+- Use real PostgreSQL integration tests; do not skip or weaken DB tests. Run full tests and Playwright only through `~/athlentry-sprint/heavy.sh`.
+- C stack uses `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=510` (Postgres `127.0.0.1:5942`). It was moved from offset 900, preserving its volume; after the K revert, the disposable test/template databases were recreated with the `db/init/001-roles.sql` app defaults and migrations through `4006` were applied. Kysely types were regenerated.
+- Focused verification: app wiring, Files/RLS, chat attachment and security-header suites passed (4 files, 24 tests) against real PostgreSQL. Full Vitest passes (203 files, 1 skipped; 745 tests, 1 skipped); Chromium desktop passes (24 passed, 4 pre-existing SEC-002 fixmes skipped); typecheck, lint, build, Knip, registry and OpenAPI generation pass.
+- At the last check, local trunk was `af353fc`, seven commits ahead of its remote; GitHub DNS/network access failed. The lock `/tmp/athlentry-trunk.lock` was absent.
+- The corrected full C run with K's migration present had only two schema failures: missing FK indexes in migration `8500_phase15_growth.sql` and `mapping_presets.org_id` nullability. C reverted that merge and left Phase 15 with K; the post-revert full Vitest suite passed.

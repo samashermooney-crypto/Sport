@@ -236,6 +236,7 @@ export function PeopleShell({
             ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
             { label: 'People', to: people },
             { label: 'Households', to: `${home}/households` },
+            { label: 'Imports', to: `${home}/imports` },
             { label: 'Account', to: '/me' },
           ],
         },
@@ -244,6 +245,7 @@ export function PeopleShell({
         ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
         { label: 'People', to: people },
         { label: 'Households', to: `${home}/households` },
+        { label: 'Imports', to: `${home}/imports` },
         { label: 'Account', to: '/me' },
       ]}
     >
@@ -687,6 +689,11 @@ export function PersonDetail(): React.JSX.Element {
         {!impersonationId && current.status === 'active' && (
           <Card>
             <h2>Profile</h2>
+            <p>
+              <Link to={`/console/orgs/${orgId}/people/${personId}/medical`}>
+                Medical profile
+              </Link>
+            </p>
             <p>
               Age: {current.age} · Grade: {current.grade ?? 'Unknown'}
             </p>

@@ -29,6 +29,6 @@ function PortalMessagesRoute(): React.JSX.Element {
   );
 }
 
-export const messagesPortalRoutes: readonly RouteObject[] = [
+export const portalMessagesRoutes: readonly RouteObject[] = [
   { path: '/me/orgs/:orgId/messages', element: <PortalMessagesRoute /> },
 ];

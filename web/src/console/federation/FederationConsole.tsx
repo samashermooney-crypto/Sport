@@ -504,6 +504,8 @@ export function FederationConsole(): React.JSX.Element {
   ): Promise<void> {
     event.preventDefault();
     setError('');
+    setMatches([]);
+    setRelationshipTarget('');
     try {
       const result = (await apiGet(
         `${base}/relationships/lookup?q=${encodeURIComponent(search)}`,
@@ -1738,7 +1740,7 @@ export function FederationConsole(): React.JSX.Element {
                               unscheduled
                             </small>
                           </span>
-                          {run.status === 'draft' && (
+                          {run.status === 'succeeded' && (
                             <Button
                               type="button"
                               disabled={busy}

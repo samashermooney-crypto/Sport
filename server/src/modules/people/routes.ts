@@ -1,4 +1,9 @@
 import {
+  emergencyContactCreateSchema,
+  emergencyContactRemoveSchema,
+  emergencyContactUpdateSchema,
+} from '@shared/schemas/emergencyContacts';
+import {
   householdCreateSchema,
   householdMemberCreateSchema,
   householdMemberRemoveSchema,
@@ -6,7 +11,10 @@ import {
   householdUpdateSchema,
   householdsQuerySchema,
 } from '@shared/schemas/households';
+import { medicalUpdateSchema } from '@shared/schemas/medical';
 import {
+  athleteInvitationAcceptSchema,
+  athleteInvitationSchema,
   guardianInvitationAcceptSchema,
   guardianLinkCreateSchema,
   peopleFilterOptionsQuerySchema,
@@ -14,6 +22,7 @@ import {
   personClaimAcceptSchema,
   personClaimInvitationSchema,
   personCreateSchema,
+  personMergeCreateSchema,
   personPhotoUpdateSchema,
   personUpdateSchema,
 } from '@shared/schemas/people';
@@ -24,9 +33,13 @@ import { requestImpersonation } from '../../lib/tenant-guard';
 import type { AuthDependencies } from '../auth/routes';
 import { requireSession } from '../auth/routes';
 
+import { createAthleteLinksRepository } from './athleteLinks';
+import { createEmergencyContactsRepository } from './emergencyContacts';
 import { listFamily } from './family';
 import { createGuardianLinksRepository } from './guardianLinks';
 import { createHouseholdsRepository } from './households';
+import { createMedicalRepository } from './medical';
+import { createMergesRepository } from './merges';
 import { createPeopleRepository, PeopleError } from './repo';
 import { createSelfClaimsRepository } from './selfClaims';
 
@@ -72,6 +85,9 @@ function sendError(response: express.Response, error: unknown): void {
           : error instanceof Error
             ? error.message
             : 'Request failed',
+      ...(error instanceof PeopleError && error.details !== undefined
+        ? { details: error.details }
+        : {}),
     },
   });
 }
@@ -84,6 +100,15 @@ export function createPeopleRouter(
   const households = createHouseholdsRepository(dependencies.database);
   const guardianLinks = createGuardianLinksRepository(dependencies.database);
   const selfClaims = createSelfClaimsRepository(dependencies.database);
+  const medical = createMedicalRepository(
+    dependencies.database,
+    dependencies.encryption,
+  );
+  const emergencyContacts = createEmergencyContactsRepository(
+    dependencies.database,
+  );
+  const athleteLinks = createAthleteLinksRepository(dependencies.database);
+  const merges = createMergesRepository(dependencies.database);
   router.use(express.json({ limit: '32kb' }));
   router.use((_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
@@ -106,6 +131,150 @@ export function createPeopleRouter(
     }
   });
 
+  router.get('/orgs/:orgId/:personId/medical', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new PeopleError(404, 'NOT_FOUND', 'Medical profile not found');
+      response.json(
+        await medical.read(
+          z.uuid().parse(request.params.orgId),
+          session.accountId,
+          z.uuid().parse(request.params.personId),
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.patch('/orgs/:orgId/:personId/medical', async (request, response) => {
+    try {
+      if (!validWriteOrigin(request, dependencies.appUrl))
+        throw new PeopleError(403, 'FORBIDDEN', 'Invalid request origin');
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+      const orgId = z.uuid().parse(request.params.orgId);
+      const personId = z.uuid().parse(request.params.personId);
+      await medical.write(
+        orgId,
+        session.accountId,
+        personId,
+        medicalUpdateSchema.parse(request.body),
+      );
+      response.json(await medical.read(orgId, session.accountId, personId));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get(
+    '/orgs/:orgId/:personId/emergency-contacts',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(
+            404,
+            'NOT_FOUND',
+            'Emergency contacts not found',
+          );
+        response.json(
+          await emergencyContacts.list(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            z.uuid().parse(request.params.personId),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/:personId/emergency-contacts',
+    async (request, response) => {
+      try {
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid request origin');
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        const orgId = z.uuid().parse(request.params.orgId);
+        const personId = z.uuid().parse(request.params.personId);
+        await emergencyContacts.create(
+          orgId,
+          session.accountId,
+          personId,
+          emergencyContactCreateSchema.parse(request.body),
+        );
+        response
+          .status(201)
+          .json(
+            await emergencyContacts.list(orgId, session.accountId, personId),
+          );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.patch(
+    '/orgs/:orgId/:personId/emergency-contacts/:contactId',
+    async (request, response) => {
+      try {
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid request origin');
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        const orgId = z.uuid().parse(request.params.orgId);
+        const personId = z.uuid().parse(request.params.personId);
+        await emergencyContacts.update(
+          orgId,
+          session.accountId,
+          personId,
+          z.uuid().parse(request.params.contactId),
+          emergencyContactUpdateSchema.parse(request.body),
+        );
+        response.json(
+          await emergencyContacts.list(orgId, session.accountId, personId),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/:personId/emergency-contacts/:contactId/remove',
+    async (request, response) => {
+      try {
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid request origin');
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        const orgId = z.uuid().parse(request.params.orgId);
+        const personId = z.uuid().parse(request.params.personId);
+        await emergencyContacts.remove(
+          orgId,
+          session.accountId,
+          personId,
+          z.uuid().parse(request.params.contactId),
+          emergencyContactRemoveSchema.parse(request.body).expectedVersion,
+        );
+        response.json(
+          await emergencyContacts.list(orgId, session.accountId, personId),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
   router.get('/orgs/:orgId', async (request, response) => {
     try {
       const session = await requireSession(dependencies, request);
@@ -119,6 +288,47 @@ export function createPeopleRouter(
           Boolean(requestImpersonation(request)),
         ),
       );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/orgs/:orgId/duplicates', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new PeopleError(404, 'NOT_FOUND', 'Duplicates not found');
+      response.json(
+        await merges.duplicates(
+          z.uuid().parse(request.params.orgId),
+          session.accountId,
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.post('/orgs/:orgId/merges', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+      if (!validWriteOrigin(request, dependencies.appUrl))
+        throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+      const { survivorId, mergedId } = personMergeCreateSchema.parse(
+        request.body,
+      );
+      response
+        .status(201)
+        .json(
+          await merges.merge(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            survivorId,
+            mergedId,
+          ),
+        );
     } catch (error) {
       sendError(response, error);
     }
@@ -264,6 +474,99 @@ export function createPeopleRouter(
             session.accountId,
             z.uuid().parse(request.params.personId),
             z.uuid().parse(request.params.linkId),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.get(
+    '/orgs/:orgId/:personId/athlete-link',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(404, 'NOT_FOUND', 'Athlete link not found');
+        response.json(
+          await athleteLinks.get(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            z.uuid().parse(request.params.personId),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/:personId/athlete-invitations',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        const { email } = athleteInvitationSchema.parse(request.body);
+        response
+          .status(201)
+          .json(
+            await athleteLinks.invite(
+              z.uuid().parse(request.params.orgId),
+              session.accountId,
+              z.uuid().parse(request.params.personId),
+              email,
+              dependencies.email,
+              dependencies.appUrl,
+            ),
+          );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/athlete-invitations/accept',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        const { token } = athleteInvitationAcceptSchema.parse(request.body);
+        response.json(
+          await athleteLinks.accept(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            token,
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/:personId/athlete-link/revoke',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        response.json(
+          await athleteLinks.revoke(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            z.uuid().parse(request.params.personId),
           ),
         );
       } catch (error) {

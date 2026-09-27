@@ -1,12 +1,11 @@
 # Track A — core and integration
 
 Status: working
-Model: GPT-6 Sol until S1; GPT-6 Luna after S1
+Model: Codex GPT-6 Luna Extra High
 Branch: `track/a-core`
-Current: Track A's People CRUD, derived age/grade, household membership, household/balance/program/team/credential-record filters, consent-aware photos and the ready B/C/D/E/F/H ranges are integrated on `rebuild/trunk`. The latest merged gate passed 723 tests and 42 browser tests plus typecheck, lint, build, size and generated-file freshness. Phase 1 tasks 4 and 16, Phase 2 role-aware compliance and later acceptance remain open. Track G has no ready range.
-Ready for integration: none on A. Guardian direct links, invitations and the cross-org family read path are integrated. Adult self claims have focused PostgreSQL and Chromium verification and await the next self-merge. Athlete account invitations and role-aware compliance remain. Sprint scope now limits A to Phase 1 remaining acceptance and Phase 2; Track C owns wiring and PROGRESS.md.
-Requests to other tracks: E — proceed with Phase 4 against the spine now on trunk.
-Requests to other tracks: D — identity screens in task 3 are stable for your auth restyle queue; console Home in task 17 remains with A.
+Current: Track A owns Phase 1 remaining tasks 3–8 and 16–17, then Phase 2 to acceptance. The branch adds reversible CSV/XLSX import preview/commit/rollback, import UI coverage, OpenAPI routes and earlier guardian, athlete-link, medical, emergency-contact, household, and merge work. After syncing current trunk at `56ef1aa`, typecheck, full lint, 27 focused PostgreSQL tests (including the 2,000-row timing/rollback case), and five Chromium People/guardian/import tests pass. The full trunk suite caught missing import foreign-key indexes; migration `0903_import_fk_indexes.sql` now adds all five and the schema-spine index contract passes four tests. Phase 1 task 4's native PushManager subscription proof, design parity/localization in task 16, role-aware medical compliance, and remaining Phase 2 acceptance are open. Track C owns wiring and `PROGRESS.md`.
+Integrated into `rebuild/trunk` under the self-merge gate. Merged trunk passed typecheck, full lint, 768 tests (one skip), and all 27 desktop Chromium journeys (four guarded security skips). Migration `0903_import_fk_indexes.sql` fixed the schema-spine failure found by the first merge attempt. Phase 1 task 4's native PushManager subscription proof, shell parity/localization in task 16, and remaining Phase 2 acceptance stay open. Track C owns app/worker/router/registry wiring and hourly full gates.
+Requests to other tracks: none. Track C continues app/worker/router/registry wiring, hourly full gates, and `PROGRESS.md`.
 Blocked on: none
 
 ## Requests from SEC
