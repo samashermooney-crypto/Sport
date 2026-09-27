@@ -3,6 +3,7 @@ import { sql, type Kysely } from 'kysely';
 
 import type { DB, Json } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
+import { appendAuditEvent } from '../audit/service.js';
 
 import {
   type ConnectAccount,
@@ -12,7 +13,7 @@ import {
 
 function requirements(account: ConnectAccount): Json {
   return {
-    currentlyDue: [...account.requirementsDue],
+    currentlyDue: [...account.requirementsDue].sort(),
     disabledReason: account.disabledReason,
   };
 }
@@ -136,6 +137,28 @@ export class PostgresConnectAccountRepository implements ConnectAccountRepositor
   async update(account: ConnectAccount): Promise<void> {
     this.assertOrg(account.orgId);
     await this.withOrg(this.context, async (trx) => {
+      const before = await trx
+        .selectFrom('payment_accounts')
+        .selectAll()
+        .where('org_id', '=', account.orgId)
+        .where('stripe_account_id', '=', account.stripeAccountId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!before)
+        throw new Error(
+          'Connected account does not belong to this organization',
+        );
+      const current = accountFrom(before);
+      if (
+        current &&
+        current.chargesEnabled === account.chargesEnabled &&
+        current.payoutsEnabled === account.payoutsEnabled &&
+        current.detailsSubmitted === account.detailsSubmitted &&
+        current.disabledReason === account.disabledReason &&
+        JSON.stringify([...current.requirementsDue].sort()) ===
+          JSON.stringify([...account.requirementsDue].sort())
+      )
+        return;
       const updated = await trx
         .updateTable('payment_accounts')
         .set({
@@ -154,6 +177,28 @@ export class PostgresConnectAccountRepository implements ConnectAccountRepositor
         throw new Error(
           'Connected account does not belong to this organization',
         );
+      await appendAuditEvent(trx, this.context, {
+        action: 'connect.account_synced',
+        entityType: 'payment_account',
+        entityId: updated.id,
+        changes: {
+          chargesEnabled: {
+            tier: 'internal',
+            before: current?.chargesEnabled,
+            after: account.chargesEnabled,
+          },
+          payoutsEnabled: {
+            tier: 'internal',
+            before: current?.payoutsEnabled,
+            after: account.payoutsEnabled,
+          },
+          disabledReason: {
+            tier: 'internal',
+            before: current?.disabledReason,
+            after: account.disabledReason,
+          },
+        },
+      });
     });
   }
 }
