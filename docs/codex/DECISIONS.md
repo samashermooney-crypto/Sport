@@ -254,7 +254,7 @@
 - **Context:** A member can hold distinct grants for a season, program, division or team season. Editing one grant must not overwrite grants at other scopes or let an owner use an ID from another organization.
 - **Decision:** Grant or revoke one scoped role at a time after checking the scoped entity under `withOrg`, with the same membership version, organization lock, owner step-up and target-session revocation as organization role edits. Ownership is restricted to organization scope and its separate accepted transfer flow.
 - **Why:** Each change is independently auditable and concurrent edits cannot silently overwrite each other.
-- **Consequences / follow-ups:** The staff UI needs a usable selector for existing scope records as the Phase 2 and 3 directories become available; it currently accepts a validated scope ID.
+- **Consequences / follow-ups:** The staff UI lists tenant-scoped seasons, programs, divisions and team seasons by name; grants remain version-checked when those records change.
 
 ### DEC-031 — Transfer ownership only after recipient acceptance
 - **Date:** 2026-09-27

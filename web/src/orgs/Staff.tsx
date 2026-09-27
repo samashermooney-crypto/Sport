@@ -26,11 +26,13 @@ function MemberEditor({
   member,
   lastOwner,
   ownerVersion,
+  scopes,
 }: {
   orgId: string;
   member: Member;
   lastOwner: boolean;
   ownerVersion: number | null;
+  scopes: Staff['scopes'];
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const [roles, setRoles] = useState<string[]>(
@@ -196,7 +198,9 @@ function MemberEditor({
           <p
             key={`${assignment.role}:${assignment.scopeType}:${String(assignment.scopeId)}`}
           >
-            {assignment.role} · {assignment.scopeType} · {assignment.scopeId}
+            {assignment.role} · {assignment.scopeType} ·{' '}
+            {scopes.find((item) => item.id === assignment.scopeId)?.name ??
+              assignment.scopeId}
             {assignment.pendingMfa ? ' · MFA pending' : ''}{' '}
             {member.status === 'active' && (
               <Button
@@ -238,6 +242,7 @@ function MemberEditor({
               value={scopeType}
               onChange={(event) => {
                 setScopeType(event.target.value as typeof scopeType);
+                setScopeId('');
               }}
             >
               <option value="season">Season</option>
@@ -246,17 +251,26 @@ function MemberEditor({
               <option value="team_season">Team season</option>
             </Select>
           </Field>
-          <Field label="Scope ID" required>
-            <Input
+          <Field label="Select scope" required>
+            <Select
               value={scopeId}
               onChange={(event) => {
                 setScopeId(event.target.value);
               }}
-            />
+            >
+              <option value="">Choose {scopeType.replaceAll('_', ' ')}</option>
+              {scopes
+                .filter((item) => item.scopeType === scopeType)
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+            </Select>
           </Field>
           <Button
             type="button"
-            disabled={busy || !z.uuid().safeParse(scopeId).success}
+            disabled={busy || !scopeId}
             onClick={() =>
               void changeScopedRole(scopedRole, scopeType, scopeId, true)
             }
@@ -493,6 +507,7 @@ export function Staff(): React.JSX.Element {
                 value={scopeType}
                 onChange={(event) => {
                   setScopeType(event.target.value as typeof scopeType);
+                  setScopeId('');
                 }}
               >
                 <option value="org">Whole organization</option>
@@ -503,13 +518,24 @@ export function Staff(): React.JSX.Element {
               </Select>
             </Field>
             {scopeType !== 'org' && (
-              <Field label={`${scopeType.replaceAll('_', ' ')} ID`} required>
-                <Input
+              <Field label={scopeType.replaceAll('_', ' ')} required>
+                <Select
                   value={scopeId}
                   onChange={(event) => {
                     setScopeId(event.target.value);
                   }}
-                />
+                >
+                  <option value="">
+                    Choose {scopeType.replaceAll('_', ' ')}
+                  </option>
+                  {query.data.scopes
+                    .filter((item) => item.scopeType === scopeType)
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                </Select>
               </Field>
             )}
             <Button
@@ -563,6 +589,7 @@ export function Staff(): React.JSX.Element {
                 key={member.accountId}
                 orgId={id}
                 member={member}
+                scopes={query.data.scopes}
                 ownerVersion={
                   query.data.members.find(
                     (item) => item.accountId === account.data?.id,
