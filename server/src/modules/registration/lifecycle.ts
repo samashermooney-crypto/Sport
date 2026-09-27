@@ -2455,6 +2455,15 @@ export class PostgresRegistrationLifecycle {
         : null;
       let sourceNetPriceCents = sourceLine?.amount_cents ?? 0;
       if (sourceLine) {
+        if (
+          !Number.isSafeInteger(sourceLine.amount_cents) ||
+          sourceLine.amount_cents < 0
+        )
+          throw new RegistrationCheckoutError(
+            409,
+            'NOT_TRANSFERABLE',
+            'The registration line price does not reconcile',
+          );
         const sourceAdjustments = await trx
           .selectFrom('invoice_lines')
           .select(['kind', 'amount_cents'])
@@ -2493,7 +2502,19 @@ export class PostgresRegistrationLifecycle {
             'The registration net price does not reconcile',
           );
       }
+      if (!Number.isSafeInteger(destination.price_cents))
+        throw new RegistrationCheckoutError(
+          409,
+          'NOT_TRANSFERABLE',
+          'The destination price does not reconcile',
+        );
       const difference = destination.price_cents - sourceNetPriceCents;
+      if (!Number.isSafeInteger(difference))
+        throw new RegistrationCheckoutError(
+          409,
+          'NOT_TRANSFERABLE',
+          'The transfer price difference does not reconcile',
+        );
       let refund: RegistrationTransferRefundResult | null = null;
       if (input.financialTreatment === 'refund_difference') {
         if (
