@@ -1,0 +1,287 @@
+import type { PricingInput } from '@shared/algorithms/pricing';
+import { sql } from 'kysely';
+import { z } from 'zod';
+
+import type { Json } from '../../db/types.js';
+import type { OrgTransaction } from '../../db/withOrg.js';
+
+import type { CheckoutPricingSourceLoader } from './pricing-repo.js';
+
+const cartSchema = z
+  .object({
+    offerings: z
+      .array(
+        z
+          .object({
+            lineId: z.uuid(),
+            offeringId: z.uuid(),
+            personId: z.uuid(),
+            householdId: z.uuid(),
+          })
+          .strict(),
+      )
+      .min(1),
+    discountCodes: z.array(z.string()).max(0).optional(),
+    applyCreditCents: z.literal(0).optional(),
+  })
+  .strict();
+
+const emptyObject = (value: Json): boolean =>
+  !!value &&
+  typeof value === 'object' &&
+  !Array.isArray(value) &&
+  Object.keys(value).length === 0;
+
+interface OfferingRow {
+  id: string;
+  program_id: string;
+  division_id: string | null;
+  visibility: string;
+  person_id: string;
+  household_id: string;
+  price_cents: number;
+  season_id: string;
+  program_status: string;
+  registration_opens_at: Date | null;
+  registration_closes_at: Date | null;
+  active: boolean;
+  pricing: Json;
+  add_ons: Json;
+  eligibility: Json;
+  settings: Json;
+  access_ok: boolean;
+  registration_ok: boolean;
+}
+
+/** A fail-closed source loader for unmodified, base-price registration carts. */
+export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSourceLoader {
+  async load(
+    trx: OrgTransaction,
+    checkout: {
+      orgId: string;
+      checkoutId: string;
+      accountId: string;
+      items: Json;
+    },
+  ): Promise<{
+    pricing: PricingInput;
+    paymentTerms: {
+      applicationRate: { bps: number; fixedCents: number };
+      serviceFee: { enabled: false };
+    };
+  }> {
+    const cart = cartSchema.parse(checkout.items);
+    if (
+      new Set(cart.offerings.map((item) => item.lineId)).size !==
+        cart.offerings.length ||
+      new Set(
+        cart.offerings.map((item) => `${item.offeringId}:${item.personId}`),
+      ).size !== cart.offerings.length
+    )
+      throw new Error('Duplicate registration cart line');
+    const organization = await trx
+      .selectFrom('organizations')
+      .select([
+        'timezone',
+        'settings',
+        'application_fee_bps',
+        'application_fee_fixed_cents',
+      ])
+      .where('id', '=', checkout.orgId)
+      .forUpdate()
+      .executeTakeFirstOrThrow();
+    if (!emptyObject(organization.settings))
+      throw new Error(
+        'Configured organization pricing needs a supported source loader',
+      );
+    const now = new Date();
+    const rows: OfferingRow[] = [];
+    for (const item of cart.offerings) {
+      const result = await sql<OfferingRow>`
+        SELECT o.id, o.program_id, o.division_id, o.visibility,
+          ${item.personId}::uuid AS person_id,
+          ${item.householdId}::uuid AS household_id, o.price_cents,
+          p.season_id, p.status AS program_status, p.registration_opens_at,
+          p.registration_closes_at, o.active, o.pricing, o.add_ons,
+          p.eligibility, p.settings,
+          EXISTS (
+            SELECT 1 FROM household_members athlete
+            JOIN households h ON h.org_id = athlete.org_id AND h.id = athlete.household_id
+            JOIN people person ON person.org_id = athlete.org_id AND person.id = athlete.person_id
+            WHERE athlete.org_id = o.org_id AND athlete.person_id = ${item.personId}::uuid
+              AND athlete.household_id = ${item.householdId}::uuid
+              AND h.status = 'active' AND person.status = 'active'
+              AND EXISTS (
+                SELECT 1 FROM household_members payer
+                JOIN person_account_links pal ON pal.org_id = payer.org_id
+                  AND pal.person_id = payer.person_id
+                WHERE payer.org_id = athlete.org_id
+                  AND payer.household_id = athlete.household_id
+                  AND payer.role = 'guardian' AND payer.financially_responsible
+                  AND pal.account_id = ${checkout.accountId}::uuid
+                  AND pal.verified_at IS NOT NULL AND pal.revoked_at IS NULL
+              )
+          ) AS access_ok,
+          EXISTS (
+            SELECT 1 FROM registrations r
+            WHERE r.org_id = o.org_id AND r.program_id = o.program_id
+              AND r.person_id = ${item.personId}::uuid
+              AND r.status NOT IN ('canceled', 'withdrawn', 'transferred_out')
+          ) AS registration_ok
+        FROM registration_offerings o
+        JOIN programs p ON p.org_id = o.org_id AND p.id = o.program_id
+        WHERE o.org_id = ${checkout.orgId}::uuid AND o.id = ${item.offeringId}::uuid
+        FOR UPDATE OF o, p
+      `.execute(trx);
+      const row = result.rows[0];
+      if (
+        !row ||
+        !row.access_ok ||
+        row.registration_ok ||
+        !row.active ||
+        row.visibility !== 'public' ||
+        row.program_status !== 'registration_open' ||
+        (row.registration_opens_at && row.registration_opens_at > now) ||
+        (row.registration_closes_at && row.registration_closes_at <= now)
+      )
+        throw new Error('Registration pricing source is unavailable');
+      if (
+        !emptyObject(row.pricing) ||
+        !emptyObject(row.eligibility) ||
+        !emptyObject(row.settings) ||
+        !Array.isArray(row.add_ons) ||
+        row.add_ons.length !== 0
+      )
+        throw new Error(
+          'Configured offering pricing needs a supported source loader',
+        );
+      rows.push(row);
+    }
+    if (
+      new Set(rows.map((row) => `${row.program_id}:${row.person_id}`)).size !==
+      rows.length
+    )
+      throw new Error('Duplicate participant program in registration cart');
+    const subjects = [
+      ...rows.map((row) => ({ kind: 'program', id: row.program_id })),
+      ...rows
+        .filter((row) => row.division_id)
+        .map((row) => ({ kind: 'division', id: row.division_id ?? '' })),
+      ...rows.map((row) => ({ kind: 'offering', id: row.id })),
+    ];
+    for (const subject of new Set(
+      subjects.map((item) => `${item.kind}:${item.id}`),
+    )) {
+      const [kind, id] = subject.split(':');
+      const holds = await trx
+        .selectFrom('capacity_holds')
+        .select(['quantity', 'expires_at', 'released_at', 'converted_at'])
+        .where('org_id', '=', checkout.orgId)
+        .where('checkout_id', '=', checkout.checkoutId)
+        .where('subject_type', '=', kind as 'program' | 'division' | 'offering')
+        .where('subject_id', '=', id ?? '')
+        .forUpdate()
+        .execute();
+      const held = holds
+        .filter(
+          (hold) =>
+            !hold.released_at && !hold.converted_at && hold.expires_at > now,
+        )
+        .reduce((total, hold) => total + hold.quantity, 0);
+      if (
+        held <
+        subjects.filter((item) => `${item.kind}:${item.id}` === subject).length
+      )
+        throw new Error('Registration capacity hold is unavailable');
+    }
+    const seasonIds = [...new Set(rows.map((row) => row.season_id))];
+    await sql`LOCK TABLE automatic_discount_rules, aid_applications, tax_rates IN SHARE MODE`.execute(
+      trx,
+    );
+    const rules = await trx
+      .selectFrom('automatic_discount_rules')
+      .select('id')
+      .where('org_id', '=', checkout.orgId)
+      .where('active', '=', true)
+      .where((eb) =>
+        eb.or([eb('season_id', 'is', null), eb('season_id', 'in', seasonIds)]),
+      )
+      .forUpdate()
+      .execute();
+    if (rules.length)
+      throw new Error('Active discounts need a supported source loader');
+    const aid = await trx
+      .selectFrom('aid_applications as a')
+      .innerJoin('financial_aid_programs as p', (join) =>
+        join
+          .onRef('p.org_id', '=', 'a.org_id')
+          .onRef('p.id', '=', 'a.financial_aid_program_id'),
+      )
+      .select('a.id')
+      .where('a.org_id', '=', checkout.orgId)
+      .where('a.household_id', 'in', [
+        ...new Set(rows.map((row) => row.household_id)),
+      ])
+      .where('a.status', 'in', ['awarded', 'partially_awarded'])
+      .where('p.season_id', 'in', seasonIds)
+      .forUpdate()
+      .execute();
+    if (aid.length)
+      throw new Error('Financial aid needs a supported source loader');
+    const tax = await trx
+      .selectFrom('tax_rates')
+      .select('id')
+      .where('org_id', '=', checkout.orgId)
+      .where('active', '=', true)
+      .forUpdate()
+      .execute();
+    if (tax.length)
+      throw new Error('Active tax needs a supported source loader');
+    if (
+      rows.some(
+        (row) => !Number.isSafeInteger(row.price_cents) || row.price_cents < 0,
+      ) ||
+      !Number.isSafeInteger(organization.application_fee_fixed_cents)
+    )
+      throw new Error('Pricing source cents exceed the safe integer range');
+    const nowLocal = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: organization.timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    })
+      .format(now)
+      .replace(' ', 'T');
+    return {
+      pricing: {
+        nowLocal,
+        participants: rows.map((row, index) => ({
+          id: cart.offerings[index]?.lineId ?? '',
+          participantId: row.person_id,
+          seasonId: row.season_id,
+          offeringId: row.id,
+          priceCents: row.price_cents,
+        })),
+        addOns: [],
+        existingConfirmed: [],
+        automaticRules: [],
+        codes: [],
+        aid: [],
+        applyCreditCents: 0,
+        serviceFee: { enabled: false },
+        productTaxBps: 0,
+      },
+      paymentTerms: {
+        applicationRate: {
+          bps: organization.application_fee_bps,
+          fixedCents: organization.application_fee_fixed_cents,
+        },
+        serviceFee: { enabled: false },
+      },
+    };
+  }
+}

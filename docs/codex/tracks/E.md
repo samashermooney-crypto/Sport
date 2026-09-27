@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Schema spine merged; Phase 4 and Phase 5 money core continue with dispute evidence, checkout freeze persistence and remaining family/staff money flows.
+Current: Schema spine merged; Phase 4 and Phase 5 money core continue with expanded checkout pricing sources, dispute evidence and remaining family/staff money flows.
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
@@ -60,7 +60,8 @@ Saved-method webhooks: `finance/payment-method-events.ts` handles SetupIntent su
 Checkout core: `checkout/service.ts` contracts for atomic holds, fixed lock order, processing/72-hour holds and automatic lost-capacity refunds; pure state machine and 9 targeted tests pass; real-Postgres oversell test awaits spine.
 Lost-capacity refunds: checkout now durably claims each intent before Stripe refund and preserves uncertain claims for reconciliation; 1 replay/failure test added.
 Checkout pricing: `checkout/pricing.ts` freezes Track B pricing from repository-owned inputs in one withOrg transaction, validates invoice/credit reconciliation and replays stored cents; 2 targeted tests pass.
-Checkout pricing persistence: `checkout/pricing-repo.ts` locks the payer's open checkout, accepts a transactional economic-source loader, stores Track B cents plus immutable payment terms, canonicalizes zero signs for exact replay, and rejects stale keys or mismatched fees; freeze→invoice→charge-reader Postgres test and fee-mismatch test pass. A production loader for offerings, discounts, aid and credits remains.
+Checkout pricing persistence: `checkout/pricing-repo.ts` locks the payer's open checkout, accepts a transactional economic-source loader, stores Track B cents plus immutable payment terms, canonicalizes zero signs for exact replay, and rejects stale keys or mismatched fees; freeze→invoice→charge-reader Postgres test and fee-mismatch test pass.
+Checkout source loader: `checkout/pricing-source-repo.ts` loads database offering price only for a verified guardian, public active offering, open program and live program/offering holds; active discounts, awarded aid, taxes, credits, add-ons and configured pricing fail closed until supported; 1 Postgres test passes.
 Refund core: `finance/refunds.ts` applies Track B refund policy with proportional service-fee reversal, two-person threshold, ACH-processing block and stable idempotent Stripe refunds; 7 targeted tests pass.
 Refund attempts: migration 1003 and `finance/refund-attempt-repo.ts` persist scoped request-hash conflicts, pre-external retries, external fences and exact replay results; 2 real-Postgres tests pass.
 Stripe refund settlement: `finance/refund-record-repo.ts` records pending Stripe refunds with line/service-fee allocations before an attempt completes; latest-state `charge.refunded` and `charge.refund.updated` handlers settle invoice refunded cents once; 2 real-Postgres and 2 handler tests pass.
