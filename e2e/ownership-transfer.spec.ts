@@ -149,20 +149,21 @@ test('recipient accepts owner transfer from the staff screen', async ({
       .poll(async () => {
         const response = await request.get(mailpit);
         const mailbox = (await response.json()) as {
-          messages: Array<{ To: Array<{ Address: string }>; Snippet: string }>;
+          messages: Array<{ ID: string; To: Array<{ Address: string }> }>;
         };
-        link =
-          mailbox.messages
-            .filter((message) =>
-              message.To.some((item) => item.Address === recipientEmail),
-            )
-            .map(
-              (message) =>
-                /https?:\/\/[^\s]+\/ownership-transfer\/[0-9a-f-]+\/[A-Za-z0-9_-]+/.exec(
-                  message.Snippet,
-                )?.[0] ?? '',
-            )
-            .find(Boolean) ?? '';
+        for (const message of mailbox.messages) {
+          if (!message.To.some((item) => item.Address === recipientEmail))
+            continue;
+          const detailResponse = await request.get(
+            `http://127.0.0.1:${String(8025 + offset)}/api/v1/message/${message.ID}`,
+          );
+          const detail = (await detailResponse.json()) as { Text: string };
+          link =
+            /https?:\/\/[^\s]+\/ownership-transfer\/[0-9a-f-]+\/[A-Za-z0-9_-]+/.exec(
+              detail.Text,
+            )?.[0] ?? '';
+          if (link) break;
+        }
         return link;
       })
       .not.toBe('');
