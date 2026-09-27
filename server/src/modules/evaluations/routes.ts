@@ -64,8 +64,12 @@ import type { OfferCheckoutAdapter } from './service';
 
 const uuid = (value: unknown) => z.uuid().parse(value);
 
+export type EvaluationsRouterDependencies = AuthDependencies & {
+  offerCheckout?: OfferCheckoutAdapter;
+};
+
 export function createEvaluationsRouter(
-  dependencies: AuthDependencies,
+  dependencies: EvaluationsRouterDependencies,
 ): express.Router {
   const router = express.Router();
   const evaluations: EvaluationDependencies = {
@@ -565,13 +569,7 @@ export function createEvaluationsRouter(
     endpoint(async (request, response) => {
       const actor = await orgActor(dependencies, request);
       const offers = await listFamilyOffers(evaluations, actor.context);
-      const acceptanceReady = Boolean(
-        (
-          dependencies as AuthDependencies & {
-            offerCheckout?: OfferCheckoutAdapter;
-          }
-        ).offerCheckout,
-      );
+      const acceptanceReady = Boolean(dependencies.offerCheckout);
       response.json(offers.map((offer) => ({ ...offer, acceptanceReady })));
     }),
   );
@@ -579,11 +577,7 @@ export function createEvaluationsRouter(
     '/orgs/:orgId/offers/:offerId/accept',
     endpoint(async (request, response) => {
       const actor = await orgActor(dependencies, request);
-      const checkout = (
-        dependencies as AuthDependencies & {
-          offerCheckout?: OfferCheckoutAdapter;
-        }
-      ).offerCheckout;
+      const checkout = dependencies.offerCheckout;
       if (!checkout)
         throw new EvaluationError(
           503,
