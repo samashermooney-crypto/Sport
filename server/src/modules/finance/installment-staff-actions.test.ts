@@ -1,0 +1,155 @@
+import { randomUUID } from 'node:crypto';
+
+import { Temporal } from '@js-temporal/polyfill';
+import { newId } from '@shared/ids';
+import type { Kysely } from 'kysely';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { createDatabase } from '../../db/kysely.js';
+import type { DB } from '../../db/types.js';
+import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
+
+import { PostgresInstallmentStaffActions } from './installment-staff-actions.js';
+import { PostgresInvoiceRepository } from './invoice-repo.js';
+
+let database: Kysely<DB>;
+let context: OrgContext;
+let installmentId: string;
+let invoiceId: string;
+const now = () => Temporal.Instant.from('2026-09-27T15:00:00Z');
+
+beforeAll(async () => {
+  database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
+  const accountId = newId();
+  const orgId = newId();
+  installmentId = newId();
+  await database
+    .insertInto('accounts')
+    .values({
+      id: accountId,
+      email: `staff-installment-${randomUUID()}@example.invalid`,
+      first_name: 'Installment',
+      last_name: 'Staff',
+      date_of_birth: '1990-01-01',
+    })
+    .execute();
+  await database
+    .insertInto('organizations')
+    .values({
+      id: orgId,
+      slug: `staff-inst-${randomUUID().slice(0, 12)}`,
+      name: 'Installment Staff Test',
+      kind: 'club',
+      timezone: 'America/Chicago',
+    })
+    .execute();
+  context = { orgId, actor: { accountId } };
+  const invoice = await new PostgresInvoiceRepository(database, context).issue({
+    orgId,
+    accountId,
+    source: 'tuition',
+    creationKey: randomUUID(),
+    lines: [
+      {
+        kind: 'tuition',
+        description: 'Tuition',
+        amountCents: 1000,
+        refundable: true,
+      },
+    ],
+  });
+  invoiceId = invoice.id;
+  await createWithOrg(database)(context, (trx) =>
+    trx
+      .insertInto('installments')
+      .values({
+        id: installmentId,
+        org_id: orgId,
+        invoice_id: invoiceId,
+        sequence: 1,
+        due_on: '2026-10-01',
+        amount_cents: 1000,
+      })
+      .execute(),
+  );
+});
+
+afterAll(async () => {
+  await database.destroy();
+});
+
+describe('staff installment schedule actions', () => {
+  it('changes a due date once per key and rejects stale or reused keys', async () => {
+    const repo = new PostgresInstallmentStaffActions(database, context, now);
+    const key = randomUUID();
+    const input = {
+      action: 'change_due_date' as const,
+      expectedVersion: 1,
+      newDueOn: '2026-10-05',
+      reason: 'Family requested a later date',
+    };
+    const changed = await repo.perform(installmentId, key, input);
+    expect(changed).toMatchObject({
+      version: 2,
+      dueOn: '2026-10-05',
+      amountCents: 1000,
+      addedInstallmentId: null,
+    });
+    expect(await repo.perform(installmentId, key, input)).toEqual(changed);
+    await expect(
+      repo.perform(installmentId, key, {
+        ...input,
+        newDueOn: '2026-10-06',
+      }),
+    ).rejects.toThrow('key was reused');
+    await expect(
+      repo.perform(installmentId, randomUUID(), input),
+    ).rejects.toThrow('version changed');
+    await expect(
+      repo.perform(installmentId, randomUUID(), {
+        ...input,
+        expectedVersion: 2,
+        newDueOn: '2026-09-27',
+      }),
+    ).rejects.toThrow('future');
+  });
+
+  it('splits only an untouched installment while preserving plan cents', async () => {
+    const repo = new PostgresInstallmentStaffActions(database, context, now);
+    const result = await repo.perform(installmentId, randomUUID(), {
+      action: 'split',
+      expectedVersion: 2,
+      splitCents: 300,
+      newDueOn: '2026-10-20',
+      reason: 'Approved family payment plan',
+    });
+    expect(result).toMatchObject({
+      version: 3,
+      amountCents: 700,
+      addedAmountCents: 300,
+    });
+    const installments = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('installments')
+        .select(['sequence', 'amount_cents', 'autopay', 'payment_method_id'])
+        .where('org_id', '=', context.orgId)
+        .where('invoice_id', '=', invoiceId)
+        .orderBy('sequence')
+        .execute(),
+    );
+    expect(installments.map((row) => row.amount_cents)).toEqual([700, 300]);
+    expect(installments[1]).toMatchObject({
+      autopay: false,
+      payment_method_id: null,
+    });
+    await expect(
+      repo.perform(installmentId, randomUUID(), {
+        action: 'split',
+        expectedVersion: 3,
+        splitCents: 100,
+        newDueOn: '2026-10-19',
+        reason: 'Another requested split',
+      }),
+    ).rejects.toThrow('final installment');
+  });
+});

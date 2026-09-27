@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Finance notices commit atomically with invoice issuance and payment settlement; per-org worker delivery waits for A's system actor contract while installment staff actions continue.
+Current: Staff installment due-date and split actions are versioned, idempotent and audited; waive and consented method switch remain in the Phase 4 queue. Finance notice worker delivery waits for A's system actor contract.
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
@@ -34,6 +34,7 @@ Ready for integration: local `f6b0eb9..212cbce` — payer year-end statement API
 Ready for integration: local `017746b..d957580` — payer-owned autopay mandate list and revocation, with future installment attempts stopped atomically; full gate green.
 Ready for integration: local `b498f3a..5af9888` — payer invoice/receipt PDFs, paginated receipt feed, portal links and embedded Open Sans font; latest full gate green.
 Ready for integration: local `f35ae22..e76945f` — tenant-scoped invoice/payment notice outbox and fake-adapter delivery contract with durable provider keys; automatic worker dispatch awaits A's system actor.
+Ready for integration: local `7e8c968..HEAD` — staff installment due-date and split API with immutable action receipts; full gate green (669 tests, 32 browser tests).
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
@@ -46,6 +47,7 @@ Requests to other tracks: A: regenerate registry/OpenAPI for `/api/v1/finance/or
 Requests to other tracks: A: regenerate registry/OpenAPI for `/api/v1/finance/orgs/{orgId}/me/autopay` and its revoke route, and mount `AutopayScreen` in the portal money route after merging E (2026-09-27).
 Requests to other tracks: A: regenerate registry/OpenAPI for E's payer receipts feed and invoice/receipt binary PDF routes, and mount `ReceiptsScreen` beside `InvoiceBalanceScreen` in portal money; OpenAPI binary responses currently advertise octet-stream although the routes return application/pdf (2026-09-27).
 Requests to other tracks: A: supply a tenant-scoped system actor and a per-org finance notice job dispatch contract so E can schedule `PostgresFinanceNoticeDelivery.deliverOne()` from the committed outbox; register it only after portal invoice/receipt routes are mounted so notice links resolve (2026-09-27).
+Requests to other tracks: A: regenerate finance OpenAPI/registry for `POST /api/v1/finance/orgs/{orgId}/installments/{installmentId}/actions` after E merge; the action requires finance staff, an exact installment version and an Idempotency-Key UUID (2026-09-27).
 Requests to other tracks: A: mount E's `ConnectScreen`, `ConnectReturn`, and `ConnectRefresh` at the console money route and `/orgs/{orgId}/money/connect/{return,refresh}` targets in A-owned app router; E's Connect API supplies onboarding, continue, status and dashboard links (2026-09-27).
 Requests to other tracks: A: mount E's `CheckoutPaymentScreen` only after A/B checkout flow supplies payer-owned checkout/invoice IDs and the frozen quote; E's screen posts the stable key to its PaymentIntent route and validates returned cents before rendering Stripe (2026-09-27).
 Requests to other tracks: A: checkout flow must call E's `PostgresCheckoutInvoiceLinker.link(checkoutId, invoiceId)` after issuing the frozen checkout invoice and before presenting a PaymentIntent; migration 1022 enforces one invoice per checkout, and generated DB types need regeneration (2026-09-27).
