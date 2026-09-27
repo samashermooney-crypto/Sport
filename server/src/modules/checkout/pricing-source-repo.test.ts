@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import { serviceFee } from '@shared/algorithms/fees';
+import { applicationFee, serviceFee } from '@shared/algorithms/fees';
 import { newId } from '@shared/ids';
+import { percentOf } from '@shared/money';
 import type { Kysely } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -337,6 +338,17 @@ describe('basic checkout pricing source', () => {
     expect(cover.snapshot.invoiceTotalCents).toBe(
       1999 + cover.snapshot.serviceFeeCents,
     );
+    const coverTotal = cover.snapshot.invoiceTotalCents;
+    const estimatedProcessorFee = percentOf(coverTotal, 290) + 30;
+    const coveredApplicationFee = applicationFee(coverTotal, {
+      bps: 150,
+      fixedCents: 20,
+    });
+    expect(
+      Math.abs(
+        coverTotal - coveredApplicationFee - estimatedProcessorFee - 1999,
+      ),
+    ).toBeLessThanOrEqual(1);
     const coverStored = await createWithOrg(database)(context, (trx) =>
       trx
         .selectFrom('checkouts')
