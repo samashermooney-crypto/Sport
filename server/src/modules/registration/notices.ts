@@ -10,6 +10,8 @@ import {
 } from '../../db/withOrg.js';
 import type { EmailSender } from '../../integrations/email/sender.js';
 import { appendAuditEvent } from '../audit/service.js';
+import type { NotificationType } from '../notifications/catalog.js';
+import { createNotification } from '../notifications/service.js';
 
 export const registrationNoticeKinds = [
   'registration_confirmed',
@@ -35,6 +37,20 @@ export interface RegistrationNoticeInput {
   payload?: Record<string, unknown>;
 }
 
+const IN_APP_NOTICE_TYPES: Partial<
+  Record<RegistrationNoticeKind, NotificationType>
+> = {
+  registration_confirmed: 'registration.confirmed',
+  waitlist_joined: 'registration.waitlisted',
+  waitlist_offer: 'registration.offered',
+  waitlist_offer_expiring: 'registration.offered',
+  approval_approved: 'registration.approved',
+  approval_declined: 'registration.declined',
+  registration_canceled: 'registration.canceled',
+  registration_transferred: 'registration.transferred',
+  checkout_reminder: 'checkout.abandoned',
+};
+
 /** Commit a family-facing email+in-app intent beside its source change. */
 export async function enqueueRegistrationNotice(
   trx: OrgTransaction,
@@ -52,6 +68,14 @@ export async function enqueueRegistrationNotice(
     ON CONFLICT (org_id, kind, source_id) DO NOTHING RETURNING id
   `.execute(trx);
   if (!inserted.rows.length) return false;
+  const notificationType = IN_APP_NOTICE_TYPES[input.kind];
+  if (notificationType) {
+    await createNotification(trx, context, {
+      accountId: input.accountId,
+      type: notificationType,
+      payload: { href: noticePath(input.kind, context.orgId) },
+    });
+  }
   await appendAuditEvent(trx, context, {
     action: 'registration.notice_queued',
     entityType: 'registration_notice',

@@ -271,7 +271,7 @@ async function requireRegistrationStaff(
     .select('id')
     .where('org_id', '=', context.orgId)
     .where('account_id', '=', context.actor.accountId)
-    .where('role', 'in', ['owner', 'admin', 'registrar', 'director'])
+    .where('role', 'in', ['owner', 'admin', 'registrar'])
     .where('pending_mfa', '=', false)
     .where('revoked_at', 'is', null)
     .where((eb) =>
@@ -659,12 +659,7 @@ export class PostgresRegistrationLifecycle {
         .select('role_assignments.id')
         .where('role_assignments.org_id', '=', input.orgId)
         .where('role_assignments.account_id', '=', this.context.actor.accountId)
-        .where('role_assignments.role', 'in', [
-          'owner',
-          'admin',
-          'registrar',
-          'director',
-        ])
+        .where('role_assignments.role', 'in', ['owner', 'admin', 'registrar'])
         .where('role_assignments.pending_mfa', '=', false)
         .where('role_assignments.revoked_at', 'is', null)
         .where('org_memberships.status', '=', 'active')
@@ -709,7 +704,7 @@ export class PostgresRegistrationLifecycle {
             JOIN org_memberships membership ON membership.org_id = ra.org_id
               AND membership.account_id = ra.account_id AND membership.status = 'active'
             WHERE ra.org_id = r.org_id AND ra.account_id = ${this.context.actor.accountId}::uuid
-              AND ra.role IN ('owner', 'admin', 'registrar', 'director')
+              AND ra.role IN ('owner', 'admin', 'registrar')
               AND ra.pending_mfa = false AND ra.revoked_at IS NULL
               AND (
                 ra.scope_type = 'org' OR

@@ -33,6 +33,14 @@ import {
   PostgresCheckoutPolicyAcceptance,
 } from './policy-acceptance.js';
 import {
+  PostgresRegistrationReports,
+  registrationPaceSchema,
+  registrationReportCsv,
+  registrationReportFilterSchema,
+  registrationReportSchema,
+  uniformSizeReportSchema,
+} from './reports.js';
+import {
   checkoutRequirementsSchema,
   PostgresRegistrationRequirements,
   requirementsDiscoverySchema,
@@ -409,6 +417,145 @@ export function createRegistrationRouter(
       sendError(response, error);
     }
   });
+
+  const reportQuerySchema = registrationReportFilterSchema;
+  router.get(
+    '/orgs/:orgId/reports/registrations',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Registration report is unavailable',
+          );
+        const orgId = z.uuid().parse(request.params.orgId);
+        const filters = reportQuerySchema.parse({
+          ...(request.query.programId
+            ? { programId: request.query.programId }
+            : {}),
+          ...(request.query.divisionId
+            ? { divisionId: request.query.divisionId }
+            : {}),
+          ...(request.query.offeringId
+            ? { offeringId: request.query.offeringId }
+            : {}),
+          ...(request.query.status ? { status: request.query.status } : {}),
+        });
+        const result = await new PostgresRegistrationReports(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).list({ orgId, filters });
+        response.json(registrationReportSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.get(
+    '/orgs/:orgId/reports/registrations.csv',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Registration report is unavailable',
+          );
+        const orgId = z.uuid().parse(request.params.orgId);
+        const filters = reportQuerySchema.parse({
+          ...(request.query.programId
+            ? { programId: request.query.programId }
+            : {}),
+          ...(request.query.divisionId
+            ? { divisionId: request.query.divisionId }
+            : {}),
+          ...(request.query.offeringId
+            ? { offeringId: request.query.offeringId }
+            : {}),
+          ...(request.query.status ? { status: request.query.status } : {}),
+        });
+        const report = await new PostgresRegistrationReports(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).list({ orgId, filters });
+        if (report.truncated)
+          throw new RegistrationCheckoutError(
+            413,
+            'REPORT_TOO_LARGE',
+            'Add filters to export this registration report',
+          );
+        response
+          .type('text/csv; charset=utf-8')
+          .attachment('registrations.csv')
+          .send(registrationReportCsv(report));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.get(
+    '/orgs/:orgId/reports/uniform-sizes',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Uniform report is unavailable',
+          );
+        const orgId = z.uuid().parse(request.params.orgId);
+        const filters = reportQuerySchema.parse({
+          ...(request.query.programId
+            ? { programId: request.query.programId }
+            : {}),
+          ...(request.query.divisionId
+            ? { divisionId: request.query.divisionId }
+            : {}),
+          ...(request.query.offeringId
+            ? { offeringId: request.query.offeringId }
+            : {}),
+          ...(request.query.status ? { status: request.query.status } : {}),
+        });
+        const result = await new PostgresRegistrationReports(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).uniformSizes({ orgId, filters });
+        response.json(uniformSizeReportSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.get(
+    '/orgs/:orgId/reports/pace/:programId',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new RegistrationCheckoutError(
+            403,
+            'FORBIDDEN',
+            'Registration pace is unavailable',
+          );
+        const orgId = z.uuid().parse(request.params.orgId);
+        const programId = z.uuid().parse(request.params.programId);
+        const result = await new PostgresRegistrationReports(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).pace({ orgId, programId });
+        response.json(registrationPaceSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
 
   router.get('/orgs/:orgId/waitlist', async (request, response) => {
     try {

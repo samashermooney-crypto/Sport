@@ -75,6 +75,43 @@ const waitlistOfferSchema = z.union([
   z.literal('full'),
   z.literal('empty'),
 ]);
+const registrationReportSchema = z.strictObject({
+  filters: z.record(z.string(), z.unknown()),
+  total: z.number().int().nonnegative(),
+  truncated: z.boolean(),
+  registrations: z.array(
+    z.strictObject({
+      registrationId: z.uuid(),
+      participantName: z.string(),
+      programId: z.uuid(),
+      programName: z.string(),
+      divisionId: z.uuid().nullable(),
+      divisionName: z.string().nullable(),
+      offeringId: z.uuid(),
+      offeringName: z.string(),
+      teamName: z.string().nullable(),
+      status: z.string(),
+      registeredAt: z.iso.datetime(),
+    }),
+  ),
+});
+const uniformSizeReportSchema = z.strictObject({
+  filters: z.record(z.string(), z.unknown()),
+  items: z.array(
+    z.strictObject({
+      programId: z.uuid(),
+      programName: z.string(),
+      divisionId: z.uuid().nullable(),
+      divisionName: z.string().nullable(),
+      teamName: z.string().nullable(),
+      addOnKey: z.string(),
+      addOnName: z.string(),
+      size: z.string().nullable(),
+      quantity: z.number().int().nonnegative(),
+      registrations: z.number().int().nonnegative(),
+    }),
+  ),
+});
 
 const statuses = [
   'pending_approval',
@@ -95,6 +132,8 @@ export function RegistrationStaffScreen({
   const { i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState('pending_approval');
+  const [reportStatus, setReportStatus] = useState('');
+  const [showReports, setShowReports] = useState(false);
   const [note, setNote] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [cancelId, setCancelId] = useState('');
@@ -133,6 +172,27 @@ export function RegistrationStaffScreen({
       ),
     enabled: Boolean(cancelId),
     retry: false,
+  });
+  const reportQuery = reportStatus
+    ? `?status=${encodeURIComponent(reportStatus)}`
+    : '';
+  const registrationsReport = useQuery({
+    queryKey: ['registration', orgId, 'report', reportStatus],
+    queryFn: () =>
+      apiGet(
+        `${base}/reports/registrations${reportQuery}`,
+        registrationReportSchema,
+      ),
+    enabled: showReports,
+  });
+  const uniformReport = useQuery({
+    queryKey: ['registration', orgId, 'uniform-report', reportStatus],
+    queryFn: () =>
+      apiGet(
+        `${base}/reports/uniform-sizes${reportQuery}`,
+        uniformSizeReportSchema,
+      ),
+    enabled: showReports,
   });
   const keyFor = (action: string, id: string): string => {
     const composite = `${action}:${id}`;
@@ -287,6 +347,28 @@ export function RegistrationStaffScreen({
       );
     } finally {
       setBusy('');
+    }
+  };
+  const downloadCsv = async (): Promise<void> => {
+    setActionError('');
+    try {
+      const response = await fetch(
+        `/api/v1${base}/reports/registrations.csv${reportQuery}`,
+        { credentials: 'include' },
+      );
+      if (!response.ok) throw new Error('Registration CSV is unavailable.');
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'registrations.csv';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (caught) {
+      setActionError(
+        caught instanceof Error
+          ? caught.message
+          : 'Registration CSV is unavailable.',
+      );
     }
   };
 
@@ -526,6 +608,129 @@ export function RegistrationStaffScreen({
             ) : null}
           </article>
         ))}
+      </section>
+      <section aria-labelledby="registration-reports-title">
+        <h2 id="registration-reports-title">Registration reports</h2>
+        <label htmlFor="registration-report-status">
+          Filter by status
+        </label>{' '}
+        <select
+          id="registration-report-status"
+          value={reportStatus}
+          onChange={(event) => {
+            setReportStatus(event.target.value);
+          }}
+        >
+          <option value="">All statuses</option>
+          {statuses.map((value) => (
+            <option key={value} value={value}>
+              {value.replaceAll('_', ' ')}
+            </option>
+          ))}
+        </select>{' '}
+        <button
+          className="button secondary"
+          type="button"
+          onClick={() => {
+            setShowReports((current) => !current);
+          }}
+        >
+          {showReports ? 'Hide reports' : 'Load reports'}
+        </button>{' '}
+        {showReports ? (
+          <button
+            className="button"
+            type="button"
+            onClick={() => void downloadCsv()}
+          >
+            Download registration CSV
+          </button>
+        ) : null}
+        {showReports && registrationsReport.isFetching ? (
+          <p role="status">Loading reports…</p>
+        ) : null}
+        {showReports && (registrationsReport.error || uniformReport.error) ? (
+          <p role="alert" className="money-error">
+            Registration reports are unavailable.
+          </p>
+        ) : null}
+        {showReports && registrationsReport.data ? (
+          <>
+            <p>
+              {registrationsReport.data.total} registrations
+              {registrationsReport.data.truncated
+                ? ' (first 10,000 shown)'
+                : ''}
+            </p>
+            <div className="table-scroll">
+              <table className="ui-table">
+                <caption>
+                  Registrations by program, division, offering and status
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Participant</th>
+                    <th scope="col">Program</th>
+                    <th scope="col">Division</th>
+                    <th scope="col">Offering</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Registered</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {registrationsReport.data.registrations.map((row) => (
+                    <tr key={row.registrationId}>
+                      <td>{row.participantName}</td>
+                      <td>{row.programName}</td>
+                      <td>{row.divisionName ?? '—'}</td>
+                      <td>{row.offeringName}</td>
+                      <td>{row.status.replaceAll('_', ' ')}</td>
+                      <td>
+                        {new Date(row.registeredAt).toLocaleDateString(
+                          i18n.language,
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : null}
+        {showReports && uniformReport.data ? (
+          <div className="table-scroll">
+            <table className="ui-table">
+              <caption>Uniform sizes by team, division and program</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Program</th>
+                  <th scope="col">Division</th>
+                  <th scope="col">Team</th>
+                  <th scope="col">Item</th>
+                  <th scope="col">Size</th>
+                  <th scope="col">Quantity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {uniformReport.data.items.map((row) => (
+                  <tr
+                    key={`${row.programId}:${row.addOnKey}:${row.size ?? ''}:${row.teamName ?? ''}`}
+                  >
+                    <td>{row.programName}</td>
+                    <td>{row.divisionName ?? '—'}</td>
+                    <td>{row.teamName ?? '—'}</td>
+                    <td>{row.addOnName}</td>
+                    <td>{row.size ?? 'Unspecified'}</td>
+                    <td>{row.quantity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+        {showReports && uniformReport.data?.items.length === 0 ? (
+          <p>No add-on size selections match this report.</p>
+        ) : null}
       </section>
       {actionError ? (
         <p role="alert" className="money-error">

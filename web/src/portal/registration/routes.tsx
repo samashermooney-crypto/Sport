@@ -69,7 +69,7 @@ function MyRegistrationsRoute(): React.JSX.Element {
   );
 }
 
-export const registrationPortalRoutes: readonly RouteObject[] = [
+export const portalRegistrationRoutes: readonly RouteObject[] = [
   { path: '/portal/orgs/:orgId/register', element: <CatalogRoute /> },
   {
     path: '/portal/orgs/:orgId/registrations',

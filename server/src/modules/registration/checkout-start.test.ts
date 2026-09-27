@@ -20,6 +20,7 @@ import {
   waitlistEntrySchema,
 } from './lifecycle.js';
 import { PostgresCheckoutPolicyAcceptance } from './policy-acceptance.js';
+import { PostgresRegistrationReports } from './reports.js';
 import { waiverDocumentHash } from './requirements.js';
 import { createRegistrationRouter } from './routes.js';
 
@@ -27,6 +28,7 @@ let database: Kysely<DB>;
 const accountId = newId();
 const otherAccountId = newId();
 const staffAccountId = newId();
+const directorAccountId = newId();
 const orgId = newId();
 const personId = newId();
 const householdId = newId();
@@ -51,6 +53,7 @@ const cart = {
 };
 let token: string;
 let staffToken: string;
+let directorToken: string;
 let server: ReturnType<express.Express['listen']>;
 let baseUrl: string;
 let startedCheckoutId: string;
@@ -81,6 +84,13 @@ beforeAll(async () => {
         last_name: 'One',
         date_of_birth: '1990-01-01',
       },
+      {
+        id: directorAccountId,
+        email: `register-director-${randomUUID()}@example.invalid`,
+        first_name: 'Program',
+        last_name: 'Director',
+        date_of_birth: '1990-01-01',
+      },
     ])
     .execute();
   await database
@@ -96,24 +106,43 @@ beforeAll(async () => {
   await createWithOrg(database)(context, async (trx) => {
     await trx
       .insertInto('org_memberships')
-      .values({
-        id: newId(),
-        org_id: orgId,
-        account_id: staffAccountId,
-        status: 'active',
-      })
+      .values([
+        {
+          id: newId(),
+          org_id: orgId,
+          account_id: staffAccountId,
+          status: 'active',
+        },
+        {
+          id: newId(),
+          org_id: orgId,
+          account_id: directorAccountId,
+          status: 'active',
+        },
+      ])
       .execute();
     await trx
       .insertInto('role_assignments')
-      .values({
-        id: newId(),
-        org_id: orgId,
-        account_id: staffAccountId,
-        role: 'registrar',
-        scope_type: 'org',
-        scope_id: null,
-        pending_mfa: false,
-      })
+      .values([
+        {
+          id: newId(),
+          org_id: orgId,
+          account_id: staffAccountId,
+          role: 'registrar',
+          scope_type: 'org',
+          scope_id: null,
+          pending_mfa: false,
+        },
+        {
+          id: newId(),
+          org_id: orgId,
+          account_id: directorAccountId,
+          role: 'director',
+          scope_type: 'org',
+          scope_id: null,
+          pending_mfa: false,
+        },
+      ])
       .execute();
   });
   await createWithOrg(database)(context, async (trx) => {
@@ -159,6 +188,7 @@ beforeAll(async () => {
         visibility: 'public',
         starts_on: '2026-09-01',
         ends_on: '2026-12-01',
+        registration_opens_at: new Date('2026-08-01T00:00:00.000Z'),
         eligibility: { minAge: 8, maxAge: 16 },
       })
       .execute();
@@ -254,6 +284,7 @@ beforeAll(async () => {
   });
   token = randomBytes(32).toString('base64url');
   staffToken = randomBytes(32).toString('base64url');
+  directorToken = randomBytes(32).toString('base64url');
   await database
     .insertInto('sessions')
     .values({
@@ -273,6 +304,19 @@ beforeAll(async () => {
       id: newId(),
       account_id: staffAccountId,
       token_hash: createHash('sha256').update(staffToken).digest(),
+      kind: 'cookie',
+      client: 'web',
+      privileged: false,
+      idle_expires_at: new Date(Date.now() + 60 * 60_000),
+      absolute_expires_at: new Date(Date.now() + 24 * 60 * 60_000),
+    })
+    .execute();
+  await database
+    .insertInto('sessions')
+    .values({
+      id: newId(),
+      account_id: directorAccountId,
+      token_hash: createHash('sha256').update(directorToken).digest(),
       kind: 'cookie',
       client: 'web',
       privileged: false,
@@ -335,6 +379,11 @@ describe('registration checkout start', () => {
     );
     expect(registrarQueue.status).toBe(200);
     expect(await registrarQueue.json()).toEqual({ registrations: [] });
+    const directorQueue = await fetch(
+      `${baseUrl}/orgs/${orgId}/registrations`,
+      { headers: { Cookie: `__Host-athlentry_session=${directorToken}` } },
+    );
+    expect(directorQueue.status).toBe(403);
   });
 
   it('reserves one seat for an eligible child and replays an exact cart key', async () => {
@@ -515,7 +564,7 @@ describe('registration checkout start', () => {
         .executeTakeFirstOrThrow(),
       registrations: await trx
         .selectFrom('registrations')
-        .select(['status', 'checkout_id', 'invoice_line_id'])
+        .select(['id', 'status', 'checkout_id', 'invoice_line_id'])
         .where('org_id', '=', orgId)
         .where('checkout_id', '=', startedCheckoutId)
         .execute(),
@@ -538,6 +587,113 @@ describe('registration checkout start', () => {
     });
     expect(state.registrations[0]?.invoice_line_id).toBeTruthy();
     expect(state.checkout.status).toBe('awaiting_payment');
+
+    const registration = state.registrations[0];
+    if (!registration?.invoice_line_id)
+      throw new Error('Expected the quoted registration line');
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .insertInto('registration_add_on_selections')
+        .values({
+          id: newId(),
+          org_id: orgId,
+          registration_id: registration.id,
+          invoice_line_id: registration.invoice_line_id,
+          line_key: 'uniform-kit',
+          name: 'Uniform kit',
+          size: 'Youth Medium',
+          quantity: 2,
+          unit_amount_cents: 1200,
+          amount_cents: 2400,
+        })
+        .execute(),
+    );
+    const reportUrl = `${baseUrl}/orgs/${orgId}/reports/registrations?programId=${programId}&status=pending_payment`;
+    const reportResponse = await fetch(reportUrl, {
+      headers: { Cookie: `__Host-athlentry_session=${staffToken}` },
+    });
+    expect(reportResponse.status).toBe(200);
+    expect(await reportResponse.json()).toMatchObject({
+      total: 1,
+      truncated: false,
+      filters: { programId, status: 'pending_payment' },
+      registrations: [
+        {
+          registrationId: registration.id,
+          participantName: 'Maya One',
+          programName: 'Fall Soccer',
+          divisionName: 'Youth',
+          offeringName: 'Youth player',
+          status: 'pending_payment',
+        },
+      ],
+    });
+    expect(
+      (
+        await fetch(reportUrl, {
+          headers: { Cookie: `__Host-athlentry_session=${token}` },
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await fetch(`${baseUrl}/orgs/${orgId}/reports/registrations`, {
+          headers: { Cookie: `__Host-athlentry_session=${directorToken}` },
+        })
+      ).status,
+    ).toBe(403);
+    const csv = await fetch(
+      `${baseUrl}/orgs/${orgId}/reports/registrations.csv?programId=${programId}&status=pending_payment`,
+      { headers: { Cookie: `__Host-athlentry_session=${staffToken}` } },
+    );
+    expect(csv.status).toBe(200);
+    expect(csv.headers.get('content-type')).toContain('text/csv');
+    expect(await csv.text()).toContain('Maya One');
+    const uniform = await fetch(
+      `${baseUrl}/orgs/${orgId}/reports/uniform-sizes?programId=${programId}`,
+      { headers: { Cookie: `__Host-athlentry_session=${staffToken}` } },
+    );
+    expect(uniform.status).toBe(200);
+    expect(await uniform.json()).toMatchObject({
+      items: [
+        {
+          programId,
+          divisionName: 'Youth',
+          addOnKey: 'uniform-kit',
+          addOnName: 'Uniform kit',
+          size: 'Youth Medium',
+          quantity: 2,
+          registrations: 1,
+        },
+      ],
+    });
+    const paceReport = await new PostgresRegistrationReports(
+      database,
+      staffContext,
+    ).pace({ orgId, programId });
+    expect(paceReport.programId).toBe(programId);
+    const pace = await fetch(
+      `${baseUrl}/orgs/${orgId}/reports/pace/${programId}`,
+      { headers: { Cookie: `__Host-athlentry_session=${staffToken}` } },
+    );
+    expect(pace.status).toBe(200);
+    const paceBody = z
+      .strictObject({
+        programId: z.uuid(),
+        previousProgramId: z.uuid().nullable(),
+        days: z.array(
+          z.strictObject({
+            dayOffset: z.number().int().nonnegative(),
+            current: z.number().int().nonnegative(),
+            previous: z.number().int().nonnegative().nullable(),
+          }),
+        ),
+      })
+      .parse(await pace.json());
+    expect(paceBody.programId).toBe(programId);
+    expect(paceBody.previousProgramId).toBeNull();
+    expect(paceBody.days.some((day) => day.current === 1)).toBe(true);
+    expect(paceBody.days.every((day) => day.previous === null)).toBe(true);
   });
 
   it('encrypts restricted registration answers at rest through requirements submission and quote', async () => {

@@ -18,7 +18,13 @@ import {
   waitlistEntrySchema,
   waitlistJoinBodySchema,
 } from './lifecycle.js';
+import { runRegistrationNoticeJob } from './notice-job.js';
 import { checkoutPolicyReviewSchema } from './policy-acceptance.js';
+import {
+  registrationPaceSchema,
+  registrationReportSchema,
+  uniformSizeReportSchema,
+} from './reports.js';
 import {
   checkoutRequirementsSchema,
   requirementsDiscoverySchema,
@@ -34,7 +40,13 @@ export const moduleDefinition = {
   name: 'registration',
   path: '/api/v1/registration',
   router: createRegistrationRouter,
-  jobs: [],
+  jobs: [
+    {
+      name: 'registration.notice',
+      run: runRegistrationNoticeJob,
+      cron: '* * * * *',
+    },
+  ],
   permissions: [],
   notificationTypes: [],
   errorCodes: [
@@ -125,6 +137,31 @@ export const moduleDefinition = {
       path: '/api/v1/registration/orgs/{orgId}/registrations',
       summary: 'List registrations in the active registrar role scope',
       response: staffRegistrationListSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/registration/orgs/{orgId}/reports/registrations',
+      summary:
+        'Filter registration reports by program, division, offering and status',
+      response: registrationReportSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/registration/orgs/{orgId}/reports/registrations.csv',
+      summary: 'Export the scoped registration report as CSV',
+      response: z.string(),
+    },
+    {
+      method: 'get',
+      path: '/api/v1/registration/orgs/{orgId}/reports/uniform-sizes',
+      summary: 'Report selected add-on sizes by program, division and team',
+      response: uniformSizeReportSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/registration/orgs/{orgId}/reports/pace/{programId}',
+      summary: 'Compare registration pace with the copied prior-season program',
+      response: registrationPaceSchema,
     },
     {
       method: 'post',
