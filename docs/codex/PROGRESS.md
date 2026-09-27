@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- M0 is on `main` at `d0f59a1`. The spine, ready B/C/D/E ranges, Phase 1 tasks 5–9, 11, 13 and 17, and Track B's infrastructure are integrated on `rebuild/trunk`. Track A continues tasks 4 and 16; Track C's task 12 acceptance remains. Track F published a ready Phase 7 range, but its first trunk merge was aborted because new routes lack OpenAPI operations, `credentials.expiry` has no handler, and its web routes are not mounted. Revisit F after the integration gaps are fixed. Inspect E/F/G/H readiness at every task boundary and keep Phase 1 open until every acceptance criterion passes.
+- M0 is on `main` at `d0f59a1`. The spine, ready B/C/D/E/H ranges, Phase 1 tasks 5–9, 11, 13 and 17, and Track B's infrastructure are integrated on `rebuild/trunk`. Track A continues tasks 4, 12 and 16. Track F's ready Phase 7 range remains unmerged because its routes lack complete OpenAPI contracts, `credentials.expiry` has no handler, and its web routes are not mounted. Inspect E/F/G/H readiness at every task boundary and keep each phase open until every acceptance criterion passes.
 
 ## Phase status
 
@@ -19,7 +19,7 @@
 | 7 | Compliance and safety | in progress on Track F | Local `track/f-safety` range is ready; trunk merge aborted on integration gate gaps. |
 | 8 | Scheduling and facilities | in progress on Track G | Local `track/g-schedule` is working; no range integrated. |
 | 9 | Game day, results, tournaments, officials | in progress on Track G | Local `track/g-schedule` is working; no range integrated. |
-| 10 | Communications | in progress on Track H | Local `track/h-comms` is working; no range integrated. |
+| 10 | Communications | in progress | Track H's ready local slice is integrated: migrations 4000–4004, campaigns, delivery, SMS consent and SafeSport chat. Cross-track wiring and Phase 10 acceptance remain open. |
 | 11 | Volunteers, team finance, fundraising, store | not started | |
 | 12 | Academy / class mode | not started | |
 | 13 | Federation | not started | |
@@ -35,10 +35,10 @@
 | B | Sport engine, algorithms, policies; platform infrastructure | GPT-6 Sol | logic queue and Phase 1 tasks 10, 14–15 integrated; tasks 9 and 13 in progress | `track/b-logic` |
 | C | Files and provider adapters | GPT-6 Luna | complete adapter queue integrated; files acceptance passed, email acceptance still open | `track/c-adapters` |
 | D | Design system | GPT-6 Luna | complete component and auth restyle range integrated; app-wide shell acceptance remains with A | `track/d-design` |
-| E | Stripe and finance | GPT-6 Sol | finance and checkout core through unique frozen checkout invoice binding integrated; phase acceptance remains | `track/e-finance` |
+| E | Stripe and finance | GPT-6 Sol | finance and checkout core through configured service fees and fenced dispute evidence integrated; phase acceptance remains | `track/e-finance` |
 | F | Safety and compliance | GPT-6 Luna | local range ready; integration gaps after aborted merge | `track/f-safety` |
 | G | Scheduling and game day | GPT-6 Luna | working locally; no ready range | `track/g-schedule` |
-| H | Communications | GPT-6 Luna | working locally; no ready range | `track/h-comms` |
+| H | Communications | GPT-6 Luna | H-owned slice integrated; cross-track acceptance open | `track/h-comms` |
 
 ## Cross-phase schema spine checkpoint
 
@@ -58,6 +58,8 @@
 - [x] Integrated Track E's ready ambiguous-confirmation guard through `c609ac2`. Payment Element resubmission waits for authoritative reconciliation after an ambiguous result, with a regression test. The merged trunk passed typecheck, lint, 532 tests (one operator smoke skipped), 24 browser tests (four guarded design skips) and build. Finance and registration phase acceptance remain open.
 - [x] Integrated Track E's ready ranges through `189e0e9`: direct participant authorization for frozen checkout pricing, versioned installment-template finance API, and idempotent Stripe Connect `account.updated` sync handler. Regenerated OpenAPI for the four installment routes; the merged trunk passed typecheck, lint, 537 tests (one operator smoke skipped), 24 browser tests (four guarded design skips), build and registry freshness. The webhook router/worker and full Phase 4 acceptance remain open.
 - [x] Integrated Track E's ready frozen checkout-to-invoice binding through `a6a5ed4`: migration 1022 adds the tenant FK and unique invoice link, and PaymentIntent reads require that binding. Regenerated Kysely types. The merged trunk passed typecheck, lint, 540 tests (one operator smoke skipped), 26 browser tests (four guarded design skips) and build. Phase 5 registration acceptance remains open.
+- [x] Integrated Track H's ready communications/chat slice through `c577d62`: migrations 4000–4004, campaigns, delivery worker, SMS consent, SafeSport conversation checks, moderation, household history and console/portal route arrays. Regenerated Kysely types, permissions, server registry and OpenAPI. Mounted both route arrays with lazy area screens; the entry bundle is 173 KB gzip under the 200 KB limit. The merged gate passed typecheck, lint, 561 tests (one operator smoke skipped), 26 browser tests (four guarded design skips), build, size and generated-file freshness. Phase 10 remains open for family attachment authorization, notification integration, cross-track sync and Chromium/WebKit journeys. Knip reports H and pre-existing finance exports awaiting those integrations; it is not counted as a phase gate pass.
+- [x] Integrated Track E's ready service-fee and dispute-evidence ranges through `d16ac2d`: checkout pricing reads organization-owned fee settings and freezes cover-costs/custom charges, while dispute evidence submission has a fenced persistence foundation. Migration 1023 and Kysely types are applied. The merged gate passed typecheck, lint, 564 tests (one operator smoke skipped), 26 browser tests (four guarded design skips), build, size and generated-file freshness. Phase 4 and 5 acceptance remain open.
 - [x] Integrated Track D's ready design range through `a0a20f2`, including frozen tokens, primitives, extended controls, shell and development-only `/__ui` through the feature registry. The merged app passed typecheck, lint, 342 tests, 9 browser e2e tests (3 WebKit design cases intentionally skipped), build and a zero-advisory production audit. Auth restyle and the full Phase 1 design acceptance remain open.
 - [x] Integrated Track D's later auth restyle and parity range through `d184ced`. The merged trunk passed typecheck, lint, 447 tests (one operator-credential smoke skipped), 22 browser tests (4 guarded WebKit/Chromium design skips), build, registry/OpenAPI freshness and Knip. The shell chrome now compares with the captured legacy desktop and phone headers, and showcase controls pass axe and 44px phone target checks. Phase 1 task 16 remains open for app-wide shells, org switching, i18n and end-to-end design parity.
 
