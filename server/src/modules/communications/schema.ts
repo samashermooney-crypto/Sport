@@ -7,7 +7,7 @@ export const communicationCategorySchema = z.enum([
   'marketing',
   'emergency',
 ]);
-export const audienceRoleSchema = z.enum([
+const audienceRoleSchema = z.enum([
   'athletes_guardians',
   'coaches',
   'officials',
@@ -20,7 +20,7 @@ const selectorSetSchema = z.strictObject({
   programIds: z.array(z.uuid()).max(200).optional(),
   roles: z.array(audienceRoleSchema).max(5).optional(),
 });
-export const registrationStatuses = [
+const registrationStatuses = [
   'pending_payment',
   'pending_approval',
   'waitlisted',
@@ -64,7 +64,7 @@ export const localeContentSchema = z.strictObject({
   smsText: z.string().max(1_600).default(''),
   pushText: z.string().max(500).default(''),
 });
-export const localeVariantsSchema = z.strictObject({
+const localeVariantsSchema = z.strictObject({
   en: localeContentSchema,
   es: localeContentSchema,
 });
@@ -85,9 +85,6 @@ export const campaignDraftSchema = z
     message: 'Delivery channels must be unique',
     path: ['channels'],
   });
-export const campaignUpdateSchema = campaignDraftSchema.extend({
-  expectedVersion: z.number().int().positive(),
-});
 export const scheduleCampaignSchema = z.strictObject({
   scheduledFor: z.iso.datetime({ offset: true }),
   expectedVersion: z.number().int().positive(),
@@ -207,14 +204,6 @@ export const personCommunicationHistorySchema = z.strictObject({
     }),
   ),
 });
-
-export const audienceRoleLabels = {
-  athletes_guardians: 'Athletes and guardians',
-  coaches: 'Coaches and team staff',
-  officials: 'Officials',
-  volunteers: 'Volunteers',
-  board: 'Organization owners and administrators',
-} as const;
 
 function template(
   category: CommunicationCategory,

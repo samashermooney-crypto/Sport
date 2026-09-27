@@ -14,7 +14,7 @@ const account = z
   .min(1)
   .max(80)
   .refine((value) => !/[\r\n]/.test(value));
-export const journalMappingBodySchema = z.strictObject({
+const journalMappingBodySchema = z.strictObject({
   bank: account,
   stripeClearing: account,
   processingFees: account,
