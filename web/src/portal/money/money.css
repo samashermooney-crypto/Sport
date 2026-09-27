@@ -126,3 +126,30 @@
 .money-statement-year button {
   min-height: var(--control-height-44);
 }
+
+.money-autopay-list {
+  display: grid;
+  gap: var(--space-12);
+  list-style: none;
+  padding: 0;
+}
+
+.money-autopay-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  padding: var(--space-16);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-8);
+}
+
+.money-autopay-list li div {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.money-autopay-list button {
+  min-height: var(--control-height-44);
+}

@@ -28,6 +28,11 @@ import {
   PostgresAidReview,
 } from './aid-review.js';
 import { PostgresPaymentAttemptStore } from './attempt-repo.js';
+import {
+  autopayAuthorizationListSchema,
+  AutopayAuthorizationNotFoundError,
+  PostgresAutopayAuthorizations,
+} from './autopay-authorizations.js';
 import { ConnectConflictError, ConnectOnboardingService } from './connect.js';
 import {
   creditBalanceSchema,
@@ -101,6 +106,11 @@ import {
   StatementUnavailableError,
   yearEndStatementSchema,
 } from './year-end-statements.js';
+
+export const autopayRevocationResponseSchema = z.strictObject({
+  revoked: z.boolean(),
+  stoppedInstallments: z.number().int().nonnegative(),
+});
 
 export const offlinePaymentBodySchema = z.strictObject({
   invoiceId: z.uuid(),
@@ -417,7 +427,8 @@ function sendError(response: Response, error: unknown): void {
           error instanceof TaxRateConflictError ||
           error instanceof StatementUnavailableError
         ? 409
-        : error instanceof InvoiceNotFoundError
+        : error instanceof InvoiceNotFoundError ||
+            error instanceof AutopayAuthorizationNotFoundError
           ? 404
           : error instanceof FinanceDependencyError
             ? 503
@@ -486,6 +497,44 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.get('/orgs/:orgId/me/autopay', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      const authorizations = await new PostgresAutopayAuthorizations(
+        dependencies.database,
+        context,
+      ).list();
+      response.json(autopayAuthorizationListSchema.parse({ authorizations }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/orgs/:orgId/me/autopay/:id/revoke',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const id = z.uuid().parse(request.params.id);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        const result = await new PostgresAutopayAuthorizations(
+          dependencies.database,
+          context,
+        ).revoke(id);
+        response.json(autopayRevocationResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   router.get('/orgs/:orgId/me/statements/:year', async (request, response) => {
     try {
       if (requestImpersonation(request)) throw new FinanceAccessError();

@@ -15,6 +15,7 @@ import type { AuthDependencies } from '../auth/routes.js';
 import { bindFixtureInvoice } from '../checkout/test-fixtures.js';
 
 import { aidProgramSchema } from './aid-programs.js';
+import { autopayAuthorizationListSchema } from './autopay-authorizations.js';
 import { creditBalanceSchema } from './credit-balances.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
@@ -376,6 +377,30 @@ describe('payer year-end statement HTTP', () => {
       totalPaidCents: 1000,
       donationPaidCents: 0,
     });
+  });
+});
+
+describe('payer autopay HTTP', () => {
+  it('requires a session and same-origin write, then returns an account-scoped list', async () => {
+    const path = `${baseUrl}/orgs/${context.orgId}/me/autopay`;
+    expect((await fetch(path)).status).toBe(401);
+    const list = await fetch(path, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(list.status).toBe(200);
+    expect(
+      autopayAuthorizationListSchema.parse((await list.json()) as unknown)
+        .authorizations,
+    ).toEqual([]);
+    const revoke = await fetch(`${path}/${randomUUID()}/revoke`, {
+      method: 'POST',
+      headers: {
+        Cookie: `__Host-athlentry_session=${token}`,
+        Origin: 'https://untrusted.example',
+        'X-Athlentry-Request': '1',
+      },
+    });
+    expect(revoke.status).toBe(403);
   });
 });
 

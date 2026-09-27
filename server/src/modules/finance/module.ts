@@ -11,6 +11,7 @@ import {
   aidDecisionResponseSchema,
   aidQueueSchema,
 } from './aid-review.js';
+import { autopayAuthorizationListSchema } from './autopay-authorizations.js';
 import { creditBalanceSchema } from './credit-balances.js';
 import {
   installmentTemplateBodySchema,
@@ -46,6 +47,7 @@ import {
   voidInvoiceBodySchema,
   voidInvoiceResponseSchema,
   payerInvoiceListSchema,
+  autopayRevocationResponseSchema,
 } from './routes.js';
 import {
   taxRateBodySchema,
@@ -64,6 +66,18 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/me/autopay',
+      summary: 'List payer-owned autopay mandates and future installments',
+      response: autopayAuthorizationListSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/me/autopay/{id}/revoke',
+      summary: 'Revoke a payer mandate and stop future installment charges',
+      response: autopayRevocationResponseSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/finance/orgs/{orgId}/me/statements/{year}',
