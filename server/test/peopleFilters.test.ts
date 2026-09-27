@@ -114,3 +114,75 @@ it('filters people by active program registration and current team roster', asyn
     ).items,
   ).toEqual([]);
 });
+
+it('filters by the exact credential record status without implying role eligibility', async () => {
+  const factories = createTestFactories(database);
+  const actor = await factories.actor();
+  await factories.scoped(actor, (trx) =>
+    trx
+      .updateTable('role_assignments')
+      .set({ pending_mfa: false })
+      .where('org_id', '=', actor.orgId)
+      .where('account_id', '=', actor.accountId)
+      .execute()
+      .then(() => undefined),
+  );
+  const credentialedId = await factories.person(actor, {
+    firstName: 'Credentialed',
+  });
+  const noRecordId = await factories.person(actor, { firstName: 'NoRecord' });
+  const typeId = newId();
+  await factories.row(actor, 'credential_types', {
+    id: typeId,
+    org_id: actor.orgId,
+    key: `people_${newId().replaceAll('-', '_')}`,
+    name: 'People filter fixture',
+    verification: 'manual_staff',
+    validity: {},
+    applies_to: {},
+  });
+  const credentialId = newId();
+  await factories.row(actor, 'person_credentials', {
+    id: credentialId,
+    org_id: actor.orgId,
+    person_id: credentialedId,
+    credential_type_id: typeId,
+    status: 'pending_review',
+  });
+  const people = createPeopleRepository(database);
+  expect(
+    (
+      await people.list(actor.orgId, actor.accountId, {
+        status: 'active',
+        credentialStatus: 'pending_review',
+        limit: 30,
+      })
+    ).items.map((person) => person.id),
+  ).toEqual([credentialedId]);
+  expect(
+    (
+      await people.list(actor.orgId, actor.accountId, {
+        status: 'active',
+        credentialStatus: 'none',
+        limit: 30,
+      })
+    ).items.map((person) => person.id),
+  ).toEqual([noRecordId]);
+  await factories.scoped(actor, (trx) =>
+    trx
+      .updateTable('person_credentials')
+      .set({ status: 'verified' })
+      .where('id', '=', credentialId)
+      .execute()
+      .then(() => undefined),
+  );
+  expect(
+    (
+      await people.list(actor.orgId, actor.accountId, {
+        status: 'active',
+        credentialStatus: 'verified',
+        limit: 30,
+      })
+    ).items.map((person) => person.id),
+  ).toEqual([credentialedId]);
+});
