@@ -46,28 +46,7 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
       firstName: 'Ava',
       lastName: 'Rivera',
     });
-    const householdId = await factories.household(staff);
-    await createWithOrg(database)(staff, async (trx) => {
-      await trx
-        .insertInto('household_members')
-        .values([
-          {
-            id: newId(),
-            org_id: staff.orgId,
-            household_id: householdId,
-            person_id: childId,
-            role: 'athlete',
-          },
-          {
-            id: newId(),
-            org_id: staff.orgId,
-            household_id: householdId,
-            person_id: siblingId,
-            role: 'athlete',
-          },
-        ])
-        .execute();
-    });
+    let householdId = '';
     const guardianId = newId();
     const guardianEmail = `guardian-${randomUUID()}@example.invalid`;
     await database
@@ -135,6 +114,31 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
         sameSite: 'Lax',
       },
     ]);
+    await page.goto(`/console/orgs/${staff.orgId}/households`);
+    await expect(
+      page.getByRole('heading', { name: 'Households', level: 1 }),
+    ).toBeVisible();
+    await page.getByLabel('Household name').fill('Rivera family');
+    await page.getByRole('button', { name: 'Create household' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Rivera family' }),
+    ).toBeVisible();
+    const householdMatch = /\/households\/([0-9a-f-]{36})$/.exec(
+      new URL(page.url()).pathname,
+    );
+    if (!householdMatch?.[1])
+      throw new Error('Created household ID is missing.');
+    householdId = householdMatch[1];
+    const addMemberForm = page
+      .locator('form')
+      .filter({ has: page.getByRole('button', { name: 'Add member' }) });
+    await addMemberForm.getByRole('combobox').nth(0).selectOption(childId);
+    await addMemberForm.getByLabel('Household role').selectOption('athlete');
+    await page.getByRole('button', { name: 'Add member' }).click();
+    await expect(page.getByRole('link', { name: 'Mia Rivera' })).toBeVisible();
+    await addMemberForm.getByRole('combobox').nth(0).selectOption(siblingId);
+    await page.getByRole('button', { name: 'Add member' }).click();
+    await expect(page.getByRole('link', { name: 'Ava Rivera' })).toBeVisible();
     await page.goto(`/console/orgs/${staff.orgId}/people/${childId}`);
     await page
       .getByRole('textbox', { name: 'Existing verified adult account email' })
