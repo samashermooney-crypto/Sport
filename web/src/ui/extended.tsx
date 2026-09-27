@@ -1,3 +1,6 @@
+import { TableKit } from '@tiptap/extension-table';
+import { EditorContent, useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 import qrcodeGenerator from 'qrcode';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type {
@@ -6,8 +9,22 @@ import type {
   ReactNode,
   TextareaHTMLAttributes,
 } from 'react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 import { Button, Card, Input, Select, Textarea } from './primitives';
+
+const toDateKey = (date: Date): string =>
+  `${date.getFullYear().toString().padStart(4, '0')}-${(date.getMonth() + 1)
+    .toString()
+    .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
 
 export function DateInput(
   props: InputHTMLAttributes<HTMLInputElement>,
@@ -113,18 +130,22 @@ export function Combobox({
   loading?: boolean;
   onQueryChange?: (query: string) => void;
 }): React.JSX.Element {
-  const id = `combo-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  const id = useId();
+  const selected = options.find((option) => option.value === value);
   return (
     <span className="ui-combobox">
       <input
         aria-label={label}
         aria-busy={loading}
+        aria-autocomplete="list"
         list={`${id}-options`}
-        value={value}
+        value={selected?.label ?? value}
         placeholder={placeholder}
         onChange={(event) => {
-          onChange(event.target.value);
-          onQueryChange?.(event.target.value);
+          const query = event.target.value;
+          const option = options.find((candidate) => candidate.label === query);
+          onChange(option?.value ?? query);
+          onQueryChange?.(option?.label ?? query);
         }}
       />
       <datalist id={`${id}-options`}>
@@ -147,10 +168,13 @@ export function FileUpload({
   multiple?: boolean;
   onFiles: (files: FileList | null) => void;
 }): React.JSX.Element {
+  const id = useId();
   return (
     <label className="ui-file-upload">
       <span>{label}</span>
       <input
+        id={id}
+        aria-label={label}
         type="file"
         accept={accept}
         multiple={multiple}
@@ -230,6 +254,7 @@ export function DataList({
 export function Calendar({
   events,
   view = 'month',
+  initialDate,
   onViewChange,
   resources,
 }: {
@@ -238,15 +263,19 @@ export function Calendar({
     title: string;
     date: string;
     time?: string;
+    endTime?: string;
     resource?: string;
   }[];
   view?: 'month' | 'week' | 'day' | 'agenda' | 'resource';
+  initialDate?: string;
   onViewChange?: (
     view: 'month' | 'week' | 'day' | 'agenda' | 'resource',
   ) => void;
   resources?: string[];
 }): React.JSX.Element {
-  const [cursor, setCursor] = useState(() => new Date());
+  const [cursor, setCursor] = useState(
+    () => new Date(`${initialDate ?? toDateKey(new Date())}T00:00:00`),
+  );
   const [localView, setLocalView] = useState(view);
   const activeView = onViewChange ? view : localView;
   const monthHeading = cursor.toLocaleDateString('en-US', {
@@ -283,7 +312,14 @@ export function Calendar({
         })
       : activeView === 'week'
         ? `${days[0]?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) ?? ''} – ${days[6]?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) ?? ''}`
-        : monthHeading;
+        : activeView === 'resource'
+          ? cursor.toLocaleDateString('en-US', {
+              weekday: 'long',
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric',
+            })
+          : monthHeading;
   const moveCursor = (direction: -1 | 1) => {
     const next = new Date(cursor);
     if (activeView === 'day') next.setDate(cursor.getDate() + direction);
@@ -299,6 +335,15 @@ export function Calendar({
     'agenda',
     ...(resources ? ['resource' as const] : []),
   ] as const;
+  const firstDay = days[0];
+  const lastDay = days[days.length - 1];
+  const visibleEvents = events.filter((event) => {
+    const date = new Date(`${event.date}T00:00:00`);
+    return (
+      (activeView === 'resource' && event.date === toDateKey(cursor)) ||
+      (firstDay && lastDay && date >= firstDay && date <= lastDay)
+    );
+  });
   return (
     <section className={`ui-calendar ui-calendar-${activeView}`}>
       <header>
@@ -348,27 +393,75 @@ export function Calendar({
         </div>
       </header>
       {activeView === 'resource' && resources ? (
-        <div className="ui-resource-calendar">
-          <div className="ui-resource-time">Time</div>
+        <div
+          className="ui-resource-calendar"
+          role="grid"
+          aria-label={`Resource schedule for ${heading}`}
+        >
+          <div className="ui-resource-time" role="row">
+            <strong role="columnheader">Space</strong>
+            {Array.from({ length: 16 }, (_, index) => index + 6).map((hour) => (
+              <time role="columnheader" key={hour}>
+                {new Date(2000, 0, 1, hour).toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                })}
+              </time>
+            ))}
+          </div>
           {resources.map((resource) => (
-            <div className="ui-resource-row" key={resource}>
-              <strong>{resource}</strong>
-              <div>
-                {events
+            <div className="ui-resource-row" role="row" key={resource}>
+              <strong role="rowheader">{resource}</strong>
+              <div className="ui-resource-slots" role="presentation">
+                {Array.from({ length: 16 }, (_, index) => (
+                  <span aria-hidden="true" key={index} />
+                ))}
+                {visibleEvents
                   .filter((event) => event.resource === resource)
-                  .map((event) => (
-                    <span key={event.id}>
-                      {event.time && `${event.time} · `}
-                      {event.title}
-                    </span>
-                  ))}
+                  .map((event) => {
+                    const [hourText = '8', minuteText = '0'] =
+                      event.time?.split(':') ?? [];
+                    const parsedStart =
+                      Number(hourText) + Number(minuteText) / 60;
+                    const startHour = Math.max(
+                      6,
+                      Math.min(
+                        21,
+                        Number.isFinite(parsedStart) ? parsedStart : 8,
+                      ),
+                    );
+                    const startSlot = Math.floor(startHour - 6);
+                    const endHour = event.endTime
+                      ? Number(event.endTime.slice(0, 2)) +
+                        Number(event.endTime.slice(3, 5)) / 60
+                      : startHour + 1;
+                    const duration = Math.max(
+                      1,
+                      Math.min(
+                        22,
+                        Number.isFinite(endHour) ? endHour : startHour + 1,
+                      ) - startHour,
+                    );
+                    return (
+                      <span
+                        className="ui-resource-event"
+                        key={event.id}
+                        style={{
+                          gridColumn: `${(startSlot + 1).toString()} / span ${Math.ceil(duration).toString()}`,
+                        }}
+                        title={`${event.time ?? '8:00'} · ${event.title}`}
+                      >
+                        {event.time && `${event.time} · `}
+                        {event.title}
+                      </span>
+                    );
+                  })}
               </div>
             </div>
           ))}
         </div>
       ) : activeView === 'agenda' ? (
         <ol className="ui-calendar-agenda">
-          {[...events]
+          {[...visibleEvents]
             .sort(
               (a, b) =>
                 a.date.localeCompare(b.date) ||
@@ -405,13 +498,9 @@ export function Calendar({
                   : ''
               }
             >
-              <time dateTime={day.toISOString().slice(0, 10)}>
-                {day.getDate()}
-              </time>
-              {events
-                .filter(
-                  (event) => event.date === day.toISOString().slice(0, 10),
-                )
+              <time dateTime={toDateKey(day)}>{day.getDate()}</time>
+              {visibleEvents
+                .filter((event) => event.date === toDateKey(day))
                 .map((event) => (
                   <span className="ui-calendar-event" key={event.id}>
                     {event.time && `${event.time} · `}
@@ -474,27 +563,55 @@ export function Chart({
   values: { label: string; value: number }[];
   color?: string;
 }): React.JSX.Element {
-  const max = Math.max(1, ...values.map((item) => item.value));
+  const label = `${title}: ${values
+    .map((item) => `${item.label} ${item.value.toString()}`)
+    .join(', ')}`;
   return (
     <figure className="ui-chart">
       <figcaption>{title}</figcaption>
-      <div
-        role="img"
-        aria-label={`${title}: ${values.map((item) => `${item.label} ${item.value.toString()}`).join(', ')}`}
-        className="ui-chart-bars"
-      >
-        {values.map((item) => (
-          <div key={item.label}>
-            <span
-              title={item.value.toString()}
-              style={{
-                height: `${Math.max(2, (item.value / max) * 100).toString()}%`,
-                background: color,
+      <div className="ui-chart-canvas" role="img" aria-label={label}>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart
+            data={values}
+            margin={{ top: 8, right: 8, bottom: 4, left: 0 }}
+          >
+            <CartesianGrid stroke="var(--line)" vertical={false} />
+            <XAxis
+              dataKey="label"
+              axisLine={{ stroke: 'var(--line)' }}
+              tickLine={{ stroke: 'var(--line)' }}
+              tick={{
+                fill: 'var(--muted)',
+                fontSize: 11,
+                fontFamily: 'var(--font-app)',
               }}
             />
-            <small>{item.label}</small>
-          </div>
-        ))}
+            <YAxis
+              allowDecimals={false}
+              axisLine={{ stroke: 'var(--line)' }}
+              tickLine={{ stroke: 'var(--line)' }}
+              tick={{
+                fill: 'var(--muted)',
+                fontSize: 11,
+                fontFamily: 'var(--font-app)',
+              }}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'var(--panel)',
+                border: '1px solid var(--line)',
+                borderRadius: 'var(--radius-3)',
+                boxShadow: 'var(--shadow-06)',
+                color: 'var(--ink-2)',
+                fontFamily: 'var(--font-app)',
+                fontSize: 'var(--font-size-11)',
+              }}
+              labelStyle={{ color: 'var(--muted)', fontWeight: 600 }}
+              itemStyle={{ color: 'var(--accent-600)' }}
+            />
+            <Bar dataKey="value" fill={color} radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
     </figure>
   );
@@ -512,44 +629,114 @@ export function RichTextEditor({
   maxLength?: number;
   disabled?: boolean;
 }): React.JSX.Element {
-  const editorRef = useRef<HTMLDivElement>(null);
   const [linkInput, setLinkInput] = useState('');
   const [linkOpen, setLinkOpen] = useState(false);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ link: { openOnClick: false } }),
+      TableKit,
+    ],
+    content: sanitizeRichHtml(value),
+    editable: !disabled,
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        class: 'ui-rich-editable',
+        role: 'textbox',
+        'aria-label': label,
+        'aria-multiline': 'true',
+      },
+    },
+    onUpdate: ({ editor: updatedEditor }) => {
+      onChangeRef.current(sanitizeRichHtml(updatedEditor.getHTML()));
+    },
+  });
   useEffect(() => {
-    const editor = editorRef.current;
-    if (
-      editor &&
-      document.activeElement !== editor &&
-      editor.innerHTML !== value
-    ) {
-      editor.innerHTML = sanitizeRichHtml(value);
+    if (editor && !editor.isFocused) {
+      const sanitized = sanitizeRichHtml(value);
+      if (sanitizeRichHtml(editor.getHTML()) !== sanitized) {
+        editor.commands.setContent(sanitized, { emitUpdate: false });
+      }
     }
-  }, [value]);
-  const update = () => {
-    const html = sanitizeRichHtml(editorRef.current?.innerHTML ?? '');
-    onChange(html);
-  };
-  const command = (name: string, commandValue?: string) => {
-    editorRef.current?.focus();
-    // Keep the legacy browser editing behavior until the TipTap package is merged.
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    document.execCommand(name, false, commandValue);
-    update();
-  };
+  }, [editor, value]);
+  useEffect(() => {
+    editor?.setEditable(!disabled);
+  }, [disabled, editor]);
   const applyLink = () => {
     const url = linkInput.trim();
-    if (/^(https?:\/\/|mailto:)/i.test(url)) command('createLink', url);
+    if (/^(https?:\/\/|mailto:)/i.test(url)) {
+      editor?.chain().focus().setLink({ href: url }).run();
+    }
     setLinkInput('');
     setLinkOpen(false);
   };
-  const toolbarItems: [string, string, string][] = [
-    ['bold', 'Bold', 'B'],
-    ['italic', 'Italic', 'I'],
-    ['underline', 'Underline', 'U'],
-    ['insertUnorderedList', 'Bulleted list', '• List'],
-    ['insertOrderedList', 'Numbered list', '1. List'],
-    ['undo', 'Undo', '↶'],
-    ['redo', 'Redo', '↷'],
+  const toolbarActions: {
+    description: string;
+    text: string;
+    action: () => void;
+  }[] = [
+    {
+      description: 'Bold',
+      text: 'B',
+      action: () => {
+        editor?.chain().focus().toggleBold().run();
+      },
+    },
+    {
+      description: 'Italic',
+      text: 'I',
+      action: () => {
+        editor?.chain().focus().toggleItalic().run();
+      },
+    },
+    {
+      description: 'Underline',
+      text: 'U',
+      action: () => {
+        editor?.chain().focus().toggleUnderline().run();
+      },
+    },
+    {
+      description: 'Bulleted list',
+      text: '• List',
+      action: () => {
+        editor?.chain().focus().toggleBulletList().run();
+      },
+    },
+    {
+      description: 'Numbered list',
+      text: '1. List',
+      action: () => {
+        editor?.chain().focus().toggleOrderedList().run();
+      },
+    },
+    {
+      description: 'Undo',
+      text: '↶',
+      action: () => {
+        editor?.chain().focus().undo().run();
+      },
+    },
+    {
+      description: 'Redo',
+      text: '↷',
+      action: () => {
+        editor?.chain().focus().redo().run();
+      },
+    },
+    {
+      description: 'Insert table',
+      text: 'Table',
+      action: () => {
+        editor
+          ?.chain()
+          .focus()
+          .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+          .run();
+      },
+    },
   ];
   return (
     <div className="ui-rich-editor">
@@ -559,26 +746,24 @@ export function RichTextEditor({
         role="toolbar"
         aria-label="Text formatting"
       >
-        {toolbarItems.map(([name, description, text]) => (
+        {toolbarActions.map(({ description, text, action }) => (
           <button
-            key={name}
+            key={description}
             type="button"
-            disabled={disabled}
+            disabled={disabled || !editor}
             aria-label={description}
             title={description}
             onMouseDown={(event) => {
               event.preventDefault();
             }}
-            onClick={() => {
-              command(name);
-            }}
+            onClick={action}
           >
             {text}
           </button>
         ))}
         <button
           type="button"
-          disabled={disabled}
+          disabled={disabled || !editor}
           aria-label="Insert link"
           title="Insert link"
           onMouseDown={(event) => {
@@ -591,11 +776,18 @@ export function RichTextEditor({
           Link
         </button>
         <select
-          disabled={disabled}
+          disabled={disabled || !editor}
           aria-label="Text style"
           defaultValue="p"
           onChange={(event) => {
-            command('formatBlock', event.target.value);
+            if (!editor) return;
+            if (event.target.value === 'h2')
+              editor.chain().focus().toggleHeading({ level: 2 }).run();
+            else if (event.target.value === 'h3')
+              editor.chain().focus().toggleHeading({ level: 3 }).run();
+            else if (event.target.value === 'blockquote')
+              editor.chain().focus().toggleBlockquote().run();
+            else editor.chain().focus().setParagraph().run();
           }}
         >
           <option value="p">Paragraph</option>
@@ -613,7 +805,7 @@ export function RichTextEditor({
           }}
         >
           <Input
-            type="url"
+            type="text"
             aria-label="Link URL"
             placeholder="https://…"
             value={linkInput}
@@ -626,20 +818,13 @@ export function RichTextEditor({
           </Button>
         </form>
       )}
-      <div
-        ref={editorRef}
-        className="ui-rich-editable"
-        contentEditable={!disabled}
-        aria-readonly={disabled}
-        role="textbox"
-        aria-label={label}
-        aria-multiline="true"
-        onInput={update}
+      <EditorContent
+        editor={editor}
         onPaste={(event) => {
+          if (disabled || !editor) return;
           event.preventDefault();
           const html = event.clipboardData.getData('text/html');
-          command(
-            html ? 'insertHTML' : 'insertText',
+          editor.commands.insertContent(
             html
               ? sanitizeRichHtml(html)
               : event.clipboardData.getData('text/plain'),
@@ -710,11 +895,12 @@ export function SignaturePad({
   const id = useId();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
-  const [isSigned, setIsSigned] = useState(Boolean(value));
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !value.startsWith('data:image/')) return;
+    if (!canvas) return;
     const context = canvas.getContext('2d');
+    context?.clearRect(0, 0, canvas.width, canvas.height);
+    if (!value.startsWith('data:image/')) return;
     const image = new Image();
     image.onload = () =>
       context?.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -749,7 +935,6 @@ export function SignaturePad({
     if (!location || !context) return;
     context.lineTo(location.x, location.y);
     context.stroke();
-    setIsSigned(true);
   };
   const finishDrawing = () => {
     if (!drawing.current) return;
@@ -760,7 +945,6 @@ export function SignaturePad({
   const clear = () => {
     const canvas = canvasRef.current;
     canvas?.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
-    setIsSigned(false);
     onChange('');
   };
   return (
@@ -789,7 +973,7 @@ export function SignaturePad({
             }}
           />
         </label>
-        {isSigned && (
+        {Boolean(value) && (
           <Button type="button" secondary onClick={clear}>
             Clear signature
           </Button>

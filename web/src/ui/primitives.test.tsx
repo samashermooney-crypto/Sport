@@ -41,13 +41,15 @@ describe('shared design system interactions', () => {
   });
 
   it('changes calendar views without requiring an owner callback', () => {
+    const eventDate = new Date().toISOString().slice(0, 10);
     const { container } = render(
       <Calendar
+        initialDate={eventDate}
         events={[
           {
             id: 'event-1',
             title: 'Opening day',
-            date: new Date().toISOString().slice(0, 10),
+            date: eventDate,
           },
         ]}
       />,
