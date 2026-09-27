@@ -1,0 +1,298 @@
+{
+  "key": "track_field",
+  "name": {
+    "en": "Track and field",
+    "es": "Track and field"
+  },
+  "category": "hybrid",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Meet",
+      "es": "Encuentro"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Track",
+      "es": "track"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "multi_timed",
+      "events": [
+        {
+          "key": "100m",
+          "label": {
+            "en": "100m",
+            "es": "100m"
+          }
+        },
+        {
+          "key": "200m",
+          "label": {
+            "en": "200m",
+            "es": "200m"
+          }
+        },
+        {
+          "key": "400m",
+          "label": {
+            "en": "400m",
+            "es": "400m"
+          }
+        },
+        {
+          "key": "800m",
+          "label": {
+            "en": "800m",
+            "es": "800m"
+          }
+        },
+        {
+          "key": "relay_4x100",
+          "label": {
+            "en": "relay 4x100",
+            "es": "relay 4x100"
+          }
+        }
+      ],
+      "lowerIsBetter": true,
+      "precision": "hundredths",
+      "heats": true,
+      "lanes": 8,
+      "placePoints": [10, 8, 6, 5, 4, 3, 2, 1]
+    },
+    {
+      "format": "multi_measured",
+      "events": [
+        {
+          "key": "long_jump",
+          "label": {
+            "en": "long jump",
+            "es": "long jump"
+          }
+        },
+        {
+          "key": "high_jump",
+          "label": {
+            "en": "high jump",
+            "es": "high jump"
+          }
+        },
+        {
+          "key": "shot_put",
+          "label": {
+            "en": "shot put",
+            "es": "shot put"
+          }
+        },
+        {
+          "key": "discus",
+          "label": {
+            "en": "discus",
+            "es": "discus"
+          }
+        }
+      ],
+      "lowerIsBetter": false,
+      "unit": "m",
+      "attempts": 3,
+      "placePoints": [10, 8, 6, 5, 4, 3, 2, 1]
+    }
+  ],
+  "positions": [
+    {
+      "key": "sprints",
+      "label": {
+        "en": "Sprints",
+        "es": "Sprints"
+      }
+    },
+    {
+      "key": "distance",
+      "label": {
+        "en": "Distance",
+        "es": "Distance"
+      }
+    },
+    {
+      "key": "jumps",
+      "label": {
+        "en": "Jumps",
+        "es": "Jumps"
+      }
+    },
+    {
+      "key": "throws",
+      "label": {
+        "en": "Throws",
+        "es": "Throws"
+      }
+    }
+  ],
+  "maxPositionsPerAthlete": 2,
+  "roster": {
+    "defaultMax": 80,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "age_on_date",
+    "monthDay": "08-01",
+    "yearBasis": "season_start"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["track"],
+  "officials": [
+    {
+      "key": "starter",
+      "label": {
+        "en": "Starter",
+        "es": "Starter"
+      },
+      "required": true
+    },
+    {
+      "key": "field_judge",
+      "label": {
+        "en": "Field judge",
+        "es": "Field judge"
+      },
+      "required": true
+    },
+    {
+      "key": "timer",
+      "label": {
+        "en": "Timer",
+        "es": "Timer"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "technique",
+      "label": {
+        "en": "Technique",
+        "es": "Technique"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "speed",
+      "label": {
+        "en": "Speed",
+        "es": "Speed"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "endurance",
+      "label": {
+        "en": "Endurance",
+        "es": "Endurance"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "coachability",
+      "label": {
+        "en": "Coachability",
+        "es": "Coachability"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "jersey",
+      "label": {
+        "en": "Jersey",
+        "es": "Jersey"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "shorts",
+      "label": {
+        "en": "Shorts",
+        "es": "Shorts"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "socks",
+      "label": {
+        "en": "Socks",
+        "es": "Socks"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "defaultStandings": {
+    "basis": "match",
+    "points": {
+      "win": 3,
+      "overtimeWin": 2,
+      "tie": 1,
+      "overtimeLoss": 1,
+      "loss": 0,
+      "forfeitWin": 3,
+      "forfeitLoss": 0,
+      "forfeitDeduction": 0
+    },
+    "rankBy": "points",
+    "winPercentageTieValue": 0.5,
+    "forfeitScore": {
+      "winner": 3,
+      "loser": 0
+    },
+    "tiebreakers": [
+      "head_to_head_points",
+      "head_to_head_differential",
+      "differential",
+      "scored",
+      "coin_toss_manual"
+    ],
+    "include": {
+      "stages": ["regular"],
+      "crossDivision": false
+    },
+    "columns": ["rank", "team", "played", "wins", "losses", "ties", "points"],
+    "publicVisibility": "members"
+  },
+  "disciplineTypes": []
+}

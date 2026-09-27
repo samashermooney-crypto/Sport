@@ -64,7 +64,7 @@ type FieldProps = PropsWithChildren<{
   label: ReactNode;
   required?: boolean;
   hint?: ReactNode;
-  error?: string;
+  error?: string | undefined;
   className?: string;
 }>;
 export function Field({
@@ -193,7 +193,11 @@ export function Badge({
   const oldTone = tone === 'neutral' ? '' : tone;
   return <span {...props} className={join('badge', oldTone, className)} />;
 }
-export const StatusPill = Badge;
+export function StatusPill(
+  props: Parameters<typeof Badge>[0],
+): React.JSX.Element {
+  return <Badge {...props} />;
+}
 
 export function Card({
   className,

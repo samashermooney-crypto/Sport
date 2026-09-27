@@ -175,3 +175,43 @@
 - **Decision:** Generate `.template` files in the target module paths and reserve an available migration number in the caller's track range. The module author specializes and renames them before registry discovery or migration application. Refuse existing module directories and output overwrites.
 - **Why:** Tenant privacy and financial correctness require reviewed database and permission behavior; inactive files also prevent unfinished controls from rendering.
 - **Consequences / follow-ups:** Authors must resolve template tests, API wiring, audit rules and design components before activation. Verify the chosen migration number is still free when merging to trunk.
+
+### DEC-021 — Safe onboarding defaults
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 organization bootstrap
+- **Context:** The specification names default credentials, forms, season and settings but leaves their initial values open.
+- **Decision:** Create a planning season for the organization's current calendar year; deny medical detail access to coaches by default; default media and communication consent off; require manual staff verification for the background check until a provider is configured. Create credential types as active blockers for staff roles, editable by the organization. Keep the default forms unpublished and the waiver unreviewed and unpublishable until its text changes.
+- **Why:** Child safety and privacy favor restrictive defaults; no background-check provider or legal text is implied by a freshly created organization.
+- **Consequences / follow-ups:** The Phase 1 settings and credential editors must let authorized staff configure these defaults, and onboarding must explain pending MFA and credential requirements.
+
+### DEC-022 — Raw Stripe event ingestion is global
+- **Date:** 2026-09-26
+- **Phase / area:** Schema spine and finance
+- **Context:** Stripe webhooks can arrive before an organization is resolved. The data model describes `stripe_events` as provider event storage but does not assign an organization to every event.
+- **Decision:** Keep `stripe_events` global with its unique provider event identifier and immutable payload. Resolve the organization only when processing the event, then perform tenant reads and writes through `withOrg`.
+- **Why:** Rejecting or misattributing an unresolved financial event risks incorrect charges and reconciliation. Global ingestion preserves the evidence without bypassing tenant isolation for business records.
+- **Consequences / follow-ups:** The finance worker must restrict event access to its narrow processor, audit resolution failures, and never expose raw event payloads through tenant APIs.
+
+### DEC-023 — Tenant-owned files and local access policy
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 files integration
+- **Context:** The file adapter initially allowed nullable organization ids, while the global RLS invariant requires tenant-owned file records. The file service leaves authorization to the application composition root.
+- **Decision:** Require `files.org_id` for every record. Local file routes require an authenticated active organization member and the request's organization header. Uploads require an active org-level owner, admin or registrar role with completed MFA; restricted downloads require owner or admin, sensitive downloads permit registrar, and internal/public downloads permit active members. Mutating routes verify origin and request header.
+- **Why:** Privacy and child safety require an explicit tenant and narrow authorization before upload or download. Public website assets are published through a separate later flow.
+- **Consequences / follow-ups:** Phase 1 file acceptance must verify these role boundaries over HTTP. Later public asset publishing must copy approved assets into a separate public delivery path without exposing private file URLs.
+
+### DEC-024 — Separate campaign mail sender
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 email adapters
+- **Context:** The spec requires branded organization messages and security mail but does not specify whether campaigns share the security sender domain.
+- **Decision:** Keep a separately configured campaign sender domain in the Resend adapter. Local and test delivery use preview/fake adapters; no live delivery is enabled by this integration.
+- **Why:** Separating bulk mail reputation from security mail protects verification and reset delivery.
+- **Consequences / follow-ups:** Production adapter setup must verify both sender domains and their credentials before enabling delivery.
+
+### DEC-025 — Guard editable safety requirements
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 organization onboarding
+- **Context:** New organizations must be able to edit or disable default credential types. The initial verification method is manual staff review; other verification providers are not wired yet.
+- **Decision:** Owners with completed MFA and recent step-up can edit the name, validity, activation blocking and active state with a version check. Show the verification method as read-only until a working provider workflow exists. Audit each change and hide another tenant's credential identifiers with 404.
+- **Why:** This lets an owner control every default requirement while preventing a setting that claims to verify credentials through an unavailable provider.
+- **Consequences / follow-ups:** Add selectable verification methods only with their complete review or provider workflow in a later phase.

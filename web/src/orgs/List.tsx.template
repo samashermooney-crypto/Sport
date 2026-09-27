@@ -1,0 +1,14 @@
+import { Link } from 'react-router';
+import { Card, Table } from '../ui';
+
+export interface OrgsItem { id: string; name: string }
+
+export function OrgsList({ items }: { items: readonly OrgsItem[] }) {
+  return <Card>
+    <h1>Orgs</h1>
+    <Table>
+      <thead><tr><th scope="col">Name</th></tr></thead>
+      <tbody>{items.map((item) => <tr key={item.id}><td><Link to={item.id}>{item.name}</Link></td></tr>)}</tbody>
+    </Table>
+  </Card>;
+}

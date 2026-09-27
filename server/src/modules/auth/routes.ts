@@ -123,7 +123,7 @@ function setSessionCookie(
   });
 }
 
-async function requireSession(
+export async function requireSession(
   dependencies: AuthDependencies,
   request: Request,
 ): Promise<ActiveSession> {

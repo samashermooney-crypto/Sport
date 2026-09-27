@@ -1,0 +1,187 @@
+{
+  "key": "golf",
+  "name": {
+    "en": "Golf",
+    "es": "Golf"
+  },
+  "category": "hybrid",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Round",
+      "es": "Juego"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Course",
+      "es": "course"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "multi_measured",
+      "events": [
+        {
+          "key": "9_holes",
+          "label": {
+            "en": "9 holes",
+            "es": "9 holes"
+          }
+        },
+        {
+          "key": "18_holes",
+          "label": {
+            "en": "18 holes",
+            "es": "18 holes"
+          }
+        }
+      ],
+      "lowerIsBetter": true,
+      "unit": "strokes",
+      "teamScoring": {
+        "method": "best_n_of_m",
+        "count": 4
+      }
+    }
+  ],
+  "positions": [],
+  "maxPositionsPerAthlete": 0,
+  "roster": {
+    "defaultMax": 12,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "school_grade",
+    "schoolYearCutoff": "08-01"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["course"],
+  "officials": [
+    {
+      "key": "rules_official",
+      "label": {
+        "en": "Rules official",
+        "es": "Rules official"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "driving",
+      "label": {
+        "en": "Driving",
+        "es": "Driving"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "approach",
+      "label": {
+        "en": "Approach",
+        "es": "Approach"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "short_game",
+      "label": {
+        "en": "Short game",
+        "es": "Short game"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "putting",
+      "label": {
+        "en": "Putting",
+        "es": "Putting"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "polo",
+      "label": {
+        "en": "Polo",
+        "es": "Polo"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "cap",
+      "label": {
+        "en": "Cap",
+        "es": "Cap"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "defaultStandings": {
+    "basis": "match",
+    "points": {
+      "win": 3,
+      "overtimeWin": 2,
+      "tie": 1,
+      "overtimeLoss": 1,
+      "loss": 0,
+      "forfeitWin": 3,
+      "forfeitLoss": 0,
+      "forfeitDeduction": 0
+    },
+    "rankBy": "points",
+    "winPercentageTieValue": 0.5,
+    "forfeitScore": {
+      "winner": 3,
+      "loser": 0
+    },
+    "tiebreakers": [
+      "head_to_head_points",
+      "head_to_head_differential",
+      "differential",
+      "scored",
+      "coin_toss_manual"
+    ],
+    "include": {
+      "stages": ["regular"],
+      "crossDivision": false
+    },
+    "columns": ["rank", "team", "played", "wins", "losses", "ties", "points"],
+    "publicVisibility": "members"
+  },
+  "disciplineTypes": []
+}

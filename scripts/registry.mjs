@@ -85,11 +85,11 @@ const permissions = [
   ),
 ].sort();
 const serverImports = [
-  "import type { IntegrationConfig, ServerModule } from '../lib/module-contract';",
   ...integrationNames.map(
     (name) =>
       `import { integrationConfig as ${identifier(name)}Config } from '../integrations/${name}/config';`,
   ),
+  "import type { IntegrationConfig, ServerModule } from '../lib/module-contract';",
   ...serverNames.map(
     (name) =>
       `import { moduleDefinition as ${identifier(name)}Module } from '../modules/${name}/module';`,

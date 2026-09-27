@@ -82,8 +82,20 @@ const runtimeSchema = z.strictObject({
 });
 
 export async function createLocalAuthDependencies(): Promise<AuthDependencies> {
+  const localIntegrationConfig: Record<string, unknown> = {
+    'background-check': { mode: 'manual' },
+    email: {
+      mode: 'preview',
+      host: '127.0.0.1',
+      port: process.env.ATHLENTRY_MAILPIT_SMTP_PORT ?? '1025',
+    },
+    geocoder: { mode: 'none' },
+    push: { mode: 'preview' },
+    sms: { mode: 'preview' },
+    storage: { mode: 'local', directory: 'data/uploads' },
+  };
   for (const integration of integrationConfigs) {
-    integration.schema.parse(process.env);
+    integration.schema.parse(localIntegrationConfig[integration.name]);
   }
   for (const module of serverModules) {
     module.configSchema?.parse(process.env);

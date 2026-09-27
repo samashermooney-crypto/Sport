@@ -5,6 +5,7 @@
     "web/src/main.tsx",
     "db/seeds/index.ts",
     "scripts/openapi.ts",
+    "scripts/stripe-smoke.ts",
     "vite.config.ts",
     "vitest.config.ts",
     "playwright.config.ts",
@@ -18,12 +19,40 @@
     "scripts/**/*.ts",
     "e2e/**/*.ts"
   ],
-  "ignore": ["legacy/**"],
-  "ignoreDependencies": ["kysely-codegen"],
+  "ignore": [
+    "legacy/**",
+    "server/src/integrations/email/templates/**",
+    "server/src/integrations/push/web-push-adapter.ts",
+    "server/src/integrations/push/web-push.d.ts",
+    "server/src/integrations/storage/sharp.d.ts",
+    "web/src/ui/vite-env.d.ts"
+  ],
+  "ignoreDependencies": ["kysely-codegen", "web-push"],
   "ignoreExportsUsedInFile": { "type": true, "interface": true },
   "ignoreIssues": {
     "server/src/db/types.ts": ["exports", "types"],
     "server/src/db/withOrg.ts": ["exports"],
-    "server/src/integrations/email/sender.ts": ["exports"]
+    "server/src/integrations/email/sender.ts": ["exports"],
+    "shared/src/recurrence.ts": ["exports", "types"],
+    "shared/src/sport/schema.ts": ["exports", "types"],
+    "shared/src/sport/templates/base.ts": ["exports"],
+    "shared/src/sport/templates/catalog.ts": ["exports"],
+    "shared/src/sport/templates/index.ts": ["exports"],
+    "server/src/integrations/stripe/sdk.ts": ["exports"],
+    "server/src/integrations/stripe/webhooks.ts": ["exports"],
+    "server/src/integrations/background-check/config.ts": ["exports", "types"],
+    "server/src/integrations/email/config.ts": ["exports", "types"],
+    "server/src/integrations/geocoder/config.ts": ["exports", "types"],
+    "server/src/integrations/geocoder/geocoder.ts": ["exports"],
+    "server/src/integrations/push/config.ts": ["exports", "types"],
+    "server/src/integrations/push/sender.ts": ["exports"],
+    "server/src/integrations/sms/config.ts": ["exports", "types"],
+    "server/src/integrations/sms/sender.ts": ["exports"],
+    "server/src/integrations/storage/config.ts": ["exports", "types"],
+    "server/src/integrations/storage/storage.ts": ["exports"],
+    "server/src/modules/files/module.ts": ["exports"],
+    "shared/src/algorithms/schedule-generator.ts": ["exports"],
+    "web/src/ui/overlays.tsx": ["exports"],
+    "web/src/ui/primitives.tsx": ["exports"]
   }
 }

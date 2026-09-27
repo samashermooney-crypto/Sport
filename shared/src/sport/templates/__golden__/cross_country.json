@@ -1,0 +1,214 @@
+{
+  "key": "cross_country",
+  "name": {
+    "en": "Cross country",
+    "es": "Cross country"
+  },
+  "category": "hybrid",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Meet",
+      "es": "Encuentro"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Course",
+      "es": "course"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "multi_timed",
+      "events": [
+        {
+          "key": "5k",
+          "label": {
+            "en": "5k",
+            "es": "5k"
+          }
+        },
+        {
+          "key": "3k",
+          "label": {
+            "en": "3k",
+            "es": "3k"
+          }
+        }
+      ],
+      "lowerIsBetter": true,
+      "precision": "hundredths",
+      "heats": false,
+      "lanes": 8,
+      "placePoints": [],
+      "teamScoring": {
+        "method": "sum_of_places_top_n",
+        "count": 5
+      }
+    }
+  ],
+  "positions": [],
+  "maxPositionsPerAthlete": 0,
+  "roster": {
+    "defaultMax": 40,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "school_grade",
+    "schoolYearCutoff": "08-01"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["course"],
+  "officials": [
+    {
+      "key": "starter",
+      "label": {
+        "en": "Starter",
+        "es": "Starter"
+      },
+      "required": true
+    },
+    {
+      "key": "course_marshal",
+      "label": {
+        "en": "Course marshal",
+        "es": "Course marshal"
+      },
+      "required": true
+    },
+    {
+      "key": "timer",
+      "label": {
+        "en": "Timer",
+        "es": "Timer"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "pacing",
+      "label": {
+        "en": "Pacing",
+        "es": "Pacing"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "endurance",
+      "label": {
+        "en": "Endurance",
+        "es": "Endurance"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "race_strategy",
+      "label": {
+        "en": "Race strategy",
+        "es": "Race strategy"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "consistency",
+      "label": {
+        "en": "Consistency",
+        "es": "Consistency"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "jersey",
+      "label": {
+        "en": "Jersey",
+        "es": "Jersey"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "shorts",
+      "label": {
+        "en": "Shorts",
+        "es": "Shorts"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "socks",
+      "label": {
+        "en": "Socks",
+        "es": "Socks"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "defaultStandings": {
+    "basis": "match",
+    "points": {
+      "win": 3,
+      "overtimeWin": 2,
+      "tie": 1,
+      "overtimeLoss": 1,
+      "loss": 0,
+      "forfeitWin": 3,
+      "forfeitLoss": 0,
+      "forfeitDeduction": 0
+    },
+    "rankBy": "points",
+    "winPercentageTieValue": 0.5,
+    "forfeitScore": {
+      "winner": 3,
+      "loser": 0
+    },
+    "tiebreakers": [
+      "head_to_head_points",
+      "head_to_head_differential",
+      "differential",
+      "scored",
+      "coin_toss_manual"
+    ],
+    "include": {
+      "stages": ["regular"],
+      "crossDivision": false
+    },
+    "columns": ["rank", "team", "played", "wins", "losses", "ties", "points"],
+    "publicVisibility": "members"
+  },
+  "disciplineTypes": []
+}
