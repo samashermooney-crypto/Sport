@@ -12,10 +12,12 @@ const divisionId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const boardId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const blueTeamId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const goldTeamId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const groupId = '89898989-8989-4898-8898-898989898989';
 const alexId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 const jordanId = '99999999-9999-4999-8999-999999999999';
 const offerId = 'abababab-abab-4bab-8bab-abababababab';
 const checkoutId = 'bcbcbcbc-bcbc-4cbc-8cbc-bcbcbcbcbcbc';
+const tryoutRegistrationId = 'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd';
 
 async function mockAuthenticatedAccount(page: import('@playwright/test').Page) {
   await page.route('**/api/v1/auth/me', (route) =>
@@ -330,6 +332,248 @@ test('director moves a rec player with drag/drop or keyboard controls', async ({
     teamSeasonId: goldTeamId,
     expectedVersion: 3,
   });
+});
+
+test('tryout director scans a registration and builds a placement board', async ({
+  page,
+}) => {
+  let checkInStatus = 'expected';
+  const checkIns: Array<Record<string, unknown>> = [];
+  const boardRequests: Array<Record<string, unknown>> = [];
+  const rankedPlayers = [
+    {
+      participantId,
+      group: 'U10',
+      firstName: 'Alex',
+      lastName: 'Athlete',
+      composite: 4.5,
+      rankInGroup: 1,
+      evaluatorCount: 2,
+      missingCriteria: [],
+    },
+    {
+      participantId: jordanId,
+      group: 'U10',
+      firstName: 'Jordan',
+      lastName: 'Player',
+      composite: 4,
+      rankInGroup: 2,
+      evaluatorCount: 2,
+      missingCriteria: [],
+    },
+  ];
+
+  await mockAuthenticatedAccount(page);
+  await page.route(`**/api/v1/orgs/${orgId}/workspace`, (route) =>
+    route.fulfill({ json: { name: 'North Club' } }),
+  );
+  await page.route(
+    `**/api/v1/evaluations/orgs/${orgId}/events/${eventId}/setup`,
+    (route) =>
+      route.fulfill({
+        json: {
+          canManagePhotos: false,
+          event: {
+            id: eventId,
+            name: 'U10 soccer tryout',
+            status: 'live',
+            normalization: 'z_score_per_evaluator',
+            tryout_program_id: '12121212-1212-4121-8121-121212121212',
+            target_program_id: programId,
+          },
+          groups: [
+            {
+              id: groupId,
+              name: 'U10',
+              ageMinMonths: 108,
+              ageMaxMonths: 131,
+              gender: 'open',
+              positionKeys: [],
+            },
+          ],
+          sessions: [],
+          participants: [
+            {
+              id: participantId,
+              personId,
+              registrationId: tryoutRegistrationId,
+              groupId,
+              groupName: 'U10',
+              sessionId: null,
+              bibNumber: 14,
+              checkInStatus,
+              firstName: 'Alex',
+              lastName: 'Athlete',
+              mediaConsent: false,
+              personVersion: 1,
+            },
+          ],
+        },
+      }),
+  );
+  await page.route(
+    `**/api/v1/evaluations/orgs/${orgId}/events/${eventId}/registrants`,
+    (route) => route.fulfill({ json: [] }),
+  );
+  await page.route(
+    `**/api/v1/evaluations/orgs/${orgId}/evaluator-candidates`,
+    (route) => route.fulfill({ json: [] }),
+  );
+  await page.route(`**/api/v1/evaluations/orgs/${orgId}/programs`, (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: programId,
+          name: 'U10 Competitive',
+          mode: 'club',
+          sportProfileId: '12121212-1212-4121-8121-121212121212',
+          sportProfileName: 'Soccer',
+          rubric: [],
+          divisions: [{ id: divisionId, name: 'U10' }],
+          offerings: [],
+        },
+      ],
+    }),
+  );
+  await page.route(
+    `**/api/v1/evaluations/orgs/${orgId}/participants/${participantId}/check-in`,
+    async (route) => {
+      checkIns.push(route.request().postDataJSON() as Record<string, unknown>);
+      checkInStatus = 'checked_in';
+      await route.fulfill({
+        json: { id: participantId, status: checkInStatus },
+      });
+    },
+  );
+  await page.route(
+    `**/api/v1/evaluations/orgs/${orgId}/events/${eventId}/compute-results`,
+    (route) => route.fulfill({ json: rankedPlayers }),
+  );
+  await page.route(
+    `**/api/v1/evaluations/orgs/${orgId}/events/${eventId}/results`,
+    (route) => route.fulfill({ json: rankedPlayers }),
+  );
+  await page.route(
+    `**/api/v1/evaluations/orgs/${orgId}/events/${eventId}/boards`,
+    async (route) => {
+      boardRequests.push(
+        route.request().postDataJSON() as Record<string, unknown>,
+      );
+      await route.fulfill({
+        json: {
+          id: boardId,
+          targetProgramId: programId,
+          divisionId,
+          seed: 1,
+          assignments: { [alexId]: blueTeamId, [jordanId]: goldTeamId },
+          metrics: [],
+          objective: 0,
+        },
+      });
+    },
+  );
+  await page.route(
+    `**/api/v1/evaluations/orgs/${orgId}/boards/${boardId}`,
+    (route) =>
+      route.fulfill({
+        json: {
+          id: boardId,
+          status: 'draft',
+          metrics: [],
+          placements: [
+            {
+              id: '10101010-1010-4010-8010-101010101010',
+              personId: alexId,
+              firstName: 'Alex',
+              lastName: 'Athlete',
+              teamSeasonId: blueTeamId,
+              teamName: 'Blue',
+              rating: 4.5,
+              locked: false,
+              status: 'placed',
+              version: 1,
+            },
+            {
+              id: '20202020-2020-4020-8020-202020202020',
+              personId: jordanId,
+              firstName: 'Jordan',
+              lastName: 'Player',
+              teamSeasonId: goldTeamId,
+              teamName: 'Gold',
+              rating: 4,
+              locked: false,
+              status: 'placed',
+              version: 1,
+            },
+          ],
+        },
+      }),
+  );
+  await page.route(
+    `**/api/v1/evaluations/orgs/${orgId}/boards/${boardId}/offers`,
+    (route) =>
+      route.fulfill({
+        json: {
+          boardId,
+          status: 'draft',
+          teams: [
+            {
+              teamSeasonId: blueTeamId,
+              teamName: 'Blue',
+              rosterLimit: 12,
+              sent: 0,
+              accepted: 0,
+              declined: 0,
+              expired: 0,
+              withdrawn: 0,
+              placed: 1,
+            },
+            {
+              teamSeasonId: goldTeamId,
+              teamName: 'Gold',
+              rosterLimit: 12,
+              sent: 0,
+              accepted: 0,
+              declined: 0,
+              expired: 0,
+              withdrawn: 0,
+              placed: 1,
+            },
+          ],
+          nextInLine: [],
+        },
+      }),
+  );
+
+  await page.goto(`/console/orgs/${orgId}/evaluations/${eventId}`);
+  await expect(
+    page.getByRole('heading', { name: 'U10 soccer tryout' }),
+  ).toBeVisible();
+  const registrationQr = page.getByLabel('Scan registration QR code');
+  await registrationQr.fill(`registration:${tryoutRegistrationId}`);
+  await page
+    .getByRole('button', { name: 'Check in scanned registration' })
+    .click();
+  await expect(page.getByRole('cell', { name: 'checked_in' })).toBeVisible();
+  expect(checkIns).toEqual([{ late: false }]);
+
+  await page
+    .getByRole('button', { name: 'Compute normalized results' })
+    .click();
+  await expect(page.getByRole('cell', { name: '4.50' })).toBeVisible();
+  await page.getByLabel('Target division').selectOption(divisionId);
+  await page.getByLabel('Evaluation group').selectOption(groupId);
+  await page.getByRole('button', { name: 'Build placement draft' }).click();
+  await expect(page.getByText('Alex Athlete → Blue')).toBeVisible();
+  await expect(page.getByText('Jordan Player → Gold')).toBeVisible();
+  expect(boardRequests).toEqual([
+    expect.objectContaining({
+      divisionId,
+      evaluationGroupId: groupId,
+      seed: 1,
+    }),
+  ]);
+  expect(await accessibilityViolations(page)).toEqual([]);
 });
 
 test('family accepts a team offer and continues to registration checkout', async ({
