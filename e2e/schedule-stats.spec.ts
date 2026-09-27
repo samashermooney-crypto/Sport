@@ -11,7 +11,25 @@ import { accessibilityViolations } from './axe';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test('staff configures statistics, finalizes a game, and opens its leaderboard', async ({
+function zonedInputValue(value: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(value);
+  const part = (name: string): string => {
+    const result = parts.find((item) => item.type === name)?.value;
+    if (!result) throw new Error(`Missing ${name} in formatted date time.`);
+    return result;
+  };
+  return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`;
+}
+
+test('staff configures statistics, finalizes a game, closes a facility, and opens its leaderboard', async ({
   page,
 }, testInfo) => {
   test.setTimeout(60_000);
@@ -24,6 +42,20 @@ test('staff configures statistics, finalizes a game, and opens its leaderboard',
     const program = await factories.program(actor);
     const home = await factories.team(actor, program);
     const away = await factories.team(actor, program);
+    const facilityId = newId();
+    const spaceId = newId();
+    const closureEventId = newId();
+    const closureEventStartsAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    closureEventStartsAt.setSeconds(0, 0);
+    const closureEventEndsAt = new Date(
+      closureEventStartsAt.getTime() + 60 * 60 * 1000,
+    );
+    const closureStartsAt = new Date(
+      closureEventStartsAt.getTime() - 60 * 60 * 1000,
+    );
+    const closureEndsAt = new Date(
+      closureEventEndsAt.getTime() + 60 * 60 * 1000,
+    );
     const profile = {
       ...builtInSportTemplates[0],
       stats: [
@@ -66,6 +98,27 @@ test('staff configures statistics, finalizes a game, and opens its leaderboard',
         .where('org_id', '=', actor.orgId)
         .where('id', '=', program.programId)
         .execute();
+      await trx
+        .insertInto('facilities')
+        .values({
+          id: facilityId,
+          org_id: actor.orgId,
+          name: 'North Park Fields',
+          ownership: 'owned',
+          timezone: 'America/Chicago',
+        })
+        .execute();
+      await trx
+        .insertInto('spaces')
+        .values({
+          id: spaceId,
+          org_id: actor.orgId,
+          facility_id: facilityId,
+          name: 'North Park Field 1',
+          kind: 'field',
+          suitability: { sportProfileIds: [program.sportProfileId] },
+        })
+        .execute();
       const eventId = newId();
       const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await trx
@@ -101,6 +154,22 @@ test('staff configures statistics, finalizes a game, and opens its leaderboard',
             side: 'away',
           },
         ])
+        .execute();
+      await trx
+        .insertInto('events')
+        .values({
+          id: closureEventId,
+          org_id: actor.orgId,
+          program_id: program.programId,
+          division_id: program.divisionId,
+          kind: 'game',
+          title: 'Rainout closure game',
+          starts_at: closureEventStartsAt,
+          ends_at: closureEventEndsAt,
+          timezone: 'America/Chicago',
+          space_id: spaceId,
+          published: true,
+        })
         .execute();
     });
     const session = await database.transaction().execute((trx) =>
@@ -174,6 +243,40 @@ test('staff configures statistics, finalizes a game, and opens its leaderboard',
     await expect(
       page.getByRole('cell', { name: '3', exact: true }),
     ).toBeVisible();
+    const closureForm = page
+      .locator('form')
+      .filter({ has: page.getByRole('button', { name: 'Preview and close' }) });
+    await closureForm.getByLabel('Closure scope').selectOption('facility');
+    await closureForm.getByLabel('Facility or space ID').fill(facilityId);
+    await closureForm
+      .getByLabel('Starts')
+      .fill(zonedInputValue(closureStartsAt, 'America/Chicago'));
+    await closureForm
+      .getByLabel('Ends')
+      .fill(zonedInputValue(closureEndsAt, 'America/Chicago'));
+    await closureForm.getByLabel('Reason').selectOption('weather');
+    let closureDialog = '';
+    page.once('dialog', async (dialog) => {
+      closureDialog = dialog.message();
+      await dialog.accept();
+    });
+    await closureForm
+      .getByRole('button', { name: 'Preview and close' })
+      .click();
+    await expect(page.getByRole('status')).toHaveText(
+      'Closure recorded and affected events updated.',
+    );
+    expect(closureDialog).toContain('postpone 1 affected events');
+    const closedEvent = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('events')
+        .select(['status', 'status_reason'])
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', closureEventId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(closedEvent.status).toBe('postponed');
+    expect(closedEvent.status_reason).toMatch(/^closure:/);
     await expect(page.getByRole('alert')).toHaveCount(0);
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
