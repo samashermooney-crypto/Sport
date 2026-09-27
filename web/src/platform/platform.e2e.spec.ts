@@ -94,6 +94,38 @@ test('platform staff can inspect and suspend an organization accessibly', async 
     await expect(
       page.getByRole('button', { name: 'Reactivate' }),
     ).toBeVisible();
+    await page
+      .getByRole('textbox', { name: 'Reason for read-only impersonation' })
+      .fill('Investigating an organization support request');
+    await page
+      .getByRole('button', { name: 'Start read-only impersonation' })
+      .click();
+    await expect(
+      page.getByText(`Read-only impersonation for organization ${orgId}`),
+    ).toBeVisible();
+    const impersonation = await database.query<{
+      id: string;
+      expires_in_seconds: number;
+    }>(
+      `SELECT id, EXTRACT(EPOCH FROM (expires_at - started_at))::integer AS expires_in_seconds
+       FROM platform_impersonations WHERE staff_account_id = $1 AND target_organization_id = $2`,
+      [accountId, orgId],
+    );
+    expect(impersonation.rows).toMatchObject([{ expires_in_seconds: 3600 }]);
+    const impersonationId = impersonation.rows[0]?.id;
+    expect(impersonationId).toBeTruthy();
+    await page.getByRole('button', { name: 'End impersonation' }).click();
+    await expect(
+      page.getByText(`Read-only impersonation for organization ${orgId}`),
+    ).toHaveCount(0);
+    const audits = await database.query<{ action: string }>(
+      'SELECT action FROM platform_audit_log WHERE impersonation_id = $1 ORDER BY created_at',
+      [impersonationId],
+    );
+    expect(audits.rows.map((row) => row.action)).toEqual([
+      'impersonation.start',
+      'impersonation.end',
+    ]);
     expect(await accessibilityViolations(page)).toEqual([]);
     await page.getByRole('button', { name: 'Health' }).click();
     await expect(
