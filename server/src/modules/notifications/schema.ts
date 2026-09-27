@@ -6,6 +6,12 @@ const notificationTypeSchema = z.enum(notificationTypes);
 export const notificationPayloadSchema = z.strictObject({
   resourceType: z.string().min(1).max(80).optional(),
   resourceId: z.uuid().optional(),
+  personId: z.uuid().optional(),
+  credentialId: z.uuid().optional(),
+  assignmentId: z.uuid().optional(),
+  role: z.string().max(80).optional(),
+  daysBefore: z.number().int().min(0).max(365).optional(),
+  expiresOn: z.iso.date().optional(),
   href: z
     .string()
     .max(500)
@@ -27,7 +33,7 @@ export const inboxPageSchema = z.strictObject({
 });
 export const preferenceSchema = z.strictObject({
   category: z.enum(['operational', 'announcement', 'marketing', 'emergency']),
-  channel: z.enum(['in_app', 'email']),
+  channel: z.enum(['in_app', 'email', 'sms', 'push']),
   enabled: z.boolean(),
   version: z.number().int().nonnegative(),
 });

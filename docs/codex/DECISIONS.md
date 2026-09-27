@@ -415,3 +415,11 @@
 - **Decision:** Use a read-only draft audience preview endpoint backed by the same recipient resolver and channel eligibility calculation as saved campaign preview. Require campaign permissions and owner/admin authorization for emergency audiences; debounce composer requests and skip preview until a selector and channel are present.
 - **Why:** Staff can check routing while editing without persisting every draft and preview counts remain aligned with send-time policy.
 - **Consequences / follow-ups:** Cover saved and unsaved preview paths with tenant and permission integration tests.
+
+### DEC-055 — Generate weekly installments on the checkout weekday
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 4 installments
+- **Context:** `02 §L` lists weekly plans, while `20 §3` specifies dates only for fixed-date and monthly schedules.
+- **Decision:** A weekly template takes a positive installment count. The first charge is seven calendar days after the organization-local checkout date, with later charges at seven-day intervals on the same weekday. Deposit, cent allocation and minimum-charge reduction follow the existing installment rules.
+- **Why:** This gives `weekly` a deterministic schedule without inventing another day-of-week or interval setting.
+- **Consequences / follow-ups:** Finance template validation and quoting should accept `{ kind: 'weekly', count }` and use the shared generator; a later custom cadence needs an explicit schema and decision.
