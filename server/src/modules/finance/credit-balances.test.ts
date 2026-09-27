@@ -10,6 +10,7 @@ import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 
 import { PostgresPayerCreditBalances } from './credit-balances.js';
 import { PostgresCreditLedger } from './credits.js';
+import { PostgresInvoiceRepository } from './invoice-repo.js';
 
 let database: Kysely<DB>;
 let context: OrgContext;
@@ -144,6 +145,33 @@ describe('payer credit balance', () => {
       householdBalances: [{ householdId, balanceCents: 500 }],
       asOfLocalDate: '2026-09-27',
     });
+    const bill = await new PostgresInvoiceRepository(database, context).issue({
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      householdId,
+      source: 'staff',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'team_fee',
+          description: 'Family team fee',
+          amountCents: 300,
+          refundable: true,
+        },
+      ],
+    });
+    await ledger.apply({
+      orgId: context.orgId,
+      householdId,
+      payerAccountId: context.actor.accountId,
+      invoiceId: bill.id,
+      amountCents: 100,
+      operationKey: randomUUID(),
+    });
+    expect(await read()).toMatchObject({
+      totalAvailableCents: 1100,
+      householdBalances: [{ householdId, balanceCents: 400 }],
+    });
     await createWithOrg(database)(context, (trx) =>
       trx
         .updateTable('person_account_links')
@@ -152,6 +180,16 @@ describe('payer credit balance', () => {
         .where('person_id', '=', personId)
         .execute(),
     );
+    await expect(
+      ledger.apply({
+        orgId: context.orgId,
+        householdId,
+        payerAccountId: context.actor.accountId,
+        invoiceId: bill.id,
+        amountCents: 100,
+        operationKey: randomUUID(),
+      }),
+    ).rejects.toThrow('another payer');
     expect(await read()).toMatchObject({
       accountBalanceCents: 700,
       householdBalances: [],

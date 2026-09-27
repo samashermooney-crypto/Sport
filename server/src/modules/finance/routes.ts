@@ -35,6 +35,11 @@ import {
 } from './credit-balances.js';
 import { PostgresCreditRefundRepository } from './credit-refund-repo.js';
 import { CreditRefundService } from './credit-refunds.js';
+import {
+  CreditAccessError,
+  CreditLedgerConflictError,
+  PostgresCreditLedger,
+} from './credits.js';
 import { PostgresFrozenChargeReader } from './frozen-charge-repo.js';
 import {
   installmentTemplateBodySchema,
@@ -148,6 +153,30 @@ export const aidAwardResponseSchema = z.strictObject({
   awardKind: z.enum(['fixed', 'percent']),
   awardBps: z.number().int().min(1).max(10_000).nullable(),
   version: z.number().int().positive(),
+});
+export const staffCreditIssueSchema = z.strictObject({
+  recipient: z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('account'), accountId: z.uuid() }),
+    z.strictObject({ kind: z.literal('household'), householdId: z.uuid() }),
+  ]),
+  amountCents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  source: z.enum(['goodwill', 'manual_adjustment']),
+  expiresOn: z.iso.date().nullable(),
+  note: z.string().trim().min(1).max(500).optional(),
+});
+export const staffCreditIssueResponseSchema = z.strictObject({
+  creditId: z.uuid(),
+});
+export const payerCreditApplySchema = z.strictObject({
+  recipient: z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('account') }),
+    z.strictObject({ kind: z.literal('household'), householdId: z.uuid() }),
+  ]),
+  invoiceId: z.uuid(),
+  amountCents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+});
+export const payerCreditApplyResponseSchema = z.strictObject({
+  applied: z.literal(true),
 });
 export const staffInvoiceResponseSchema = z.strictObject({
   id: z.uuid(),
@@ -358,7 +387,7 @@ function writeOriginValid(request: Request, appUrl: string): boolean {
 
 function sendError(response: Response, error: unknown): void {
   const status =
-    error instanceof FinanceAccessError
+    error instanceof FinanceAccessError || error instanceof CreditAccessError
       ? 403
       : error instanceof OfflinePaymentConflictError ||
           error instanceof RefundConflictError ||
@@ -370,7 +399,8 @@ function sendError(response: Response, error: unknown): void {
           error instanceof InvoiceConflictError ||
           error instanceof AidAwardConflictError ||
           error instanceof AidProgramConflictError ||
-          error instanceof AidReviewConflictError
+          error instanceof AidReviewConflictError ||
+          error instanceof CreditLedgerConflictError
         ? 409
         : error instanceof InvoiceNotFoundError
           ? 404
@@ -441,6 +471,68 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.post('/orgs/:orgId/credits', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = staffCreditIssueSchema.parse(request.body as unknown);
+      const operationKey = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const creditId = await new PostgresCreditLedger(
+        dependencies.database,
+        context,
+      ).issue({
+        orgId,
+        ...(body.recipient.kind === 'account'
+          ? { accountId: body.recipient.accountId }
+          : { householdId: body.recipient.householdId }),
+        amountCents: body.amountCents,
+        source: body.source,
+        expiresOn: body.expiresOn,
+        ...(body.note ? { note: body.note } : {}),
+        operationKey,
+        requireOrgRecipient: true,
+      });
+      response
+        .status(201)
+        .json(staffCreditIssueResponseSchema.parse({ creditId }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/me/credits/apply', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = payerCreditApplySchema.parse(request.body as unknown);
+      const operationKey = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await new PostgresCreditLedger(dependencies.database, context).apply({
+        orgId,
+        ...(body.recipient.kind === 'account'
+          ? { accountId: session.accountId }
+          : { householdId: body.recipient.householdId }),
+        invoiceId: body.invoiceId,
+        amountCents: body.amountCents,
+        operationKey,
+        payerAccountId: session.accountId,
+      });
+      response.json(payerCreditApplyResponseSchema.parse({ applied: true }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
   router.get('/orgs/:orgId/me/credits', async (request, response) => {
     try {
       if (requestImpersonation(request)) throw new FinanceAccessError();

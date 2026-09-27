@@ -29,6 +29,10 @@ import {
   payoutJournalResponseSchema,
   setupIntentResponseSchema,
   savedPaymentMethodsResponseSchema,
+  staffCreditIssueSchema,
+  staffCreditIssueResponseSchema,
+  payerCreditApplySchema,
+  payerCreditApplyResponseSchema,
   paymentMethodActionResponseSchema,
   connectLinkResponseSchema,
   connectStatusResponseSchema,
@@ -53,6 +57,20 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/credits',
+      summary: 'Issue an audited credit to a linked payer or active household',
+      body: staffCreditIssueSchema,
+      response: staffCreditIssueResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/me/credits/apply',
+      summary: 'Apply payer-owned available credit to a billed invoice',
+      body: payerCreditApplySchema,
+      response: payerCreditApplyResponseSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/finance/orgs/{orgId}/me/credits',

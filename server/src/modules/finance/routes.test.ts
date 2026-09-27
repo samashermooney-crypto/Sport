@@ -24,6 +24,7 @@ import {
   createFinanceRouter,
   payoutJournalResponseSchema,
   refundResponseSchema,
+  staffCreditIssueResponseSchema,
 } from './routes.js';
 
 const origin = 'http://127.0.0.1:5173';
@@ -356,6 +357,115 @@ describe('staff invoice HTTP', () => {
 });
 
 describe('payer credit balance HTTP', () => {
+  it('issues linked account credit and applies it to the payer invoice once', async () => {
+    const bill = await new PostgresInvoiceRepository(database, context).issue({
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      source: 'staff',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'team_fee',
+          description: 'Team fee',
+          amountCents: 300,
+          refundable: true,
+        },
+      ],
+    });
+    const issueKey = randomUUID();
+    const issuePath = `${baseUrl}/orgs/${context.orgId}/credits`;
+    const postIssue = (requestOrigin: string) =>
+      fetch(issuePath, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: requestOrigin,
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': issueKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recipient: { kind: 'account', accountId: context.actor.accountId },
+          amountCents: 200,
+          source: 'goodwill',
+          expiresOn: null,
+        }),
+      });
+    expect((await postIssue('https://attacker.example')).status).toBe(403);
+    const issued = await postIssue(origin);
+    expect(issued.status).toBe(201);
+    const firstIssue = staffCreditIssueResponseSchema.parse(
+      (await issued.json()) as unknown,
+    );
+    const replayIssue = await postIssue(origin);
+    expect(replayIssue.status).toBe(201);
+    expect(
+      staffCreditIssueResponseSchema.parse(
+        (await replayIssue.json()) as unknown,
+      ),
+    ).toEqual(firstIssue);
+    const unlinkedAccountId = newId();
+    await database
+      .insertInto('accounts')
+      .values({
+        id: unlinkedAccountId,
+        email: `unlinked-credit-${randomUUID()}@example.invalid`,
+        first_name: 'Unlinked',
+        last_name: 'Payer',
+        date_of_birth: '1990-01-01',
+      })
+      .execute();
+    const unlinked = await fetch(issuePath, {
+      method: 'POST',
+      headers: {
+        Cookie: `__Host-athlentry_session=${token}`,
+        Origin: origin,
+        'X-Athlentry-Request': '1',
+        'Idempotency-Key': randomUUID(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        recipient: { kind: 'account', accountId: unlinkedAccountId },
+        amountCents: 200,
+        source: 'goodwill',
+        expiresOn: null,
+      }),
+    });
+    expect(unlinked.status).toBe(403);
+    const applyKey = randomUUID();
+    const applyPath = `${baseUrl}/orgs/${context.orgId}/me/credits/apply`;
+    const postApply = (amountCents = 200) =>
+      fetch(applyPath, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: origin,
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': applyKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recipient: { kind: 'account' },
+          invoiceId: bill.id,
+          amountCents,
+        }),
+      });
+    expect((await postApply()).status).toBe(200);
+    expect((await postApply()).status).toBe(200);
+    expect((await postApply(199)).status).toBe(409);
+    const invoice = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('invoices')
+        .select(['credit_applied_cents', 'balance_cents'])
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', bill.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(invoice).toMatchObject({
+      credit_applied_cents: 200,
+      balance_cents: 100,
+    });
+  });
   it('returns only the signed-in account scope', async () => {
     const response = await fetch(
       `${baseUrl}/orgs/${context.orgId}/me/credits`,
