@@ -51,6 +51,7 @@ import {
 import { PostgresFrozenChargeReader } from './frozen-charge-repo.js';
 import {
   installmentStaffActionSchema,
+  installmentStaffListSchema,
   installmentStaffResultSchema,
   InstallmentStaffConflictError,
   InstallmentStaffNotFoundError,
@@ -1223,6 +1224,26 @@ export function createFinanceRouter(
           context,
         ).perform(installmentId, operationKey, input);
         response.json(installmentStaffResultSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/invoices/:invoiceId/installments',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const invoiceId = z.uuid().parse(request.params.invoiceId);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const result = await new PostgresInstallmentStaffActions(
+          dependencies.database,
+          context,
+        ).listInvoice(invoiceId);
+        response.json(installmentStaffListSchema.parse(result));
       } catch (error) {
         sendError(response, error);
       }

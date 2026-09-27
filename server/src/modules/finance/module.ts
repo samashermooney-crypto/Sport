@@ -20,6 +20,7 @@ import {
 import { creditBalanceSchema } from './credit-balances.js';
 import {
   installmentStaffActionSchema,
+  installmentStaffListSchema,
   installmentStaffResultSchema,
 } from './installment-staff-actions.js';
 import {
@@ -237,6 +238,13 @@ export const moduleDefinition = {
       summary: 'Void an unpaid invoice at an exact version',
       body: voidInvoiceBodySchema,
       response: voidInvoiceResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/invoices/{invoiceId}/installments',
+      summary:
+        'List a finance invoice installment schedule and active payer consents',
+      response: installmentStaffListSchema,
     },
     {
       method: 'post',
