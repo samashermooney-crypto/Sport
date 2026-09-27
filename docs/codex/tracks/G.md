@@ -1,6 +1,6 @@
 # Track G — schedule
 
-Track G commits: `10dde5b`, `c4454b4`, `e26dee4`, and `074b533` on `track/g-schedule` (local only; not pushed). Merges: `8d47c08` and `8a4898e` from `rebuild/trunk`.
+Implementation commits: `10dde5b`, `e26dee4`, and `074b533`; track notes: `c4454b4`, `5970856`, and `6c60d66` on `track/g-schedule` (local only; not pushed). Merges: `8d47c08` and `8a4898e` from `rebuild/trunk`.
 Status: working
 Ready for integration: pending — Phase 8/9 acceptance and full gates are not yet met.
 Requests to other tracks: A: compose schedule console/portal routes and nav, add Phase 8/9 Chromium + WebKit mobile journeys with axe, and expose approved facility layout images publicly; B: fix the 48-team generator's home/away balance and keep its runtime below 60 seconds; D: expose resource-calendar drag/drop and keyboard move callbacks; F: integrate the discipline service contract used by result finalization.
