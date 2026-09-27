@@ -1,0 +1,75 @@
+@import '../../ui/tokens.css';
+
+.audit-viewer {
+  background: var(--canvas);
+  color: var(--ink-2);
+  font-family: var(--font-app);
+  padding: var(--space-24);
+}
+.audit-viewer__header h1 {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--font-size-28);
+  margin: 0;
+}
+.audit-viewer__header p {
+  color: var(--muted);
+  margin: var(--space-4) 0 var(--space-24);
+}
+.audit-viewer__filters {
+  align-items: end;
+  display: flex;
+  gap: var(--space-12);
+  margin-bottom: var(--space-20);
+}
+.audit-viewer__filters input {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-4);
+  min-height: var(--control-height-40);
+  padding: 0 var(--space-12);
+}
+.audit-viewer button {
+  background: var(--accent);
+  border: 1px solid var(--accent-600);
+  border-radius: var(--radius-4);
+  color: var(--on-accent);
+  cursor: pointer;
+  min-height: var(--control-height-40);
+  padding: 0 var(--space-16);
+}
+.audit-viewer button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.audit-viewer__table-wrap {
+  overflow-x: auto;
+}
+.audit-viewer__table {
+  background: var(--panel);
+  border-collapse: collapse;
+  width: 100%;
+}
+.audit-viewer__table th,
+.audit-viewer__table td {
+  border-bottom: 1px solid var(--line);
+  padding: var(--space-12);
+  text-align: left;
+  vertical-align: top;
+}
+.audit-viewer__table th {
+  background: var(--head);
+  color: var(--ink);
+}
+.audit-viewer__table code {
+  overflow-wrap: anywhere;
+}
+.audit-viewer__error {
+  color: var(--bad);
+  margin-bottom: var(--space-16);
+}
+.audit-viewer__pagination {
+  display: flex;
+  gap: var(--space-8);
+  margin-top: var(--space-16);
+}

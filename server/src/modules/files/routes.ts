@@ -10,7 +10,7 @@ import {
   FilesService,
 } from './service';
 
-const uploadBody = z.strictObject({
+export const uploadBody = z.strictObject({
   purpose: z.enum(['image', 'document', 'import', 'website_asset']),
   mime: z.string().min(1).max(200),
   bytes: z.number().int().positive(),

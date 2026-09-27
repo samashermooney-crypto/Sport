@@ -127,3 +127,123 @@ export const updateOrgCredentialSchema = z.strictObject({
   active: z.boolean(),
   version: z.number().int().positive(),
 });
+
+export const orgRoleSchema = z.enum([
+  'owner',
+  'admin',
+  'registrar',
+  'finance',
+  'scheduler',
+  'compliance',
+  'communications',
+  'director',
+  'evaluator',
+  'volunteer_coordinator',
+  'reporter',
+]);
+
+export const updateOrgMemberRolesSchema = z.strictObject({
+  roles: z
+    .array(orgRoleSchema)
+    .min(1)
+    .max(11)
+    .refine((roles) => new Set(roles).size === roles.length, 'Duplicate role'),
+  expectedVersion: z.number().int().positive(),
+});
+
+export const orgMemberRolesResponseSchema = z.strictObject({
+  accountId: z.uuid(),
+  roles: z.array(orgRoleSchema),
+  pendingMfa: z.boolean(),
+  version: z.number().int().positive(),
+});
+
+export const orgInvitationSchema = z
+  .strictObject({
+    email: z.email().max(254),
+    roles: z
+      .array(orgRoleSchema)
+      .min(1)
+      .max(11)
+      .refine(
+        (roles) => new Set(roles).size === roles.length,
+        'Duplicate role',
+      ),
+    scopeType: z.enum(['org', 'season', 'program', 'division', 'team_season']),
+    scopeId: z.uuid().nullable(),
+  })
+  .superRefine((input, context) => {
+    if ((input.scopeType === 'org') !== (input.scopeId === null)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['scopeId'],
+        message: 'Organization scope has no id; narrower scopes require one',
+      });
+    }
+    if (input.roles.includes('owner')) {
+      context.addIssue({
+        code: 'custom',
+        path: ['roles'],
+        message: 'Ownership requires a recipient-accepted transfer',
+      });
+    }
+  });
+
+export const orgInvitationResponseSchema = z.strictObject({
+  id: z.uuid(),
+  email: z.email(),
+  expiresAt: z.iso.datetime(),
+});
+
+export const orgStaffResponseSchema = z.strictObject({
+  members: z.array(
+    z.strictObject({
+      accountId: z.uuid(),
+      email: z.email(),
+      name: z.string(),
+      status: z.enum(['invited', 'active', 'suspended', 'removed']),
+      version: z.number().int().positive(),
+      roles: z.array(
+        z.strictObject({
+          role: orgRoleSchema,
+          scopeType: z.enum([
+            'org',
+            'season',
+            'program',
+            'division',
+            'team_season',
+          ]),
+          scopeId: z.uuid().nullable(),
+          pendingMfa: z.boolean(),
+        }),
+      ),
+    }),
+  ),
+  invitations: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      email: z.email(),
+      roles: z.array(orgRoleSchema),
+      scopeType: z.enum([
+        'org',
+        'season',
+        'program',
+        'division',
+        'team_season',
+      ]),
+      scopeId: z.uuid().nullable(),
+      expiresAt: z.iso.datetime(),
+    }),
+  ),
+});
+
+export const acceptOrgInvitationSchema = z.strictObject({
+  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+});
+
+export const acceptedOrgInvitationResponseSchema = z.strictObject({
+  orgId: z.uuid(),
+  accountId: z.uuid(),
+  roles: z.array(orgRoleSchema),
+  pendingMfa: z.boolean(),
+});

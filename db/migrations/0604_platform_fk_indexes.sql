@@ -1,0 +1,4 @@
+CREATE INDEX platform_impersonations_org_idx ON platform_impersonations(target_organization_id);
+CREATE INDEX platform_audit_log_staff_idx ON platform_audit_log(staff_account_id);
+CREATE INDEX platform_audit_log_account_idx ON platform_audit_log(target_account_id) WHERE target_account_id IS NOT NULL;
+CREATE INDEX platform_audit_log_impersonation_idx ON platform_audit_log(impersonation_id) WHERE impersonation_id IS NOT NULL;

@@ -1,13 +1,21 @@
 import { newId } from '@shared/ids';
+import { apiErrorSchema } from '@shared/schemas/errors';
 import {
+  acceptOrgInvitationSchema,
+  acceptedOrgInvitationResponseSchema,
   createOrgResponseSchema,
   createOrgSchema,
   orgCredentialSchema,
   orgCredentialsResponseSchema,
+  orgInvitationResponseSchema,
+  orgInvitationSchema,
+  orgStaffResponseSchema,
+  orgMemberRolesResponseSchema,
   orgSlugAvailabilitySchema,
   orgSlugSchema,
   sportTemplateCatalogSchema,
   updateOrgCredentialSchema,
+  updateOrgMemberRolesSchema,
 } from '@shared/schemas/orgs';
 import express from 'express';
 import { z } from 'zod';
@@ -17,6 +25,14 @@ import { requireSession } from '../auth/routes';
 import type { AuthDependencies } from '../auth/routes';
 
 import { createOrganization, OrgCreationError } from './create';
+import {
+  acceptOrgInvitation,
+  createOrgInvitation,
+  listOrgStaff,
+  resendOrgInvitation,
+  revokeOrgInvitation,
+} from './invitations';
+import { OrgMemberRolesError, setOrgMemberRoles } from './memberRoles';
 import { isOrgSlugAvailable } from './slug';
 
 class OrgCredentialsError extends Error {
@@ -83,12 +99,14 @@ export function createOrgRouter(
   router.post('/', async (request, response) => {
     try {
       if (!mutationOriginIsValid(request, dependencies.appUrl)) {
-        response.status(403).json({
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Request origin could not be verified',
-          },
-        });
+        response.status(403).json(
+          apiErrorSchema.parse({
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Request origin could not be verified',
+            },
+          }),
+        );
         return;
       }
       const session = await requireSession(dependencies, request);
@@ -284,27 +302,206 @@ export function createOrgRouter(
       }
     },
   );
+
+  router.patch('/:orgId/members/:memberId/roles', async (request, response) => {
+    try {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Request origin could not be verified',
+        );
+      }
+      const { context, session } = await ownerContext(request);
+      if (
+        !session.elevatedUntil ||
+        session.elevatedUntil <= dependencies.clock()
+      ) {
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Confirm your identity before changing roles',
+        );
+      }
+      const result = await setOrgMemberRoles(dependencies.database, {
+        orgId: context.orgId,
+        actorId: session.accountId,
+        targetId: z.uuid().parse(request.params.memberId),
+        changes: updateOrgMemberRolesSchema.parse(request.body),
+        now: dependencies.clock(),
+      });
+      response.json(orgMemberRolesResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/:orgId/invitations', async (request, response) => {
+    try {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Request origin could not be verified',
+        );
+      }
+      const { context, session } = await ownerContext(request);
+      if (
+        !session.elevatedUntil ||
+        session.elevatedUntil <= dependencies.clock()
+      ) {
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Confirm your identity before inviting staff',
+        );
+      }
+      const result = await createOrgInvitation(dependencies, {
+        orgId: context.orgId,
+        actorId: session.accountId,
+        invitation: orgInvitationSchema.parse(request.body),
+        idempotencyKey: request.get('Idempotency-Key'),
+        now: dependencies.clock(),
+      });
+      response.status(201).json(orgInvitationResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.post('/:orgId/invitations/accept', async (request, response) => {
+    try {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Request origin could not be verified',
+        );
+      }
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const { token } = acceptOrgInvitationSchema.parse(request.body);
+      const result = await acceptOrgInvitation(dependencies.database, {
+        orgId,
+        accountId: session.accountId,
+        token,
+        now: dependencies.clock(),
+      });
+      response.json(acceptedOrgInvitationResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/:orgId/staff', async (request, response) => {
+    try {
+      const { context, session } = await ownerContext(request);
+      response.json(
+        orgStaffResponseSchema.parse(
+          await listOrgStaff(dependencies.database, {
+            orgId: context.orgId,
+            actorId: session.accountId,
+            now: dependencies.clock(),
+          }),
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/:orgId/invitations/:invitationId/resend',
+    async (request, response) => {
+      try {
+        if (!mutationOriginIsValid(request, dependencies.appUrl))
+          throw new OrgMemberRolesError(
+            403,
+            'FORBIDDEN',
+            'Request origin could not be verified',
+          );
+        const { context, session } = await ownerContext(request);
+        if (
+          !session.elevatedUntil ||
+          session.elevatedUntil <= dependencies.clock()
+        )
+          throw new OrgMemberRolesError(
+            403,
+            'FORBIDDEN',
+            'Confirm your identity before resending invitations',
+          );
+        const result = await resendOrgInvitation(dependencies, {
+          orgId: context.orgId,
+          actorId: session.accountId,
+          invitationId: z.uuid().parse(request.params.invitationId),
+          idempotencyKey: request.get('Idempotency-Key'),
+          now: dependencies.clock(),
+        });
+        response.status(201).json(orgInvitationResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.delete(
+    '/:orgId/invitations/:invitationId',
+    async (request, response) => {
+      try {
+        if (!mutationOriginIsValid(request, dependencies.appUrl))
+          throw new OrgMemberRolesError(
+            403,
+            'FORBIDDEN',
+            'Request origin could not be verified',
+          );
+        const { context, session } = await ownerContext(request);
+        if (
+          !session.elevatedUntil ||
+          session.elevatedUntil <= dependencies.clock()
+        )
+          throw new OrgMemberRolesError(
+            403,
+            'FORBIDDEN',
+            'Confirm your identity before revoking invitations',
+          );
+        await revokeOrgInvitation(dependencies.database, {
+          orgId: context.orgId,
+          actorId: session.accountId,
+          invitationId: z.uuid().parse(request.params.invitationId),
+          now: dependencies.clock(),
+        });
+        response.json({ revoked: true });
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   return router;
 }
 
 function sendError(response: express.Response, error: unknown): void {
-  if (error instanceof z.ZodError) {
-    response.status(400).json({
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Check the organization details',
-      },
-    });
+  if (error instanceof z.ZodError || error instanceof RangeError) {
+    response.status(400).json(
+      apiErrorSchema.parse({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Check the organization details',
+        },
+      }),
+    );
   } else if (error instanceof OrgCreationError) {
     const status =
       error.code === 'CONFLICT' ? 409 : error.code === 'FORBIDDEN' ? 403 : 400;
-    response
-      .status(status)
-      .json({ error: { code: error.code, message: error.message } });
-  } else if (error instanceof OrgCredentialsError) {
-    response
-      .status(error.status)
-      .json({ error: { code: error.code, message: error.message } });
+    response.status(status).json(
+      apiErrorSchema.parse({
+        error: { code: error.code, message: error.message },
+      }),
+    );
+  } else if (
+    error instanceof OrgCredentialsError ||
+    error instanceof OrgMemberRolesError
+  ) {
+    response.status(error.status).json(
+      apiErrorSchema.parse({
+        error: { code: error.code, message: error.message },
+      }),
+    );
   } else if (
     error instanceof Error &&
     'status' in error &&
@@ -312,15 +509,19 @@ function sendError(response: express.Response, error: unknown): void {
     'code' in error &&
     error.code === 'UNAUTHENTICATED'
   ) {
-    response.status(401).json({
-      error: { code: 'UNAUTHENTICATED', message: 'Sign in to continue' },
-    });
+    response.status(401).json(
+      apiErrorSchema.parse({
+        error: { code: 'UNAUTHENTICATED', message: 'Sign in to continue' },
+      }),
+    );
   } else {
-    response.status(500).json({
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'The request could not be completed',
-      },
-    });
+    response.status(500).json(
+      apiErrorSchema.parse({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'The request could not be completed',
+        },
+      }),
+    );
   }
 }

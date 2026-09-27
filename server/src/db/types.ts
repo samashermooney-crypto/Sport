@@ -24,6 +24,9 @@ export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
 export type Numeric = ColumnType<number, number | string, number | string>;
 
+export type PgbossJobState =
+  'active' | 'cancelled' | 'completed' | 'created' | 'failed' | 'retry';
+
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
 export interface AccountConsents {
@@ -494,6 +497,7 @@ export interface DeviceTokens {
   last_seen_at: Generated<Timestamp>;
   platform: string;
   revoked_at: Timestamp | null;
+  session_id: string | null;
   token_hash: Buffer | null;
   token_or_subscription: Json;
   updated_at: Generated<Timestamp>;
@@ -1179,6 +1183,7 @@ export interface OrgMemberships {
   status: string;
   title: string | null;
   updated_at: Generated<Timestamp>;
+  version: Generated<number>;
 }
 
 export interface PayerProfiles {
@@ -1339,6 +1344,79 @@ export interface PersonMerges {
   updated_at: Generated<Timestamp>;
 }
 
+export interface PgbossJob {
+  completed_on: Timestamp | null;
+  created_on: Generated<Timestamp>;
+  data: Json | null;
+  dead_letter: string | null;
+  deletion_seconds: Generated<number>;
+  expire_seconds: Generated<number>;
+  id: Generated<string>;
+  keep_until: Generated<Timestamp>;
+  name: string;
+  output: Json | null;
+  policy: string | null;
+  priority: Generated<number>;
+  retry_backoff: Generated<boolean>;
+  retry_count: Generated<number>;
+  retry_delay: Generated<number>;
+  retry_delay_max: number | null;
+  retry_limit: Generated<number>;
+  singleton_key: string | null;
+  singleton_on: Timestamp | null;
+  start_after: Generated<Timestamp>;
+  started_on: Timestamp | null;
+  state: Generated<PgbossJobState>;
+}
+
+export interface PgbossQueue {
+  active_count: Generated<number>;
+  created_on: Generated<Timestamp>;
+  dead_letter: string | null;
+  deferred_count: Generated<number>;
+  deletion_seconds: number;
+  expire_seconds: number;
+  maintain_on: Timestamp | null;
+  monitor_on: Timestamp | null;
+  name: string;
+  partition: boolean;
+  policy: string;
+  queued_count: Generated<number>;
+  retention_seconds: number;
+  retry_backoff: boolean;
+  retry_delay: number;
+  retry_delay_max: number | null;
+  retry_limit: number;
+  singletons_active: string[] | null;
+  table_name: string;
+  total_count: Generated<number>;
+  updated_on: Generated<Timestamp>;
+  warning_queued: Generated<number>;
+}
+
+export interface PgbossSchedule {
+  created_on: Generated<Timestamp>;
+  cron: string;
+  data: Json | null;
+  key: Generated<string>;
+  name: string;
+  options: Json | null;
+  timezone: string | null;
+  updated_on: Generated<Timestamp>;
+}
+
+export interface PgbossSubscription {
+  created_on: Generated<Timestamp>;
+  event: string;
+  name: string;
+  updated_on: Generated<Timestamp>;
+}
+
+export interface PgbossVersion {
+  cron_on: Timestamp | null;
+  version: number;
+}
+
 export interface Plans {
   active: Generated<boolean>;
   application_fee_bps: number;
@@ -1350,6 +1428,47 @@ export interface Plans {
   monthly_price_cents: number;
   name: string;
   stripe_price_id: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface PlatformAuditLog {
+  action: string;
+  created_at: Generated<Timestamp>;
+  details: Generated<Json>;
+  id: string;
+  impersonation_id: string | null;
+  staff_account_id: string;
+  target_account_id: string | null;
+  target_organization_id: string | null;
+}
+
+export interface PlatformFeatureFlags {
+  created_at: Generated<Timestamp>;
+  description: string;
+  enabled: Generated<boolean>;
+  key: string;
+  organization_overrides: Generated<Json>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface PlatformImpersonations {
+  ended_at: Timestamp | null;
+  expires_at: Timestamp;
+  id: string;
+  read_only: Generated<boolean>;
+  reason: string;
+  staff_account_id: string;
+  started_at: Generated<Timestamp>;
+  target_organization_id: string;
+}
+
+export interface PlatformStaff {
+  account_id: string;
+  active: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  role: string;
   updated_at: Generated<Timestamp>;
 }
 
@@ -1960,6 +2079,13 @@ export interface WaiverSignatures {
   waiver_document_id: string;
 }
 
+export interface WorkerHeartbeats {
+  heartbeat_at: Generated<Timestamp>;
+  started_at: Generated<Timestamp>;
+  stopped_at: Timestamp | null;
+  worker_id: string;
+}
+
 export interface DB {
   account_consents: AccountConsents;
   accounts: Accounts;
@@ -2044,7 +2170,16 @@ export interface DB {
   person_account_links: PersonAccountLinks;
   person_credentials: PersonCredentials;
   person_merges: PersonMerges;
+  'pgboss.job': PgbossJob;
+  'pgboss.queue': PgbossQueue;
+  'pgboss.schedule': PgbossSchedule;
+  'pgboss.subscription': PgbossSubscription;
+  'pgboss.version': PgbossVersion;
   plans: Plans;
+  platform_audit_log: PlatformAuditLog;
+  platform_feature_flags: PlatformFeatureFlags;
+  platform_impersonations: PlatformImpersonations;
+  platform_staff: PlatformStaff;
   playing_time: PlayingTime;
   pool_members: PoolMembers;
   pools: Pools;
@@ -2088,4 +2223,5 @@ export interface DB {
   waitlist_entries: WaitlistEntries;
   waiver_documents: WaiverDocuments;
   waiver_signatures: WaiverSignatures;
+  worker_heartbeats: WorkerHeartbeats;
 }
