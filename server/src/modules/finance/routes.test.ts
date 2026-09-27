@@ -14,14 +14,22 @@ import type { PaymentsGateway } from '../../integrations/stripe/gateway.js';
 import type { AuthDependencies } from '../auth/routes.js';
 import { bindFixtureInvoice } from '../checkout/test-fixtures.js';
 
+import { aidProgramSchema } from './aid-programs.js';
+import { autopayAuthorizationListSchema } from './autopay-authorizations.js';
+import { creditBalanceSchema } from './credit-balances.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
+import { payerReceiptListSchema } from './payer-receipts.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
 import {
+  aidAwardResponseSchema,
   createFinanceRouter,
   payoutJournalResponseSchema,
   refundResponseSchema,
+  staffCreditIssueResponseSchema,
 } from './routes.js';
+import { taxRateSchema } from './tax-rates.js';
+import { yearEndStatementSchema } from './year-end-statements.js';
 
 const origin = 'http://127.0.0.1:5173';
 const now = new Date('2026-09-27T12:00:00Z');
@@ -258,6 +266,665 @@ function request(
     }),
   });
 }
+
+describe('staff invoice HTTP', () => {
+  it('requires finance origin, dedupes the issue key, and rejects a changed replay', async () => {
+    const key = randomUUID();
+    const body = {
+      accountId: context.actor.accountId,
+      refundTerms: {
+        policy: {
+          rules: [],
+          afterLastBps: 5000,
+          serviceFeeRefund: 'proportional',
+        },
+        approvalThresholdCents: 500,
+        refundApplicationFee: true,
+      },
+      lines: [
+        {
+          kind: 'team_fee',
+          description: 'Season fee',
+          amountCents: 2500,
+          refundable: true,
+        },
+      ],
+    };
+    const post = (payload: unknown, originHeader = origin) =>
+      fetch(`${baseUrl}/orgs/${context.orgId}/invoices`, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: originHeader,
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': key,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+    expect((await post(body, 'https://attacker.example')).status).toBe(403);
+    expect((await post({ ...body, accountId: newId() })).status).toBe(403);
+    expect((await post({ ...body, householdId: newId() })).status).toBe(403);
+    const first = await post(body);
+    expect(first.status).toBe(201);
+    const created = (await first.json()) as { id: string; totalCents: number };
+    expect(created.totalCents).toBe(2500);
+    const replay = await post(body);
+    expect(replay.status).toBe(201);
+    expect(await replay.json()).toMatchObject({ id: created.id });
+    expect((await post({ ...body, memo: 'changed' })).status).toBe(409);
+    const stored = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('invoices')
+        .select(['source', 'refund_terms'])
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', created.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(stored.source).toBe('staff');
+    expect(stored.refund_terms).toMatchObject(body.refundTerms);
+    const invoicePath = `${baseUrl}/orgs/${context.orgId}/invoices/${created.id}`;
+    const detailResponse = await fetch(invoicePath, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(detailResponse.status).toBe(200);
+    const detail = (await detailResponse.json()) as {
+      version: number;
+      lines: { amountCents: number }[];
+    };
+    expect(detail.lines.map((line) => line.amountCents)).toEqual([2500]);
+    const voidInvoice = (reason: string, expectedVersion = detail.version) =>
+      fetch(`${invoicePath}/void`, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: origin,
+          'X-Athlentry-Request': '1',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason, expectedVersion }),
+      });
+    expect((await voidInvoice('Canceled', detail.version + 1)).status).toBe(
+      409,
+    );
+    expect((await voidInvoice('Canceled')).status).toBe(200);
+    expect((await voidInvoice('Canceled')).status).toBe(200);
+    expect((await voidInvoice('Different reason')).status).toBe(409);
+    const voided = await fetch(invoicePath, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(await voided.json()).toMatchObject({
+      status: 'void',
+      voidReason: 'Canceled',
+    });
+  });
+});
+
+describe('payer year-end statement HTTP', () => {
+  it('returns only the signed-in account money for the requested org year', async () => {
+    const response = await fetch(
+      `${baseUrl}/orgs/${context.orgId}/me/statements/2026`,
+      {
+        headers: { Cookie: `__Host-athlentry_session=${token}` },
+      },
+    );
+    expect(response.status).toBe(200);
+    expect(
+      yearEndStatementSchema.parse((await response.json()) as unknown),
+    ).toMatchObject({
+      orgId: context.orgId,
+      year: 2026,
+      currency: 'USD',
+      totalPaidCents: 1000,
+      donationPaidCents: 0,
+    });
+  });
+});
+
+describe('payer money PDF HTTP', () => {
+  it('returns binary invoice and reconciled receipt only with a session', async () => {
+    const allocation = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('payment_allocations')
+        .select('invoice_id')
+        .where('org_id', '=', context.orgId)
+        .where('payment_id', '=', paymentId)
+        .executeTakeFirstOrThrow(),
+    );
+    const invoicePath = `${baseUrl}/orgs/${context.orgId}/me/invoices/${allocation.invoice_id}/pdf`;
+    const receiptPath = `${baseUrl}/orgs/${context.orgId}/me/payments/${paymentId}/receipt.pdf`;
+    expect((await fetch(invoicePath)).status).toBe(401);
+    for (const path of [invoicePath, receiptPath]) {
+      const response = await fetch(path, {
+        headers: { Cookie: `__Host-athlentry_session=${token}` },
+      });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain('application/pdf');
+      expect(
+        Buffer.from(await response.arrayBuffer())
+          .subarray(0, 5)
+          .toString(),
+      ).toBe('%PDF-');
+    }
+    const feed = await fetch(`${baseUrl}/orgs/${context.orgId}/me/receipts`, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(feed.status).toBe(200);
+    expect(
+      payerReceiptListSchema.parse((await feed.json()) as unknown),
+    ).toMatchObject({ receipts: [{ paymentId, amountCents: 1000 }] });
+  });
+});
+
+describe('payer autopay HTTP', () => {
+  it('requires a session and same-origin write, then returns an account-scoped list', async () => {
+    const path = `${baseUrl}/orgs/${context.orgId}/me/autopay`;
+    expect((await fetch(path)).status).toBe(401);
+    const list = await fetch(path, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(list.status).toBe(200);
+    expect(
+      autopayAuthorizationListSchema.parse((await list.json()) as unknown)
+        .authorizations,
+    ).toEqual([]);
+    const revoke = await fetch(`${path}/${randomUUID()}/revoke`, {
+      method: 'POST',
+      headers: {
+        Cookie: `__Host-athlentry_session=${token}`,
+        Origin: 'https://untrusted.example',
+        'X-Athlentry-Request': '1',
+      },
+    });
+    expect(revoke.status).toBe(403);
+  });
+});
+
+describe('product tax rate HTTP', () => {
+  it('creates a product-only rate and replaces it at an exact version', async () => {
+    const path = `${baseUrl}/orgs/${context.orgId}/tax-rates`;
+    const key = randomUUID();
+    const create = (requestOrigin: string) =>
+      fetch(path, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: requestOrigin,
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': key,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'Merchandise tax',
+          rateBps: 700,
+          active: true,
+        }),
+      });
+    expect((await create('https://attacker.example')).status).toBe(403);
+    const created = await create(origin);
+    expect(created.status).toBe(201);
+    const rate = taxRateSchema.parse((await created.json()) as unknown);
+    expect(rate.appliesTo).toBe('products');
+    expect(
+      taxRateSchema.parse((await (await create(origin)).json()) as unknown),
+    ).toEqual(rate);
+    const replace = await fetch(`${path}/${rate.id}`, {
+      method: 'PUT',
+      headers: {
+        Cookie: `__Host-athlentry_session=${token}`,
+        Origin: origin,
+        'X-Athlentry-Request': '1',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: rate.name,
+        rateBps: 750,
+        active: true,
+        expectedVersion: rate.version,
+      }),
+    });
+    expect(replace.status).toBe(200);
+    expect(taxRateSchema.parse((await replace.json()) as unknown).rateBps).toBe(
+      750,
+    );
+    const list = await fetch(path, {
+      headers: {
+        Cookie: `__Host-athlentry_session=${token}`,
+      },
+    });
+    expect(list.status).toBe(200);
+    expect(await list.json()).toEqual({
+      taxRates: [
+        expect.objectContaining({
+          id: rate.id,
+          rateBps: 750,
+        }),
+      ],
+    });
+  });
+});
+
+describe('payer credit balance HTTP', () => {
+  it('issues linked account credit and applies it to the payer invoice once', async () => {
+    const bill = await new PostgresInvoiceRepository(database, context).issue({
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      source: 'staff',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'team_fee',
+          description: 'Team fee',
+          amountCents: 300,
+          refundable: true,
+        },
+      ],
+    });
+    const issueKey = randomUUID();
+    const issuePath = `${baseUrl}/orgs/${context.orgId}/credits`;
+    const postIssue = (requestOrigin: string) =>
+      fetch(issuePath, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: requestOrigin,
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': issueKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recipient: { kind: 'account', accountId: context.actor.accountId },
+          amountCents: 200,
+          source: 'goodwill',
+          expiresOn: null,
+        }),
+      });
+    expect((await postIssue('https://attacker.example')).status).toBe(403);
+    const issued = await postIssue(origin);
+    expect(issued.status).toBe(201);
+    const firstIssue = staffCreditIssueResponseSchema.parse(
+      (await issued.json()) as unknown,
+    );
+    const replayIssue = await postIssue(origin);
+    expect(replayIssue.status).toBe(201);
+    expect(
+      staffCreditIssueResponseSchema.parse(
+        (await replayIssue.json()) as unknown,
+      ),
+    ).toEqual(firstIssue);
+    const unlinkedAccountId = newId();
+    await database
+      .insertInto('accounts')
+      .values({
+        id: unlinkedAccountId,
+        email: `unlinked-credit-${randomUUID()}@example.invalid`,
+        first_name: 'Unlinked',
+        last_name: 'Payer',
+        date_of_birth: '1990-01-01',
+      })
+      .execute();
+    const unlinked = await fetch(issuePath, {
+      method: 'POST',
+      headers: {
+        Cookie: `__Host-athlentry_session=${token}`,
+        Origin: origin,
+        'X-Athlentry-Request': '1',
+        'Idempotency-Key': randomUUID(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        recipient: { kind: 'account', accountId: unlinkedAccountId },
+        amountCents: 200,
+        source: 'goodwill',
+        expiresOn: null,
+      }),
+    });
+    expect(unlinked.status).toBe(403);
+    const applyKey = randomUUID();
+    const applyPath = `${baseUrl}/orgs/${context.orgId}/me/credits/apply`;
+    const postApply = (amountCents = 200) =>
+      fetch(applyPath, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: origin,
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': applyKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recipient: { kind: 'account' },
+          invoiceId: bill.id,
+          amountCents,
+        }),
+      });
+    expect((await postApply()).status).toBe(200);
+    expect((await postApply()).status).toBe(200);
+    expect((await postApply(199)).status).toBe(409);
+    const invoice = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('invoices')
+        .select(['credit_applied_cents', 'balance_cents'])
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', bill.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(invoice).toMatchObject({
+      credit_applied_cents: 200,
+      balance_cents: 100,
+    });
+  });
+  it('returns only the signed-in account scope', async () => {
+    const response = await fetch(
+      `${baseUrl}/orgs/${context.orgId}/me/credits`,
+      {
+        headers: { Cookie: `__Host-athlentry_session=${token}` },
+      },
+    );
+    expect(response.status).toBe(200);
+    const balance = creditBalanceSchema.parse(
+      (await response.json()) as unknown,
+    );
+    expect(balance.orgId).toBe(context.orgId);
+    expect(balance.accountBalanceCents).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('payer invoice feed', () => {
+  it('lists only the signed-in account invoices in one org', async () => {
+    const otherAccountId = newId();
+    await database
+      .insertInto('accounts')
+      .values({
+        id: otherAccountId,
+        email: `payer-feed-${randomUUID()}@example.invalid`,
+        first_name: 'Other',
+        last_name: 'Payer',
+        date_of_birth: '1990-01-01',
+      })
+      .execute();
+    const otherInvoice = await new PostgresInvoiceRepository(
+      database,
+      context,
+    ).issue({
+      orgId: context.orgId,
+      accountId: otherAccountId,
+      source: 'staff',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'team_fee',
+          description: 'Other fee',
+          amountCents: 700,
+          refundable: true,
+        },
+      ],
+    });
+    const response = await fetch(
+      `${baseUrl}/orgs/${context.orgId}/me/invoices`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      invoices: { id: string; balanceCents: number }[];
+      nextBeforeNumber: number | null;
+    };
+    expect(body.invoices.length).toBeGreaterThan(0);
+    expect(
+      body.invoices.some((invoice) => invoice.id === otherInvoice.id),
+    ).toBe(false);
+    expect(body.invoices.every((invoice) => invoice.balanceCents >= 0)).toBe(
+      true,
+    );
+    expect(body.nextBeforeNumber).toBeNull();
+  });
+});
+
+describe('aid award HTTP', () => {
+  it('lists only review metadata and declines at the submitted version', async () => {
+    const seasonId = newId();
+    const householdId = newId();
+    const aidProgramId = newId();
+    const applicationId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('seasons')
+        .values({
+          id: seasonId,
+          org_id: context.orgId,
+          name: 'Review API season',
+          starts_on: '2026-01-01',
+          ends_on: '2027-12-31',
+        })
+        .execute();
+      await trx
+        .insertInto('households')
+        .values({
+          id: householdId,
+          org_id: context.orgId,
+          name: 'Review family',
+        })
+        .execute();
+      await trx
+        .insertInto('financial_aid_programs')
+        .values({
+          id: aidProgramId,
+          org_id: context.orgId,
+          name: 'Review fund',
+          season_id: seasonId,
+          budget_cents: 200,
+          status: 'open',
+        })
+        .execute();
+      await trx
+        .insertInto('aid_applications')
+        .values({
+          id: applicationId,
+          org_id: context.orgId,
+          financial_aid_program_id: aidProgramId,
+          household_id: householdId,
+          requested_cents: 200,
+          status: 'submitted',
+        })
+        .execute();
+    });
+    const path = `${baseUrl}/orgs/${context.orgId}/aid-applications`;
+    const queue = await fetch(`${path}?seasonId=${seasonId}`, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(queue.status).toBe(200);
+    const listing = await queue.text();
+    expect(listing).toContain(applicationId);
+    expect(listing).not.toContain('answers');
+    const post = (requestOrigin: string) =>
+      fetch(`${path}/${applicationId}/decision`, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: requestOrigin,
+          'X-Athlentry-Request': '1',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          expectedVersion: 1,
+          action: 'decline',
+          reason: 'incomplete_application',
+        }),
+      });
+    expect((await post('https://attacker.example')).status).toBe(403);
+    const declined = await post(origin);
+    expect(declined.status).toBe(200);
+    expect(await declined.json()).toMatchObject({
+      applicationId,
+      status: 'declined',
+      version: 2,
+    });
+    expect((await post(origin)).status).toBe(409);
+  });
+  it('creates and opens an aid fund only for a finance session', async () => {
+    const seasonId = newId();
+    const formId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('seasons')
+        .values({
+          id: seasonId,
+          org_id: context.orgId,
+          name: 'Aid API season',
+          starts_on: '2026-01-01',
+          ends_on: '2027-12-31',
+        })
+        .execute();
+      await trx
+        .insertInto('form_definitions')
+        .values({
+          id: formId,
+          org_id: context.orgId,
+          name: 'Aid API form',
+          scope: 'custom',
+          schema: {},
+          published_at: now,
+        })
+        .execute();
+    });
+    const path = `${baseUrl}/orgs/${context.orgId}/aid-programs`;
+    const key = randomUUID();
+    const post = (requestOrigin: string) =>
+      fetch(path, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: requestOrigin,
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': key,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'Aid API fund',
+          seasonId,
+          applicationFormId: formId,
+          budgetCents: 1000,
+        }),
+      });
+    expect((await post('https://attacker.example')).status).toBe(403);
+    const created = await post(origin);
+    expect(created.status).toBe(201);
+    const fund = aidProgramSchema.parse((await created.json()) as unknown);
+    expect(
+      aidProgramSchema.parse((await (await post(origin)).json()) as unknown),
+    ).toEqual(fund);
+    const replace = await fetch(`${path}/${fund.id}`, {
+      method: 'PUT',
+      headers: {
+        Cookie: `__Host-athlentry_session=${token}`,
+        Origin: origin,
+        'X-Athlentry-Request': '1',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: fund.name,
+        applicationFormId: formId,
+        budgetCents: 1000,
+        expectedVersion: fund.version,
+        status: 'open',
+      }),
+    });
+    expect(replace.status).toBe(200);
+    expect(
+      aidProgramSchema.parse((await replace.json()) as unknown).status,
+    ).toBe('open');
+    const list = await fetch(`${path}?seasonId=${seasonId}`, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(list.status).toBe(200);
+    expect(await list.json()).toEqual({
+      programs: [
+        expect.objectContaining({
+          id: fund.id,
+          status: 'open',
+        }),
+      ],
+    });
+  });
+  it('reserves one budgeted decision for a finance actor and replays the exact key', async () => {
+    const seasonId = newId();
+    const householdId = newId();
+    const aidProgramId = newId();
+    const applicationId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('seasons')
+        .values({
+          id: seasonId,
+          org_id: context.orgId,
+          name: 'Aid season',
+          starts_on: '2026-01-01',
+          ends_on: '2027-12-31',
+        })
+        .execute();
+      await trx
+        .insertInto('households')
+        .values({
+          id: householdId,
+          org_id: context.orgId,
+          name: 'Aid household',
+        })
+        .execute();
+      await trx
+        .insertInto('financial_aid_programs')
+        .values({
+          id: aidProgramId,
+          org_id: context.orgId,
+          name: 'Aid fund',
+          season_id: seasonId,
+          budget_cents: 500,
+          status: 'open',
+        })
+        .execute();
+      await trx
+        .insertInto('aid_applications')
+        .values({
+          id: applicationId,
+          org_id: context.orgId,
+          financial_aid_program_id: aidProgramId,
+          household_id: householdId,
+          requested_cents: 500,
+          status: 'under_review',
+        })
+        .execute();
+    });
+    const key = randomUUID();
+    const path = `${baseUrl}/orgs/${context.orgId}/aid-applications/${applicationId}/award`;
+    const post = (requestOrigin: string, idempotencyKey = key) =>
+      fetch(path, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: requestOrigin,
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': idempotencyKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          expectedVersion: 1,
+          decision: { kind: 'fixed', amountCents: 500 },
+        }),
+      });
+    expect((await post('https://attacker.example')).status).toBe(403);
+    const first = await post(origin);
+    expect(first.status).toBe(200);
+    const body = aidAwardResponseSchema.parse((await first.json()) as unknown);
+    expect(body).toMatchObject({
+      applicationId,
+      status: 'awarded',
+      awardCents: 500,
+    });
+    const replay = await post(origin);
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toEqual(body);
+    expect((await post(origin, randomUUID())).status).toBe(409);
+  });
+});
 
 describe('staff refund HTTP', () => {
   it('rejects cross-origin writes, records an approved-threshold refund and replays it', async () => {
@@ -570,6 +1237,12 @@ describe('signed-in payer method HTTP', () => {
       'cus_route',
       'pm_route',
     );
+    const afterDefault = await fetch(`${baseUrl}/me/payment-methods`, {
+      headers: { Cookie: headers.Cookie },
+    });
+    expect(await afterDefault.json()).toMatchObject({
+      defaultMethodId: 'pm_route',
+    });
     const removed = await fetch(`${baseUrl}/me/payment-methods/pm_route`, {
       method: 'DELETE',
       headers,
