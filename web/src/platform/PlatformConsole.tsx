@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 
 import { platformApi } from './api';
 import './platform.css';
@@ -152,6 +153,9 @@ export function ImpersonationBanner(): React.JSX.Element | null {
         {new Date(current.expiresAt).toLocaleString()}
       </time>
       .
+      <Link to={`/orgs/${current.organizationId}/credentials`}>
+        Review safety requirements
+      </Link>
       <button
         type="button"
         onClick={() => {
@@ -853,7 +857,6 @@ export function PlatformConsole(): React.JSX.Element {
   const staffRole = role.data?.role;
   return (
     <main className="platform-console">
-      <ImpersonationBanner />
       <header>
         <h1>Platform</h1>
         <p>Organization operations and system health</p>

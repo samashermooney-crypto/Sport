@@ -20,18 +20,24 @@ async function request<T extends z.ZodType>(
 ): Promise<z.output<T>> {
   let response: Response;
   try {
+    const impersonationId = /(?:^|\/)orgs\/[0-9a-f-]{36}(?:\/|$)/i.test(path)
+      ? sessionStorage.getItem('athlentry.impersonation')
+      : null;
     response = await fetch(`/api/v1${path}`, {
       method,
       credentials: 'include',
-      ...(method === 'GET'
-        ? {}
-        : {
-            headers: {
+      headers: {
+        ...(method === 'GET'
+          ? {}
+          : {
               'Content-Type': 'application/json',
               'X-Athlentry-Request': '1',
               ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
-            },
-          }),
+            }),
+        ...(impersonationId
+          ? { 'X-Athlentry-Impersonation': impersonationId }
+          : {}),
+      },
       ...(method === 'GET' ? {} : { body: JSON.stringify(body ?? {}) }),
     });
   } catch {

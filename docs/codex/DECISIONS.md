@@ -232,7 +232,15 @@
 - **Why:** A single serialization point protects the last-owner invariant, and accepted transfer prevents surprise legal and financial ownership.
 - **Consequences / follow-ups:** The invitation and transfer flows must use the same organization lock. Add the users and roles screen and scoped role controls before task 7 is complete.
 
-### DEC-028 — Meet contrast minimums in calendar and pagination text
+### DEC-028 — Restrict platform impersonation to scoped reads
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 platform console
+- **Context:** The platform console can issue a 60-minute impersonation, but tenant routes need an explicit authorization and audit boundary.
+- **Decision:** Require an active MFA-verified platform staff session, an active target organization, a valid unexpired impersonation ID, and an organization UUID in the tenant route. Permit GET/HEAD/OPTIONS only. Write the impersonation ID to platform and tenant audit ledgers before the read. Reject suspended-organization operations for active members and platform impersonators; reject unsupported unscoped tenant routes rather than inferring a tenant from a record ID.
+- **Why:** Explicit scope and read-only enforcement prevent a support session from silently gaining write or cross-tenant access. Auditing before the read preserves evidence even when a downstream route denies access.
+- **Consequences / follow-ups:** Future tenant routes without an organization ID need an explicit, tested impersonation policy before they can be accessed in this mode.
+
+### DEC-029 — Meet contrast minimums in calendar and pagination text
 - **Date:** 2026-09-26
 - **Phase / area:** Track D shared design system
 - **Context:** The legacy muted text colors for outside-month dates and pagination details fall below the required 4.5:1 contrast on their backgrounds.

@@ -21,6 +21,7 @@ import express from 'express';
 import { z } from 'zod';
 
 import { createWithOrg } from '../../db/withOrg';
+import { requestImpersonation } from '../../lib/tenant-guard';
 import { requireSession } from '../auth/routes';
 import type { AuthDependencies } from '../auth/routes';
 
@@ -127,6 +128,11 @@ export function createOrgRouter(
     const session = await requireSession(dependencies, request);
     const orgId = z.uuid().parse(request.params.orgId);
     const context = { orgId, actor: { accountId: session.accountId } };
+    if (
+      request.method === 'GET' &&
+      requestImpersonation(request)?.orgId === orgId
+    )
+      return { context, session };
     const owner = await withOrg(context, async (trx) => {
       const member = await trx
         .selectFrom('org_memberships')
