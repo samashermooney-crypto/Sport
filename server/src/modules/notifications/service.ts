@@ -18,7 +18,6 @@ import {
   preferenceSchema,
   preferencesSchema,
 } from './schema';
-import { notificationChannel } from './stream';
 
 export class NotificationAccessError extends Error {
   readonly status = 404;
@@ -81,9 +80,6 @@ export async function createNotification(
     entityId: id,
     changes: { type: { tier: 'internal', after: input.type } },
   });
-  await sql`select pg_notify(${notificationChannel}, ${JSON.stringify({ id, orgId: context.orgId, accountId: input.accountId })})`.execute(
-    trx,
-  );
   return id;
 }
 
@@ -173,9 +169,6 @@ export async function markNotificationRead(
         entityType: 'notification',
         entityId: notificationId,
       });
-      await sql`select pg_notify(${notificationChannel}, ${JSON.stringify({ id: notificationId, orgId: context.orgId, accountId: context.actor.accountId })})`.execute(
-        trx,
-      );
       return row.read_at;
     }
     const current = await trx

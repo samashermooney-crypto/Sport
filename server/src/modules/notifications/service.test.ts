@@ -116,6 +116,55 @@ describe('notification inbox and preferences', () => {
     expect(audits.map((row) => row.action)).toContain('notification.read');
   });
 
+  it('delivers compliance notifications inserted by another module through the same safe stream envelope', async () => {
+    const listener = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_APP_URL,
+    });
+    await listener.connect();
+    await listener.query(`LISTEN ${notificationChannel}`);
+    const delivered = new Promise<string>((resolve) => {
+      listener.once('notification', (message: pg.Notification) => {
+        resolve(message.payload ?? '');
+      });
+    });
+    const id = randomUUID();
+    const personId = randomUUID();
+    const credentialId = randomUUID();
+    const runWithOrg = createWithOrg(database);
+    try {
+      await runWithOrg(context, (trx) =>
+        trx
+          .insertInto('notifications')
+          .values({
+            id,
+            org_id: orgId,
+            account_id: accountId,
+            type: 'compliance.credential_expiry_reminder',
+            payload: {
+              personId,
+              credentialId,
+              daysBefore: 14,
+              expiresOn: '2026-10-11',
+            },
+          })
+          .execute(),
+      );
+      expect(notificationStreamEvent(await delivered, accountId)).toMatchObject(
+        {
+          id,
+          data: { orgId },
+        },
+      );
+      const inbox = await listInbox(context, { limit: 50 }, runWithOrg);
+      expect(inbox.items.find((item) => item.id === id)).toMatchObject({
+        type: 'compliance.credential_expiry_reminder',
+        payload: { personId, credentialId },
+      });
+    } finally {
+      await listener.end();
+    }
+  });
+
   it('keeps at least one operational channel and applies version checks', async () => {
     const runWithOrg = createWithOrg(database);
     const defaults = await listPreferences(context, runWithOrg);

@@ -6,6 +6,12 @@ const notificationTypeSchema = z.enum(notificationTypes);
 export const notificationPayloadSchema = z.strictObject({
   resourceType: z.string().min(1).max(80).optional(),
   resourceId: z.uuid().optional(),
+  personId: z.uuid().optional(),
+  credentialId: z.uuid().optional(),
+  assignmentId: z.uuid().optional(),
+  role: z.string().max(80).optional(),
+  daysBefore: z.number().int().min(0).max(365).optional(),
+  expiresOn: z.iso.date().optional(),
   href: z
     .string()
     .max(500)
