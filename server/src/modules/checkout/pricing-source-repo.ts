@@ -7,6 +7,7 @@ import type { Json } from '../../db/types.js';
 import type { OrgTransaction } from '../../db/withOrg.js';
 import { frozenPaymentTermsSchema } from '../finance/frozen-charge-repo.js';
 
+import { reserveDiscountCode } from './discount-codes.js';
 import type { CheckoutPricingSourceLoader } from './pricing-repo.js';
 
 const cartSchema = z
@@ -23,7 +24,7 @@ const cartSchema = z
           .strict(),
       )
       .min(1),
-    discountCodes: z.array(z.string()).max(0).optional(),
+    discountCodes: z.array(z.string()).optional(),
     applyCreditCents: z.literal(0).optional(),
   })
   .strict();
@@ -336,6 +337,30 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
       !Number.isSafeInteger(organization.application_fee_fixed_cents)
     )
       throw new Error('Pricing source cents exceed the safe integer range');
+    const codeTexts = (cart.discountCodes ?? []).map((code) => code.trim());
+    if (
+      new Set(codeTexts.map((code) => code.toLocaleLowerCase('en-US'))).size !==
+      codeTexts.length
+    )
+      throw new Error('Duplicate discount code');
+    const codes = [];
+    for (const code of [...codeTexts].sort((left, right) =>
+      left.toLowerCase() < right.toLowerCase() ? -1 : 1,
+    )) {
+      codes.push(
+        await reserveDiscountCode(trx, {
+          orgId: checkout.orgId,
+          checkoutId: checkout.checkoutId,
+          accountId: checkout.accountId,
+          code,
+          offerings: rows.map((row) => ({
+            offeringId: row.id,
+            programId: row.program_id,
+          })),
+          now,
+        }),
+      );
+    }
     const nowLocal = new Intl.DateTimeFormat('sv-SE', {
       timeZone: organization.timezone,
       year: 'numeric',
@@ -394,7 +419,7 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
         existingConfirmed,
         siblingRule,
         automaticRules: [],
-        codes: [],
+        codes,
         aid: [],
         applyCreditCents: 0,
         serviceFee,
