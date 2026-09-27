@@ -81,16 +81,6 @@ export function ConnectScreen({
   );
 }
 
-export function ConnectReturn({
-  orgId,
-  navigate,
-}: {
-  orgId: string;
-  navigate?: (url: string) => void;
-}): React.JSX.Element {
-  return <ConnectScreen orgId={orgId} {...(navigate ? { navigate } : {})} />;
-}
-
 export function ConnectRefresh({
   orgId,
   navigate = browserNavigate,
