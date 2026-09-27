@@ -19,20 +19,21 @@ async function previewLink(
         `http://127.0.0.1:${String(mailpitApiPort)}/api/v1/messages`,
       );
       const mailbox = (await response.json()) as {
-        messages: Array<{ To: Array<{ Address: string }>; Snippet: string }>;
+        messages: Array<{ ID: string; To: Array<{ Address: string }> }>;
       };
-      link =
-        mailbox.messages
-          .filter((message) =>
-            message.To.some((recipient) => recipient.Address === address),
-          )
-          .map(
-            (message) =>
-              new RegExp(
-                `https?:\\/\\/[^\\s]+\\/${path}\\/[A-Za-z0-9_-]+`,
-              ).exec(message.Snippet)?.[0] ?? '',
-          )
-          .find(Boolean) ?? '';
+      for (const message of mailbox.messages) {
+        if (!message.To.some((recipient) => recipient.Address === address))
+          continue;
+        const detailResponse = await request.get(
+          `http://127.0.0.1:${String(mailpitApiPort)}/api/v1/message/${message.ID}`,
+        );
+        const detail = (await detailResponse.json()) as { Text: string };
+        link =
+          new RegExp(`https?:\\/\\/[^\\s]+\\/${path}\\/[A-Za-z0-9_-]+`).exec(
+            detail.Text,
+          )?.[0] ?? '';
+        if (link) break;
+      }
       return link;
     })
     .not.toBe('');

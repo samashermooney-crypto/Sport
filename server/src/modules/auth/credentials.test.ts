@@ -57,6 +57,11 @@ afterAll(async () => {
 describe('credential and privacy requests', () => {
   it('resets passwords with one-use links and revokes active sessions', async () => {
     const accountId = await createAccount('reset@example.invalid');
+    await database
+      .updateTable('accounts')
+      .set({ locale: 'es' })
+      .where('id', '=', accountId)
+      .execute();
     const issued = await database.transaction().execute((trx) =>
       issueSession(
         trx,
@@ -77,6 +82,8 @@ describe('credential and privacy requests', () => {
     expect(
       await requestPasswordReset(dependencies, 'reset@example.invalid'),
     ).toBe(generic);
+    expect(email.messages[0]?.subject).toBe('Restablezca su contraseña');
+    expect(email.messages[0]?.html).toContain('<html lang="es">');
     const raw = email.messages[0]?.text.match(
       /\/reset\/([A-Za-z0-9_-]{43})/,
     )?.[1];

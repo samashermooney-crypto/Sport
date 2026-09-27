@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import type { DB } from '../../db/types';
 import type { EmailSender } from '../../integrations/email/sender';
+import { createAuthEmail } from '../../integrations/email/templates/auth';
 
 import { AuthDomainError } from './domain-error';
 import { hashPassword, verifyPassword } from './password';
@@ -29,7 +30,7 @@ export async function requestPasswordReset(
   const address = z.email().parse(email).toLowerCase();
   const account = await dependencies.database
     .selectFrom('accounts')
-    .select(['id', 'status'])
+    .select(['id', 'status', 'locale'])
     .where('email', '=', address)
     .executeTakeFirst();
   if (account?.status === 'active') {
@@ -42,11 +43,14 @@ export async function requestPasswordReset(
           dependencies.clock(),
         ),
       );
-    await dependencies.email.send({
-      to: address,
-      subject: 'Reset your Athlentry password',
-      text: `Reset your password by opening ${dependencies.appUrl}/reset/${token}. This link expires in 1 hour.`,
-    });
+    await dependencies.email.send(
+      createAuthEmail({
+        kind: 'password-reset',
+        to: address,
+        url: `${dependencies.appUrl}/reset/${token}`,
+        locale: account.locale === 'es' ? 'es' : 'en',
+      }),
+    );
   }
   return resetNotice;
 }
