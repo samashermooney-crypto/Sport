@@ -2,15 +2,88 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { modulePermissions } from '@shared/generated/permissions';
+import { apiErrorSchema } from '@shared/schemas/errors';
 import { healthResponseSchema } from '@shared/schemas/health';
 import express from 'express';
 
+import { createWithOrg } from './db/withOrg';
 import { apiRouteMetadata, serverModules } from './generated/registry';
 import { createStripeWebhookRouter } from './integrations/stripe/webhook-routes';
 import type { StripeWebhookDependencies } from './integrations/stripe/webhook-routes';
 import { createSecurityHeaders } from './lib/security/security-headers';
-import { tenantGuard } from './lib/tenant-guard';
+import { requestImpersonation, tenantGuard } from './lib/tenant-guard';
 import type { AuthDependencies } from './modules/auth/routes';
+import { requireSession } from './modules/auth/routes';
+
+const organizationPath =
+  /(?:^|\/)orgs\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i;
+const invitationAcceptancePath =
+  /(?:^|\/)(?:guardians\/)?(?:athlete-|claim-)?invitations\/accept$/;
+
+function organizationRelationshipGuard(
+  dependencies: AuthDependencies,
+): express.RequestHandler {
+  const withOrg = createWithOrg(dependencies.database);
+  return async (request, response, next) => {
+    if (
+      request.path.startsWith('/platform') ||
+      invitationAcceptancePath.test(request.path) ||
+      requestImpersonation(request)
+    ) {
+      next();
+      return;
+    }
+    const orgId = organizationPath.exec(request.path)?.[1];
+    if (!orgId) {
+      next();
+      return;
+    }
+    try {
+      const session = await requireSession(dependencies, request);
+      const hasRelationship = await withOrg(
+        { orgId, actor: { accountId: session.accountId } },
+        async (trx) => {
+          const membership = await trx
+            .selectFrom('org_memberships')
+            .select('id')
+            .where('org_id', '=', orgId)
+            .where('account_id', '=', session.accountId)
+            .where('status', '=', 'active')
+            .executeTakeFirst();
+          if (membership) return true;
+
+          const personLink = await trx
+            .selectFrom('person_account_links as links')
+            .innerJoin('people as person', (join) =>
+              join
+                .onRef('person.id', '=', 'links.person_id')
+                .onRef('person.org_id', '=', 'links.org_id'),
+            )
+            .select('links.id')
+            .where('links.org_id', '=', orgId)
+            .where('links.account_id', '=', session.accountId)
+            .where('links.verified_at', 'is not', null)
+            .where('links.revoked_at', 'is', null)
+            .where('person.status', '=', 'active')
+            .where('person.merged_into_id', 'is', null)
+            .executeTakeFirst();
+          return Boolean(personLink);
+        },
+      );
+      if (hasRelationship) {
+        next();
+        return;
+      }
+      response.status(404).json(
+        apiErrorSchema.parse({
+          error: { code: 'NOT_FOUND', message: 'Resource not found' },
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+}
 
 export function createApp(
   auth?: AuthDependencies,
@@ -86,6 +159,7 @@ export function createApp(
   }
   if (auth) {
     app.use('/api/v1', tenantGuard(auth));
+    app.use('/api/v1', organizationRelationshipGuard(auth));
     for (const module of serverModules) {
       if (module.router) app.use(module.path, module.router(auth));
       for (const extra of module.extraRouters ?? []) {

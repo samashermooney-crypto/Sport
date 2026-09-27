@@ -238,7 +238,16 @@ const permissionRoles = {
   'compliance.manage': ['owner', 'admin', 'compliance'],
   'discipline.read': ['owner', 'admin', 'compliance', 'director', 'head_coach'],
   'discipline.manage': ['owner', 'admin', 'compliance', 'director'],
+  'attendance.read': ['owner', 'admin', 'scheduler', 'director', 'reporter'],
+  'attendance.manage': ['owner', 'admin', 'scheduler', 'director'],
+  'attendance.rsvp': ['guardian', 'self'],
+  'contests.read': ['owner', 'admin', 'scheduler', 'director', 'reporter'],
+  'contests.manage': ['owner', 'admin', 'scheduler'],
   'finance.manage': ['owner', 'admin', 'finance', 'treasurer'],
+  'imports.read': ['owner', 'admin', 'registrar'],
+  'imports.manage': ['owner', 'admin', 'registrar'],
+  'officials.read': ['owner', 'admin', 'scheduler', 'official'],
+  'officials.manage': ['owner', 'admin', 'scheduler'],
   'people.read': [
     'owner',
     'admin',
@@ -252,6 +261,12 @@ const permissionRoles = {
   'people.manage': ['owner', 'admin', 'registrar'],
   'safety.read': ['owner', 'admin', 'compliance'],
   'safety.manage': ['owner', 'admin', 'compliance'],
+  'scheduling.read': ['owner', 'admin', 'scheduler', 'director', 'reporter'],
+  'scheduling.manage': ['owner', 'admin', 'scheduler'],
+  'standings.read': ['owner', 'admin', 'scheduler', 'director', 'reporter'],
+  'standings.manage': ['owner', 'admin', 'scheduler'],
+  'tournaments.read': ['owner', 'admin', 'scheduler', 'director', 'reporter'],
+  'tournaments.manage': ['owner', 'admin', 'scheduler'],
 };
 const { apiRouteMetadata } = await import(
   pathToFileURL(resolve('server/src/generated/api-route-metadata.ts')).href
