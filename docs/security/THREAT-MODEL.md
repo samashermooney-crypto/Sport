@@ -48,6 +48,7 @@ reads and writes are audited, with Restricted values redacted from audit diffs.
 | Platform MFA and impersonation                      | `server/src/modules/platform/routes.test.ts`, `platform/impersonation.ts`, `server/test/security/impersonation.test.ts`                                                         |
 | Response headers and security.txt                   | `server/src/lib/security/security-headers.test.ts`, `e2e/security/security-headers.spec.ts`, `server/test/security/security-txt.test.ts`                                        |
 | Encryption primitives and key rotation              | `server/src/lib/crypto.test.ts`, `server/test/security/rotate-encryption-key.test.ts`                                                                                           |
+| CI secret scanning                                  | Gitleaks is not configured in `.github/workflows/ci.yml`; `e2e/security/gitleaks-ci.spec.ts` tracks the missing PR/push control as `test.fixme`                                 |
 
 ## Current residual launch work
 
@@ -57,7 +58,8 @@ reads and writes are audited, with Restricted values redacted from audit diffs.
   remain `test.fixme`. Track C owns generated route metadata and CI; the
   current request is recorded in both track files.
 - CI still has no Gitleaks secret-scanning job. Track C owns the CI workflow;
-  the request is recorded in both track files.
+  `e2e/security/gitleaks-ci.spec.ts` is `test.fixme`, and the request is recorded
+  in both track files.
 - Step-up reauthentication currently elevates the existing session without
   rotating its token. Track A owns the auth route; the skipped regression test
   and precise request are recorded in both track files.
@@ -67,8 +69,9 @@ reads and writes are audited, with Restricted values redacted from audit diffs.
   regression and exact request are recorded in both track files.
 - `npm audit --omit=dev --audit-level=high` found no high or critical
   advisories; it reports two moderate transitive `uuid` advisories under
-  `exceljs`. `npm run knip` currently fails on unused G and A exports/files;
-  the owner-specific cleanup requests are recorded in the track files.
+  `exceljs`. `npm run knip` reports 6 unused files, 43 unused exports, 28 unused
+  types, and one duplicate export across A/C/G/I-owned files; cleanup requests
+  are recorded in the owner track files.
 - `server/src/app.ts` mounts the shared security headers before API and static
   routes. HSTS is production-only, and framing is denied except on the explicit
   embed surface. The app also mounts Stripe raw-body ingress before feature
