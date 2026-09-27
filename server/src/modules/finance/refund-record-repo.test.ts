@@ -16,6 +16,7 @@ import { PostgresPaymentEventRepository } from './payment-event-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
 import { PostgresRefundEventRepository } from './refund-event-repo.js';
 import { PostgresRefundRecordStore } from './refund-record-repo.js';
+import { PostgresRefundSourceReader } from './refund-source-repo.js';
 
 let database: Kysely<DB>;
 let context: OrgContext;
@@ -55,6 +56,15 @@ beforeAll(async () => {
     accountId,
     source: 'checkout',
     creationKey: randomUUID(),
+    refundTerms: {
+      policy: {
+        rules: [],
+        afterLastBps: 5000,
+        serviceFeeRefund: 'proportional',
+      },
+      approvalThresholdCents: 1000,
+      refundApplicationFee: true,
+    },
     lines: [
       {
         kind: 'registration',
@@ -150,6 +160,16 @@ function request(refundId = `re_${randomUUID()}`) {
 
 describe('pending Stripe refund records', () => {
   it('records line and service-fee allocations once before settlement', async () => {
+    const sourceReader = new PostgresRefundSourceReader(database, context);
+    const source = await sourceReader.load(context.orgId, paymentId);
+    expect(source).toMatchObject({
+      paymentStatus: 'succeeded',
+      paidServiceFeeCents: 100,
+      previouslyRefundedServiceFeeCents: 0,
+      lines: [
+        { id: registrationLineId, paidCents: 900, previouslyRefundedCents: 0 },
+      ],
+    });
     const input = request();
     await repo.recordPending(input);
     await repo.recordPending(input);
@@ -212,6 +232,16 @@ describe('pending Stripe refund records', () => {
       status: 'partially_paid',
       refunded_cents: 500,
       balance_cents: 500,
+    });
+    expect(await sourceReader.load(context.orgId, paymentId)).toMatchObject({
+      previouslyRefundedServiceFeeCents: 50,
+      lines: [
+        {
+          id: registrationLineId,
+          paidCents: 900,
+          previouslyRefundedCents: 450,
+        },
+      ],
     });
   });
 

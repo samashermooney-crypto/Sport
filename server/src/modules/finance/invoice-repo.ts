@@ -17,6 +17,7 @@ import {
   invoiceTotals,
   type IssueInvoiceInput,
 } from './invoices.js';
+import { refundTermsSchema } from './refund-terms.js';
 
 export interface IssuedInvoice {
   id: string;
@@ -59,6 +60,9 @@ export class PostgresInvoiceRepository {
       throw new Error('Invoice creation key must be a UUID');
     }
     const totals = invoiceTotals(input);
+    const refundTerms = input.refundTerms
+      ? refundTermsSchema.parse(input.refundTerms)
+      : null;
     const hash = invoiceRequestHash(input);
     try {
       return await this.withOrg(this.context, async (trx) => {
@@ -76,7 +80,7 @@ export class PostgresInvoiceRepository {
           INSERT INTO invoices
             (id, org_id, number, account_id, household_id, status, issued_at, due_on,
              subtotal_cents, discount_cents, service_fee_cents, tax_cents,
-             total_cents, memo, source, creation_key, creation_hash)
+             total_cents, memo, source, creation_key, creation_hash, refund_terms)
           VALUES
             (${id}::uuid, ${input.orgId}::uuid, ${number}, ${input.accountId}::uuid,
              ${input.householdId ?? null}::uuid,
@@ -84,15 +88,23 @@ export class PostgresInvoiceRepository {
              ${totals.subtotalCents}, ${totals.discountCents},
              ${totals.serviceFeeCents}, ${totals.taxCents},
              ${totals.totalCents}, ${input.memo ?? null}, ${input.source},
-             ${input.creationKey}::uuid, ${hash})
+             ${input.creationKey}::uuid, ${hash},
+             ${refundTerms ? JSON.stringify(refundTerms) : null}::jsonb)
           ON CONFLICT DO NOTHING RETURNING id
         `.execute(trx);
         if (!inserted.rows.length) throw new DuplicateInvoice();
-        for (const line of input.lines) {
+        const lineIds = input.lines.map(() => newId());
+        for (const [index, line] of input.lines.entries()) {
+          const lineId = lineIds[index];
+          if (!lineId) throw new Error('Invoice line ID is missing');
+          const parentLineId =
+            line.parentLineIndex === undefined
+              ? null
+              : lineIds[line.parentLineIndex];
           await trx
             .insertInto('invoice_lines')
             .values({
-              id: newId(),
+              id: lineId,
               org_id: input.orgId,
               invoice_id: id,
               kind: line.kind,
@@ -108,7 +120,7 @@ export class PostgresInvoiceRepository {
               team_season_id: null,
               product_variant_id: null,
               gl_code: null,
-              parent_line_id: null,
+              parent_line_id: parentLineId ?? null,
             })
             .execute();
         }

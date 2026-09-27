@@ -68,6 +68,7 @@ function input(key = randomUUID()): IssueInvoiceInput {
         description: 'Promo',
         amountCents: -100,
         refundable: false,
+        parentLineIndex: 0,
       },
       {
         kind: 'tax',
@@ -109,6 +110,17 @@ describe('invoice issuance', () => {
       balance_cents: 945,
       tax_cents: 45,
     });
+    const parentLinks = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('invoice_lines')
+        .select(['id', 'kind', 'parent_line_id'])
+        .where('org_id', '=', context.orgId)
+        .where('invoice_id', '=', first.id)
+        .execute(),
+    );
+    expect(
+      parentLinks.find((line) => line.kind === 'discount')?.parent_line_id,
+    ).toBe(parentLinks.find((line) => line.kind === 'product')?.id);
     const second = await repository.issue(input());
     expect(second.number).toBe(2);
   });

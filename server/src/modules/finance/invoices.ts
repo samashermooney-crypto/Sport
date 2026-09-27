@@ -5,6 +5,8 @@ import {
   deriveInvoiceState,
 } from '@shared/algorithms/invoice-state';
 
+import type { RefundTerms } from './refund-terms.js';
+
 export type InvoiceLineKind =
   | 'registration'
   | 'add_on'
@@ -26,6 +28,7 @@ export interface NewInvoiceLine {
   amountCents: number;
   refundable: boolean;
   taxRateBps?: number;
+  parentLineIndex?: number;
 }
 
 export interface IssueInvoiceInput {
@@ -43,6 +46,7 @@ export interface IssueInvoiceInput {
   dueOn?: string;
   memo?: string;
   creationKey: string;
+  refundTerms?: RefundTerms;
   lines: readonly NewInvoiceLine[];
 }
 
@@ -69,7 +73,8 @@ export function invoiceTotals(input: IssueInvoiceInput): InvoiceTotals {
   let serviceFee = 0n;
   let tax = 0n;
   let absoluteSum = 0n;
-  for (const line of input.lines) {
+  const discountByParent = new Map<number, bigint>();
+  for (const [index, line] of input.lines.entries()) {
     if (!line.description.trim())
       throw new Error('Invoice line description is required');
     if (!Number.isSafeInteger(line.amountCents) || line.amountCents === 0) {
@@ -79,8 +84,30 @@ export function invoiceTotals(input: IssueInvoiceInput): InvoiceTotals {
     if (line.kind === 'discount' || line.kind === 'aid') {
       if (line.amountCents >= 0)
         throw new RangeError('Discount/aid must be negative');
+      const parent =
+        line.parentLineIndex === undefined
+          ? null
+          : input.lines[line.parentLineIndex];
+      if (
+        !Number.isInteger(line.parentLineIndex) ||
+        line.parentLineIndex === undefined ||
+        line.parentLineIndex < 0 ||
+        line.parentLineIndex >= index ||
+        !parent ||
+        parent.amountCents <= 0 ||
+        parent.kind === 'service_fee' ||
+        parent.kind === 'tax'
+      )
+        throw new Error('Discount/aid requires an earlier charge parent line');
+      discountByParent.set(
+        line.parentLineIndex,
+        (discountByParent.get(line.parentLineIndex) ?? 0n) -
+          BigInt(line.amountCents),
+      );
       discount -= BigInt(line.amountCents);
     } else {
+      if (line.parentLineIndex !== undefined)
+        throw new Error('Only discount/aid may use parentLineIndex');
       if (line.amountCents < 0)
         throw new RangeError('Charge line must be positive');
       if (line.kind === 'service_fee') serviceFee += BigInt(line.amountCents);
@@ -90,6 +117,11 @@ export function invoiceTotals(input: IssueInvoiceInput): InvoiceTotals {
         tax += BigInt(line.amountCents);
       } else subtotal += BigInt(line.amountCents);
     }
+  }
+  for (const [parentIndex, totalDiscount] of discountByParent) {
+    const parent = input.lines[parentIndex];
+    if (!parent || totalDiscount > BigInt(parent.amountCents))
+      throw new Error('Discount/aid exceeds its parent line');
   }
   cents(absoluteSum);
   const totalCents = cents(subtotal - discount + serviceFee + tax);
@@ -113,6 +145,7 @@ export function invoiceRequestHash(input: IssueInvoiceInput): string {
         source: input.source,
         dueOn: input.dueOn ?? null,
         memo: input.memo ?? null,
+        refundTerms: input.refundTerms ?? null,
         lines: input.lines,
       }),
     )
