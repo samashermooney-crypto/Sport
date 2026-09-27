@@ -195,7 +195,9 @@ export interface AutopayAuthorizations {
   id: string;
   invoice_id: string | null;
   ip: string | null;
+  mandate_text_hash: string | null;
   mandate_text_version: string;
+  operation_key: string | null;
   org_id: string;
   payment_method_id: string;
   revoked_at: Timestamp | null;

@@ -25,6 +25,7 @@ type FormValues = {
   lastName: string;
   preferredName: string;
   dateOfBirth: string;
+  graduationYear: string;
   gender: Person['gender'];
   email: string;
   phoneE164: string;
@@ -36,6 +37,7 @@ const blank: FormValues = {
   lastName: '',
   preferredName: '',
   dateOfBirth: '',
+  graduationYear: '',
   gender: 'unspecified',
   email: '',
   phoneE164: '',
@@ -58,6 +60,7 @@ function PersonForm({
           lastName: initial.lastName,
           preferredName: initial.preferredName ?? '',
           dateOfBirth: initial.dateOfBirth,
+          graduationYear: initial.graduationYear?.toString() ?? '',
           gender: initial.gender,
           email: initial.email ?? '',
           phoneE164: initial.phoneE164 ?? '',
@@ -129,6 +132,17 @@ function PersonForm({
           value={values.dateOfBirth}
           onChange={(event) => {
             set('dateOfBirth', event.target.value);
+          }}
+        />
+      </Field>
+      <Field label="Graduation year">
+        <Input
+          type="number"
+          min="1900"
+          max="2200"
+          value={values.graduationYear}
+          onChange={(event) => {
+            set('graduationYear', event.target.value);
           }}
         />
       </Field>
@@ -233,6 +247,8 @@ function requestBody(values: FormValues) {
     lastName: values.lastName.trim(),
     preferredName: values.preferredName.trim() || null,
     dateOfBirth: values.dateOfBirth,
+    graduationYear:
+      values.graduationYear === '' ? null : Number(values.graduationYear),
     gender: values.gender,
     email: values.email.trim() || null,
     phoneE164: values.phoneE164.trim() || null,
@@ -248,13 +264,31 @@ export function PeopleList(): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState<string | null>(null);
   const [status, setStatus] = useState<'active' | 'archived'>('active');
+  const [gender, setGender] = useState('');
+  const [minAge, setMinAge] = useState('');
+  const [maxAge, setMaxAge] = useState('');
+  const [grade, setGrade] = useState('');
   const people = useQuery({
-    queryKey: ['people', orgId, query, status, cursor],
+    queryKey: [
+      'people',
+      orgId,
+      query,
+      status,
+      gender,
+      minAge,
+      maxAge,
+      grade,
+      cursor,
+    ],
     queryFn: () =>
       apiGet(
         `/people/orgs/${String(orgId)}?${new URLSearchParams({
           ...(query ? { q: query } : {}),
           status,
+          ...(gender ? { gender } : {}),
+          ...(minAge ? { minAge } : {}),
+          ...(maxAge ? { maxAge } : {}),
+          ...(grade ? { grade } : {}),
           ...(cursor ? { cursor } : {}),
         })}`,
         peopleListSchema,
@@ -300,6 +334,64 @@ export function PeopleList(): React.JSX.Element {
               }}
             />
           </Field>
+          <Field label="Gender">
+            <Select
+              value={gender}
+              options={[
+                { value: '', label: 'Any gender' },
+                { value: 'female', label: 'Female' },
+                { value: 'male', label: 'Male' },
+                { value: 'nonbinary', label: 'Nonbinary' },
+                { value: 'unspecified', label: 'Unspecified' },
+              ]}
+              onChange={(event) => {
+                setGender(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Minimum age">
+            <Input
+              type="number"
+              min="0"
+              max="120"
+              value={minAge}
+              onChange={(event) => {
+                setMinAge(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Maximum age">
+            <Input
+              type="number"
+              min="0"
+              max="120"
+              value={maxAge}
+              onChange={(event) => {
+                setMaxAge(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Grade">
+            <Select
+              value={grade}
+              options={[
+                { value: '', label: 'Any grade' },
+                { value: '-1', label: 'Pre-K' },
+                { value: '0', label: 'Kindergarten' },
+                ...Array.from({ length: 12 }, (_, index) => ({
+                  value: String(index + 1),
+                  label: `Grade ${String(index + 1)}`,
+                })),
+              ]}
+              onChange={(event) => {
+                setGrade(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
           {people.isPending && <p role="status">Loading people…</p>}
           {people.isError && <ErrorBox error="People could not be loaded." />}
           {people.data && (
@@ -311,6 +403,9 @@ export function PeopleList(): React.JSX.Element {
                       {person.firstName} {person.lastName}
                     </Link>
                     {person.preferredName ? ` (${person.preferredName})` : ''}
+                    {' · Age '}
+                    {person.age}
+                    {person.grade ? ` · ${person.grade}` : ''}
                   </li>
                 ))}
               </ul>
@@ -414,6 +509,8 @@ export function PersonDetail(): React.JSX.Element {
           <Card>
             <h2>Profile</h2>
             <p>Date of birth: {current.dateOfBirth}</p>
+            <p>Age: {current.age}</p>
+            <p>Grade: {current.grade ?? 'Unknown'}</p>
             <p>Gender: {current.gender}</p>
             <p>Email: {current.email ?? 'None'}</p>
           </Card>
@@ -421,6 +518,9 @@ export function PersonDetail(): React.JSX.Element {
         {!impersonationId && current.status === 'active' && (
           <Card>
             <h2>Profile</h2>
+            <p>
+              Age: {current.age} · Grade: {current.grade ?? 'Unknown'}
+            </p>
             <PersonForm
               key={current.version}
               initial={current}

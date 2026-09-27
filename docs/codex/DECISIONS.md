@@ -470,3 +470,11 @@
 - **Decision:** Reject enabling volunteer-paid mode until Track E exposes an invoice-backed flow; manual and configured Checkr checks remain available without collecting money.
 - **Why:** A background-check flow must not collect or promise a fee without an auditable invoice and reconciliation path.
 - **Consequences / follow-ups:** Track E can unblock the option by providing its documented invoice service; no live payment path is introduced here.
+
+### DEC-062 — Use the organization calendar for People age and grade
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 People directory
+- **Context:** The data model stores graduation year but leaves the school-year rollover for directory grade unspecified.
+- **Decision:** Calculate current age on the organization's local calendar date. Calculate grade from graduation year with an August 1 school-year rollover, stored as `peopleSchoolYearCutoff` in organization settings for later configuration. Never store the derived age or grade on a person.
+- **Why:** This keeps directory and eligibility values current across birthdays and school years without bulk data updates.
+- **Consequences / follow-ups:** Filters use the same local date and cutoff. A later organization settings control can expose the cutoff after its validation and audit flow is built.
