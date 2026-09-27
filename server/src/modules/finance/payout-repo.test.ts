@@ -9,6 +9,10 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 
 import { PostgresPayoutMirror } from './payout-repo.js';
+import {
+  PostgresPayoutReconciliation,
+  payoutReconciliationCsv,
+} from './reconciliation.js';
 
 let database: Kysely<DB>;
 let context: OrgContext;
@@ -117,6 +121,26 @@ describe('Postgres payout mirror', () => {
       balance_transaction_ids: [transaction.id],
     });
     expect(stored.transaction.fee_cents).toBe(50);
+    const report = await new PostgresPayoutReconciliation(
+      database,
+      context,
+    ).read(payout.id);
+    expect(report).toMatchObject({
+      amountCents: 950,
+      transactionNetCents: 950,
+      differenceCents: 0,
+      complete: true,
+      rows: [{ transactionId: transaction.id, paymentId: null }],
+    });
+    expect(payoutReconciliationCsv(report)).toContain(transaction.id);
+    const reportRow = report.rows[0];
+    if (!reportRow) throw new Error('Missing payout transaction');
+    expect(
+      payoutReconciliationCsv({
+        ...report,
+        rows: [{ ...reportRow, sourceId: '=HYPERLINK("bad")' }],
+      }),
+    ).toContain("'=HYPERLINK");
     await expect(
       new PostgresPayoutMirror(database, other.actor.accountId).saveComplete({
         ...input,
