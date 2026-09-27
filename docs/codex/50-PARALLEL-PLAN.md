@@ -60,7 +60,7 @@ Shared files that every module would otherwise edit are replaced by **generated 
 
 Other generated files (`server/src/db/types.ts`, `docs/api/openapi.json`, registries): on merge conflicts **never hand-merge** — regenerate (`npm run db:migrate && npm run registry && npm run openapi`) and commit.
 
-`package.json` / lockfile: add dependencies in a commit that touches only `package.json` and `package-lock.json`. On conflict, the integrator takes both sides' dependency lists and runs `npm install`.
+`package.json` / lockfile: **any track may add the dependencies it needs** in a commit that touches only `package.json` and `package-lock.json` on its own branch. On conflict, the integrator takes both sides' dependency lists and runs `npm install`. New worktrees need `npm ci` before tests run. If a session's sandbox cannot reach the npm registry, record the exact package and version in the track file and continue with other work; the owner installs it.
 
 ## 4. Waves
 

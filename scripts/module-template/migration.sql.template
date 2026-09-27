@@ -1,0 +1,15 @@
+-- Rename to .sql only after the module's schema and tenant constraints are complete.
+-- Every tenant table needs org_id, RLS, and composite tenant foreign keys.
+CREATE TABLE __SNAKE__ (
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  id uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (org_id, id)
+);
+
+ALTER TABLE __SNAKE__ ENABLE ROW LEVEL SECURITY;
+ALTER TABLE __SNAKE__ FORCE ROW LEVEL SECURITY;
+CREATE POLICY __SNAKE___org_scope ON __SNAKE__
+  USING (org_id = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK (org_id = NULLIF(current_setting('app.org_id', true), '')::uuid);

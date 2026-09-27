@@ -1,0 +1,10 @@
+import type { Create__PASCAL__Input } from '../../../../shared/src/schemas/__NAME__.js';
+import type { __PASCAL__Repository } from './repo.js';
+
+export function create__PASCAL__Service(repository: __PASCAL__Repository) {
+  return {
+    list: () => repository.list(),
+    get: (id: string) => repository.get(id),
+    create: (input: Create__PASCAL__Input) => repository.create(input),
+  };
+}
