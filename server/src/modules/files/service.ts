@@ -142,6 +142,7 @@ export class FilesService {
     private readonly storage: Storage,
     private readonly authorization: FileAuthorization,
     private readonly processor?: ImageProcessor,
+    private readonly tenantScope: typeof withOrg = withOrg,
   ) {}
 
   async beginUpload(input: {
@@ -188,7 +189,7 @@ export class FilesService {
                   ? 'xlsx'
                   : 'heic';
     const key = createStorageKey(input.context.orgId, input.purpose, extension);
-    await withOrg(input.context, async (trx) => {
+    await this.tenantScope(input.context, async (trx) => {
       await sql`insert into files (id, org_id, purpose, owner_type, owner_id, storage_key, mime, bytes, sensitivity, created_by, expires_at) values (${fileId}, ${input.context.orgId}, ${input.purpose}, ${input.ownerType ?? null}, ${input.ownerId ?? null}, ${key}, ${input.mime}, ${input.bytes}, ${input.sensitivity ?? 'internal'}, ${input.context.actor.accountId}, now() + interval '1 hour')`.execute(
         trx,
       );
@@ -218,7 +219,7 @@ export class FilesService {
     context: OrgContext,
     fileId: string,
   ): Promise<FileRecord> {
-    const record = await withOrg(context, async (trx) =>
+    const record = await this.tenantScope(context, async (trx) =>
       getRecord(trx, fileId),
     );
     if (!record || record.uploadState !== 'pending')
@@ -267,7 +268,7 @@ export class FilesService {
       ]);
     }
     const digest = sha256(bytes);
-    return withOrg(context, async (trx) => {
+    return this.tenantScope(context, async (trx) => {
       const result =
         await sql<FileRecord>`update files set upload_state = 'complete', mime = ${mime}, bytes = ${bytes.byteLength}, sha256 = ${digest}, width = ${width}, height = ${height} where id = ${fileId} and upload_state = 'pending' and expires_at > now() returning id, org_id as "orgId", purpose, owner_type as "ownerType", owner_id as "ownerId", storage_key as "storageKey", mime, bytes, sha256, width, height, sensitivity, created_by as "createdBy", upload_state as "uploadState"`.execute(
           trx,
@@ -286,7 +287,7 @@ export class FilesService {
     fileId: string,
     bytes: Uint8Array,
   ): Promise<void> {
-    const record = await withOrg(context, async (trx) =>
+    const record = await this.tenantScope(context, async (trx) =>
       getRecord(trx, fileId),
     );
     if (
@@ -316,7 +317,7 @@ export class FilesService {
     context: OrgContext,
     fileId: string,
   ): Promise<{ bytes: Uint8Array; mime: string }> {
-    const record = await withOrg(context, async (trx) =>
+    const record = await this.tenantScope(context, async (trx) =>
       getRecord(trx, fileId),
     );
     if (
@@ -327,7 +328,7 @@ export class FilesService {
       throw new FileValidationError('File not found');
     const object = await this.storage.get(record.storageKey);
     if (!object) throw new FileValidationError('File not found');
-    await withOrg(context, async (trx) => {
+    await this.tenantScope(context, async (trx) => {
       await sql`insert into audit_log (id, org_id, actor_account_id, action, entity_type, entity_id, changes) values (${randomUUID()}, ${context.orgId}, ${context.actor.accountId}, 'file.downloaded', 'file', ${fileId}, '{}'::jsonb)`.execute(
         trx,
       );
@@ -336,7 +337,7 @@ export class FilesService {
   }
 
   async download(context: OrgContext, fileId: string): Promise<string> {
-    const record = await withOrg(context, async (trx) =>
+    const record = await this.tenantScope(context, async (trx) =>
       getRecord(trx, fileId),
     );
     if (
@@ -345,7 +346,7 @@ export class FilesService {
       !(await this.authorization.canDownload(context, record))
     )
       throw new FileValidationError('File not found');
-    await withOrg(context, async (trx) => {
+    await this.tenantScope(context, async (trx) => {
       await sql`insert into audit_log (id, org_id, actor_account_id, action, entity_type, entity_id, changes) values (${randomUUID()}, ${context.orgId}, ${context.actor.accountId}, 'file.download.link_issued', 'file', ${fileId}, '{}'::jsonb)`.execute(
         trx,
       );
@@ -361,7 +362,7 @@ export class FilesService {
   }
 
   private async reject(context: OrgContext, fileId: string) {
-    await withOrg(context, async (trx) => {
+    await this.tenantScope(context, async (trx) => {
       await sql`update files set upload_state = 'rejected' where id = ${fileId} and upload_state = 'pending'`.execute(
         trx,
       );
