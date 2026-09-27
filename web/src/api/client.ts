@@ -14,7 +14,7 @@ export class ApiError extends Error {
 async function request<T extends z.ZodType>(
   path: string,
   schema: T,
-  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   body?: unknown,
   idempotencyKey?: string,
   extraHeaders?: Record<string, string>,
