@@ -710,3 +710,11 @@
 - **Decision:** Only `offered`, `accepted` and `confirmed` assignments occupy a contest position; migration 3017 narrows the partial unique index to those live statuses.
 - **Why:** The Phase 9 acceptance path requires declining an offer and reassigning a replacement to the same position.
 - **Consequences / follow-ups:** Declined and no-show assignments remain as history rows but no longer reserve the position.
+
+### DEC-100 — Standings recompute must not block result finalization
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 9 standings recompute
+- **Context:** `submitContestResult` recomputes standings inside the finalization transaction, but 14 seeded sport templates carry no `defaultStandings` and most programs never configure standings, so `computeSnapshot` threw "Standings rules have not been configured" and rolled back every finalized result for those sports. A second defect in the same path: `contest_results.score` returns as a string (numeric column), and `computeStandings` rejected it with `Invalid contest score`.
+- **Decision:** `recomputeStandingsForEvent` now skips scopes without an explicit or profile-default standings config, while `getStandings`/`refreshStandings` keep returning the 409 "not configured" response. Standings score inputs are normalized from numeric strings to numbers before computation.
+- **Why:** Result finalization is a required operation for every sport; standings only apply where configured. The numeric-string normalization matches the existing guard used for tournament scores.
+- **Consequences / follow-ups:** Covered by the new recompute test (finalization, correction, forfeit, stale-version conflict) and the per-sport format validation test over all 46 seeded templates.

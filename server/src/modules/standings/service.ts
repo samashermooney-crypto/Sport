@@ -14,16 +14,14 @@ export type ConfigScope = { programId?: string; divisionId?: string };
 function configFor(
   rows: readonly { config: unknown }[],
   fallback: unknown,
-): StandingsConfig {
+): StandingsConfig | null {
   const raw = rows[0]?.config ?? fallback;
-  if (!raw)
-    throw new SchedulingRuleError(
-      'Standings rules have not been configured for this program.',
-      409,
-      'CONFLICT',
-    );
+  if (!raw) return null;
   return standingsConfigSchema.parse(raw);
 }
+
+const UNCONFIGURED_MESSAGE =
+  'Standings rules have not been configured for this program.';
 
 async function scopeConfig(
   trx: OrgTransaction,
@@ -68,11 +66,12 @@ async function scopeConfig(
       .where('programs.id', '=', division.program_id)
       .executeTakeFirstOrThrow();
     const profile = program.profile as { defaultStandings?: unknown };
+    const config = configFor(
+      configured,
+      programConfig[0]?.config ?? profile.defaultStandings,
+    );
     return {
-      config: configFor(
-        configured,
-        programConfig[0]?.config ?? profile.defaultStandings,
-      ),
+      config,
       configVersion: configured[0]?.version ?? null,
       programId: division.program_id,
       divisionId: division.id,
@@ -105,12 +104,19 @@ async function scopeConfig(
     .where('program_id', '=', program.id)
     .execute();
   const profile = program.profile as { defaultStandings?: unknown };
+  const config = configFor(configured, profile.defaultStandings);
   return {
-    config: configFor(configured, profile.defaultStandings),
+    config,
     configVersion: configured[0]?.version ?? null,
     programId: program.id,
     divisionId: null,
   };
+}
+
+function numericScore(score: number | string | null): number | null {
+  if (score === null) return null;
+  const value = typeof score === 'number' ? score : Number(score);
+  return Number.isFinite(value) ? value : null;
 }
 
 function rowsForTeamStandings(
@@ -128,11 +134,13 @@ function rowsForTeamStandings(
   }[],
 ): StandingContest[] {
   return contests.flatMap((row) => {
+    const homeScore = numericScore(row.home_score);
+    const awayScore = numericScore(row.away_score);
     if (
       !row.home_team ||
       !row.away_team ||
-      row.home_score === null ||
-      row.away_score === null
+      homeScore === null ||
+      awayScore === null
     )
       return [];
     const homeDetail = (row.home_detail ?? {}) as Record<string, unknown>;
@@ -173,8 +181,8 @@ function rowsForTeamStandings(
       stage: row.stage as StandingContest['stage'],
       finalized: ['final', 'forfeit'].includes(row.status),
       countsForStandings: row.counts_for_standings,
-      homeScore: row.home_score,
-      awayScore: row.away_score,
+      homeScore,
+      awayScore,
       ...(forfeitBy ? { forfeitBy } : {}),
       ...(overtimeWinner ? { overtimeWinner } : {}),
       ...(sets.length
@@ -203,13 +211,41 @@ function rowsForTeamStandings(
   });
 }
 
+type SnapshotComputation = {
+  config: StandingsConfig;
+  configVersion: number | null;
+  programId: string;
+  divisionId: string | null;
+  rows: StandingRow[];
+  teamNames: Record<string, string>;
+};
+
 async function computeSnapshot(
   trx: OrgTransaction,
   orgId: string,
   scope: ConfigScope,
   manualOrder?: readonly string[],
-) {
+): Promise<SnapshotComputation>;
+async function computeSnapshot(
+  trx: OrgTransaction,
+  orgId: string,
+  scope: ConfigScope,
+  manualOrder: undefined,
+  optional: true,
+): Promise<SnapshotComputation | null>;
+async function computeSnapshot(
+  trx: OrgTransaction,
+  orgId: string,
+  scope: ConfigScope,
+  manualOrder?: readonly string[],
+  optional = false,
+): Promise<SnapshotComputation | null> {
   const resolved = await scopeConfig(trx, orgId, scope);
+  if (!resolved.config) {
+    if (optional) return null;
+    throw new SchedulingRuleError(UNCONFIGURED_MESSAGE, 409, 'CONFLICT');
+  }
+  const config = resolved.config;
   const teamsQuery = trx
     .selectFrom('team_seasons')
     .select(['id', 'division_id'])
@@ -275,7 +311,7 @@ async function computeSnapshot(
   const rows = computeStandings(
     teamIds,
     rowsForTeamStandings(contestRows),
-    resolved.config,
+    config,
     {
       ...(resolved.divisionId ? { divisionId: resolved.divisionId } : {}),
       ...(manualOrder ? { manualOrder } : {}),
@@ -283,6 +319,7 @@ async function computeSnapshot(
   );
   return {
     ...resolved,
+    config,
     rows,
     teamNames: await teamNamesForRows(
       trx,
@@ -342,24 +379,38 @@ export async function recomputeStandingsForEvent(
   divisionId: string | null,
 ): Promise<void> {
   if (divisionId) {
-    const result = await computeSnapshot(trx, context.orgId, { divisionId });
-    await persistSnapshot(
+    const result = await computeSnapshot(
       trx,
       context.orgId,
-      'division',
-      divisionId,
-      result.rows,
+      { divisionId },
+      undefined,
+      true,
     );
+    if (result)
+      await persistSnapshot(
+        trx,
+        context.orgId,
+        'division',
+        divisionId,
+        result.rows,
+      );
   }
   if (programId) {
-    const result = await computeSnapshot(trx, context.orgId, { programId });
-    await persistSnapshot(
+    const result = await computeSnapshot(
       trx,
       context.orgId,
-      'program',
-      programId,
-      result.rows,
+      { programId },
+      undefined,
+      true,
     );
+    if (result)
+      await persistSnapshot(
+        trx,
+        context.orgId,
+        'program',
+        programId,
+        result.rows,
+      );
   }
 }
 
@@ -476,6 +527,8 @@ export async function getStandings(
 ) {
   return withOrg(context, async (trx) => {
     const resolved = await scopeConfig(trx, context.orgId, scope);
+    if (!resolved.config)
+      throw new SchedulingRuleError(UNCONFIGURED_MESSAGE, 409, 'CONFLICT');
     if (publicRequest && resolved.config.publicVisibility !== 'public')
       throw new SchedulingRuleError(
         'Standings are not public.',
