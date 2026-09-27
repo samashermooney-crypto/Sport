@@ -66,6 +66,7 @@ test('staff builds a bilingual campaign, reviews its audience, test-sends in-app
     await signInBrowser(page, testInfo, database, actor.accountId);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/console/orgs/${actor.orgId}/messages`);
+    await expect(page.locator('.ui-app-shell')).toHaveCount(1);
     await expect(
       page.getByRole('heading', { name: 'Messages', exact: true }),
     ).toBeVisible();

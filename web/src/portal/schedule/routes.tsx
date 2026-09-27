@@ -1,6 +1,8 @@
 import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
+import { PortalShell } from '../PortalShell';
+
 import { FamilySchedule } from './FamilySchedule';
 import { PublicFacilityPage } from './PublicFacilityPage';
 import { PublicStandingsPage } from './PublicStandingsPage';
@@ -13,11 +15,13 @@ function FamilyScheduleRoute(): React.JSX.Element {
     personId: string;
   }>();
   return orgId && teamSeasonId && personId ? (
-    <FamilySchedule
-      orgId={orgId}
-      teamSeasonId={teamSeasonId}
-      personId={personId}
-    />
+    <PortalShell orgId={orgId}>
+      <FamilySchedule
+        orgId={orgId}
+        teamSeasonId={teamSeasonId}
+        personId={personId}
+      />
+    </PortalShell>
   ) : (
     <main className="schedule-page">
       Choose a team and athlete to view this schedule.

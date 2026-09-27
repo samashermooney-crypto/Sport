@@ -1,13 +1,17 @@
 import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
+import { ConsoleShell } from '../../ui/ConsoleShell';
+
 import { CoachGameDay } from './CoachGameDay';
 import { ScheduleConsole } from './ScheduleConsole';
 
 function ScheduleRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
   return orgId ? (
-    <ScheduleConsole orgId={orgId} />
+    <ConsoleShell orgId={orgId}>
+      <ScheduleConsole orgId={orgId} />
+    </ConsoleShell>
   ) : (
     <main className="schedule-page">Organization not found.</main>
   );
@@ -16,7 +20,9 @@ function ScheduleRoute(): React.JSX.Element {
 function GameDayRoute(): React.JSX.Element {
   const { orgId, eventId } = useParams<{ orgId: string; eventId: string }>();
   return orgId && eventId ? (
-    <CoachGameDay orgId={orgId} eventId={eventId} />
+    <ConsoleShell orgId={orgId}>
+      <CoachGameDay orgId={orgId} eventId={eventId} />
+    </ConsoleShell>
   ) : (
     <main className="schedule-page">Game not found.</main>
   );

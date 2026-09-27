@@ -1,5 +1,4 @@
 import { householdListSchema } from '@shared/schemas/households';
-import { orgWorkspaceSchema } from '@shared/schemas/orgs';
 import {
   peopleFilterOptionsSchema,
   peopleListSchema,
@@ -12,6 +11,7 @@ import type { z } from 'zod';
 
 import { apiGet, apiPatch, apiPost } from '../api/client';
 import { useImpersonationId } from '../platform/impersonation';
+import { ConsoleShell } from '../ui/ConsoleShell';
 import { AuthFrame, AuthLink, ErrorBox } from '../ui/auth';
 import {
   Button,
@@ -22,7 +22,6 @@ import {
   PageHeader,
   Select,
 } from '../ui/primitives';
-import { AppShell } from '../ui/shell';
 
 import { GuardianLinks } from './GuardianLinks';
 import { PersonClaim } from './PersonClaim';
@@ -218,44 +217,7 @@ export function PeopleShell({
   orgId: string;
   children: React.ReactNode;
 }): React.JSX.Element {
-  const impersonationId = useImpersonationId();
-  const home = `/console/orgs/${orgId}`;
-  const people = `${home}/people`;
-  const workspace = useQuery({
-    queryKey: ['orgs', orgId, 'workspace'],
-    queryFn: () => apiGet(`/orgs/${orgId}/workspace`, orgWorkspaceSchema),
-    enabled: !impersonationId,
-  });
-  return (
-    <AppShell
-      orgName={workspace.data?.name ?? 'Athlentry'}
-      navigation={[
-        {
-          label: 'Manage',
-          items: [
-            ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
-            { label: 'People', to: people },
-            { label: 'Households', to: `${home}/households` },
-            { label: 'Forms', to: `${home}/forms` },
-            { label: 'Waivers', to: `${home}/waivers` },
-            { label: 'Imports', to: `${home}/imports` },
-            { label: 'Account', to: '/me' },
-          ],
-        },
-      ]}
-      mobileTabs={[
-        ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
-        { label: 'People', to: people },
-        { label: 'Households', to: `${home}/households` },
-        { label: 'Forms', to: `${home}/forms` },
-        { label: 'Waivers', to: `${home}/waivers` },
-        { label: 'Imports', to: `${home}/imports` },
-        { label: 'Account', to: '/me' },
-      ]}
-    >
-      {children}
-    </AppShell>
-  );
+  return <ConsoleShell orgId={orgId}>{children}</ConsoleShell>;
 }
 
 function requestBody(values: FormValues) {
