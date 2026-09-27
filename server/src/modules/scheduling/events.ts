@@ -285,6 +285,9 @@ export async function queueChangeBatch(
             existing.notification_type === 'safety.emergency'
               ? 'safety.emergency'
               : 'schedule.changed',
+          ...(notificationType === 'safety.emergency'
+            ? { emit_after: new Date() }
+            : {}),
           version: sql`version + 1`,
         })
         .where('org_id', '=', context.orgId)
@@ -299,7 +302,10 @@ export async function queueChangeBatch(
           recipient_account_id: recipientAccountId,
           created_by: context.actor.accountId,
           changes: JSON.stringify([item]) as unknown as Json,
-          emit_after: new Date(Date.now() + 15 * 60_000),
+          emit_after:
+            notificationType === 'safety.emergency'
+              ? new Date()
+              : new Date(Date.now() + 15 * 60_000),
           notification_type: notificationType,
         })
         .execute();
