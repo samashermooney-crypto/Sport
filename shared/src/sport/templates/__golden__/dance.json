@@ -1,0 +1,218 @@
+{
+  "key": "dance",
+  "name": {
+    "en": "Dance",
+    "es": "Danza"
+  },
+  "category": "hybrid",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Instructor",
+      "es": "Instructor"
+    },
+    "contest": {
+      "en": "Competition",
+      "es": "Juego"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Studio",
+      "es": "studio"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "judged",
+      "apparatusOrRoutines": [
+        {
+          "key": "routine",
+          "label": {
+            "en": "routine",
+            "es": "routine"
+          }
+        }
+      ],
+      "panel": {
+        "judges": 4,
+        "dropHighLow": true,
+        "components": [
+          {
+            "key": "execution",
+            "label": {
+              "en": "Execution",
+              "es": "Ejecución"
+            },
+            "max": 10
+          }
+        ],
+        "combine": "average"
+      }
+    },
+    {
+      "format": "placement_only",
+      "events": []
+    }
+  ],
+  "positions": [],
+  "maxPositionsPerAthlete": 0,
+  "roster": {
+    "defaultMax": 30,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "none"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["studio"],
+  "officials": [
+    {
+      "key": "judge",
+      "label": {
+        "en": "Judge",
+        "es": "Judge"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "technique",
+      "label": {
+        "en": "Technique",
+        "es": "Technique"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "musicality",
+      "label": {
+        "en": "Musicality",
+        "es": "Musicality"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "expression",
+      "label": {
+        "en": "Expression",
+        "es": "Expression"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "synchronization",
+      "label": {
+        "en": "Synchronization",
+        "es": "Synchronization"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "costume",
+      "label": {
+        "en": "Costume",
+        "es": "Costume"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "shoes",
+      "label": {
+        "en": "Shoes",
+        "es": "Shoes"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "defaultStandings": {
+    "basis": "match",
+    "points": {
+      "win": 3,
+      "overtimeWin": 2,
+      "tie": 1,
+      "overtimeLoss": 1,
+      "loss": 0,
+      "forfeitWin": 3,
+      "forfeitLoss": 0,
+      "forfeitDeduction": 0
+    },
+    "rankBy": "points",
+    "winPercentageTieValue": 0.5,
+    "forfeitScore": {
+      "winner": 3,
+      "loser": 0
+    },
+    "tiebreakers": [
+      "head_to_head_points",
+      "head_to_head_differential",
+      "differential",
+      "scored",
+      "coin_toss_manual"
+    ],
+    "include": {
+      "stages": ["regular"],
+      "crossDivision": false
+    },
+    "columns": ["rank", "team", "played", "wins", "losses", "ties", "points"],
+    "publicVisibility": "members"
+  },
+  "skillLevels": [
+    {
+      "name": {
+        "en": "Beginner",
+        "es": "Principiante"
+      },
+      "skills": [
+        {
+          "en": "Basic steps",
+          "es": "Basic steps"
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Advanced",
+        "es": "Avanzado"
+      },
+      "skills": [
+        {
+          "en": "Advanced choreography",
+          "es": "Advanced choreography"
+        }
+      ]
+    }
+  ],
+  "disciplineTypes": []
+}

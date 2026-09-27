@@ -1,0 +1,151 @@
+{
+  "key": "climbing",
+  "name": {
+    "en": "Climbing",
+    "es": "Escalada"
+  },
+  "category": "individual",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Competition",
+      "es": "Juego"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Wall",
+      "es": "wall"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "multi_measured",
+      "events": [
+        {
+          "key": "bouldering",
+          "label": {
+            "en": "bouldering",
+            "es": "bouldering"
+          }
+        },
+        {
+          "key": "lead",
+          "label": {
+            "en": "lead",
+            "es": "lead"
+          }
+        },
+        {
+          "key": "speed",
+          "label": {
+            "en": "speed",
+            "es": "speed"
+          }
+        }
+      ],
+      "lowerIsBetter": false,
+      "unit": "points"
+    }
+  ],
+  "positions": [],
+  "maxPositionsPerAthlete": 0,
+  "roster": {
+    "defaultMax": 30,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "birth_year",
+    "label": "U{n}",
+    "seasonYearBasis": "season_end"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["wall"],
+  "officials": [
+    {
+      "key": "judge",
+      "label": {
+        "en": "Judge",
+        "es": "Judge"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "technique",
+      "label": {
+        "en": "Technique",
+        "es": "Technique"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "route_reading",
+      "label": {
+        "en": "Route reading",
+        "es": "Route reading"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "strength",
+      "label": {
+        "en": "Strength",
+        "es": "Strength"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "problem_solving",
+      "label": {
+        "en": "Problem solving",
+        "es": "Problem solving"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "team_shirt",
+      "label": {
+        "en": "Team shirt",
+        "es": "Team shirt"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "disciplineTypes": []
+}

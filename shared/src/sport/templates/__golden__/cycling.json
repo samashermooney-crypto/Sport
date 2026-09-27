@@ -1,0 +1,154 @@
+{
+  "key": "cycling",
+  "name": {
+    "en": "Cycling",
+    "es": "Ciclismo"
+  },
+  "category": "individual",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Race",
+      "es": "Juego"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Course",
+      "es": "course"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "multi_timed",
+      "events": [
+        {
+          "key": "road_race",
+          "label": {
+            "en": "road race",
+            "es": "road race"
+          }
+        },
+        {
+          "key": "time_trial",
+          "label": {
+            "en": "time trial",
+            "es": "time trial"
+          }
+        }
+      ],
+      "lowerIsBetter": true,
+      "precision": "hundredths",
+      "heats": false,
+      "lanes": 8
+    }
+  ],
+  "positions": [],
+  "maxPositionsPerAthlete": 0,
+  "roster": {
+    "defaultMax": 30,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "age_on_date",
+    "monthDay": "08-01",
+    "yearBasis": "season_start"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["course"],
+  "officials": [
+    {
+      "key": "commissaire",
+      "label": {
+        "en": "Commissaire",
+        "es": "Commissaire"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "bike_handling",
+      "label": {
+        "en": "Bike handling",
+        "es": "Bike handling"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "pacing",
+      "label": {
+        "en": "Pacing",
+        "es": "Pacing"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "endurance",
+      "label": {
+        "en": "Endurance",
+        "es": "Endurance"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "race_awareness",
+      "label": {
+        "en": "Race awareness",
+        "es": "Race awareness"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "jersey",
+      "label": {
+        "en": "Jersey",
+        "es": "Jersey"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "shorts",
+      "label": {
+        "en": "Shorts",
+        "es": "Shorts"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "disciplineTypes": []
+}

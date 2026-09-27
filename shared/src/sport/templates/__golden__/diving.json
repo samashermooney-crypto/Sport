@@ -1,0 +1,173 @@
+{
+  "key": "diving",
+  "name": {
+    "en": "Diving",
+    "es": "Diving"
+  },
+  "category": "individual",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Meet",
+      "es": "Encuentro"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Pool",
+      "es": "Piscina"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "judged",
+      "apparatusOrRoutines": [
+        {
+          "key": "springboard",
+          "label": {
+            "en": "springboard",
+            "es": "springboard"
+          }
+        },
+        {
+          "key": "platform",
+          "label": {
+            "en": "platform",
+            "es": "platform"
+          }
+        }
+      ],
+      "panel": {
+        "judges": 5,
+        "dropHighLow": true,
+        "components": [
+          {
+            "key": "execution",
+            "label": {
+              "en": "Execution",
+              "es": "Execution"
+            },
+            "max": 10
+          },
+          {
+            "key": "dd",
+            "label": {
+              "en": "Degree of difficulty",
+              "es": "Degree of difficulty"
+            },
+            "max": 5
+          }
+        ],
+        "combine": "sum"
+      }
+    }
+  ],
+  "positions": [],
+  "maxPositionsPerAthlete": 0,
+  "roster": {
+    "defaultMax": 30,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "age_on_date",
+    "monthDay": "08-01",
+    "yearBasis": "season_start"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["pool"],
+  "officials": [
+    {
+      "key": "referee",
+      "label": {
+        "en": "Referee",
+        "es": "Referee"
+      },
+      "required": true
+    },
+    {
+      "key": "judge",
+      "label": {
+        "en": "Judge",
+        "es": "Judge"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "approach",
+      "label": {
+        "en": "Approach",
+        "es": "Approach"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "takeoff",
+      "label": {
+        "en": "Takeoff",
+        "es": "Takeoff"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "form",
+      "label": {
+        "en": "Form",
+        "es": "Form"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "entry",
+      "label": {
+        "en": "Entry",
+        "es": "Entry"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "suit",
+      "label": {
+        "en": "Suit",
+        "es": "Suit"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "disciplineTypes": []
+}

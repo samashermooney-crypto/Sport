@@ -1,0 +1,225 @@
+{
+  "key": "cricket",
+  "name": {
+    "en": "Cricket",
+    "es": "Cricket"
+  },
+  "category": "team",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Match",
+      "es": "Partido"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Field",
+      "es": "Campo"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "head_to_head_score",
+      "periods": {
+        "label": {
+          "en": "Innings",
+          "es": "Innings"
+        },
+        "count": 2
+      },
+      "scoreLabel": {
+        "en": "Score",
+        "es": "Marcador"
+      },
+      "allowTie": true,
+      "scoreDirection": "higher_wins"
+    }
+  ],
+  "positions": [
+    {
+      "key": "batter",
+      "label": {
+        "en": "Batter",
+        "es": "Batter"
+      }
+    },
+    {
+      "key": "bowler",
+      "label": {
+        "en": "Bowler",
+        "es": "Bowler"
+      }
+    },
+    {
+      "key": "all_rounder",
+      "label": {
+        "en": "All-rounder",
+        "es": "All-rounder"
+      }
+    },
+    {
+      "key": "wk",
+      "label": {
+        "en": "WK",
+        "es": "WK"
+      }
+    }
+  ],
+  "maxPositionsPerAthlete": 2,
+  "roster": {
+    "defaultMax": 15,
+    "defaultMin": 1,
+    "onFieldCount": 11,
+    "jerseyNumbers": "optional",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "age_on_date",
+    "monthDay": "08-01",
+    "yearBasis": "season_start"
+  },
+  "defaultDurations": {
+    "contestMinutes": 180,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["field"],
+  "officials": [
+    {
+      "key": "umpire",
+      "label": {
+        "en": "Umpire",
+        "es": "Umpire"
+      },
+      "required": true
+    },
+    {
+      "key": "scorer",
+      "label": {
+        "en": "Scorer",
+        "es": "Scorer"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "batting",
+      "label": {
+        "en": "Batting",
+        "es": "Batting"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "bowling",
+      "label": {
+        "en": "Bowling",
+        "es": "Bowling"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "fielding",
+      "label": {
+        "en": "Fielding",
+        "es": "Fielding"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "game_awareness",
+      "label": {
+        "en": "Game awareness",
+        "es": "Game awareness"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "jersey",
+      "label": {
+        "en": "Jersey",
+        "es": "Jersey"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "shorts",
+      "label": {
+        "en": "Shorts",
+        "es": "Shorts"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "socks",
+      "label": {
+        "en": "Socks",
+        "es": "Socks"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "defaultStandings": {
+    "basis": "match",
+    "points": {
+      "win": 3,
+      "overtimeWin": 2,
+      "tie": 1,
+      "overtimeLoss": 1,
+      "loss": 0,
+      "forfeitWin": 3,
+      "forfeitLoss": 0,
+      "forfeitDeduction": 0
+    },
+    "rankBy": "points",
+    "winPercentageTieValue": 0.5,
+    "forfeitScore": {
+      "winner": 3,
+      "loser": 0
+    },
+    "tiebreakers": [
+      "head_to_head_points",
+      "head_to_head_differential",
+      "differential",
+      "scored",
+      "coin_toss_manual"
+    ],
+    "include": {
+      "stages": ["regular"],
+      "crossDivision": false
+    },
+    "columns": ["rank", "team", "played", "wins", "losses", "ties", "points"],
+    "publicVisibility": "members"
+  },
+  "disciplineTypes": []
+}
