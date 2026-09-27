@@ -3,8 +3,8 @@
 Status: in-progress
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Phase 5 WIP includes family discovery/cart/eligibility/requirements/add-ons/buyout, checkout lifecycle, staff approvals/waitlists/transfers/cancellations, and scoped registration/CSV/pace/uniform reports. Exact-line refund execution, discount-aware transfer pricing, staff-created enrollment, team entries, multi-family fast path, scheduled waitlist/reminder work, and end-to-end journeys remain in queue.
-Latest Phase 5 slice: registration reports and transactional email/in-app notices pass focused tests. Transfers now return signed price deltas, replay the saved result before status checks, bill extra charges to the original payer, and fail closed on an unrecorded refund before mutating registrations; focused transfer Postgres tests pass (2). Four registration/report/notice Postgres suites pass (11 tests) and the staff report UI tests pass (2). Full lint and typecheck pass; full suite, Playwright and build remain pending for this branch state.
+Current: Phase 5 WIP includes family discovery/cart/eligibility/requirements/add-ons/buyout, checkout lifecycle, staff approvals/waitlists/transfers/cancellations, scoped registration/CSV/pace/uniform reports, transactional email/in-app notices, and one-time scheduled checkout/waitlist reminders. Exact-line transfer refund execution, discount-aware transfer pricing, staff-created enrollment, team entries, multi-family fast path, scheduled waitlist expiry/advance, and end-to-end journeys remain in queue.
+Latest Phase 5 slice: commit `997dec2` schedules checkout reminders after 24 hours and waitlist offer expiry reminders within six hours, atomically marking and enqueuing each once; focused real-Postgres test passes (1), typecheck and lint pass. Transfer tests pass (2), prior focused report/notice tests pass (11) and staff report UI tests pass (2). Full suite, Playwright and build have not been run for the latest branch state.
 Requests to other tracks: A: expose strict `settings.refundTerms` in org finance settings using E's `refundTermsSchema`; paid registration fails closed without a published policy and saves the accepted snapshot/hash (2026-09-27).
 Requests to other tracks: A: expose `settings.lateFeeCents` in org finance settings (integer 0–10000 cents, absent/zero disables); E's late-fee and checkout readers fail closed on malformed amounts. C: record this protective cap in DECISIONS and regenerate DB types after merging migrations 1052–1053 (2026-09-27).
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
@@ -219,6 +219,7 @@ Saved methods: `finance/payment-method-repo.ts` syncs attached Stripe methods, e
 Saved-method webhooks: `finance/payment-method-events.ts` handles SetupIntent success and method detach by fetching latest Stripe state, resolving the platform Customer to a payer, and retrying unknown owners; 3 handler tests plus SDK and payer tests pass.
 Checkout core: `checkout/service.ts` contracts for atomic holds, fixed lock order, processing/72-hour holds and automatic lost-capacity refunds; pure state machine and 9 targeted tests pass; real-Postgres oversell test awaits spine.
 Lost-capacity refunds: checkout now durably claims each intent before Stripe refund and preserves uncertain claims for reconciliation; 1 replay/failure test added.
+
 Checkout pricing: `checkout/pricing.ts` freezes Track B pricing from repository-owned inputs in one withOrg transaction, validates invoice/credit reconciliation and replays stored cents; 2 targeted tests pass.
 Checkout pricing persistence: `checkout/pricing-repo.ts` locks the payer's open checkout, accepts a transactional economic-source loader, stores Track B cents plus immutable payment terms, canonicalizes zero signs for exact replay, and rejects stale keys or mismatched fees; freeze→invoice→charge-reader Postgres test and fee-mismatch test pass.
 Checkout source loader: `checkout/pricing-source-repo.ts` requires direct active participant access, public open offering and live holds; it freezes spec-shaped cover-costs/custom service fee settings and application rates while unsupported org/offering pricing fails closed; 1 Postgres test covers access, rate snapshots and unknown settings.
@@ -263,3 +264,38 @@ Money notices: migrations 1034–1035 and 1048–1049 add an indexed tenant outb
 Manual installment pay: migration 1040 records an org-scoped claim and links a pre-Stripe pending payment to exact invoice/installment and line allocations. Payer ownership, active Connect/Customer, collectible balance and pending charges are checked under locks; uncertain external calls remain fenced. The mounted portal screen checks displayed cents against the returned intent and uses only a `pk_test_` client key. Recorded manual failures do not consume off-session dunning retries; Postgres tests cover failure, new-key retry, success, cross-payer denial and concurrent keys.
 Installment charge worker: `installments.charge` runs every minute with a test-key-only gateway, uses the seeded system actor and a stable UTC instant, drains at most 100 due claims per active org and reports errors after scanning other orgs; 8 focused job/dunning/Postgres tests pass.
 Stripe replay worker: `stripe.replay` scans up to 100 stored unprocessed events each minute after enqueue loss or lease expiry, dispatches through the same 27 typed handlers, continues past poison events and reports failures; 9 focused repository/worker tests pass.
+
+## HANDOFF
+
+Runtime: `COMPOSE_PROJECT_NAME=athlentry_e`, `PORT_OFFSET=500` (Track E Postgres host port 5932). Never use live Stripe keys or send real messages.
+
+Done:
+- Stripe SDK 22.6.2 adapter, test-mode checkout/Connect/payment/refund infrastructure, webhook handlers/repository, and finance core are implemented; finance and registration detail is recorded above.
+- Registration family discovery/cart/checkout requirements, waitlist offers, approval/cancellation/transfer flows, reports, fake/preview email and in-app notices are implemented to varying levels; transfer refunds fail closed before seat mutation until an exact line refund is recorded.
+- `server/src/modules/registration/reminders.ts` is wired into `server/src/modules/registration/notice-job.ts`; its 24-hour checkout and six-hour offer reminders persist once-only markers with outbox intents in a single org transaction. `server/src/modules/registration/reminders.test.ts` passes against isolated Postgres.
+- Latest commit is `997dec2`; no uncommitted code remains. Focused reminder test, typecheck, lint, transfer tests, and earlier focused registration/report/notice/UI tests pass.
+
+In progress and exact next paths:
+- Transfer money gaps: `server/src/modules/registration/lifecycle.ts`, `server/src/modules/registration/routes.ts`, and `server/src/modules/registration/transfers.test.ts` — implement refund-difference using exact funded invoice-line shares and shared refund policy, preserve replay, and price destination using Track B discounts/aid rather than sticker price.
+- Family/staff registration gaps: `server/src/modules/registration/checkout-start.ts`, `server/src/modules/registration/registration-pricing-source.ts`, `server/src/modules/registration/lifecycle.ts`, `server/src/modules/registration/routes.ts`, `web/src/portal/registration/RegistrationScreen.tsx`, `web/src/portal/registration/CheckoutReviewScreen.tsx`, and `web/src/console/registration/RegistrationStaffScreen.tsx` — finish the returning multi-family path and staff-created enrollment with payer, eligibility, requirements, and invoice checks.
+- Team entries and captain/player invites are not implemented; add the server API/job/UI through `server/src/modules/registration/module.ts`, `server/src/modules/registration/routes.ts`, and the registration console/portal routes and screens. Migration tables already exist in `db/migrations/0102_spine_registration.sql` and `db/migrations/1058_registration_checkout_full.sql`.
+- Waitlist expiry/advance scheduling is still missing; extend `server/src/modules/registration/notice-job.ts` and `server/src/modules/registration/lifecycle.ts` with durable bounded job logic and Postgres tests. Reminder scheduling itself is implemented and has one focused test.
+- Phase 4/5 acceptance remains: add or finish the affected browser journeys under `web/e2e/` for card/3DS, ACH processing/failure, partial refund approval, family checkout, transfers, waitlists, and staff reports; run the complete required gates.
+
+Next steps, in order:
+1. Sync the newest `rebuild/trunk` into `track/e-finance`, regenerate only generated files through the documented commands if migrations conflict, and rerun focused affected Postgres tests.
+2. Complete exact-line transfer refund and discount/aid-aware price-difference logic; keep all money in integer cents, use Track B algorithms, and add real-Postgres replay/failure tests.
+3. Complete staff enrollment, team entries/invites, multi-family checkout, and waitlist expiry/advance scheduling with API and UI tests.
+4. Finish Phase 4/5 browser journeys and verify test-mode fake adapters only.
+5. Run `npm run typecheck`, `npm run lint`, `npm test`, `npx playwright test --project=chromium-desktop`, and `npm run build`; wrap every full test and Playwright command in `~/athlentry-sprint/heavy.sh`. Merge to `rebuild/trunk` only after the sprint merge gate passes.
+
+Known test status:
+- Current slice: `reminders.test.ts` 1/1 passed; `npm run typecheck` and `npm run lint` passed.
+- Transfer-focused Postgres tests passed 2/2; earlier report/notice Postgres suites passed 11 tests and staff report UI tests passed 2/2.
+- No failing test is currently known. Full suite, full Playwright, and build were not run for commit `997dec2`; latest recorded full browser gate in this track file is 32 passed/4 skipped. Earlier recorded unrelated A/D browser failures were followed by passing full runs.
+
+Open requests:
+- Track A: expose strict `settings.refundTerms` and bounded `settings.lateFeeCents`; regenerate OpenAPI/registry and DB types after E migrations; provide a retrievable signed-waiver PDF and checkout proof of accepted refund policy; mount finance/registration routes and generated navigation.
+- Track C: record the late-fee cap decision, wire raw Stripe webhook routers and `stripe.event` dispatch/system workers, and mount generated route discovery; coordinate the remaining finance webhooks/jobs requests already recorded above.
+- Track B: retain the shared pricing/fees/refund algorithms as the source for discount/aid-aware transfer deltas.
+- OPS: publish the stable family checkout/registration-open API path and a test-mode load fixture for 2,000 families, including capacity verification query and no-oversell invariant.
