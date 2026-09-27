@@ -31,6 +31,12 @@ it('limits reports to available role columns and previews the selected definitio
               available: true,
               columns: [
                 {
+                  key: 'id',
+                  label: 'Registration ID',
+                  type: 'text',
+                  tier: 'internal',
+                },
+                {
                   key: 'status',
                   label: 'Status',
                   type: 'enum',
@@ -82,12 +88,16 @@ it('limits reports to available role columns and previews the selected definitio
   expect(
     await screen.findByRole('heading', { name: 'Build a report' }),
   ).toBeTruthy();
-  expect(screen.getAllByText('Internal')).toHaveLength(2);
-  fireEvent.click(screen.getByRole('button', { name: 'Preview report' }));
+  expect(screen.getAllByText('Internal')).toHaveLength(3);
+  fireEvent.click(screen.getByRole('button', { name: 'Registration pace' }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Preview report' }),
+  );
   expect(await screen.findByText('open')).toBeTruthy();
   expect(fetcher).toHaveBeenCalledWith(
     `/api/v1/reports/orgs/${orgId}/reports/preview`,
     expect.objectContaining({ method: 'POST' }),
   );
   expect(previewRequestBody).toContain('"dataset":"registrations"');
+  expect(previewRequestBody).toContain('"timeGrain":"week"');
 });

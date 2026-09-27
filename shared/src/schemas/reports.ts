@@ -46,6 +46,7 @@ export const reportDefinitionSchema = z.strictObject({
   columns: z.array(columnKey).min(1).max(80),
   filters: z.array(reportFilterSchema).max(40).default([]),
   groupBy: z.array(columnKey).max(8).default([]),
+  timeGrain: z.enum(['day', 'week', 'month', 'year']).optional(),
   aggregates: z.array(reportAggregateSchema).max(20).default([]),
   sort: z.array(reportSortSchema).max(8).default([]),
   limit: z.number().int().min(1).max(50_000).optional(),

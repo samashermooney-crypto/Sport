@@ -13,6 +13,14 @@ import {
 } from '@shared/schemas/reports';
 import type { ReportDefinition, ReportFilter } from '@shared/schemas/reports';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Bar,
+  BarChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { z } from 'zod';
 
 import { apiGet, apiPost } from '../../api/client';
@@ -33,6 +41,36 @@ type DatasetColumn = Dataset['columns'][number];
 type SavedReport = z.output<typeof savedReportResponseSchema>;
 type ReportPreview = z.output<typeof reportPreviewResponseSchema>;
 type Schedule = z.output<typeof reportScheduleListSchema>['items'][number];
+type TimeGrain = 'day' | 'week' | 'month' | 'year';
+type ReportPreset = {
+  label: string;
+  dataset: string;
+  columns: string[];
+  groupBy: string[];
+  timeGrain?: TimeGrain;
+  aggregate: { fn: 'count' | 'sum'; column: string };
+  sortColumn: string;
+};
+
+const reportPresets: readonly ReportPreset[] = [
+  {
+    label: 'Registration pace',
+    dataset: 'registrations',
+    columns: ['id'],
+    groupBy: ['created_at'],
+    timeGrain: 'week',
+    aggregate: { fn: 'count', column: 'id' },
+    sortColumn: 'created_at',
+  },
+  {
+    label: 'Revenue by program',
+    dataset: 'invoice_lines',
+    columns: ['program_name'],
+    groupBy: ['program_name'],
+    aggregate: { fn: 'sum', column: 'amount_cents' },
+    sortColumn: 'sum_amount_cents',
+  },
+];
 
 const filterOperators = [
   { value: 'eq', label: 'is' },
@@ -171,11 +209,25 @@ function parseScalar(
 
 function displayValue(value: unknown, column?: DatasetColumn): string {
   if (value === null || value === undefined) return '—';
+  if (value instanceof Date)
+    return column?.type === 'datetime'
+      ? value.toLocaleString()
+      : value.toLocaleDateString();
+  if (
+    typeof value === 'string' &&
+    (column?.type === 'date' || column?.type === 'datetime')
+  ) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime()))
+      return column.type === 'datetime'
+        ? date.toLocaleString()
+        : date.toLocaleDateString();
+  }
   if (column?.type === 'money' && typeof value === 'number') {
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: 'USD',
-    }).format(value / 100);
+    }).format(value);
   }
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'string') return value;
@@ -184,6 +236,66 @@ function displayValue(value: unknown, column?: DatasetColumn): string {
     return value.map((item) => displayValue(item)).join(', ');
   if (typeof value === 'object') return 'Record';
   return '—';
+}
+
+function chartLabel(value: unknown): string {
+  if (value instanceof Date) return value.toLocaleDateString();
+  if (typeof value !== 'string') return displayValue(value);
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp)
+    ? value
+    : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(
+        timestamp,
+      );
+}
+
+function chartNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+  return null;
+}
+
+function previewChart(
+  preview: ReportPreview,
+  definition: ReportDefinition,
+): {
+  label: string;
+  aggregate: string;
+  data: { label: string; value: number }[];
+} | null {
+  const groupKey = definition.groupBy[0];
+  const aggregateDefinition = definition.aggregates[0];
+  if (
+    !groupKey ||
+    definition.groupBy.length !== 1 ||
+    !aggregateDefinition ||
+    definition.aggregates.length !== 1
+  )
+    return null;
+  const groupIndex = preview.columns.findIndex(
+    (column) => column.key === groupKey,
+  );
+  const valueKey = `${aggregateDefinition.fn}_${aggregateDefinition.column}`;
+  const valueIndex = preview.columns.findIndex(
+    (column) => column.key === valueKey,
+  );
+  const groupColumn = preview.columns[groupIndex];
+  const valueColumn = preview.columns[valueIndex];
+  if (groupIndex < 0 || valueIndex < 0 || !groupColumn || !valueColumn)
+    return null;
+  return {
+    label: groupColumn.label,
+    aggregate: valueColumn.label,
+    data: preview.rows.flatMap((row) => {
+      const value = chartNumber(row[valueIndex]);
+      return value === null
+        ? []
+        : [{ label: chartLabel(row[groupIndex]), value }];
+    }),
+  };
 }
 
 function tierName(tier: DatasetColumn['tier']): string {
@@ -204,11 +316,14 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
   const [columns, setColumns] = useState<string[]>([]);
   const [filters, setFilters] = useState<ReportFilter[]>([]);
   const [groupBy, setGroupBy] = useState<string[]>([]);
+  const [timeGrain, setTimeGrain] = useState<TimeGrain | ''>('');
   const [aggregate, setAggregate] = useState('');
   const [aggregateColumn, setAggregateColumn] = useState('');
   const [sortColumn, setSortColumn] = useState('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [preview, setPreview] = useState<ReportPreview | null>(null);
+  const [previewDefinition, setPreviewDefinition] =
+    useState<ReportDefinition | null>(null);
   const [reportName, setReportName] = useState('');
   const [sharedRoles, setSharedRoles] = useState<string[]>([]);
   const [selectedReport, setSelectedReport] = useState<SavedReport | null>(
@@ -251,9 +366,11 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
       setSchedules(scheduleResult.items);
       setAccount(accountResult);
       const first = available[0];
-      if (first && !datasetKey) {
-        setDatasetKey(first.key);
-        setColumns(freshDefinition(first).columns);
+      if (first) {
+        setDatasetKey((current) => current || first.key);
+        setColumns((current) =>
+          current.length ? current : freshDefinition(first).columns,
+        );
       }
     } catch (caught) {
       setError(
@@ -262,7 +379,7 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [base, datasetKey]);
+  }, [base]);
 
   useEffect(() => {
     void load();
@@ -274,6 +391,7 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
     setColumns(next ? freshDefinition(next).columns : []);
     setFilters([]);
     setGroupBy([]);
+    setTimeGrain('');
     setAggregate('');
     setAggregateColumn('');
     setPreview(null);
@@ -294,6 +412,7 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
       columns,
       filters: resolvedFilters,
       groupBy,
+      ...(timeGrain ? { timeGrain } : {}),
       aggregates:
         aggregate && aggregateColumn
           ? [{ fn: aggregate, column: aggregateColumn }]
@@ -310,12 +429,14 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
     setError('');
     setNotice('');
     try {
+      const currentDefinition = definition();
       const result = await apiPost(
         `${base}/reports/preview`,
-        { definition: definition() },
+        { definition: currentDefinition },
         reportPreviewResponseSchema,
       );
       setPreview(result);
+      setPreviewDefinition(currentDefinition);
       setNotice(`${String(result.rows.length)} preview rows loaded.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Preview failed.');
@@ -383,6 +504,7 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
       })),
     );
     setGroupBy(report.definition.groupBy);
+    setTimeGrain(report.definition.timeGrain ?? '');
     const firstAggregate = report.definition.aggregates[0];
     setAggregate(firstAggregate?.fn ?? '');
     setAggregateColumn(firstAggregate?.column ?? '');
@@ -481,6 +603,52 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
       { column: first.key, op: 'eq', value: '' },
     ]);
   }
+
+  function chooseGroup(columnKey: string) {
+    setGroupBy(columnKey ? [columnKey] : []);
+    const type = columnByKey.get(columnKey)?.type;
+    if (!['date', 'datetime'].includes(type ?? '')) setTimeGrain('');
+  }
+
+  function applyPreset(preset: ReportPreset) {
+    const source = datasets.find((item) => item.key === preset.dataset);
+    if (!source) return;
+    const availableColumns = new Set(
+      source.columns.map((column) => column.key),
+    );
+    if (
+      !preset.columns.every((key) => availableColumns.has(key)) ||
+      !preset.groupBy.every((key) => availableColumns.has(key)) ||
+      (preset.aggregate.fn !== 'count' &&
+        !availableColumns.has(preset.aggregate.column))
+    ) {
+      setError(
+        'This report preset is not available for the current data role.',
+      );
+      return;
+    }
+    setDatasetKey(source.key);
+    setColumns(preset.columns);
+    setFilters([]);
+    setGroupBy(preset.groupBy);
+    setTimeGrain(preset.timeGrain ?? '');
+    setAggregate(preset.aggregate.fn);
+    setAggregateColumn(preset.aggregate.column);
+    setSortColumn(preset.sortColumn);
+    setSortDirection('asc');
+    setReportName(preset.label);
+    setSharedRoles([]);
+    setSelectedReport(null);
+    setPreview(null);
+    setPreviewDefinition(null);
+    setError('');
+    setNotice(`${preset.label} preset loaded. Preview to refresh the data.`);
+  }
+
+  const chart =
+    preview && previewDefinition
+      ? previewChart(preview, previewDefinition)
+      : null;
 
   if (loading) return <p role="status">Loading report datasets…</p>;
   return (
@@ -593,6 +761,30 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
         <section className="report-builder__main" aria-label="Report editor">
           <Card className="report-builder__editor">
             <h2>Build a report</h2>
+            <section
+              className="report-builder__presets"
+              aria-labelledby="report-presets-title"
+            >
+              <h3 id="report-presets-title">Standard reports</h3>
+              <div>
+                {reportPresets
+                  .filter((preset) =>
+                    datasets.some((item) => item.key === preset.dataset),
+                  )
+                  .map((preset) => (
+                    <Button
+                      key={preset.label}
+                      type="button"
+                      secondary
+                      onClick={() => {
+                        applyPreset(preset);
+                      }}
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+              </div>
+            </section>
             {datasets.length === 0 ? (
               <p>No report datasets are currently available to your role.</p>
             ) : (
@@ -799,12 +991,32 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
                             })),
                           ]}
                           onChange={(event) => {
-                            setGroupBy(
-                              event.target.value ? [event.target.value] : [],
-                            );
+                            chooseGroup(event.target.value);
                           }}
                         />
                       </Field>
+                      {['date', 'datetime'].includes(
+                        columnByKey.get(groupBy[0] ?? '')?.type ?? '',
+                      ) && (
+                        <Field label="Time period">
+                          <Select
+                            aria-label="Time period"
+                            value={timeGrain}
+                            options={[
+                              { value: '', label: 'Exact date and time' },
+                              { value: 'day', label: 'Day' },
+                              { value: 'week', label: 'Week' },
+                              { value: 'month', label: 'Month' },
+                              { value: 'year', label: 'Year' },
+                            ]}
+                            onChange={(event) => {
+                              setTimeGrain(
+                                event.target.value as TimeGrain | '',
+                              );
+                            }}
+                          />
+                        </Field>
+                      )}
                       <Field label="Aggregate">
                         <Select
                           aria-label="Aggregate function"
@@ -825,7 +1037,10 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
                           <Select
                             aria-label="Aggregate column"
                             value={aggregateColumn}
-                            options={numericColumns.map((column) => ({
+                            options={(aggregate === 'count'
+                              ? dataset.columns
+                              : numericColumns
+                            ).map((column) => ({
                               value: column.key,
                               label: column.label,
                             }))}
@@ -943,6 +1158,25 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
                   </span>
                 )}
               </header>
+              {chart && chart.data.length > 0 && (
+                <figure
+                  className="report-builder__chart"
+                  role="img"
+                  aria-label={`${chart.aggregate} by ${chart.label}`}
+                >
+                  <figcaption>
+                    {chart.aggregate} by {chart.label}
+                  </figcaption>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={chart.data} accessibilityLayer>
+                      <XAxis dataKey="label" tickFormatter={chartLabel} />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="value" fill="var(--accent)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </figure>
+              )}
               <div className="report-builder__table-wrap">
                 <table className="report-builder__table">
                   <thead>

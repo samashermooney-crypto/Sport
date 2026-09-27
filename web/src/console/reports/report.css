@@ -94,6 +94,21 @@
   gap: var(--space-12);
 }
 
+.report-builder__presets {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.report-builder__presets h3 {
+  margin: 0;
+}
+
+.report-builder__presets > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
 .report-builder__fieldset {
   min-width: 0;
   border: 1px solid var(--border);
@@ -154,6 +169,18 @@
 .report-builder__table-wrap {
   overflow-x: auto;
   max-width: 100%;
+}
+
+.report-builder__chart {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.report-builder__chart figcaption {
+  margin-bottom: var(--space-8);
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .report-builder__table {

@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Current: Design system queues 1–6 are complete. Linux parity baselines are generated and pass in the lockfile-matching Playwright Linux image. Phase 14 report APIs and the report builder UI now support curated role-visible datasets, 200-row previews, typed filters, grouping/aggregates/sorting, saved-report role sharing, CSV/XLSX exports, and secure-link schedules with pause/resume. Action Center, visual standard reports/dashboards, website, org export, privacy, and retention surfaces remain.
+Current: Design system queues 1–6 are complete. Linux parity baselines are generated and pass in the lockfile-matching Playwright Linux image. Phase 14 report APIs and the report builder UI now support curated role-visible datasets, 200-row previews, typed filters, time grouping/aggregates/sorting, saved-report role sharing, CSV/XLSX exports, secure-link schedules with pause/resume, and visual presets for registration pace and revenue by program. Action Center, the remaining standard reports/dashboards, website, org export, privacy, and retention surfaces remain.
 Ready for integration: `195e30e..HEAD` is the intended local range after the SPRINT merge gate; the merge gate remains pending for the report-builder batch.
 Requests to other tracks: Track C — run `npm run registry` to discover `server/src/modules/reports/module.ts` and `web/src/console/reports/routes.tsx`, then commit generated registry updates so `/api/v1/reports` and `/console/orgs/:orgId/reports` are reachable. As D contracts land, wire action-center, website, exports, and their worker jobs the same way.
 Blocked on: None.
@@ -51,7 +51,7 @@ In progress (exact paths):
 
 Exact next steps:
 1. Have Track C register and mount the D-owned report module and schedule job; until then the API and worker contract are unreachable through the generated runtime registry.
-2. Add saved-report presets and the required visual pages for registration pace, revenue by program, receivables aging, compliance percentage, and year-over-year retention.
+2. Add saved-report presets and visual pages for receivables aging, compliance percentage, and year-over-year retention; registration pace and revenue by program presets now use source-backed grouped report data.
 3. Implement Action Center and the Money, Registration, Compliance, and Academy dashboards, including board PDF output.
 4. Implement the website editor and public pages, SEO, domains, embeds, and SSR; then complete org export, privacy requests, and retention sweep.
 5. Track C owns registry and nested-route wiring. Run the Phase 14 acceptance checks and SPRINT merge gate before marking ready or merging.
@@ -59,7 +59,7 @@ Exact next steps:
 
 Known failing or unverified checks:
 - No current Linux or Mac parity assertion failures are known; the focused parity suite passed 9/9 in each environment.
-- Focused report-builder UI test passed 1/1; focused report, schedule, export, ZIP, and shared-dataset checks passed 24/24. `npm run typecheck` passes and the Track D reports path passes ESLint after the new UI/test additions.
+- Focused report-builder UI test passed 1/1; report query validation passed 5/5, and focused report, schedule, export, ZIP, and shared-dataset checks passed 24/24. The grouped chart and table share the same server preview rows. `npm run typecheck` passes and the Track D reports path passes ESLint after the chart/preset additions.
 - Linux and macOS design parity tests each passed 9/9 on the D branch, but the Linux baseline commit is not yet in `rebuild/trunk`; trunk CI success remains unverified.
 - Full unit/integration, full E2E, build, registry/OpenAPI freshness, knip, audit, and the SPRINT merge gate have not been run against the current Phase 14 branch state. Report builder, dashboards, website, exports/privacy UI, and Phase 16 acceptance remain unverified.
 - The first Playwright attempt found an orphaned Track D E2E runner on port 7173; that runner exited and the fresh isolated run passed.

@@ -57,6 +57,32 @@ describe('report dataset access', () => {
     }).toThrow('Filter value does not match its column type');
   });
 
+  it('only buckets one date or datetime group into a time period', () => {
+    const dataset = datasetForActor('registrations', ['registrar']);
+    const visible = columnsForActor(dataset, ['registrar']);
+    const valid = reportDefinitionSchema.parse({
+      dataset: 'registrations',
+      columns: ['id'],
+      groupBy: ['created_at'],
+      timeGrain: 'week',
+      aggregates: [{ fn: 'count', column: 'id' }],
+    });
+    const invalid = reportDefinitionSchema.parse({
+      dataset: 'registrations',
+      columns: ['id'],
+      groupBy: ['status'],
+      timeGrain: 'week',
+      aggregates: [{ fn: 'count', column: 'id' }],
+    });
+
+    expect(() => {
+      validateReportDefinition(dataset, visible, valid);
+    }).not.toThrow();
+    expect(() => {
+      validateReportDefinition(dataset, visible, invalid);
+    }).toThrow('A time period requires one date or datetime group column');
+  });
+
   it('tracks restricted columns used by any report operation', () => {
     const dataset = datasetForActor('people', ['compliance']);
     const definition = reportDefinitionSchema.parse({

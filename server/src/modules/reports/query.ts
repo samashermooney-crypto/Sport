@@ -173,9 +173,19 @@ export function validateReportDefinition(
       throw new ReportError(400, 'VALIDATION_ERROR', 'Unknown filter column');
     validateFilter(filter, column);
   });
-  definition.groupBy.forEach((key) =>
+  const groupColumns = definition.groupBy.map((key) =>
     tierCheck(visible, dataset, key, 'group'),
   );
+  if (
+    definition.timeGrain &&
+    (groupColumns.length !== 1 ||
+      !['date', 'datetime'].includes(groupColumns[0]?.type ?? ''))
+  )
+    throw new ReportError(
+      400,
+      'VALIDATION_ERROR',
+      'A time period requires one date or datetime group column',
+    );
   definition.aggregates.forEach((aggregate) => {
     if (aggregate.column === 'id' && aggregate.fn === 'count') return;
     const column = tierCheck(visible, dataset, aggregate.column, 'aggregate');
@@ -211,6 +221,14 @@ function columnExpression(column: DatasetColumn): RawBuilder<unknown> {
   if (column.type === 'money')
     return sql`(${sql.raw(column.source)})::numeric / 100`;
   return sql.raw(column.source);
+}
+
+function groupExpression(
+  column: DatasetColumn,
+  timeGrain: ReportDefinition['timeGrain'],
+): RawBuilder<unknown> {
+  if (!timeGrain) return columnExpression(column);
+  return sql`date_trunc(${timeGrain}, ${columnExpression(column)}::timestamp)`;
 }
 
 function filterExpression(
@@ -323,7 +341,7 @@ export async function runDatasetQuery(
   if (grouped) {
     for (const column of groupColumns) {
       selectParts.push(
-        sql`${columnExpression(column)} AS ${sql.id(column.key)}`,
+        sql`${groupExpression(column, definition.timeGrain)} AS ${sql.id(column.key)}`,
       );
       outputColumns.push({
         key: column.key,
@@ -392,7 +410,7 @@ export async function runDatasetQuery(
   const limit = Math.min(definition.limit ?? 200, 50_000);
   const groupByClause =
     grouped && groupColumns.length
-      ? sql`GROUP BY ${sql.join(groupColumns.map((c) => sql.raw(c.source)))}`
+      ? sql`GROUP BY ${sql.join(groupColumns.map((column) => groupExpression(column, definition.timeGrain)))}`
       : sql``;
   const orderClause = sortParts.length
     ? sql`ORDER BY ${sql.join(sortParts)}`
