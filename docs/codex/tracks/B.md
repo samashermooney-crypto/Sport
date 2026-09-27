@@ -1,11 +1,11 @@
 # Track B — sport logic and policies
 
-Status: sprint-build-in-progress
+Status: Phase 3 in progress; worktree committed and ready for engine transition
 Model: GPT-6 Sol
 Branch: `track/b-logic`
 Current: Phase 3 implementation continues after merging `rebuild/trunk` at `2ac58d6`; generated nested routes now mount B's Programs, Teams and Facilities pages, and OpenAPI generation passes. Focused Phase 3 suites pass (132 tests), shared sport line coverage is 100%, and typecheck/lint pass. Full gate and cross-track integration remain open.
 Requests to Track E: Phase 5 checkout must consume B offering pricing `{ earlyPriceCents, earlyEndsAt, latePriceCents, lateStartsAt, installmentTemplateIds, siblingDiscountEligible }` and add-ons `{ key, name, priceCents, required, options: [{ key, label }] }`; windows are paired, use org-local wall times converted to instants, and early pricing ends before late pricing begins. The current checkout pricing source fails closed on these configured values.
-Requests to Track QA: add and run the Phase 3 Chromium and WebKit-mobile wizard journey at 390 px with axe: volleyball season/program setup, three divisions, two offerings and an installment template, then team generation. The program route must be mounted by C first.
+Requests to Track QA: add and run the Phase 3 Chromium and WebKit-mobile wizard journey at 390 px with axe: volleyball season/program setup, three divisions, two offerings and an installment template, then team generation. The generated nested router now mounts the program route.
 Requests to Track H: provide the rollover extras contract for copying volunteer requirements into the target season with their dates shifted and staff requirements pending revalidation; wire it through `SeasonRolloverExtras`.
 Requests to Track C: compose optional `seasonRolloverExtras` contributions from registered modules and pass them to the seasons router; B's route now accepts the typed `SeasonRolloverExtras[]` contract. H should implement its volunteer requirement copier as one contribution.
 Ready: Age/eligibility — `shared/src/sport/{age,eligibility}.ts`; 11 targeted tests, typecheck and lint green.
@@ -56,3 +56,34 @@ Self-review: Full unit/integration suite passes (550 tests, 1 existing skip) aft
 
 Phase 3 progress: date-based registration instants and offering price windows preserve org-local wall time over DST; rollover preview lists copied divisions/offers/prices/add-ons/forms/waivers, while copy remains idempotent and excludes registrations, invoices, payments and results. Team creation supports manual and generated teams; roster capacity serializes on the team-season row, concurrent jersey uniqueness is database-enforced, and staff assignment calls F's eligibility gate. Facilities retain split-field exclusion, versioned availability, blackouts, suitability, public visibility and map URL validation. Generated nested routes include all three B screens and the OpenAPI freshness script passes after adding descriptors for all B-owned operations. Focused server/shared Phase 3 suites pass (132 tests); sport engine line coverage is 100%; typecheck and lint pass.
 Pending Phase 3 gate: E checkout support for configured price windows/add-ons, H volunteer rollover extras, QA's Chromium/WebKit-mobile 390px axe journey, full gate, build and self-merge protocol. Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_b`, `PORT_OFFSET=2500`, Postgres `127.0.0.1:7932`.
+
+## HANDOFF
+
+Phase 3 is incomplete. The current branch has not been merged to `rebuild/trunk`; the latest merged state has not passed the full sprint merge gate. The worktree is clean after commits `dfb186d` (Track A sync plus the typed rollover-extras route seam) and `9b63dde` (Phase 3 pricing and team workflows). The Track A sync was `2ac58d6`; `rebuild/trunk` has since advanced to `5ae5499`.
+
+Done:
+- Phase 3 sports, seasons, program wizard, divisions, offerings, team/roster/staff, and facilities work is committed. The generated nested router mounts Programs, Teams, and Facilities; the OpenAPI freshness check passed.
+- The B-side rollover extension point is in `server/src/modules/seasons/routes.ts`. It accepts `SeasonRolloverExtras[]` and passes it to the season service.
+- On the latest merged state, `npm run typecheck` and `npm run lint` pass. The focused Phase 3 suite previously passed 132 tests and sport-engine line coverage was 100% before the latest Track A sync.
+
+In progress (exact paths):
+- `server/src/modules/seasons/routes.ts` is the B-side seam awaiting composition of registered rollover contributions. No files are currently uncommitted.
+- Phase 3 acceptance still needs checkout consumption of B's configured prices/add-ons, volunteer rollover copying, and the QA journey; those changes are owned by E, H/C, and QA respectively.
+
+Next steps, in order:
+1. Merge current `rebuild/trunk` (`5ae5499` at handoff) into `track/b-logic`; if generated files conflict, run `npm run db:migrate && npm run registry && npm run openapi` and never hand-edit generated output.
+2. Have H implement the volunteer requirement copier as a `SeasonRolloverExtras` contribution, then have C compose registered contributions into the seasons router.
+3. Have E make checkout consume the B offering price windows, installment template IDs, sibling-discount eligibility, and add-ons; add the corresponding integration coverage.
+4. Have QA add and run the 390 px Chromium and WebKit-mobile wizard/team-generation journey with axe.
+5. Run targeted tests, then the full Phase 3 gate, including build and Playwright through `~/athlentry-sprint/heavy.sh`. Only after green, use the trunk lock and self-merge protocol to merge Track B into `rebuild/trunk`.
+6. After Phase 3 is green on trunk, take the scheduled Phase 16 §1 security work in the sprint plan.
+
+Known failing tests: none observed. The latest merge commit hooks passed typecheck/lint. The 132 focused Phase 3 tests predate the Track A sync; the full test suite and Chromium/WebKit gate have not been run on the latest merged state.
+
+Open requests:
+- E: use B's configured price windows, `installmentTemplateIds`, `siblingDiscountEligible`, and add-on definitions in Phase 5 checkout.
+- H: copy volunteer requirements into a rollover season, shift their dates, and mark staff requirements pending revalidation via `SeasonRolloverExtras`.
+- C: compose optional registered-module `seasonRolloverExtras` contributions into the seasons router.
+- QA: implement and run the Phase 3 Chromium and WebKit-mobile 390 px axe journey described above.
+
+Environment: `COMPOSE_PROJECT_NAME=athlentry_b`, `PORT_OFFSET=2500`, Postgres `127.0.0.1:7932`.
