@@ -289,3 +289,5 @@ Known test status: `server/src/modules/registration/transfers.test.ts` passes 2 
 Open requests recorded by Track E: Track A to expose strict org `refundTerms` and `lateFeeCents`, regenerate installment-template finance OpenAPI, and copy the finance playbook lines when its owned document exists; Track C to record the late-fee cap decision and regenerate types for migrations 1052–1053; OPS to publish the stable registration-open API and fake-adapter 2,000-family load fixture with the no-oversell query; Track A to regenerate types after migrations 1050–1051 and surface installment failure/ACH return events in Action Center; Track H/C to add consented push/SMS for installment failure notices. Verify older requests in this file against trunk before carrying them forward.
 
 Stack: `COMPOSE_PROJECT_NAME=athlentry_e`, `PORT_OFFSET=500`.
+
+HANDED OFF 13:58
