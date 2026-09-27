@@ -39,10 +39,28 @@ export function setup() {
     throw new Error(
       'Campaign fixture must include auth, enqueue and status paths',
     );
-  if (!fixture.enqueueIdempotencyKey)
-    throw new Error('Campaign fixture needs an enqueue idempotency key');
+  if (
+    !fixture.enqueueBody ||
+    typeof fixture.enqueueBody !== 'object' ||
+    Array.isArray(fixture.enqueueBody)
+  ) {
+    throw new Error('Campaign fixture must include the send request body');
+  }
   if (fixture.expectedRecipients !== 20000)
     throw new Error('Campaign fixture must target exactly 20,000 recipients');
+  if (
+    !Number.isSafeInteger(fixture.enqueueBody.expectedVersion) ||
+    fixture.enqueueBody.expectedVersion < 1 ||
+    fixture.enqueueBody.confirmRecipientCounts?.email !==
+      fixture.expectedRecipients ||
+    Object.keys(fixture.enqueueBody.confirmRecipientCounts ?? {}).some(
+      (channel) => channel !== 'email',
+    )
+  ) {
+    throw new Error(
+      'Campaign send body must confirm exactly 20,000 previewed email recipients',
+    );
+  }
   if (
     !fixture.completedFieldPath ||
     !fixture.failedFieldPath ||
@@ -56,7 +74,7 @@ export default function () {
   const send = http.post(
     apiUrl(fixture.enqueuePath),
     requestBody(fixture.enqueueBody),
-    authParams(fixture.token, fixture.enqueueIdempotencyKey),
+    authParams(fixture.token),
   );
   const sendAccepted = isExpectedStatus(send, [200, 201, 202]);
   unexpectedResponses.add(sendAccepted ? 0 : 1);

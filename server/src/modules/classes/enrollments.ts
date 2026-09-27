@@ -41,7 +41,7 @@ import { tuitionForOffering } from './tuition.js';
 
 const WEEKDAY_NAMES = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] as const;
 
-export function ageMonths(dateOfBirth: string | Date, onDate: string): number {
+function ageMonths(dateOfBirth: string | Date, onDate: string): number {
   const dob = Temporal.PlainDate.from(
     typeof dateOfBirth === 'string'
       ? dateOfBirth.slice(0, 10)
@@ -68,10 +68,7 @@ export function monthRange(containing: string): {
   return { start: start.toString(), end: end.toString() };
 }
 
-export function nextMonthBillingDate(
-  billingDay: number,
-  after: string,
-): string {
+function nextMonthBillingDate(billingDay: number, after: string): string {
   const date = Temporal.PlainDate.from(after);
   const thisMonth = new Temporal.PlainDate(date.year, date.month, billingDay);
   return (
