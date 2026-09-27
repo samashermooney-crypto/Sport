@@ -551,7 +551,23 @@
 - **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
 - **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
 
-### DEC-080 — Preserve only representable legacy recurrence rules
+### DEC-080 — Keep global security-header policy in reusable middleware
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 security headers
+- **Context:** `server/src/app.ts` is owned by Track C, while Phase 16 security tests and policy are owned by Track SEC.
+- **Decision:** Implement the strict, testable header policy as a new reusable middleware under `server/src/lib/security/`; Track C mounts it at the application boundary before API/static routes. Keep production-only HSTS conditional and give `/embed/*` an explicit framing exception.
+- **Why:** Security behavior stays independently testable without crossing the app-wiring ownership boundary, and the app applies one header policy consistently.
+- **Consequences / follow-ups:** Track C must mount the middleware and preserve its embedding exception before global header acceptance is complete.
+
+### DEC-081 — Discover encryption-rotation tenants through the account index
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 key rotation
+- **Context:** Rotation must cover all known tenant ciphertext while every tenant row read or write remains under `withOrg`.
+- **Decision:** Use `accounts.linked_org_ids` only to discover candidate organization IDs, then process every organization-owned ciphertext batch in its own `withOrg` transaction. Continue to process global MFA factor ciphertext in a normal transaction. Append a tenant audit event for each rewrapped tenant value and a global security event for each rewrapped MFA secret; record only the table/entity ID and key IDs.
+- **Why:** The append-only account index supports cross-organization discovery without scanning protected organization rows outside the scoped helper; each candidate is still authorized by transaction-local tenant context and RLS. Audit evidence preserves the maintenance history without recording Restricted plaintext or ciphertext.
+- **Consequences / follow-ups:** Any new organization-creation path must maintain the candidate index. Rotation defaults to a dry run; operators pass `--apply` only after validating the candidate keyring.
+
+### DEC-082 — Preserve only representable legacy recurrence rules
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 recurrence migration
 - **Context:** The existing spine uses RFC recurrence text in availability and allocation rows; binding clarification C1 supports structured one-time, weekly and monthly-nth-weekday rules only.
@@ -559,7 +575,7 @@
 - **Why:** An incorrect availability window can create unsafe or impossible bookings; migration failure keeps source data intact for an explicit repair.
 - **Consequences / follow-ups:** Verify the isolated database has only representable rules before applying migration 3000.
 
-### DEC-081 — Treat non-space schedule conflicts as reasoned overrides
+### DEC-083 — Treat non-space schedule conflicts as reasoned overrides
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 conflict policy
 - **Context:** The event specification permits override reasons for soft conflicts and explicitly says space double-booking is never overridable, but does not classify team, coach and official overlap severity.
@@ -567,7 +583,7 @@
 - **Why:** The database remains the final protection against unsafe venue double-booking, while staff retain a documented path to resolve calendar edge cases.
 - **Consequences / follow-ups:** Every override is written to the audit log and exposed in the conflict report.
 
-### DEC-082 — Preserve materialized schedule history during series edits
+### DEC-084 — Preserve materialized schedule history during series edits
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 recurring events
 - **Context:** The series edit scopes must update future materialized events while preserving references from contests, attendance, audit and results.
@@ -575,7 +591,7 @@
 - **Why:** Event identity carries operational history; hard deletion or rewriting completed occurrences would orphan that history.
 - **Consequences / follow-ups:** Migration 3006 adds `event_series.active`; generated recurrence extension skips inactive series.
 
-### DEC-083 — Store coach schedule blackout requests as approved date ranges
+### DEC-085 — Store coach schedule blackout requests as approved date ranges
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 8 schedule generator
 - **Context:** The shared generator accepts team blackout dates, but the inherited spine has no request table or approval workflow for those dates.
@@ -583,7 +599,7 @@
 - **Why:** This preserves a clear approval boundary and avoids silently making a coach preference a hard scheduling rule.
 - **Consequences / follow-ups:** Migration 3007 adds the request aggregate and indexed status; generator input includes approved request dates.
 
-### DEC-084 — Snapshot sport profiles with a database trigger
+### DEC-086 — Snapshot sport profiles with a database trigger
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 9 result format history
 - **Context:** Contests must use the exact sport profile format version they were created against, but the inherited spine has no append-only profile version table.
@@ -591,7 +607,7 @@
 - **Why:** Historical result validation and rendering must remain tied to the format configuration used at contest creation.
 - **Consequences / follow-ups:** Migration 3008 adds the version table, snapshot trigger, and contest foreign key; sport-profile editing continues to use the current profile row.
 
-### DEC-085 — Snapshot sport profiles after the source row is written
+### DEC-087 — Snapshot sport profiles after the source row is written
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 result format history
 - **Context:** The insert trigger added with DEC-084 attempted to insert its version row before the referenced sport profile existed, violating the composite tenant foreign key during profile creation.
@@ -599,7 +615,7 @@
 - **Why:** The source profile must exist at the referenced version before the snapshot row is inserted; this preserves the composite foreign key and append-only history.
 - **Consequences / follow-ups:** Migration 3013 repairs trigger timing without rewriting migration 3008; verify factory profile creation and profile edits in the database test suite.
 
-### DEC-086 — Keep survey responses anonymous in staff summaries
+### DEC-088 — Keep survey responses anonymous in staff summaries
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 season end
 - **Context:** Family feedback needs a simple NPS and free text, while the response table must prevent duplicate submissions per account.
@@ -607,7 +623,7 @@
 - **Why:** The organization can prevent duplicate voting and restrict results to scoped staff while keeping feedback content unattributed.
 - **Consequences / follow-ups:** A staff member with program schedule management permission can read comments; schedule batches now create in-app records through Track B's notification service, while email fan-out remains Phase 10 work.
 
-### DEC-087 — Use the browser print dialog for season award PDFs
+### DEC-089 — Use the browser print dialog for season award PDFs
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 season end
 - **Context:** The owned web feature needs printable award certificates, but no PDF-generation service exists in Track G's paths.
@@ -615,7 +631,7 @@
 - **Why:** This creates a usable PDF path without adding a generator dependency or persisting an unsafe user-uploaded file.
 - **Consequences / follow-ups:** Certificates are local browser output, not a server-rendered or stored artifact; connect to the files/PDF service if a reusable downloadable certificate is required.
 
-### DEC-088 — Seed pool elimination rounds from finalized standings
+### DEC-090 — Seed pool elimination rounds from finalized standings
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 pool tournaments
 - **Context:** Pool tournaments need a deterministic transition from round-robin results to elimination play, while late corrections must not silently invalidate already-started playoff matches.
@@ -623,7 +639,7 @@
 - **Why:** Tournament progression must use the same standings and bracket rules as other sport operations, and the seeded playoff must stay stable once it begins.
 - **Consequences / follow-ups:** Pool standings must have enough results to satisfy sport-specific tiebreakers. Bracket foreign-key links are attached only after all round rows exist.
 
-### DEC-089 — Assign timed meet lanes as a versioned contest operation
+### DEC-091 — Assign timed meet lanes as a versioned contest operation
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 individual-sport meets
 - **Context:** Contest participants already have seed, heat, and lane fields, but timed meets had no scoped operation for assigning them before results were entered.
@@ -631,7 +647,7 @@
 - **Why:** Meet lanes and seeds affect the official result workflow and need the same tenant, permission, and stale-write protections as scores.
 - **Consequences / follow-ups:** Timed meet assignments close before final results; other multi-event format scheduling can reuse this aggregate operation if the sport rules require it.
 
-### DEC-090 — Return only public tournament display fields
+### DEC-092 — Return only public tournament display fields
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 public tournament pages
 - **Context:** Tournament brackets are readable by slug without an authenticated organization context, while the internal bracket record also contains tenant, program, and configuration identifiers.
@@ -639,7 +655,7 @@
 - **Why:** Visitors need match information, while internal configuration and aggregate metadata do not help them follow a tournament.
 - **Consequences / follow-ups:** Add any additional public-facing tournament content through an explicit allowlisted response shape.
 
-### DEC-091 — Persist tournament schedule reservations separately from bracket matches
+### DEC-093 — Persist tournament schedule reservations separately from bracket matches
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 tournament scheduling
 - **Context:** Pool games can be scheduled before their match rows are played, while elimination match rows for pool tournaments are not created until final pool standings are known.
@@ -647,7 +663,7 @@
 - **Why:** The shared tournament generator can reserve real space and time before the bracket is seeded without inventing placeholder bracket rows or losing schedule-to-match links.
 - **Consequences / follow-ups:** Tournament event creation and match binding must run transactionally, and bracket views must expose reservation times only through the authorized tournament response.
 
-### DEC-092 — Keep resource-calendar moves in the schedule feature
+### DEC-094 — Keep resource-calendar moves in the schedule feature
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 8 resource calendar
 - **Context:** The shared calendar renders read-only resource slots, while the schedule acceptance requires event moves by drag-and-drop and an equivalent keyboard path. Track G cannot change Track D’s owned design-system components.
@@ -655,7 +671,7 @@
 - **Why:** The scheduling feature needs its operational move workflow while retaining the frozen shared design system and backend as the authority for booking conflicts.
 - **Consequences / follow-ups:** The calendar remains inside `web/src/console/schedule`; Track A must mount the feature and add the cross-browser schedule journeys.
 
-### DEC-093 — Generate schedule, results and standings PDFs through browser print
+### DEC-095 — Generate schedule, results and standings PDFs through browser print
 - **Date:** 2026-09-27
 - **Phase / area:** Phases 8–9 schedule and sport exports
 - **Context:** Schedule and meet results require CSV/PDF exports, standings and tournament brackets must print, and Track G has no server-side PDF service in its owned modules.
@@ -663,7 +679,7 @@
 - **Why:** Staff need usable paper/PDF output without storing duplicate operational data or adding an unrelated PDF dependency.
 - **Consequences / follow-ups:** PDFs are generated in the browser and are not stored as organization files; reusable downloadable artifacts can move to the Files/PDF service if that becomes a requirement.
 
-### DEC-094 — Serialize standings snapshot arrays as JSON
+### DEC-096 — Serialize standings snapshot arrays as JSON
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 standings snapshots
 - **Context:** PostgreSQL's driver encodes JavaScript arrays as PostgreSQL arrays by default, while the standings snapshot column is `jsonb`.
@@ -671,7 +687,7 @@
 - **Why:** Every refresh must persist the same rows returned to the standings reader instead of failing at the database boundary.
 - **Consequences / follow-ups:** The isolated PostgreSQL integration test covers snapshot creation, labels and visibility reads.
 
-### DEC-095 — Keep private athlete statistics out of personal-best views
+### DEC-097 — Keep private athlete statistics out of personal-best views
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 athlete statistics
 - **Context:** Personal-best records are shown in the family portal, and a single endpoint serves both athlete/guardian links and staff roles.
@@ -679,7 +695,7 @@
 - **Why:** One predictable response keeps private youth performance data out of family-facing personal-best summaries.
 - **Consequences / follow-ups:** Sport profile definitions must mark a statistic public before it appears in family personal-best views.
 
-### DEC-096 — Commit lineup suspension audits before returning a conflict
+### DEC-098 — Commit lineup suspension audits before returning a conflict
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 discipline enforcement
 - **Context:** The discipline policy writes an audit row when it blocks a suspended athlete, but throwing the HTTP conflict from inside the `withOrg` transaction rolls that audit row back.
@@ -687,7 +703,7 @@
 - **Why:** A denied lineup must remain denied while preserving the required safety audit trail.
 - **Consequences / follow-ups:** The attendance integration test verifies the athlete is not added and the audit record persists. Automatic result-to-discipline record creation remains dependent on Track F's missing service method.
 
-### DEC-097 — Attribute meet team points through active program rosters
+### DEC-099 — Attribute meet team points through active program rosters
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 individual/hybrid sport results
 - **Context:** `contest_participants` accepts exactly one of person, team or external entrant, so a swimmer entered as a person had no team attached and place points could never roll up to team scores.
@@ -695,7 +711,7 @@
 - **Why:** Team scoring is a required meet outcome and roster membership is the authoritative athlete-to-team link for the season.
 - **Consequences / follow-ups:** `listContestResults` returns per-contest `teamScores`; athletes rostered on multiple teams in one program/division attach to the earliest roster entry.
 
-### DEC-098 — Align contest stage values to the data-model enum
+### DEC-100 — Align contest stage values to the data-model enum
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 contests and tournaments
 - **Context:** The contest API and `createContest` accepted `tournament` as a stage while `02-DATA-MODEL.md` and the `contests_stage_check` constraint allow only `regular|pool|playoff|championship|consolation|friendly|exhibition`; seeded bracket matches therefore failed to persist.
@@ -703,7 +719,7 @@
 - **Why:** The specification enum and database constraint are authoritative; inserting an invalid stage broke every bracket-linked contest creation.
 - **Consequences / follow-ups:** Track B's shared `contestStageSchema` still exposes `tournament` and omits `championship`/`consolation`/`exhibition`; standings `include.stages` should be aligned to the data-model enum by its owner.
 
-### DEC-099 — Declined and no-show assignments release the crew position
+### DEC-101 — Declined and no-show assignments release the crew position
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 officials assignment
 - **Context:** The position-occupancy check and `official_assignments_active_position_idx` treated every non-canceled assignment as occupying the slot, so a declined offer permanently blocked reassignment.
@@ -711,7 +727,7 @@
 - **Why:** The Phase 9 acceptance path requires declining an offer and reassigning a replacement to the same position.
 - **Consequences / follow-ups:** Declined and no-show assignments remain as history rows but no longer reserve the position.
 
-### DEC-100 — Standings recompute must not block result finalization
+### DEC-102 — Standings recompute must not block result finalization
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 standings recompute
 - **Context:** `submitContestResult` recomputes standings inside the finalization transaction, but 14 seeded sport templates carry no `defaultStandings` and most programs never configure standings, so `computeSnapshot` threw "Standings rules have not been configured" and rolled back every finalized result for those sports. A second defect in the same path: `contest_results.score` returns as a string (numeric column), and `computeStandings` rejected it with `Invalid contest score`.

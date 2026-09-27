@@ -4,7 +4,7 @@ Implementation commits: `10dde5b`, `e26dee4`, `074b533`, `535746f`, `2bc22b6`, a
 
 Local integration range: `rebuild/trunk..track/g-schedule` (not pushed).
 
-Status: awaiting takeover; not ready for integration because Phase 8/9 acceptance evidence and the current full merge gate are incomplete.
+Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 
 ## Owned work and progress
 
@@ -46,25 +46,6 @@ Status: awaiting takeover; not ready for integration because Phase 8/9 acceptanc
 ## Decisions and review
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
-- G decisions are `DEC-080–099` in `docs/codex/DECISIONS.md`; the latest trunk decisions are preserved through `DEC-079`.
+- G decisions are `DEC-082–102` in `docs/codex/DECISIONS.md`; the latest trunk decisions are preserved through `DEC-081`.
 - Last completed trunk syncs: `7bd217f` (through `9b5b430`), `925d8ff` (through `d991fee`) and `69bd7c9` (through `4660724`). The most recent lock-protected merge attempt failed the unit gate and was rolled back. All changes remain local on `track/g-schedule`; nothing was pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys, generator acceptance and full gates pass.
-
-## HANDOFF
-
-- **Done:** G-owned Phase 8/9 services and UI are committed on local `track/g-schedule`, synced through `rebuild/trunk` `9b5b430` (merge `7bd217f`), and remain unpushed. Acceptance work in `55fe1a3` covers officials (10 games, referee plus two assistants, decline/reassign, $1,395 pay batch), a 40-athlete/six-event timed meet with ties and team scores, and parsed moved-game ICS. Fixes include active-position handling for declined officials (migration `3017`), valid `playoff` contest stages, and person-to-team attribution through active program rosters. Follow-up commits `34ceaea`, `f83d97e`, and `2331417` cover all contest templates and configured/unconfigured standings snapshot behavior. Focused services, typecheck, lint, and production build passed as recorded above.
-- **In progress / blocked paths:** no source edits are currently uncommitted. The committed 48-team generator regression in `server/src/modules/scheduling/generator.test.ts` finishes in 58.5 seconds but fails home/away balance. The committed 13-team double-elimination regression in `server/src/modules/tournaments/bracket-acceptance.test.ts` cannot finalize GF1 because shared loser-bracket byes do not advance. `server/src/modules/contests/service.ts` still cannot complete card discipline automation because Track F's transaction-scoped result creation and game-served APIs are absent. Schedule browser journeys remain unavailable until Track C mounts the registered routes; G has no Phase 8/9 Playwright journeys yet.
-- **Next steps, in order:**
-  1. Track B fixes the 48-team home/away fairness and double-elimination bye progression in the shared algorithms; rerun `server/src/modules/scheduling/generator.test.ts`, `server/src/modules/tournaments/bracket-acceptance.test.ts`, then the unit suite.
-  2. Track C mounts the schedule console and portal routes/navigation, agrees on a safe facility-layout image serving contract, and adds Phase 8/9 Chromium and WebKit mobile journeys with axe.
-  3. Track B/C completes notification fan-out to the preview email path; G continues to emit through the shared notifications module.
-  4. Track H exposes volunteer assignments by event; include those volunteers in emergency closure recipients.
-  5. Track F exposes transaction-scoped result-to-discipline creation and finalized-game-served counting; finish automatic discipline integration in `server/src/modules/contests/service.ts`.
-  6. Track A fixes the baseline WebKit failures in `e2e/ownership-transfer.spec.ts`, `e2e/people.spec.ts`, and `e2e/sign-in.spec.ts`.
-  7. Rerun generator, closure, DST, ICS, tenancy/permission, and Phase 8/9 browser journeys; then pass the full tiered merge gate before integration.
-- **Known failing tests:** latest lock-protected merge gate passed typecheck and lint, while `heavy.sh npm test` reported 757 passed, 1 skipped, and 2 failed: `server/src/modules/scheduling/generator.test.ts` failed `home/away difference ≤ 1` after 58.5 seconds; `server/src/modules/tournaments/bracket-acceptance.test.ts` failed because GF1 did not finalize. Latest serial Playwright: Chromium 3/3 passed; WebKit mobile failed `e2e/ownership-transfer.spec.ts:20` (acceptance-link status), `e2e/people.spec.ts:13` (Alex Rivera heading), and `e2e/sign-in.spec.ts:151` (verification-link status). The latest full browser run was 38 passed, 4 failed, 4 skipped. The merge was aborted; trunk remains at `9b5b430` with its pre-existing `server/src/db/types.ts` edit preserved.
-- **Open requests:** Track B—generator fairness and bracket bye progression; Track C—schedule route mounting, schedule journeys with axe, and facility image contract; Track B/C—notification email fan-out; Track H—volunteer assignments; Track F—discipline transaction/game-served APIs; Track A—baseline browser failures.
-- **Local test stack:** `COMPOSE_PROJECT_NAME=athlentry_g PORT_OFFSET=700` (Postgres host port `6132`).
-- **Integration state:** `track/g-schedule` is local and unpushed. The latest self-merge gate was red and rolled back, so no integration merge was made.
-
-HANDED OFF 10:54

@@ -1,0 +1,6 @@
+# Draft canonical contact file. Replace the reserved .example contact and
+# canonical domain before publishing under /.well-known/security.txt.
+Contact: mailto:security@athlentry.example
+Policy: https://athlentry.example/security/vulnerability-disclosure
+Preferred-Languages: en, es
+Expires: 2027-09-27T00:00:00.000Z
