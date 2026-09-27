@@ -14,7 +14,7 @@ import { createNotification } from '../notifications/service';
 
 import type { sponsorBodySchema, sponsorPatchSchema } from './schema';
 
-export class SponsorConflictError extends Error {
+class SponsorConflictError extends Error {
   readonly status = 409;
   readonly code = 'CONFLICT';
 }

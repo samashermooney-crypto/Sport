@@ -144,8 +144,8 @@ export function AppShell({
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-4-4" />
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
           </svg>
           <span>Search…</span>
         </button>

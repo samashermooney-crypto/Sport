@@ -15,7 +15,7 @@ export class VolunteerConflictError extends Error {
   readonly code = 'CONFLICT';
 }
 
-export class VolunteerNotFoundError extends Error {
+class VolunteerNotFoundError extends Error {
   readonly status = 404;
   readonly code = 'NOT_FOUND';
 }

@@ -4,15 +4,16 @@ import {
   QueryClientProvider,
   useQuery,
 } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import type { RouteObject } from 'react-router';
 import { BrowserRouter, useLocation, useRoutes } from 'react-router';
 
 import { apiGet } from './api/client';
-import { webNestedRoutes } from './generated/nested-routes';
 import { webFeatures } from './generated/registry';
 import { i18n } from './lib/i18n';
-import { ImpersonationBanner } from './platform/PlatformConsole';
+import { ImpersonationBanner } from './platform/ImpersonationBanner';
 import { PlatformShell } from './ui/PlatformShell';
+import { RouteLoading } from './ui/RouteLoading';
 import { AppErrorBoundary, ToastProvider } from './ui/app-feedback';
 
 const queryClient = new QueryClient({
@@ -66,8 +67,50 @@ function AuthenticatedLocale({ path }: { path: string }): null {
 }
 
 function AppRoutes(): React.ReactNode {
-  return useRoutes([
+  const location = useLocation();
+  const needsNestedRoutes = /^\/(console|me|orgs|portal|site)(\/|$)/.test(
+    location.pathname,
+  );
+  const [nestedRoutes, setNestedRoutes] = useState<
+    readonly RouteObject[] | null
+  >(null);
+  const [nestedRoutesFailed, setNestedRoutesFailed] = useState(false);
+
+  useEffect(() => {
+    if (!needsNestedRoutes || nestedRoutes !== null) return;
+    let active = true;
+    void import('./generated/nested-routes')
+      .then(({ webNestedRoutes }) => {
+        if (active) setNestedRoutes(webNestedRoutes);
+      })
+      .catch(() => {
+        if (active) setNestedRoutesFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [needsNestedRoutes, nestedRoutes]);
+
+  const routes = useRoutes([
     ...webFeatures.flatMap((feature) => [...feature.routes]),
-    ...webNestedRoutes,
+    ...(nestedRoutes ?? []),
   ]);
+  if (needsNestedRoutes && nestedRoutes === null) {
+    return nestedRoutesFailed ? (
+      <div role="alert">
+        <p>Additional pages could not be loaded.</p>
+        <button
+          type="button"
+          onClick={() => {
+            window.location.reload();
+          }}
+        >
+          Reload page
+        </button>
+      </div>
+    ) : (
+      <RouteLoading label="Loading page…" />
+    );
+  }
+  return routes;
 }

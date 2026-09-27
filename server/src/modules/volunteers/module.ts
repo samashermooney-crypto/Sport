@@ -39,7 +39,7 @@ const route = (
   ...(body ? { body } : {}),
 });
 
-export const volunteerNotificationTemplates = {
+const volunteerNotificationTemplates = {
   'volunteer.shift_reminder': {
     category: 'operational',
     defaultChannels: ['in_app', 'email'],
