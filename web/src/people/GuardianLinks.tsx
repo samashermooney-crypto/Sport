@@ -1,4 +1,7 @@
-import { guardianLinksResponseSchema } from '@shared/schemas/people';
+import {
+  guardianInvitationResponseSchema,
+  guardianLinksResponseSchema,
+} from '@shared/schemas/people';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -19,6 +22,7 @@ export function GuardianLinks({
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
   const path = `/people/orgs/${orgId}/${personId}/guardians`;
   const queryKey = ['guardians', orgId, personId];
   const links = useQuery({
@@ -29,6 +33,7 @@ export function GuardianLinks({
   return (
     <Card>
       <h2>Guardians</h2>
+      {notice && <p role="status">{notice}</p>}
       {links.isPending && <p>Loading guardians…</p>}
       {links.isError && <p>Guardians are unavailable.</p>}
       {links.data && (
@@ -112,6 +117,39 @@ export function GuardianLinks({
           </Field>
           <Button type="submit" disabled={busy}>
             Link guardian
+          </Button>
+          <Button
+            type="button"
+            secondary
+            disabled={busy || !email.trim()}
+            onClick={() => {
+              setBusy(true);
+              setError('');
+              setNotice('');
+              void apiPost(
+                `${path}/invitations`,
+                { email },
+                guardianInvitationResponseSchema,
+              )
+                .then(() => {
+                  setNotice(
+                    'Guardian invitation sent. The recipient must verify their email and accept.',
+                  );
+                  setEmail('');
+                })
+                .catch((cause: unknown) => {
+                  setError(
+                    cause instanceof Error
+                      ? cause.message
+                      : 'Could not send invitation.',
+                  );
+                })
+                .finally(() => {
+                  setBusy(false);
+                });
+            }}
+          >
+            Send invitation
           </Button>
         </form>
       )}
