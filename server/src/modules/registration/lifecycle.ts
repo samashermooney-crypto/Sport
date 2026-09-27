@@ -2445,8 +2445,6 @@ export class PostgresRegistrationLifecycle {
             .where('id', '=', source.invoice_line_id)
             .executeTakeFirst()
         : null;
-      const difference =
-        destination.price_cents - (sourceLine?.amount_cents ?? 0);
       const sourceInvoice = sourceLine
         ? await trx
             .selectFrom('invoices')
@@ -2455,6 +2453,47 @@ export class PostgresRegistrationLifecycle {
             .where('id', '=', sourceLine.invoice_id)
             .executeTakeFirst()
         : null;
+      let sourceNetPriceCents = sourceLine?.amount_cents ?? 0;
+      if (sourceLine) {
+        const sourceAdjustments = await trx
+          .selectFrom('invoice_lines')
+          .select(['kind', 'amount_cents'])
+          .where('org_id', '=', input.orgId)
+          .where('invoice_id', '=', sourceLine.invoice_id)
+          .where('parent_line_id', '=', sourceLine.id)
+          .execute();
+        if (
+          sourceAdjustments.some(
+            (line) =>
+              !Number.isSafeInteger(line.amount_cents) ||
+              (['discount', 'aid'].includes(line.kind) &&
+                line.amount_cents > 0) ||
+              (!['discount', 'aid'].includes(line.kind) &&
+                line.amount_cents < 0),
+          )
+        )
+          throw new RegistrationCheckoutError(
+            409,
+            'NOT_TRANSFERABLE',
+            'The registration line has unsupported child charges; request a finance-reviewed transfer quote',
+          );
+        sourceNetPriceCents += sourceAdjustments.reduce(
+          (sum, line) =>
+            sum +
+            (['discount', 'aid'].includes(line.kind) ? line.amount_cents : 0),
+          0,
+        );
+        if (
+          !Number.isSafeInteger(sourceNetPriceCents) ||
+          sourceNetPriceCents < 0
+        )
+          throw new RegistrationCheckoutError(
+            409,
+            'NOT_TRANSFERABLE',
+            'The registration net price does not reconcile',
+          );
+      }
+      const difference = destination.price_cents - sourceNetPriceCents;
       let refund: RegistrationTransferRefundResult | null = null;
       if (input.financialTreatment === 'refund_difference') {
         if (
@@ -2473,25 +2512,6 @@ export class PostgresRegistrationLifecycle {
             409,
             'NOT_TRANSFERABLE',
             'Only confirmed paid registrations can receive a transfer refund',
-          );
-        const unsupportedLines = await trx
-          .selectFrom('invoice_lines')
-          .select('id')
-          .where('org_id', '=', input.orgId)
-          .where('invoice_id', '=', sourceInvoice.id)
-          .where('kind', 'in', [
-            'add_on',
-            'discount',
-            'aid',
-            'tax',
-            'volunteer_buyout',
-          ])
-          .executeTakeFirst();
-        if (unsupportedLines)
-          throw new RegistrationCheckoutError(
-            409,
-            'NOT_TRANSFERABLE',
-            'This registration invoice has adjustments that require a finance-reviewed transfer quote',
           );
         const timezone = await trx
           .selectFrom('organizations')

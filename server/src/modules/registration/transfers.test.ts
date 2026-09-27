@@ -313,6 +313,7 @@ async function fixture(destinationPriceCents: number) {
     sourceDivisionId,
     sourceOfferingId,
     destinationOfferingId,
+    invoiceId,
     invoiceLineId,
     payerAccountId,
   };
@@ -388,6 +389,165 @@ describe('registration transfer money handling', () => {
         .executeTakeFirstOrThrow(),
     );
     expect(source.status).toBe('transferred_out');
+  });
+
+  it('prices a transfer refund from the registration net of discounts and ignores other invoice lines', async () => {
+    const data = await fixture(1500);
+    await createWithOrg(database)(data.context, async (trx) => {
+      await trx
+        .updateTable('registrations')
+        .set({ status: 'confirmed' })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.registrationId)
+        .execute();
+      await trx
+        .updateTable('capacity_counters')
+        .set({ confirmed: 1 })
+        .where('org_id', '=', data.orgId)
+        .where('subject_id', 'in', [
+          data.sourceProgramId,
+          data.sourceDivisionId,
+          data.sourceOfferingId,
+        ])
+        .execute();
+      await trx
+        .insertInto('invoice_lines')
+        .values([
+          {
+            id: newId(),
+            org_id: data.orgId,
+            invoice_id: data.invoiceId,
+            kind: 'discount',
+            description: 'Registration discount',
+            quantity: 1,
+            unit_amount_cents: -500,
+            amount_cents: -500,
+            refundable: false,
+            parent_line_id: data.invoiceLineId,
+          },
+          {
+            id: newId(),
+            org_id: data.orgId,
+            invoice_id: data.invoiceId,
+            kind: 'add_on',
+            description: 'Uniform kit',
+            quantity: 1,
+            unit_amount_cents: 1000,
+            amount_cents: 1000,
+            refundable: true,
+            parent_line_id: data.invoiceLineId,
+          },
+        ])
+        .execute();
+      await trx
+        .updateTable('invoices')
+        .set({ subtotal_cents: 3500, discount_cents: 500, total_cents: 3000 })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.invoiceId)
+        .execute();
+    });
+    const refundExactLine = vi.fn().mockResolvedValue({
+      refundId: 're_transfer_discount_difference',
+      status: 'pending',
+      amountCents: 500,
+    });
+    const lifecycle = new PostgresRegistrationLifecycle(
+      database,
+      data.context,
+      () => new Date('2026-09-27T17:00:00.000Z'),
+      { refundExactLine },
+    );
+    const result = await lifecycle.transfer({
+      orgId: data.orgId,
+      registrationId: data.registrationId,
+      toOfferingId: data.destinationOfferingId,
+      financialTreatment: 'refund_difference',
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(result.differenceCents).toBe(-500);
+    expect(result.refund).toMatchObject({ amountCents: 500 });
+    expect(refundExactLine).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoiceLineId: data.invoiceLineId,
+        amountCents: 500,
+      }),
+    );
+  });
+
+  it('fails closed when registration-specific discounts exceed the line price', async () => {
+    const data = await fixture(1500);
+    await createWithOrg(database)(data.context, async (trx) => {
+      await trx
+        .updateTable('registrations')
+        .set({ status: 'confirmed' })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.registrationId)
+        .execute();
+      await trx
+        .updateTable('capacity_counters')
+        .set({ confirmed: 1 })
+        .where('org_id', '=', data.orgId)
+        .where('subject_id', 'in', [
+          data.sourceProgramId,
+          data.sourceDivisionId,
+          data.sourceOfferingId,
+        ])
+        .execute();
+      await trx
+        .insertInto('invoice_lines')
+        .values([
+          {
+            id: newId(),
+            org_id: data.orgId,
+            invoice_id: data.invoiceId,
+            kind: 'discount',
+            description: 'Excess registration discount',
+            quantity: 1,
+            unit_amount_cents: -3000,
+            amount_cents: -3000,
+            refundable: false,
+            parent_line_id: data.invoiceLineId,
+          },
+          {
+            id: newId(),
+            org_id: data.orgId,
+            invoice_id: data.invoiceId,
+            kind: 'add_on',
+            description: 'Uniform kit',
+            quantity: 1,
+            unit_amount_cents: 1000,
+            amount_cents: 1000,
+            refundable: true,
+            parent_line_id: data.invoiceLineId,
+          },
+        ])
+        .execute();
+      await trx
+        .updateTable('invoices')
+        .set({ subtotal_cents: 3500, discount_cents: 3000, total_cents: 500 })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.invoiceId)
+        .execute();
+    });
+    const refundExactLine = vi.fn();
+    const lifecycle = new PostgresRegistrationLifecycle(
+      database,
+      data.context,
+      () => new Date('2026-09-27T17:00:00.000Z'),
+      { refundExactLine },
+    );
+
+    await expect(
+      lifecycle.transfer({
+        orgId: data.orgId,
+        registrationId: data.registrationId,
+        toOfferingId: data.destinationOfferingId,
+        financialTreatment: 'refund_difference',
+        idempotencyKey: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_TRANSFERABLE', status: 409 });
+    expect(refundExactLine).not.toHaveBeenCalled();
   });
 
   it('bills an additional charge to the original payer and replays exactly', async () => {
