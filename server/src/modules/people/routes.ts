@@ -7,6 +7,7 @@ import {
   householdsQuerySchema,
 } from '@shared/schemas/households';
 import {
+  guardianInvitationAcceptSchema,
   guardianLinkCreateSchema,
   peopleFilterOptionsQuerySchema,
   peopleQuerySchema,
@@ -176,6 +177,57 @@ export function createPeopleRouter(
       sendError(response, error);
     }
   });
+
+  router.post(
+    '/orgs/:orgId/:personId/guardians/invitations',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        const { email } = guardianLinkCreateSchema.parse(request.body);
+        response
+          .status(201)
+          .json(
+            await guardianLinks.invite(
+              z.uuid().parse(request.params.orgId),
+              session.accountId,
+              z.uuid().parse(request.params.personId),
+              email,
+              dependencies.email,
+              dependencies.appUrl,
+            ),
+          );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/guardians/invitations/accept',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        const { token } = guardianInvitationAcceptSchema.parse(request.body);
+        response.json(
+          await guardianLinks.accept(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            token,
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
 
   router.post(
     '/orgs/:orgId/:personId/guardians/:linkId/revoke',

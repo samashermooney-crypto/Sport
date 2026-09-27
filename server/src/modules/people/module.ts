@@ -8,6 +8,9 @@ import {
   householdUpdateSchema,
 } from '@shared/schemas/households';
 import {
+  guardianInvitationAcceptedResponseSchema,
+  guardianInvitationAcceptSchema,
+  guardianInvitationResponseSchema,
   guardianLinkCreateSchema,
   guardianLinksResponseSchema,
   peopleFilterOptionsSchema,
@@ -110,6 +113,20 @@ export const moduleDefinition = {
       summary: 'Link an existing verified adult account as guardian',
       body: guardianLinkCreateSchema,
       response: guardianLinksResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/guardians/invitations',
+      summary: 'Invite an adult to become a guardian of this person',
+      body: guardianLinkCreateSchema,
+      response: guardianInvitationResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/guardians/invitations/accept',
+      summary: 'Accept a person-bound guardian invitation',
+      body: guardianInvitationAcceptSchema,
+      response: guardianInvitationAcceptedResponseSchema,
     },
     {
       method: 'post',

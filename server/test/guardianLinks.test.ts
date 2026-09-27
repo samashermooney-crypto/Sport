@@ -6,6 +6,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { createDatabase } from '../src/db/kysely';
 import type { DB } from '../src/db/types';
+import { FakeEmailSender } from '../src/integrations/email/sender';
 import { createGuardianLinksRepository } from '../src/modules/people/guardianLinks';
 
 import { createTestFactories } from './factories';
@@ -171,4 +172,137 @@ it('rejects unverified and underage accounts and protects a linked minor from lo
       linked.items[0]?.id ?? '',
     ),
   ).rejects.toMatchObject({ status: 409 });
+});
+
+it('binds a guardian invitation to person, organization and verified adult email, and consumes it once', async () => {
+  const factories = createTestFactories(database);
+  const staff = await factories.actor();
+  const otherOrg = await factories.actor();
+  await factories.scoped(staff, async (trx) => {
+    await trx
+      .updateTable('role_assignments')
+      .set({ pending_mfa: false })
+      .where('org_id', '=', staff.orgId)
+      .where('account_id', '=', staff.accountId)
+      .execute();
+  });
+  const childId = await factories.person(staff);
+  const guardianId = newId();
+  const email = `invited-${randomUUID()}@example.invalid`;
+  await database
+    .insertInto('accounts')
+    .values({
+      id: guardianId,
+      email,
+      first_name: 'Invited',
+      last_name: 'Guardian',
+      date_of_birth: '1980-01-01',
+      email_verified_at: new Date(),
+    })
+    .execute();
+  const sender = new FakeEmailSender();
+  const guardians = createGuardianLinksRepository(database);
+  const invitation = await guardians.invite(
+    staff.orgId,
+    staff.accountId,
+    childId,
+    email,
+    sender,
+    'https://athlentry.test',
+  );
+  expect(invitation.email).toBe(email);
+  expect(sender.messages).toHaveLength(1);
+  const token = sender.messages[0]?.text.match(
+    /guardian-invitations\/[0-9a-f-]+\/([A-Za-z0-9_-]{43})/,
+  )?.[1];
+  expect(token).toBeDefined();
+  const raw = token ?? '';
+  await expect(
+    guardians.accept(otherOrg.orgId, guardianId, raw),
+  ).rejects.toMatchObject({ status: 404 });
+  await expect(
+    guardians.accept(staff.orgId, staff.accountId, raw),
+  ).rejects.toMatchObject({ status: 404 });
+  const accepted = await guardians.accept(staff.orgId, guardianId, raw);
+  expect(accepted.personId).toBe(childId);
+  await expect(
+    guardians.accept(staff.orgId, guardianId, raw),
+  ).rejects.toMatchObject({ status: 404 });
+  expect(
+    (await guardians.list(staff.orgId, staff.accountId, childId)).items[0]
+      ?.accountId,
+  ).toBe(guardianId);
+});
+
+it('revokes an invitation if preview delivery fails and rechecks the person at redemption', async () => {
+  const factories = createTestFactories(database);
+  const staff = await factories.actor();
+  await factories.scoped(staff, async (trx) => {
+    await trx
+      .updateTable('role_assignments')
+      .set({ pending_mfa: false })
+      .where('org_id', '=', staff.orgId)
+      .where('account_id', '=', staff.accountId)
+      .execute();
+  });
+  const childId = await factories.person(staff);
+  const email = `failing-${randomUUID()}@example.invalid`;
+  const guardians = createGuardianLinksRepository(database);
+  await expect(
+    guardians.invite(
+      staff.orgId,
+      staff.accountId,
+      childId,
+      email,
+      { send: () => Promise.reject(new Error('preview unavailable')) },
+      'https://athlentry.test',
+    ),
+  ).rejects.toThrow('preview unavailable');
+  const revoked = await factories.scoped(staff, (trx) =>
+    trx
+      .selectFrom('auth_tokens')
+      .select('revoked_at')
+      .where('org_id', '=', staff.orgId)
+      .where('purpose', '=', 'guardian_invitation')
+      .where('email', '=', email)
+      .executeTakeFirstOrThrow(),
+  );
+  expect(revoked.revoked_at).not.toBeNull();
+
+  const accountId = newId();
+  await database
+    .insertInto('accounts')
+    .values({
+      id: accountId,
+      email,
+      first_name: 'Future',
+      last_name: 'Guardian',
+      date_of_birth: '1980-01-01',
+      email_verified_at: new Date(),
+    })
+    .execute();
+  const sender = new FakeEmailSender();
+  await guardians.invite(
+    staff.orgId,
+    staff.accountId,
+    childId,
+    email,
+    sender,
+    'https://athlentry.test',
+  );
+  const raw =
+    sender.messages[0]?.text.match(
+      /guardian-invitations\/[0-9a-f-]+\/([A-Za-z0-9_-]{43})/,
+    )?.[1] ?? '';
+  await factories.scoped(staff, async (trx) => {
+    await trx
+      .updateTable('people')
+      .set({ status: 'archived' })
+      .where('org_id', '=', staff.orgId)
+      .where('id', '=', childId)
+      .execute();
+  });
+  await expect(
+    guardians.accept(staff.orgId, accountId, raw),
+  ).rejects.toMatchObject({ status: 404 });
 });

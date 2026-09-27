@@ -73,6 +73,21 @@ export const guardianLinksResponseSchema = z.strictObject({
   items: z.array(guardianLinkResponseSchema),
 });
 
+export const guardianInvitationResponseSchema = z.strictObject({
+  id: z.uuid(),
+  email: z.email(),
+  expiresAt: z.iso.datetime(),
+});
+
+export const guardianInvitationAcceptSchema = z.strictObject({
+  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+});
+
+export const guardianInvitationAcceptedResponseSchema = z.strictObject({
+  personId: z.uuid(),
+  linkId: z.uuid(),
+});
+
 export const peopleQuerySchema = z.strictObject({
   q: z.string().trim().max(120).optional(),
   status: z
