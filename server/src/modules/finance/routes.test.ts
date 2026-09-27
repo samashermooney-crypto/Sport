@@ -17,6 +17,7 @@ import { bindFixtureInvoice } from '../checkout/test-fixtures.js';
 import { aidProgramSchema } from './aid-programs.js';
 import { autopayAuthorizationListSchema } from './autopay-authorizations.js';
 import { creditBalanceSchema } from './credit-balances.js';
+import { glCodeListSchema, glCodeSchema } from './gl-codes.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { payerReceiptListSchema } from './payer-receipts.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
@@ -1224,6 +1225,78 @@ describe('finance payout journal HTTP', () => {
       `${baseUrl}/orgs/${context.orgId}/payouts/${payoutId}/reconciliation`,
     );
     expect(anonymousResponse.status).toBe(401);
+  });
+});
+
+describe('finance GL catalog HTTP', () => {
+  it('creates once per key, rejects conflicting codes, and replaces at the exact version', async () => {
+    const url = `${baseUrl}/orgs/${context.orgId}/gl-codes`;
+    const headers = {
+      Cookie: `__Host-athlentry_session=${token}`,
+      Origin: origin,
+      'X-Athlentry-Request': '1',
+      'Content-Type': 'application/json',
+      'Idempotency-Key': randomUUID(),
+    };
+    const body = {
+      code: `4000-${randomUUID().slice(0, 8)}`,
+      name: 'Tuition',
+      kind: 'income',
+    };
+    const createdResponse = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+    expect(createdResponse.status).toBe(201);
+    const created = glCodeSchema.parse(
+      (await createdResponse.json()) as unknown,
+    );
+    const replayResponse = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+    expect(
+      glCodeSchema.parse((await replayResponse.json()) as unknown).id,
+    ).toBe(created.id);
+    const duplicateResponse = await fetch(url, {
+      method: 'POST',
+      headers: { ...headers, 'Idempotency-Key': randomUUID() },
+      body: JSON.stringify(body),
+    });
+    expect(duplicateResponse.status).toBe(409);
+    const listResponse = await fetch(url, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(listResponse.status).toBe(200);
+    expect(
+      glCodeListSchema.parse((await listResponse.json()) as unknown).codes,
+    ).toContainEqual(created);
+    const replaceUrl = `${url}/${created.id}`;
+    const replacedResponse = await fetch(replaceUrl, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        ...body,
+        name: 'Program tuition',
+        expectedVersion: 1,
+      }),
+    });
+    expect(replacedResponse.status).toBe(200);
+    expect(
+      glCodeSchema.parse((await replacedResponse.json()) as unknown),
+    ).toMatchObject({
+      id: created.id,
+      version: 2,
+      name: 'Program tuition',
+    });
+    const staleResponse = await fetch(replaceUrl, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ ...body, expectedVersion: 1 }),
+    });
+    expect(staleResponse.status).toBe(409);
   });
 });
 

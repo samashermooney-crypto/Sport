@@ -50,6 +50,14 @@ import {
 } from './credits.js';
 import { PostgresFrozenChargeReader } from './frozen-charge-repo.js';
 import {
+  glCodeBodySchema,
+  GlCodeConflictError,
+  glCodeListSchema,
+  glCodeReplaceSchema,
+  glCodeSchema,
+  PostgresGlCodes,
+} from './gl-codes.js';
+import {
   installmentStaffActionSchema,
   installmentStaffListSchema,
   installmentStaffResultSchema,
@@ -472,6 +480,7 @@ function sendError(response: Response, error: unknown): void {
           error instanceof AidProgramConflictError ||
           error instanceof AidReviewConflictError ||
           error instanceof CreditLedgerConflictError ||
+          error instanceof GlCodeConflictError ||
           error instanceof TaxRateConflictError ||
           error instanceof StatementUnavailableError ||
           error instanceof MoneyDocumentUnavailableError ||
@@ -788,6 +797,66 @@ export function createFinanceRouter(
         context,
       ).replace(rateId, body);
       response.json(taxRateSchema.parse(rate));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/orgs/:orgId/gl-codes', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const codes = await new PostgresGlCodes(
+        dependencies.database,
+        context,
+      ).list();
+      response.json(glCodeListSchema.parse({ codes }));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post('/orgs/:orgId/gl-codes', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = glCodeBodySchema.parse(request.body as unknown);
+      const key = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const created = await new PostgresGlCodes(
+        dependencies.database,
+        context,
+      ).create(body, key);
+      response.status(201).json(glCodeSchema.parse(created));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.put('/orgs/:orgId/gl-codes/:codeId', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const codeId = z.uuid().parse(request.params.codeId);
+      const body = glCodeReplaceSchema.parse(request.body as unknown);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const replaced = await new PostgresGlCodes(
+        dependencies.database,
+        context,
+      ).replace(codeId, body);
+      response.json(glCodeSchema.parse(replaced));
     } catch (error) {
       sendError(response, error);
     }

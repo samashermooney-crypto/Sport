@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Finance invoice/payment notices now drain through a registered per-org worker using A's system actor, preview email locally and transactional provider idempotency keys; payout report and weekly templates are committed.
+Current: Org GL codes now have finance-only, versioned create/list/replace APIs; finance notices drain through the registered worker, and payout reporting is committed. Saved payout journal mappings remain in the queue.
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
@@ -44,6 +44,8 @@ Ready for integration: local `2c234b2..HEAD` — payer-owned manual installment 
 Ready for integration: local `b5285d4..HEAD` — weekly installment template create/replace support using Track B's shared algorithm; full gate green (684 tests, 36 browser tests).
 Ready for integration: local `444da14..HEAD` — finance-only payout reconciliation JSON and CSV API with authenticated, tenant-scoped reads; full gate green (684 tests, 36 browser tests).
 Ready for integration: local `2402782..HEAD` — registered finance notice worker with system actor, per-org leases and preview/live email selection; full gate green (685 tests, 36 browser tests).
+Ready for integration: local `a6bd8d4..HEAD` — finance-only GL code catalog with keyed creation, uniqueness and versioned audited replacement; full gate green (686 tests, 36 browser tests).
+Requests to other tracks: A: regenerate DB types after migration 1041 and finance OpenAPI for the new `gl-codes` routes when merging E (2026-09-27).
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
@@ -181,7 +183,7 @@ Invoice state: `finance/invoice-repo.ts` now recomputes Track B-derived status i
 Waitlist holds: `checkout/waitlist.ts` sets family-local send times and expiry from send, with one-transaction repository contract for capacity, offer and outbox; 2 targeted tests pass.
 Payout mirror: `finance/payouts.ts` fetches latest Connect payout and all transaction pages; `payout-repo.ts` atomically mirrors immutable cents and account ownership under `withOrg`; 3 targeted tests pass.
 Payout reconciliation: org-scoped report links charge/refund/dispute balance transactions to payment and invoice numbers, flags net differences and unlinked sources, and exports CSV with formula-cell escaping; authenticated finance JSON/CSV routes have HTTP coverage.
-Payout journal: `journal-export.ts` converts a paid, fully reconciled payout into balanced QuickBooks-column CSV with explicit per-transaction GL mappings, decimal dollars and formula-cell escaping; finance API returns the CSV for supplied GL codes; 2 focused and 1 HTTP/Postgres tests pass. Org GL configuration remains.
+Payout journal: `journal-export.ts` converts a paid, fully reconciled payout into balanced QuickBooks-column CSV with explicit per-transaction GL mappings, decimal dollars and formula-cell escaping; finance API returns the CSV for supplied GL codes; an org GL code catalog is now available, while saved bank/clearing/transaction mappings remain.
 Dispute accounting foundation: migration 1015 tracks active and lost invoice cents plus durable liability movement claims; latest Stripe dispute/charge fetch validates identity, and org-scoped mirror transitions active→lost idempotently; 1 Postgres test passes.
 Dispute liability: migration 1016 records zero-available-transfer shortfalls; reversal claims cap at Stripe's unreversed transfer, fence ambiguous calls, restore only reinstated funds on a win, and keep liability shortfalls visible; 2 service and 1 Postgres tests pass.
 Offline payments: migration 1017 assigns org receipt numbers; `finance/offline-payments.ts` records cash/check/external payments, one invoice allocation and audit atomically, with exact replay and pending-intent overcommit guards; 1 concurrent Postgres test passes.

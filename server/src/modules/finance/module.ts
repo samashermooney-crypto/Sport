@@ -19,6 +19,12 @@ import {
 } from './autopay-authorizations.js';
 import { creditBalanceSchema } from './credit-balances.js';
 import {
+  glCodeBodySchema,
+  glCodeListSchema,
+  glCodeReplaceSchema,
+  glCodeSchema,
+} from './gl-codes.js';
+import {
   installmentStaffActionSchema,
   installmentStaffListSchema,
   installmentStaffResultSchema,
@@ -164,6 +170,26 @@ export const moduleDefinition = {
       summary: 'Replace a product-only tax rate at an exact version',
       body: taxRateReplaceSchema,
       response: taxRateSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/gl-codes',
+      summary: 'List the organization GL code catalog',
+      response: glCodeListSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/gl-codes',
+      summary: 'Create a versioned GL code with an idempotency key',
+      body: glCodeBodySchema,
+      response: glCodeSchema,
+    },
+    {
+      method: 'put',
+      path: '/api/v1/finance/orgs/{orgId}/gl-codes/{codeId}',
+      summary: 'Replace a GL code at an exact version',
+      body: glCodeReplaceSchema,
+      response: glCodeSchema,
     },
     {
       method: 'post',
