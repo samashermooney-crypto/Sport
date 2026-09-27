@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol
 Branch: `track/b-logic`
-Current: Team balancer; then evaluation and proration.
+Current: Evaluation scoring; then proration and final coverage review.
 Ready: Age/eligibility — `shared/src/sport/{age,eligibility}.ts`; 11 targeted tests, typecheck and lint green.
 Ready: Recurrence — `shared/src/recurrence.ts`; 11 targeted tests across four timezones, typecheck and lint green.
 Ready: Sport schema/results/stats/standings — 19 targeted tests, typecheck and lint green; template goldens still pending.
@@ -12,7 +12,8 @@ Ready: Installments/invoice-state/capacity-math — 13 targeted tests, typecheck
 Ready: Pure policies (compliance, SafeSport, refunds, quiet hours, FCRA) — 15 targeted tests, typecheck and lint green.
 Ready: Brackets — single/double elimination, byes, pool seeding and guarded advancement; 5 targeted tests, typecheck and lint green.
 Ready: Schedule generator — circle pairings, 15-minute slots, hard/soft constraints, seeded local search and tournament reservations; 7 targeted tests, typecheck and lint green.
-Ready for integration: 30a775f..HEAD — age/eligibility, recurrence, sport schema/results/stats/standings, 46 templates, pricing/fees/installments/invoice-state/capacity-math, five pure policies, brackets, schedule generator.
+Ready: Team balancer — fixed groups, mutual friends, siblings, position coverage, snake draft and seeded swaps; 4 targeted tests, typecheck and lint green.
+Ready for integration: 30a775f..HEAD — age/eligibility, recurrence, sport schema/results/stats/standings, 46 templates, pricing/fees/installments/invoice-state/capacity-math, five pure policies, brackets, schedule generator, team balancer.
 Requests to other tracks: none
 Blocked on: none
 Self-review: Checked age and eligibility against `03 §3` and `15 §C8`; date rules reuse `shared/src/dates.ts`.
