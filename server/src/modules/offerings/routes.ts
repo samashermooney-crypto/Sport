@@ -105,5 +105,9 @@ export function createOfferingsRouter(
       templates: await (await service(request)).templates(),
     })),
   );
+  router.get(
+    '/orgs/:orgId/libraries',
+    run(async (request) => (await service(request)).libraries()),
+  );
   return router;
 }

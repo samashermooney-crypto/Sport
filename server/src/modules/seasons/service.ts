@@ -224,7 +224,15 @@ export class SeasonsService {
         .selectFrom('team_staff as s')
         .innerJoin('team_seasons as ts', 'ts.id', 's.team_season_id')
         .innerJoin('programs as p', 'p.id', 'ts.program_id')
-        .select(['s.id', 's.team_season_id', 's.person_id', 's.role'])
+        .innerJoin('people as person', 'person.id', 's.person_id')
+        .select([
+          's.id',
+          's.team_season_id',
+          's.person_id',
+          's.role',
+          'person.first_name',
+          'person.last_name',
+        ])
         .where('s.org_id', '=', this.context.orgId)
         .where('p.season_id', '=', id)
         .where('s.status', '!=', 'removed')
@@ -259,6 +267,7 @@ export class SeasonsService {
           id: p.id,
           name: p.name,
           startsOn: dateOnly(p.starts_on),
+          endsOn: dateOnly(p.ends_on),
           copiedStartsOn: resolveDate(
             p.starts_on,
             value.offsetDays,

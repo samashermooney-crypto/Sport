@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { z } from 'zod';
 
-import { apiGet, apiPost } from '../../api/client';
+import { apiDelete, apiGet, apiPatch, apiPost } from '../../api/client';
 import { Button, Card, Field, Input, Select } from '../../ui/primitives';
 
 import '../programs/programs.css';
@@ -12,6 +12,10 @@ const facilityRow = z.looseObject({
   ownership: z.string(),
   public: z.boolean(),
   version: z.number().int().positive(),
+  address: z.record(z.string(), z.string()).nullable(),
+  timezone: z.string().nullable(),
+  parking_notes: z.string().nullable(),
+  map_url: z.string().nullable(),
 });
 const spaceRow = z.looseObject({
   id: z.uuid(),
@@ -19,6 +23,7 @@ const spaceRow = z.looseObject({
   parent_space_id: z.uuid().nullable(),
   name: z.string(),
   kind: z.string(),
+  version: z.number().int().positive(),
 });
 const listSchema = z.object({
   facilities: z.array(facilityRow),
@@ -30,6 +35,7 @@ const availabilityRow = z.looseObject({
   recurrence: z.unknown(),
   start_time: z.string(),
   end_time: z.string(),
+  version: z.number().int().positive(),
 });
 const blackoutRow = z.looseObject({
   id: z.uuid(),
@@ -68,6 +74,12 @@ export function FacilitiesConsole({
   const [blackoutStart, setBlackoutStart] = useState('');
   const [blackoutEnd, setBlackoutEnd] = useState('');
   const [blackoutReason, setBlackoutReason] = useState('');
+  const [editFacility, setEditFacility] = useState<z.output<
+    typeof facilityRow
+  > | null>(null);
+  const [editSpace, setEditSpace] = useState<z.output<typeof spaceRow> | null>(
+    null,
+  );
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -145,10 +157,110 @@ export function FacilitiesConsole({
           {facilities.map((facility) => (
             <li key={facility.id}>
               <strong>{facility.name}</strong> · {facility.ownership} ·{' '}
-              {facility.public ? 'Public' : 'Private'}
+              {facility.public ? 'Public' : 'Private'}{' '}
+              <Button
+                type="button"
+                secondary
+                disabled={busy}
+                onClick={() => {
+                  setEditFacility({ ...facility });
+                }}
+              >
+                Edit
+              </Button>{' '}
+              <Button
+                type="button"
+                secondary
+                disabled={busy}
+                onClick={() => {
+                  void mutate(async () => {
+                    await apiPost(
+                      `/facilities/orgs/${orgId}/${facility.id}/archive`,
+                      { expectedVersion: facility.version },
+                      facilityRow,
+                    );
+                    setNotice('Facility and its spaces archived');
+                  });
+                }}
+              >
+                Archive
+              </Button>
             </li>
           ))}
         </ul>
+        {editFacility && (
+          <form
+            className="phase3-form-grid"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void mutate(async () => {
+                await apiPatch(
+                  `/facilities/orgs/${orgId}/${editFacility.id}`,
+                  {
+                    expectedVersion: editFacility.version,
+                    facility: {
+                      name: editFacility.name,
+                      ownership: editFacility.ownership,
+                      address: editFacility.address,
+                      timezone: editFacility.timezone,
+                      parkingNotes: editFacility.parking_notes,
+                      mapUrl: editFacility.map_url,
+                      public: editFacility.public,
+                    },
+                  },
+                  facilityRow,
+                );
+                setEditFacility(null);
+                setNotice('Facility updated');
+              });
+            }}
+          >
+            <Field label="Facility name">
+              <Input
+                value={editFacility.name}
+                onChange={(event) => {
+                  setEditFacility({ ...editFacility, name: event.target.value });
+                }}
+                required
+              />
+            </Field>
+            <Field label="Ownership">
+              <Select
+                value={editFacility.ownership}
+                onChange={(event) => {
+                  setEditFacility({
+                    ...editFacility,
+                    ownership: event.target.value,
+                  });
+                }}
+                options={['owned', 'permitted', 'partner']}
+              />
+            </Field>
+            <label>
+              <input
+                type="checkbox"
+                checked={editFacility.public}
+                onChange={(event) => {
+                  setEditFacility({
+                    ...editFacility,
+                    public: event.target.checked,
+                  });
+                }}
+              />{' '}
+              Show on public site
+            </label>
+            <Button disabled={busy}>Save facility</Button>{' '}
+            <Button
+              type="button"
+              secondary
+              onClick={() => {
+                setEditFacility(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </form>
+        )}
         <form
           className="phase3-form-grid"
           onSubmit={(event) => {
@@ -192,10 +304,123 @@ export function FacilitiesConsole({
           {spaces.map((space) => (
             <li key={space.id}>
               {space.name} · {space.kind}
-              {space.parent_space_id ? ' · half/child' : ''}
+              {space.parent_space_id ? ' · half/child' : ''}{' '}
+              <Button
+                type="button"
+                secondary
+                disabled={busy}
+                onClick={() => {
+                  setEditSpace({ ...space });
+                }}
+              >
+                Edit
+              </Button>{' '}
+              <Button
+                type="button"
+                secondary
+                disabled={busy}
+                onClick={() => {
+                  void mutate(async () => {
+                    await apiPost(
+                      `/facilities/orgs/${orgId}/spaces/${space.id}/archive`,
+                      { expectedVersion: space.version },
+                      spaceRow,
+                    );
+                    setNotice('Space archived');
+                  });
+                }}
+              >
+                Archive
+              </Button>
             </li>
           ))}
         </ul>
+        {editSpace && (
+          <form
+            className="phase3-form-grid"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void mutate(async () => {
+                await apiPatch(
+                  `/facilities/orgs/${orgId}/spaces/${editSpace.id}`,
+                  {
+                    expectedVersion: editSpace.version,
+                    name: editSpace.name,
+                    kind: editSpace.kind,
+                    parentSpaceId: editSpace.parent_space_id,
+                  },
+                  spaceRow,
+                );
+                setEditSpace(null);
+                setNotice('Space updated');
+              });
+            }}
+          >
+            <Field label="Space name">
+              <Input
+                value={editSpace.name}
+                onChange={(event) => {
+                  setEditSpace({ ...editSpace, name: event.target.value });
+                }}
+                required
+              />
+            </Field>
+            <Field label="Kind">
+              <Select
+                value={editSpace.kind}
+                onChange={(event) => {
+                  setEditSpace({ ...editSpace, kind: event.target.value });
+                }}
+                options={[
+                  'field',
+                  'court',
+                  'rink',
+                  'pool',
+                  'lanes',
+                  'mat',
+                  'diamond',
+                  'track',
+                  'room',
+                  'other',
+                ]}
+              />
+            </Field>
+            <Field label="Parent space">
+              <Select
+                value={editSpace.parent_space_id ?? ''}
+                onChange={(event) => {
+                  setEditSpace({
+                    ...editSpace,
+                    parent_space_id: event.target.value || null,
+                  });
+                }}
+              >
+                <option value="">Full space</option>
+                {spaces
+                  .filter(
+                    (space) =>
+                      space.id !== editSpace.id &&
+                      space.facility_id === editSpace.facility_id,
+                  )
+                  .map((space) => (
+                    <option key={space.id} value={space.id}>
+                      {space.name}
+                    </option>
+                  ))}
+              </Select>
+            </Field>
+            <Button disabled={busy}>Save space</Button>{' '}
+            <Button
+              type="button"
+              secondary
+              onClick={() => {
+                setEditSpace(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </form>
+        )}
         <form
           className="phase3-form-grid"
           onSubmit={(event) => {
@@ -291,7 +516,24 @@ export function FacilitiesConsole({
               window.recurrence &&
               'kind' in window.recurrence
                 ? String(window.recurrence.kind)
-                : 'Recurring'}
+                : 'Recurring'}{' '}
+              <Button
+                type="button"
+                secondary
+                disabled={busy}
+                onClick={() => {
+                  void mutate(async () => {
+                    await apiDelete(
+                      `/facilities/orgs/${orgId}/availability/${window.id}`,
+                      z.looseObject({ id: z.uuid() }),
+                      { expectedVersion: window.version },
+                    );
+                    setNotice('Availability removed');
+                  });
+                }}
+              >
+                Remove
+              </Button>
             </li>
           ))}
         </ul>
@@ -408,7 +650,23 @@ export function FacilitiesConsole({
             <li key={blackout.id}>
               {blackout.reason} ·{' '}
               {new Date(blackout.starts_at).toLocaleString()}–
-              {new Date(blackout.ends_at).toLocaleString()}
+              {new Date(blackout.ends_at).toLocaleString()}{' '}
+              <Button
+                type="button"
+                secondary
+                disabled={busy}
+                onClick={() => {
+                  void mutate(async () => {
+                    await apiDelete(
+                      `/facilities/orgs/${orgId}/blackouts/${blackout.id}`,
+                      z.looseObject({ id: z.uuid() }),
+                    );
+                    setNotice('Blackout removed');
+                  });
+                }}
+              >
+                Remove
+              </Button>
             </li>
           ))}
         </ul>

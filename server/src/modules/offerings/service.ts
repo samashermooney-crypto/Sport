@@ -289,4 +289,33 @@ export class OfferingsService {
       true,
     );
   }
+  libraries() {
+    return this.withOrg(this.context, async (trx) => {
+      await requireStaff(
+        trx,
+        this.context.orgId,
+        this.context.actor.accountId,
+        false,
+      );
+      const [forms, waivers] = await Promise.all([
+        trx
+          .selectFrom('form_definitions')
+          .select(['id', 'name', 'scope', 'version'])
+          .where('org_id', '=', this.context.orgId)
+          .where('published_at', 'is not', null)
+          .where('retired_at', 'is', null)
+          .orderBy('name')
+          .execute(),
+        trx
+          .selectFrom('waiver_documents')
+          .select(['id', 'name', 'requires', 'renewal', 'version'])
+          .where('org_id', '=', this.context.orgId)
+          .where('published_at', 'is not', null)
+          .where('retired_at', 'is', null)
+          .orderBy('name')
+          .execute(),
+      ]);
+      return { forms, waivers };
+    });
+  }
 }

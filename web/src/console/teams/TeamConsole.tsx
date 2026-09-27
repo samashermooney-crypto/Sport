@@ -43,6 +43,15 @@ const personList = z.looseObject({
     }),
   ),
 });
+const staffRow = z.looseObject({
+  id: z.uuid(),
+  person_id: z.uuid(),
+  role: z.string(),
+  status: z.string(),
+  version: z.number().int().positive(),
+  first_name: z.string(),
+  last_name: z.string(),
+});
 
 export function TeamConsole({ orgId }: { orgId: string }): React.JSX.Element {
   const [programs, setPrograms] = useState<z.output<typeof programRow>[]>([]);
@@ -59,7 +68,9 @@ export function TeamConsole({ orgId }: { orgId: string }): React.JSX.Element {
   const [pattern, setPattern] = useState('Team {n}');
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [roster, setRoster] = useState<z.output<typeof rosterRow>[]>([]);
+  const [staff, setStaff] = useState<z.output<typeof staffRow>[]>([]);
   const [personId, setPersonId] = useState('');
+  const [staffPersonId, setStaffPersonId] = useState('');
   const [jersey, setJersey] = useState('');
   const [role, setRole] = useState('head_coach');
   const [error, setError] = useState('');
@@ -101,13 +112,24 @@ export function TeamConsole({ orgId }: { orgId: string }): React.JSX.Element {
   }, [orgId, programId]);
   useEffect(() => {
     if (!selectedTeamId) return;
-    void apiGet(
-      `/rosters/orgs/${orgId}/team-seasons/${selectedTeamId}`,
-      z.array(rosterRow),
-    )
-      .then(setRoster)
+    void Promise.all([
+      apiGet(
+        `/rosters/orgs/${orgId}/team-seasons/${selectedTeamId}`,
+        z.array(rosterRow),
+      ),
+      apiGet(
+        `/teams/orgs/${orgId}/seasons/${selectedTeamId}/staff`,
+        z.array(staffRow),
+      ),
+    ])
+      .then(([nextRoster, nextStaff]) => {
+        setRoster(nextRoster);
+        setStaff(nextStaff);
+      })
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : 'Roster unavailable');
+        setError(
+          cause instanceof Error ? cause.message : 'Team data unavailable',
+        );
       });
   }, [orgId, selectedTeamId]);
   const mutate = async (action: () => Promise<void>) => {
@@ -117,13 +139,20 @@ export function TeamConsole({ orgId }: { orgId: string }): React.JSX.Element {
     try {
       await action();
       await load();
-      if (selectedTeamId)
-        setRoster(
-          await apiGet(
+      if (selectedTeamId) {
+        const [nextRoster, nextStaff] = await Promise.all([
+          apiGet(
             `/rosters/orgs/${orgId}/team-seasons/${selectedTeamId}`,
             z.array(rosterRow),
           ),
-        );
+          apiGet(
+            `/teams/orgs/${orgId}/seasons/${selectedTeamId}/staff`,
+            z.array(staffRow),
+          ),
+        ]);
+        setRoster(nextRoster);
+        setStaff(nextStaff);
+      }
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : 'Could not save changes',
@@ -377,6 +406,69 @@ export function TeamConsole({ orgId }: { orgId: string }): React.JSX.Element {
             </Button>
           </form>
           <h3>Team staff</h3>
+          {staff.length > 0 && (
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {staff.map((member) => (
+                  <tr key={member.id}>
+                    <td>
+                      {member.first_name} {member.last_name}
+                    </td>
+                    <td>{member.role.replaceAll('_', ' ')}</td>
+                    <td>{member.status.replaceAll('_', ' ')}</td>
+                    <td>
+                      {member.status === 'pending_compliance' && (
+                        <Button
+                          type="button"
+                          secondary
+                          disabled={busy}
+                          onClick={() => {
+                            void mutate(async () => {
+                              const updated = await apiPost(
+                                `/teams/orgs/${orgId}/staff/${member.id}/revalidate`,
+                                {},
+                                staffRow,
+                              );
+                              setNotice(
+                                `Compliance rechecked: ${updated.status.replaceAll('_', ' ')}`,
+                              );
+                            });
+                          }}
+                        >
+                          Recheck
+                        </Button>
+                      )}{' '}
+                      <Button
+                        type="button"
+                        secondary
+                        disabled={busy}
+                        onClick={() => {
+                          void mutate(async () => {
+                            await apiPost(
+                              `/teams/orgs/${orgId}/staff/${member.id}/remove`,
+                              { expectedVersion: member.version },
+                              z.looseObject({ id: z.uuid() }),
+                            );
+                            setNotice('Staff member removed');
+                          });
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
           <form
             className="phase3-form-grid"
             onSubmit={(event) => {
@@ -384,7 +476,7 @@ export function TeamConsole({ orgId }: { orgId: string }): React.JSX.Element {
               void mutate(async () => {
                 await apiPost(
                   `/teams/orgs/${orgId}/seasons/${selectedTeam.id}/staff`,
-                  { personId, role },
+                  { personId: staffPersonId, role },
                   z.looseObject({ id: z.uuid(), status: z.string() }),
                 );
                 setNotice('Staff assignment saved with compliance status');
@@ -393,9 +485,9 @@ export function TeamConsole({ orgId }: { orgId: string }): React.JSX.Element {
           >
             <Field label="Person">
               <Select
-                value={personId}
+                value={staffPersonId}
                 onChange={(event) => {
-                  setPersonId(event.target.value);
+                  setStaffPersonId(event.target.value);
                 }}
               >
                 <option value="">Choose person</option>
@@ -422,7 +514,7 @@ export function TeamConsole({ orgId }: { orgId: string }): React.JSX.Element {
                 ]}
               />
             </Field>
-            <Button disabled={busy || !personId}>Assign staff</Button>
+            <Button disabled={busy || !staffPersonId}>Assign staff</Button>
           </form>
         </Card>
       )}

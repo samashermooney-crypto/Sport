@@ -20,6 +20,8 @@ const previewSchema = z.looseObject({
     z.looseObject({
       id: z.uuid(),
       name: z.string(),
+      startsOn: z.string(),
+      endsOn: z.string(),
       copiedStartsOn: z.string(),
       copiedEndsOn: z.string(),
     }),
@@ -32,6 +34,8 @@ const previewSchema = z.looseObject({
       id: z.uuid(),
       team_season_id: z.uuid(),
       role: z.string(),
+      first_name: z.string(),
+      last_name: z.string(),
       carryOver: z.boolean(),
     }),
   ),
@@ -63,17 +67,33 @@ export function SeasonRollover({
   const [preview, setPreview] = useState<z.output<typeof previewSchema> | null>(
     null,
   );
+  const [overrides, setOverrides] = useState<
+    Record<string, { start: string; end: string }>
+  >({});
   const [teams, setTeams] = useState<string[]>([]);
   const [staff, setStaff] = useState<string[]>([]);
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const dateMap = () =>
+    Object.fromEntries(
+      (preview?.programs ?? []).flatMap((program) => {
+        const override = overrides[program.id];
+        const entries: [string, string][] = [];
+        if (override?.start && override.start !== program.copiedStartsOn)
+          entries.push([program.startsOn, override.start]);
+        if (override?.end && override.end !== program.copiedEndsOn)
+          entries.push([program.endsOn, override.end]);
+        return entries;
+      }),
+    );
   const payload = (selectedTeams = teams, selectedStaff = staff) => ({
     name,
     startsOn,
     endsOn,
     offsetDays: Number(offsetDays),
+    dateMap: dateMap(),
     returningTeamSeasonIds: selectedTeams,
     carryStaffIds: selectedStaff,
   });
@@ -90,6 +110,14 @@ export function SeasonRollover({
       setPreview(result);
       setTeams(result.teams.map((team) => team.id));
       setStaff(result.staff.map((member) => member.id));
+      setOverrides(
+        Object.fromEntries(
+          result.programs.map((program) => [
+            program.id,
+            { start: program.copiedStartsOn, end: program.copiedEndsOn },
+          ]),
+        ),
+      );
       setKey(crypto.randomUUID());
     } catch (cause) {
       setError(
@@ -223,13 +251,58 @@ export function SeasonRollover({
           <p>
             {preview.source.name} → {preview.target.name}
           </p>
-          <ul>
-            {preview.programs.map((program) => (
-              <li key={program.id}>
-                {program.name}: {program.copiedStartsOn}–{program.copiedEndsOn}
-              </li>
-            ))}
-          </ul>
+          {preview.programs.map((program) => (
+            <div className="phase3-check" key={program.id}>
+              <strong>{program.name}</strong>
+              <Field label="Program starts">
+                <Input
+                  type="date"
+                  value={overrides[program.id]?.start ?? program.copiedStartsOn}
+                  onChange={(event) => {
+                    const current = overrides[program.id] ?? {
+                      start: program.copiedStartsOn,
+                      end: program.copiedEndsOn,
+                    };
+                    setOverrides({
+                      ...overrides,
+                      [program.id]: {
+                        ...current,
+                        start: event.target.value,
+                      },
+                    });
+                  }}
+                />
+              </Field>
+              <Field label="Program ends">
+                <Input
+                  type="date"
+                  value={overrides[program.id]?.end ?? program.copiedEndsOn}
+                  onChange={(event) => {
+                    const current = overrides[program.id] ?? {
+                      start: program.copiedStartsOn,
+                      end: program.copiedEndsOn,
+                    };
+                    setOverrides({
+                      ...overrides,
+                      [program.id]: {
+                        ...current,
+                        end: event.target.value,
+                      },
+                    });
+                  }}
+                />
+              </Field>
+            </div>
+          ))}
+          <Button
+            type="button"
+            disabled={busy || !sourceId}
+            onClick={() => {
+              void loadPreview();
+            }}
+          >
+            Update preview
+          </Button>
           <h4>Returning teams</h4>
           {preview.teams.map((team) => (
             <label className="phase3-check" key={team.id}>
@@ -253,7 +326,7 @@ export function SeasonRollover({
                   toggle(member.id, staff, setStaff);
                 }}
               />{' '}
-              {member.role}
+              {member.first_name} {member.last_name} — {member.role}
             </label>
           ))}
           <p>Never copied: {preview.exclusions.join(', ')}.</p>

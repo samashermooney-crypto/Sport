@@ -2,14 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { z } from 'zod';
 
 import { apiGet, apiPost } from '../../api/client';
-import {
-  Button,
-  Card,
-  Field,
-  Input,
-  Select,
-  Textarea,
-} from '../../ui/primitives';
+import { Button, Card, Field, Input, Select } from '../../ui/primitives';
 
 import { SeasonRollover } from './SeasonRollover';
 import { SportProfileEditor } from './SportProfileEditor';
@@ -52,6 +45,25 @@ const programDetailSchema = z.object({
 const installmentSchema = z.object({
   templates: z.array(
     z.looseObject({ id: z.uuid(), name: z.string(), active: z.boolean() }),
+  ),
+});
+const librarySchema = z.object({
+  forms: z.array(
+    z.looseObject({
+      id: z.uuid(),
+      name: z.string(),
+      scope: z.string(),
+      version: z.number().int(),
+    }),
+  ),
+  waivers: z.array(
+    z.looseObject({
+      id: z.uuid(),
+      name: z.string(),
+      requires: z.string(),
+      renewal: z.string(),
+      version: z.number().int(),
+    }),
   ),
 });
 type Season = z.output<typeof seasonSchema>;
@@ -122,29 +134,41 @@ export function ProgramConsole({
   const [offerings, setOfferings] = useState<OfferingDraft[]>([
     emptyOffering(),
   ]);
-  const [formIds, setFormIds] = useState('');
-  const [waiverIds, setWaiverIds] = useState('');
+  const [formIds, setFormIds] = useState<string[]>([]);
+  const [waiverIds, setWaiverIds] = useState<string[]>([]);
+  const [libraries, setLibraries] = useState<z.output<typeof librarySchema>>({
+    forms: [],
+    waivers: [],
+  });
   const [emergencyContact, setEmergencyContact] = useState(true);
   const [medicalSection, setMedicalSection] = useState(false);
   const [createdProgramId, setCreatedProgramId] = useState('');
 
   const load = useCallback(async () => {
-    const [nextSeasons, nextProfiles, nextTemplates, nextPlans, nextPrograms] =
-      await Promise.all([
-        apiGet(`/seasons/orgs/${orgId}`, z.array(seasonSchema)),
-        apiGet(`/sports/orgs/${orgId}`, z.array(profileSchema)),
-        apiGet('/sports/templates', z.array(templateSchema)),
-        apiGet(
-          `/offerings/orgs/${orgId}/installment-templates`,
-          installmentSchema,
-        ),
-        apiGet(`/programs/orgs/${orgId}`, z.array(programSchema)),
-      ]);
+    const [
+      nextSeasons,
+      nextProfiles,
+      nextTemplates,
+      nextPlans,
+      nextPrograms,
+      nextLibraries,
+    ] = await Promise.all([
+      apiGet(`/seasons/orgs/${orgId}`, z.array(seasonSchema)),
+      apiGet(`/sports/orgs/${orgId}`, z.array(profileSchema)),
+      apiGet('/sports/templates', z.array(templateSchema)),
+      apiGet(
+        `/offerings/orgs/${orgId}/installment-templates`,
+        installmentSchema,
+      ),
+      apiGet(`/programs/orgs/${orgId}`, z.array(programSchema)),
+      apiGet(`/offerings/orgs/${orgId}/libraries`, librarySchema),
+    ]);
     setSeasons(nextSeasons);
     setProfiles(nextProfiles);
     setTemplates(nextTemplates);
     setPlans(nextPlans.templates);
     setPrograms(nextPrograms);
+    setLibraries(nextLibraries);
     setSeasonId((current) => current || nextSeasons[0]?.id || '');
     setProfileId((current) => current || nextProfiles[0]?.id || '');
   }, [orgId]);
@@ -204,7 +228,19 @@ export function ProgramConsole({
     mutate(async () => {
       if (!seasonId || !profileId)
         throw new Error('Create a season and add a sport before continuing');
-      if (!createdProgramId) {
+      if (!name.trim() || !slug.trim())
+        throw new Error('Add a program name and URL slug');
+      if (!startsOn || !endsOn || endsOn < startsOn)
+        throw new Error('Choose a valid start and end date');
+      const genders = [
+        boys ? 'boys' : '',
+        girls ? 'girls' : '',
+        coed ? 'coed' : '',
+      ].filter(Boolean);
+      if (divisionMethod !== 'none' && !genders.length)
+        throw new Error('Choose at least one division category');
+      let programId = createdProgramId;
+      if (!programId) {
         const created = await apiPost(
           `/programs/orgs/${orgId}`,
           {
@@ -223,71 +259,71 @@ export function ProgramConsole({
           },
           programSchema,
         );
+        programId = created.id;
         setCreatedProgramId(created.id);
-        if (divisionMethod !== 'none') {
-          const genders = [
-            boys ? 'boys' : '',
-            girls ? 'girls' : '',
-            coed ? 'coed' : '',
-          ].filter(Boolean);
-          if (!genders.length)
-            throw new Error('Choose at least one division category');
-          await apiPost(
-            `/programs/orgs/${orgId}/${created.id}/divisions/generate`,
-            {
-              method: divisionMethod,
-              from: Number(divisionFrom),
-              to: Number(divisionTo),
-              genders,
-            },
-            z.array(row),
-          );
-        }
-        for (const offering of offerings) {
-          await apiPost(
-            `/offerings/orgs/${orgId}`,
-            {
-              programId: created.id,
-              name: offering.name,
-              registrantRole: 'athlete',
-              priceCents: Math.round(Number(offering.price) * 100),
-              capacity: offering.capacity ? Number(offering.capacity) : null,
-              pricing: {
-                installmentTemplateIds: offering.installmentTemplateId
-                  ? [offering.installmentTemplateId]
-                  : [],
-                siblingDiscountEligible: true,
-                glCode: null,
-              },
-              formDefinitionIds: formIds
-                .split(',')
-                .map((id) => id.trim())
-                .filter(Boolean),
-              waiverDocumentIds: waiverIds
-                .split(',')
-                .map((id) => id.trim())
-                .filter(Boolean),
-              visibility: 'public',
-              active: true,
-            },
-            row,
-          );
-        }
-        const detail = await apiGet(
-          `/programs/orgs/${orgId}/${created.id}`,
-          programDetailSchema,
-        );
-        const published = await apiPost(
-          `/programs/orgs/${orgId}/${created.id}/status`,
-          { status: 'published', expectedVersion: detail.program.version },
-          programSchema,
-        );
-        setNotice(
-          `${published.name} is published with ${String(detail.divisions.length)} divisions and ${String(detail.offerings.length)} offerings`,
-        );
-      } else {
-        setNotice('Program draft exists. Open it below to finish setup.');
       }
+      // Retry-safe: only the steps that have not completed yet run again.
+      const detail = await apiGet(
+        `/programs/orgs/${orgId}/${programId}`,
+        programDetailSchema,
+      );
+      if (
+        divisionMethod !== 'none' &&
+        !detail.divisions.some((division) => !division.is_default)
+      ) {
+        await apiPost(
+          `/programs/orgs/${orgId}/${programId}/divisions/generate`,
+          {
+            method: divisionMethod,
+            from: Number(divisionFrom),
+            to: Number(divisionTo),
+            genders,
+          },
+          z.array(row),
+        );
+      }
+      for (const offering of offerings.slice(detail.offerings.length)) {
+        await apiPost(
+          `/offerings/orgs/${orgId}`,
+          {
+            programId,
+            name: offering.name,
+            registrantRole: 'athlete',
+            priceCents: Math.round(Number(offering.price) * 100),
+            capacity: offering.capacity ? Number(offering.capacity) : null,
+            pricing: {
+              installmentTemplateIds: offering.installmentTemplateId
+                ? [offering.installmentTemplateId]
+                : [],
+              siblingDiscountEligible: true,
+              glCode: null,
+            },
+            formDefinitionIds: formIds,
+            waiverDocumentIds: waiverIds,
+            visibility: 'public',
+            active: true,
+          },
+          row,
+        );
+      }
+      const refreshed = await apiGet(
+        `/programs/orgs/${orgId}/${programId}`,
+        programDetailSchema,
+      );
+      const published =
+        refreshed.program.status === 'published'
+          ? refreshed.program
+          : await apiPost(
+              `/programs/orgs/${orgId}/${programId}/status`,
+              {
+                status: 'published',
+                expectedVersion: refreshed.program.version,
+              },
+              programSchema,
+            );
+      setNotice(
+        `${published.name} is published with ${String(refreshed.divisions.length)} divisions and ${String(refreshed.offerings.length)} offerings`,
+      );
       setStep(0);
     });
 
@@ -688,28 +724,52 @@ export function ProgramConsole({
               />{' '}
               Require medical section
             </label>
-            <Field
-              label="Form definition IDs"
-              hint="Comma-separated IDs from the form library"
-            >
-              <Textarea
-                value={formIds}
-                onChange={(event) => {
-                  setFormIds(event.target.value);
-                }}
-              />
-            </Field>
-            <Field
-              label="Waiver document IDs"
-              hint="Comma-separated IDs from the waiver library"
-            >
-              <Textarea
-                value={waiverIds}
-                onChange={(event) => {
-                  setWaiverIds(event.target.value);
-                }}
-              />
-            </Field>
+            <fieldset>
+              <legend>Forms</legend>
+              {libraries.forms.length === 0 && (
+                <p>No published forms in the library.</p>
+              )}
+              {libraries.forms.map((form) => (
+                <label key={form.id}>
+                  <input
+                    type="checkbox"
+                    checked={formIds.includes(form.id)}
+                    onChange={(event) => {
+                      setFormIds((current) =>
+                        event.target.checked
+                          ? [...current, form.id]
+                          : current.filter((id) => id !== form.id),
+                      );
+                    }}
+                  />{' '}
+                  {form.name} · v{form.version} · {form.scope}
+                </label>
+              ))}
+            </fieldset>
+            <fieldset>
+              <legend>Waivers</legend>
+              {libraries.waivers.length === 0 && (
+                <p>No published waivers in the library.</p>
+              )}
+              {libraries.waivers.map((waiver) => (
+                <label key={waiver.id}>
+                  <input
+                    type="checkbox"
+                    checked={waiverIds.includes(waiver.id)}
+                    onChange={(event) => {
+                      setWaiverIds((current) =>
+                        event.target.checked
+                          ? [...current, waiver.id]
+                          : current.filter((id) => id !== waiver.id),
+                      );
+                    }}
+                  />{' '}
+                  {waiver.name} · v{waiver.version} ·{' '}
+                  {waiver.requires.replaceAll('_', ' ')} ·{' '}
+                  {waiver.renewal.replaceAll('_', ' ')}
+                </label>
+              ))}
+            </fieldset>
           </div>
         )}
         {step === 4 && (
@@ -726,7 +786,8 @@ export function ProgramConsole({
             <p>
               {plans.length
                 ? 'Installment plans selected in offerings'
-                : 'Pay in full; no installment templates available'}
+                : 'Pay in full; no installment templates available'}{' '}
+              · {formIds.length} form(s) · {waiverIds.length} waiver(s)
             </p>
           </div>
         )}
