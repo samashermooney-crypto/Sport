@@ -283,6 +283,7 @@ export function PeopleList(): React.JSX.Element {
   const [programId, setProgramId] = useState('');
   const [teamSearch, setTeamSearch] = useState('');
   const [teamSeasonId, setTeamSeasonId] = useState('');
+  const [credentialStatus, setCredentialStatus] = useState('');
   const [hasBalance, setHasBalance] = useState('');
   const programs = useQuery({
     queryKey: ['people-filter-programs', orgId, programSearch],
@@ -324,6 +325,7 @@ export function PeopleList(): React.JSX.Element {
       householdId,
       programId,
       teamSeasonId,
+      credentialStatus,
       hasBalance,
       cursor,
     ],
@@ -339,6 +341,7 @@ export function PeopleList(): React.JSX.Element {
           ...(householdId ? { householdId } : {}),
           ...(programId ? { programId } : {}),
           ...(teamSeasonId ? { teamSeasonId } : {}),
+          ...(credentialStatus ? { credentialStatus } : {}),
           ...(hasBalance ? { hasBalance } : {}),
           ...(cursor ? { cursor } : {}),
         })}`,
@@ -534,6 +537,24 @@ export function PeopleList(): React.JSX.Element {
               ]}
               onChange={(event) => {
                 setTeamSeasonId(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          <Field label="Compliance credential status">
+            <Select
+              value={credentialStatus}
+              options={[
+                { value: '', label: 'Any credential status' },
+                { value: 'pending_review', label: 'Pending review' },
+                { value: 'verified', label: 'Has verified credential' },
+                { value: 'rejected', label: 'Has rejected credential' },
+                { value: 'expired', label: 'Has expired credential' },
+                { value: 'revoked', label: 'Has revoked credential' },
+                { value: 'none', label: 'No credential records' },
+              ]}
+              onChange={(event) => {
+                setCredentialStatus(event.target.value);
                 setCursor(null);
               }}
             />

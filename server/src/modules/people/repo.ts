@@ -301,6 +301,24 @@ export function createPeopleRepository(database: Kysely<DB>) {
               AND roster.status IN ('active', 'injured', 'suspended')
               AND roster.left_on IS NULL
           )`);
+        if (query.credentialStatus) {
+          const matchingCredentials =
+            query.credentialStatus === 'none'
+              ? sql<boolean>`EXISTS (
+              SELECT 1 FROM person_credentials credential
+              WHERE credential.org_id = people.org_id AND credential.person_id = people.id
+            )`
+              : sql<boolean>`EXISTS (
+              SELECT 1 FROM person_credentials credential
+              WHERE credential.org_id = people.org_id AND credential.person_id = people.id
+                AND credential.status = ${query.credentialStatus}
+            )`;
+          statement = statement.where(
+            query.credentialStatus === 'none'
+              ? sql<boolean>`NOT ${matchingCredentials}`
+              : matchingCredentials,
+          );
+        }
         if (query.hasBalance !== undefined) {
           const outstanding = sql<boolean>`EXISTS (
             SELECT 1 FROM invoice_lines il
