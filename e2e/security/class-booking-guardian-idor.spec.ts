@@ -248,18 +248,20 @@ test.fixme('QA-SEC-011 / Track I: class portal actions require a current guardia
     expect(JSON.stringify(cardPayload)).not.toContain('Private Child');
     expect(cancelResponse.status()).toBe(404);
     expect(redeemResponse.status()).toBe(404);
-    const booking = await database
-      .selectFrom('class_session_bookings')
-      .select('status')
-      .where('org_id', '=', guardian.orgId)
-      .where('id', '=', bookingId)
-      .executeTakeFirstOrThrow();
-    const card = await database
-      .selectFrom('punch_cards')
-      .select('remaining_uses')
-      .where('org_id', '=', guardian.orgId)
-      .where('id', '=', cardId)
-      .executeTakeFirstOrThrow();
+    const { booking, card } = await withOrg(guardian, async (trx) => ({
+      booking: await trx
+        .selectFrom('class_session_bookings')
+        .select('status')
+        .where('org_id', '=', guardian.orgId)
+        .where('id', '=', bookingId)
+        .executeTakeFirstOrThrow(),
+      card: await trx
+        .selectFrom('punch_cards')
+        .select('remaining_uses')
+        .where('org_id', '=', guardian.orgId)
+        .where('id', '=', cardId)
+        .executeTakeFirstOrThrow(),
+    }));
     expect(booking.status).toBe('booked');
     expect(card.remaining_uses).toBe(3);
   } finally {

@@ -194,12 +194,14 @@ test.fixme('QA-SEC-010 / Track I: a revoked guardian cannot read or act on class
     expect(JSON.stringify(payload)).not.toContain('Revoked');
     expect(acceptResponse.status()).toBe(404);
     expect(declineResponse.status()).toBe(404);
-    const remainingOffers = await database
-      .selectFrom('class_waitlist_entries')
-      .select(['id', 'status'])
-      .where('org_id', '=', actor.orgId)
-      .where('id', 'in', [acceptWaitlistId, declineWaitlistId])
-      .execute();
+    const remainingOffers = await withOrg(actor, (trx) =>
+      trx
+        .selectFrom('class_waitlist_entries')
+        .select(['id', 'status'])
+        .where('org_id', '=', actor.orgId)
+        .where('id', 'in', [acceptWaitlistId, declineWaitlistId])
+        .execute(),
+    );
     expect(
       Object.fromEntries(remainingOffers.map(({ id, status }) => [id, status])),
     ).toEqual({
