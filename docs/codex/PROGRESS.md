@@ -80,6 +80,7 @@
 
 **Database layer**
 - [x] 1. Migration runner, roles, RLS helpers, `withOrg`, Kysely instance, codegen, org counters, idempotency table, audit table, updated_at trigger function, the RLS coverage test (`01 §3`). Migrations 0002–0004 applied; generated Kysely types committed; app-role integration tests prove forced RLS, cross-org denial, pooled-connection reset, concurrent counters, updated_at and append-only audit. Local typecheck, lint, tests (7), and knip passed.
+- [x] Migration gate hardening: the Phase 0 app test now verifies that every migration in the current checkout was applied to its isolated database, while allowing extra migrations already present in the shared local template from an earlier track gate. This resolved the red trunk test caused by the aborted Track F merge without weakening current-checkout coverage.
 - [x] 2. Money utilities in `shared/src/money.ts` (`20 §1`), date/time utilities with Temporal polyfill (`@js-temporal/polyfill`) for org-timezone math, UUIDv7 ids. Unit and property tests verify integer-cent rounding, exact allocation, DST boundaries, leap-day age rules and UUIDv7 generation. Shared tests run without database setup; local typecheck, lint and tests passed.
 
 **Identity (all of `02 §B`, `01 §4`)**
