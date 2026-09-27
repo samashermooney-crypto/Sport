@@ -332,7 +332,7 @@ const routes = [
 
 const jobs = [
   {
-    name: 'communications.deliver_due',
+    name: 'communications.deliver-due',
     cron: '* * * * *',
     run: async () => {
       const dependencies =
