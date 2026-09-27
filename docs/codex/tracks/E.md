@@ -4,6 +4,7 @@ Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
 Current: Schema spine merged; Phase 4 and Phase 5 money core continue with expanded checkout pricing sources, dispute evidence and remaining family/staff money flows.
+Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
 Ready for integration: local `5e14320..385d96a` — frozen checkout persistence and fail-closed database offering source; queue work continues.
 Ready for integration: local `385d96a..d63eaba` — payer-owned PaymentIntent HTTP API, replay guard and portal Payment Element binding; queue work continues.
@@ -56,6 +57,7 @@ Checkout payment fence: `payment_attempts` now serializes each checkout before r
 Payment attempts: migration 1002 and `finance/attempt-repo.ts` persist scoped request-hash conflicts, pre-external retries, external fences and replayed results; 3 real-Postgres tests pass.
 Payment HTTP: authenticated payer-only `/api/v1/finance/orgs/{orgId}/checkout-payment-intents` creates a destination PaymentIntent from a reconciled frozen checkout and invoice, records the pending allocation before returning its secret, and replays the exact key; HTTP/Postgres/fake-Stripe and cross-payer replay tests pass.
 Installment quotes: `finance/installment-quotes.ts` uses Track B schedule and fee algorithms to show per-charge service/application fees and reconcile the plan total; 2 targeted tests pass.
+Installment templates: `finance/installment-templates.ts` provides active list and audited, version-checked create/replace/archive for monthly and fixed-date plans; finance HTTP writes require active finance access, and direct participant links or membership gate reads; 2 Postgres and 1 HTTP lifecycle tests pass; weekly awaits Track B's shared algorithm.
 Connect core: `finance/connect.ts` defines withOrg reservation/persistence, org-stable Stripe account creation, onboarding/dashboard links and latest-state refresh; 5 targeted tests pass; unresolved Stripe creation keeps its reservation for reconciliation.
 Connect API: active owner/admin/finance with completed MFA can start/resume Express onboarding, read latest requirements, and open an enabled dashboard through `/api/v1/finance/orgs/{orgId}/connect/*`; loopback HTTP return URLs are allowed for local test mode while remote URLs require HTTPS; 1 fake-Stripe/Postgres HTTP flow and 11 related tests pass.
 Connect screen: `web/src/console/money/ConnectScreen.tsx` loads account status and binds the existing panel to real finance routes; return reloads status, refresh requests a fresh Stripe link, and browser navigation validates the Stripe host; 4 focused component tests pass. A owns mounting.
