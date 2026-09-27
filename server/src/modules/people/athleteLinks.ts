@@ -36,6 +36,12 @@ async function guardianAccess(
     throw new PeopleError(404, 'NOT_FOUND', 'Athlete profile not found');
 }
 
+function personAge(dateOfBirth: Date, timezone: string): number {
+  const birth = dateOfBirth.toISOString().slice(0, 10);
+  const today = orgToday(timezone);
+  return birth <= today ? ageOnDate(birth, today) : 0;
+}
+
 async function minorPerson(
   trx: OrgTransaction,
   orgId: string,
@@ -57,10 +63,7 @@ async function minorPerson(
     .select(['name', 'timezone', 'default_locale'])
     .where('id', '=', orgId)
     .executeTakeFirstOrThrow();
-  const age = ageOnDate(
-    person.date_of_birth.toISOString().slice(0, 10),
-    orgToday(org.timezone),
-  );
+  const age = personAge(person.date_of_birth, org.timezone);
   if (age < 13 || age >= 18)
     throw new PeopleError(409, 'CONFLICT', 'Athlete account age must be 13–17');
   const personEmail = person.email?.trim().toLowerCase() ?? '';
@@ -132,6 +135,17 @@ export function createAthleteLinksRepository(database: Kysely<DB>) {
         { orgId, actor: { accountId: guardianId } },
         async (trx) => {
           await guardianAccess(trx, orgId, guardianId, personId);
+          const person = await trx
+            .selectFrom('people')
+            .select('date_of_birth')
+            .where('org_id', '=', orgId)
+            .where('id', '=', personId)
+            .executeTakeFirstOrThrow();
+          const org = await trx
+            .selectFrom('organizations')
+            .select('timezone')
+            .where('id', '=', orgId)
+            .executeTakeFirstOrThrow();
           const account = await trx
             .selectFrom('person_account_links as link')
             .innerJoin('accounts as account', 'account.id', 'link.account_id')
@@ -145,6 +159,7 @@ export function createAthleteLinksRepository(database: Kysely<DB>) {
             accountId: account?.account_id ?? null,
             email: account?.email ?? null,
             verifiedAt: account?.verified_at?.toISOString() ?? null,
+            age: personAge(person.date_of_birth, org.timezone),
           });
         },
       );
@@ -368,12 +383,8 @@ export function createAthleteLinksRepository(database: Kysely<DB>) {
             .select('timezone')
             .where('id', '=', orgId)
             .executeTakeFirstOrThrow();
-          if (
-            ageOnDate(
-              person.date_of_birth.toISOString().slice(0, 10),
-              orgToday(org.timezone),
-            ) >= 18
-          )
+          const age = personAge(person.date_of_birth, org.timezone);
+          if (age >= 18)
             throw new PeopleError(
               403,
               'FORBIDDEN',
@@ -399,6 +410,7 @@ export function createAthleteLinksRepository(database: Kysely<DB>) {
             accountId: null,
             email: null,
             verifiedAt: null,
+            age,
           });
         },
       );

@@ -97,6 +97,7 @@ export const athleteLinkResponseSchema = z.strictObject({
   accountId: z.uuid().nullable(),
   email: z.email().nullable(),
   verifiedAt: z.iso.datetime().nullable(),
+  age: z.int().nonnegative(),
 });
 
 export const athleteInvitationAcceptedResponseSchema = z.strictObject({

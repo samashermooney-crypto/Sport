@@ -6,6 +6,13 @@ const PeopleList = lazy(() =>
     default: Component,
   })),
 );
+const AcceptAthleteInvitation = lazy(() =>
+  import('./AcceptAthleteInvitation').then(
+    ({ AcceptAthleteInvitation: Component }) => ({
+      default: Component,
+    }),
+  ),
+);
 const AcceptGuardianInvitation = lazy(() =>
   import('./AcceptGuardianInvitation').then(
     ({ AcceptGuardianInvitation: Component }) => ({
@@ -66,6 +73,14 @@ export const peopleRoutes: readonly RouteObject[] = [
     element: (
       <Suspense fallback={<main role="status">Loading medical profile…</main>}>
         <FamilyMedical />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/athlete-invitations/:orgId/:token',
+    element: (
+      <Suspense fallback={<main role="status">Loading invitation…</main>}>
+        <AcceptAthleteInvitation />
       </Suspense>
     ),
   },

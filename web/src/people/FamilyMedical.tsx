@@ -17,6 +17,7 @@ import {
 } from '../ui/primitives';
 import { AppShell } from '../ui/shell';
 
+import { AthleteAccess } from './AthleteAccess';
 import { EmergencyContacts } from './EmergencyContacts';
 
 type Profile = z.output<typeof medicalResponseSchema>;
@@ -206,6 +207,9 @@ export function FamilyMedical(): React.JSX.Element {
         )}
         {current && orgId && personId && (
           <EmergencyContacts orgId={orgId} personId={personId} />
+        )}
+        {current && !staffView && orgId && personId && (
+          <AthleteAccess orgId={orgId} personId={personId} />
         )}
       </main>
     </AppShell>

@@ -19522,9 +19522,14 @@
                         },
                         { "type": "null" }
                       ]
+                    },
+                    "age": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
                     }
                   },
-                  "required": ["accountId", "email", "verifiedAt"],
+                  "required": ["accountId", "email", "verifiedAt", "age"],
                   "additionalProperties": false
                 }
               }
@@ -19752,9 +19757,14 @@
                         },
                         { "type": "null" }
                       ]
+                    },
+                    "age": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
                     }
                   },
-                  "required": ["accountId", "email", "verifiedAt"],
+                  "required": ["accountId", "email", "verifiedAt", "age"],
                   "additionalProperties": false
                 }
               }
