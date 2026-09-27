@@ -36,6 +36,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Schedule export/calendar and public standings component tests: 3 files / 8 tests passed.
 - [x] Shared algorithm tests pass: 14/14; focused G generator/bracket acceptance tests pass: 2/2. The 48-team case is below the 60-second acceptance bound.
 - [x] Cached per-run timezone and epoch conversions in schedule candidate checks; the 48-team/168-game generator acceptance now takes 0.53 seconds locally with its 60-second assertion unchanged, and all 7 shared schedule-generator tests pass.
+- [x] Schedule generator browser journey passes Chromium desktop and WebKit mobile with axe: it renders unscheduled explanations, discards one run, then applies a scheduled game and verifies persisted run/event state.
 - [x] `npm run typecheck` and `npm run lint` pass after syncing `rebuild/trunk` through `af353fc` (merge `70b7c2d`).
 - [x] Updated scheduling access integration passes, including official closure recipients and emergency batch timing.
 - [x] Program statistic settings, leaderboard aggregation, enabled/public filters, private-stat staff access, and optimistic-concurrency integration regression pass against the isolated Postgres stack.
@@ -48,7 +49,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Lock-protected merge gate against `rebuild/trunk` through `2ac58d6`: typecheck and full lint passed; `heavy.sh npm test` passed 803 tests (1 skipped); full Chromium desktop Playwright passed 28 tests (4 skipped).
 - [x] Lock-protected merge gate on 2026-09-27 after syncing OPS trunk through `f091afc`: typecheck and full lint passed; `heavy.sh npm test` passed 819 tests (1 skipped); full Chromium desktop Playwright passed 30 tests (4 skipped).
 - [ ] Latest full-suite attempt after the standings follow-up: 818 passed, 1 skipped, and `server/src/modules/officials/service.integration.test.ts` timed out at 5 seconds; its focused retry passed (1/1). The merge gate did not pass, so the standings follow-up remains unmerged.
-- [ ] Most Phase 8/9 schedule journeys remain outstanding; three G-owned browser journeys currently cover statistics/results/facility closure, family RSVP, and offline game-day sync on Chromium and WebKit mobile. The console and portal routes mount via the generated nested-route registry.
+- [ ] Most Phase 8/9 schedule journeys remain outstanding; four G-owned browser journeys currently cover statistics/results/facility closure, generator apply/discard and explanations, family RSVP, and offline game-day sync on Chromium and WebKit mobile. The console and portal routes mount via the generated nested-route registry.
 - [ ] Full gates remain blocked by missing Phase 8/9 browser journeys, discipline result/game-served integration, notification email fan-out, volunteer closure recipients, the facility image serving contract, and baseline WebKit failures. Do not mark ready until browser journeys and all acceptance criteria pass.
 
 ## Cross-track requests and blockers
