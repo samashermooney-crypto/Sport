@@ -1688,12 +1688,28 @@ export async function acceptTeamOffer(
     }>`UPDATE team_offers SET status='accepted',responded_at=${dependencies.clock()},registration_id=${accepted.registrationId},checkout_id=${accepted.checkoutId},version=version+1,updated_at=now()
       WHERE org_id=${context.orgId} AND id=${offerId} AND status='accepting'
       RETURNING id`.execute(trx);
-    if (!result.rows[0])
+    if (!result.rows[0]) {
+      const current = await sql<{
+        status: string;
+        registration_id: string | null;
+        checkout_id: string | null;
+      }>`SELECT status,registration_id,checkout_id FROM team_offers
+        WHERE org_id=${context.orgId} AND id=${offerId} FOR UPDATE`.execute(
+        trx,
+      );
+      const saved = current.rows[0];
+      if (
+        saved?.status === 'accepted' &&
+        saved.registration_id === accepted.registrationId &&
+        saved.checkout_id === accepted.checkoutId
+      )
+        return;
       throw new EvaluationError(
         409,
         'OFFER_RACE',
         'Offer status changed during checkout',
       );
+    }
     await sql`UPDATE team_placements SET status='accepted',version=version+1,updated_at=now()
       WHERE org_id=${context.orgId} AND id=(SELECT placement_id FROM team_offers WHERE org_id=${context.orgId} AND id=${offerId})`.execute(
       trx,

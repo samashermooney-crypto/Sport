@@ -41,7 +41,7 @@ import {
   upsertMyPlacementPreference,
   withdrawTeamOffer,
 } from './service';
-import type { OfferCheckoutAdapter } from './service';
+import type { AcceptedOfferCheckout, OfferCheckoutAdapter } from './service';
 
 const orgA = randomUUID();
 const orgB = randomUUID();
@@ -100,17 +100,37 @@ const dependencies = () => ({ database, clock: () => clockNow });
 
 class FakeCheckout implements OfferCheckoutAdapter {
   calls: number = 0;
-  constructor(private readonly admin: pg.Client) {}
-  async accept(input: {
-    orgId: string;
-    offerId: string;
-    accountId: string;
-    householdId: string;
-    personId: string;
-    offeringId: string;
-    teamSeasonId: string;
-  }) {
+  private readonly results = new Map<string, Promise<AcceptedOfferCheckout>>();
+  private readonly concurrentCalls: Promise<void>;
+  private releaseConcurrentCalls!: () => void;
+
+  constructor(
+    private readonly admin: pg.Client,
+    private readonly waitForConcurrentCalls = 0,
+  ) {
+    this.concurrentCalls = new Promise((resolve) => {
+      this.releaseConcurrentCalls = resolve;
+    });
+    if (waitForConcurrentCalls === 0) this.releaseConcurrentCalls();
+  }
+
+  async accept(input: Parameters<OfferCheckoutAdapter['accept']>[0]) {
     this.calls += 1;
+    if (this.waitForConcurrentCalls > 0) {
+      if (this.calls >= this.waitForConcurrentCalls)
+        this.releaseConcurrentCalls();
+      await this.concurrentCalls;
+    }
+    const existing = this.results.get(input.idempotencyKey);
+    if (existing) return existing;
+    const result = this.createCheckout(input);
+    this.results.set(input.idempotencyKey, result);
+    return result;
+  }
+
+  private async createCheckout(
+    input: Parameters<OfferCheckoutAdapter['accept']>[0],
+  ): Promise<AcceptedOfferCheckout> {
     const checkoutId = randomUUID();
     const registrationId = randomUUID();
     const invoiceId = randomUUID();
@@ -1015,15 +1035,23 @@ describe('Phase 6 evaluations integration', () => {
     const outsider = await listFamilyOffers(dependencies(), outsiderContext);
     expect(outsider).toHaveLength(0);
 
-    const checkout = new FakeCheckout(admin);
-    const accepted = await acceptTeamOffer(
-      dependencies(),
-      guardianContext,
-      offerId,
-      checkout,
-    );
+    const checkout = new FakeCheckout(admin, 2);
+    const [accepted, concurrentReplay] = await Promise.all([
+      acceptTeamOffer(dependencies(), guardianContext, offerId, checkout),
+      acceptTeamOffer(dependencies(), guardianContext, offerId, checkout),
+    ]);
     expect(accepted.status).toBe('accepted');
-    expect(checkout.calls).toBe(1);
+    expect(concurrentReplay.status).toBe('accepted');
+    expect(concurrentReplay.registrationId).toBe(accepted.registrationId);
+    expect(concurrentReplay.checkoutId).toBe(accepted.checkoutId);
+    expect(checkout.calls).toBe(2);
+    const acceptanceAudit = await admin.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM audit_log
+       WHERE org_id=$1 AND entity_type='team_offer' AND entity_id=$2
+         AND action='placement.offer.accepted'`,
+      [orgA, offerId],
+    );
+    expect(acceptanceAudit.rows[0]?.count).toBe(1);
     const replay = await acceptTeamOffer(
       dependencies(),
       guardianContext,
@@ -1031,7 +1059,7 @@ describe('Phase 6 evaluations integration', () => {
       checkout,
     );
     expect(replay.registrationId).toBe(accepted.registrationId);
-    expect(checkout.calls).toBe(1);
+    expect(checkout.calls).toBe(2);
 
     const dashboard = await listOfferDashboard(
       dependencies(),
