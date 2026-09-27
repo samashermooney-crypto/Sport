@@ -36,8 +36,8 @@ export interface SignInDependencies {
 }
 
 export interface SignInMeta {
-  ip?: string;
-  userAgent?: string;
+  ip?: string | undefined;
+  userAgent?: string | undefined;
 }
 
 export type SignInResult =
@@ -48,6 +48,12 @@ export type SignInResult =
 export class InvalidCredentialsError extends Error {
   constructor() {
     super('Invalid credentials');
+  }
+}
+
+export class EmailVerificationRequiredError extends Error {
+  constructor() {
+    super('Verify your email before signing in');
   }
 }
 
@@ -177,8 +183,7 @@ export async function signInWithPassword(
   ) {
     throw new InvalidCredentialsError();
   }
-  if (!account.email_verified_at)
-    throw new Error('Verify your email before signing in');
+  if (!account.email_verified_at) throw new EmailVerificationRequiredError();
   return finishPrimaryAuth(dependencies, account.id, account.email, meta);
 }
 

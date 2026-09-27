@@ -7,6 +7,7 @@ import type { EmailSender } from '../../integrations/email/sender';
 import { encryptRestricted } from '../../lib/crypto';
 import type { EncryptionKeys } from '../../lib/crypto';
 
+import { AuthDomainError } from './domain-error';
 import { verifyAndConsumeTotp } from './mfa';
 import { verifyPassword } from './password';
 import { generateRecoveryCodes } from './recovery';
@@ -51,7 +52,8 @@ export async function beginMfaEnrollment(
         .where('type', '=', 'totp')
         .forUpdate()
         .executeTakeFirst();
-      if (factor?.confirmed_at) throw new Error('MFA is already enrolled');
+      if (factor?.confirmed_at)
+        throw new AuthDomainError(409, 'CONFLICT', 'MFA is already enrolled');
       if (factor) {
         await trx
           .updateTable('mfa_factors')
@@ -140,7 +142,7 @@ export async function confirmMfaEnrollment(
         .forUpdate()
         .executeTakeFirst();
       if (!factor || factor.confirmed_at)
-        throw new Error('No pending MFA enrollment');
+        throw new AuthDomainError(409, 'CONFLICT', 'No pending MFA enrollment');
       if (
         !(await verifyAndConsumeTotp(
           trx,
@@ -151,7 +153,11 @@ export async function confirmMfaEnrollment(
           true,
         ))
       ) {
-        throw new Error('Invalid authenticator code');
+        throw new AuthDomainError(
+          401,
+          'INVALID_CREDENTIALS',
+          'Invalid authenticator code',
+        );
       }
       const generated = await generateRecoveryCodes(trx, session.accountId);
       await revokeSessions(trx, session.accountId, now, session.id);
@@ -185,7 +191,11 @@ export async function regenerateRecoveryCodes(
 ): Promise<string[]> {
   const now = dependencies.clock();
   if (!hasStepUp(session, now))
-    throw new Error('Recent re-authentication is required');
+    throw new AuthDomainError(
+      403,
+      'REAUTH_REQUIRED',
+      'Recent re-authentication is required',
+    );
   const codes = await dependencies.database
     .transaction()
     .execute(async (trx) => {
@@ -195,7 +205,8 @@ export async function regenerateRecoveryCodes(
         .where('account_id', '=', session.accountId)
         .where('confirmed_at', 'is not', null)
         .executeTakeFirst();
-      if (!factor) throw new Error('MFA is not enrolled');
+      if (!factor)
+        throw new AuthDomainError(409, 'CONFLICT', 'MFA is not enrolled');
       const codes = await generateRecoveryCodes(trx, session.accountId);
       await revokeSessions(trx, session.accountId, now, session.id);
       return codes;

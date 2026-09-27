@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { DB } from '../../db/types';
 import type { EmailSender } from '../../integrations/email/sender';
 
+import { AuthDomainError } from './domain-error';
 import { hashPassword, verifyPassword } from './password';
 import { hasStepUp, revokeSessions } from './sessions';
 import type { ActiveSession } from './sessions';
@@ -112,7 +113,11 @@ export async function changePassword(
     !account?.password_hash ||
     !(await verifyPassword(account.password_hash, currentPassword))
   ) {
-    throw new Error('Current password is incorrect');
+    throw new AuthDomainError(
+      401,
+      'INVALID_CREDENTIALS',
+      'Current password is incorrect',
+    );
   }
   const hash = await hashPassword(newPassword);
   const now = dependencies.clock();
@@ -124,7 +129,12 @@ export async function changePassword(
       .where('password_hash', '=', account.password_hash)
       .returning('id')
       .executeTakeFirst();
-    if (!updated) throw new Error('Password changed concurrently');
+    if (!updated)
+      throw new AuthDomainError(
+        409,
+        'CONFLICT',
+        'Password changed concurrently',
+      );
     await revokeSessions(trx, session.accountId, now, session.id);
     await trx
       .insertInto('security_events')
@@ -149,7 +159,11 @@ export async function requestEmailChange(
 ): Promise<void> {
   const now = dependencies.clock();
   if (!hasStepUp(session, now))
-    throw new Error('Recent re-authentication is required');
+    throw new AuthDomainError(
+      403,
+      'REAUTH_REQUIRED',
+      'Recent re-authentication is required',
+    );
   const nextEmail = z.email().parse(proposedEmail).toLowerCase();
   const account = await dependencies.database
     .selectFrom('accounts')
@@ -157,7 +171,11 @@ export async function requestEmailChange(
     .where('id', '=', session.accountId)
     .executeTakeFirstOrThrow();
   if (account.email === nextEmail)
-    throw new Error('New email must differ from current email');
+    throw new AuthDomainError(
+      400,
+      'VALIDATION_ERROR',
+      'New email must differ from current email',
+    );
   const token = await dependencies.database
     .transaction()
     .execute(async (trx) => {
@@ -244,7 +262,11 @@ export async function requestAccountDeletion(
 ): Promise<string> {
   const now = dependencies.clock();
   if (!hasStepUp(session, now))
-    throw new Error('Recent re-authentication is required');
+    throw new AuthDomainError(
+      403,
+      'REAUTH_REQUIRED',
+      'Recent re-authentication is required',
+    );
   const existing = await dependencies.database
     .selectFrom('privacy_requests')
     .select('id')

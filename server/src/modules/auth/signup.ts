@@ -9,6 +9,7 @@ import type { DB } from '../../db/types';
 import type { CaptchaProvider } from '../../integrations/captcha/provider';
 import type { EmailSender } from '../../integrations/email/sender';
 
+import { AuthDomainError } from './domain-error';
 import { localLegalDocuments } from './legal';
 import { hashPassword } from './password';
 import { consumeAuthToken, issueAuthToken } from './tokens';
@@ -22,8 +23,8 @@ export interface SignUpDependencies {
 }
 
 export interface SignUpMeta {
-  ip?: string;
-  userAgent?: string;
+  ip?: string | undefined;
+  userAgent?: string | undefined;
 }
 
 export class Under13Error extends Error {
@@ -48,7 +49,7 @@ export async function signUp(
   );
   if (ageOnDate(parsed.dateOfBirth, today) < 13) throw new Under13Error();
   if (!(await dependencies.captcha.verify(parsed.captchaToken, meta.ip))) {
-    throw new Error('Captcha verification failed');
+    throw new AuthDomainError(403, 'FORBIDDEN', 'Captcha verification failed');
   }
   const passwordHash = await hashPassword(parsed.password);
   const email = parsed.email.toLowerCase();
