@@ -92,6 +92,16 @@
 - **Request:** wire the registration add-on and family store flows to derive or validate registration/team attribution from the selected household member, reject mismatched team IDs, and add a browser regression that pays for a family uniform and verifies the team/program report.
 - **Status:** open Phase 11 acceptance/data-integrity gap; current report evidence covers only a direct service call with manually supplied attribution.
 
+### QA-ACC-039 — Concurrent volunteer buyouts can leave an extra payable invoice
+
+- **Owner:** Track H
+- **Phase:** 11 volunteer buyout and financial correctness
+- **Evidence:** `buyOutVolunteerRequirement()` issues the invoice before acquiring the requirement row lock and recomputing the household ledger. If concurrent requests with different idempotency keys compete for the final remaining units, the first records its buyout; the second detects the reduced balance and returns a conflict only after its invoice has already been issued. The late failure path does not cancel or void that invoice.
+- **Reproduce:** with one buyout unit remaining, concurrently call the service twice for one unit using distinct creation keys. One call succeeds; the other rejects after issuing an invoice. `e2e/phase11-buyout-race.spec.ts` records the invariant that only one buyout invoice line may persist as `test.fixme`.
+- **Expected:** the losing request leaves no payable invoice or invoice line; buyout reservation and invoice creation must remain consistent under concurrency.
+- **Request:** reserve/decrement remaining units before issuing the invoice, or compensate by voiding the invoice if the locked recheck fails; add a Postgres concurrency regression that asserts the losing request creates no invoice.
+- **Status:** high-confidence financial correctness race from static transaction ordering; execution awaits the isolated QA Postgres stack.
+
 ### QA-OPS-001 — Render health probes have no `/readyz` handler and public status is missing
 
 - **Owner:** Track C

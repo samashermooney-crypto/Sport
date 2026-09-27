@@ -72,3 +72,4 @@ Track B's catalog/preferences and Track C's provider-ID interface are on the mer
 - **QA-ACC-037:** run the Phase 11 $300 donation acceptance path anonymously. The current scenario keeps its authenticated setup session while completing the public fundraiser checkout.
 - **QA-SEC-009:** limit household volunteer ledger reads to the verified guardian of that household or an authorized volunteer-oversight role; active program-scoped memberships currently pass the service access check.
 - **QA-ACC-038 (coordinate E):** connect family uniform orders to the selected athlete's registration/team for size reporting, and reject unrelated team-season IDs. The current store portal omits both attribution fields that the report requires.
+- **QA-ACC-039:** make volunteer buyout reservation and invoice issuance atomic under concurrency; a late conflicting request currently leaves its issued invoice behind.
