@@ -27,6 +27,7 @@ import {
   invoiceDetailSchema,
   voidInvoiceBodySchema,
   voidInvoiceResponseSchema,
+  payerInvoiceListSchema,
 } from './routes.js';
 
 export const moduleDefinition = {
@@ -38,6 +39,13 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/me/invoices',
+      summary:
+        'List invoices billed to the signed-in account in one organization',
+      response: payerInvoiceListSchema,
+    },
     {
       method: 'post',
       path: '/api/v1/finance/orgs/{orgId}/invoices',

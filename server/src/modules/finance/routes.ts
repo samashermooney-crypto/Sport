@@ -37,6 +37,7 @@ import {
   OfflinePaymentConflictError,
   PostgresOfflinePayments,
 } from './offline-payments.js';
+import { PostgresPayerInvoices } from './payer-invoices.js';
 import {
   PayerMethodConflictError,
   PayerMethodsService,
@@ -156,6 +157,31 @@ export const voidInvoiceBodySchema = z.strictObject({
 export const voidInvoiceResponseSchema = z.strictObject({
   id: z.uuid(),
   status: z.literal('void'),
+});
+export const payerInvoiceListSchema = z.strictObject({
+  invoices: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      number: z.number().int().positive(),
+      status: z.enum([
+        'open',
+        'paid',
+        'partially_paid',
+        'past_due',
+        'void',
+        'uncollectible',
+      ]),
+      source: z.string(),
+      issuedAt: z.iso.datetime().nullable(),
+      dueOn: z.iso.date().nullable(),
+      totalCents: z.number().int().nonnegative(),
+      paidCents: z.number().int().nonnegative(),
+      refundedCents: z.number().int().nonnegative(),
+      creditAppliedCents: z.number().int().nonnegative(),
+      balanceCents: z.number().int().nonnegative().nullable(),
+    }),
+  ),
+  nextBeforeNumber: z.number().int().positive().nullable(),
 });
 export const offlinePaymentReceiptSchema = z.strictObject({
   paymentId: z.uuid(),
@@ -365,6 +391,29 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.get('/orgs/:orgId/me/invoices', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const beforeNumber = z.coerce
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .parse(request.query.beforeNumber);
+      const invoices = await new PostgresPayerInvoices(
+        dependencies.database,
+      ).list({
+        orgId,
+        accountId: session.accountId,
+        ...(beforeNumber ? { beforeNumber } : {}),
+      });
+      response.json(payerInvoiceListSchema.parse(invoices));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
   router.get('/orgs/:orgId/invoices/:invoiceId', async (request, response) => {
     try {
       if (requestImpersonation(request)) throw new FinanceAccessError();

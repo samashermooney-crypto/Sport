@@ -352,6 +352,56 @@ describe('staff invoice HTTP', () => {
   });
 });
 
+describe('payer invoice feed', () => {
+  it('lists only the signed-in account invoices in one org', async () => {
+    const otherAccountId = newId();
+    await database
+      .insertInto('accounts')
+      .values({
+        id: otherAccountId,
+        email: `payer-feed-${randomUUID()}@example.invalid`,
+        first_name: 'Other',
+        last_name: 'Payer',
+        date_of_birth: '1990-01-01',
+      })
+      .execute();
+    const otherInvoice = await new PostgresInvoiceRepository(
+      database,
+      context,
+    ).issue({
+      orgId: context.orgId,
+      accountId: otherAccountId,
+      source: 'staff',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'team_fee',
+          description: 'Other fee',
+          amountCents: 700,
+          refundable: true,
+        },
+      ],
+    });
+    const response = await fetch(
+      `${baseUrl}/orgs/${context.orgId}/me/invoices`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      invoices: { id: string; balanceCents: number }[];
+      nextBeforeNumber: number | null;
+    };
+    expect(body.invoices.length).toBeGreaterThan(0);
+    expect(
+      body.invoices.some((invoice) => invoice.id === otherInvoice.id),
+    ).toBe(false);
+    expect(body.invoices.every((invoice) => invoice.balanceCents >= 0)).toBe(
+      true,
+    );
+    expect(body.nextBeforeNumber).toBeNull();
+  });
+});
+
 describe('staff refund HTTP', () => {
   it('rejects cross-origin writes, records an approved-threshold refund and replays it', async () => {
     const key = randomUUID();
