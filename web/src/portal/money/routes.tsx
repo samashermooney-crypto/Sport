@@ -30,9 +30,20 @@ const Autopay = lazy(() =>
     default: component,
   })),
 );
+const Installments = lazy(() =>
+  import('./ManualInstallmentPayScreen').then(
+    ({ ManualInstallmentPayScreen: component }) => ({ default: component }),
+  ),
+);
 
 type Area =
-  'home' | 'invoices' | 'credits' | 'receipts' | 'statements' | 'autopay';
+  | 'home'
+  | 'invoices'
+  | 'installments'
+  | 'credits'
+  | 'receipts'
+  | 'statements'
+  | 'autopay';
 
 function MoneyRoute({ area }: { area: Area }): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
@@ -41,6 +52,7 @@ function MoneyRoute({ area }: { area: Area }): React.JSX.Element {
   const name = 'Your organization';
   const links = [
     { label: 'Invoices', path: 'invoices' },
+    { label: 'Pay installments', path: 'installments' },
     { label: 'Credits', path: 'credits' },
     { label: 'Receipts', path: 'receipts' },
     { label: 'Year-end statements', path: 'statements' },
@@ -65,6 +77,7 @@ function MoneyRoute({ area }: { area: Area }): React.JSX.Element {
         </nav>
         <Suspense fallback={<p role="status">Loading payment details…</p>}>
           {area === 'invoices' && <Invoices orgId={orgId} orgName={name} />}
+          {area === 'installments' && <Installments orgId={orgId} />}
           {area === 'credits' && <Credits orgId={orgId} orgName={name} />}
           {area === 'receipts' && <Receipts orgId={orgId} orgName={name} />}
           {area === 'statements' && <Statements orgId={orgId} orgName={name} />}
@@ -78,7 +91,14 @@ function MoneyRoute({ area }: { area: Area }): React.JSX.Element {
 export const moneyPortalRoutes: readonly RouteObject[] = [
   { path: '/portal/orgs/:orgId/money', element: <MoneyRoute area="home" /> },
   ...(
-    ['invoices', 'credits', 'receipts', 'statements', 'autopay'] as const
+    [
+      'invoices',
+      'installments',
+      'credits',
+      'receipts',
+      'statements',
+      'autopay',
+    ] as const
   ).map((area) => ({
     path: `/portal/orgs/:orgId/money/${area}`,
     element: <MoneyRoute area={area} />,

@@ -1,4 +1,5 @@
 import type { Kysely } from 'kysely';
+import { z } from 'zod';
 
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
@@ -25,6 +26,31 @@ export interface PayoutReconciliation {
   unlinkedSourceCount: number;
   rows: PayoutReconciliationRow[];
 }
+
+const payoutReconciliationRowSchema = z.strictObject({
+  transactionId: z.string().min(1),
+  type: z.string().min(1),
+  amountCents: z.number().int(),
+  feeCents: z.number().int(),
+  netCents: z.number().int(),
+  sourceId: z.string().nullable(),
+  paymentId: z.uuid().nullable(),
+  invoiceNumbers: z.array(z.number().int().positive()),
+});
+
+export const payoutReconciliationSchema = z.strictObject({
+  payoutId: z.string().regex(/^po_[A-Za-z0-9_]+$/),
+  status: z.string().min(1),
+  arrivalDate: z.iso.date().nullable(),
+  amountCents: z.number().int(),
+  transactionNetCents: z.number().int(),
+  differenceCents: z.number().int(),
+  complete: z.boolean(),
+  unlinkedSourceCount: z.number().int().nonnegative(),
+  rows: z.array(payoutReconciliationRowSchema),
+});
+
+export class PayoutReconciliationNotFoundError extends Error {}
 
 function csvCell(value: string | number | null): string {
   const raw = value === null ? '' : String(value);
@@ -91,7 +117,9 @@ export class PostgresPayoutReconciliation {
         ])
         .where('org_id', '=', this.context.orgId)
         .where('stripe_payout_id', '=', payoutId)
-        .executeTakeFirstOrThrow();
+        .executeTakeFirst();
+      if (!payout)
+        throw new PayoutReconciliationNotFoundError('Payout was not found');
       const transactions = await trx
         .selectFrom('balance_transactions')
         .select([

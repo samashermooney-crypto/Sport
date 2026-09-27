@@ -28,7 +28,12 @@ import {
   installmentTemplateSchema,
   installmentTemplateListSchema,
 } from './installment-templates.js';
+import {
+  manualInstallmentIntentSchema,
+  manualInstallmentListSchema,
+} from './manual-installment-pay.js';
 import { payerReceiptListSchema } from './payer-receipts.js';
+import { payoutReconciliationSchema } from './reconciliation.js';
 import {
   createFinanceRouter,
   offlinePaymentBodySchema,
@@ -61,6 +66,7 @@ import {
   autopayRevocationResponseSchema,
   staffMethodConsentBodySchema,
   staffMethodConsentResponseSchema,
+  stripeClientConfigSchema,
 } from './routes.js';
 import {
   taxRateBodySchema,
@@ -241,6 +247,26 @@ export const moduleDefinition = {
     },
     {
       method: 'get',
+      path: '/api/v1/finance/stripe-client-config',
+      summary:
+        'Read the test-mode Stripe publishable key for authenticated payers',
+      response: stripeClientConfigSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/me/installments',
+      summary:
+        'List payer-owned outstanding installments available for payment',
+      response: manualInstallmentListSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/me/installments/{installmentId}/payment-intents',
+      summary: 'Reserve a payer-owned manual installment PaymentIntent',
+      response: manualInstallmentIntentSchema,
+    },
+    {
+      method: 'get',
       path: '/api/v1/finance/orgs/{orgId}/invoices/{invoiceId}/installments',
       summary:
         'List a finance invoice installment schedule and active payer consents',
@@ -368,6 +394,18 @@ export const moduleDefinition = {
       summary: 'Export a reconciled payout journal with explicit GL codes',
       body: payoutJournalBodySchema,
       response: payoutJournalResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/payouts/{payoutId}/reconciliation',
+      summary: 'Read the payout and each matched Stripe movement',
+      response: payoutReconciliationSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/payouts/{payoutId}/reconciliation.csv',
+      summary: 'Export the payout reconciliation as CSV',
+      response: z.string(),
     },
   ],
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };
