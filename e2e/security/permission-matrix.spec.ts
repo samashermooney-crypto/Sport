@@ -30,6 +30,8 @@ const expectedRoles = [
 
 interface OpenApiOperation {
   operationId?: string;
+  'x-athlentry-permission'?: string;
+  'x-athlentry-scope'?: string;
 }
 interface OpenApiDocument {
   paths: Record<string, Record<string, OpenApiOperation>>;
@@ -37,14 +39,22 @@ interface OpenApiDocument {
 interface PermissionMatrix {
   formatVersion: number;
   roles: string[];
-  operations: Record<string, { allow: string[]; deny: string[] }>;
+  operations: Record<
+    string,
+    {
+      permission: string;
+      scope: string;
+      allow: string[];
+      deny: string[];
+    }
+  >;
 }
 
 async function readJson<T>(url: URL): Promise<T> {
   return JSON.parse(await readFile(url, 'utf8')) as T;
 }
 
-test.fixme('SEC-002 / Track C: permission matrix covers every generated API operation and role', async () => {
+test('SEC-002 / Track C: permission matrix covers every generated API operation and role', async () => {
   const [document, matrix] = await Promise.all([
     readJson<OpenApiDocument>(
       new URL('../../docs/api/openapi.json', import.meta.url),
@@ -58,14 +68,24 @@ test.fixme('SEC-002 / Track C: permission matrix covers every generated API oper
   ]);
   const operations = Object.values(document.paths)
     .flatMap((methods) => Object.values(methods))
-    .flatMap((operation) => operation.operationId ?? []);
+    .filter(
+      (operation): operation is OpenApiOperation & { operationId: string } =>
+        Boolean(operation.operationId),
+    );
   expect(matrix.formatVersion).toBe(1);
   expect(matrix.roles).toEqual(expectedRoles);
-  expect(Object.keys(matrix.operations).sort()).toEqual(operations.sort());
-  for (const operationId of operations) {
+  expect(Object.keys(matrix.operations).sort()).toEqual(
+    operations.map((operation) => operation.operationId).sort(),
+  );
+  for (const operation of operations) {
+    const operationId = operation.operationId;
     const row = matrix.operations[operationId];
     if (!row) throw new Error(`Missing permission row for ${operationId}`);
-    expect([...row.allow, ...row.deny].sort()).toEqual(expectedRoles);
+    expect(row.permission).toBe(operation['x-athlentry-permission']);
+    expect(row.scope).toBe(operation['x-athlentry-scope']);
+    expect([...row.allow, ...row.deny].sort()).toEqual(
+      [...expectedRoles].sort(),
+    );
     expect(row.allow.filter((role) => row.deny.includes(role))).toEqual([]);
   }
 });

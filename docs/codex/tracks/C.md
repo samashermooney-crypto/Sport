@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
 Status: working
 Branch: `track/c-adapters`
-Current: trunk test/Knip repair `9b5b430` is reported green; Track D owns the remaining design-parity job. SEC-002 metadata/fuzzer work is committed as `a981e0d`; membership-concealment fixes and full gates are in progress. Phase 15 remains owned by Track K.
-Ready for integration: no; finish the permission matrix and run the branch and trunk gates before integration.
+Current: trunk test/Knip repair `9b5b430` is reported green; Track D owns the remaining design-parity job. SEC-002 metadata and nonmember-concealment commits are `a981e0d` and `5b64492`; all four security browser checks now pass. Full WebKit/build and trunk gates remain in progress. Phase 15 remains owned by Track K.
+Ready for integration: no; finish the branch and trunk gates before integration.
 Requests to other tracks: Track A — reconcile DEC-023 with verified-guardian restricted uploads and owner/compliance-only restricted downloads. Track E — registration module/route and checkout contracts are prerequisites for registration UI wiring.
 Blocked on: GitHub access is currently unavailable from this environment; local gates remain available.
 
@@ -18,7 +18,7 @@ Blocked on: GitHub access is currently unavailable from this environment; local 
 ## Wiring queue
 
 - SEC-001: **implemented** — security headers are mounted before API/static routes; production security.txt requires configured staffed contact/policy values; Stripe/Turnstile and configured storage origins remain allowed and HSTS stays production-only.
-- SEC-002: **in progress** — `a981e0d` generates permission/resource/scope metadata for every API operation, publishes it through OpenAPI and the registry, and supplies schema-valid query/path/body fixtures. Route metadata and tenant-fuzz browser tests are enabled; the remaining permission-matrix coverage test and full gates are open.
+- SEC-002: **in progress** — `a981e0d` generates permission/resource/scope metadata for every API operation, publishes it through OpenAPI and the registry, and supplies schema-valid query/path/body fixtures. The owner-aware permission matrix and tenant-fuzz browser tests are enabled and pass; full browser/build gates remain open.
 - SEC-003: **verified** — raw Stripe and Connect ingress is mounted before feature routers; the webhook router consumes raw bytes for signature verification.
 - SEC-004: **implemented** — `/.well-known/security.txt` is served, production contact/policy values fail closed until configured, and CI scans full git history with gitleaks without posting PR comments.
 - Track B: mount Programs, Teams, and Facilities route arrays and navigation when their module paths land; move file and B module contracts to shared Zod, use version helpers for mutable org routes, and align `FILE_INVALID` with the shared error envelope.

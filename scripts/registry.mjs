@@ -178,6 +178,112 @@ await writeGenerated(
   `export const modulePermissions = ${JSON.stringify(permissions)} as const;\n`,
 );
 
+const securityRoles = [
+  'anonymous',
+  'owner',
+  'admin',
+  'registrar',
+  'finance',
+  'scheduler',
+  'compliance',
+  'communications',
+  'director',
+  'evaluator',
+  'volunteer_coordinator',
+  'reporter',
+  'guardian',
+  'self',
+  'head_coach',
+  'assistant_coach',
+  'team_manager',
+  'treasurer',
+  'official',
+  'volunteer',
+  'platform_super_admin',
+  'platform_support',
+  'platform_finance_ops',
+];
+const platformRoles = [
+  'platform_super_admin',
+  'platform_support',
+  'platform_finance_ops',
+];
+const organizationRoles = securityRoles.filter(
+  (role) => role !== 'anonymous' && !platformRoles.includes(role),
+);
+const permissionRoles = {
+  'public.access': securityRoles,
+  'account.self': securityRoles.filter((role) => role !== 'anonymous'),
+  'platform.staff': platformRoles,
+  'orgs.read': organizationRoles,
+  'orgs.manage': ['owner', 'admin'],
+  'notifications.read': organizationRoles,
+  'notifications.manage': organizationRoles,
+  'files.read': organizationRoles,
+  'files.manage': organizationRoles,
+  'audit.read': ['owner', 'admin', 'compliance', 'reporter'],
+  'chat.read': organizationRoles,
+  'chat.send': organizationRoles,
+  'chat.moderate': ['owner', 'admin', 'compliance'],
+  'communications.read': [
+    'owner',
+    'admin',
+    'communications',
+    'director',
+    'registrar',
+    'compliance',
+  ],
+  'communications.manage': ['owner', 'admin', 'communications', 'director'],
+  'compliance.read': ['owner', 'admin', 'compliance'],
+  'compliance.manage': ['owner', 'admin', 'compliance'],
+  'discipline.read': ['owner', 'admin', 'compliance', 'director', 'head_coach'],
+  'discipline.manage': ['owner', 'admin', 'compliance', 'director'],
+  'finance.manage': ['owner', 'admin', 'finance', 'treasurer'],
+  'people.read': [
+    'owner',
+    'admin',
+    'registrar',
+    'compliance',
+    'director',
+    'head_coach',
+    'assistant_coach',
+    'team_manager',
+  ],
+  'people.manage': ['owner', 'admin', 'registrar'],
+  'safety.read': ['owner', 'admin', 'compliance'],
+  'safety.manage': ['owner', 'admin', 'compliance'],
+};
+const { apiRouteMetadata } = await import(
+  pathToFileURL(resolve('server/src/generated/api-route-metadata.ts')).href
+);
+const operations = Object.fromEntries(
+  apiRouteMetadata.map((operation) => {
+    const allowed = permissionRoles[operation.permission];
+    if (!allowed)
+      throw new Error(
+        `Permission matrix has no role family for ${operation.permission}`,
+      );
+    return [
+      operation.operationId,
+      {
+        permission: operation.permission,
+        scope: operation.scope,
+        allow: securityRoles.filter((role) => allowed.includes(role)),
+        deny: securityRoles.filter((role) => !allowed.includes(role)),
+      },
+    ];
+  }),
+);
+const permissionMatrix = `${JSON.stringify(
+  { formatVersion: 1, roles: securityRoles, operations },
+  null,
+  2,
+)}\n`;
+const matrixPath = resolve('server/test/security/permission-matrix.json');
+const currentMatrix = await readFile(matrixPath, 'utf8').catch(() => '');
+if (currentMatrix !== permissionMatrix)
+  await writeFile(matrixPath, permissionMatrix);
+
 process.stdout.write(
   `Registry generated: ${String(serverNames.length)} server modules, ${String(integrationNames.length)} integrations, ${String(webRouteNames.length)} web features\n`,
 );

@@ -566,3 +566,11 @@
 - **Decision:** Use `accounts.linked_org_ids` only to discover candidate organization IDs, then process every organization-owned ciphertext batch in its own `withOrg` transaction. Continue to process global MFA factor ciphertext in a normal transaction. Append a tenant audit event for each rewrapped tenant value and a global security event for each rewrapped MFA secret; record only the table/entity ID and key IDs.
 - **Why:** The append-only account index supports cross-organization discovery without scanning protected organization rows outside the scoped helper; each candidate is still authorized by transaction-local tenant context and RLS. Audit evidence preserves the maintenance history without recording Restricted plaintext or ciphertext.
 - **Consequences / follow-ups:** Any new organization-creation path must maintain the candidate index. Rotation defaults to a dry run; operators pass `--apply` only after validating the candidate keyring.
+
+### DEC-082 — Keep API role metadata descriptive and resource checks authoritative
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 security metadata
+- **Context:** OpenAPI needs one permission and scope label for each operation, while many permissions depend on active membership, linked-guardian status, conversation membership, resource ownership and sensitivity.
+- **Decision:** Generate the complete operation/role matrix from each operation's metadata and a conservative role-family map. Treat it as an auditable reference and completeness check; runtime route and service guards remain authoritative for tenant membership, ownership, consent, sensitivity and resource state. Return 404 when the caller is outside the addressed organization, retaining 403 for an active member denied by a role policy.
+- **Why:** A compact role matrix cannot express every resource-level condition. Separating route intent from live ownership checks avoids letting a broad role label grant child, finance, chat or Restricted-file access.
+- **Consequences / follow-ups:** New permissions must be added to the generated role-family map. Integration and browser tests continue to exercise the actual resource-level rules.

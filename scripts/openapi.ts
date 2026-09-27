@@ -18,6 +18,7 @@ export type OpenApiRoute = {
   path: string;
   summary: string;
   response: z.ZodType;
+  moduleName?: string;
   body?: z.ZodType;
   status?: number;
   tags?: string[];
@@ -449,6 +450,8 @@ function jsonSchema(schema: z.ZodType): Record<string, unknown> {
 }
 
 function moduleFor(route: OpenApiRoute) {
+  if (route.moduleName)
+    return serverModules.find((module) => module.name === route.moduleName);
   return serverModules.find(
     (module) =>
       route.path === module.path ||
@@ -808,8 +811,15 @@ function collectRouteCalls(
 const moduleRoutes = serverModules.flatMap((module) => {
   const candidate: unknown =
     'openapiRoutes' in module ? module.openapiRoutes : undefined;
-  return Array.isArray(candidate) ? (candidate as OpenApiRoute[]) : [];
+  return Array.isArray(candidate)
+    ? (candidate as OpenApiRoute[]).map((route) => ({
+        ...route,
+        moduleName: module.name,
+      }))
+    : [];
 });
+const namedRoutes = (moduleName: string, moduleRoutes: OpenApiRoute[]) =>
+  moduleRoutes.map((route) => ({ ...route, moduleName }));
 const routes: OpenApiRoute[] = [
   {
     method: 'get',
@@ -819,9 +829,9 @@ const routes: OpenApiRoute[] = [
     public: true,
     tags: ['system'],
   },
-  ...authRoutes,
-  ...orgRoutes,
-  ...fileRoutes,
+  ...namedRoutes('auth', authRoutes),
+  ...namedRoutes('orgs', orgRoutes),
+  ...namedRoutes('files', fileRoutes),
   ...moduleRoutes,
 ];
 const keys = new Set(routes.map((route) => `${route.method} ${route.path}`));
