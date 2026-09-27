@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { WebPushSender } from '../../server/src/integrations/push/sender';
 import type { WebPushClient } from '../../server/src/integrations/push/sender';
 
-test.fixme('SEC-SSRF / Track C: reject internal push endpoints before transport', async () => {
+test('SEC-SSRF / Track C: reject internal push endpoints before transport', async () => {
   const transportCalls: string[] = [];
   const client: WebPushClient = {
     setVapidDetails() {},

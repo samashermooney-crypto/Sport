@@ -17,7 +17,7 @@ import {
   FilesService,
 } from './service';
 
-export const uploadBody = fileUploadRequestSchema;
+const uploadBody = fileUploadRequestSchema;
 export interface FilesRoutesDependencies {
   files: FilesService;
   context(request: Request): Promise<OrgContext>;

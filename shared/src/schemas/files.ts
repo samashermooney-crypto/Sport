@@ -1,13 +1,13 @@
 import { z } from 'zod';
 
-export const filePurposeSchema = z.enum([
+const filePurposeSchema = z.enum([
   'image',
   'document',
   'import',
   'website_asset',
 ]);
 
-export const fileSensitivitySchema = z.enum([
+const fileSensitivitySchema = z.enum([
   'public',
   'internal',
   'sensitive',

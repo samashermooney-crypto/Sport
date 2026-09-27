@@ -33,9 +33,9 @@ Requests from OPS: addressed in the current worktree — public `/readyz` and `/
 ## Requests from SEC
 
 - SEC-002: **implemented** — generated operation permission/resource/scope metadata, foreign-resource fixtures, reviewed role matrix, OpenAPI/registry publication and 404 concealment are in the merged security commits; the SEC completeness checks pass.
-- SEC-SSRF-C-001: **implemented** — endpoint validation and pinned public DNS addresses are committed in C; the adapter regression tests pass. The synthetic loopback Chromium spec is enabled in the local diff and awaits commit.
-- SEC-CI-001: **workflow implemented** — CI scans full git history on pull requests and pushes to protected branches without PR comments; enabling its regression spec is in the local diff.
-- SEC-KNIP-C: working-tree follow-up removes C-owned findings by tracking the documented backup/restore scripts as entry points, making unused Files exports private, and classifying the dynamic optional Sentry runtime dependency for Knip.
+- SEC-SSRF-C-001: **implemented** — endpoint validation and pinned public DNS addresses are committed in C; adapter regressions and the enabled synthetic loopback Chromium spec pass.
+- SEC-CI-001: **implemented** — CI scans full git history on pull requests and pushes to protected branches without PR comments; its regression spec is enabled and passes.
+- SEC-KNIP-C: **implemented** — documented Render backup and operator restore-drill scripts are Knip entry points; the Files upload parser and unconsumed enum exports are private; `@sentry/node` is classified as a dynamic optional runtime dependency. Knip reports no C-owned findings.
 
 ## Verification and environment
 
