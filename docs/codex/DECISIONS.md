@@ -551,7 +551,7 @@
 - **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
 - **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
 
-### DEC-080 — Keep guest donation checkout behind the finance adapter
+### DEC-082 — Keep guest donation checkout behind the finance adapter
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 11 fundraising
 - **Context:** E's current payment service requires an account-bound customer and invoice, while a guest donor must not receive a synthetic Athlentry account or have a donation misrepresented as another payer's invoice.
@@ -559,10 +559,26 @@
 - **Why:** This preserves payer identity and accounting integrity and keeps provider details in E's adapter.
 - **Consequences / follow-ups:** Guest donation checkout remains unavailable on trunk until E/C wire the adapter and webhook. Orders containing products with different tax rates need separate invoices. (Phase 13 federation was briefly drafted under this track and is removed; it belongs to J per SPRINT.md — see commit history `c16c555` for the discarded draft.)
 
-### DEC-081 — Keep store order terms recoverable and registration add-ons versioned
+### DEC-083 — Keep store order terms recoverable and registration add-ons versioned
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 11 store
 - **Context:** A store order reserves inventory in one tenant transaction, then issues an E-owned invoice in a separate transaction. A process interruption between those commits must not lose the invoice link or change what the purchaser agreed to buy. Registration add-on requirements also need to remain reviewable as products and sizes change.
 - **Decision:** Store orders persist a request hash and tax-rate snapshot and recover an invoice with the same creation key on retry. Product categories and offering add-ons are archived/disabled with optimistic versions rather than deleted. A registration product marked required cannot be made optional through its offering configuration; the registration contract returns only active product sizes and ledger-backed availability.
 - **Why:** Replay can restore the original invoice without duplicating the inventory reservation, and families cannot bypass a required uniform choice by changing an add-on flag.
 - **Consequences / follow-ups:** E must consume H's offering add-on contract in the registration checkout and reserve the selected variant through H's inventory order path. The H API already exposes allowed variants and availability; that integration remains open until E wires it.
+
+### DEC-080 — Keep global security-header policy in reusable middleware
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 security headers
+- **Context:** `server/src/app.ts` is owned by Track C, while Phase 16 security tests and policy are owned by Track SEC.
+- **Decision:** Implement the strict, testable header policy as a new reusable middleware under `server/src/lib/security/`; Track C mounts it at the application boundary before API/static routes. Keep production-only HSTS conditional and give `/embed/*` an explicit framing exception.
+- **Why:** Security behavior stays independently testable without crossing the app-wiring ownership boundary, and the app applies one header policy consistently.
+- **Consequences / follow-ups:** Track C must mount the middleware and preserve its embedding exception before global header acceptance is complete.
+
+### DEC-081 — Discover encryption-rotation tenants through the account index
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 key rotation
+- **Context:** Rotation must cover all known tenant ciphertext while every tenant row read or write remains under `withOrg`.
+- **Decision:** Use `accounts.linked_org_ids` only to discover candidate organization IDs, then process every organization-owned ciphertext batch in its own `withOrg` transaction. Continue to process global MFA factor ciphertext in a normal transaction. Append a tenant audit event for each rewrapped tenant value and a global security event for each rewrapped MFA secret; record only the table/entity ID and key IDs.
+- **Why:** The append-only account index supports cross-organization discovery without scanning protected organization rows outside the scoped helper; each candidate is still authorized by transaction-local tenant context and RLS. Audit evidence preserves the maintenance history without recording Restricted plaintext or ciphertext.
+- **Consequences / follow-ups:** Any new organization-creation path must maintain the candidate index. Rotation defaults to a dry run; operators pass `--apply` only after validating the candidate keyring.
