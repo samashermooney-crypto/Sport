@@ -204,6 +204,29 @@ function localInstant(value: string, timezone: string): string {
     .toInstant()
     .toString();
 }
+function closureTimezone(
+  scopeType: string,
+  scopeId: string | null,
+  facilities: readonly Facility[],
+  spaces: readonly Space[],
+  fallback: string,
+): string {
+  if (scopeType === 'org') return fallback;
+  if (!scopeId) return fallback;
+  if (scopeType === 'facility')
+    return (
+      facilities.find((facility) => facility.id === scopeId)?.timezone ??
+      fallback
+    );
+  if (scopeType === 'space') {
+    const space = spaces.find((item) => item.id === scopeId);
+    return (
+      facilities.find((facility) => facility.id === space?.facility_id)
+        ?.timezone ?? fallback
+    );
+  }
+  return fallback;
+}
 function localDateTimeInput(value: string, timezone: string): string {
   return Temporal.Instant.from(value)
     .toZonedDateTimeISO(timezone)
@@ -255,6 +278,7 @@ export function ScheduleConsole({
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
+  const [organizationTimezone, setOrganizationTimezone] = useState('UTC');
   const [selectedEvent, setSelectedEvent] = useState('');
   const [programId, setProgramId] = useState('');
   const [divisionId, setDivisionId] = useState('');
@@ -315,13 +339,12 @@ export function ScheduleConsole({
 
   const loadFacilities = useCallback(async () => {
     try {
-      setFacilities(
-        (
-          await api<{ items: Facility[] }>(
-            `${base(orgId, 'scheduling')}/facilities`,
-          )
-        ).items,
-      );
+      const result = await api<{
+        items: Facility[];
+        organizationTimezone: string;
+      }>(`${base(orgId, 'scheduling')}/facilities`);
+      setFacilities(result.items);
+      setOrganizationTimezone(result.organizationTimezone);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : 'Could not load facilities.',
@@ -2207,11 +2230,21 @@ export function ScheduleConsole({
               const form = new FormData(event.currentTarget);
               const scopeType = formText(form, 'scopeType');
               const scopeId = formText(form, 'scopeId') || null;
+              const effectiveTimezone = closureTimezone(
+                scopeType,
+                scopeId,
+                facilities,
+                spaces,
+                organizationTimezone,
+              );
               const startsAt = localInstant(
                 formText(form, 'startsAt'),
-                timezone,
+                effectiveTimezone,
               );
-              const endsAt = localInstant(formText(form, 'endsAt'), timezone);
+              const endsAt = localInstant(
+                formText(form, 'endsAt'),
+                effectiveTimezone,
+              );
               const closure = {
                 scopeType,
                 scopeId,
