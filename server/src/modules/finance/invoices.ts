@@ -31,6 +31,7 @@ export interface NewInvoiceLine {
 export interface IssueInvoiceInput {
   orgId: string;
   accountId: string;
+  householdId?: string;
   source:
     | 'checkout'
     | 'staff'
@@ -108,6 +109,7 @@ export function invoiceRequestHash(input: IssueInvoiceInput): string {
       JSON.stringify({
         orgId: input.orgId,
         accountId: input.accountId,
+        householdId: input.householdId ?? null,
         source: input.source,
         dueOn: input.dueOn ?? null,
         memo: input.memo ?? null,

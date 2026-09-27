@@ -74,11 +74,12 @@ export class PostgresInvoiceRepository {
         const status = initialInvoiceStatus(totals.totalCents);
         const inserted = await sql<{ id: string }>`
           INSERT INTO invoices
-            (id, org_id, number, account_id, status, issued_at, due_on,
+            (id, org_id, number, account_id, household_id, status, issued_at, due_on,
              subtotal_cents, discount_cents, service_fee_cents, tax_cents,
              total_cents, memo, source, creation_key, creation_hash)
           VALUES
             (${id}::uuid, ${input.orgId}::uuid, ${number}, ${input.accountId}::uuid,
+             ${input.householdId ?? null}::uuid,
              ${status}, now(), ${input.dueOn ?? null}::date,
              ${totals.subtotalCents}, ${totals.discountCents},
              ${totals.serviceFeeCents}, ${totals.taxCents},

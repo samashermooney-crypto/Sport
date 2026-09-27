@@ -9,7 +9,7 @@ Additional ready for integration: local `4e97356..c7dd637` — spine-independent
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1003 merge (2026-09-26).
 Requests to other tracks: B: confirm whether `generateInstallments` must support `weekly` from `02 §L` (current `20 §3` algorithm and shared function cover fixed dates/monthly only) (2026-09-26).
 Blocked on: None; schema spine and test factories are on `rebuild/trunk`.
-Next: implement installment dunning, credits and reconciliation; register finance handlers with the Stripe event worker once Track A mounts it.
+Next: implement installment dunning and payout reconciliation; connect refund-as-credit to the credit ledger and register finance handlers with the Stripe event worker once Track A mounts it.
 Gateway: Stripe SDK 22.6.2 dependency-only commit `cf83f4c`; real SDK adapter covers Connect, Customers, payment methods, intents, refunds, reversals, disputes, payouts, Billing and domains.
 Gateway tests: 36 passed, including stripe-mock Express account and destination PaymentIntent; typecheck and targeted lint green.
 Gateway review: test-only keys and events enforced; raw webhook bytes verified; exact destination fee and idempotency key asserted.
@@ -27,6 +27,7 @@ Money core: `finance/service.ts` uses Track B fee algorithms for service/applica
 Payment recording: migration 1005 adds honest `unknown` method and checkout FK; `finance/payment-repo.ts` writes pending intents plus invoice allocations before returning a client secret and blocks balance overcommit; 2 real-Postgres tests pass.
 Payment settlement: `finance/payment-event-repo.ts` uses withOrg and Stripe latest state to settle invoice/installment cents exactly once, preserves unpaid ACH processing, blocks success regression and audits transitions; 3 real-Postgres tests pass.
 Checkout webhooks: migrations 1008–1009 record first ACH processing/failure times; `checkout/payment-events.ts` retries capacity confirmation after money settlement, confirms processing ACH without paid cents, restores 72-hour holds on failure, and confirms later success idempotently; 2 lifecycle tests plus 7 related real-Postgres tests pass.
+Credit ledger: migrations 1010–1012 track issue sources, operation keys and deferred source/invoice reconciliation; `finance/credits.ts` issues, applies, expires and reverses unused account/household credits under row locks, with append-only database enforcement; 3 real-Postgres tests pass.
 Checkout capacity: migration 1006 keeps reservation keys on holds; `checkout/capacity-repo.ts` atomically reserves program/division/offering counters in fixed order, extends, confirms and releases without double counting; 2 real-Postgres tests pass.
 Checkout failure/refund: migration 1007 stores one durable lost-capacity refund claim per checkout and intent; capacity repository reverts ACH-confirmed seats to a 72-hour hold and fences duplicate refund calls; 2 further real-Postgres tests pass.
 Money idempotency: PaymentIntent and refund attempts set a durable external-start fence before Stripe calls; ambiguous network/persistence failures remain blocked for reconciliation; 4 failure tests pass.
