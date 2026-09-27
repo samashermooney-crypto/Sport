@@ -70,10 +70,14 @@ export interface Accounts {
 
 export interface AidApplications {
   answers: Generated<Json>;
+  award_bps: number | null;
   award_cents: Generated<number>;
   award_kind: string | null;
+  award_operation_key: string | null;
+  award_request_hash: string | null;
   created_at: Generated<Timestamp>;
   decided_by: string | null;
+  decision_reason: string | null;
   documents: Generated<Json>;
   financial_aid_program_id: string;
   household_id: string;
@@ -909,11 +913,31 @@ export interface Files {
   width: number | null;
 }
 
+export interface FinanceNoticeOutbox {
+  account_id: string;
+  attempts: Generated<number>;
+  created_at: Generated<Timestamp>;
+  id: string;
+  kind: string;
+  last_error: string | null;
+  lease_token: string | null;
+  lease_until: Timestamp | null;
+  message_key: string;
+  org_id: string;
+  provider_message_id: string | null;
+  sent_at: Timestamp | null;
+  source_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface FinancialAidPrograms {
   application_form_id: string | null;
   awarded_cents: Generated<number>;
   budget_cents: Generated<number>;
   created_at: Generated<Timestamp>;
+  creation_hash: string | null;
+  creation_key: string | null;
   id: string;
   name: string;
   org_id: string;
@@ -1891,6 +1915,7 @@ export interface Refunds {
   reverse_transfer: Generated<boolean>;
   status: Generated<string>;
   stripe_refund_id: string | null;
+  succeeded_at: Timestamp | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -2265,6 +2290,8 @@ export interface TaxRates {
   active: Generated<boolean>;
   applies_to: Generated<string>;
   created_at: Generated<Timestamp>;
+  creation_hash: string | null;
+  creation_key: string | null;
   id: string;
   name: string;
   org_id: string;
@@ -2468,6 +2495,7 @@ export interface DB {
   external_teams: ExternalTeams;
   facilities: Facilities;
   files: Files;
+  finance_notice_outbox: FinanceNoticeOutbox;
   financial_aid_programs: FinancialAidPrograms;
   form_definitions: FormDefinitions;
   form_responses: FormResponses;
