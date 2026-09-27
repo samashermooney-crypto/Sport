@@ -66,3 +66,5 @@ Status: awaiting takeover; not ready for integration because Phase 8/9 acceptanc
 - **Open requests:** Track B—generator fairness and bracket bye progression; Track C—schedule route mounting, schedule journeys with axe, and facility image contract; Track B/C—notification email fan-out; Track H—volunteer assignments; Track F—discipline transaction/game-served APIs; Track A—baseline browser failures.
 - **Local test stack:** `COMPOSE_PROJECT_NAME=athlentry_g PORT_OFFSET=700` (Postgres host port `6132`).
 - **Integration state:** `track/g-schedule` is local and unpushed. The latest self-merge gate was red and rolled back, so no integration merge was made.
+
+HANDED OFF 10:54
