@@ -6,6 +6,7 @@
     "db/seeds/index.ts",
     "scripts/openapi.ts",
     "scripts/stripe-smoke.ts",
+    "scripts/create-platform-admin.ts",
     "vite.config.ts",
     "vitest.config.ts",
     "playwright.config.ts",

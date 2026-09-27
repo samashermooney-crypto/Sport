@@ -3,7 +3,7 @@ import pg from 'pg';
 
 export type SseEvent = { id?: string; event: string; data: unknown };
 
-export function writeSseEvent(response: Response, event: SseEvent): void {
+function writeSseEvent(response: Response, event: SseEvent): void {
   if (!/^[a-z][a-z0-9.:-]*$/.test(event.event))
     throw new RangeError('Invalid SSE event name');
   if (event.id && !/^[A-Za-z0-9_-]{1,128}$/.test(event.id))
