@@ -33,6 +33,7 @@ import {
   manualInstallmentListSchema,
 } from './manual-installment-pay.js';
 import { payerReceiptListSchema } from './payer-receipts.js';
+import { payoutReconciliationSchema } from './reconciliation.js';
 import {
   createFinanceRouter,
   offlinePaymentBodySchema,
@@ -393,6 +394,18 @@ export const moduleDefinition = {
       summary: 'Export a reconciled payout journal with explicit GL codes',
       body: payoutJournalBodySchema,
       response: payoutJournalResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/payouts/{payoutId}/reconciliation',
+      summary: 'Read the payout and each matched Stripe movement',
+      response: payoutReconciliationSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/payouts/{payoutId}/reconciliation.csv',
+      summary: 'Export the payout reconciliation as CSV',
+      response: z.string(),
     },
   ],
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };

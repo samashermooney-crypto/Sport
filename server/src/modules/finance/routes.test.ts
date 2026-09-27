@@ -21,6 +21,7 @@ import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { payerReceiptListSchema } from './payer-receipts.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
+import { payoutReconciliationSchema } from './reconciliation.js';
 import {
   aidAwardResponseSchema,
   createFinanceRouter,
@@ -1192,6 +1193,37 @@ describe('finance payout journal HTTP', () => {
     expect(result.lineCount).toBe(5);
     expect(result.csv).toContain('Date,Journal No,Account,Debits,Credits');
     expect(result.csv).toContain('9.70');
+    const reportResponse = await fetch(
+      `${baseUrl}/orgs/${context.orgId}/payouts/${payoutId}/reconciliation`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(reportResponse.status).toBe(200);
+    const report = payoutReconciliationSchema.parse(
+      (await reportResponse.json()) as unknown,
+    );
+    expect(report).toMatchObject({
+      payoutId,
+      complete: true,
+      differenceCents: 0,
+      unlinkedSourceCount: 0,
+      rows: [{ transactionId, paymentId }],
+    });
+    const csvResponse = await fetch(
+      `${baseUrl}/orgs/${context.orgId}/payouts/${payoutId}/reconciliation.csv`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(csvResponse.status).toBe(200);
+    expect(csvResponse.headers.get('content-type')).toContain('text/csv');
+    expect(await csvResponse.text()).toContain(transactionId);
+    const missingResponse = await fetch(
+      `${baseUrl}/orgs/${context.orgId}/payouts/po_missing/reconciliation`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(missingResponse.status).toBe(404);
+    const anonymousResponse = await fetch(
+      `${baseUrl}/orgs/${context.orgId}/payouts/${payoutId}/reconciliation`,
+    );
+    expect(anonymousResponse.status).toBe(401);
   });
 });
 

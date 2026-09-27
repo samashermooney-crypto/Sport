@@ -102,7 +102,12 @@ import {
 import { PostgresPayerProfileRepository } from './payer-repo.js';
 import { PostgresSavedPaymentMethodRepository } from './payment-method-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
-import { PostgresPayoutReconciliation } from './reconciliation.js';
+import {
+  payoutReconciliationCsv,
+  PayoutReconciliationNotFoundError,
+  payoutReconciliationSchema,
+  PostgresPayoutReconciliation,
+} from './reconciliation.js';
 import { PostgresRefundApprovalPolicy } from './refund-approval-repo.js';
 import { PostgresRefundAttemptStore } from './refund-attempt-repo.js';
 import { PostgresRefundRecordStore } from './refund-record-repo.js';
@@ -475,7 +480,8 @@ function sendError(response: Response, error: unknown): void {
         : error instanceof InvoiceNotFoundError ||
             error instanceof AutopayAuthorizationNotFoundError ||
             error instanceof InstallmentStaffNotFoundError ||
-            error instanceof MoneyDocumentNotFoundError
+            error instanceof MoneyDocumentNotFoundError ||
+            error instanceof PayoutReconciliationNotFoundError
           ? 404
           : error instanceof FinanceDependencyError
             ? 503
@@ -1839,6 +1845,52 @@ export function createFinanceRouter(
             lineCount: lines.length,
           }),
         );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/payouts/:payoutId/reconciliation',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const payoutId = z
+          .string()
+          .regex(/^po_[A-Za-z0-9_]+$/)
+          .parse(request.params.payoutId);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const report = await new PostgresPayoutReconciliation(
+          dependencies.database,
+          context,
+        ).read(payoutId);
+        response.json(payoutReconciliationSchema.parse(report));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/payouts/:payoutId/reconciliation.csv',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const payoutId = z
+          .string()
+          .regex(/^po_[A-Za-z0-9_]+$/)
+          .parse(request.params.payoutId);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const report = await new PostgresPayoutReconciliation(
+          dependencies.database,
+          context,
+        ).read(payoutId);
+        response.type('text/csv').send(payoutReconciliationCsv(report));
       } catch (error) {
         sendError(response, error);
       }
