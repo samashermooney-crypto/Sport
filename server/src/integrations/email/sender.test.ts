@@ -1,13 +1,23 @@
 import { createHmac } from 'node:crypto';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
+  createMailpitEmailSender,
   createResendEmailSender,
   FakeEmailSender,
   mailpitSmtpPort,
   verifyResendWebhook,
 } from './sender';
+
+const smtp = vi.hoisted(() => ({
+  createTransport: vi.fn(),
+  sendMail: vi.fn(),
+}));
+
+vi.mock('nodemailer', () => ({
+  default: { createTransport: smtp.createTransport },
+}));
 
 describe('email adapters', () => {
   it('keeps FakeEmailSender behavior and retains rich message fields', async () => {
@@ -21,11 +31,36 @@ describe('email adapters', () => {
     };
     await sender.send(message);
     expect(sender.messages).toEqual([message]);
+    await expect(sender.send(message)).resolves.toEqual({
+      providerId: 'fake-email-2',
+    });
   });
   it('uses the configurable local Mailpit SMTP port safely', () => {
     expect(mailpitSmtpPort('2525')).toBe(2525);
     expect(mailpitSmtpPort(undefined)).toBe(1025);
     expect(() => mailpitSmtpPort('70000')).toThrow('valid TCP port');
+  });
+  it('returns the Mailpit SMTP message ID', async () => {
+    smtp.createTransport.mockReturnValue({ sendMail: smtp.sendMail });
+    smtp.sendMail.mockResolvedValue({
+      messageId: '<preview-1@athlentry.invalid>',
+    });
+    const sender = createMailpitEmailSender({
+      host: '127.0.0.1',
+      port: 2525,
+    });
+    await expect(
+      sender.send({
+        to: 'person@example.test',
+        subject: 'Preview',
+        text: 'Text',
+      }),
+    ).resolves.toEqual({ providerId: '<preview-1@athlentry.invalid>' });
+    expect(smtp.createTransport).toHaveBeenCalledWith({
+      host: '127.0.0.1',
+      port: 2525,
+      secure: false,
+    });
   });
   it('verifies signed Resend webhooks and rejects stale timestamps', () => {
     const rawBody = JSON.stringify({
@@ -72,22 +107,33 @@ describe('email adapters', () => {
           body: JSON.parse(payload) as Record<string, unknown>,
           headers: new Headers(init?.headers),
         });
-        return Promise.resolve(new Response('{}', { status: 200 }));
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ id: `re_fixture_${String(requests.length)}` }),
+            {
+              status: 200,
+            },
+          ),
+        );
       },
     });
-    await sender.send({
-      to: 'person@example.test',
-      subject: 'Security',
-      text: 'Notice',
-      kind: 'security',
-    });
-    await sender.send({
-      to: 'person@example.test',
-      subject: 'Campaign',
-      text: 'News',
-      kind: 'campaign',
-      idempotencyKey: 'campaign/1',
-    });
+    await expect(
+      sender.send({
+        to: 'person@example.test',
+        subject: 'Security',
+        text: 'Notice',
+        kind: 'security',
+      }),
+    ).resolves.toEqual({ providerId: 're_fixture_1' });
+    await expect(
+      sender.send({
+        to: 'person@example.test',
+        subject: 'Campaign',
+        text: 'News',
+        kind: 'campaign',
+        idempotencyKey: 'campaign/1',
+      }),
+    ).resolves.toEqual({ providerId: 're_fixture_2' });
     expect(requests[0]?.body.from).toBe(
       'Athlentry <security@notify.example.test>',
     );
