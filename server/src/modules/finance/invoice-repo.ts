@@ -17,6 +17,7 @@ import {
   invoiceTotals,
   type IssueInvoiceInput,
 } from './invoices.js';
+import { enqueueFinanceNotice } from './money-notices.js';
 import { refundTermsSchema } from './refund-terms.js';
 
 export interface IssuedInvoice {
@@ -140,6 +141,11 @@ export class PostgresInvoiceRepository {
             totalCents: { tier: 'internal', after: totals.totalCents },
             number: { tier: 'internal', after: number },
           },
+        });
+        await enqueueFinanceNotice(trx, this.context, {
+          kind: 'invoice_issued',
+          sourceId: id,
+          accountId: input.accountId,
         });
         return {
           id,

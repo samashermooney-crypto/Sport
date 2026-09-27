@@ -343,6 +343,7 @@ describe('invoice issuance', () => {
         .execute(),
     );
     expect(events.map((event) => event.action).sort()).toEqual([
+      'finance.notice_queued',
       'invoice.issued',
       'invoice.voided',
     ]);
