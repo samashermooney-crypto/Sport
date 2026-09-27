@@ -28,3 +28,5 @@ Known failures: latest full Vitest run had 4 failed test files (only shared Post
 Open requests: E — add the team-offer checkout operation to registration/checkout, including deposits, installments/autopay, family checkout and roster registration, and expose the adapter to evaluations. C — permit assigned evaluators to download only currently consented participant photos through audited files access. No owner input is pending.
 
 Stack: `COMPOSE_PROJECT_NAME=athlentry_f PORT_OFFSET=600` (PostgreSQL `127.0.0.1:6032`, stripe-mock `12711`, Mailpit `8625/1625`).
+
+HANDED OFF 15:44
