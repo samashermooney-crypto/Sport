@@ -872,6 +872,7 @@ export interface OwnSpaceOption {
   spaceId: string;
   spaceName: string;
   facilityName: string | null;
+  timezone: string;
 }
 
 /** Own-org bookable spaces for the contribution picker. */
@@ -888,7 +889,16 @@ export async function listOwnSpaces(
           .onRef('facilities.org_id', '=', 'spaces.org_id')
           .onRef('facilities.id', '=', 'spaces.facility_id'),
       )
-      .select(['spaces.id', 'spaces.name', 'facilities.name as facility_name'])
+      .innerJoin('organizations', (join) =>
+        join.onRef('organizations.id', '=', 'spaces.org_id'),
+      )
+      .select([
+        'spaces.id',
+        'spaces.name',
+        'facilities.name as facility_name',
+        'facilities.timezone as facility_timezone',
+        'organizations.timezone as organization_timezone',
+      ])
       .where('spaces.org_id', '=', context.orgId)
       .orderBy('spaces.name')
       .execute();
@@ -896,6 +906,7 @@ export async function listOwnSpaces(
       spaceId: row.id,
       spaceName: row.name,
       facilityName: row.facility_name,
+      timezone: row.facility_timezone ?? row.organization_timezone,
     }));
   });
 }

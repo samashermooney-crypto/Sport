@@ -67,3 +67,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - G decisions are `DEC-082–096` and `DEC-100–108` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
 - Latest integration: G passed the lock-protected merge gate and was merged into `rebuild/trunk` on 2026-09-27; local only, not pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.
+
+## Requests from J
+
+- CI run `36347047357` (`e2e/schedule-stats.spec.ts:269`) formats the closure form values in `America/Chicago`, but `ScheduleConsole` initializes `timezone` from the browser at line 264 and converts every closure scope with that timezone at lines 2210–2214; Ubuntu's UTC browser therefore sends the Chicago facility closure five hours early, so preview returns 0 affected events. Resolve the closure timezone from the selected facility/space (and org timezone for org scope) before `localInstant` conversion; keep the Linux UTC regression.
