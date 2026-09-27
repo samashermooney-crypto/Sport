@@ -60,6 +60,13 @@ const authRoutes: OpenApiRoute[] = [
     response: auth.authMeResponseSchema,
   },
   {
+    method: 'patch',
+    path: `${authBase}/locale`,
+    summary: 'Set account language preference',
+    body: auth.accountLocaleBodySchema,
+    response: auth.accountLocaleResponseSchema,
+  },
+  {
     method: 'post',
     path: `${authBase}/sign-up`,
     summary: 'Create account',

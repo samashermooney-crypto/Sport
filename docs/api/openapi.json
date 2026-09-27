@@ -211,6 +211,7 @@
                     },
                     "firstName": { "type": "string" },
                     "lastName": { "type": "string" },
+                    "locale": { "type": "string", "enum": ["en", "es"] },
                     "mfaEnabled": { "type": "boolean" },
                     "sessionId": {
                       "type": "string",
@@ -227,6 +228,7 @@
                     "email",
                     "firstName",
                     "lastName",
+                    "locale",
                     "mfaEnabled",
                     "sessionId",
                     "client"
@@ -244,6 +246,56 @@
           "422": { "$ref": "#/components/responses/BusinessRule" },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/api/v1/auth/locale": {
+      "patch": {
+        "operationId": "patch_api_v1_auth_locale",
+        "summary": "Set account language preference",
+        "tags": ["auth"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "locale": { "type": "string", "enum": ["en", "es"] }
+                  },
+                  "required": ["locale"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "locale": { "type": "string", "enum": ["en", "es"] }
+                },
+                "required": ["locale"],
+                "additionalProperties": false
+              }
+            }
+          }
         }
       }
     },

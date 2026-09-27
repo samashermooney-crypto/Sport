@@ -1,13 +1,15 @@
 import {
+  accountLocaleResponseSchema,
   authMeResponseSchema,
   authStatusResponseSchema,
 } from '@shared/schemas/auth';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
-import { apiGet, apiPost } from '../api/client';
+import { apiGet, apiPatch, apiPost } from '../api/client';
+import { i18n } from '../lib/i18n';
 import { disconnectBrowserPush } from '../push/browser';
 import { AuthFrame, AuthLink, Button, ErrorBox } from '../ui/auth';
 
@@ -22,6 +24,33 @@ export function AccountHome(): React.JSX.Element {
   });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [languageBusy, setLanguageBusy] = useState(false);
+
+  useEffect(() => {
+    if (account.data && i18n.resolvedLanguage !== account.data.locale)
+      void i18n.changeLanguage(account.data.locale);
+  }, [account.data]);
+
+  async function changeLanguage(locale: 'en' | 'es'): Promise<void> {
+    if (locale === account.data?.locale) return;
+    setLanguageBusy(true);
+    setError('');
+    try {
+      await apiPatch('/auth/locale', { locale }, accountLocaleResponseSchema);
+      queryClient.setQueryData(
+        ['auth', 'me'],
+        (current: typeof account.data) =>
+          current ? { ...current, locale } : current,
+      );
+      await i18n.changeLanguage(locale);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : t('languageSaveFailed'),
+      );
+    } finally {
+      setLanguageBusy(false);
+    }
+  }
 
   async function signOut(): Promise<void> {
     setBusy(true);
@@ -52,7 +81,10 @@ export function AccountHome(): React.JSX.Element {
       </AuthFrame>
     );
   return (
-    <AuthFrame>
+    <AuthFrame
+      onLanguageChange={(locale) => void changeLanguage(locale)}
+      languageDisabled={languageBusy}
+    >
       <h1>{t('welcomeAccount', { name: account.data.firstName })}</h1>
       <p>{t('signedInAs', { email: account.data.email })}</p>
       <ErrorBox error={error} />

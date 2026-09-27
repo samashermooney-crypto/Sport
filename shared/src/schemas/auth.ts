@@ -135,10 +135,15 @@ export const authMeResponseSchema = z.strictObject({
   email: z.email(),
   firstName: z.string(),
   lastName: z.string(),
+  locale: z.enum(['en', 'es']),
   mfaEnabled: z.boolean(),
   sessionId: z.uuid(),
   client: z.enum(['web', 'ios', 'android']),
 });
+export const accountLocaleBodySchema = z.strictObject({
+  locale: z.enum(['en', 'es']),
+});
+export const accountLocaleResponseSchema = accountLocaleBodySchema;
 export const mfaEnrollmentResponseSchema = z.strictObject({
   manualKey: z.string(),
   otpauthUrl: z.string(),
