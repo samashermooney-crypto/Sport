@@ -2,6 +2,8 @@ import {
   householdCreateSchema,
   householdListSchema,
   householdMemberCreateSchema,
+  householdMemberRemoveSchema,
+  householdMemberUpdateSchema,
   householdResponseSchema,
   householdUpdateSchema,
 } from '@shared/schemas/households';
@@ -57,6 +59,20 @@ export const moduleDefinition = {
       path: '/api/v1/people/households/orgs/{orgId}/{householdId}/members',
       summary: 'Add household member',
       body: householdMemberCreateSchema,
+      response: householdResponseSchema,
+    },
+    {
+      method: 'patch',
+      path: '/api/v1/people/households/orgs/{orgId}/{householdId}/members/{memberId}',
+      summary: 'Versioned household member update',
+      body: householdMemberUpdateSchema,
+      response: householdResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/households/orgs/{orgId}/{householdId}/members/{memberId}/remove',
+      summary: 'Retain and remove a household member',
+      body: householdMemberRemoveSchema,
       response: householdResponseSchema,
     },
     {

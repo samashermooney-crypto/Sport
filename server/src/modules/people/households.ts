@@ -19,6 +19,9 @@ type Update = z.output<
 type Member = z.output<
   typeof import('@shared/schemas/households').householdMemberCreateSchema
 >;
+type MemberUpdate = z.output<
+  typeof import('@shared/schemas/households').householdMemberUpdateSchema
+>;
 
 async function view(
   trx: OrgTransaction,
@@ -55,6 +58,7 @@ async function view(
       ])
       .where('household_members.org_id', '=', orgId)
       .where('household_members.household_id', '=', householdId)
+      .where('household_members.removed_at', 'is', null)
       .orderBy('people.last_name')
       .orderBy('people.first_name')
       .execute(),
@@ -255,6 +259,7 @@ export function createHouseholdsRepository(database: Kysely<DB>) {
           .where('org_id', '=', orgId)
           .where('household_id', '=', householdId)
           .where('person_id', '=', input.personId)
+          .where('removed_at', 'is', null)
           .executeTakeFirst();
         if (existing)
           throw new PeopleError(
@@ -268,6 +273,7 @@ export function createHouseholdsRepository(database: Kysely<DB>) {
             .set({ is_primary_contact: false })
             .where('org_id', '=', orgId)
             .where('household_id', '=', householdId)
+            .where('removed_at', 'is', null)
             .execute();
         await trx
           .insertInto('household_members')
@@ -291,6 +297,179 @@ export function createHouseholdsRepository(database: Kysely<DB>) {
           .where('id', '=', householdId)
           .execute();
         await audit(trx, orgId, actorId, householdId, 'household.member_added');
+        return view(trx, orgId, householdId);
+      });
+    },
+    async updateMember(
+      orgId: string,
+      actorId: string,
+      householdId: string,
+      memberId: string,
+      input: MemberUpdate,
+    ) {
+      return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
+        await requireStaff(trx, orgId, actorId, false);
+        const household = await trx
+          .selectFrom('households')
+          .select('version')
+          .where('org_id', '=', orgId)
+          .where('id', '=', householdId)
+          .where('status', '=', 'active')
+          .forUpdate()
+          .executeTakeFirst();
+        if (!household)
+          throw new PeopleError(404, 'NOT_FOUND', 'Household not found');
+        if (household.version !== input.expectedVersion)
+          throw new PeopleError(
+            409,
+            'CONFLICT',
+            'Household changed; reload before editing members',
+          );
+        const current = await trx
+          .selectFrom('household_members')
+          .select(['id', 'role', 'is_primary_contact'])
+          .where('org_id', '=', orgId)
+          .where('household_id', '=', householdId)
+          .where('id', '=', memberId)
+          .where('removed_at', 'is', null)
+          .executeTakeFirst();
+        if (!current)
+          throw new PeopleError(404, 'NOT_FOUND', 'Member not found');
+        const role = input.role ?? current.role;
+        const primary = input.isPrimaryContact ?? current.is_primary_contact;
+        if (primary && !['guardian', 'other_adult'].includes(role))
+          throw new PeopleError(
+            400,
+            'VALIDATION_ERROR',
+            'Primary contact must be an adult',
+          );
+        if (current.is_primary_contact && !primary)
+          throw new PeopleError(
+            409,
+            'CONFLICT',
+            'Assign another primary contact first',
+          );
+        if (primary && !current.is_primary_contact)
+          await trx
+            .updateTable('household_members')
+            .set({ is_primary_contact: false })
+            .where('org_id', '=', orgId)
+            .where('household_id', '=', householdId)
+            .where('removed_at', 'is', null)
+            .execute();
+        await trx
+          .updateTable('household_members')
+          .set({
+            ...(input.role !== undefined ? { role: input.role } : {}),
+            ...(input.isPrimaryContact !== undefined
+              ? { is_primary_contact: input.isPrimaryContact }
+              : {}),
+            ...(input.receivesCommunications !== undefined
+              ? { receives_communications: input.receivesCommunications }
+              : {}),
+            ...(input.financiallyResponsible !== undefined
+              ? { financially_responsible: input.financiallyResponsible }
+              : {}),
+            ...(input.canPickUp !== undefined
+              ? { can_pick_up: input.canPickUp }
+              : {}),
+            ...(input.livesHere !== undefined
+              ? { lives_here: input.livesHere }
+              : {}),
+          })
+          .where('org_id', '=', orgId)
+          .where('household_id', '=', householdId)
+          .where('id', '=', memberId)
+          .where('removed_at', 'is', null)
+          .execute();
+        await trx
+          .updateTable('households')
+          .set({ version: (eb) => eb('version', '+', 1) })
+          .where('org_id', '=', orgId)
+          .where('id', '=', householdId)
+          .execute();
+        await audit(
+          trx,
+          orgId,
+          actorId,
+          householdId,
+          'household.member_updated',
+        );
+        return view(trx, orgId, householdId);
+      });
+    },
+    async removeMember(
+      orgId: string,
+      actorId: string,
+      householdId: string,
+      memberId: string,
+      expectedVersion: number,
+    ) {
+      return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
+        await requireStaff(trx, orgId, actorId, false);
+        const household = await trx
+          .selectFrom('households')
+          .select('version')
+          .where('org_id', '=', orgId)
+          .where('id', '=', householdId)
+          .where('status', '=', 'active')
+          .forUpdate()
+          .executeTakeFirst();
+        if (!household)
+          throw new PeopleError(404, 'NOT_FOUND', 'Household not found');
+        if (household.version !== expectedVersion)
+          throw new PeopleError(
+            409,
+            'CONFLICT',
+            'Household changed; reload before removing members',
+          );
+        const member = await trx
+          .selectFrom('household_members')
+          .select(['id', 'is_primary_contact'])
+          .where('org_id', '=', orgId)
+          .where('household_id', '=', householdId)
+          .where('id', '=', memberId)
+          .where('removed_at', 'is', null)
+          .executeTakeFirst();
+        if (!member)
+          throw new PeopleError(404, 'NOT_FOUND', 'Member not found');
+        if (member.is_primary_contact) {
+          const other = await trx
+            .selectFrom('household_members')
+            .select('id')
+            .where('org_id', '=', orgId)
+            .where('household_id', '=', householdId)
+            .where('id', '!=', memberId)
+            .where('removed_at', 'is', null)
+            .executeTakeFirst();
+          if (other)
+            throw new PeopleError(
+              409,
+              'CONFLICT',
+              'Assign another primary contact first',
+            );
+        }
+        await trx
+          .updateTable('household_members')
+          .set({ removed_at: new Date() })
+          .where('org_id', '=', orgId)
+          .where('household_id', '=', householdId)
+          .where('id', '=', memberId)
+          .where('removed_at', 'is', null)
+          .execute();
+        await trx
+          .updateTable('households')
+          .set({ version: (eb) => eb('version', '+', 1) })
+          .where('org_id', '=', orgId)
+          .where('id', '=', householdId)
+          .execute();
+        await audit(
+          trx,
+          orgId,
+          actorId,
+          householdId,
+          'household.member_removed',
+        );
         return view(trx, orgId, householdId);
       });
     },

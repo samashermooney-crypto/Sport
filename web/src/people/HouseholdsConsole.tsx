@@ -6,6 +6,7 @@ import { peopleListSchema } from '@shared/schemas/people';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import type { z } from 'zod';
 
 import { apiGet, apiPatch, apiPost } from '../api/client';
 import { useImpersonationId } from '../platform/impersonation';
@@ -22,6 +23,169 @@ import {
 } from '../ui/primitives';
 
 import { PeopleShell } from './PeopleConsole';
+
+type HouseholdMember = z.output<
+  typeof householdResponseSchema
+>['members'][number];
+
+function MemberEditor({
+  orgId,
+  householdId,
+  version,
+  member,
+  refresh,
+}: {
+  orgId: string;
+  householdId: string;
+  version: number;
+  member: HouseholdMember;
+  refresh: () => Promise<void>;
+}): React.JSX.Element {
+  const [role, setRole] = useState(member.role);
+  const [primary, setPrimary] = useState(member.isPrimaryContact);
+  const [receives, setReceives] = useState(member.receivesCommunications);
+  const [responsible, setResponsible] = useState(member.financiallyResponsible);
+  const [pickup, setPickup] = useState(member.canPickUp);
+  const [livesHere, setLivesHere] = useState(member.livesHere);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const path = `/people/households/orgs/${orgId}/${householdId}/members/${member.id}`;
+  return (
+    <details>
+      <summary>
+        Edit {member.firstName} {member.lastName}
+      </summary>
+      <ErrorBox error={error} />
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          setBusy(true);
+          setError('');
+          void apiPatch(
+            path,
+            {
+              expectedVersion: version,
+              role,
+              isPrimaryContact: primary,
+              receivesCommunications: receives,
+              financiallyResponsible: responsible,
+              canPickUp: pickup,
+              livesHere,
+            },
+            householdResponseSchema,
+          )
+            .then(refresh)
+            .catch((cause: unknown) => {
+              setError(
+                cause instanceof Error
+                  ? cause.message
+                  : 'Member could not be saved.',
+              );
+            })
+            .finally(() => {
+              setBusy(false);
+            });
+        }}
+      >
+        <Field label="Household role">
+          <Select
+            value={role}
+            options={[
+              { value: 'guardian', label: 'Guardian' },
+              { value: 'athlete', label: 'Athlete' },
+              { value: 'other_adult', label: 'Other adult' },
+              { value: 'other_child', label: 'Other child' },
+            ]}
+            onChange={(event) => {
+              setRole(event.target.value as typeof role);
+            }}
+          />
+        </Field>
+        <label>
+          <Checkbox
+            checked={primary}
+            onChange={(event) => {
+              setPrimary(event.target.checked);
+            }}
+          />{' '}
+          Primary contact
+        </label>
+        <label>
+          <Checkbox
+            checked={receives}
+            onChange={(event) => {
+              setReceives(event.target.checked);
+            }}
+          />{' '}
+          Receives communications
+        </label>
+        <label>
+          <Checkbox
+            checked={responsible}
+            onChange={(event) => {
+              setResponsible(event.target.checked);
+            }}
+          />{' '}
+          Financially responsible
+        </label>
+        <label>
+          <Checkbox
+            checked={pickup}
+            onChange={(event) => {
+              setPickup(event.target.checked);
+            }}
+          />{' '}
+          Can pick up
+        </label>
+        <label>
+          <Checkbox
+            checked={livesHere}
+            onChange={(event) => {
+              setLivesHere(event.target.checked);
+            }}
+          />{' '}
+          Lives here
+        </label>
+        <Button type="submit" disabled={busy}>
+          {busy ? 'Saving…' : 'Save member'}
+        </Button>
+      </form>
+      <Button
+        type="button"
+        secondary
+        disabled={busy}
+        onClick={() => {
+          if (
+            !window.confirm(
+              `Remove ${member.firstName} ${member.lastName} from this household?`,
+            )
+          )
+            return;
+          setBusy(true);
+          setError('');
+          void apiPost(
+            `${path}/remove`,
+            { expectedVersion: version },
+            householdResponseSchema,
+          )
+            .then(refresh)
+            .catch((cause: unknown) => {
+              setError(
+                cause instanceof Error
+                  ? cause.message
+                  : 'Member could not be removed.',
+              );
+            })
+            .finally(() => {
+              setBusy(false);
+            });
+        }}
+      >
+        Remove member
+      </Button>
+    </details>
+  );
+}
 
 export function HouseholdsList(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
@@ -262,6 +426,16 @@ export function HouseholdDetail(): React.JSX.Element {
                 {' · '}
                 {member.role}
                 {member.isPrimaryContact ? ' · Primary contact' : ''}
+                {!impersonation && (
+                  <MemberEditor
+                    key={`${member.id}-${String(current.version)}`}
+                    orgId={orgId}
+                    householdId={householdId}
+                    version={current.version}
+                    member={member}
+                    refresh={refresh}
+                  />
+                )}
               </li>
             ))}
           </ul>
