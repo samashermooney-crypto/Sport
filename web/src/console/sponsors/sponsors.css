@@ -1,0 +1,33 @@
+.sponsors-console {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.sponsors-console__form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 1rem;
+}
+
+.sponsors-console__list {
+  display: grid;
+  gap: 1rem;
+}
+
+.sponsors-console__row,
+.sponsors-console__actions {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sponsors-console__actions {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 42rem) {
+  .sponsors-console__row {
+    flex-direction: column;
+  }
+}

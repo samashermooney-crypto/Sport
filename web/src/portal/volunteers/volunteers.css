@@ -1,0 +1,28 @@
+.volunteer-portal {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.volunteer-portal__header {
+  max-width: 48rem;
+}
+
+.volunteer-portal__header h1 {
+  margin-block: 0.25rem;
+}
+
+.volunteer-portal__selection {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 1rem;
+}
+
+.volunteer-portal__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 1rem;
+}
+
+.volunteer-portal__grid h3 {
+  margin-block: 0 0.5rem;
+}
