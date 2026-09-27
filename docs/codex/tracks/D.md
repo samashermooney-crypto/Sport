@@ -3,9 +3,9 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Current: Design system queues 1–6 are complete. Linux parity baselines are generated and pass in the lockfile-matching Playwright Linux image. Phase 14 report APIs and the report builder UI now support curated role-visible datasets, 200-row previews, typed filters, time grouping/aggregates/sorting, saved-report role sharing, CSV/XLSX exports, secure-link schedules with pause/resume, and visual presets for registration pace and revenue by program. Action Center, the remaining standard reports/dashboards, website, org export, privacy, and retention surfaces remain.
-Ready for integration: `195e30e..HEAD` is the intended local range after the SPRINT merge gate; the merge gate remains pending for the report-builder batch.
-Requests to other tracks: Track C — run `npm run registry` to discover `server/src/modules/reports/module.ts` and `web/src/console/reports/routes.tsx`, then commit generated registry updates so `/api/v1/reports` and `/console/orgs/:orgId/reports` are reachable. As D contracts land, wire action-center, website, exports, and their worker jobs the same way.
+Current: Design system queues 1–6 are complete. Linux parity references are generated and pass in the lockfile-matching Playwright Linux image; the current trunk sync is `7175207`. Phase 14 report APIs and the report builder support curated role-visible datasets, 200-row previews, typed filters, time grouping/aggregates/sorting, saved-report role sharing, CSV/XLSX exports, secure-link schedules with pause/resume, and visual presets for registration pace and revenue by program. Action Center, the remaining standard reports/dashboards, website, org export, privacy, and retention surfaces remain.
+Ready for integration: `195e30e..HEAD` contains the design baselines and report-builder batch; typecheck, lint, focused report tests, and the desktop parity spec pass on the synced Track D branch. The trunk merge gate is next.
+Requests to other tracks: Track C — mount the website server renderer at `/site` once `server/src/modules/website/public.ts` is committed; the current `ServerModule.extraRouters` contract only supports `/api/v1/*`. Regenerate server and nested web registries for website and console website routes, and wire Action Center, exports, and their worker jobs as those contracts land. Reports routing is present in the generated registry on this branch.
 Blocked on: None.
 
 Completed:
@@ -13,6 +13,7 @@ Completed:
 - Queue 3 extended controls, overlays, calendar views/resource grid, chart, rich text, signature, QR, print, keyboard-accessible board, bracket, and chat components.
 - Queue 4 parity suite; queue 5 mobile bottom tabs, command palette, and global search shell; queue 6 shared auth controls.
 - Linux parity references were generated using `mcr.microsoft.com/playwright:v1.63.0-noble` with `linux/amd64`. The 9-case design parity spec passed on both Mac and Linux; legacy references remain and the mismatch threshold and token-equality assertion are unchanged.
+- On the current synced branch, the host Chromium desktop parity run passed 9/9; the pinned Linux Chromium run passed 9/9, including the 390px legacy shell comparison. CI run `36337698479` failed on the prior trunk commit because Linux snapshot files were absent; the baseline comparison passed in the target Linux image after selecting the Linux capture.
 - Phase 14 migrations 7000–7006, generated DB types, report dataset/query/schema/service/router/module, CSV/XLSX serializers, ZIP helper, org-local schedule CRUD, durable outbox delivery, and per-recipient outcomes are present. Migrations were applied to the isolated Track D database.
 
 In progress (exact paths):
@@ -58,9 +59,9 @@ Exact next steps:
 6. At 13:00 local time, begin Phase 16 §3 accessibility/i18n, §5 legal drafts, and §6 landing/README. Continue small commits and use SPRINT's self-merge protocol only when the gate is green.
 
 Known failing or unverified checks:
-- No current Linux or Mac parity assertion failures are known; the focused parity suite passed 9/9 in each environment.
+- No current Linux or Mac parity assertion failures are known; the focused parity suite passed 9/9 in each environment. Neither the 6.5% mismatch tolerance nor token-equality test changed.
 - Focused report-builder UI test passed 1/1; report query validation passed 5/5, and focused report, schedule, export, ZIP, and shared-dataset checks passed 24/24. The grouped chart and table share the same server preview rows. `npm run typecheck` passes and the Track D reports path passes ESLint after the chart/preset additions.
-- Linux and macOS design parity tests each passed 9/9 on the D branch, but the Linux baseline commit is not yet in `rebuild/trunk`; trunk CI success remains unverified.
+- The latest trunk integration has not yet completed its full unit and Chromium E2E gate or pushed CI run.
 - Full unit/integration, full E2E, build, registry/OpenAPI freshness, knip, audit, and the SPRINT merge gate have not been run against the current Phase 14 branch state. Report builder, dashboards, website, exports/privacy UI, and Phase 16 acceptance remain unverified.
 - The first Playwright attempt found an orphaned Track D E2E runner on port 7173; that runner exited and the fresh isolated run passed.
 
