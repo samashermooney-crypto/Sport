@@ -13,6 +13,20 @@ function digest(raw: string): Buffer {
   return createHash('sha256').update(raw).digest();
 }
 
+async function revokeLinkedDevices(
+  trx: Transaction<DB>,
+  sessionIds: string[],
+  now: Date,
+): Promise<void> {
+  if (sessionIds.length === 0) return;
+  await trx
+    .updateTable('device_tokens')
+    .set({ revoked_at: now, token_or_subscription: {} })
+    .where('session_id', 'in', sessionIds)
+    .where('revoked_at', 'is', null)
+    .execute();
+}
+
 export interface SessionOptions {
   accountId: string;
   kind: 'cookie' | 'bearer';
@@ -115,15 +129,22 @@ export async function resolveSession(
       'sessions.elevated_until',
       'sessions.mfa_verified_at',
       'sessions.privileged',
+      'sessions.idle_expires_at',
       'sessions.absolute_expires_at',
+      'accounts.status as account_status',
     ])
     .where('sessions.token_hash', '=', digest(raw))
     .where('sessions.revoked_at', 'is', null)
-    .where('sessions.idle_expires_at', '>', now)
-    .where('sessions.absolute_expires_at', '>', now)
-    .where('accounts.status', '=', 'active')
     .executeTakeFirst();
   if (!row) return null;
+  if (
+    row.idle_expires_at <= now ||
+    row.absolute_expires_at <= now ||
+    row.account_status !== 'active'
+  ) {
+    await revokeLinkedDevices(trx, [row.id], now);
+    return null;
+  }
 
   const idleWindow = row.privileged ? privilegedIdle : 14 * day;
   const idleExpiresAt = new Date(
@@ -196,6 +217,11 @@ export async function revokeSessions(
     .where('revoked_at', 'is', null);
   if (keepSessionId) query = query.where('id', '!=', keepSessionId);
   const rows = await query.returning('id').execute();
+  await revokeLinkedDevices(
+    trx,
+    rows.map((row) => row.id),
+    now,
+  );
   for (const row of rows) {
     await trx
       .insertInto('security_events')
@@ -274,6 +300,7 @@ export async function revokeSession(
     .returning('id')
     .executeTakeFirst();
   if (!revoked) return false;
+  await revokeLinkedDevices(trx, [revoked.id], now);
   await trx
     .insertInto('security_events')
     .values({

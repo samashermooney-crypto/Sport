@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../../db/kysely';
 import type { DB } from '../../db/types';
 
+import { expireStaleDevices, listDevices, registerDevice } from './devices';
 import {
   hasStepUp,
   issueSession,
@@ -166,5 +167,88 @@ describe('session lifecycle', () => {
         .transaction()
         .execute((trx) => resolveSession(trx, issued.token, now)),
     ).toBeNull();
+  });
+
+  it('scrubs session-bound subscriptions on revocation and expiry', async () => {
+    const first = await database
+      .transaction()
+      .execute((trx) =>
+        issueSession(
+          trx,
+          { accountId, kind: 'cookie', client: 'web', privileged: false },
+          now,
+        ),
+      );
+    const subscription = {
+      platform: 'webpush' as const,
+      subscription: {
+        endpoint: `https://push.example.invalid/${newId()}`,
+        keys: { p256dh: 'public', auth: 'secret' },
+      },
+    };
+    const firstDevice = await registerDevice(
+      database,
+      {
+        id: first.id,
+        accountId,
+        kind: 'cookie',
+        client: 'web',
+        privileged: false,
+        elevatedUntil: null,
+        mfaVerifiedAt: null,
+      },
+      subscription,
+      now,
+    );
+    expect(
+      (await listDevices(database, accountId, now)).map((device) => device.id),
+    ).toContain(firstDevice.id);
+    await database
+      .transaction()
+      .execute((trx) => revokeSession(trx, accountId, first.id, now));
+    const revoked = await database
+      .selectFrom('device_tokens')
+      .select(['revoked_at', 'token_or_subscription'])
+      .where('id', '=', firstDevice.id)
+      .executeTakeFirstOrThrow();
+    expect(revoked.revoked_at).not.toBeNull();
+    expect(revoked.token_or_subscription).toEqual({});
+
+    const second = await database
+      .transaction()
+      .execute((trx) =>
+        issueSession(
+          trx,
+          { accountId, kind: 'cookie', client: 'web', privileged: false },
+          now,
+        ),
+      );
+    const rebound = await registerDevice(
+      database,
+      {
+        id: second.id,
+        accountId,
+        kind: 'cookie',
+        client: 'web',
+        privileged: false,
+        elevatedUntil: null,
+        mfaVerifiedAt: null,
+      },
+      subscription,
+      now,
+    );
+    expect(rebound.id).toBe(firstDevice.id);
+    const expiredAt = new Date(now.getTime() + 31 * 24 * 60 * 60_000);
+    expect(
+      await listDevices(database, accountId, expiredAt),
+    ).not.toContainEqual(expect.objectContaining({ id: firstDevice.id }));
+    expect(await expireStaleDevices(database, expiredAt)).toBeGreaterThan(0);
+    const expired = await database
+      .selectFrom('device_tokens')
+      .select(['revoked_at', 'token_or_subscription'])
+      .where('id', '=', firstDevice.id)
+      .executeTakeFirstOrThrow();
+    expect(expired.revoked_at).not.toBeNull();
+    expect(expired.token_or_subscription).toEqual({});
   });
 });
