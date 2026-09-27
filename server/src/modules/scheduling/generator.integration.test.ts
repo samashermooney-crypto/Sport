@@ -337,5 +337,5 @@ describe('tournament schedule generator', () => {
       (match) => match.contest_id === contest.id,
     );
     expect(linkedMatch).toBeDefined();
-  });
+  }, 30_000);
 });

@@ -65,8 +65,8 @@ export function createStandingsRouter(
         ? request.params.programId
         : request.params.divisionId,
     );
-  const registerScope = (path: string, field: 'programId' | 'divisionId') => {
-    router.get(path, async (req, res) => {
+  const scopeHandlers = (field: 'programId' | 'divisionId') => ({
+    read: async (req: Request, res: Response) => {
       try {
         res.json(
           await getStandings(
@@ -77,8 +77,8 @@ export function createStandingsRouter(
       } catch (error) {
         fail(res, error);
       }
-    });
-    router.post(`${path}/refresh`, async (req, res) => {
+    },
+    refresh: async (req: Request, res: Response) => {
       try {
         mutate(dependencies, req);
         const input = z
@@ -94,8 +94,8 @@ export function createStandingsRouter(
       } catch (error) {
         fail(res, error);
       }
-    });
-    router.put(`${path}/config`, async (req, res) => {
+    },
+    configure: async (req: Request, res: Response) => {
       try {
         mutate(dependencies, req);
         const input = z
@@ -115,10 +115,34 @@ export function createStandingsRouter(
       } catch (error) {
         fail(res, error);
       }
-    });
-  };
-  registerScope('/orgs/:orgId/programs/:programId/standings', 'programId');
-  registerScope('/orgs/:orgId/divisions/:divisionId/standings', 'divisionId');
+    },
+  });
+  const programHandlers = scopeHandlers('programId');
+  router.get(
+    '/orgs/:orgId/programs/:programId/standings',
+    programHandlers.read,
+  );
+  router.post(
+    '/orgs/:orgId/programs/:programId/standings/refresh',
+    programHandlers.refresh,
+  );
+  router.put(
+    '/orgs/:orgId/programs/:programId/standings/config',
+    programHandlers.configure,
+  );
+  const divisionHandlers = scopeHandlers('divisionId');
+  router.get(
+    '/orgs/:orgId/divisions/:divisionId/standings',
+    divisionHandlers.read,
+  );
+  router.post(
+    '/orgs/:orgId/divisions/:divisionId/standings/refresh',
+    divisionHandlers.refresh,
+  );
+  router.put(
+    '/orgs/:orgId/divisions/:divisionId/standings/config',
+    divisionHandlers.configure,
+  );
   router.get('/orgs/:orgId/season-surveys', async (req, res) => {
     try {
       res.json({

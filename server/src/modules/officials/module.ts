@@ -92,9 +92,8 @@ export const moduleDefinition = {
   router: createOfficialsRouter,
   permissions: ['officials.manage', 'officials.self'],
   notificationTypes: [
-    'official.assignment_offered',
-    'official.assignment_responded',
-    'official.assignment_confirmed',
+    'official_assignment.offered',
+    'official_assignment.changed',
   ],
   errorCodes: ['SCHEDULE_INVALID', 'SCHEDULE_CONFLICT'],
   openapiRoutes,

@@ -7,6 +7,7 @@ import { sportProfileSchema } from '@shared/sport/schema';
 import { withOrg } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 import { VersionConflictError } from '../../lib/version-check';
+import { createNotification } from '../notifications/service';
 import { assertSchedulePermission } from '../scheduling/access';
 import { SchedulingRuleError } from '../scheduling/events';
 
@@ -828,30 +829,12 @@ async function createAssignment(
       409,
       'CONFLICT',
     );
-  const notificationPath: string = '../notifications/service';
   if (!requireManager) return assignment;
   try {
-    const notifications = (await import(notificationPath)) as {
-      createNotification: (
-        trx: OrgTransaction,
-        context: OrgContext,
-        input: {
-          accountId: string;
-          type: string;
-          payload: Record<string, unknown>;
-        },
-      ) => Promise<unknown>;
-    };
-    await notifications.createNotification(trx, context, {
+    await createNotification(trx, context, {
       accountId: recipient.account_id,
-      type: 'official.assignment_offered',
-      payload: {
-        assignmentId: assignment.id,
-        contestId: input.contestId,
-        positionKey: input.positionKey,
-        startsAt: event.starts_at.toISOString(),
-        title: event.title,
-      },
+      type: 'official_assignment.offered',
+      payload: { assignmentId: assignment.id },
     });
   } catch {
     throw new SchedulingRuleError(
@@ -942,27 +925,11 @@ export async function respondToAssignment(
       .where('version', '=', expectedVersion)
       .returningAll()
       .executeTakeFirstOrThrow();
-    const notificationPath: string = '../notifications/service';
     try {
-      const notifications = (await import(notificationPath)) as {
-        createNotification: (
-          trx: OrgTransaction,
-          context: OrgContext,
-          input: {
-            accountId: string;
-            type: string;
-            payload: Record<string, unknown>;
-          },
-        ) => Promise<unknown>;
-      };
-      await notifications.createNotification(trx, context, {
+      await createNotification(trx, context, {
         accountId: assignment.assigned_by,
-        type: 'official.assignment_responded',
-        payload: {
-          assignmentId,
-          contestId: assignment.contest_id,
-          status: response,
-        },
+        type: 'official_assignment.changed',
+        payload: { assignmentId },
       });
     } catch {
       throw new SchedulingRuleError(
@@ -1021,23 +988,11 @@ export async function confirmOfficialAssignment(
       .where('revoked_at', 'is', null)
       .executeTakeFirst();
     if (recipient) {
-      const notificationPath: string = '../notifications/service';
       try {
-        const notifications = (await import(notificationPath)) as {
-          createNotification: (
-            trx: OrgTransaction,
-            context: OrgContext,
-            input: {
-              accountId: string;
-              type: string;
-              payload: Record<string, unknown>;
-            },
-          ) => Promise<unknown>;
-        };
-        await notifications.createNotification(trx, context, {
+        await createNotification(trx, context, {
           accountId: recipient.account_id,
-          type: 'official.assignment_confirmed',
-          payload: { assignmentId, contestId: assignment.contest_id },
+          type: 'official_assignment.changed',
+          payload: { assignmentId },
         });
       } catch {
         throw new SchedulingRuleError(
