@@ -22,7 +22,7 @@ function GameDayRoute(): React.JSX.Element {
   );
 }
 
-export const scheduleConsoleRoutes: readonly RouteObject[] = [
+export const consoleScheduleRoutes: readonly RouteObject[] = [
   { path: '/console/orgs/:orgId/schedule', element: <ScheduleRoute /> },
   {
     path: '/console/orgs/:orgId/schedule/events/:eventId/game-day',

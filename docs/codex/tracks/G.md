@@ -20,12 +20,14 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Added a 13-team double-elimination acceptance regression and fixed the shared bracket algorithm to propagate bye winners and empty loser outcomes until the if-necessary final is playable.
 - [x] Fixed the 48-team league schedule acceptance: candidate feasibility no longer rescans all assigned games inside each team check, and a deterministic Euler orientation keeps every scheduled team within one home/away game.
 - [x] Added versioned program `statsEnabled` settings, staff-only configuration, stat entry fields, program/division leaderboards, and enabled/public filtering for team summaries and athlete personal bests; stat corrections replace the contest's stat lines.
+- [x] Schedule mutations now include the required same-origin request marker, and the season-end award list qualifies tenant columns after joining people and teams.
+- [x] Schedule console and portal routes export the names expected by the generated nested-route registry, so they mount in the app router.
 - [x] Lineup suspension checks now call Track F's discipline policy. The save transaction commits the policy's audit event before returning the 409 conflict; an integration test covers both the denial and durable audit record.
-- [x] `npm run registry` regenerated 18 server modules, 6 integrations and 6 web features; `npm run openapi` regenerated API documentation, including the personal-best endpoint.
+- [x] `npm run registry` regenerated 20 server modules, 6 integrations, 7 web features and nested routes; `npm run openapi` documents the program-stat settings and leaderboard APIs.
 
 ## Verification
 
-- [x] `npm run typecheck` and `npm run lint` passed after syncing trunk through `9b5b430` (merge `7bd217f`); post-edit typecheck and targeted ESLint pass.
+- [x] `npm run typecheck` and `npm run lint` passed after syncing trunk through `2ac58d6`; post-fix typecheck and targeted ESLint pass.
 - [x] Production `npm run build` passed after the final attendance audit-boundary edit.
 - [x] Current focused database regressions pass: officials crew/pay acceptance, timed-meet acceptance, ICS parser checks, scheduling integration (DST, closures, moved-game ICS) and access integration: 6 files / 11 tests green after the latest fixes.
 - [x] Reviewed and tested WIP commit `34ceaea`: contests/standings integration suites pass (4 files / 5 tests); all 50 seeded contest formats validate and finalize. The regression verifies configured templates persist program and division snapshots, while unconfigured sports finalize without snapshots and return a 409 for standings reads. Typecheck and full lint pass.
@@ -34,14 +36,16 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] `npm run typecheck` and `npm run lint` pass after syncing `rebuild/trunk` through `af353fc` (merge `70b7c2d`).
 - [x] Updated scheduling access integration passes, including official closure recipients and emergency batch timing.
 - [x] Program statistic settings, leaderboard aggregation, enabled/public filters, private-stat staff access, and optimistic-concurrency integration regression pass against the isolated Postgres stack.
+- [x] Season-award listing query regression passes against isolated Postgres after qualifying joined table columns.
+- [x] Program-stat configuration and leaderboard Playwright journey passes on Chromium desktop and WebKit mobile; both runs pass axe and report no schedule-page alerts.
 - [x] Chromium + WebKit mobile baseline E2E: 38 passed, 4 failed, 4 skipped; failures were unrelated sign-in, ownership-transfer and people journeys, and no G schedule journey ran.
 - [ ] Previous lock-protected full merge gate (before the latest algorithm fixes): typecheck/lint passed; `heavy.sh npm test` reported 757 passed, 1 skipped, 2 failed. Both failures are now fixed and pass in targeted suites; rerun the full gate before integration.
-- [ ] Phase 8/9 Chromium + WebKit mobile schedule journeys with axe remain outstanding. No G journeys currently exist and the registered schedule routes are not mounted into app routing.
+- [ ] Most Phase 8/9 schedule journeys remain outstanding; only the program-stat configuration and leaderboard journey currently runs in Chromium and WebKit mobile. The console and portal routes mount via the generated nested-route registry.
 - [ ] Full gates remain blocked by missing Phase 8/9 browser journeys, discipline result/game-served integration, notification email fan-out, volunteer closure recipients, the facility image serving contract, and baseline WebKit failures. Do not mark ready until browser journeys and all acceptance criteria pass.
 
 ## Cross-track requests and blockers
 
-- **Track C (sprint wiring owner):** mount the registered schedule console/portal routes and navigation; coordinate Phase 8/9 Chromium + WebKit mobile journeys with axe; provide a safe public URL/serving contract for approved facility layout files. The public facility API currently returns a layout file ID and the page renders facility details, directions, parking and spaces, but cannot safely render the image without that contract.
+- **Track C (sprint wiring owner):** include the nested schedule routes in console/portal navigation and coordinate the remaining Phase 8/9 Chromium + WebKit mobile journeys with axe. The public facility API currently returns a layout file ID and the page renders facility details, directions, parking and spaces, but cannot safely render the image without a public serving contract for approved facility layout files.
 - **Track A:** investigate the four baseline Playwright failures in sign-in, ownership transfer and the people flow before the full browser gate.
 - **Track B:** align shared `contestStageSchema` with `02-DATA-MODEL.md`: it accepts `tournament` (rejected by `contests_stage_check`) and omits `championship`/`consolation`/`exhibition`; G's service/routes now follow the data-model enum. Generator fairness and double-elimination bye progression fixes are in G's current branch and need review with the shared-algorithm owner before integration.
 - **Track H:** expose volunteer assignments by event so emergency closure notifications can reach affected volunteers. No volunteer assignment module or table is present on current trunk.
@@ -51,6 +55,6 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 ## Decisions and review
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
-- G decisions are `DEC-082–105` in `docs/codex/DECISIONS.md`; the latest trunk decisions are preserved through `DEC-081`.
-- Last trunk sync: `70b7c2d` (through `af353fc`); earlier syncs were `7bd217f` (through `9b5b430`), `925d8ff` (through `d991fee`) and `69bd7c9` (through `4660724`). The latest lock-protected self-merge attempt failed before the algorithm fixes and was rolled back. All G changes remain local on `track/g-schedule`; nothing was pushed.
+- G decisions are `DEC-082–096` and `DEC-100–108` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
+- Last trunk sync in progress: `rebuild/trunk` through `2ac58d6`; earlier syncs were `70b7c2d` (through `af353fc`), `7bd217f` (through `9b5b430`), `925d8ff` (through `d991fee`) and `69bd7c9` (through `4660724`).
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.

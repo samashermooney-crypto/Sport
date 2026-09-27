@@ -14,6 +14,7 @@ import { moduleDefinition as contestsModule } from '../modules/contests/module';
 import { moduleDefinition as disciplineModule } from '../modules/discipline/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
+import { moduleDefinition as importsModule } from '../modules/imports/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
 import { moduleDefinition as notificationsModule } from '../modules/notifications/module';
 import { moduleDefinition as officialsModule } from '../modules/officials/module';
@@ -35,6 +36,7 @@ export const serverModules: readonly ServerModule[] = [
   disciplineModule,
   filesModule,
   financeModule,
+  importsModule,
   jobsModule,
   notificationsModule,
   officialsModule,

@@ -14,6 +14,7 @@ import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 import { createContest, submitContestResult } from '../contests/service';
 
+import { listSeasonAwards } from './season-end';
 import { configureStandings, getStandings, refreshStandings } from './service';
 
 let database: ReturnType<typeof createDatabase>;
@@ -150,6 +151,8 @@ describe('standings snapshots', () => {
         })
         .execute();
     });
+
+    await expect(listSeasonAwards(actor, programId)).resolves.toEqual([]);
 
     const refreshed = await refreshStandings(actor, {
       programId,

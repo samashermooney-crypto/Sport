@@ -54,7 +54,7 @@ function HouseholdMessageHistoryRoute(): React.JSX.Element {
   );
 }
 
-export const messagesConsoleRoutes: readonly RouteObject[] = [
+export const consoleMessagesRoutes: readonly RouteObject[] = [
   { path: '/console/orgs/:orgId/messages', element: <MessagesRoute /> },
   {
     path: '/console/orgs/:orgId/people/:personId/messages',

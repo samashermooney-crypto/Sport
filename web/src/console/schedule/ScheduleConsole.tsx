@@ -170,7 +170,15 @@ const base = (orgId: string, module: string) =>
   `/api/v1/${module}/orgs/${encodeURIComponent(orgId)}`;
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { credentials: 'include', ...init });
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const headers = new Headers(init?.headers);
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method))
+    headers.set('X-Athlentry-Request', '1');
+  const response = await fetch(url, {
+    credentials: 'include',
+    ...init,
+    headers,
+  });
   const value =
     response.status === 204
       ? null
