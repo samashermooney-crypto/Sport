@@ -100,3 +100,5 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - Track F: provide transaction-scoped result-to-discipline creation and automatic games-served handling; G currently calls the lineup suspension policy but cannot finalize card discipline without those operations.
 
 **Isolated stack:** `COMPOSE_PROJECT_NAME=athlentry_g PORT_OFFSET=700` (Postgres host port 6132).
+
+HANDED OFF 13:35
