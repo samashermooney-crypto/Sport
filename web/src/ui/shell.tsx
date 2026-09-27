@@ -18,6 +18,9 @@ export function AppShell({
   navigation,
   actions,
   mobileTabs,
+  onGlobalSearch,
+  searchResults = [],
+  searchLoading = false,
   children,
 }: PropsWithChildren<{
   orgName: string;
@@ -25,14 +28,27 @@ export function AppShell({
   navigation: ShellNavGroup[];
   actions?: ReactNode;
   mobileTabs?: ShellNavItem[];
+  onGlobalSearch?: (query: string) => void;
+  searchResults?: ShellNavItem[];
+  searchLoading?: boolean;
 }>): React.JSX.Element {
   const [active, setActive] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [searchSubmitted, setSearchSubmitted] = useState(false);
   const paletteRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+      const target = event.target;
+      const isEditing =
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.matches('input, textarea, select, [role="textbox"]'));
+      if (event.key === '/' && !event.metaKey && !event.ctrlKey && !isEditing) {
         event.preventDefault();
         setPaletteOpen(true);
       }
@@ -53,11 +69,18 @@ export function AppShell({
     if (!paletteOpen && dialog.open) dialog.close();
   }, [paletteOpen]);
   const allItems = navigation.flatMap((group) => group.items);
-  const results = allItems.filter((item) =>
+  const destinationResults = allItems.filter((item) =>
     item.label.toLowerCase().includes(query.toLowerCase()),
   );
+  const results = onGlobalSearch
+    ? query.trim()
+      ? searchResults
+      : allItems
+    : destinationResults;
   return (
-    <div className="ui-app-shell">
+    <div
+      className={`ui-app-shell${mobileTabs?.length ? ' ui-shell-has-tabs' : ''}`}
+    >
       <header className="topbar ui-topbar">
         <Link to="/" className="brand-mark" aria-label="Athlentry home">
           A
@@ -101,6 +124,7 @@ export function AppShell({
         <button
           className="ui-global-search"
           type="button"
+          aria-label="Search Athlentry"
           onClick={() => {
             setPaletteOpen(true);
           }}
@@ -142,24 +166,48 @@ export function AppShell({
           setPaletteOpen(false);
         }}
       >
-        <form method="dialog">
+        <form
+          role="search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (query.trim()) {
+              setSearchSubmitted(true);
+              onGlobalSearch?.(query.trim());
+            }
+          }}
+        >
           <Input
             autoFocus
             type="search"
-            aria-label="Search pages and actions"
-            placeholder="Search pages and actions"
+            aria-label={
+              onGlobalSearch ? 'Search Athlentry' : 'Search pages and actions'
+            }
+            aria-busy={searchLoading}
+            placeholder={
+              onGlobalSearch
+                ? 'Search people, programs, teams, invoices…'
+                : 'Search pages and actions'
+            }
             value={query}
             onChange={(event) => {
               setQuery(event.target.value);
+              setSearchSubmitted(false);
             }}
           />
-          <Button secondary value="close" aria-label="Close">
+          <Button
+            type="button"
+            secondary
+            aria-label="Close"
+            onClick={() => {
+              setPaletteOpen(false);
+            }}
+          >
             ×
           </Button>
         </form>
         <ul>
           {results.map((item) => (
-            <li key={item.to}>
+            <li key={`${item.to}-${item.label}`}>
               <Link
                 to={item.to}
                 onClick={() => {
@@ -170,7 +218,16 @@ export function AppShell({
               </Link>
             </li>
           ))}
-          {!results.length && <li>No matching destinations</li>}
+          {onGlobalSearch && searchLoading && <li role="status">Searching…</li>}
+          {!results.length && !searchLoading && (
+            <li>
+              {onGlobalSearch
+                ? searchSubmitted
+                  ? 'No matching results'
+                  : 'Press Enter to search Athlentry'
+                : 'No matching destinations'}
+            </li>
+          )}
         </ul>
       </dialog>
     </div>
@@ -181,20 +238,27 @@ export function GlobalSearch({
   value,
   onChange,
   onSubmit,
+  results = [],
+  loading = false,
   placeholder = 'Search people, programs, invoices…',
 }: {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (query: string) => void;
+  results?: ShellNavItem[];
+  loading?: boolean;
   placeholder?: string;
 }): React.JSX.Element {
+  const [submittedQuery, setSubmittedQuery] = useState('');
+  const submitted = value.trim() !== '' && value.trim() === submittedQuery;
   return (
     <form
       className="ui-global-search-form"
       role="search"
       onSubmit={(event) => {
         event.preventDefault();
-        onSubmit();
+        onSubmit(value.trim());
+        setSubmittedQuery(value.trim());
       }}
     >
       <Input
@@ -203,12 +267,24 @@ export function GlobalSearch({
         onChange={(event) => {
           onChange(event.target.value);
         }}
+        aria-busy={loading}
         placeholder={placeholder}
         aria-label="Global search"
       />
       <Button secondary disabled={!value.trim()}>
         Search
       </Button>
+      {loading && <span role="status">Searching…</span>}
+      {!loading && submitted && (
+        <ul className="ui-global-search-results" aria-label="Search results">
+          {results.map((result) => (
+            <li key={`${result.to}-${result.label}`}>
+              <Link to={result.to}>{result.label}</Link>
+            </li>
+          ))}
+          {!results.length && <li>No matching results</li>}
+        </ul>
+      )}
     </form>
   );
 }
