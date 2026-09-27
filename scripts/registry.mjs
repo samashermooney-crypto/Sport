@@ -96,10 +96,21 @@ const errors = [
     moduleDefinitions.flatMap((definition) => definition.errorCodes ?? []),
   ),
 ].sort();
+const { apiRouteMetadata } = await import(
+  pathToFileURL(resolve('server/src/generated/api-route-metadata.ts')).href
+);
 const permissions = [
-  ...new Set(
-    moduleDefinitions.flatMap((definition) => definition.permissions ?? []),
-  ),
+  ...new Set([
+    ...moduleDefinitions.flatMap((definition) => definition.permissions ?? []),
+    ...apiRouteMetadata
+      .map((operation) => operation.permission)
+      .filter(
+        (permission) =>
+          permission !== 'public.access' &&
+          permission !== 'account.self' &&
+          permission !== 'platform.staff',
+      ),
+  ]),
 ].sort();
 const serverImports = [
   ...integrationNames.map(
@@ -221,6 +232,30 @@ const permissionRoles = {
   'notifications.manage': organizationRoles,
   'files.read': organizationRoles,
   'files.manage': organizationRoles,
+  'classes.read': [
+    'owner',
+    'admin',
+    'registrar',
+    'scheduler',
+    'director',
+    'guardian',
+    'self',
+    'head_coach',
+    'assistant_coach',
+    'team_manager',
+    'volunteer',
+  ],
+  'classes.manage': ['owner', 'admin', 'director'],
+  'federation.read': [
+    'owner',
+    'admin',
+    'director',
+    'compliance',
+    'scheduler',
+    'finance',
+    'reporter',
+  ],
+  'federation.manage': ['owner', 'admin', 'director'],
   'audit.read': ['owner', 'admin', 'compliance', 'reporter'],
   'chat.read': organizationRoles,
   'chat.send': organizationRoles,
@@ -268,9 +303,6 @@ const permissionRoles = {
   'tournaments.read': ['owner', 'admin', 'scheduler', 'director', 'reporter'],
   'tournaments.manage': ['owner', 'admin', 'scheduler'],
 };
-const { apiRouteMetadata } = await import(
-  pathToFileURL(resolve('server/src/generated/api-route-metadata.ts')).href
-);
 const operations = Object.fromEntries(
   apiRouteMetadata.map((operation) => {
     const allowed = permissionRoles[operation.permission];
