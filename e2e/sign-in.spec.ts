@@ -84,6 +84,20 @@ test('sign-in and reset request are accessible and functional', async ({
   expect(await health.json()).toEqual({ status: 'ok' });
 });
 
+test('sign-in language switch renders Spanish validation accessibly', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('combobox', { name: 'Language' }).selectOption('es');
+  await expect(
+    page.getByRole('heading', { name: 'Le damos la bienvenida.' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await expect(page.getByText('Ingrese su correo electrónico.')).toBeVisible();
+  expect(await page.locator('html').getAttribute('lang')).toBe('es');
+  expect(await accessibilityViolations(page)).toEqual([]);
+});
+
 test('new account verifies its preview email and signs in', async ({
   page,
   request,
