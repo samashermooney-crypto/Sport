@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
 import { WebsiteConsole } from './WebsiteConsole';
+import { WebsiteSettingsConsole } from './WebsiteSettingsConsole';
 
 function WebsiteRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
@@ -12,6 +13,19 @@ function WebsiteRoute(): React.JSX.Element {
   );
 }
 
+function WebsiteSettingsRoute(): React.JSX.Element {
+  const { orgId } = useParams<{ orgId: string }>();
+  return orgId ? (
+    <WebsiteSettingsConsole orgId={orgId} />
+  ) : (
+    <main>Organization not found.</main>
+  );
+}
+
 export const consoleWebsiteRoutes: readonly RouteObject[] = [
   { path: '/console/orgs/:orgId/website', element: <WebsiteRoute /> },
+  {
+    path: '/console/orgs/:orgId/website/settings',
+    element: <WebsiteSettingsRoute />,
+  },
 ];

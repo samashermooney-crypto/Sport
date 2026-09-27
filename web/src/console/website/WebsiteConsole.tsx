@@ -12,7 +12,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
 import { apiGet } from '../../api/client';
-import { Button, Card, Field, Input, Textarea } from '../../ui/primitives';
+import {
+  Button,
+  Card,
+  Field,
+  Input,
+  Link,
+  Textarea,
+} from '../../ui/primitives';
 import { AppShell } from '../../ui/shell';
 import './website.css';
 
@@ -162,6 +169,7 @@ export function WebsiteConsole({
           >
             New page
           </Button>
+          <Link to={`${navTo}/settings`}>Website settings</Link>
         </header>
         <div className="website-editor-layout">
           <Card>

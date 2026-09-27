@@ -98,16 +98,8 @@ export function SitePage(): React.JSX.Element {
       <nav className="public-site-nav" aria-label={t('websiteNavigation')}>
         <ul>
           {site.navigation.map((item) => (
-            <li key={item.slug}>
-              <Link
-                to={
-                  item.slug === 'home'
-                    ? `/site/${site.organization.slug}`
-                    : `/site/${site.organization.slug}/${item.slug}`
-                }
-              >
-                {item.title}
-              </Link>
+            <li key={`${item.href}:${item.label}`}>
+              <a href={item.href}>{item.label}</a>
             </li>
           ))}
         </ul>
@@ -133,6 +125,13 @@ export function SitePage(): React.JSX.Element {
       </main>
       <footer className="public-site-footer">
         <strong>{site.organization.name}</strong>
+        <nav aria-label={t('websiteFooterNavigation')}>
+          {site.footerNavigation.map((item) => (
+            <a href={item.href} key={`${item.href}:${item.label}`}>
+              {item.label}
+            </a>
+          ))}
+        </nav>
         <Link to="/legal/accessibility">{t('accessibilityStatement')}</Link>
       </footer>
     </div>

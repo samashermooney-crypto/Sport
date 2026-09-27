@@ -23,11 +23,13 @@ function renderDocument(
     organization.locale === 'es'
       ? {
           navigation: 'Navegación del sitio web',
+          footerNavigation: 'Navegación del pie de página',
           signIn: 'Iniciar sesión como administrador',
           accessibility: 'Declaración de accesibilidad',
         }
       : {
           navigation: 'Website navigation',
+          footerNavigation: 'Website footer navigation',
           signIn: 'Administrator sign in',
           accessibility: 'Accessibility statement',
         };
@@ -136,17 +138,8 @@ function renderDocument(
             ...site.navigation.map((item) =>
               createElement(
                 'li',
-                { key: item.slug },
-                createElement(
-                  'a',
-                  {
-                    href:
-                      item.slug === 'home'
-                        ? `/site/${organization.slug}`
-                        : `/site/${organization.slug}/${encodeURIComponent(item.slug)}`,
-                  },
-                  item.title,
-                ),
+                { key: `${item.href}:${item.label}` },
+                createElement('a', { href: item.href }, item.label),
               ),
             ),
           ),
@@ -161,6 +154,17 @@ function renderDocument(
           'footer',
           { className: 'public-site-footer' },
           createElement('strong', null, organization.name),
+          createElement(
+            'nav',
+            { 'aria-label': copy.footerNavigation },
+            ...site.footerNavigation.map((item) =>
+              createElement(
+                'a',
+                { key: `${item.href}:${item.label}`, href: item.href },
+                item.label,
+              ),
+            ),
+          ),
           createElement(
             'a',
             { href: '/legal/accessibility' },

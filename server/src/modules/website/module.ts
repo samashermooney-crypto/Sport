@@ -1,8 +1,13 @@
 import {
+  websiteMenuBodySchema,
+  websiteMenuListSchema,
+  websiteMenuResponseSchema,
   websitePageBodySchema,
   websitePageListSchema,
   websitePublicPageSchema,
   websiteSaveResponseSchema,
+  websiteSettingsBodySchema,
+  websiteSettingsResponseSchema,
 } from '@shared/schemas/website';
 import { z } from 'zod';
 
@@ -33,6 +38,33 @@ const routes = [
     response: z.string(),
     contentType: 'application/xml',
     public: true,
+  },
+  {
+    method: 'get',
+    path: '/api/v1/website/orgs/{orgId}/settings',
+    summary: 'Get organization website settings',
+    response: websiteSettingsResponseSchema,
+  },
+  {
+    method: 'put',
+    path: '/api/v1/website/orgs/{orgId}/settings',
+    summary:
+      'Update organization website settings with optimistic version checking',
+    body: websiteSettingsBodySchema,
+    response: websiteSettingsResponseSchema,
+  },
+  {
+    method: 'get',
+    path: '/api/v1/website/orgs/{orgId}/menus',
+    summary: 'List organization website navigation menus',
+    response: websiteMenuListSchema,
+  },
+  {
+    method: 'put',
+    path: '/api/v1/website/orgs/{orgId}/menus',
+    summary: 'Update an organization website navigation menu',
+    body: websiteMenuBodySchema,
+    response: websiteMenuResponseSchema,
   },
   {
     method: 'get',

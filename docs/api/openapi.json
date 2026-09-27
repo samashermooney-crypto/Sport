@@ -62750,10 +62750,38 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "title": { "type": "string" },
-                          "slug": { "type": "string" }
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "href": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          }
                         },
-                        "required": ["title", "slug"],
+                        "required": ["label", "href"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "footerNavigation": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "href": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": ["label", "href"],
                         "additionalProperties": false
                       }
                     }
@@ -62763,7 +62791,8 @@
                     "theme",
                     "robotsPolicy",
                     "page",
-                    "navigation"
+                    "navigation",
+                    "footerNavigation"
                   ],
                   "additionalProperties": false
                 }
@@ -62830,6 +62859,518 @@
             "schema": { "type": "string" }
           }
         ]
+      }
+    },
+    "/api/v1/website/orgs/{orgId}/settings": {
+      "get": {
+        "operationId": "get_api_v1_website_orgs_orgId_settings",
+        "summary": "Get organization website settings",
+        "tags": ["website"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "published": { "type": "boolean" },
+                        "robotsPolicy": {
+                          "type": "string",
+                          "enum": ["index", "noindex"]
+                        },
+                        "theme": {
+                          "type": "object",
+                          "properties": {
+                            "primary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-f]{6}$"
+                            },
+                            "secondary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-f]{6}$"
+                            }
+                          },
+                          "required": ["primary", "secondary"],
+                          "additionalProperties": false
+                        },
+                        "seo": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "default": "",
+                              "type": "string",
+                              "maxLength": 70
+                            },
+                            "description": {
+                              "default": "",
+                              "type": "string",
+                              "maxLength": 160
+                            },
+                            "canonicalPath": {
+                              "default": "",
+                              "type": "string",
+                              "maxLength": 300
+                            },
+                            "openGraphImageUrl": {
+                              "type": "string",
+                              "format": "uri"
+                            }
+                          },
+                          "required": ["title", "description", "canonicalPath"],
+                          "additionalProperties": false
+                        },
+                        "contactInboxEmail": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "email",
+                              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                            },
+                            { "type": "null" }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "published",
+                        "robotsPolicy",
+                        "theme",
+                        "seo",
+                        "contactInboxEmail"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["settings"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "put_api_v1_website_orgs_orgId_settings",
+        "summary": "Update organization website settings with optimistic version checking",
+        "tags": ["website"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "published": { "type": "boolean" },
+                        "robotsPolicy": {
+                          "type": "string",
+                          "enum": ["index", "noindex"]
+                        },
+                        "theme": {
+                          "type": "object",
+                          "properties": {
+                            "primary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-f]{6}$"
+                            },
+                            "secondary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-f]{6}$"
+                            }
+                          },
+                          "required": ["primary", "secondary"],
+                          "additionalProperties": false
+                        },
+                        "seo": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "default": "",
+                              "type": "string",
+                              "maxLength": 70
+                            },
+                            "description": {
+                              "default": "",
+                              "type": "string",
+                              "maxLength": 160
+                            },
+                            "canonicalPath": {
+                              "default": "",
+                              "type": "string",
+                              "maxLength": 300
+                            },
+                            "openGraphImageUrl": {
+                              "type": "string",
+                              "format": "uri"
+                            }
+                          },
+                          "required": ["title", "description", "canonicalPath"],
+                          "additionalProperties": false
+                        },
+                        "contactInboxEmail": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "email",
+                              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                            },
+                            { "type": "null" }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "published",
+                        "robotsPolicy",
+                        "theme",
+                        "seo",
+                        "contactInboxEmail"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["settings"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "published": { "type": "boolean" },
+                  "robotsPolicy": {
+                    "type": "string",
+                    "enum": ["index", "noindex"]
+                  },
+                  "theme": {
+                    "type": "object",
+                    "properties": {
+                      "primary": {
+                        "type": "string",
+                        "pattern": "^#[0-9a-f]{6}$"
+                      },
+                      "secondary": {
+                        "type": "string",
+                        "pattern": "^#[0-9a-f]{6}$"
+                      }
+                    },
+                    "required": ["primary", "secondary"],
+                    "additionalProperties": false
+                  },
+                  "seo": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 70
+                      },
+                      "description": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "canonicalPath": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      "openGraphImageUrl": { "type": "string", "format": "uri" }
+                    },
+                    "required": ["title", "description", "canonicalPath"],
+                    "additionalProperties": false
+                  },
+                  "contactInboxEmail": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "email",
+                        "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                      },
+                      { "type": "null" }
+                    ]
+                  }
+                },
+                "required": [
+                  "expectedVersion",
+                  "published",
+                  "robotsPolicy",
+                  "theme",
+                  "seo",
+                  "contactInboxEmail"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/website/orgs/{orgId}/menus": {
+      "get": {
+        "operationId": "get_api_v1_website_orgs_orgId_menus",
+        "summary": "List organization website navigation menus",
+        "tags": ["website"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "location": {
+                            "type": "string",
+                            "enum": ["header", "footer"]
+                          },
+                          "items": {
+                            "maxItems": 20,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "label": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 80
+                                },
+                                "href": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 2048
+                                }
+                              },
+                              "required": ["label", "href"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": ["location", "items", "version"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["items"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "put_api_v1_website_orgs_orgId_menus",
+        "summary": "Update an organization website navigation menu",
+        "tags": ["website"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "menu": {
+                      "type": "object",
+                      "properties": {
+                        "location": {
+                          "type": "string",
+                          "enum": ["header", "footer"]
+                        },
+                        "items": {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 80
+                              },
+                              "href": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2048
+                              }
+                            },
+                            "required": ["label", "href"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["location", "items", "version"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["menu"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "location": {
+                    "type": "string",
+                    "enum": ["header", "footer"]
+                  },
+                  "items": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
+                        },
+                        "href": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2048
+                        }
+                      },
+                      "required": ["label", "href"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["location", "items", "expectedVersion"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/website/orgs/{orgId}/pages": {

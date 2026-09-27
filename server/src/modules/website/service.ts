@@ -1,10 +1,16 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  websiteMenuBodySchema,
+  websiteMenuListSchema,
+  websiteMenuSchema,
+  websiteMenuItemSchema,
   websitePageBodySchema,
   websitePageListSchema,
   websitePageSchema,
   websitePublicPageSchema,
+  websiteSettingsBodySchema,
+  websiteSettingsSchema,
 } from '@shared/schemas/website';
 import type { Kysely } from 'kysely';
 
@@ -105,6 +111,205 @@ export async function listWebsitePages(
       .orderBy('updated_at', 'desc')
       .execute();
     return websitePageListSchema.parse({ items: rows.map(pageSummary) });
+  });
+}
+
+function settingsSummary(row?: {
+  version: number;
+  published: boolean;
+  robots_policy: string;
+  theme: Json;
+  seo: Json;
+  contact_inbox_email: string | null;
+}) {
+  return websiteSettingsSchema.parse({
+    version: row?.version ?? 0,
+    published: row?.published ?? false,
+    robotsPolicy: row?.robots_policy ?? 'index',
+    theme: readTheme(row?.theme ?? {}),
+    seo: row?.seo ?? {},
+    contactInboxEmail: row?.contact_inbox_email ?? null,
+  });
+}
+
+export async function getWebsiteSettings(
+  context: OrgContext,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const row = await trx
+      .selectFrom('website_settings')
+      .select([
+        'version',
+        'published',
+        'robots_policy',
+        'theme',
+        'seo',
+        'contact_inbox_email',
+      ])
+      .executeTakeFirst();
+    return { settings: settingsSummary(row) };
+  });
+}
+
+export async function saveWebsiteSettings(
+  context: OrgContext,
+  bodyInput: unknown,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const body = websiteSettingsBodySchema.parse(bodyInput);
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const current = await trx
+      .selectFrom('website_settings')
+      .select('version')
+      .where('org_id', '=', context.orgId)
+      .executeTakeFirst();
+    const version = current?.version ?? 0;
+    if (version !== body.expectedVersion)
+      throw new WebsiteError(
+        409,
+        'CONFLICT',
+        'Website settings changed in another session. Reload and try again.',
+      );
+    const values = {
+      theme: JSON.stringify(body.theme) as unknown as Json,
+      seo: JSON.stringify(body.seo) as unknown as Json,
+      contact_inbox_email: body.contactInboxEmail,
+      robots_policy: body.robotsPolicy,
+      published: body.published,
+      version: version + 1,
+    };
+    const returning = [
+      'version',
+      'published',
+      'robots_policy',
+      'theme',
+      'seo',
+      'contact_inbox_email',
+    ] as const;
+    const saved = current
+      ? await trx
+          .updateTable('website_settings')
+          .set(values)
+          .where('org_id', '=', context.orgId)
+          .where('version', '=', version)
+          .returning(returning)
+          .executeTakeFirst()
+      : await trx
+          .insertInto('website_settings')
+          .values({ org_id: context.orgId, ...values })
+          .onConflict((conflict) => conflict.column('org_id').doNothing())
+          .returning(returning)
+          .executeTakeFirst();
+    if (!saved)
+      throw new WebsiteError(409, 'CONFLICT', 'Website settings conflicted');
+    await appendAuditEvent(trx, context, {
+      action: 'website.settings.updated',
+      entityType: 'website_settings',
+      entityId: context.orgId,
+      changes: {
+        published: { tier: 'internal', after: body.published },
+        robotsPolicy: { tier: 'internal', after: body.robotsPolicy },
+      },
+    });
+    return { settings: settingsSummary(saved) };
+  });
+}
+
+export async function listWebsiteMenus(
+  context: OrgContext,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const rows = await trx
+      .selectFrom('website_menus')
+      .select(['location', 'items', 'version'])
+      .where('org_id', '=', context.orgId)
+      .orderBy('location')
+      .execute();
+    const byLocation = new Map(rows.map((row) => [row.location, row] as const));
+    return websiteMenuListSchema.parse({
+      items: (['header', 'footer'] as const).map((location) => {
+        const row = byLocation.get(location);
+        return {
+          location,
+          items: row?.items ?? [],
+          version: row?.version ?? 0,
+        };
+      }),
+    });
+  });
+}
+
+export async function saveWebsiteMenu(
+  context: OrgContext,
+  bodyInput: unknown,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const body = websiteMenuBodySchema.parse(bodyInput);
+  const items = body.items.map((item) => websiteMenuItemSchema.parse(item));
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const current = await trx
+      .selectFrom('website_menus')
+      .select(['id', 'version'])
+      .where('org_id', '=', context.orgId)
+      .where('location', '=', body.location)
+      .executeTakeFirst();
+    const version = current?.version ?? 0;
+    if (version !== body.expectedVersion)
+      throw new WebsiteError(
+        409,
+        'CONFLICT',
+        'Website navigation changed in another session. Reload and try again.',
+      );
+    const saved = current
+      ? await trx
+          .updateTable('website_menus')
+          .set({
+            items: JSON.stringify(items) as unknown as Json,
+            version: version + 1,
+          })
+          .where('id', '=', current.id)
+          .where('org_id', '=', context.orgId)
+          .where('version', '=', version)
+          .returning(['id', 'location', 'items', 'version'])
+          .executeTakeFirst()
+      : await trx
+          .insertInto('website_menus')
+          .values({
+            id: randomUUID(),
+            org_id: context.orgId,
+            location: body.location,
+            items: JSON.stringify(items) as unknown as Json,
+            version: 1,
+          })
+          .onConflict((conflict) =>
+            conflict.columns(['org_id', 'location']).doNothing(),
+          )
+          .returning(['id', 'location', 'items', 'version'])
+          .executeTakeFirst();
+    if (!saved)
+      throw new WebsiteError(409, 'CONFLICT', 'Navigation update conflicted');
+    const menu = websiteMenuSchema.parse({
+      location: saved.location,
+      items: saved.items,
+      version: saved.version,
+    });
+    await appendAuditEvent(trx, context, {
+      action: 'website.menu.updated',
+      entityType: 'website_menu',
+      entityId: saved.id,
+      changes: {
+        location: { tier: 'internal', after: body.location },
+        itemCount: { tier: 'internal', after: menu.items.length },
+        version: { tier: 'internal', after: menu.version },
+      },
+    });
+    return { menu };
   });
 }
 
@@ -260,12 +465,35 @@ export async function getPublicWebsitePage(
       .where('status', '=', 'published')
       .executeTakeFirst();
     if (!page) return null;
-    const navigationRows = await trx
-      .selectFrom('website_pages')
-      .select(['slug', 'title'])
-      .where('status', '=', 'published')
-      .orderBy('slug')
+    const menuRows = await trx
+      .selectFrom('website_menus')
+      .select(['location', 'items'])
+      .where('org_id', '=', organization.id)
+      .where('location', 'in', ['header', 'footer'])
       .execute();
+    const menus = new Map(menuRows.map((row) => [row.location, row] as const));
+    const headerMenu = menus.get('header');
+    const footerMenu = menus.get('footer');
+    const navigationRows = headerMenu
+      ? websiteMenuItemSchema.array().parse(headerMenu.items)
+      : await trx
+          .selectFrom('website_pages')
+          .select(['slug', 'title'])
+          .where('status', '=', 'published')
+          .orderBy('slug')
+          .execute()
+          .then((pages) =>
+            pages.map(({ slug, title }) => ({
+              label: title,
+              href:
+                slug === 'home'
+                  ? `/site/${organization.slug}`
+                  : `/site/${organization.slug}/${slug}`,
+            })),
+          );
+    const footerNavigation = footerMenu
+      ? websiteMenuItemSchema.array().parse(footerMenu.items)
+      : [];
     return websitePublicPageSchema.parse({
       organization: {
         name: organization.name,
@@ -275,7 +503,8 @@ export async function getPublicWebsitePage(
       theme: readTheme(settings.theme),
       robotsPolicy: settings.robots_policy,
       page,
-      navigation: navigationRows.map(({ slug, title }) => ({ slug, title })),
+      navigation: navigationRows,
+      footerNavigation,
     });
   });
 }

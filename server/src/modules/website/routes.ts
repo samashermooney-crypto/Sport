@@ -1,11 +1,16 @@
 import { apiErrorSchema } from '@shared/schemas/errors';
 import { orgSlugSchema } from '@shared/schemas/orgs';
 import {
+  websiteMenuBodySchema,
+  websiteMenuListSchema,
+  websiteMenuResponseSchema,
   websitePageBodySchema,
   websitePageListSchema,
   websitePageSlugSchema,
   websitePublicPageSchema,
   websiteSaveResponseSchema,
+  websiteSettingsBodySchema,
+  websiteSettingsResponseSchema,
 } from '@shared/schemas/website';
 import express from 'express';
 import { z } from 'zod';
@@ -19,10 +24,14 @@ import { WebsiteError } from './policy';
 import { publicPlansSchema } from './schema';
 import {
   getPublicWebsitePage,
+  getWebsiteSettings,
   listPublicWebsitePlans,
   listPublicWebsitePages,
+  listWebsiteMenus,
   listWebsitePages,
+  saveWebsiteMenu,
   saveWebsitePage,
+  saveWebsiteSettings,
 } from './service';
 
 const pageIdSchema = z.uuid();
@@ -158,6 +167,80 @@ export function createWebsiteRouter(
         .send(
           `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries}</urlset>`,
         );
+    }),
+  );
+
+  router.get(
+    '/orgs/:orgId/settings',
+    route(async (request, response) => {
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await getWebsiteSettings(
+        requestContext(orgId, session.accountId),
+        withOrg,
+      );
+      response.setHeader('Cache-Control', 'no-store');
+      response.json(websiteSettingsResponseSchema.parse(result));
+    }),
+  );
+
+  router.put(
+    '/orgs/:orgId/settings',
+    route(async (request, response) => {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new WebsiteError(
+          403,
+          'FORBIDDEN',
+          'Request origin is not allowed',
+        );
+      }
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = websiteSettingsBodySchema.parse(request.body);
+      const result = await saveWebsiteSettings(
+        requestContext(orgId, session.accountId),
+        body,
+        withOrg,
+      );
+      response.setHeader('Cache-Control', 'no-store');
+      response.json(websiteSettingsResponseSchema.parse(result));
+    }),
+  );
+
+  router.get(
+    '/orgs/:orgId/menus',
+    route(async (request, response) => {
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await listWebsiteMenus(
+        requestContext(orgId, session.accountId),
+        withOrg,
+      );
+      response.setHeader('Cache-Control', 'no-store');
+      response.json(websiteMenuListSchema.parse(result));
+    }),
+  );
+
+  router.put(
+    '/orgs/:orgId/menus',
+    route(async (request, response) => {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new WebsiteError(
+          403,
+          'FORBIDDEN',
+          'Request origin is not allowed',
+        );
+      }
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const body = websiteMenuBodySchema.parse(request.body);
+      const result = await saveWebsiteMenu(
+        requestContext(orgId, session.accountId),
+        body,
+        withOrg,
+      );
+      response.setHeader('Cache-Control', 'no-store');
+      response.json(websiteMenuResponseSchema.parse(result));
     }),
   );
 

@@ -85,6 +85,11 @@ export const websitePageListSchema = z.strictObject({
   items: z.array(websitePageSchema),
 });
 
+export const websiteMenuItemSchema = z.strictObject({
+  label: z.string().trim().min(1).max(80),
+  href: safeHrefSchema,
+});
+
 export const websitePublicPageSchema = z.strictObject({
   organization: z.strictObject({
     name: z.string(),
@@ -102,8 +107,61 @@ export const websitePublicPageSchema = z.strictObject({
     blocks: z.array(websiteBlockSchema),
     seo: websiteSeoSchema,
   }),
-  navigation: z.array(z.strictObject({ title: z.string(), slug: z.string() })),
+  navigation: z.array(websiteMenuItemSchema),
+  footerNavigation: z.array(websiteMenuItemSchema),
 });
+
+export const websiteSettingsBodySchema = z.strictObject({
+  expectedVersion: z.number().int().nonnegative(),
+  published: z.boolean(),
+  robotsPolicy: z.enum(['index', 'noindex']),
+  theme: z.strictObject({
+    primary: z.string().regex(/^#[0-9a-f]{6}$/i),
+    secondary: z.string().regex(/^#[0-9a-f]{6}$/i),
+  }),
+  seo: websiteSeoSchema,
+  contactInboxEmail: z.email().nullable(),
+});
+
+export const websiteSettingsSchema = z.strictObject({
+  version: z.number().int().nonnegative(),
+  published: z.boolean(),
+  robotsPolicy: z.enum(['index', 'noindex']),
+  theme: z.strictObject({
+    primary: z.string().regex(/^#[0-9a-f]{6}$/i),
+    secondary: z.string().regex(/^#[0-9a-f]{6}$/i),
+  }),
+  seo: websiteSeoSchema,
+  contactInboxEmail: z.email().nullable(),
+});
+
+export const websiteMenuSchema = z.strictObject({
+  location: z.enum(['header', 'footer']),
+  items: z.array(websiteMenuItemSchema).max(20),
+  version: z.number().int().nonnegative(),
+});
+
+export const websiteMenuListSchema = z.strictObject({
+  items: z.array(websiteMenuSchema),
+});
+
+export const websiteMenuBodySchema = z.strictObject({
+  location: z.enum(['header', 'footer']),
+  items: z.array(websiteMenuItemSchema).max(20),
+  expectedVersion: z.number().int().nonnegative(),
+});
+
+export const websiteSettingsResponseSchema = z.strictObject({
+  settings: websiteSettingsSchema,
+});
+
+export const websiteMenuResponseSchema = z.strictObject({
+  menu: websiteMenuSchema,
+});
+
+export type WebsiteSettings = z.infer<typeof websiteSettingsSchema>;
+export type WebsiteMenu = z.infer<typeof websiteMenuSchema>;
+export type WebsiteMenuItem = z.infer<typeof websiteMenuItemSchema>;
 
 export const websiteSaveResponseSchema = z.strictObject({
   page: websitePageSchema,

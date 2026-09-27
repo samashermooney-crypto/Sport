@@ -8,10 +8,14 @@ import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 
 import {
+  getWebsiteSettings,
   getPublicWebsitePage,
+  listWebsiteMenus,
   listPublicWebsitePlans,
   listWebsitePages,
+  saveWebsiteMenu,
   saveWebsitePage,
+  saveWebsiteSettings,
 } from './service';
 
 const orgId = randomUUID();
@@ -138,13 +142,106 @@ describe('website page service', () => {
       withOrg,
     );
     expect(published.page.version).toBe(created.page.version + 1);
+    await saveWebsiteMenu(
+      context,
+      {
+        location: 'header',
+        items: [{ label: 'About', href: `/site/${orgSlug}/about` }],
+        expectedVersion: 0,
+      },
+      withOrg,
+    );
+    await saveWebsiteMenu(
+      context,
+      {
+        location: 'footer',
+        items: [{ label: 'Contact', href: '/contact' }],
+        expectedVersion: 0,
+      },
+      withOrg,
+    );
     await expect(
       getPublicWebsitePage(database, orgSlug, 'about', withOrg),
     ).resolves.toMatchObject({
       organization: { name: 'Website Test Club' },
       page: { title: 'About our club', slug: 'about' },
       theme: { primary: '#3a67b2', secondary: '#252b2e' },
+      navigation: [{ label: 'About', href: `/site/${orgSlug}/about` }],
+      footerNavigation: [{ label: 'Contact', href: '/contact' }],
     });
+  });
+
+  it('saves tenant website settings and menus with optimistic versions', async () => {
+    await expect(getWebsiteSettings(context, withOrg)).resolves.toMatchObject({
+      settings: {
+        version: 1,
+        published: true,
+        robotsPolicy: 'index',
+      },
+    });
+    const saved = await saveWebsiteSettings(
+      context,
+      {
+        expectedVersion: 1,
+        published: false,
+        robotsPolicy: 'noindex',
+        theme: { primary: '#174e82', secondary: '#29333c' },
+        seo: {
+          title: 'Northstar Sports',
+          description: 'Programs for our community.',
+          canonicalPath: '/about',
+        },
+        contactInboxEmail: 'website@example.invalid',
+      },
+      withOrg,
+    );
+    expect(saved.settings).toMatchObject({
+      version: 2,
+      published: false,
+      robotsPolicy: 'noindex',
+      theme: { primary: '#174e82', secondary: '#29333c' },
+      contactInboxEmail: 'website@example.invalid',
+    });
+    await expect(
+      saveWebsiteSettings(
+        context,
+        {
+          expectedVersion: 1,
+          published: true,
+          robotsPolicy: 'index',
+          theme: { primary: '#3a67b2', secondary: '#252b2e' },
+          seo: { title: '', description: '', canonicalPath: '' },
+          contactInboxEmail: null,
+        },
+        withOrg,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+
+    await expect(listWebsiteMenus(context, withOrg)).resolves.toMatchObject({
+      items: [
+        {
+          location: 'header',
+          items: [{ label: 'About', href: `/site/${orgSlug}/about` }],
+          version: 1,
+        },
+        {
+          location: 'footer',
+          items: [{ label: 'Contact', href: '/contact' }],
+          version: 1,
+        },
+      ],
+    });
+    await expect(
+      saveWebsiteMenu(
+        context,
+        {
+          location: 'header',
+          items: [{ label: 'Unsafe', href: 'javascript:alert(1)' }],
+          expectedVersion: 1,
+        },
+        withOrg,
+      ),
+    ).rejects.toThrow();
   });
 
   it('rejects stale edits with an optimistic version conflict', async () => {
