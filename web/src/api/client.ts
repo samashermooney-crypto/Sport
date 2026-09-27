@@ -79,3 +79,10 @@ export function apiPost<T extends z.ZodType>(
 ): Promise<z.output<T>> {
   return request(path, schema, 'POST', body);
 }
+
+export function apiDelete<T extends z.ZodType>(
+  path: string,
+  schema: T,
+): Promise<z.output<T>> {
+  return request(path, schema, 'DELETE');
+}

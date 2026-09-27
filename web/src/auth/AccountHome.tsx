@@ -52,6 +52,9 @@ export function AccountHome(): React.JSX.Element {
       <h1>Welcome, {account.data.firstName}.</h1>
       <p>Signed in as {account.data.email}</p>
       <ErrorBox error={error} />
+      <p className="auth-secondary">
+        <AuthLink to="/me/security">Account security</AuthLink>
+      </p>
       <Button type="button" disabled={busy} onClick={() => void signOut()}>
         {busy ? 'Signing out…' : 'Sign out'}
       </Button>

@@ -144,10 +144,10 @@
 - **Why:** The mobile browser test exercises the production cookie security contract without weakening it, while rate-limit tests remain in the separate Postgres integration suite.
 - **Consequences / follow-ups:** The e2e certificate and private key stay in ignored `data/`; production TLS terminates at the deployment edge. Add account security and org onboarding browser flows before Phase 1 acceptance.
 
-### DEC-017 — Minimum touch target on auth actions
+### DEC-017 — Minimum touch targets on auth controls
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 1 design and accessibility
-- **Context:** The legacy login action is shorter than the `01 §11` 44×44 px touch target requirement. The extracted legacy tokens already include a 44px control height.
-- **Decision:** Keep the button's legacy color, border, radius, font and spacing, and use the existing 44px height token as its minimum height on auth screens.
-- **Why:** This is the smallest visual adjustment that makes the primary auth action meet the specified touch target size.
-- **Consequences / follow-ups:** Design screenshot assertions may mask only the resulting height and downstream vertical shift; verify all other styling against the frozen legacy reference.
+- **Context:** Legacy login controls are shorter than the `01 §11` 44×44 px touch target requirement. The extracted legacy tokens already include a 44px control height.
+- **Decision:** Keep the legacy colors, borders, radii, fonts and widths, and use the existing 44px height token as the minimum for interactive auth buttons, inputs, selects, links, checkboxes and disclosures.
+- **Why:** This is the smallest visual adjustment that makes auth controls meet the specified touch target size.
+- **Consequences / follow-ups:** Design screenshot assertions may mask only the resulting control heights and downstream vertical shift; verify all other styling against the frozen legacy reference.

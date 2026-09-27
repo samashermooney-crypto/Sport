@@ -6,6 +6,7 @@ import { MagicRequest } from './auth/MagicRequest';
 import { MfaChallenge } from './auth/MfaChallenge';
 import { ResetConfirm } from './auth/ResetConfirm';
 import { ResetRequest } from './auth/ResetRequest';
+import { SecuritySettings } from './auth/SecuritySettings';
 import { SignIn } from './auth/SignIn';
 import { SignUp } from './auth/SignUp';
 import { TokenAction } from './auth/TokenAction';
@@ -38,6 +39,7 @@ export function App(): React.JSX.Element {
           />
           <Route path="/mfa" element={<MfaChallenge />} />
           <Route path="/me" element={<AccountHome />} />
+          <Route path="/me/security" element={<SecuritySettings />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

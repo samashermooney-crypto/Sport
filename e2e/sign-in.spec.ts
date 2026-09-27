@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { decodeBase32, totpCode } from '../server/src/modules/auth/totp';
+
 import { accessibilityViolations } from './axe';
 
 test('sign-in and reset request are accessible and functional', async ({
@@ -95,4 +97,38 @@ test('new account verifies its preview email and signs in', async ({
     page.getByRole('heading', { name: 'Welcome, Alex.' }),
   ).toBeVisible();
   expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('link', { name: 'Account security' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Account security' }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sessions' })).toBeVisible();
+  await expect(page.getByText('(current)')).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('button', { name: 'Set up authenticator' }).click();
+  await expect(
+    page.getByRole('img', { name: 'Authenticator setup QR code' }),
+  ).toBeVisible();
+  const secret = await page.locator('.mfa-qr + p code').textContent();
+  expect(secret).toBeTruthy();
+  const code = totpCode(
+    decodeBase32(secret ?? ''),
+    Math.floor(Date.now() / 30_000),
+  );
+  await page.getByLabel('Six-digit authenticator code').fill(code);
+  await page.getByRole('button', { name: 'Verify and enable' }).click();
+  await expect(
+    page.getByText('Save these 10 recovery codes now.'),
+  ).toBeVisible();
+  await expect(page.locator('.recovery-codes li')).toHaveCount(10);
+  await page.getByRole('button', { name: 'I saved these codes' }).click();
+  await page.getByLabel(/^Password/).fill(password);
+  await page.getByRole('button', { name: 'Confirm identity' }).click();
+  await expect(page.getByRole('status')).toContainText('Identity confirmed');
+  await page.getByRole('button', { name: 'Regenerate recovery codes' }).click();
+  await expect(page.locator('.recovery-codes li')).toHaveCount(10);
+  await page.getByRole('button', { name: 'I saved these codes' }).click();
+  await page.getByRole('button', { name: 'Revoke' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Welcome back.' }),
+  ).toBeVisible();
 });

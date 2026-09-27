@@ -1,4 +1,5 @@
 import type { PropsWithChildren, ReactNode } from 'react';
+import { cloneElement, isValidElement, useId } from 'react';
 import { Link } from 'react-router';
 
 export function AuthFrame({
@@ -47,15 +48,25 @@ export function Field({
   required?: boolean;
   error?: string | undefined;
 }>): React.JSX.Element {
+  const errorId = useId();
+  const control = isValidElement<{
+    'aria-describedby'?: string | undefined;
+    'aria-invalid'?: boolean | undefined;
+  }>(children)
+    ? cloneElement(children, {
+        'aria-describedby': error ? errorId : undefined,
+        'aria-invalid': Boolean(error),
+      })
+    : children;
   return (
     <label className="field">
       <span>
         {label}
         {required && <b className="required"> *</b>}
       </span>
-      {children}
+      {control}
       {error && (
-        <small className="field-error" role="alert">
+        <small className="field-error" id={errorId} role="alert">
           {error}
         </small>
       )}
