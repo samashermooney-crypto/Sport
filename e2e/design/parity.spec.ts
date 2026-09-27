@@ -81,6 +81,50 @@ test('shell chrome compares against the legacy captures at desktop and phone wid
   }
 });
 
+test('public site shell matches the legacy header and navigation at desktop and phone widths', async ({
+  page,
+}) => {
+  await page.goto('/__ui?surface=public');
+  await expect(
+    page.getByRole('heading', { name: 'Northstar Youth Sports' }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('navigation', { name: 'Website navigation' }),
+  ).toBeVisible();
+
+  for (const [width, height, reference] of [
+    [1440, 157, 'public-site-home-1440.png'],
+    [390, 179, 'public-site-home-390.png'],
+  ] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(() => document.fonts.ready);
+    const rendered = await page.screenshot({ animations: 'disabled' });
+    const difference = await headerDifferenceRatio(
+      rendered,
+      reference,
+      width,
+      height,
+    );
+    expect(
+      difference,
+      `${String(width)}px public-site shell mismatch: ${(difference * 100).toFixed(2)}% of pixels differ`,
+    ).toBeLessThan(0.065);
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(
+      results.violations.map(({ id, impact, nodes }) => ({
+        id,
+        impact,
+        targets: nodes.map(({ target }) => target),
+      })),
+      `axe violations at ${String(width)}px`,
+    ).toEqual([]);
+  }
+
+  await page.getByRole('link', { name: 'Leagues', exact: true }).click();
+  await expect(page).toHaveURL(/#leagues$/);
+  await expect(page.locator('#leagues')).toBeInViewport();
+});
+
 test('the showcase is axe-clean at desktop and phone widths', async ({
   page,
 }) => {

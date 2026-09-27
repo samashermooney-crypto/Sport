@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link as RouterLink } from 'react-router';
+import { Link as RouterLink, useSearchParams } from 'react-router';
 
 import {
   Avatar,
@@ -52,6 +52,8 @@ import {
 } from '../index';
 import { Dialog, Drawer, Sheet, ToastRegion } from '../overlays';
 import { AppShell } from '../shell';
+
+import { PublicSiteShowcase } from './PublicSiteShowcase';
 
 type DemoRow = { id: string; program: string; season: string; status: string };
 const rows: DemoRow[] = [
@@ -176,6 +178,7 @@ function ShowcaseIcon({
 }
 
 export function Showcase(): React.JSX.Element {
+  const [searchParams] = useSearchParams();
   const [tab, setTab] = useState('Overview');
   const [dialog, setDialog] = useState(false);
   const [drawer, setDrawer] = useState(false);
@@ -237,6 +240,10 @@ export function Showcase(): React.JSX.Element {
         item.label.toLowerCase().includes(searchSubmitted.toLowerCase()),
       )
     : [];
+
+  if (searchParams.get('surface') === 'public') {
+    return <PublicSiteShowcase />;
+  }
 
   return (
     <AppShell
