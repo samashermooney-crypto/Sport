@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AuditViewer } from './AuditViewer';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  sessionStorage.clear();
+});
 
 describe('audit viewer', () => {
   it('loads real entries, filters, and follows the next cursor', async () => {
@@ -48,6 +51,24 @@ describe('audit viewer', () => {
     await waitFor(() => {
       expect(String(fetcher.mock.calls.at(-1)?.[0])).toContain(
         'entityType=person',
+      );
+    });
+  });
+
+  it('carries impersonation context on Restricted audit reads', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ items: [], nextCursor: null }),
+    });
+    vi.stubGlobal('fetch', fetcher);
+    sessionStorage.setItem('athlentry.impersonation', 'impersonation-id');
+    render(<AuditViewer orgId="org-1" />);
+    await waitFor(() => {
+      expect(fetcher).toHaveBeenCalledWith(
+        expect.stringContaining('/audit/orgs/org-1'),
+        expect.objectContaining({
+          headers: { 'X-Athlentry-Impersonation': 'impersonation-id' },
+        }),
       );
     });
   });

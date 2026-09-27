@@ -1,4 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+
+import {
+  currentImpersonationId,
+  impersonationHeaders,
+  useImpersonationId,
+} from '../../platform/impersonation';
 
 import './notification-center.css';
 
@@ -12,7 +19,7 @@ type Notification = {
 type InboxPage = { items: Notification[]; nextCursor: string | null };
 type Preference = {
   category: 'operational' | 'announcement' | 'marketing' | 'emergency';
-  channel: 'in_app' | 'email';
+  channel: 'in_app' | 'email' | 'sms' | 'push';
   enabled: boolean;
   version: number;
 };
@@ -22,31 +29,35 @@ export function NotificationCenter({
 }: {
   orgId: string;
 }): React.JSX.Element {
+  const { t, i18n } = useTranslation('portal');
   const [page, setPage] = useState<InboxPage | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [preferences, setPreferences] = useState<Preference[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
   const [revision, setRevision] = useState(0);
-  const base = `/api/v1/me/notifications/orgs/${encodeURIComponent(orgId)}`;
+  const impersonationId = useImpersonationId();
+  const base = `/api/v1/orgs/${encodeURIComponent(orgId)}`;
 
   useEffect(() => {
     const controller = new AbortController();
     const query = new URLSearchParams({ limit: '50' });
     if (cursor) query.set('cursor', cursor);
     void Promise.all([
-      fetch(`${base}/inbox?${query}`, {
+      fetch(`${base}/notifications?${query}`, {
         credentials: 'include',
+        headers: impersonationHeaders(impersonationId),
         signal: controller.signal,
       }),
-      fetch(`${base}/preferences`, {
+      fetch(`${base}/notification-preferences`, {
         credentials: 'include',
+        headers: impersonationHeaders(impersonationId),
         signal: controller.signal,
       }),
     ])
       .then(async ([inboxResponse, preferenceResponse]) => {
         if (!inboxResponse.ok || !preferenceResponse.ok)
-          throw new Error('Could not load notifications.');
+          throw new Error(t('notificationsLoadFailed'));
         return Promise.all([
           inboxResponse.json() as Promise<InboxPage>,
           preferenceResponse.json() as Promise<{ items: Preference[] }>,
@@ -58,13 +69,12 @@ export function NotificationCenter({
         setError('');
       })
       .catch(() => {
-        if (!controller.signal.aborted)
-          setError('Could not load notifications.');
+        if (!controller.signal.aborted) setError(t('notificationsLoadFailed'));
       });
     return () => {
       controller.abort();
     };
-  }, [base, cursor, revision]);
+  }, [base, cursor, impersonationId, revision, t]);
 
   useEffect(() => {
     const stream = new EventSource('/api/v1/stream', { withCredentials: true });
@@ -82,38 +92,49 @@ export function NotificationCenter({
   }, []);
 
   async function markRead(id: string): Promise<void> {
+    if (currentImpersonationId()) {
+      setError('Read-only impersonation cannot change notifications.');
+      return;
+    }
     setBusy(id);
     try {
       const response = await fetch(
-        `${base}/inbox/${encodeURIComponent(id)}/read`,
+        `${base}/notifications/${encodeURIComponent(id)}/read`,
         {
           method: 'PATCH',
           credentials: 'include',
-          headers: { 'X-Athlentry-Request': '1' },
+          headers: {
+            'X-Athlentry-Request': '1',
+            ...impersonationHeaders(currentImpersonationId()),
+          },
         },
       );
-      if (!response.ok)
-        throw new Error('Could not mark the notification read.');
+      if (!response.ok) throw new Error(t('notificationReadFailed'));
       setRevision((value) => value + 1);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Request failed.');
+      setError(cause instanceof Error ? cause.message : t('requestFailed'));
     } finally {
       setBusy('');
     }
   }
 
   async function togglePreference(preference: Preference): Promise<void> {
+    if (currentImpersonationId()) {
+      setError('Read-only impersonation cannot change preferences.');
+      return;
+    }
     const key = `${preference.category}:${preference.channel}`;
     setBusy(key);
     try {
       const response = await fetch(
-        `${base}/preferences/${preference.category}/${preference.channel}`,
+        `${base}/notification-preferences/${preference.category}/${preference.channel}`,
         {
           method: 'PUT',
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
             'X-Athlentry-Request': '1',
+            ...impersonationHeaders(currentImpersonationId()),
           },
           body: JSON.stringify({
             enabled: !preference.enabled,
@@ -124,12 +145,12 @@ export function NotificationCenter({
       if (!response.ok)
         throw new Error(
           response.status === 400
-            ? 'Operational and emergency alerts need an enabled channel.'
-            : 'Could not update the preference.',
+            ? t('preferenceRequired')
+            : t('preferenceUpdateFailed'),
         );
       setRevision((value) => value + 1);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Request failed.');
+      setError(cause instanceof Error ? cause.message : t('requestFailed'));
     } finally {
       setBusy('');
     }
@@ -138,23 +159,23 @@ export function NotificationCenter({
   return (
     <main className="notification-center">
       <header>
-        <h1>Notifications</h1>
+        <h1>{t('notifications')}</h1>
         <button
           type="button"
           onClick={() => {
             setRevision((value) => value + 1);
           }}
         >
-          Refresh
+          {t('refresh')}
         </button>
       </header>
       {error && <p role="alert">{error}</p>}
       <section aria-labelledby="inbox-title">
-        <h2 id="inbox-title">Inbox</h2>
+        <h2 id="inbox-title">{t('inbox')}</h2>
         {page === null ? (
-          <p role="status">Loading notifications…</p>
+          <p role="status">{t('loadingNotifications')}</p>
         ) : page.items.length === 0 ? (
-          <p>No notifications yet.</p>
+          <p>{t('noNotifications')}</p>
         ) : (
           <ul className="notification-center__inbox">
             {page.items.map((item) => (
@@ -162,17 +183,21 @@ export function NotificationCenter({
                 <div>
                   <strong>{item.title}</strong>
                   <time dateTime={item.createdAt}>
-                    {new Date(item.createdAt).toLocaleString()}
+                    {new Date(item.createdAt).toLocaleString(
+                      i18n.resolvedLanguage,
+                    )}
                   </time>
-                  {item.payload.href && <a href={item.payload.href}>Open</a>}
+                  {item.payload.href && (
+                    <a href={item.payload.href}>{t('open')}</a>
+                  )}
                 </div>
-                {!item.readAt && (
+                {!item.readAt && !impersonationId && (
                   <button
                     type="button"
                     disabled={busy === item.id}
                     onClick={() => void markRead(item.id)}
                   >
-                    Mark read
+                    {t('markRead')}
                   </button>
                 )}
               </li>
@@ -186,7 +211,7 @@ export function NotificationCenter({
               setCursor(null);
             }}
           >
-            First page
+            {t('firstPage')}
           </button>
         )}
         {page?.nextCursor && (
@@ -196,12 +221,13 @@ export function NotificationCenter({
               setCursor(page.nextCursor);
             }}
           >
-            Next page
+            {t('nextPage')}
           </button>
         )}
       </section>
-      <section aria-labelledby="preferences-title">
-        <h2 id="preferences-title">Delivery preferences</h2>
+      <section id="preferences" aria-labelledby="preferences-title">
+        <h2 id="preferences-title">{t('deliveryPreferences')}</h2>
+        <p>{t('externalChannelRequirements')}</p>
         <div className="notification-center__preferences">
           {preferences.map((preference) => {
             const key = `${preference.category}:${preference.channel}`;
@@ -210,11 +236,17 @@ export function NotificationCenter({
                 <input
                   type="checkbox"
                   checked={preference.enabled}
-                  disabled={busy === key}
+                  disabled={busy === key || Boolean(impersonationId)}
                   onChange={() => void togglePreference(preference)}
                 />
-                {preference.category} ·{' '}
-                {preference.channel === 'in_app' ? 'In app' : 'Email'}
+                {t(preference.category)} ·{' '}
+                {preference.channel === 'in_app'
+                  ? t('inApp')
+                  : preference.channel === 'email'
+                    ? t('email')
+                    : preference.channel === 'sms'
+                      ? t('sms')
+                      : t('push')}
               </label>
             );
           })}

@@ -116,17 +116,117 @@ describe('notification inbox and preferences', () => {
     expect(audits.map((row) => row.action)).toContain('notification.read');
   });
 
+  it('delivers compliance notifications inserted by another module through the same safe stream envelope', async () => {
+    const listener = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_APP_URL,
+    });
+    await listener.connect();
+    await listener.query(`LISTEN ${notificationChannel}`);
+    const delivered = new Promise<string>((resolve) => {
+      listener.once('notification', (message: pg.Notification) => {
+        resolve(message.payload ?? '');
+      });
+    });
+    const id = randomUUID();
+    const personId = randomUUID();
+    const credentialId = randomUUID();
+    const runWithOrg = createWithOrg(database);
+    try {
+      await runWithOrg(context, (trx) =>
+        trx
+          .insertInto('notifications')
+          .values({
+            id,
+            org_id: orgId,
+            account_id: accountId,
+            type: 'compliance.credential_expiry_reminder',
+            payload: {
+              personId,
+              credentialId,
+              daysBefore: 14,
+              expiresOn: '2026-10-11',
+            },
+          })
+          .execute(),
+      );
+      expect(notificationStreamEvent(await delivered, accountId)).toMatchObject(
+        {
+          id,
+          data: { orgId },
+        },
+      );
+      const inbox = await listInbox(context, { limit: 50 }, runWithOrg);
+      expect(inbox.items.find((item) => item.id === id)).toMatchObject({
+        type: 'compliance.credential_expiry_reminder',
+        payload: { personId, credentialId },
+      });
+      const adverseId = randomUUID();
+      await runWithOrg(context, (trx) =>
+        trx
+          .insertInto('notifications')
+          .values({
+            id: adverseId,
+            org_id: orgId,
+            account_id: accountId,
+            type: 'compliance.background_check_adverse_notice',
+            payload: {
+              orderId: randomUUID(),
+              noticeText: 'private background-check details',
+              portalUrl: 'https://example.invalid/private',
+            },
+          })
+          .execute(),
+      );
+      const filtered = await listInbox(context, { limit: 50 }, runWithOrg);
+      expect(
+        filtered.items.find((item) => item.id === adverseId),
+      ).toMatchObject({
+        title: 'Background check notice',
+        payload: {},
+      });
+      expect(JSON.stringify(filtered)).not.toContain(
+        'private background-check details',
+      );
+    } finally {
+      await listener.end();
+    }
+  });
+
   it('keeps at least one operational channel and applies version checks', async () => {
     const runWithOrg = createWithOrg(database);
     const defaults = await listPreferences(context, runWithOrg);
-    expect(defaults.items).toHaveLength(8);
+    expect(defaults.items).toHaveLength(16);
     expect(
       defaults.items.every(
         (item) =>
           item.version === 0 &&
-          item.enabled === (item.category !== 'marketing'),
+          item.enabled ===
+            (item.category !== 'marketing' &&
+              (item.channel === 'in_app' || item.channel === 'email')),
       ),
     ).toBe(true);
+    const sms = await updatePreference(
+      context,
+      {
+        category: 'announcement',
+        channel: 'sms',
+        enabled: true,
+        expectedVersion: 0,
+      },
+      runWithOrg,
+    );
+    expect(sms).toMatchObject({ enabled: true, version: 1 });
+    const push = await updatePreference(
+      context,
+      {
+        category: 'emergency',
+        channel: 'push',
+        enabled: true,
+        expectedVersion: 0,
+      },
+      runWithOrg,
+    );
+    expect(push).toMatchObject({ enabled: true, version: 1 });
     const email = await updatePreference(
       context,
       {

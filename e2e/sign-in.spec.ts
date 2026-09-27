@@ -114,6 +114,10 @@ test('account creation and recovery screens follow the Spanish preference', asyn
   await expect(
     page.getByRole('checkbox', { name: /Términos de servicio/ }),
   ).toBeVisible();
+  await page.locator('.legal-text summary').first().click();
+  await expect(
+    page.getByText(/BORRADOR — requiere revisión legal/).first(),
+  ).toBeVisible();
   expect(await accessibilityViolations(page)).toEqual([]);
   await page.getByRole('link', { name: /Inicie sesión/ }).click();
   await page.getByRole('link', { name: '¿Olvidó su contraseña?' }).click();
@@ -457,7 +461,9 @@ test('new account verifies its preview email and signs in', async ({
   expect(await accessibilityViolations(page)).toEqual([]);
   await page.getByRole('link', { name: 'account security' }).click();
   await page.getByRole('button', { name: 'Request deletion review' }).click();
-  await expect(page.getByRole('status')).toContainText('privacy review', {
+  await expect(
+    page.getByRole('status').filter({ hasText: 'privacy review' }),
+  ).toBeVisible({
     timeout: 10_000,
   });
   const changedEmail = `changed-${email}`;
@@ -491,8 +497,19 @@ test('new account verifies its preview email and signs in', async ({
   ).toBeVisible();
   await page.getByRole('link', { name: 'Account security' }).click();
   expect(await accessibilityViolations(page)).toEqual([]);
-  await page.getByRole('button', { name: 'Revoke' }).click();
+  await page.getByRole('combobox', { name: 'Language' }).selectOption('es');
   await expect(
-    page.getByRole('heading', { name: 'Welcome back.' }),
+    page.getByRole('heading', { name: 'Seguridad de la cuenta' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Notificaciones del navegador' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Solicitar revisión de eliminación' }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('button', { name: 'Revocar', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Le damos la bienvenida.' }),
   ).toBeVisible();
 });

@@ -7,7 +7,8 @@ export type InstallmentTemplate = {
     { kind: 'fixed'; amountCents: number } | { kind: 'percent'; bps: number };
   schedule:
     | { kind: 'fixed_dates'; dates: readonly string[] }
-    | { kind: 'monthly'; count: number; dayOfMonth: number };
+    | { kind: 'monthly'; count: number; dayOfMonth: number }
+    | { kind: 'weekly'; count: number };
   minAmountCents: number;
 };
 export type PlannedInstallment = {
@@ -70,6 +71,13 @@ export function generateInstallments(
       throw new RangeError('Invalid monthly schedule');
     dates = Array.from({ length: count }, (_, index) =>
       monthlyDate(today, index + 1, dayOfMonth),
+    );
+  } else if (template.schedule.kind === 'weekly') {
+    const { count } = template.schedule;
+    if (!Number.isSafeInteger(count) || count < 1)
+      throw new RangeError('Invalid weekly schedule');
+    dates = Array.from({ length: count }, (_, index) =>
+      today.add({ weeks: index + 1 }).toString(),
     );
   } else {
     dates = [...template.schedule.dates];

@@ -26,10 +26,12 @@ import {
 import { TurnstileWidget } from './TurnstileWidget';
 
 export function SignUp(): React.JSX.Element {
-  const { t } = useTranslation('auth');
+  const { t, i18n: language } = useTranslation('auth');
+  const locale = language.resolvedLanguage === 'es' ? 'es' : 'en';
   const legal = useQuery({
-    queryKey: ['auth', 'legal'],
-    queryFn: () => apiGet('/auth/legal', authLegalResponseSchema),
+    queryKey: ['auth', 'legal', locale],
+    queryFn: () =>
+      apiGet(`/auth/legal?locale=${locale}`, authLegalResponseSchema),
   });
   const captcha = useQuery({
     queryKey: ['auth', 'captcha-config'],
