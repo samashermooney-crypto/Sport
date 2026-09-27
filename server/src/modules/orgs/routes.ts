@@ -12,6 +12,7 @@ import {
   orgStaffResponseSchema,
   orgMemberRolesResponseSchema,
   orgMemberStatusResponseSchema,
+  orgProfileSchema,
   ownershipTransferAcceptResponseSchema,
   ownershipTransferAcceptSchema,
   ownershipTransferRequestResponseSchema,
@@ -23,6 +24,7 @@ import {
   updateOrgCredentialSchema,
   updateOrgMemberRolesSchema,
   updateOrgMemberStatusSchema,
+  updateOrgProfileSchema,
   updateScopedRoleSchema,
 } from '@shared/schemas/orgs';
 import express from 'express';
@@ -51,6 +53,7 @@ import {
   acceptOwnershipTransfer,
   requestOwnershipTransfer,
 } from './ownershipTransfer';
+import { getOrgProfile, updateOrgProfile } from './profile';
 import { isOrgSlugAvailable } from './slug';
 
 class OrgCredentialsError extends Error {
@@ -175,6 +178,50 @@ export function createOrgRouter(
       throw new OrgCredentialsError(404, 'NOT_FOUND', 'Organization not found');
     return { context, session };
   }
+
+  router.get('/:orgId/profile', async (request, response) => {
+    try {
+      const { context, session } = await ownerContext(request);
+      const result = await getOrgProfile(
+        dependencies.database,
+        context.orgId,
+        session.accountId,
+      );
+      response.json(orgProfileSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.patch('/:orgId/profile', async (request, response) => {
+    try {
+      if (!mutationOriginIsValid(request, dependencies.appUrl))
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Request origin could not be verified',
+        );
+      const { context, session } = await ownerContext(request);
+      if (
+        !session.elevatedUntil ||
+        session.elevatedUntil <= dependencies.clock()
+      )
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Confirm your identity before changing organization settings',
+        );
+      const result = await updateOrgProfile(dependencies.database, {
+        orgId: context.orgId,
+        actorId: session.accountId,
+        changes: updateOrgProfileSchema.parse(request.body),
+        now: dependencies.clock(),
+      });
+      response.json(orgProfileSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
 
   const monthsSchema = z.strictObject({
     months: z.number().int().min(1).max(120),
