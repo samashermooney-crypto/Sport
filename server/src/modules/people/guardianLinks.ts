@@ -14,8 +14,8 @@ import type { EmailSender } from '../../integrations/email/sender';
 import { createAuthEmail } from '../../integrations/email/templates/auth';
 import { consumeAuthToken, issueAuthToken } from '../auth/tokens';
 
-import { PeopleError, requireStaff } from './repo';
 import { ensureGuardianProfileAndHousehold } from './guardianProfile';
+import { PeopleError, requireStaff } from './repo';
 
 async function activePerson(
   trx: OrgTransaction,

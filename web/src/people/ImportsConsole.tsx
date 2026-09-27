@@ -7,7 +7,7 @@ import {
   importMappingPresetListSchema,
   importMappingPresetSchema,
 } from '@shared/schemas/imports';
-import type { ImportKind } from '@shared/schemas/imports';
+import type { ImportBatchPreview, ImportKind } from '@shared/schemas/imports';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Papa from 'papaparse';
 import { useMemo, useState } from 'react';
@@ -35,36 +35,129 @@ interface ImportField {
 
 const FIELDS: Record<ImportKind, ImportField[]> = {
   people: [
-    { key: 'firstName', label: 'First name', aliases: ['first name', 'given name', 'first'], required: true },
-    { key: 'lastName', label: 'Last name', aliases: ['last name', 'family name', 'surname', 'last'], required: true },
-    { key: 'dateOfBirth', label: 'Date of birth', aliases: ['date of birth', 'birth date', 'dob', 'birthday'], required: true },
+    {
+      key: 'firstName',
+      label: 'First name',
+      aliases: ['first name', 'given name', 'first'],
+      required: true,
+    },
+    {
+      key: 'lastName',
+      label: 'Last name',
+      aliases: ['last name', 'family name', 'surname', 'last'],
+      required: true,
+    },
+    {
+      key: 'dateOfBirth',
+      label: 'Date of birth',
+      aliases: ['date of birth', 'birth date', 'dob', 'birthday'],
+      required: true,
+    },
     { key: 'email', label: 'Email', aliases: ['email', 'email address'] },
     { key: 'phone', label: 'Phone', aliases: ['phone', 'mobile', 'telephone'] },
     { key: 'gender', label: 'Gender', aliases: ['gender', 'sex'] },
-    { key: 'graduationYear', label: 'Graduation year', aliases: ['graduation year', 'grad year'] },
+    {
+      key: 'graduationYear',
+      label: 'Graduation year',
+      aliases: ['graduation year', 'grad year'],
+    },
     { key: 'schoolName', label: 'School', aliases: ['school', 'school name'] },
-    { key: 'householdName', label: 'Household', aliases: ['household', 'family', 'household name'] },
-    { key: 'emergencyContactName', label: 'Emergency contact name', aliases: ['emergency contact', 'emergency contact name'] },
-    { key: 'emergencyContactPhone', label: 'Emergency contact phone', aliases: ['emergency phone', 'emergency contact phone'] },
+    {
+      key: 'householdName',
+      label: 'Household',
+      aliases: ['household', 'family', 'household name'],
+    },
+    {
+      key: 'emergencyContactName',
+      label: 'Emergency contact name',
+      aliases: ['emergency contact', 'emergency contact name'],
+    },
+    {
+      key: 'emergencyContactPhone',
+      label: 'Emergency contact phone',
+      aliases: ['emergency phone', 'emergency contact phone'],
+    },
   ],
   households: [
-    { key: 'householdName', label: 'Household name', aliases: ['household', 'household name', 'family'], required: true },
+    {
+      key: 'householdName',
+      label: 'Household name',
+      aliases: ['household', 'household name', 'family'],
+      required: true,
+    },
   ],
   guardians: [
-    { key: 'guardianEmail', label: 'Guardian email', aliases: ['guardian email', 'parent email', 'adult email'], required: true },
-    { key: 'personEmail', label: 'Person email', aliases: ['person email', 'athlete email', 'player email'] },
-    { key: 'personFirstName', label: 'Person first name', aliases: ['person first name', 'athlete first name', 'player first name'], required: true },
-    { key: 'personLastName', label: 'Person last name', aliases: ['person last name', 'athlete last name', 'player last name'], required: true },
-    { key: 'personDateOfBirth', label: 'Person date of birth', aliases: ['person dob', 'athlete dob', 'player dob', 'date of birth'], required: true },
+    {
+      key: 'guardianEmail',
+      label: 'Guardian email',
+      aliases: ['guardian email', 'parent email', 'adult email'],
+      required: true,
+    },
+    {
+      key: 'personEmail',
+      label: 'Person email',
+      aliases: ['person email', 'athlete email', 'player email'],
+    },
+    {
+      key: 'personFirstName',
+      label: 'Person first name',
+      aliases: ['person first name', 'athlete first name', 'player first name'],
+      required: true,
+    },
+    {
+      key: 'personLastName',
+      label: 'Person last name',
+      aliases: ['person last name', 'athlete last name', 'player last name'],
+      required: true,
+    },
+    {
+      key: 'personDateOfBirth',
+      label: 'Person date of birth',
+      aliases: ['person dob', 'athlete dob', 'player dob', 'date of birth'],
+      required: true,
+    },
   ],
   emergency_contacts: [
-    { key: 'personEmail', label: 'Person email', aliases: ['person email', 'athlete email', 'player email'] },
-    { key: 'personFirstName', label: 'Person first name', aliases: ['person first name', 'athlete first name', 'player first name'], required: true },
-    { key: 'personLastName', label: 'Person last name', aliases: ['person last name', 'athlete last name', 'player last name'], required: true },
-    { key: 'personDateOfBirth', label: 'Person date of birth', aliases: ['person dob', 'athlete dob', 'player dob', 'date of birth'], required: true },
-    { key: 'contactName', label: 'Contact name', aliases: ['contact name', 'emergency contact'], required: true },
-    { key: 'relationship', label: 'Relationship', aliases: ['relationship', 'relation'] },
-    { key: 'contactPhone', label: 'Contact phone', aliases: ['contact phone', 'emergency phone', 'phone'], required: true },
+    {
+      key: 'personEmail',
+      label: 'Person email',
+      aliases: ['person email', 'athlete email', 'player email'],
+    },
+    {
+      key: 'personFirstName',
+      label: 'Person first name',
+      aliases: ['person first name', 'athlete first name', 'player first name'],
+      required: true,
+    },
+    {
+      key: 'personLastName',
+      label: 'Person last name',
+      aliases: ['person last name', 'athlete last name', 'player last name'],
+      required: true,
+    },
+    {
+      key: 'personDateOfBirth',
+      label: 'Person date of birth',
+      aliases: ['person dob', 'athlete dob', 'player dob', 'date of birth'],
+      required: true,
+    },
+    {
+      key: 'contactName',
+      label: 'Contact name',
+      aliases: ['contact name', 'emergency contact'],
+      required: true,
+    },
+    {
+      key: 'relationship',
+      label: 'Relationship',
+      aliases: ['relationship', 'relation'],
+    },
+    {
+      key: 'contactPhone',
+      label: 'Contact phone',
+      aliases: ['contact phone', 'emergency phone', 'phone'],
+      required: true,
+    },
     { key: 'priority', label: 'Priority', aliases: ['priority', 'order'] },
   ],
 };
@@ -77,14 +170,19 @@ const DUPLICATE_STRATEGIES = [
 ];
 
 function normalizedHeader(value: string): string {
-  return value.trim().toLocaleLowerCase().replace(/[^a-z0-9]/g, '');
+  return value
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]/g, '');
 }
 
 function suggestMapping(
   kind: ImportKind,
   headers: string[],
 ): Record<string, string> {
-  const byNormalized = new Map(headers.map((header) => [normalizedHeader(header), header]));
+  const byNormalized = new Map(
+    headers.map((header) => [normalizedHeader(header), header]),
+  );
   return Object.fromEntries(
     FIELDS[kind].map((field) => {
       const candidates = [field.label, field.key, ...field.aliases];
@@ -96,7 +194,9 @@ function suggestMapping(
   );
 }
 
-async function readImportFile(file: File): Promise<{ content: string; headers: string[] }> {
+async function readImportFile(
+  file: File,
+): Promise<{ content: string; headers: string[] }> {
   if (file.size > 10 * 1024 * 1024)
     throw new Error('Choose a file smaller than 10 MB.');
   let content: string;
@@ -131,7 +231,9 @@ async function readImportFile(file: File): Promise<{ content: string; headers: s
   });
   const headers = parsed.meta.fields ?? [];
   if (headers.length === 0 || parsed.data.length === 0)
-    throw new Error('The file must contain a header row and at least one data row.');
+    throw new Error(
+      'The file must contain a header row and at least one data row.',
+    );
   return { content, headers };
 }
 
@@ -144,10 +246,7 @@ export function ImportsConsole(): React.JSX.Element {
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [duplicateStrategy, setDuplicateStrategy] = useState('skip');
-  const [preview, setPreview] = useState<
-    | (typeof importBatchPreviewSchema)['__output']
-    | null
-  >(null);
+  const [preview, setPreview] = useState<ImportBatchPreview | null>(null);
   const [presetName, setPresetName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -157,7 +256,8 @@ export function ImportsConsole(): React.JSX.Element {
     queryFn: () => apiGet(batchesPath, importBatchListSchema),
     enabled: Boolean(orgId),
   });
-  const presetsPath = `/imports/orgs/${String(orgId)}/presets?kind=${kind}`;
+  const presetsCollectionPath = `/imports/orgs/${String(orgId)}/presets`;
+  const presetsPath = `${presetsCollectionPath}?kind=${kind}`;
   const presets = useQuery({
     queryKey: ['imports', orgId, 'presets', kind],
     queryFn: () => apiGet(presetsPath, importMappingPresetListSchema),
@@ -172,7 +272,7 @@ export function ImportsConsole(): React.JSX.Element {
       </AuthFrame>
     );
 
-  async function submitPreview(event: React.FormEvent<HTMLFormElement>) {
+  async function submitPreview(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!content || !filename) {
       setError('Choose a file before previewing it.');
@@ -190,9 +290,15 @@ export function ImportsConsole(): React.JSX.Element {
       });
       const result = await apiPost(batchesPath, body, importBatchPreviewSchema);
       setPreview(result);
-      await client.invalidateQueries({ queryKey: ['imports', orgId, 'batches'] });
+      await client.invalidateQueries({
+        queryKey: ['imports', orgId, 'batches'],
+      });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The file could not be previewed.');
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'The file could not be previewed.',
+      );
     } finally {
       setBusy(false);
     }
@@ -209,9 +315,15 @@ export function ImportsConsole(): React.JSX.Element {
         importBatchSchema,
       );
       setPreview((current) => (current ? { ...current, batch } : current));
-      await client.invalidateQueries({ queryKey: ['imports', orgId, 'batches'] });
+      await client.invalidateQueries({
+        queryKey: ['imports', orgId, 'batches'],
+      });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The import could not be committed.');
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'The import could not be committed.',
+      );
     } finally {
       setBusy(false);
     }
@@ -228,9 +340,15 @@ export function ImportsConsole(): React.JSX.Element {
         importBatchSchema,
       );
       setPreview((current) => (current ? { ...current, batch } : current));
-      await client.invalidateQueries({ queryKey: ['imports', orgId, 'batches'] });
+      await client.invalidateQueries({
+        queryKey: ['imports', orgId, 'batches'],
+      });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The import could not be rolled back.');
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'The import could not be rolled back.',
+      );
     } finally {
       setBusy(false);
     }
@@ -245,14 +363,20 @@ export function ImportsConsole(): React.JSX.Element {
     setError('');
     try {
       await apiPost(
-        `/imports/orgs/${orgId}/presets`,
+        presetsCollectionPath,
         { kind, name: presetName.trim(), mapping },
         importMappingPresetSchema,
       );
       setPresetName('');
-      await client.invalidateQueries({ queryKey: ['imports', orgId, 'presets', kind] });
+      await client.invalidateQueries({
+        queryKey: ['imports', orgId, 'presets', kind],
+      });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The mapping could not be saved.');
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'The mapping could not be saved.',
+      );
     } finally {
       setBusy(false);
     }
@@ -284,7 +408,11 @@ export function ImportsConsole(): React.JSX.Element {
                 }}
               />
             </Field>
-            <Field label="CSV or XLSX file" required hint="Maximum 10 MB and 5,000 data rows.">
+            <Field
+              label="CSV or XLSX file"
+              required
+              hint="Maximum 10 MB and 5,000 data rows."
+            >
               <Input
                 type="file"
                 accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -305,9 +433,15 @@ export function ImportsConsole(): React.JSX.Element {
                       setFilename('');
                       setContent('');
                       setHeaders([]);
-                      setError(cause instanceof Error ? cause.message : 'The file could not be read.');
+                      setError(
+                        cause instanceof Error
+                          ? cause.message
+                          : 'The file could not be read.',
+                      );
                     })
-                    .finally(() => setBusy(false));
+                    .finally(() => {
+                      setBusy(false);
+                    });
                 }}
               />
             </Field>
@@ -324,7 +458,7 @@ export function ImportsConsole(): React.JSX.Element {
                     })),
                   ]}
                   onChange={(event) => {
-                    const preset = presets.data?.items.find(
+                    const preset = presets.data.items.find(
                       (item) => item.id === event.target.value,
                     );
                     if (preset) setMapping(preset.mapping);
@@ -336,20 +470,25 @@ export function ImportsConsole(): React.JSX.Element {
               <Field
                 key={field.key}
                 label={field.label}
-                required={field.required}
+                {...(field.required === undefined
+                  ? {}
+                  : { required: field.required })}
               >
                 <Select
                   value={mapping[field.key] ?? ''}
                   options={[
                     { value: '', label: 'Not mapped' },
-                    ...headers.map((header) => ({ value: header, label: header })),
+                    ...headers.map((header) => ({
+                      value: header,
+                      label: header,
+                    })),
                   ]}
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setMapping((current) => ({
                       ...current,
                       [field.key]: event.target.value,
-                    }))
-                  }
+                    }));
+                  }}
                 />
               </Field>
             ))}
@@ -358,7 +497,9 @@ export function ImportsConsole(): React.JSX.Element {
                 <Select
                   value={duplicateStrategy}
                   options={DUPLICATE_STRATEGIES}
-                  onChange={(event) => setDuplicateStrategy(event.target.value)}
+                  onChange={(event) => {
+                    setDuplicateStrategy(event.target.value);
+                  }}
                 />
               </Field>
             )}
@@ -371,10 +512,19 @@ export function ImportsConsole(): React.JSX.Element {
               <Field label="Preset name">
                 <Input
                   value={presetName}
-                  onChange={(event) => setPresetName(event.target.value)}
+                  onChange={(event) => {
+                    setPresetName(event.target.value);
+                  }}
                 />
               </Field>
-              <Button type="button" secondary disabled={busy} onClick={() => void savePreset()}>
+              <Button
+                type="button"
+                secondary
+                disabled={busy}
+                onClick={() => {
+                  void savePreset();
+                }}
+              >
                 Save mapping
               </Button>
             </div>
@@ -398,14 +548,21 @@ export function ImportsConsole(): React.JSX.Element {
             <div className="table-scroll">
               <table>
                 <thead>
-                  <tr><th>Row</th><th>Action</th><th>Issues</th></tr>
+                  <tr>
+                    <th>Row</th>
+                    <th>Action</th>
+                    <th>Issues</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {preview.rows.slice(0, 50).map((row) => (
                     <tr key={row.rowNumber}>
                       <td>{row.rowNumber}</td>
                       <td>{row.action}</td>
-                      <td>{row.issues.map((issue) => issue.message).join('; ') || '—'}</td>
+                      <td>
+                        {row.issues.map((issue) => issue.message).join('; ') ||
+                          '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -413,12 +570,31 @@ export function ImportsConsole(): React.JSX.Element {
             </div>
             {preview.rows.length > 50 && <p>Showing the first 50 rows.</p>}
             {preview.batch.status === 'preview' && (
-              <Button type="button" disabled={busy || preview.batch.stats.create + preview.batch.stats.update + preview.batch.stats.merge === 0} onClick={() => void commitBatch()}>
+              <Button
+                type="button"
+                disabled={
+                  busy ||
+                  preview.batch.stats.create +
+                    preview.batch.stats.update +
+                    preview.batch.stats.merge ===
+                    0
+                }
+                onClick={() => {
+                  void commitBatch();
+                }}
+              >
                 Commit valid rows
               </Button>
             )}
             {preview.batch.status === 'committed' && (
-              <Button type="button" secondary disabled={busy} onClick={() => void rollbackBatch()}>
+              <Button
+                type="button"
+                secondary
+                disabled={busy}
+                onClick={() => {
+                  void rollbackBatch();
+                }}
+              >
                 Roll back untouched rows
               </Button>
             )}
@@ -428,7 +604,9 @@ export function ImportsConsole(): React.JSX.Element {
         <Card>
           <h2>Recent imports</h2>
           {batches.isPending && <p role="status">Loading batches…</p>}
-          {batches.isError && <ErrorBox error="Import batches could not be loaded." />}
+          {batches.isError && (
+            <ErrorBox error="Import batches could not be loaded." />
+          )}
           {batches.data?.items.map((batch) => (
             <p key={batch.id}>
               <Button
@@ -437,12 +615,23 @@ export function ImportsConsole(): React.JSX.Element {
                 onClick={() => {
                   setBusy(true);
                   setError('');
-                  void apiGet(`${batchesPath}/${batch.id}`, importBatchPreviewSchema)
-                    .then(setPreview)
-                    .catch((cause: unknown) =>
-                      setError(cause instanceof Error ? cause.message : 'Batch could not be loaded.'),
-                    )
-                    .finally(() => setBusy(false));
+                  void apiGet(
+                    `${batchesPath}/${batch.id}`,
+                    importBatchPreviewSchema,
+                  )
+                    .then((loadedPreview) => {
+                      setPreview(loadedPreview);
+                    })
+                    .catch((cause: unknown) => {
+                      setError(
+                        cause instanceof Error
+                          ? cause.message
+                          : 'Batch could not be loaded.',
+                      );
+                    })
+                    .finally(() => {
+                      setBusy(false);
+                    });
                 }}
               >
                 {batch.filename} · {batch.status} · {batch.stats.total} rows

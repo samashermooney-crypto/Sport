@@ -43,10 +43,12 @@ const MAPPING = {
 };
 
 const DATE_FORMATS = [
-  (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
-  (y: number, m: number, d: number) => `${m}/${d}/${y}`,
-  (y: number, m: number, d: number) => `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}-${y}`,
-  (y: number, m: number, d: number) => `${y}/${m}/${d}`,
+  (y: number, m: number, d: number) =>
+    `${String(y)}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+  (y: number, m: number, d: number) => `${String(m)}/${String(d)}/${String(y)}`,
+  (y: number, m: number, d: number) =>
+    `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}-${String(y)}`,
+  (y: number, m: number, d: number) => `${String(y)}/${String(m)}/${String(d)}`,
 ];
 
 function buildCsv(rowCount: number): string {
@@ -54,13 +56,9 @@ function buildCsv(rowCount: number): string {
   for (let index = 0; index < rowCount; index += 1) {
     const format = DATE_FORMATS[index % DATE_FORMATS.length];
     if (!format) throw new Error('Date format fixture is missing');
-    const dob = format(
-      2010 + (index % 8),
-      1 + (index % 12),
-      1 + (index % 28),
-    );
+    const dob = format(2010 + (index % 8), 1 + (index % 12), 1 + (index % 28));
     lines.push(
-      `Bulk${index},Athlete${index},${dob},bulk${index}@example.org,415555${String(1000 + (index % 9000))},${index % 2 ? 'F' : 'M'},Household ${index % 50}`,
+      `Bulk${String(index)},Athlete${String(index)},${dob},bulk${String(index)}@example.org,415555${String(1000 + (index % 9000))},${index % 2 ? 'F' : 'M'},Household ${String(index % 50)}`,
     );
   }
   return lines.join('\n');
@@ -87,7 +85,7 @@ it(
       for (const [index, personId] of duplicates.entries())
         await trx
           .updateTable('people')
-          .set({ email: `existing-${index}@example.org` })
+          .set({ email: `existing-${String(index)}@example.org` })
           .where('id', '=', personId)
           .execute();
     });
@@ -128,10 +126,11 @@ it(
     expect(invalidRows[3]?.issues[0]?.code).toBe('invalid_phone');
     expect(invalidRows[4]?.issues[0]?.code).toBe('invalid_date');
     const skipped = preview.rows.filter((row) => row.action === 'skip');
-    expect(skipped.every((row) => row.issues[0]?.code === 'possible_duplicate')).toBe(
-      true,
-    );
-    const secondRow = preview.rows[1]!;
+    expect(
+      skipped.every((row) => row.issues[0]?.code === 'possible_duplicate'),
+    ).toBe(true);
+    const secondRow = preview.rows[1];
+    if (!secondRow) throw new Error('Second preview row is missing');
     expect(
       (secondRow.normalized as { dateOfBirth: string }).dateOfBirth,
     ).toMatch(/^\d{4}-\d{2}-\d{2}$/);

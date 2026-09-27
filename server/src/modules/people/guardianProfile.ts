@@ -2,6 +2,7 @@ import { ageOnDate, orgToday } from '@shared/dates';
 import { newId } from '@shared/ids';
 
 import type { OrgTransaction } from '../../db/withOrg';
+
 import { PeopleError } from './repo';
 
 export interface GuardianProfileCreatedRef {
@@ -49,7 +50,11 @@ export async function ensureGuardianProfileAndHousehold(
     .executeTakeFirstOrThrow();
   const birthDate = account.date_of_birth.toISOString().slice(0, 10);
   if (ageOnDate(birthDate, orgToday(org.timezone)) < 18)
-    throw new PeopleError(400, 'VALIDATION_ERROR', 'Guardian account must be an adult');
+    throw new PeopleError(
+      400,
+      'VALIDATION_ERROR',
+      'Guardian account must be an adult',
+    );
 
   const child = await trx
     .selectFrom('people')
