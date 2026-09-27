@@ -106,6 +106,25 @@ export const familyResponseSchema = z.strictObject({
   ),
 });
 
+export const personClaimInvitationSchema = z.strictObject({
+  email: z.email().max(254),
+});
+
+export const personClaimInvitationResponseSchema = z.strictObject({
+  id: z.uuid(),
+  email: z.email(),
+  expiresAt: z.iso.datetime(),
+});
+
+export const personClaimAcceptSchema = z.strictObject({
+  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+});
+
+export const personClaimAcceptedResponseSchema = z.strictObject({
+  personId: z.uuid(),
+  linkId: z.uuid(),
+});
+
 export const peopleQuerySchema = z.strictObject({
   q: z.string().trim().max(120).optional(),
   status: z
