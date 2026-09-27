@@ -99,6 +99,51 @@ test('sign-in language switch renders Spanish validation accessibly', async ({
   expect(await accessibilityViolations(page)).toEqual([]);
 });
 
+test('account creation and recovery screens follow the Spanish preference', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('combobox', { name: 'Language' }).selectOption('es');
+  await page.getByRole('link', { name: 'Crear una cuenta' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Cree su cuenta' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Debe tener al menos 13 años.', { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('checkbox', { name: /Términos de servicio/ }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('link', { name: /Inicie sesión/ }).click();
+  await page.getByRole('link', { name: '¿Olvidó su contraseña?' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Restablezca su contraseña' }),
+  ).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Enviar enlace de restablecimiento' })
+    .click();
+  await expect(page.getByText('Ingrese su correo electrónico.')).toBeVisible();
+  await page.goto('/email-link');
+  await expect(
+    page.getByRole('heading', { name: 'Reciba un enlace para iniciar sesión' }),
+  ).toBeVisible();
+  await page.goto('/reset/invalid-token');
+  await expect(
+    page.getByRole('heading', { name: 'Elija una contraseña nueva' }),
+  ).toBeVisible();
+  await page.goto('/verify/invalid-token');
+  await expect(
+    page.getByRole('heading', { name: 'Verifique su correo electrónico' }),
+  ).toBeVisible();
+  await page.goto('/mfa');
+  await expect(
+    page.getByRole('heading', { name: 'Inicie sesión de nuevo' }),
+  ).toBeVisible();
+  expect(await page.locator('html').getAttribute('lang')).toBe('es');
+  expect(await accessibilityViolations(page)).toEqual([]);
+});
+
 test('new account verifies its preview email and signs in', async ({
   page,
   request,

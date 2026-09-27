@@ -399,3 +399,11 @@
 - **Decision:** Name the actual Vite entry `app-*.js`, keep lazy chunks separately named, and apply the 200 KB gzip entry budget to `app-*.js`. Lazy message screens load on their routes.
 - **Why:** This measures the specification's entry budget without treating route-level code as initial JavaScript.
 - **Consequences / follow-ups:** The merged entry is 173 KB gzip; area chunks remain below their 250 KB gzip budget and must continue to be checked as new routes land.
+
+### DEC-053 — Localize generic account request confirmations in the browser
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 auth i18n
+- **Context:** Password-reset, magic-link and sign-up endpoints deliberately return generic confirmations to prevent account enumeration. Their English message bodies would remain untranslated when a user selects Spanish.
+- **Decision:** Show a fixed, translated generic confirmation for each successful request in the browser. Keep the server's generic response behavior and preserve error details for diagnosis.
+- **Why:** Both languages communicate the same privacy-preserving outcome without leaking whether an address has an account.
+- **Consequences / follow-ups:** Localize remaining auth screens and server-provided legal text before Task 16 acceptance.
