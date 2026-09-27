@@ -28,6 +28,7 @@ import {
   glCodeReplaceSchema,
   glCodeSchema,
 } from './gl-codes.js';
+import { runInstallmentChargeJob } from './installment-charge-job.js';
 import {
   installmentStaffActionSchema,
   installmentStaffListSchema,
@@ -101,6 +102,11 @@ export const moduleDefinition = {
   path: '/api/v1/finance',
   router: createFinanceRouter,
   jobs: [
+    {
+      name: 'installments.charge',
+      cron: '* * * * *',
+      run: runInstallmentChargeJob,
+    },
     {
       name: 'stripe.event',
       run: runFinanceStripeEventJob,
