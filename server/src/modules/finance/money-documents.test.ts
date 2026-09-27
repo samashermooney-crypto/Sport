@@ -97,4 +97,26 @@ describe('payer money PDFs', () => {
     await expect(other.invoice(invoice.id)).rejects.toThrow('not found');
     await expect(other.receipt(receipt.paymentId)).rejects.toThrow('not found');
   });
+  it('refuses unsupported glyphs instead of changing invoice text', async () => {
+    const invoice = await new PostgresInvoiceRepository(
+      database,
+      context,
+    ).issue({
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      source: 'staff',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'tuition',
+          description: 'Registration 🏀',
+          amountCents: 100,
+          refundable: true,
+        },
+      ],
+    });
+    await expect(
+      new PostgresMoneyDocuments(database, context).invoice(invoice.id),
+    ).rejects.toThrow('unsupported by the PDF font');
+  });
 });

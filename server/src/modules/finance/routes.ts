@@ -64,6 +64,7 @@ import {
   payoutJournalLines,
 } from './journal-export.js';
 import {
+  MoneyDocumentGlyphError,
   MoneyDocumentNotFoundError,
   MoneyDocumentUnavailableError,
   PostgresMoneyDocuments,
@@ -435,7 +436,8 @@ function sendError(response: Response, error: unknown): void {
           error instanceof CreditLedgerConflictError ||
           error instanceof TaxRateConflictError ||
           error instanceof StatementUnavailableError ||
-          error instanceof MoneyDocumentUnavailableError
+          error instanceof MoneyDocumentUnavailableError ||
+          error instanceof MoneyDocumentGlyphError
         ? 409
         : error instanceof InvoiceNotFoundError ||
             error instanceof AutopayAuthorizationNotFoundError ||

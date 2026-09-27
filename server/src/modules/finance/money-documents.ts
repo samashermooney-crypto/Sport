@@ -1,15 +1,14 @@
+import { inflateSync } from 'node:zlib';
+
+import * as fontkit from '@pdf-lib/fontkit';
 import { sql, type Kysely } from 'kysely';
-import {
-  PDFDocument,
-  StandardFonts,
-  rgb,
-  type PDFFont,
-  type PDFPage,
-} from 'pdf-lib';
+import { PDFDocument, rgb, type PDFPage } from 'pdf-lib';
 
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import { appendAuditEvent } from '../audit/service.js';
+
+import { openSansRegularDeflatedBase64 } from './open-sans-font.js';
 
 export class MoneyDocumentNotFoundError extends Error {
   constructor() {
@@ -19,6 +18,11 @@ export class MoneyDocumentNotFoundError extends Error {
 export class MoneyDocumentUnavailableError extends Error {
   constructor() {
     super('Money document cannot be reconciled');
+  }
+}
+export class MoneyDocumentGlyphError extends Error {
+  constructor() {
+    super('Money document contains text unsupported by the PDF font');
   }
 }
 
@@ -64,29 +68,15 @@ const dollars = (value: number): string => {
   return `${sign}$${Math.floor(abs / 100).toLocaleString('en-US')}.${String(abs % 100).padStart(2, '0')}`;
 };
 
-function pdfText(value: string, font: PDFFont): string {
-  return Array.from(value)
-    .map((char) => {
-      try {
-        font.encodeText(char);
-        return char;
-      } catch {
-        const simplified = char.normalize('NFKD').replaceAll(/\p{Mark}/gu, '');
-        try {
-          font.encodeText(simplified);
-          return simplified;
-        } catch {
-          return '?';
-        }
-      }
-    })
-    .join('');
-}
-
 async function render(title: string, sections: string[]): Promise<Uint8Array> {
   const document = await PDFDocument.create();
   document.setTitle(title);
-  const font = await document.embedFont(StandardFonts.Helvetica);
+  const fontBytes = inflateSync(
+    Buffer.from(openSansRegularDeflatedBase64, 'base64'),
+  );
+  const glyphFont = fontkit.create(fontBytes);
+  document.registerFontkit(fontkit);
+  const font = await document.embedFont(fontBytes, { subset: true });
   let page: PDFPage = document.addPage([612, 792]);
   let y = 744;
   const addPage = (): void => {
@@ -94,7 +84,12 @@ async function render(title: string, sections: string[]): Promise<Uint8Array> {
     y = 744;
   };
   const draw = (value: string, size = 11): void => {
-    const safe = pdfText(value, font);
+    const safe = value.replaceAll(/\s+/g, ' ');
+    for (const char of Array.from(safe)) {
+      const point = char.codePointAt(0);
+      if (point === undefined || !glyphFont.hasGlyphForCodePoint(point))
+        throw new MoneyDocumentGlyphError();
+    }
     const words = safe.split(/\s+/);
     let line = '';
     const flush = (): void => {
