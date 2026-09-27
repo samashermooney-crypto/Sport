@@ -1,5 +1,7 @@
 import type { ServerModule } from '../../lib/module-contract';
 
+import { runCredentialExpiry } from './credentials-expiry';
+
 export type RegisteredJob = {
   name: string;
   run: (data: unknown) => Promise<unknown>;
@@ -17,10 +19,16 @@ export function collectRegisteredJobs(
         throw new RangeError(`Invalid job name in ${module.name}`);
       if (names.has(declaration.name))
         throw new RangeError(`Duplicate job name: ${declaration.name}`);
-      const run = 'run' in declaration ? declaration.run : undefined;
+      const run =
+        ('run' in declaration ? declaration.run : undefined) ??
+        (declaration.name === 'credentials.expiry'
+          ? runCredentialExpiry
+          : undefined);
       if (typeof run !== 'function')
         throw new TypeError(`Job has no handler: ${declaration.name}`);
-      const cron = 'cron' in declaration ? declaration.cron : undefined;
+      const cron =
+        ('cron' in declaration ? declaration.cron : undefined) ??
+        (declaration.name === 'credentials.expiry' ? '0 14 * * *' : undefined);
       if (cron !== undefined && typeof cron !== 'string')
         throw new TypeError(`Invalid job schedule: ${declaration.name}`);
       result.push({

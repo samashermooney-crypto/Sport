@@ -9,6 +9,8 @@ import type { Storage } from '../../integrations/storage/storage';
 import { createStorageKey, sha256 } from '../../integrations/storage/storage';
 
 export type FilePurpose = 'image' | 'document' | 'import' | 'website_asset';
+export type FileSensitivity =
+  'public' | 'internal' | 'sensitive' | 'restricted';
 export interface FileRecord {
   id: string;
   orgId: string | null;
@@ -21,7 +23,7 @@ export interface FileRecord {
   sha256: string | null;
   width: number | null;
   height: number | null;
-  sensitivity: string;
+  sensitivity: FileSensitivity;
   createdBy: string;
   uploadState: 'pending' | 'complete' | 'rejected';
 }
@@ -31,6 +33,7 @@ export interface FileAuthorization {
     purpose: FilePurpose,
     ownerType?: string,
     ownerId?: string,
+    sensitivity?: FileSensitivity,
   ): Promise<boolean>;
   canDownload(context: OrgContext, file: FileRecord): Promise<boolean>;
 }
@@ -152,7 +155,7 @@ export class FilesService {
     bytes: number;
     ownerType?: string;
     ownerId?: string;
-    sensitivity?: string;
+    sensitivity?: FileSensitivity;
   }): Promise<{ fileId: string; uploadUrl: string }> {
     const rule = rules[input.purpose];
     if (
@@ -170,6 +173,7 @@ export class FilesService {
         input.purpose,
         input.ownerType,
         input.ownerId,
+        input.sensitivity,
       ))
     )
       throw new FilePermissionError();
@@ -230,6 +234,7 @@ export class FilesService {
         record.purpose,
         record.ownerType ?? undefined,
         record.ownerId ?? undefined,
+        record.sensitivity,
       ))
     )
       throw new FilePermissionError();
@@ -307,6 +312,7 @@ export class FilesService {
         record.purpose,
         record.ownerType ?? undefined,
         record.ownerId ?? undefined,
+        record.sensitivity,
       ))
     )
       throw new FilePermissionError();
@@ -332,6 +338,10 @@ export class FilesService {
       await sql`insert into audit_log (id, org_id, actor_account_id, action, entity_type, entity_id, changes) values (${randomUUID()}, ${context.orgId}, ${context.actor.accountId}, 'file.downloaded', 'file', ${fileId}, '{}'::jsonb)`.execute(
         trx,
       );
+      if (record.sensitivity === 'restricted')
+        await sql`insert into audit_log (id, org_id, actor_account_id, action, entity_type, entity_id, changes) values (${randomUUID()}, ${context.orgId}, ${context.actor.accountId}, 'file.restricted.read', 'file', ${fileId}, ${JSON.stringify({ purpose: record.purpose })}::jsonb)`.execute(
+          trx,
+        );
     });
     return { bytes: object.bytes, mime: record.mime };
   }
@@ -351,6 +361,8 @@ export class FilesService {
         trx,
       );
     });
+    if (record.sensitivity === 'restricted')
+      return `/api/v1/files/${fileId}/content`;
     const presigned = await this.storage.presignGet(
       record.storageKey,
       300,

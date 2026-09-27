@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
 
+import express from 'express';
 import pg from 'pg';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -11,15 +13,44 @@ import type { OrgContext } from '../../db/withOrg';
 import { SharpImageProcessor } from '../../integrations/storage/image-processor';
 import { MemoryStorage } from '../../integrations/storage/storage';
 
+import { createFilesAuthorization } from './module';
+import { createFilesRouter } from './routes';
 import type { FileAuthorization } from './service';
-import { FileValidationError, FilesService } from './service';
+import {
+  FilePermissionError,
+  FileValidationError,
+  FilesService,
+} from './service';
 
 const orgA = randomUUID();
 const orgB = randomUUID();
 const accountA = randomUUID();
 const accountB = randomUUID();
+const guardianAccount = randomUUID();
+const complianceAccount = randomUUID();
+const adminAccount = randomUUID();
+const unverifiedGuardianAccount = randomUUID();
+const personA = randomUUID();
+const personB = randomUUID();
+const injuryReportId = randomUUID();
 const contextA: OrgContext = { orgId: orgA, actor: { accountId: accountA } };
 const contextB: OrgContext = { orgId: orgB, actor: { accountId: accountB } };
+const guardianContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: guardianAccount },
+};
+const complianceContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: complianceAccount },
+};
+const adminContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: adminAccount },
+};
+const unverifiedGuardianContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: unverifiedGuardianAccount },
+};
 const storage = new MemoryStorage();
 const authorization: FileAuthorization = {
   canUpload: () => Promise.resolve(true),
@@ -48,12 +79,88 @@ beforeAll(async () => {
     await admin.query(
       `INSERT INTO accounts (id, email, first_name, last_name, date_of_birth)
        VALUES ($1, $2, 'File', 'Actor A', '1980-01-01'),
-              ($3, $4, 'File', 'Actor B', '1980-01-01')`,
+              ($3, $4, 'File', 'Actor B', '1980-01-01'),
+              ($5, $6, 'File', 'Guardian', '1980-01-01'),
+              ($7, $8, 'File', 'Compliance', '1980-01-01'),
+              ($9, $10, 'File', 'Admin', '1980-01-01'),
+              ($11, $12, 'File', 'Unverified', '1980-01-01')`,
       [
         accountA,
         `${accountA}@example.test`,
         accountB,
         `${accountB}@example.test`,
+        guardianAccount,
+        `${guardianAccount}@example.test`,
+        complianceAccount,
+        `${complianceAccount}@example.test`,
+        adminAccount,
+        `${adminAccount}@example.test`,
+        unverifiedGuardianAccount,
+        `${unverifiedGuardianAccount}@example.test`,
+      ],
+    );
+    await admin.query(
+      `INSERT INTO people (id, org_id, first_name, last_name, date_of_birth)
+       VALUES ($1, $2, 'Person', 'A', '2015-01-01'),
+              ($3, $4, 'Person', 'B', '2015-01-01')`,
+      [personA, orgA, personB, orgB],
+    );
+    await admin.query(
+      `INSERT INTO injury_reports (id, org_id, person_id, occurred_at, reported_by)
+       VALUES ($1, $2, $3, now(), $4)`,
+      [injuryReportId, orgA, personA, guardianAccount],
+    );
+    await admin.query(
+      `INSERT INTO org_memberships (id, org_id, account_id, status, joined_at)
+       VALUES ($1, $2, $3, 'active', now()),
+              ($4, $2, $5, 'active', now()),
+              ($6, $2, $7, 'active', now()),
+              ($8, $2, $9, 'active', now()),
+              ($10, $2, $11, 'active', now()),
+              ($12, $13, $14, 'active', now())`,
+      [
+        randomUUID(),
+        orgA,
+        accountA,
+        randomUUID(),
+        guardianAccount,
+        randomUUID(),
+        complianceAccount,
+        randomUUID(),
+        adminAccount,
+        randomUUID(),
+        unverifiedGuardianAccount,
+        randomUUID(),
+        orgB,
+        accountB,
+      ],
+    );
+    await admin.query(
+      `INSERT INTO role_assignments (id, org_id, account_id, role, scope_type, granted_by, pending_mfa)
+       VALUES ($1, $2, $3, 'owner', 'org', $3, false),
+              ($4, $2, $5, 'compliance', 'org', $3, false),
+              ($6, $2, $7, 'admin', 'org', $3, false)`,
+      [
+        randomUUID(),
+        orgA,
+        accountA,
+        randomUUID(),
+        complianceAccount,
+        randomUUID(),
+        adminAccount,
+      ],
+    );
+    await admin.query(
+      `INSERT INTO person_account_links (id, org_id, person_id, account_id, relationship, verified_at)
+       VALUES ($1, $2, $3, $4, 'guardian', now()),
+              ($5, $2, $3, $6, 'guardian', null)`,
+      [
+        randomUUID(),
+        orgA,
+        personA,
+        guardianAccount,
+        randomUUID(),
+        unverifiedGuardianAccount,
       ],
     );
   } finally {
@@ -173,5 +280,152 @@ describe('files tenancy and lifecycle', () => {
     await expect(
       service.readLocalContent(contextB, pending.fileId),
     ).rejects.toBeInstanceOf(FileValidationError);
+  });
+
+  it('allows verified guardians to upload person-owned restricted evidence and audits every authorized read', async () => {
+    const restrictedService = new FilesService(
+      storage,
+      createFilesAuthorization(database),
+      undefined,
+      createWithOrg(database),
+    );
+    const bytes = new TextEncoder().encode('%PDF-1.7 restricted evidence');
+    const pending = await restrictedService.beginUpload({
+      context: guardianContext,
+      purpose: 'document',
+      mime: 'application/pdf',
+      bytes: bytes.byteLength,
+      ownerType: 'person_credential',
+      ownerId: personA,
+      sensitivity: 'restricted',
+    });
+    await restrictedService.uploadLocalBytes(
+      guardianContext,
+      pending.fileId,
+      bytes,
+    );
+    await restrictedService.completeUpload(guardianContext, pending.fileId);
+
+    await expect(
+      restrictedService.beginUpload({
+        context: unverifiedGuardianContext,
+        purpose: 'document',
+        mime: 'application/pdf',
+        bytes: bytes.byteLength,
+        ownerType: 'person_credential',
+        ownerId: personA,
+        sensitivity: 'restricted',
+      }),
+    ).rejects.toBeInstanceOf(FilePermissionError);
+    await expect(
+      restrictedService.beginUpload({
+        context: guardianContext,
+        purpose: 'document',
+        mime: 'application/pdf',
+        bytes: bytes.byteLength,
+        ownerType: 'person_credential',
+        ownerId: personB,
+        sensitivity: 'restricted',
+      }),
+    ).rejects.toBeInstanceOf(FilePermissionError);
+
+    const clearanceBytes = new TextEncoder().encode('%PDF-1.7 clearance');
+    const clearance = await restrictedService.beginUpload({
+      context: guardianContext,
+      purpose: 'document',
+      mime: 'application/pdf',
+      bytes: clearanceBytes.byteLength,
+      ownerType: 'return_to_play_clearance',
+      ownerId: injuryReportId,
+      sensitivity: 'restricted',
+    });
+    await restrictedService.uploadLocalBytes(
+      guardianContext,
+      clearance.fileId,
+      clearanceBytes,
+    );
+    await restrictedService.completeUpload(guardianContext, clearance.fileId);
+    await expect(
+      restrictedService.download(complianceContext, clearance.fileId),
+    ).resolves.toBe(`/api/v1/files/${clearance.fileId}/content`);
+
+    await expect(
+      restrictedService.download(guardianContext, pending.fileId),
+    ).rejects.toBeInstanceOf(FileValidationError);
+    await expect(
+      restrictedService.download(adminContext, pending.fileId),
+    ).rejects.toBeInstanceOf(FileValidationError);
+    await expect(
+      restrictedService.download(contextB, pending.fileId),
+    ).rejects.toBeInstanceOf(FileValidationError);
+    await expect(
+      restrictedService.download(complianceContext, pending.fileId),
+    ).resolves.toBe(`/api/v1/files/${pending.fileId}/content`);
+
+    let requestContext = adminContext;
+    const app = express();
+    app.use(
+      createFilesRouter({
+        files: restrictedService,
+        context: () => Promise.resolve(requestContext),
+      }),
+    );
+    const server = createServer(app);
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const address = server.address();
+    if (!address || typeof address === 'string')
+      throw new Error('Files test server did not bind to a TCP port');
+    const requestContent = async (context: OrgContext) => {
+      requestContext = context;
+      const response = await fetch(
+        `http://127.0.0.1:${String(address.port)}/${pending.fileId}/content`,
+      );
+      return { status: response.status, body: await response.text() };
+    };
+    try {
+      for (const context of [
+        guardianContext,
+        adminContext,
+        unverifiedGuardianContext,
+        contextB,
+      ])
+        expect((await requestContent(context)).status).toBe(404);
+      const permittedRead = await requestContent(complianceContext);
+      expect(permittedRead).toEqual({
+        status: 200,
+        body: '%PDF-1.7 restricted evidence',
+      });
+      await expect(
+        restrictedService.readLocalContent(contextA, pending.fileId),
+      ).resolves.toMatchObject({ mime: 'application/pdf' });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+    }
+
+    const restrictedReads = await createWithOrg(database)(
+      complianceContext,
+      (trx) =>
+        trx
+          .selectFrom('audit_log')
+          .select(['actor_account_id', 'action'])
+          .where('entity_id', '=', pending.fileId)
+          .where('action', '=', 'file.restricted.read')
+          .execute(),
+    );
+    expect(restrictedReads).toHaveLength(2);
+    expect(restrictedReads).toEqual(
+      expect.arrayContaining([
+        { actor_account_id: complianceAccount, action: 'file.restricted.read' },
+        { actor_account_id: accountA, action: 'file.restricted.read' },
+      ]),
+    );
   });
 });

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
+import { FakeEmailSender } from '../../integrations/email/sender';
 import { FakeSmsSender } from '../../integrations/sms/sender';
 import { parseTwilioInbound } from '../../integrations/sms/sender';
 import type { SmsMessage } from '../../integrations/sms/sender';
@@ -73,7 +74,7 @@ beforeAll(async () => {
       ],
     );
     await admin.query(
-      'INSERT INTO organizations(id,slug,name,kind,timezone,status) VALUES ($1,$2,$3,$4,$5,$6)',
+      'INSERT INTO organizations(id,slug,name,kind,timezone,status,address) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)',
       [
         orgId,
         `delivery-${orgId.slice(0, 8)}`,
@@ -81,6 +82,12 @@ beforeAll(async () => {
         'club',
         'America/Chicago',
         'active',
+        JSON.stringify({
+          line1: '100 Test Way',
+          city: 'Chicago',
+          region: 'IL',
+          postalCode: '60601',
+        }),
       ],
     );
     await admin.query(
@@ -135,6 +142,49 @@ async function createDelivery(
 }
 
 describe('communications delivery lifecycle', () => {
+  it('records the email provider receipt for a sent campaign', async () => {
+    const campaign = await createCampaign(
+      context,
+      campaignDraft('email'),
+      'https://athlentry.test',
+      withOrg,
+    );
+    const emailSender = new FakeEmailSender();
+    await sendCampaign(
+      context,
+      campaign.id,
+      campaign.version,
+      {
+        email: emailSender,
+        sms: new FakeSmsSender(),
+        push: { send: () => Promise.resolve({ status: 'sent' as const }) },
+        appUrl: 'https://athlentry.test',
+      },
+      { now: new Date('2026-09-28T14:00:00Z'), runWithOrg: withOrg },
+    );
+    expect(emailSender.messages).toHaveLength(1);
+    const delivery = await withOrg(context, (trx) =>
+      trx
+        .selectFrom('message_deliveries')
+        .select(['id', 'status', 'provider_message_id'])
+        .where('campaign_id', '=', campaign.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(delivery).toMatchObject({
+      status: 'sent',
+      provider_message_id: 'fake-email-1',
+    });
+    const receipt = await withOrg(context, (trx) =>
+      trx
+        .selectFrom('provider_delivery_keys')
+        .select('delivery_id')
+        .where('tenant_org_id', '=', orgId)
+        .where('provider_id', '=', 'fake-email-1')
+        .executeTakeFirstOrThrow(),
+    );
+    expect(receipt.delivery_id).toBe(delivery.id);
+  });
+
   it('schedules opted-in SMS at 22:00 recipient time and sends at 08:00', async () => {
     const draft = campaignDraft('sms');
     const campaign = await createCampaign(
@@ -145,10 +195,10 @@ describe('communications delivery lifecycle', () => {
     );
     const sms = new FakeSmsSender();
     const dependencies = {
-      email: { send: () => Promise.resolve() },
+      email: { send: () => Promise.resolve({ providerId: 'email-test' }) },
       sms,
       push: {
-        send: () => Promise.resolve('sent' as const),
+        send: () => Promise.resolve({ status: 'sent' as const }),
       },
       appUrl: 'https://athlentry.test',
     };
@@ -202,14 +252,14 @@ describe('communications delivery lifecycle', () => {
     );
     const attempts: string[] = [];
     const dependencies = {
-      email: { send: () => Promise.resolve() },
+      email: { send: () => Promise.resolve({ providerId: 'email-test' }) },
       sms: {
         send(message: SmsMessage) {
           attempts.push(message.to);
           return Promise.reject(new Error('Temporary provider failure'));
         },
       },
-      push: { send: () => Promise.resolve('sent' as const) },
+      push: { send: () => Promise.resolve({ status: 'sent' as const }) },
       appUrl: 'https://athlentry.test',
     };
     const firstAt = new Date('2026-09-28T14:00:00Z');

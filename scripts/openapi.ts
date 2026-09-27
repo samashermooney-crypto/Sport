@@ -1,6 +1,7 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 
 import prettier from 'prettier';
+import * as ts from 'typescript';
 import { z } from 'zod';
 
 import { serverModules } from '../server/src/generated/registry';
@@ -21,6 +22,7 @@ export type OpenApiRoute = {
   tags?: string[];
   public?: boolean;
   query?: Record<string, z.ZodType>;
+  idempotencyKey?: boolean;
   contentType?: string;
   binary?: boolean;
 };
@@ -378,6 +380,7 @@ const orgRoutes: OpenApiRoute[] = [
     body: orgs.orgInvitationSchema,
     response: orgs.orgInvitationResponseSchema,
     status: 201,
+    idempotencyKey: true,
   },
   {
     method: 'post',
@@ -398,6 +401,7 @@ const orgRoutes: OpenApiRoute[] = [
     summary: 'Resend organization invitation',
     response: orgs.orgInvitationResponseSchema,
     status: 201,
+    idempotencyKey: true,
   },
   {
     method: 'delete',
@@ -436,7 +440,9 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
       in: 'path',
       required: true,
       schema:
-        name === 'id' ? { type: 'string', format: 'uuid' } : { type: 'string' },
+        name === 'id' || name.endsWith('Id')
+          ? { type: 'string', format: 'uuid' }
+          : { type: 'string' },
     })),
     ...Object.entries(route.query ?? {}).map(([name, schema]) => ({
       name,
@@ -444,6 +450,16 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
       required: !schema.safeParse(undefined).success,
       schema: jsonSchema(schema),
     })),
+    ...(route.idempotencyKey
+      ? [
+          {
+            name: 'Idempotency-Key',
+            in: 'header',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ]
+      : []),
   ];
   const status = String(route.status ?? 200);
   const result: Record<string, unknown> = {
@@ -491,25 +507,81 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
 async function declaredRouteKeys(): Promise<Set<string>> {
   const keys = new Set<string>();
   for (const module of serverModules) {
-    if (!module.router) continue;
-    const source = await readFile(
-      `server/src/modules/${module.name}/routes.ts`,
-      'utf8',
-    );
-    for (const match of source.matchAll(
-      /router\.(get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]/g,
-    )) {
-      const method = match[1];
-      const suffix = match[2];
-      if (!method || !suffix) continue;
-      const path = `${module.path}${suffix === '/' ? '' : suffix}`.replace(
-        /:([a-zA-Z][a-zA-Z0-9_]*)/g,
-        '{$1}',
+    if (module.router) {
+      const primaryPath = `server/src/modules/${module.name}/routes.ts`;
+      const primarySource = ts.createSourceFile(
+        primaryPath,
+        await readFile(primaryPath, 'utf8'),
+        ts.ScriptTarget.Latest,
+        true,
       );
-      keys.add(`${method} ${path}`);
+      collectRouteCalls(primarySource, module.path, keys);
+    }
+    for (const extra of module.extraRouters ?? []) {
+      const directory = `server/src/modules/${module.name}`;
+      const filenames = (await readdir(directory)).filter(
+        (name) => name.endsWith('.ts') && !name.endsWith('.test.ts'),
+      );
+      let foundFactory = false;
+      for (const filename of filenames) {
+        const path = `${directory}/${filename}`;
+        const code = await readFile(path, 'utf8');
+        const sourceFile = ts.createSourceFile(
+          path,
+          code,
+          ts.ScriptTarget.Latest,
+          true,
+        );
+        for (const declaration of sourceFile.statements) {
+          if (
+            !ts.isFunctionDeclaration(declaration) ||
+            declaration.name?.text !== extra.router.name ||
+            !declaration.body
+          )
+            continue;
+          foundFactory = true;
+          collectRouteCalls(declaration.body, extra.path, keys);
+        }
+      }
+      if (!foundFactory)
+        throw new Error(
+          `Extra router source not found: ${module.name}.${extra.router.name}`,
+        );
     }
   }
   return keys;
+}
+
+function collectRouteCalls(
+  node: ts.Node,
+  mountPath: string,
+  keys: Set<string>,
+): void {
+  const visit = (current: ts.Node): void => {
+    if (
+      ts.isCallExpression(current) &&
+      ts.isPropertyAccessExpression(current.expression) &&
+      ts.isIdentifier(current.expression.expression) &&
+      current.expression.expression.text === 'router' &&
+      ['get', 'post', 'put', 'patch', 'delete'].includes(
+        current.expression.name.text,
+      )
+    ) {
+      const argument = current.arguments[0];
+      if (!argument || !ts.isStringLiteral(argument))
+        throw new Error(
+          `OpenAPI cannot inspect a dynamic ${current.expression.name.text} route in ${current.getSourceFile().fileName}`,
+        );
+      const suffix = argument.text;
+      const path = `${mountPath}${suffix === '/' ? '' : suffix}`.replace(
+        /:([a-zA-Z][a-zA-Z0-9_]*)/g,
+        '{$1}',
+      );
+      keys.add(`${current.expression.name.text} ${path}`);
+    }
+    ts.forEachChild(current, visit);
+  };
+  visit(node);
 }
 
 const moduleRoutes = serverModules.flatMap((module) => {
@@ -533,8 +605,12 @@ const routes: OpenApiRoute[] = [
 ];
 const keys = new Set(routes.map((route) => `${route.method} ${route.path}`));
 if (keys.size !== routes.length) throw new Error('Duplicate OpenAPI operation');
-for (const key of await declaredRouteKeys())
+const declaredKeys = await declaredRouteKeys();
+for (const key of declaredKeys)
   if (!keys.has(key)) throw new Error(`Route missing from OpenAPI: ${key}`);
+for (const key of keys)
+  if (key !== 'get /healthz' && !declaredKeys.has(key))
+    throw new Error(`OpenAPI operation has no route: ${key}`);
 const paths: Record<string, Record<string, unknown>> = {};
 for (const route of routes) {
   const operations = paths[route.path] ?? {};
