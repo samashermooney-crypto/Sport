@@ -12,6 +12,7 @@ Ready for integration: local `385d96a..d63eaba` — payer-owned PaymentIntent HT
 Ready for integration: local `d63eaba..c609ac2` — ambiguous Stripe confirmation resubmission guard; queue work continues.
 Ready for integration: local `d47d120..409f99c` — direct participant access fix and versioned installment-template finance API; queue work continues.
 Ready for integration: local `409f99c..189e0e9` — Luna finance handoff and idempotent `account.updated` Connect sync handler; queue work continues.
+Ready for integration: local `1297355..a6a5ed4` — unique frozen checkout-to-invoice binding before PaymentIntent; queue work continues.
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
@@ -40,7 +41,7 @@ Gateway review: test-only keys and events enforced; raw webhook bytes verified; 
 Gateway review: no live keys, no real payment or email sent; test-mode smoke script needs operator test credentials and onboarding.
 Gateway gate: 83 tests, typecheck, lint, build, registry/OpenAPI/codegen freshness green; no gateway screens for Playwright.
 Additional gate: 267 tests passed/1 skipped against isolated Postgres, typecheck, lint and build green; no affected mounted Playwright screens or generated inputs.
-Current gate: 535 tests passed/1 skipped with isolated Postgres and stripe-mock; typecheck, lint, build, and Playwright 24 passed/4 skipped on Chromium/WebKit mobile. A-owned registry/OpenAPI/codegen regeneration remains for integration.
+Current gate: 537 tests passed/1 skipped with isolated Postgres and stripe-mock; typecheck, lint, build, and Playwright 24 passed/4 skipped on Chromium/WebKit mobile. A-owned registry/OpenAPI/codegen regeneration remains for integration.
 Current review: Refund approval hashes bind requester, proposal, destination and key; checkout attempts serialize different keys before Stripe, and payout exports require exact reconciliation.
 Current review: Tenant finance data uses `withOrg`; account-wide payer methods use the authenticated account; no live keys, real charges or external messages were used.
 Current review: Frozen charge terms must be persisted with the checkout snapshot before the payment route is mounted; multi-payment refund allocation and dispute evidence remain in the queue.
