@@ -86,20 +86,18 @@ afterAll(async () => {
 
 describe('organization role changes', () => {
   it('versions, audits and revokes a changed member while hiding other tenants', async () => {
-    const issued = await database
-      .transaction()
-      .execute((trx) =>
-        issueSession(
-          trx,
-          {
-            accountId: registrar,
-            kind: 'cookie',
-            client: 'web',
-            privileged: false,
-          },
-          now,
-        ),
-      );
+    const issued = await database.transaction().execute((trx) =>
+      issueSession(
+        trx,
+        {
+          accountId: registrar,
+          kind: 'cookie',
+          client: 'web',
+          privileged: false,
+        },
+        now,
+      ),
+    );
     await expect(
       setOrgMemberRoles(database, {
         orgId: outsideOrgId,
