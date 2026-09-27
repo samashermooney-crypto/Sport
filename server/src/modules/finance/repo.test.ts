@@ -11,6 +11,7 @@ import type { OrgContext } from '../../db/withOrg.js';
 
 import type { ConnectAccount } from './connect.js';
 import { PostgresConnectAccountRepository } from './repo.js';
+import { resolveConnectAccountOrg } from './resolve-connect-account.js';
 
 let database: Kysely<DB>;
 let actor: OrgContext;
@@ -92,6 +93,34 @@ describe('Postgres Connect account repository', () => {
     };
     await repository.update(ready);
     expect(await repository.load(actor.orgId)).toEqual(ready);
+    const stripeAccount = {
+      id: account.stripeAccountId,
+      orgId: actor.orgId,
+      chargesEnabled: true,
+      payoutsEnabled: true,
+      detailsSubmitted: true,
+      requirements: { currentlyDue: [], disabledReason: null },
+    };
+    const gateway = { retrieveAccount: () => Promise.resolve(stripeAccount) };
+    expect(
+      await resolveConnectAccountOrg(
+        database,
+        actor.actor.accountId,
+        gateway,
+        account.stripeAccountId,
+      ),
+    ).toBe(actor.orgId);
+    await expect(
+      resolveConnectAccountOrg(
+        database,
+        actor.actor.accountId,
+        {
+          retrieveAccount: () =>
+            Promise.resolve({ ...stripeAccount, orgId: other.orgId }),
+        },
+        account.stripeAccountId,
+      ),
+    ).rejects.toThrow();
     const row = await createWithOrg(database)(actor, (trx) =>
       trx
         .selectFrom('payment_accounts')

@@ -123,6 +123,7 @@ export class StripeSdkGateway implements PaymentsGateway {
     const account = await this.stripe.accounts.retrieve(accountId);
     return {
       id: account.id,
+      orgId: account.metadata?.org_id ?? null,
       chargesEnabled: account.charges_enabled,
       payoutsEnabled: account.payouts_enabled,
       detailsSubmitted: account.details_submitted,

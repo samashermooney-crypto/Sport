@@ -18,6 +18,7 @@ export interface PaymentsGateway {
   createExpressLoginLink(accountId: string): Promise<{ url: string }>;
   retrieveAccount(accountId: string): Promise<{
     id: string;
+    orgId?: string | null;
     chargesEnabled: boolean;
     payoutsEnabled: boolean;
     detailsSubmitted: boolean;

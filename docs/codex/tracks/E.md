@@ -11,8 +11,9 @@ Requests to other tracks: B: confirm whether `generateInstallments` must support
 Requests to other tracks: B: extend `deriveInvoiceState` with disputed-lost cents separate from refunds, while active dispute cents stay excluded from collectible balance; E will add invoice/dispute columns in migration 1015 (2026-09-26).
 Requests to other tracks: A: record the Stripe transfer-reversal limit as a `20 §10` implementation constraint in DECISIONS.md: Stripe permits reversal only up to the unreversed transfer, so full dispute amount plus fee can exceed the legal reversal amount; E will record unrecovered liability instead of claiming the fee was debited (2026-09-26).
 Requests to other tracks: A: run registry/OpenAPI generation after merging E's `finance/module.ts`; it adds `/api/v1/finance/orgs/{orgId}/offline-payments` and `finance.manage` without editing A-owned generated files (2026-09-26).
+Requests to other tracks: A: provide a durable system actor account ID for finance worker jobs and mount Stripe raw webhook router before JSON parsing; E handlers require that actor for org-scoped audit and will register jobs after the contract lands (2026-09-26).
 Blocked on: None; schema spine and test factories are on `rebuild/trunk`.
-Next: reconcile ambiguous dispute movements, add evidence workflow and staff payment routes, then register finance jobs/handlers once Track A mounts the worker.
+Next: reconcile ambiguous dispute movements and add evidence workflow; register finance jobs/handlers once Track A provides the worker actor and webhook mount.
 Gateway: Stripe SDK 22.6.2 dependency-only commit `cf83f4c`; real SDK adapter covers Connect, Customers, payment methods, intents, refunds, reversals, disputes, payouts, Billing and domains.
 Gateway tests: 36 passed, including stripe-mock Express account and destination PaymentIntent; typecheck and targeted lint green.
 Gateway review: test-only keys and events enforced; raw webhook bytes verified; exact destination fee and idempotency key asserted.
@@ -59,3 +60,4 @@ Dispute accounting foundation: migration 1015 tracks active and lost invoice cen
 Dispute liability: migration 1016 records zero-available-transfer shortfalls; reversal claims cap at Stripe's unreversed transfer, fence ambiguous calls, restore only reinstated funds on a win, and keep liability shortfalls visible; 2 service and 1 Postgres tests pass.
 Offline payments: migration 1017 assigns org receipt numbers; `finance/offline-payments.ts` records cash/check/external payments, one invoice allocation and audit atomically, with exact replay and pending-intent overcommit guards; 1 concurrent Postgres test passes.
 Finance route: owned `finance/module.ts` and `routes.ts` expose offline receipts with session, origin, active finance-role/MFA and idempotency gates plus OpenAPI metadata; 2 Postgres tests pass, generated registry awaits Track A integration.
+Connect event resolution: Stripe account metadata now supplies org ID, then `resolve-connect-account.ts` verifies the account inside `withOrg` before payout/dispute/account event handling; 2 Connect repository tests pass.
