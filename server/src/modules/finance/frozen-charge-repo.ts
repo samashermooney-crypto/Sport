@@ -12,7 +12,7 @@ import {
 
 const cents = z.number().int().nonnegative();
 const rate = z.object({ bps: cents.max(10_000), fixedCents: cents });
-const terms = z.object({
+export const frozenPaymentTermsSchema = z.object({
   applicationRate: rate,
   serviceFee: z.discriminatedUnion('enabled', [
     z.object({ enabled: z.literal(false) }),
@@ -31,7 +31,7 @@ const terms = z.object({
   ]),
   statementDescriptorSuffix: z.string().trim().min(1).max(22).optional(),
 });
-const snapshotSchema = z.object({
+export const frozenChargeSnapshotSchema = z.object({
   subtotalCents: cents,
   discountCents: cents,
   aidCents: cents,
@@ -40,7 +40,7 @@ const snapshotSchema = z.object({
   taxCents: cents,
   invoiceTotalCents: cents,
   chargeNowCents: cents.positive(),
-  paymentTerms: terms,
+  paymentTerms: frozenPaymentTermsSchema,
 });
 
 interface InvoiceRow {
@@ -102,7 +102,9 @@ export class PostgresFrozenChargeReader implements FrozenChargeReader {
         checkout.expires_at.getTime() <= Date.now()
       )
         throw new Error('Checkout is not payable');
-      const snapshot = snapshotSchema.parse(checkout.pricing_snapshot);
+      const snapshot = frozenChargeSnapshotSchema.parse(
+        checkout.pricing_snapshot,
+      );
       const invoiceResult = await sql<InvoiceRow>`
         SELECT account_id, source, status, subtotal_cents, discount_cents,
           service_fee_cents, tax_cents, total_cents, credit_applied_cents,
