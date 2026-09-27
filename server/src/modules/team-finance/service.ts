@@ -1,17 +1,18 @@
+import { createHash } from 'node:crypto';
+
 import { generateInstallments } from '@shared/algorithms/installments';
 import { newId } from '@shared/ids';
-import { createHash } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 
+import { getDatabase } from '../../db/kysely';
 import type { DB } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
-import { getDatabase } from '../../db/kysely';
 import { appendAuditEvent } from '../audit/service';
-import { systemWorkerActorId } from '../jobs/credentials-expiry';
-import { PostgresInvoiceRepository } from '../finance/invoice-repo';
 import { PostgresGlCodes } from '../finance/gl-codes';
 import { PostgresInstallmentTemplates } from '../finance/installment-templates';
+import { PostgresInvoiceRepository } from '../finance/invoice-repo';
+import { systemWorkerActorId } from '../jobs/credentials-expiry';
 
 export class TeamFinanceNotFoundError extends Error {
   readonly status = 404;
@@ -27,11 +28,17 @@ export class TeamFinanceAccessError extends Error {
 }
 
 function dateOnly(value: Date | string): string {
-  return value instanceof Date ? value.toISOString().slice(0, 10) : value.slice(0, 10);
+  return value instanceof Date
+    ? value.toISOString().slice(0, 10)
+    : value.slice(0, 10);
 }
 
 function stableUuid(value: string): string {
-  const hex = createHash('sha256').update(value).digest('hex').slice(0, 32).split('');
+  const hex = createHash('sha256')
+    .update(value)
+    .digest('hex')
+    .slice(0, 32)
+    .split('');
   hex[12] = '5';
   hex[16] = ((Number.parseInt(hex[16] ?? '8', 16) & 3) | 8).toString(16);
   const compact = hex.join('');
@@ -71,7 +78,9 @@ export async function createTeamFeeAssessment(
           team_season_id: input.teamSeasonId,
           created_by: context.actor.accountId,
         })
-        .onConflict((oc) => oc.columns(['org_id', 'team_season_id']).doNothing())
+        .onConflict((oc) =>
+          oc.columns(['org_id', 'team_season_id']).doNothing(),
+        )
         .returning('id')
         .executeTakeFirst();
       ledger =
@@ -94,7 +103,15 @@ export async function createTeamFeeAssessment(
         installment_template_id: input.installmentTemplateId ?? null,
         created_by: context.actor.accountId,
       })
-      .returning(['id', 'team_season_id', 'per_player_cents', 'due_on', 'installment_template_id', 'status', 'version'])
+      .returning([
+        'id',
+        'team_season_id',
+        'per_player_cents',
+        'due_on',
+        'installment_template_id',
+        'status',
+        'version',
+      ])
       .executeTakeFirstOrThrow();
     await appendAuditEvent(trx, context, {
       action: 'team_fee_assessment.created',
@@ -137,7 +154,15 @@ export async function listTeamFeeAssessments(
   return createWithOrg(database)(context, async (trx) => {
     const rows = await trx
       .selectFrom('team_fee_assessments')
-      .select(['id', 'team_season_id', 'per_player_cents', 'due_on', 'installment_template_id', 'status', 'version'])
+      .select([
+        'id',
+        'team_season_id',
+        'per_player_cents',
+        'due_on',
+        'installment_template_id',
+        'status',
+        'version',
+      ])
       .where('org_id', '=', context.orgId)
       .where('team_season_id', '=', teamSeasonId)
       .orderBy('created_at', 'desc')
@@ -155,7 +180,14 @@ export async function issueTeamFeeAssessment(
   const assessment = await scoped(context, async (trx) =>
     trx
       .selectFrom('team_fee_assessments')
-      .select(['id', 'team_season_id', 'per_player_cents', 'due_on', 'installment_template_id', 'status'])
+      .select([
+        'id',
+        'team_season_id',
+        'per_player_cents',
+        'due_on',
+        'installment_template_id',
+        'status',
+      ])
       .where('org_id', '=', context.orgId)
       .where('id', '=', assessmentId)
       .executeTakeFirst(),
@@ -220,19 +252,30 @@ export async function issueTeamFeeAssessment(
         AND roster.team_season_id = ${assessment.team_season_id}::uuid
         AND roster.status = 'active'
       ORDER BY roster.person_id, link.created_at, link.account_id
-    `.execute(trx).then((result) => result.rows),
+    `
+      .execute(trx)
+      .then((result) => result.rows),
   );
   if (!roster.length)
-    throw new TeamFinanceConflictError('No active rostered players have a verified responsible guardian');
-  let template: Awaited<ReturnType<PostgresInstallmentTemplates['list']>>[number] | undefined;
-  if (assessment.installment_template_id) {
-    template = (await new PostgresInstallmentTemplates(database, context).list(true)).find(
-      (item) => item.id === assessment.installment_template_id,
+    throw new TeamFinanceConflictError(
+      'No active rostered players have a verified responsible guardian',
     );
-    if (!template) throw new TeamFinanceConflictError('Installment template is no longer active');
+  let template:
+    | Awaited<ReturnType<PostgresInstallmentTemplates['list']>>[number]
+    | undefined;
+  if (assessment.installment_template_id) {
+    template = (
+      await new PostgresInstallmentTemplates(database, context).list(true)
+    ).find((item) => item.id === assessment.installment_template_id);
+    if (!template)
+      throw new TeamFinanceConflictError(
+        'Installment template is no longer active',
+      );
   }
   const glCodes = new PostgresGlCodes(database, context);
-  let feeGlCode = (await glCodes.list()).find((item) => item.code === 'TEAM_FEES');
+  let feeGlCode = (await glCodes.list()).find(
+    (item) => item.code === 'TEAM_FEES',
+  );
   if (!feeGlCode) {
     feeGlCode = await glCodes.create(
       { code: 'TEAM_FEES', name: 'Team fees', kind: 'income' },
@@ -295,10 +338,18 @@ export async function issueTeamFeeAssessment(
         },
         dateOnly(assessment.due_on),
       );
-      if (!plan) throw new TeamFinanceConflictError('Installment template produces no future payment dates');
+      if (!plan)
+        throw new TeamFinanceConflictError(
+          'Installment template produces no future payment dates',
+        );
       const installments = [
         ...(plan.depositCents > 0
-          ? [{ dueOn: dateOnly(assessment.due_on), amountCents: plan.depositCents }]
+          ? [
+              {
+                dueOn: dateOnly(assessment.due_on),
+                amountCents: plan.depositCents,
+              },
+            ]
           : []),
         ...plan.installments,
       ];
@@ -314,7 +365,9 @@ export async function issueTeamFeeAssessment(
               due_on: item.dueOn,
               amount_cents: item.amountCents,
             })
-            .onConflict((oc) => oc.columns(['org_id', 'invoice_id', 'sequence']).doNothing())
+            .onConflict((oc) =>
+              oc.columns(['org_id', 'invoice_id', 'sequence']).doNothing(),
+            )
             .execute();
         }
       });
@@ -325,12 +378,14 @@ export async function issueTeamFeeAssessment(
         .values({
           org_id: context.orgId,
           assessment_id: assessmentId,
-          team_ledger_id: (await trx
-            .selectFrom('team_ledgers')
-            .select('id')
-            .where('org_id', '=', context.orgId)
-            .where('team_season_id', '=', assessment.team_season_id)
-            .executeTakeFirstOrThrow()).id,
+          team_ledger_id: (
+            await trx
+              .selectFrom('team_ledgers')
+              .select('id')
+              .where('org_id', '=', context.orgId)
+              .where('team_season_id', '=', assessment.team_season_id)
+              .executeTakeFirstOrThrow()
+          ).id,
           person_id: player.person_id,
           household_id: player.household_id,
           account_id: player.account_id,
@@ -338,7 +393,9 @@ export async function issueTeamFeeAssessment(
           invoice_line_id: invoiceLine.id,
           amount_cents: assessment.per_player_cents,
         })
-        .onConflict((oc) => oc.columns(['org_id', 'assessment_id', 'person_id']).doNothing())
+        .onConflict((oc) =>
+          oc.columns(['org_id', 'assessment_id', 'person_id']).doNothing(),
+        )
         .execute();
     });
     invoices.push({
@@ -361,7 +418,9 @@ export async function issueTeamFeeAssessment(
         action: 'team_fee_assessment.issued',
         entityType: 'team_fee_assessment',
         entityId: assessmentId,
-        changes: { status: { tier: 'internal', before: 'draft', after: 'issued' } },
+        changes: {
+          status: { tier: 'internal', before: 'draft', after: 'issued' },
+        },
       });
   });
   return { assessmentId, issued: invoices.length, invoices };
@@ -382,15 +441,28 @@ export async function getTeamLedger(
     if (!ledger) throw new TeamFinanceNotFoundError('Team ledger not found');
     const rows = await trx
       .selectFrom('team_ledger_entries')
-      .select(['id', 'direction', 'category', 'amount_cents', 'occurred_on', 'memo', 'source', 'created_at'])
+      .select([
+        'id',
+        'direction',
+        'category',
+        'amount_cents',
+        'occurred_on',
+        'memo',
+        'source',
+        'created_at',
+      ])
       .where('org_id', '=', context.orgId)
       .where('team_ledger_id', '=', ledger.id)
       .orderBy('occurred_on', 'desc')
       .orderBy('created_at', 'desc')
       .limit(500)
       .execute();
-    const incomeCents = rows.filter((row) => row.direction === 'income').reduce((sum, row) => sum + row.amount_cents, 0);
-    const expenseCents = rows.filter((row) => row.direction === 'expense').reduce((sum, row) => sum + row.amount_cents, 0);
+    const incomeCents = rows
+      .filter((row) => row.direction === 'income')
+      .reduce((sum, row) => sum + row.amount_cents, 0);
+    const expenseCents = rows
+      .filter((row) => row.direction === 'expense')
+      .reduce((sum, row) => sum + row.amount_cents, 0);
     return {
       teamSeasonId,
       budgetCents: ledger.budget_cents,
@@ -433,7 +505,8 @@ export async function createManualLedgerEntry(
       .forUpdate()
       .executeTakeFirst();
     if (!ledger) throw new TeamFinanceNotFoundError('Team ledger not found');
-    if (ledger.status !== 'open') throw new TeamFinanceConflictError('Team ledger is closed');
+    if (ledger.status !== 'open')
+      throw new TeamFinanceConflictError('Team ledger is closed');
     const row = await trx
       .insertInto('team_ledger_entries')
       .values({
@@ -497,7 +570,10 @@ export async function createReimbursementRequest(
           .where('revoked_at', 'is', null)
           .executeTakeFirst()
       : null;
-    if (!staff || !self) throw new TeamFinanceAccessError('Active team staff relationship required');
+    if (!staff || !self)
+      throw new TeamFinanceAccessError(
+        'Active team staff relationship required',
+      );
     const receipt = await trx
       .selectFrom('files')
       .select('id')
@@ -507,16 +583,25 @@ export async function createReimbursementRequest(
       .where('upload_state', '=', 'complete')
       .where('deleted_at', 'is', null)
       .where('sensitivity', 'in', ['internal', 'sensitive'])
-      .where('mime', 'in', ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'])
+      .where('mime', 'in', [
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+      ])
       .executeTakeFirst();
-    if (!receipt) throw new TeamFinanceAccessError('A completed receipt owned by the requester is required');
+    if (!receipt)
+      throw new TeamFinanceAccessError(
+        'A completed receipt owned by the requester is required',
+      );
     const ledger = await trx
       .selectFrom('team_ledgers')
       .select(['id', 'status'])
       .where('org_id', '=', context.orgId)
       .where('team_season_id', '=', input.teamSeasonId)
       .executeTakeFirst();
-    if (!ledger || ledger.status !== 'open') throw new TeamFinanceNotFoundError('Team ledger not found');
+    if (!ledger || ledger.status !== 'open')
+      throw new TeamFinanceNotFoundError('Team ledger not found');
     const row = await trx
       .insertInto('reimbursement_requests')
       .values({
@@ -553,17 +638,21 @@ export async function createReimbursementRequest(
   });
 }
 
-function presentReimbursement(row: {
-  id: string;
-  requester_account_id: string;
-  requester_person_id: string;
-  amount_cents: number;
-  category: string;
-  memo: string;
-  receipt_file_id: string;
-  status: string;
-  decision_reason: string | null;
-}, teamSeasonId: string, version = 1) {
+function presentReimbursement(
+  row: {
+    id: string;
+    requester_account_id: string;
+    requester_person_id: string;
+    amount_cents: number;
+    category: string;
+    memo: string;
+    receipt_file_id: string;
+    status: string;
+    decision_reason: string | null;
+  },
+  teamSeasonId: string,
+  version = 1,
+) {
   return {
     id: row.id,
     teamSeasonId,
@@ -609,7 +698,9 @@ export async function listReimbursementRequests(
       .where('ledger.team_season_id', '=', teamSeasonId)
       .orderBy('request.created_at', 'desc')
       .execute();
-    return rows.map((row) => presentReimbursement(row, row.team_season_id, row.version));
+    return rows.map((row) =>
+      presentReimbursement(row, row.team_season_id, row.version),
+    );
   });
 }
 
@@ -617,7 +708,11 @@ export async function decideReimbursement(
   database: Kysely<DB>,
   context: OrgContext,
   reimbursementId: string,
-  input: { decision: 'approve' | 'reject'; reason?: string | null | undefined; expectedVersion: number },
+  input: {
+    decision: 'approve' | 'reject';
+    reason?: string | null | undefined;
+    expectedVersion: number;
+  },
   now = new Date(),
 ) {
   return createWithOrg(database)(context, async (trx) => {
@@ -646,11 +741,19 @@ export async function decideReimbursement(
       .where('request.id', '=', reimbursementId)
       .forUpdate()
       .executeTakeFirst();
-    if (!request) throw new TeamFinanceNotFoundError('Reimbursement request not found');
-    if (request.status !== 'submitted' || request.version !== input.expectedVersion)
-      throw new TeamFinanceConflictError('Reimbursement request changed or is already decided');
+    if (!request)
+      throw new TeamFinanceNotFoundError('Reimbursement request not found');
+    if (
+      request.status !== 'submitted' ||
+      request.version !== input.expectedVersion
+    )
+      throw new TeamFinanceConflictError(
+        'Reimbursement request changed or is already decided',
+      );
     if (input.decision === 'reject' && !input.reason?.trim())
-      throw new RangeError('A reason is required when rejecting a reimbursement');
+      throw new RangeError(
+        'A reason is required when rejecting a reimbursement',
+      );
     let ledgerEntryId: string | null = null;
     if (input.decision === 'approve') {
       ledgerEntryId = newId();
@@ -689,7 +792,8 @@ export async function decideReimbursement(
       .where('version', '=', input.expectedVersion)
       .returning(['status', 'version', 'decision_reason'])
       .executeTakeFirst();
-    if (!updated) throw new TeamFinanceConflictError('Reimbursement request changed');
+    if (!updated)
+      throw new TeamFinanceConflictError('Reimbursement request changed');
     await appendAuditEvent(trx, context, {
       action: `reimbursement.${nextStatus}`,
       entityType: 'reimbursement_request',
@@ -720,7 +824,10 @@ export async function syncPaidTeamFees(
   orgId: string,
   now = new Date(),
 ) {
-  const context: OrgContext = { orgId, actor: { accountId: systemWorkerActorId } };
+  const context: OrgContext = {
+    orgId,
+    actor: { accountId: systemWorkerActorId },
+  };
   return createWithOrg(database)(context, async (trx) => {
     const result = await sql<{
       id: string;
@@ -772,7 +879,10 @@ export async function syncPaidTeamFees(
 
 export async function runTeamFeeLedgerJob(): Promise<{ created: number }> {
   const database = getDatabase();
-  const orgs = await database.selectFrom('organizations').select('id').execute();
+  const orgs = await database
+    .selectFrom('organizations')
+    .select('id')
+    .execute();
   let created = 0;
   for (const organization of orgs) {
     created += (await syncPaidTeamFees(database, organization.id)).created;

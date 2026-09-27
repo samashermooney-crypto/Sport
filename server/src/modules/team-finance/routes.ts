@@ -9,17 +9,7 @@ import {
   requireAnyRole,
   sendModuleError,
 } from '../compliance/access';
-import {
-  createManualLedgerEntry,
-  createReimbursementRequest,
-  createTeamFeeAssessment,
-  decideReimbursement,
-  getTeamLedger,
-  issueTeamFeeAssessment,
-  listReimbursementRequests,
-  listTeamFeeAssessments,
-  TeamFinanceAccessError,
-} from './service';
+
 import {
   reimbursementBodySchema,
   reimbursementDecisionSchema,
@@ -32,6 +22,17 @@ import {
   teamLedgerEntryBodySchema,
   teamLedgerSchema,
 } from './schema';
+import {
+  createManualLedgerEntry,
+  createReimbursementRequest,
+  createTeamFeeAssessment,
+  decideReimbursement,
+  getTeamLedger,
+  issueTeamFeeAssessment,
+  listReimbursementRequests,
+  listTeamFeeAssessments,
+  TeamFinanceAccessError,
+} from './service';
 
 const uuid = (value: unknown) => z.uuid().parse(value);
 const financeRoles = ['owner', 'admin', 'finance'] as const;
@@ -43,25 +44,30 @@ async function requireLedgerReader(
   teamSeasonId: string,
 ) {
   if (financeRoles.some((role) => roles.includes(role))) return;
-  const treasurer = await createWithOrg(dependencies.database)(context, async (trx) =>
-    trx
-      .selectFrom('team_staff as staff')
-      .innerJoin('person_account_links as link', (join) =>
-        join
-          .onRef('link.org_id', '=', 'staff.org_id')
-          .onRef('link.person_id', '=', 'staff.person_id'),
-      )
-      .select('staff.id')
-      .where('staff.org_id', '=', context.orgId)
-      .where('staff.team_season_id', '=', teamSeasonId)
-      .where('staff.role', '=', 'treasurer')
-      .where('staff.status', '=', 'active')
-      .where('link.account_id', '=', context.actor.accountId)
-      .where('link.relationship', '=', 'self')
-      .where('link.revoked_at', 'is', null)
-      .executeTakeFirst(),
+  const treasurer = await createWithOrg(dependencies.database)(
+    context,
+    async (trx) =>
+      trx
+        .selectFrom('team_staff as staff')
+        .innerJoin('person_account_links as link', (join) =>
+          join
+            .onRef('link.org_id', '=', 'staff.org_id')
+            .onRef('link.person_id', '=', 'staff.person_id'),
+        )
+        .select('staff.id')
+        .where('staff.org_id', '=', context.orgId)
+        .where('staff.team_season_id', '=', teamSeasonId)
+        .where('staff.role', '=', 'treasurer')
+        .where('staff.status', '=', 'active')
+        .where('link.account_id', '=', context.actor.accountId)
+        .where('link.relationship', '=', 'self')
+        .where('link.revoked_at', 'is', null)
+        .executeTakeFirst(),
   );
-  if (!treasurer) throw new TeamFinanceAccessError('Team treasurer or finance access is required');
+  if (!treasurer)
+    throw new TeamFinanceAccessError(
+      'Team treasurer or finance access is required',
+    );
 }
 
 export function createTeamFinanceRouter(
@@ -78,7 +84,10 @@ export function createTeamFinanceRouter(
       !mutationOriginIsValid(request, dependencies.appUrl)
     ) {
       response.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'Request origin could not be verified' },
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Request origin could not be verified',
+        },
       });
       return;
     }
@@ -105,10 +114,19 @@ export function createTeamFinanceRouter(
     endpoint(async (request, response) => {
       const actor = await orgActor(dependencies, request);
       const teamSeasonId = uuid(request.params.teamSeasonId);
-      await requireLedgerReader(dependencies, actor.context, actor.roles, teamSeasonId);
+      await requireLedgerReader(
+        dependencies,
+        actor.context,
+        actor.roles,
+        teamSeasonId,
+      );
       response.json(
         teamLedgerSchema.parse(
-          await getTeamLedger(dependencies.database, actor.context, teamSeasonId),
+          await getTeamLedger(
+            dependencies.database,
+            actor.context,
+            teamSeasonId,
+          ),
         ),
       );
     }),
@@ -177,7 +195,12 @@ export function createTeamFinanceRouter(
     endpoint(async (request, response) => {
       const actor = await orgActor(dependencies, request);
       const teamSeasonId = uuid(request.params.teamSeasonId);
-      await requireLedgerReader(dependencies, actor.context, actor.roles, teamSeasonId);
+      await requireLedgerReader(
+        dependencies,
+        actor.context,
+        actor.roles,
+        teamSeasonId,
+      );
       const requests = await listReimbursementRequests(
         dependencies.database,
         actor.context,

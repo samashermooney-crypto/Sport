@@ -8,17 +8,7 @@ import {
   requireAnyRole,
   sendModuleError,
 } from '../compliance/access';
-import {
-  buyOutVolunteerRequirement,
-  createVolunteerRequirement,
-  createVolunteerRole,
-  createVolunteerShift,
-  householdVolunteerLedger,
-  listVolunteerRoles,
-  listVolunteerShifts,
-  signupForVolunteerShift,
-  updateVolunteerSignup,
-} from './service';
+
 import {
   volunteerBuyoutBodySchema,
   volunteerBuyoutResponseSchema,
@@ -33,6 +23,17 @@ import {
   volunteerSignupSchema,
   volunteerStatusBodySchema,
 } from './schema';
+import {
+  buyOutVolunteerRequirement,
+  createVolunteerRequirement,
+  createVolunteerRole,
+  createVolunteerShift,
+  householdVolunteerLedger,
+  listVolunteerRoles,
+  listVolunteerShifts,
+  signupForVolunteerShift,
+  updateVolunteerSignup,
+} from './service';
 
 const managementRoles = ['owner', 'admin', 'volunteer_coordinator'] as const;
 const uuid = (value: unknown) => z.uuid().parse(value);
@@ -51,7 +52,10 @@ export function createVolunteersRouter(
       !mutationOriginIsValid(request, dependencies.appUrl)
     ) {
       response.status(403).json({
-        error: { code: 'FORBIDDEN', message: 'Request origin could not be verified' },
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Request origin could not be verified',
+        },
       });
       return;
     }
@@ -77,7 +81,10 @@ export function createVolunteersRouter(
     '/orgs/:orgId/roles',
     endpoint(async (request, response) => {
       const actor = await orgActor(dependencies, request);
-      const roles = await listVolunteerRoles(actor.context, dependencies.database);
+      const roles = await listVolunteerRoles(
+        actor.context,
+        dependencies.database,
+      );
       response.json(volunteerRoleListSchema.parse({ roles }));
     }),
   );
@@ -87,7 +94,11 @@ export function createVolunteersRouter(
       const actor = await orgActor(dependencies, request);
       requireAnyRole(actor.roles, managementRoles);
       const body = volunteerRoleBodySchema.parse(request.body as unknown);
-      const role = await createVolunteerRole(dependencies.database, actor.context, body);
+      const role = await createVolunteerRole(
+        dependencies.database,
+        actor.context,
+        body,
+      );
       response.status(201).json(volunteerRoleSchema.parse(role));
     }),
   );
@@ -96,23 +107,37 @@ export function createVolunteersRouter(
     endpoint(async (request, response) => {
       const actor = await orgActor(dependencies, request);
       requireAnyRole(actor.roles, managementRoles);
-      response.status(201).json(
-        await createVolunteerRequirement(
-          dependencies.database,
-          actor.context,
-          volunteerRequirementBodySchema.parse(request.body as unknown),
-        ),
-      );
+      response
+        .status(201)
+        .json(
+          await createVolunteerRequirement(
+            dependencies.database,
+            actor.context,
+            volunteerRequirementBodySchema.parse(request.body as unknown),
+          ),
+        );
     }),
   );
   router.get(
     '/orgs/:orgId/shifts',
     endpoint(async (request, response) => {
       const actor = await orgActor(dependencies, request);
-      const shifts = await listVolunteerShifts(actor.context, dependencies.database, {
-        ...(request.query.from ? { from: z.iso.datetime({ offset: true }).parse(request.query.from) } : {}),
-        ...(request.query.to ? { to: z.iso.datetime({ offset: true }).parse(request.query.to) } : {}),
-      });
+      const shifts = await listVolunteerShifts(
+        actor.context,
+        dependencies.database,
+        {
+          ...(request.query.from
+            ? {
+                from: z.iso
+                  .datetime({ offset: true })
+                  .parse(request.query.from),
+              }
+            : {}),
+          ...(request.query.to
+            ? { to: z.iso.datetime({ offset: true }).parse(request.query.to) }
+            : {}),
+        },
+      );
       response.json(volunteerShiftListSchema.parse({ shifts }));
     }),
   );
@@ -121,13 +146,15 @@ export function createVolunteersRouter(
     endpoint(async (request, response) => {
       const actor = await orgActor(dependencies, request);
       requireAnyRole(actor.roles, managementRoles);
-      response.status(201).json(
-        await createVolunteerShift(
-          dependencies.database,
-          actor.context,
-          volunteerShiftBodySchema.parse(request.body as unknown),
-        ),
-      );
+      response
+        .status(201)
+        .json(
+          await createVolunteerShift(
+            dependencies.database,
+            actor.context,
+            volunteerShiftBodySchema.parse(request.body as unknown),
+          ),
+        );
     }),
   );
   router.post(
@@ -135,11 +162,15 @@ export function createVolunteersRouter(
     endpoint(async (request, response) => {
       const actor = await orgActor(dependencies, request);
       const body = volunteerSignupBodySchema.parse(request.body as unknown);
-      const signup = await signupForVolunteerShift(dependencies.database, actor.context, {
-        shiftId: uuid(request.params.shiftId),
-        personId: body.personId,
-        householdId: body.householdId,
-      });
+      const signup = await signupForVolunteerShift(
+        dependencies.database,
+        actor.context,
+        {
+          shiftId: uuid(request.params.shiftId),
+          personId: body.personId,
+          householdId: body.householdId,
+        },
+      );
       response.status(201).json(volunteerSignupSchema.parse(signup));
     }),
   );

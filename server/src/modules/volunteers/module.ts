@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { ServerModule } from '../../lib/module-contract';
+
 import { createVolunteersRouter } from './routes';
 import {
   volunteerBuyoutBodySchema,
@@ -38,28 +39,81 @@ export const volunteerNotificationTemplates = {
     category: 'operational',
     defaultChannels: ['in_app', 'email'],
     preferenceKey: 'operational',
-    en: { title: 'Volunteer shift reminder', body: 'Your volunteer shift starts tomorrow.' },
-    es: { title: 'Recordatorio de turno voluntario', body: 'Tu turno voluntario comienza mañana.' },
+    en: {
+      title: 'Volunteer shift reminder',
+      body: 'Your volunteer shift starts tomorrow.',
+    },
+    es: {
+      title: 'Recordatorio de turno voluntario',
+      body: 'Tu turno voluntario comienza mañana.',
+    },
   },
   'volunteer.requirement_behind': {
     category: 'operational',
     defaultChannels: ['in_app', 'email'],
     preferenceKey: 'operational',
-    en: { title: 'Volunteer requirement update', body: 'Your household is behind on its volunteer requirement.' },
-    es: { title: 'Actualización del requisito de voluntariado', body: 'Tu hogar está atrasado con el requisito de voluntariado.' },
+    en: {
+      title: 'Volunteer requirement update',
+      body: 'Your household is behind on its volunteer requirement.',
+    },
+    es: {
+      title: 'Actualización del requisito de voluntariado',
+      body: 'Tu hogar está atrasado con el requisito de voluntariado.',
+    },
   },
 } as const;
 
 const openapiRoutes = [
   route('get', '/roles', 'List volunteer roles', volunteerRoleListSchema),
-  route('post', '/roles', 'Create a volunteer role', volunteerRoleSchema, volunteerRoleBodySchema),
-  route('post', '/requirements', 'Create a household or athlete volunteer requirement', z.json(), volunteerRequirementBodySchema),
+  route(
+    'post',
+    '/roles',
+    'Create a volunteer role',
+    volunteerRoleSchema,
+    volunteerRoleBodySchema,
+  ),
+  route(
+    'post',
+    '/requirements',
+    'Create a household or athlete volunteer requirement',
+    z.json(),
+    volunteerRequirementBodySchema,
+  ),
   route('get', '/shifts', 'List volunteer shifts', volunteerShiftListSchema),
-  route('post', '/shifts', 'Create a capacity-limited volunteer shift', z.json(), volunteerShiftBodySchema),
-  route('post', '/shifts/{shiftId}/signups', 'Sign up a household member for a volunteer shift', volunteerSignupSchema, volunteerSignupBodySchema),
-  route('patch', '/signups/{signupId}', 'Check in, credit, or close a signup', volunteerSignupSchema, volunteerStatusBodySchema),
-  route('get', '/households/{householdId}/ledger', 'Read household volunteer progress', volunteerLedgerSchema),
-  route('post', '/requirements/{requirementId}/buyouts', 'Issue a volunteer requirement buyout invoice', volunteerBuyoutResponseSchema, volunteerBuyoutBodySchema),
+  route(
+    'post',
+    '/shifts',
+    'Create a capacity-limited volunteer shift',
+    z.json(),
+    volunteerShiftBodySchema,
+  ),
+  route(
+    'post',
+    '/shifts/{shiftId}/signups',
+    'Sign up a household member for a volunteer shift',
+    volunteerSignupSchema,
+    volunteerSignupBodySchema,
+  ),
+  route(
+    'patch',
+    '/signups/{signupId}',
+    'Check in, credit, or close a signup',
+    volunteerSignupSchema,
+    volunteerStatusBodySchema,
+  ),
+  route(
+    'get',
+    '/households/{householdId}/ledger',
+    'Read household volunteer progress',
+    volunteerLedgerSchema,
+  ),
+  route(
+    'post',
+    '/requirements/{requirementId}/buyouts',
+    'Issue a volunteer requirement buyout invoice',
+    volunteerBuyoutResponseSchema,
+    volunteerBuyoutBodySchema,
+  ),
 ];
 
 export const moduleDefinition = {

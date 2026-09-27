@@ -1,13 +1,14 @@
-import { ageOnDate, orgToday } from '@shared/dates';
 import { Temporal } from '@js-temporal/polyfill';
-import { assertEligibleForRole } from '../compliance/policy';
-import { PostgresInvoiceRepository } from '../finance/invoice-repo';
-import { createWithOrg } from '../../db/withOrg';
-import type { DB } from '../../db/types';
-import type { OrgContext } from '../../db/withOrg';
-import { appendAuditEvent } from '../audit/service';
+import { ageOnDate, orgToday } from '@shared/dates';
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
+
+import type { DB } from '../../db/types';
+import { createWithOrg } from '../../db/withOrg';
+import type { OrgContext } from '../../db/withOrg';
+import { appendAuditEvent } from '../audit/service';
+import { assertEligibleForRole } from '../compliance/policy';
+import { PostgresInvoiceRepository } from '../finance/invoice-repo';
 
 export class VolunteerConflictError extends Error {
   readonly status = 409;
@@ -30,7 +31,11 @@ const dateOnly = (value: Date | string): string =>
 export async function createVolunteerRole(
   database: Kysely<DB>,
   context: OrgContext,
-  input: { name: string; description?: string | null | undefined; minimumAge: number },
+  input: {
+    name: string;
+    description?: string | null | undefined;
+    minimumAge: number;
+  },
 ) {
   return createWithOrg(database)(context, async (trx) => {
     const row = await trx
@@ -197,7 +202,7 @@ export async function createVolunteerShift(
 export async function listVolunteerShifts(
   context: OrgContext,
   database: Kysely<DB>,
-    range: { from?: string | undefined; to?: string | undefined } = {},
+  range: { from?: string | undefined; to?: string | undefined } = {},
 ) {
   return createWithOrg(database)(context, async (trx) => {
     let query = trx
@@ -237,8 +242,10 @@ export async function listVolunteerShifts(
           .as('filled_slots'),
       )
       .where('shift.org_id', '=', context.orgId);
-    if (range.from) query = query.where('shift.starts_at', '>=', new Date(range.from));
-    if (range.to) query = query.where('shift.starts_at', '<', new Date(range.to));
+    if (range.from)
+      query = query.where('shift.starts_at', '>=', new Date(range.from));
+    if (range.to)
+      query = query.where('shift.starts_at', '<', new Date(range.to));
     const rows = await query.orderBy('shift.starts_at').execute();
     return rows.map((row) => ({
       id: row.id,
@@ -250,8 +257,8 @@ export async function listVolunteerShifts(
       startsAt: row.starts_at.toISOString(),
       endsAt: row.ends_at.toISOString(),
       slots: row.slots,
-      filledSlots: Number(row.filled_slots),
-      creditHours: Number(row.credit_hours),
+      filledSlots: row.filled_slots,
+      creditHours: row.credit_hours,
       notes: row.notes,
       status: row.status,
       version: row.version,
@@ -266,7 +273,7 @@ export async function signupForVolunteerShift(
   now = new Date(),
 ) {
   const scoped = createWithOrg(database);
-  const eligibilityInfo = await scoped(context, async (trx) => {
+  await scoped(context, async (trx) => {
     const row = await trx
       .selectFrom('volunteer_shifts as shift')
       .innerJoin('volunteer_roles as role', (join) =>
@@ -319,7 +326,8 @@ export async function signupForVolunteerShift(
         ]),
       )
       .executeTakeFirst();
-    if (!link) throw new VolunteerAccessError('Household relationship required');
+    if (!link)
+      throw new VolunteerAccessError('Household relationship required');
     const localToday = orgToday(
       row.timezone,
       Temporal.Instant.fromEpochMilliseconds(now.getTime()),
@@ -329,7 +337,6 @@ export async function signupForVolunteerShift(
       throw new VolunteerAccessError('Volunteer role minimum age is not met');
     return { minimumAge: row.minimum_age };
   });
-  void eligibilityInfo;
   // Phase 7 owns the shared compliance policy; a volunteer is never booked around its credential gate.
   await assertEligibleForRole(
     database,
@@ -353,9 +360,14 @@ export async function signupForVolunteerShift(
       .select((eb) => eb.fn.countAll<number>().as('count'))
       .where('org_id', '=', context.orgId)
       .where('volunteer_shift_id', '=', input.shiftId)
-      .where('status', 'in', ['signed_up', 'confirmed', 'checked_in', 'completed'])
+      .where('status', 'in', [
+        'signed_up',
+        'confirmed',
+        'checked_in',
+        'completed',
+      ])
       .executeTakeFirstOrThrow();
-    if (Number(filled.count) >= shift.slots)
+    if (filled.count >= shift.slots)
       throw new VolunteerConflictError('Shift is full');
     const row = await trx
       .insertInto('volunteer_signups')
@@ -369,7 +381,9 @@ export async function signupForVolunteerShift(
       .returning(['id', 'status', 'hours_credited', 'version'])
       .executeTakeFirst();
     if (!row)
-      throw new VolunteerConflictError('Person is already signed up for this shift');
+      throw new VolunteerConflictError(
+        'Person is already signed up for this shift',
+      );
     await appendAuditEvent(trx, context, {
       action: 'volunteer_signup.created',
       entityType: 'volunteer_signup',
@@ -382,7 +396,7 @@ export async function signupForVolunteerShift(
       personId: input.personId,
       householdId: input.householdId,
       status: row.status,
-      hoursCredited: Number(row.hours_credited),
+      hoursCredited: row.hours_credited,
       version: row.version,
     };
   });
@@ -420,7 +434,9 @@ export async function updateVolunteerSignup(
       .executeTakeFirst();
     if (!current) throw new VolunteerNotFoundError('Signup not found');
     if (current.version !== input.expectedVersion)
-      throw new VolunteerConflictError('Signup changed; reload before updating');
+      throw new VolunteerConflictError(
+        'Signup changed; reload before updating',
+      );
     const transitions: Record<string, string[]> = {
       signed_up: ['confirmed', 'checked_in', 'no_show', 'canceled'],
       confirmed: ['checked_in', 'no_show', 'canceled'],
@@ -433,23 +449,35 @@ export async function updateVolunteerSignup(
       throw new VolunteerConflictError('This signup status cannot be changed');
     const hours =
       input.status === 'completed'
-        ? (input.hoursCredited ?? Number(current.credit_hours))
+        ? (input.hoursCredited ?? current.credit_hours)
         : 0;
     const row = await trx
       .updateTable('volunteer_signups')
       .set({
         status: input.status,
         hours_credited: hours,
-        credited_by: input.status === 'completed' ? context.actor.accountId : null,
+        credited_by:
+          input.status === 'completed' ? context.actor.accountId : null,
         credited_at: input.status === 'completed' ? now : null,
         version: sql`version + 1`,
       })
       .where('org_id', '=', context.orgId)
       .where('id', '=', signupId)
       .where('version', '=', input.expectedVersion)
-      .returning(['id', 'volunteer_shift_id', 'person_id', 'household_id', 'status', 'hours_credited', 'version'])
+      .returning([
+        'id',
+        'volunteer_shift_id',
+        'person_id',
+        'household_id',
+        'status',
+        'hours_credited',
+        'version',
+      ])
       .executeTakeFirst();
-    if (!row) throw new VolunteerConflictError('Signup changed; reload before updating');
+    if (!row)
+      throw new VolunteerConflictError(
+        'Signup changed; reload before updating',
+      );
     await appendAuditEvent(trx, context, {
       action: `volunteer_signup.${input.status}`,
       entityType: 'volunteer_signup',
@@ -467,7 +495,7 @@ export async function updateVolunteerSignup(
       personId: row.person_id,
       householdId: row.household_id,
       status: row.status,
-      hoursCredited: Number(row.hours_credited),
+      hoursCredited: row.hours_credited,
       version: row.version,
     };
   });
@@ -559,7 +587,9 @@ export async function householdVolunteerLedger(
       ORDER BY req.id, member.person_id
     `.execute(trx);
     const reqRows = requirements.rows;
-    const requirementIds = [...new Set(reqRows.map((row) => row.requirement_id))];
+    const requirementIds = [
+      ...new Set(reqRows.map((row) => row.requirement_id)),
+    ];
     if (!requirementIds.length) return { householdId, items: [] };
     const credits = await sql<{
       requirement_id: string;
@@ -609,14 +639,21 @@ export async function householdVolunteerLedger(
       const targets =
         first.athlete_amount === null
           ? [{ personId: null, rows }]
-          : [...new Map(rows.map((row) => [row.person_id, row])).values()].map((row) => ({
-              personId: row.person_id,
-              rows: [row],
-            }));
+          : [...new Map(rows.map((row) => [row.person_id, row])).values()].map(
+              (row) => ({
+                personId: row.person_id,
+                rows: [row],
+              }),
+            );
       return targets.map(({ personId, rows: targetRows }) => {
-        const required = Number(first.household_amount ?? first.athlete_amount ?? 0);
+        const required = Number(
+          first.household_amount ?? first.athlete_amount ?? 0,
+        );
         const perPerson = personId
-          ? (creditMap.get(`${id}:${personId}`) ?? { completed: 0, boughtOut: 0 })
+          ? (creditMap.get(`${id}:${personId}`) ?? {
+              completed: 0,
+              boughtOut: 0,
+            })
           : null;
         const allCredits = personId
           ? perPerson
@@ -649,7 +686,8 @@ export async function householdVolunteerLedger(
           remaining,
           deadline,
           buyoutPriceCents: price,
-          buyoutAvailable: price !== null && price > 0 && deadline >= today && remaining > 0,
+          buyoutAvailable:
+            price !== null && price > 0 && deadline >= today && remaining > 0,
         };
       });
     });
@@ -683,9 +721,14 @@ export async function buyOutVolunteerRequirement(
       id: existing.id,
       invoiceId: existing.invoice_id,
       amountCents: existing.amount_cents,
-      units: Number(existing.units),
+      units: existing.units,
     };
-  const ledger = await householdVolunteerLedger(database, context, input.householdId, now);
+  const ledger = await householdVolunteerLedger(
+    database,
+    context,
+    input.householdId,
+    now,
+  );
   const item = ledger.items.find(
     (candidate) =>
       candidate.requirementId === input.requirementId &&
@@ -694,7 +737,9 @@ export async function buyOutVolunteerRequirement(
   if (!item || !item.buyoutAvailable || item.buyoutPriceCents === null)
     throw new VolunteerConflictError('Volunteer buyout is unavailable');
   if (input.units > item.remaining)
-    throw new VolunteerConflictError('Buyout units exceed the remaining requirement');
+    throw new VolunteerConflictError(
+      'Buyout units exceed the remaining requirement',
+    );
   const amountCents = Math.ceil(input.units * item.buyoutPriceCents);
   if (!Number.isSafeInteger(amountCents) || amountCents <= 0)
     throw new RangeError('Buyout amount is outside the supported range');
@@ -716,7 +761,10 @@ export async function buyOutVolunteerRequirement(
       .where('link.verified_at', 'is not', null)
       .where('link.revoked_at', 'is', null)
       .executeTakeFirst();
-    if (!finance) throw new VolunteerAccessError('Financially responsible guardian required');
+    if (!finance)
+      throw new VolunteerAccessError(
+        'Financially responsible guardian required',
+      );
     return trx
       .selectFrom('volunteer_requirements')
       .innerJoin('households', (join) =>
@@ -756,12 +804,21 @@ export async function buyOutVolunteerRequirement(
       .forUpdate()
       .executeTakeFirst();
     if (!current) throw new VolunteerNotFoundError('Requirement not found');
-    const currentLedger = await householdVolunteerLedger(database, context, input.householdId, now);
+    const currentLedger = await householdVolunteerLedger(
+      database,
+      context,
+      input.householdId,
+      now,
+    );
     const latest = currentLedger.items.find(
-      (candidate) => candidate.requirementId === input.requirementId && candidate.subjectPersonId === (input.personId ?? null),
+      (candidate) =>
+        candidate.requirementId === input.requirementId &&
+        candidate.subjectPersonId === (input.personId ?? null),
     );
     if (!latest || input.units > latest.remaining)
-      throw new VolunteerConflictError('Requirement changed before buyout was recorded');
+      throw new VolunteerConflictError(
+        'Requirement changed before buyout was recorded',
+      );
     const buyout = await trx
       .insertInto('volunteer_buyouts')
       .values({
