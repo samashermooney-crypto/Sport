@@ -21,6 +21,7 @@ afterAll(async () => database.destroy());
 it('versions published forms, preserves historical responses, encrypts tiers, and reuses profile answers', async () => {
   const factories = createTestFactories(database);
   const owner = await factories.actor();
+  const reporter = await factories.actor();
   const guardianAccountId = newId();
   const childId = await factories.person(owner, {
     firstName: 'Maya',
@@ -45,6 +46,27 @@ it('versions published forms, preserves historical responses, encrypts tiers, an
       .where('account_id', '=', owner.accountId)
       .execute();
     await trx
+      .insertInto('org_memberships')
+      .values({
+        id: newId(),
+        org_id: owner.orgId,
+        account_id: reporter.accountId,
+        status: 'active',
+        joined_at: new Date(),
+      })
+      .execute();
+    await trx
+      .insertInto('role_assignments')
+      .values({
+        id: newId(),
+        org_id: owner.orgId,
+        account_id: reporter.accountId,
+        role: 'reporter',
+        scope_type: 'org',
+        pending_mfa: false,
+      })
+      .execute();
+    await trx
       .insertInto('person_account_links')
       .values({
         id: newId(),
@@ -67,6 +89,13 @@ it('versions published forms, preserves historical responses, encrypts tiers, an
       'test',
     ),
   );
+  await expect(
+    forms.create(context, {
+      name: 'Unauthorized draft',
+      scope: 'person_profile',
+      schema: { fields: [] },
+    }),
+  ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
   const schema = formSchema.parse({
     fields: [
       {
@@ -113,6 +142,15 @@ it('versions published forms, preserves historical responses, encrypts tiers, an
       season_note: 'Bring the inhaler',
     },
   });
+  const reporterContext = {
+    orgId: owner.orgId,
+    actor: { accountId: reporter.accountId },
+  };
+  const redactedV1 = await forms.renderResponse(reporterContext, responseV1.id);
+  expect(redactedV1.answers).toEqual({
+    has_allergies: true,
+    season_note: 'Bring the inhaler',
+  });
   expect(responseV1).toMatchObject({
     definitionVersion: 1,
     form: { id: v1.id, version: 1 },
@@ -151,6 +189,16 @@ it('versions published forms, preserves historical responses, encrypts tiers, an
     expectedVersion: 1,
   });
   expect(v2).toMatchObject({ version: 2, supersedesId: v1.id });
+  await expect(
+    factories.scoped(owner, (trx) =>
+      trx
+        .updateTable('form_definitions')
+        .set({ name: 'Tampered published form' })
+        .where('org_id', '=', owner.orgId)
+        .where('id', '=', v1.id)
+        .execute(),
+    ),
+  ).rejects.toMatchObject({ code: '55000' });
   await forms.publish(owner, v2.id, v2.version);
   const renderedV1 = await forms.renderResponse(context, responseV1.id);
   expect(renderedV1).toMatchObject({
@@ -158,15 +206,32 @@ it('versions published forms, preserves historical responses, encrypts tiers, an
     form: {
       id: v1.id,
       version: 1,
-      schema: {
-        fields: [
-          { key: 'has_allergies' },
-          { label: { en: 'Allergy details' } },
-        ],
-      },
     },
     answers: { allergy_details: 'Severe peanut allergy' },
   });
+  expect(
+    renderedV1.form.schema.fields.find(
+      (field) => field.key === 'allergy_details',
+    ),
+  ).toMatchObject({ label: { en: 'Allergy details' } });
+  await expect(
+    forms.renderResponse(reporter, responseV1.id),
+  ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+  const restrictedReads = await factories.scoped(owner, (trx) =>
+    trx
+      .selectFrom('audit_log')
+      .select(['actor_account_id', 'action', 'entity_id'])
+      .where('org_id', '=', owner.orgId)
+      .where('action', '=', 'restricted.read')
+      .where('entity_type', '=', 'form_response')
+      .where('entity_id', '=', responseV1.id)
+      .execute(),
+  );
+  expect(
+    restrictedReads.some(
+      (entry) => entry.actor_account_id === guardianAccountId,
+    ),
+  ).toBe(true);
   expect(await forms.reusableAnswers(context, v2.id, childId)).toMatchObject({
     answers: {},
     reusedFromResponseId: null,

@@ -152,6 +152,27 @@ async function ancestorIds(
   throw new WaiversError(409, 'CONFLICT', 'Waiver version history is invalid');
 }
 
+async function mergedPersonLineage(
+  trx: OrgTransaction,
+  orgId: string,
+  personId: string,
+): Promise<string[]> {
+  const lineage = await sql<{ person_id: string }>`
+    WITH RECURSIVE lineage(person_id) AS (
+      SELECT ${personId}::uuid
+      UNION
+      SELECT related.person_id
+      FROM lineage current
+      JOIN person_merges merge
+        ON merge.org_id = ${orgId}
+        AND (merge.survivor_id = current.person_id OR merge.merged_id = current.person_id)
+      CROSS JOIN LATERAL (VALUES (merge.survivor_id), (merge.merged_id)) AS related(person_id)
+    )
+    SELECT person_id FROM lineage
+  `.execute(trx);
+  return lineage.rows.map((row) => row.person_id);
+}
+
 async function renderPdf(
   name: string,
   text: string,
@@ -163,7 +184,12 @@ async function renderPdf(
   const document = await PDFDocument.create();
   document.setTitle(`${name} — signed waiver`);
   document.setSubject(text);
-  document.setKeywords([`SHA-256 ${documentHash}`, `Method ${method}`]);
+  document.setKeywords([
+    `Signer: ${signer}`,
+    `Method: ${method}`,
+    `Signed at: ${signedAt}`,
+    `Document SHA-256: ${documentHash}`,
+  ]);
   const fontBytes = inflateSync(
     Buffer.from(openSansRegularDeflatedBase64, 'base64'),
   );
@@ -494,6 +520,26 @@ export function createWaiversService(database: Kysely<DB>) {
             (isMinor ? !canSignAsGuardian : !canSignAsParticipant))
         )
           throw new WaiversError(404, 'NOT_FOUND', 'Waiver was not found');
+        if (value.signerPersonId) {
+          const signerPerson = await trx
+            .selectFrom('person_account_links as link')
+            .innerJoin('people as person', (join) =>
+              join
+                .onRef('person.org_id', '=', 'link.org_id')
+                .onRef('person.id', '=', 'link.person_id'),
+            )
+            .select('link.id')
+            .where('link.org_id', '=', context.orgId)
+            .where('link.person_id', '=', value.signerPersonId)
+            .where('link.account_id', '=', context.actor.accountId)
+            .where('link.relationship', '=', 'self')
+            .where('link.verified_at', 'is not', null)
+            .where('link.revoked_at', 'is', null)
+            .where('person.status', '=', 'active')
+            .executeTakeFirst();
+          if (!signerPerson)
+            throw new WaiversError(404, 'NOT_FOUND', 'Signer was not found');
+        }
         if (
           value.method === 'online_drawn' &&
           (!value.signatureFileId ||
@@ -573,11 +619,16 @@ export function createWaiversService(database: Kysely<DB>) {
     async listSignatures(context: OrgContext, participantPersonId: string) {
       const personId = z.uuid().parse(participantPersonId);
       return withOrg(context, async (trx) => {
+        const personIds = await mergedPersonLineage(
+          trx,
+          context.orgId,
+          personId,
+        );
         const linked = await trx
           .selectFrom('person_account_links')
           .select('id')
           .where('org_id', '=', context.orgId)
-          .where('person_id', '=', personId)
+          .where('person_id', 'in', personIds)
           .where('account_id', '=', context.actor.accountId)
           .where('verified_at', 'is not', null)
           .where('revoked_at', 'is', null)
@@ -587,7 +638,7 @@ export function createWaiversService(database: Kysely<DB>) {
           .selectFrom('waiver_signatures')
           .selectAll()
           .where('org_id', '=', context.orgId)
-          .where('participant_person_id', '=', personId)
+          .where('participant_person_id', 'in', personIds)
           .orderBy('signed_at', 'desc')
           .execute();
         return waiverSignatureListSchema.parse({
@@ -638,11 +689,16 @@ export function createWaiversService(database: Kysely<DB>) {
             'Signed waiver was not found',
           );
         if (row.signer_account_id !== context.actor.accountId) {
+          const personIds = await mergedPersonLineage(
+            trx,
+            context.orgId,
+            row.participant_person_id,
+          );
           const linked = await trx
             .selectFrom('person_account_links')
             .select('id')
             .where('org_id', '=', context.orgId)
-            .where('person_id', '=', row.participant_person_id)
+            .where('person_id', 'in', personIds)
             .where('account_id', '=', context.actor.accountId)
             .where('verified_at', 'is not', null)
             .where('revoked_at', 'is', null)

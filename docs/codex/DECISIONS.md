@@ -687,3 +687,10 @@
 - **Decision:** Store enabled stat keys in `programs.settings.statsEnabled`, expose a version-checked `results.manage` settings API and staff console editor, and capture only enabled keys. Public summaries include only enabled definitions marked public; private athlete metrics are shown in result-entry controls to staff managers only.
 - **Why:** Program-level opt-in prevents accidental collection, version checks avoid lost edits, and the public flag protects youth performance data.
 - **Consequences / follow-ups:** Personal bests and program/division leaderboards use shared aggregation functions and include only finalized contests. Saving a result replaces its stat lines when the request supplies a stats array; clients that omit that optional field preserve prior stat lines.
+### DEC-109 — Preserve signed waiver evidence across person merges
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 waivers and duplicate person merges
+- **Context:** Migration 0904 makes `waiver_signatures` append-only, while the person merge service previously rewrote participant and signer person IDs in those rows.
+- **Decision:** Keep signer and participant IDs exactly as captured. Resolve the full `person_merges` lineage when listing signatures or authorizing a linked person to download historical PDF evidence.
+- **Why:** A merge must not rewrite legally significant signature evidence or fail because an immutable record references the pre-merge person.
+- **Consequences / follow-ups:** Signatures retain their original person IDs and document hashes. PostgreSQL merge tests verify that the survivor can list and download the preserved evidence through the active guardian link.

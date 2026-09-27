@@ -165,6 +165,35 @@ function validateAnswers(
   return { publicAnswers, protectedAnswers };
 }
 
+async function auditRestrictedResponseRead(
+  trx: OrgTransaction,
+  context: OrgContext,
+  responseId: string,
+  fieldKeys: string[],
+): Promise<void> {
+  if (!fieldKeys.length) return;
+  await appendAuditEvent(trx, context, {
+    action: 'restricted.read',
+    entityType: 'form_response',
+    entityId: responseId,
+    changes: Object.fromEntries(
+      fieldKeys.map((key) => [key, { tier: 'restricted', after: '[read]' }]),
+    ),
+  });
+}
+
+function restrictedAnswerKeys(
+  schema: FormSchema,
+  answers: Record<string, unknown>,
+): string[] {
+  return schema.fields
+    .filter(
+      (field) =>
+        field.tier === 'restricted' && Object.hasOwn(answers, field.key),
+    )
+    .map((field) => field.key);
+}
+
 async function requireFormManager(
   trx: OrgTransaction,
   context: OrgContext,
@@ -445,10 +474,8 @@ export function createFormsService(
             'NOT_FOUND',
             'Published form was not found',
           );
-        const answers = validateAnswers(
-          formSchema.parse(form.schema),
-          value.answers,
-        );
+        const schema = formSchema.parse(form.schema);
+        const answers = validateAnswers(schema, value.answers);
         const id = newId();
         const encoded = Object.keys(answers.protectedAnswers).length
           ? encryptRestricted(
@@ -488,6 +515,12 @@ export function createFormsService(
             },
           },
         });
+        await auditRestrictedResponseRead(
+          trx,
+          context,
+          id,
+          restrictedAnswerKeys(schema, answers.protectedAnswers),
+        );
         return formResponseSchema.parse({
           id: response.id,
           formDefinitionId: response.form_definition_id,
@@ -512,28 +545,6 @@ export function createFormsService(
           .executeTakeFirst();
         if (!row)
           throw new FormsError(404, 'NOT_FOUND', 'Form response was not found');
-        const manager = await trx
-          .selectFrom('role_assignments')
-          .select('id')
-          .where('org_id', '=', context.orgId)
-          .where('account_id', '=', context.actor.accountId)
-          .where('scope_type', '=', 'org')
-          .where('role', 'in', ['owner', 'admin', 'registrar'])
-          .where('pending_mfa', '=', false)
-          .where('revoked_at', 'is', null)
-          .executeTakeFirst();
-        if (
-          row.submitted_by_account_id !== context.actor.accountId &&
-          !manager
-        ) {
-          if (row.subject_type !== 'person')
-            throw new FormsError(
-              404,
-              'NOT_FOUND',
-              'Form response was not found',
-            );
-          await requirePersonLink(trx, context, row.subject_id);
-        }
         const form = await trx
           .selectFrom('form_definitions')
           .selectAll()
@@ -542,13 +553,105 @@ export function createFormsService(
           .executeTakeFirst();
         if (!form)
           throw new FormsError(404, 'NOT_FOUND', 'Form response was not found');
+        const membership = await trx
+          .selectFrom('org_memberships')
+          .select('status')
+          .where('org_id', '=', context.orgId)
+          .where('account_id', '=', context.actor.accountId)
+          .executeTakeFirst();
+        const roles =
+          membership?.status === 'active'
+            ? await trx
+                .selectFrom('role_assignments')
+                .select('role')
+                .where('org_id', '=', context.orgId)
+                .where('account_id', '=', context.actor.accountId)
+                .where('scope_type', '=', 'org')
+                .where('role', 'in', [
+                  'owner',
+                  'admin',
+                  'registrar',
+                  'compliance',
+                  'reporter',
+                ])
+                .where('pending_mfa', '=', false)
+                .where('revoked_at', 'is', null)
+                .execute()
+            : [];
+        const roleNames = new Set(roles.map((assignment) => assignment.role));
+        const staffCanView = roleNames.size > 0;
+        let linkedPerson = false;
+        if (row.subject_type === 'person') {
+          const link = await trx
+            .selectFrom('person_account_links as link')
+            .innerJoin('people as person', (join) =>
+              join
+                .onRef('person.org_id', '=', 'link.org_id')
+                .onRef('person.id', '=', 'link.person_id'),
+            )
+            .select('link.id')
+            .where('link.org_id', '=', context.orgId)
+            .where('link.person_id', '=', row.subject_id)
+            .where('link.account_id', '=', context.actor.accountId)
+            .where('link.verified_at', 'is not', null)
+            .where('link.revoked_at', 'is', null)
+            .where('person.status', '=', 'active')
+            .executeTakeFirst();
+          linkedPerson = Boolean(link);
+        }
+        if (!linkedPerson && !staffCanView)
+          throw new FormsError(404, 'NOT_FOUND', 'Form response was not found');
+        const schema = formSchema.parse(form.schema);
+        let canReadRestricted =
+          linkedPerson ||
+          roleNames.has('owner') ||
+          roleNames.has('admin') ||
+          roleNames.has('compliance');
+        if (
+          !canReadRestricted &&
+          roleNames.has('registrar') &&
+          form.scope === 'person_profile'
+        ) {
+          const org = await trx
+            .selectFrom('organizations')
+            .select('settings')
+            .where('id', '=', context.orgId)
+            .executeTakeFirst();
+          const settings = org?.settings;
+          canReadRestricted = Boolean(
+            settings &&
+            typeof settings === 'object' &&
+            !Array.isArray(settings) &&
+            settings.registrarMedicalAccess === true,
+          );
+        }
+        const allAnswers = responseAnswers(row, encryption);
+        const answerFieldKeys = new Set(
+          schema.fields.map((field) => field.key),
+        );
+        const visibleAnswers = Object.fromEntries(
+          Object.entries(allAnswers).filter(
+            ([key]) =>
+              answerFieldKeys.has(key) &&
+              (canReadRestricted ||
+                schema.fields.find((field) => field.key === key)?.tier !==
+                  'restricted'),
+          ),
+        );
+        if (canReadRestricted)
+          await auditRestrictedResponseRead(
+            trx,
+            context,
+            row.id,
+            restrictedAnswerKeys(schema, allAnswers),
+          );
         return formResponseSchema.parse({
           id: row.id,
           formDefinitionId: row.form_definition_id,
           definitionVersion: row.definition_version,
           subjectType: row.subject_type,
           subjectId: row.subject_id,
-          answers: responseAnswers(row, encryption),
+          answers: visibleAnswers,
           submittedAt: row.submitted_at.toISOString(),
           form: definitionView(form),
         });
@@ -625,6 +728,12 @@ export function createFormsService(
                 Object.hasOwn(previousAnswers, field.key),
             )
             .map((field) => [field.key, previousAnswers[field.key]]),
+        );
+        await auditRestrictedResponseRead(
+          trx,
+          context,
+          prior.id,
+          restrictedAnswerKeys(formSchema.parse(form.schema), answers),
         );
         return formAnswersSchema.parse({
           answers,
