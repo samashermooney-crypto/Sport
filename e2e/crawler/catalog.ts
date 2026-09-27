@@ -1,46 +1,9 @@
 /**
- * Mounted screens the owner can open today. `consoleNav` and `portalNav` are
- * still empty, so the crawler walks these routes plus any link the shell,
- * mobile tabs, or page navigation actually render.
+ * Entry points for the navigation surfaces that are implemented on trunk.
+ * The crawler discovers destinations from the rendered navigation on each
+ * page; these are only seeds used to reach each role's shell.
  */
-export function ownerRoutes(orgId: string): readonly string[] {
-  const safety = `/console/safety/${orgId}`;
-  const money = `/portal/orgs/${orgId}/money`;
-  return [
-    `/console/orgs/${orgId}`,
-    `/console/orgs/${orgId}/people`,
-    `/console/orgs/${orgId}/households`,
-    `/console/orgs/${orgId}/audit`,
-    `/console/orgs/${orgId}/messages`,
-    `/console/orgs/${orgId}/money/billing`,
-    safety,
-    `${safety}/review`,
-    `${safety}/requirements`,
-    `${safety}/injuries`,
-    `${safety}/incidents`,
-    `${safety}/background-checks`,
-    `${safety}/background-check-settings`,
-    `${safety}/cards`,
-    `/orgs/${orgId}/credentials`,
-    `/orgs/${orgId}/profile`,
-    `/orgs/${orgId}/staff`,
-    `/portal/orgs/${orgId}/notifications`,
-    money,
-    `${money}/invoices`,
-    `${money}/installments`,
-    `${money}/credits`,
-    `${money}/receipts`,
-    `${money}/statements`,
-    `${money}/autopay`,
-    `/me/orgs/${orgId}/messages`,
-    '/me',
-    '/me/security',
-    '/me/family',
-    '/start',
-  ];
-}
-
-export const anonymousRoutes = [
+export const anonymousEntryRoutes = [
   '/',
   '/sign-up',
   '/forgot-password',
@@ -48,8 +11,43 @@ export const anonymousRoutes = [
   '/mfa',
 ] as const;
 
-export const platformRoutes = ['/platform', '/me', '/me/security'] as const;
+export const organizationRoles = [
+  'owner',
+  'admin',
+  'registrar',
+  'finance',
+  'scheduler',
+  'compliance',
+  'communications',
+  'director',
+  'evaluator',
+  'volunteer_coordinator',
+  'reporter',
+] as const;
 
-export function accountRoutes(): readonly string[] {
-  return ['/me', '/me/security', '/me/family'];
+export type OrganizationRole = (typeof organizationRoles)[number];
+
+export const platformRoles = [
+  { name: 'platform_super_admin', databaseRole: 'super_admin' },
+  { name: 'platform_support', databaseRole: 'support' },
+  { name: 'platform_finance_ops', databaseRole: 'finance_ops' },
+] as const;
+
+export function organizationEntryRoutes(orgId: string): readonly string[] {
+  return [`/console/orgs/${orgId}`, '/me', '/me/security', '/me/family'];
 }
+
+export function familyEntryRoutes(orgId: string): readonly string[] {
+  return [
+    '/me/family',
+    '/me',
+    '/me/security',
+    `/portal/orgs/${orgId}/notifications`,
+  ];
+}
+
+export const platformEntryRoutes = [
+  '/platform',
+  '/me',
+  '/me/security',
+] as const;

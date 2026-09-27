@@ -8,22 +8,29 @@ import { issueSession } from '../../server/src/modules/auth/sessions';
 import { createTestFactories } from '../../server/test/factories';
 
 import {
-  accountRoutes,
-  anonymousRoutes,
-  ownerRoutes,
-  platformRoutes,
+  anonymousEntryRoutes,
+  familyEntryRoutes,
+  organizationEntryRoutes,
+  organizationRoles,
+  platformEntryRoutes,
+  platformRoles,
 } from './catalog';
 import { collectPaths, visitPath } from './visit';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 const appUrl = `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`;
 const adminUrl = `postgres://athlentry_admin@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`;
+const maxRoutesPerRole = 200;
+
+type RouteActor = { accountId: string; orgId: string };
+type FamilyRelationship = 'guardian' | 'self';
 
 async function signIn(
   context: BrowserContext,
   baseURL: string,
   databaseUrl: string,
   accountId: string,
+  privileged: boolean,
 ): Promise<void> {
   const database = createDatabase(databaseUrl);
   try {
@@ -34,8 +41,8 @@ async function signIn(
           accountId,
           kind: 'cookie',
           client: 'web',
-          privileged: true,
-          mfaVerifiedAt: new Date(),
+          privileged,
+          ...(privileged ? { mfaVerifiedAt: new Date() } : {}),
         },
         new Date(),
       ),
@@ -55,7 +62,139 @@ async function signIn(
   }
 }
 
-async function crawl(
+async function createOrganizationRoleActor(
+  databaseUrl: string,
+  role: (typeof organizationRoles)[number],
+): Promise<RouteActor> {
+  const database = createDatabase(databaseUrl);
+  try {
+    const owner = await createTestFactories(database).actor();
+    if (role === 'owner') {
+      await createWithOrg(database)(owner, (trx) =>
+        trx
+          .updateTable('role_assignments')
+          .set({ pending_mfa: false })
+          .where('org_id', '=', owner.orgId)
+          .where('account_id', '=', owner.accountId)
+          .execute(),
+      );
+      return { accountId: owner.accountId, orgId: owner.orgId };
+    }
+
+    const accountId = randomUUID();
+    await database
+      .insertInto('accounts')
+      .values({
+        id: accountId,
+        email: `crawler-${role}-${randomUUID()}@example.invalid`,
+        first_name: 'Route',
+        last_name: 'Crawler',
+        date_of_birth: '1990-01-01',
+        email_verified_at: new Date(),
+      })
+      .execute();
+    await createWithOrg(database)(owner, async (trx) => {
+      await trx
+        .insertInto('org_memberships')
+        .values({
+          id: randomUUID(),
+          org_id: owner.orgId,
+          account_id: accountId,
+          status: 'active',
+          joined_at: new Date(),
+        })
+        .execute();
+      await trx
+        .insertInto('role_assignments')
+        .values({
+          id: randomUUID(),
+          org_id: owner.orgId,
+          account_id: accountId,
+          role,
+          scope_type: 'org',
+          pending_mfa: false,
+        })
+        .execute();
+    });
+    return { accountId, orgId: owner.orgId };
+  } finally {
+    await database.destroy();
+  }
+}
+
+async function createFamilyActor(
+  databaseUrl: string,
+  relationship: FamilyRelationship,
+): Promise<RouteActor> {
+  const database = createDatabase(databaseUrl);
+  try {
+    const factories = createTestFactories(database);
+    const owner = await factories.actor();
+    const personId = await factories.person(owner, {
+      firstName: 'Route',
+      lastName: relationship === 'guardian' ? 'Guardian' : 'Self',
+    });
+    const accountId = randomUUID();
+    await database
+      .insertInto('accounts')
+      .values({
+        id: accountId,
+        email: `crawler-${relationship}-${randomUUID()}@example.invalid`,
+        first_name: 'Route',
+        last_name: relationship === 'guardian' ? 'Guardian' : 'Self',
+        date_of_birth:
+          relationship === 'guardian' ? '1988-03-03' : '2010-03-03',
+        email_verified_at: new Date(),
+      })
+      .execute();
+    await createWithOrg(database)(owner, (trx) =>
+      trx
+        .insertInto('person_account_links')
+        .values({
+          id: randomUUID(),
+          org_id: owner.orgId,
+          person_id: personId,
+          account_id: accountId,
+          relationship,
+          verified_at: new Date(),
+        })
+        .execute(),
+    );
+    return { accountId, orgId: owner.orgId };
+  } finally {
+    await database.destroy();
+  }
+}
+
+async function createPlatformActor(
+  databaseUrl: string,
+  role: (typeof platformRoles)[number]['databaseRole'],
+): Promise<string> {
+  const database = createDatabase(databaseUrl);
+  try {
+    const accountId = randomUUID();
+    await database
+      .insertInto('accounts')
+      .values({
+        id: accountId,
+        email: `crawler-platform-${role}-${randomUUID()}@example.invalid`,
+        first_name: 'Platform',
+        last_name: 'Crawler',
+        date_of_birth: '1985-04-04',
+        email_verified_at: new Date(),
+      })
+      .execute();
+    await database
+      .insertInto('platform_staff')
+      .values({ account_id: accountId, role, active: true })
+      .execute();
+    return accountId;
+  } finally {
+    await database.destroy();
+  }
+}
+
+async function crawlNavigation(
   page: Page,
   baseURL: string,
   seeds: readonly string[],
@@ -63,31 +202,47 @@ async function crawl(
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
   page.on('pageerror', (error) => {
-    pageErrors.push(error.message);
+    pageErrors.push(`${new URL(page.url()).pathname}: ${error.message}`);
   });
   page.on('console', (message) => {
-    if (message.type() !== 'error') return;
-    const text = message.text();
-    if (text.includes('favicon')) return;
-    if (text.includes('Download the React DevTools')) return;
-    consoleErrors.push(text);
+    if (message.type() === 'error')
+      consoleErrors.push(`${new URL(page.url()).pathname}: ${message.text()}`);
   });
+  await page.addInitScript(() => {
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error(`unhandledrejection: ${String(event.reason)}`);
+    });
+  });
+
+  const visited = new Set<string>();
+  const discovered = new Set(seeds);
   const queue = [...seeds];
-  const seen = new Set<string>();
-  while (queue.length > 0 && seen.size < 50) {
+  while (queue.length > 0) {
     const path = queue.shift();
-    if (!path || seen.has(path)) continue;
-    seen.add(path);
-    await visitPath(page, path);
-    for (const next of await collectPaths(page, baseURL)) {
-      if (!seen.has(next)) queue.push(next);
+    if (!path || visited.has(path)) continue;
+    expect(
+      visited.size,
+      `navigation exceeded ${String(maxRoutesPerRole)} routes before completing`,
+    ).toBeLessThan(maxRoutesPerRole);
+
+    visited.add(path);
+    await visitPath(page, baseURL, path);
+    for (const nextPath of await collectPaths(page, baseURL)) {
+      discovered.add(nextPath);
+      if (!visited.has(nextPath) && !queue.includes(nextPath))
+        queue.push(nextPath);
     }
   }
-  expect(seen.size, 'crawler should open at least one route').toBeGreaterThan(
-    0,
-  );
-  expect(pageErrors, 'unhandled page errors').toEqual([]);
-  expect(consoleErrors, 'console errors').toEqual([]);
+
+  expect(
+    [...discovered].filter((path) => !visited.has(path)),
+    'every route found in a rendered navigation should be visited',
+  ).toEqual([]);
+  expect(pageErrors, 'uncaught page errors').toEqual([]);
+  expect(
+    consoleErrors,
+    'console errors and unhandled promise rejections',
+  ).toEqual([]);
 }
 
 test.beforeEach(async ({ request }) => {
@@ -102,143 +257,49 @@ test.beforeEach(async ({ request }) => {
     .toBe(200);
 });
 
-test('anonymous visitor can open every public auth route', async ({
+test('anonymous navigation routes render without errors', async ({
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
-  const baseURL = String(testInfo.project.use.baseURL);
-  await crawl(page, baseURL, anonymousRoutes);
+  await crawlNavigation(
+    page,
+    String(testInfo.project.use.baseURL),
+    anonymousEntryRoutes,
+  );
 });
 
-test('owner can open every mounted console, portal, and account route', async ({
-  page,
-}, testInfo) => {
-  test.setTimeout(240_000);
-  const baseURL = String(testInfo.project.use.baseURL);
-  const database = createDatabase(appUrl);
-  try {
-    const actor = await createTestFactories(database).actor();
-    await createWithOrg(database)(actor, (trx) =>
-      trx
-        .updateTable('role_assignments')
-        .set({ pending_mfa: false })
-        .where('org_id', '=', actor.orgId)
-        .where('account_id', '=', actor.accountId)
-        .execute(),
-    );
-    await signIn(page.context(), baseURL, appUrl, actor.accountId);
-    await crawl(page, baseURL, ownerRoutes(actor.orgId));
-  } finally {
-    await database.destroy();
-  }
-});
+for (const role of organizationRoles) {
+  test(`organization navigation renders for ${role}`, async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(240_000);
+    const baseURL = String(testInfo.project.use.baseURL);
+    const actor = await createOrganizationRoleActor(appUrl, role);
+    await signIn(page.context(), baseURL, appUrl, actor.accountId, true);
+    await crawlNavigation(page, baseURL, organizationEntryRoutes(actor.orgId));
+  });
+}
 
-test('registrar navigation does not crash on the routes it exposes', async ({
-  page,
-}, testInfo) => {
-  test.setTimeout(180_000);
-  const baseURL = String(testInfo.project.use.baseURL);
-  const database = createDatabase(appUrl);
-  try {
-    const factories = createTestFactories(database);
-    const owner = await factories.actor();
-    const registrarId = randomUUID();
-    await database
-      .insertInto('accounts')
-      .values({
-        id: registrarId,
-        email: `registrar-${randomUUID()}@example.invalid`,
-        first_name: 'Riley',
-        last_name: 'Registrar',
-        date_of_birth: '1991-02-02',
-        email_verified_at: new Date(),
-      })
-      .execute();
-    await createWithOrg(database)(owner, async (trx) => {
-      await trx
-        .insertInto('org_memberships')
-        .values({
-          id: randomUUID(),
-          org_id: owner.orgId,
-          account_id: registrarId,
-          status: 'active',
-          joined_at: new Date(),
-        })
-        .execute();
-      await trx
-        .insertInto('role_assignments')
-        .values({
-          id: randomUUID(),
-          org_id: owner.orgId,
-          account_id: registrarId,
-          role: 'registrar',
-          scope_type: 'org',
-          pending_mfa: false,
-        })
-        .execute();
-    });
-    await signIn(page.context(), baseURL, appUrl, registrarId);
-    await crawl(page, baseURL, [
-      `/console/orgs/${owner.orgId}`,
-      ...accountRoutes(),
-    ]);
-  } finally {
-    await database.destroy();
-  }
-});
+for (const relationship of ['guardian', 'self'] as const) {
+  test(`family navigation renders for ${relationship} accounts`, async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(180_000);
+    const baseURL = String(testInfo.project.use.baseURL);
+    const actor = await createFamilyActor(appUrl, relationship);
+    await signIn(page.context(), baseURL, appUrl, actor.accountId, false);
+    await crawlNavigation(page, baseURL, familyEntryRoutes(actor.orgId));
+  });
+}
 
-test('guardian account routes render without a generic error', async ({
-  page,
-}, testInfo) => {
-  test.setTimeout(120_000);
-  const baseURL = String(testInfo.project.use.baseURL);
-  const database = createDatabase(appUrl);
-  try {
-    const accountId = randomUUID();
-    await database
-      .insertInto('accounts')
-      .values({
-        id: accountId,
-        email: `guardian-${randomUUID()}@example.invalid`,
-        first_name: 'Gray',
-        last_name: 'Guardian',
-        date_of_birth: '1988-03-03',
-        email_verified_at: new Date(),
-      })
-      .execute();
-    await signIn(page.context(), baseURL, appUrl, accountId);
-    await crawl(page, baseURL, accountRoutes());
-  } finally {
-    await database.destroy();
-  }
-});
-
-test('platform staff can open platform navigation', async ({
-  page,
-}, testInfo) => {
-  test.setTimeout(120_000);
-  const baseURL = String(testInfo.project.use.baseURL);
-  const database = createDatabase(adminUrl);
-  try {
-    const accountId = randomUUID();
-    await database
-      .insertInto('accounts')
-      .values({
-        id: accountId,
-        email: `platform-${randomUUID()}@example.invalid`,
-        first_name: 'Pat',
-        last_name: 'Platform',
-        date_of_birth: '1985-04-04',
-        email_verified_at: new Date(),
-      })
-      .execute();
-    await database
-      .insertInto('platform_staff')
-      .values({ account_id: accountId, role: 'super_admin', active: true })
-      .execute();
-    await signIn(page.context(), baseURL, adminUrl, accountId);
-    await crawl(page, baseURL, platformRoutes);
-  } finally {
-    await database.destroy();
-  }
-});
+for (const role of platformRoles) {
+  test(`platform navigation renders for ${role.name}`, async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(180_000);
+    const baseURL = String(testInfo.project.use.baseURL);
+    const accountId = await createPlatformActor(adminUrl, role.databaseRole);
+    await signIn(page.context(), baseURL, adminUrl, accountId, true);
+    await crawlNavigation(page, baseURL, platformEntryRoutes);
+  });
+}

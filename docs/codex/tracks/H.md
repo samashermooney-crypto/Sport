@@ -36,4 +36,8 @@ Migration range: `4000–4006`
 
 Track B's catalog/preferences and Track C's provider-ID interface are on the merged trunk and wired by H. Track H-owned work is complete and ready for integration. Overall Phase 10 still awaits the A/C/G items above and their acceptance journeys.
 
+## Requests from QA
+
+- QA-ACC-021 — the current browser journey covers bilingual drafting, preview, test-send and schedule cancellation, but not the required quiet-hour deferral and tokenized unsubscribe flow. Extend/add a Playwright journey that sends to a preview recipient during quiet hours, verifies delivery is deferred, follows the unsubscribe link, and checks the category preference is disabled. Existing H service tests cover these behaviors; `docs/codex/qa/DEFECTS.md` records the missing browser coverage.
+
 Track H complete
