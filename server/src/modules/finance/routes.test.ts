@@ -15,6 +15,7 @@ import type { AuthDependencies } from '../auth/routes.js';
 import { bindFixtureInvoice } from '../checkout/test-fixtures.js';
 
 import { aidProgramSchema } from './aid-programs.js';
+import { creditBalanceSchema } from './credit-balances.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresPaymentEventRepository } from './payment-event-repo.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
@@ -351,6 +352,23 @@ describe('staff invoice HTTP', () => {
       status: 'void',
       voidReason: 'Canceled',
     });
+  });
+});
+
+describe('payer credit balance HTTP', () => {
+  it('returns only the signed-in account scope', async () => {
+    const response = await fetch(
+      `${baseUrl}/orgs/${context.orgId}/me/credits`,
+      {
+        headers: { Cookie: `__Host-athlentry_session=${token}` },
+      },
+    );
+    expect(response.status).toBe(200);
+    const balance = creditBalanceSchema.parse(
+      (await response.json()) as unknown,
+    );
+    expect(balance.orgId).toBe(context.orgId);
+    expect(balance.accountBalanceCents).toBeGreaterThanOrEqual(0);
   });
 });
 

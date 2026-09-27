@@ -29,6 +29,10 @@ import {
 } from './aid-review.js';
 import { PostgresPaymentAttemptStore } from './attempt-repo.js';
 import { ConnectConflictError, ConnectOnboardingService } from './connect.js';
+import {
+  creditBalanceSchema,
+  PostgresPayerCreditBalances,
+} from './credit-balances.js';
 import { PostgresCreditRefundRepository } from './credit-refund-repo.js';
 import { CreditRefundService } from './credit-refunds.js';
 import { PostgresFrozenChargeReader } from './frozen-charge-repo.js';
@@ -437,6 +441,21 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.get('/orgs/:orgId/me/credits', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      const balance = await new PostgresPayerCreditBalances(
+        dependencies.database,
+        context,
+      ).read();
+      response.json(creditBalanceSchema.parse(balance));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
   router.get('/orgs/:orgId/aid-programs', async (request, response) => {
     try {
       if (requestImpersonation(request)) throw new FinanceAccessError();

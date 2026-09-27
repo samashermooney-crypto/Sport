@@ -11,6 +11,7 @@ import {
   aidDecisionResponseSchema,
   aidQueueSchema,
 } from './aid-review.js';
+import { creditBalanceSchema } from './credit-balances.js';
 import {
   installmentTemplateBodySchema,
   installmentTemplateSchema,
@@ -52,6 +53,12 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/me/credits',
+      summary: 'Read payer-owned unexpired account and household credits',
+      response: creditBalanceSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/finance/orgs/{orgId}/aid-applications',
