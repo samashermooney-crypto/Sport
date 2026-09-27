@@ -264,7 +264,18 @@ test('family books a make-up class and staff records attendance', async ({
       .getByRole('button', { name: 'Open roster' })
       .first()
       .click();
-    await expect(page.getByRole('cell', { name: 'makeup' })).toBeVisible();
+    // DataTable keeps this label in the desktop column header but repeats it
+    // inside mobile cards. WebKit gives the card's spanning cell no computed
+    // name, so assert the visible label and exact value in the athlete's row.
+    const rosterRow = page
+      .getByRole('row')
+      .filter({ hasText: 'Taylor Gymnast' });
+    await expect(
+      page
+        .getByText('Enrollment type', { exact: true })
+        .filter({ visible: true }),
+    ).toHaveCount(1);
+    await expect(rosterRow.getByText('makeup', { exact: true })).toBeVisible();
     await page
       .getByRole('combobox', { name: 'Attendance for Taylor Gymnast' })
       .selectOption('present');
