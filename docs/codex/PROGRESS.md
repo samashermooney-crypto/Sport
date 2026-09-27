@@ -35,7 +35,7 @@
 | B | Sport engine, algorithms, policies | GPT-6 Sol | ready slice integrated; further queue active | `track/b-logic` |
 | C | Files and provider adapters | GPT-6 Luna | working | `track/c-adapters` |
 | D | Design system | GPT-6 Luna | working | `track/d-design` |
-| E | Stripe and finance | GPT-6 Sol | gateway ready for integration | `track/e-finance` |
+| E | Stripe and finance | GPT-6 Sol | test-mode gateway ready slice integrated; money core awaiting spine | `track/e-finance` |
 
 ## Phase checklists
 
