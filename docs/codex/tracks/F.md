@@ -38,3 +38,5 @@ Open requests:
 - C: wire the adapter into the router; provide consent-sensitive, audited assigned-evaluator photo file access.
 
 Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_f`, `PORT_OFFSET=600`.
+
+HANDED OFF 13:13
