@@ -514,6 +514,144 @@ interface RequirementRow {
   timezone: string;
 }
 
+export async function listVolunteerRequirements(
+  database: Kysely<DB>,
+  context: OrgContext,
+) {
+  return createWithOrg(database)(context, async (trx) => {
+    const result = await sql<{
+      id: string;
+      season_id: string | null;
+      program_id: string | null;
+      scope_name: string;
+      unit: 'hours' | 'shifts';
+      amount_per_household: string | number | null;
+      amount_per_athlete: string | number | null;
+      buyout_price_cents: number | null;
+      deadline: Date | string;
+      auto_invoice_shortfall: boolean;
+      notice_days: number;
+      counts_coach_roles: boolean;
+      version: number;
+    }>`
+      SELECT req.id, req.season_id, req.program_id,
+        COALESCE(program.name, season.name) AS scope_name,
+        req.unit, req.amount_per_household, req.amount_per_athlete,
+        req.buyout_price_cents, req.deadline, req.auto_invoice_shortfall,
+        req.notice_days, req.counts_coach_roles, req.version
+      FROM volunteer_requirements req
+      LEFT JOIN programs program
+        ON program.org_id = req.org_id AND program.id = req.program_id
+      LEFT JOIN seasons season
+        ON season.org_id = req.org_id AND season.id = req.season_id
+      WHERE req.org_id = ${context.orgId}::uuid
+      ORDER BY req.deadline, scope_name
+    `.execute(trx);
+    return result.rows.map((row) => ({
+      id: row.id,
+      seasonId: row.season_id,
+      programId: row.program_id,
+      scopeName: row.scope_name,
+      unit: row.unit,
+      amountPerHousehold:
+        row.amount_per_household === null
+          ? null
+          : Number(row.amount_per_household),
+      amountPerAthlete:
+        row.amount_per_athlete === null ? null : Number(row.amount_per_athlete),
+      buyoutPriceCents: row.buyout_price_cents,
+      deadline: dateOnly(row.deadline),
+      autoInvoiceShortfall: row.auto_invoice_shortfall,
+      noticeDays: row.notice_days,
+      countsCoachRoles: row.counts_coach_roles,
+      version: row.version,
+    }));
+  });
+}
+
+export async function listMyVolunteerHouseholds(
+  database: Kysely<DB>,
+  context: OrgContext,
+) {
+  return createWithOrg(database)(context, async (trx) => {
+    const rows = await trx
+      .selectFrom('household_members as member')
+      .innerJoin('person_account_links as link', (join) =>
+        join
+          .onRef('link.org_id', '=', 'member.org_id')
+          .onRef('link.person_id', '=', 'member.person_id'),
+      )
+      .select(['member.household_id', 'member.person_id'])
+      .where('member.org_id', '=', context.orgId)
+      .where('member.removed_at', 'is', null)
+      .where('link.account_id', '=', context.actor.accountId)
+      .where('link.verified_at', 'is not', null)
+      .where('link.revoked_at', 'is', null)
+      .execute();
+    const households = new Map<string, string[]>();
+    for (const row of rows) {
+      const members = households.get(row.household_id) ?? [];
+      members.push(row.person_id);
+      households.set(row.household_id, members);
+    }
+    return [...households.entries()].map(([id, personIds]) => ({
+      id,
+      personIds,
+    }));
+  });
+}
+
+export async function listShiftSignups(
+  database: Kysely<DB>,
+  context: OrgContext,
+  shiftId: string,
+) {
+  return createWithOrg(database)(context, async (trx) => {
+    const shift = await trx
+      .selectFrom('volunteer_shifts')
+      .select('id')
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', shiftId)
+      .executeTakeFirst();
+    if (!shift) throw new VolunteerNotFoundError('Shift not found');
+    const rows = await trx
+      .selectFrom('volunteer_signups as signup')
+      .innerJoin('people as person', (join) =>
+        join
+          .onRef('person.org_id', '=', 'signup.org_id')
+          .onRef('person.id', '=', 'signup.person_id'),
+      )
+      .select([
+        'signup.id',
+        'signup.volunteer_shift_id',
+        'signup.person_id',
+        'signup.household_id',
+        'signup.status',
+        sql<number>`signup.hours_credited::double precision`.as(
+          'hours_credited',
+        ),
+        'signup.version',
+        'person.first_name',
+        'person.last_name',
+      ])
+      .where('signup.org_id', '=', context.orgId)
+      .where('signup.volunteer_shift_id', '=', shiftId)
+      .orderBy('person.last_name')
+      .orderBy('person.first_name')
+      .execute();
+    return rows.map((row) => ({
+      id: row.id,
+      volunteerShiftId: row.volunteer_shift_id,
+      personId: row.person_id,
+      householdId: row.household_id,
+      personName: `${row.first_name} ${row.last_name}`.trim(),
+      status: row.status,
+      hoursCredited: row.hours_credited,
+      version: row.version,
+    }));
+  });
+}
+
 export async function householdVolunteerLedger(
   database: Kysely<DB>,
   context: OrgContext,

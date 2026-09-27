@@ -4,10 +4,13 @@ import type { ServerModule } from '../../lib/module-contract';
 
 import { createVolunteersRouter } from './routes';
 import {
+  myVolunteerHouseholdsSchema,
+  shiftSignupListSchema,
   volunteerBuyoutBodySchema,
   volunteerBuyoutResponseSchema,
   volunteerLedgerSchema,
   volunteerRequirementBodySchema,
+  volunteerRequirementListSchema,
   volunteerRoleBodySchema,
   volunteerRoleListSchema,
   volunteerRoleSchema,
@@ -73,6 +76,18 @@ const openapiRoutes = [
     volunteerRoleBodySchema,
   ),
   route(
+    'get',
+    '/requirements',
+    'List volunteer requirements and scope',
+    volunteerRequirementListSchema,
+  ),
+  route(
+    'get',
+    '/me/households',
+    'List households the signed-in account can volunteer for',
+    myVolunteerHouseholdsSchema,
+  ),
+  route(
     'post',
     '/requirements',
     'Create a household or athlete volunteer requirement',
@@ -80,6 +95,12 @@ const openapiRoutes = [
     volunteerRequirementBodySchema,
   ),
   route('get', '/shifts', 'List volunteer shifts', volunteerShiftListSchema),
+  route(
+    'get',
+    '/shifts/{shiftId}/signups',
+    'List signups for a shift with volunteer names',
+    shiftSignupListSchema,
+  ),
   route(
     'post',
     '/shifts',

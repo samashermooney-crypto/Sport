@@ -20,6 +20,7 @@ import {
   teamFeeAssessmentSchema,
   teamFeeIssueResponseSchema,
   teamLedgerEntryBodySchema,
+  teamLedgerListSchema,
   teamLedgerSchema,
 } from './schema';
 import {
@@ -31,6 +32,7 @@ import {
   issueTeamFeeAssessment,
   listReimbursementRequests,
   listTeamFeeAssessments,
+  listTeamLedgers,
   TeamFinanceAccessError,
 } from './service';
 
@@ -109,6 +111,18 @@ export function createTeamFinanceRouter(
       }
     };
 
+  router.get(
+    '/orgs/:orgId/ledgers',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      requireAnyRole(actor.roles, financeRoles);
+      response.json(
+        teamLedgerListSchema.parse({
+          ledgers: await listTeamLedgers(dependencies.database, actor.context),
+        }),
+      );
+    }),
+  );
   router.get(
     '/orgs/:orgId/teams/:teamSeasonId/ledger',
     endpoint(async (request, response) => {

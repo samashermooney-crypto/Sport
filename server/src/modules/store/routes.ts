@@ -10,6 +10,7 @@ import {
 } from '../compliance/access';
 
 import {
+  adminOrderListSchema,
   fulfillmentBodySchema,
   fulfillmentSchema,
   orderBodySchema,
@@ -24,6 +25,7 @@ import {
   createProduct,
   listMyStoreOrders,
   listProducts,
+  listStoreOrders,
   placeStoreOrder,
   receiveStock,
   uniformSizeReport,
@@ -46,14 +48,12 @@ export function createStoreRouter(
       ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) &&
       !mutationOriginIsValid(request, dependencies.appUrl)
     ) {
-      response
-        .status(403)
-        .json({
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Request origin could not be verified',
-          },
-        });
+      response.status(403).json({
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Request origin could not be verified',
+        },
+      });
       return;
     }
     next();
@@ -126,6 +126,18 @@ export function createStoreRouter(
         dependencies.clock(),
       );
       response.status(201).json(orderSchema.parse(order));
+    }),
+  );
+  router.get(
+    '/orgs/:orgId/orders',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      requireAnyRole(actor.roles, managers);
+      response.json(
+        adminOrderListSchema.parse({
+          orders: await listStoreOrders(dependencies.database, actor.context),
+        }),
+      );
     }),
   );
   router.get(

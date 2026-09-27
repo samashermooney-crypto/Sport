@@ -10,10 +10,13 @@ import {
 } from '../compliance/access';
 
 import {
+  myVolunteerHouseholdsSchema,
+  shiftSignupListSchema,
   volunteerBuyoutBodySchema,
   volunteerBuyoutResponseSchema,
   volunteerLedgerSchema,
   volunteerRequirementBodySchema,
+  volunteerRequirementListSchema,
   volunteerRoleBodySchema,
   volunteerRoleListSchema,
   volunteerRoleSchema,
@@ -29,6 +32,9 @@ import {
   createVolunteerRole,
   createVolunteerShift,
   householdVolunteerLedger,
+  listMyVolunteerHouseholds,
+  listShiftSignups,
+  listVolunteerRequirements,
   listVolunteerRoles,
   listVolunteerShifts,
   signupForVolunteerShift,
@@ -100,6 +106,51 @@ export function createVolunteersRouter(
         body,
       );
       response.status(201).json(volunteerRoleSchema.parse(role));
+    }),
+  );
+  router.get(
+    '/orgs/:orgId/requirements',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      requireAnyRole(actor.roles, managementRoles);
+      response.json(
+        volunteerRequirementListSchema.parse({
+          requirements: await listVolunteerRequirements(
+            dependencies.database,
+            actor.context,
+          ),
+        }),
+      );
+    }),
+  );
+  router.get(
+    '/orgs/:orgId/me/households',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      response.json(
+        myVolunteerHouseholdsSchema.parse({
+          households: await listMyVolunteerHouseholds(
+            dependencies.database,
+            actor.context,
+          ),
+        }),
+      );
+    }),
+  );
+  router.get(
+    '/orgs/:orgId/shifts/:shiftId/signups',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      requireAnyRole(actor.roles, managementRoles);
+      response.json(
+        shiftSignupListSchema.parse({
+          signups: await listShiftSignups(
+            dependencies.database,
+            actor.context,
+            uuid(request.params.shiftId),
+          ),
+        }),
+      );
     }),
   );
   router.post(

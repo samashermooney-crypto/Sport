@@ -5,7 +5,7 @@ import type { ServerModule } from '../../lib/module-contract';
 import { systemWorkerActorId } from '../jobs/credentials-expiry';
 
 import { createStoreRouter } from './routes';
-import { reconcilePaidStoreOrders } from './service';
+import { reconcilePaidStoreOrders, runLowStockAlertJob } from './service';
 
 async function syncPaidStoreOrders() {
   const database = getDatabase();
@@ -93,9 +93,14 @@ export const moduleDefinition = {
       cron: '* * * * *',
       run: syncPaidStoreOrders,
     },
+    {
+      name: 'store.low-stock-alerts',
+      cron: '30 7 * * *',
+      run: () => runLowStockAlertJob(getDatabase()),
+    },
   ],
   permissions: ['store.read', 'store.manage'],
-  notificationTypes: [],
+  notificationTypes: ['store.order_update', 'store.low_stock'],
   errorCodes: [],
   openapiRoutes,
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };

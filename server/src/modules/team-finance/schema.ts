@@ -84,3 +84,19 @@ export const teamFeeIssueResponseSchema = z.strictObject({
     }),
   ),
 });
+export const teamLedgerListSchema = z.strictObject({
+  ledgers: z.array(
+    z.strictObject({
+      teamSeasonId: uuid,
+      teamName: z.string(),
+      programName: z.string(),
+      status: z.string(),
+      budgetCents: z.number().int().nonnegative(),
+      incomeCents: z.number().int().nonnegative(),
+      expenseCents: z.number().int().nonnegative(),
+      balanceCents: z.number().int(),
+      openReimbursements: z.number().int().nonnegative(),
+      overdueObligations: z.number().int().nonnegative(),
+    }),
+  ),
+});

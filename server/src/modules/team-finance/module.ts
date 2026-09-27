@@ -13,6 +13,7 @@ import {
   teamFeeAssessmentSchema,
   teamFeeIssueResponseSchema,
   teamLedgerEntryBodySchema,
+  teamLedgerListSchema,
   teamLedgerSchema,
 } from './schema';
 import { runTeamFeeLedgerJob } from './service';
@@ -63,6 +64,12 @@ export const teamFinanceNotificationTemplates = {
 } as const;
 
 const openapiRoutes = [
+  route(
+    'get',
+    '/ledgers',
+    'Club-wide team ledger balances and open items',
+    teamLedgerListSchema,
+  ),
   route(
     'get',
     '/teams/{teamSeasonId}/ledger',

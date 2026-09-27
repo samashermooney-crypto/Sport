@@ -15,7 +15,12 @@ export const volunteerRequirementBodySchema = z
     seasonId: uuid.nullable().optional(),
     programId: uuid.nullable().optional(),
     unit: z.enum(['hours', 'shifts']),
-    amountPerHousehold: z.number().positive().max(100_000).nullable().optional(),
+    amountPerHousehold: z
+      .number()
+      .positive()
+      .max(100_000)
+      .nullable()
+      .optional(),
     amountPerAthlete: z.number().positive().max(100_000).nullable().optional(),
     buyoutPriceCents: nonNegativeMoney.nullable().optional(),
     buyoutOfferingId: uuid.nullable().optional(),
@@ -55,7 +60,13 @@ export const volunteerSignupBodySchema = z.strictObject({
 });
 
 export const volunteerStatusBodySchema = z.strictObject({
-  status: z.enum(['confirmed', 'checked_in', 'completed', 'no_show', 'canceled']),
+  status: z.enum([
+    'confirmed',
+    'checked_in',
+    'completed',
+    'no_show',
+    'canceled',
+  ]),
   hoursCredited: z.number().min(0).max(24).optional(),
   expectedVersion: z.number().int().positive(),
 });
@@ -95,7 +106,14 @@ export const volunteerSignupSchema = z.strictObject({
   volunteerShiftId: uuid,
   personId: uuid,
   householdId: uuid,
-  status: z.enum(['signed_up', 'confirmed', 'checked_in', 'completed', 'no_show', 'canceled']),
+  status: z.enum([
+    'signed_up',
+    'confirmed',
+    'checked_in',
+    'completed',
+    'no_show',
+    'canceled',
+  ]),
   hoursCredited: z.number().nonnegative(),
   version: z.number().int().positive(),
 });
@@ -132,4 +150,29 @@ export const volunteerRoleListSchema = z.strictObject({
 });
 export const volunteerShiftListSchema = z.strictObject({
   shifts: z.array(volunteerShiftSchema),
+});
+
+export const volunteerRequirementSchema = z.strictObject({
+  id: uuid,
+  seasonId: uuid.nullable(),
+  programId: uuid.nullable(),
+  scopeName: z.string(),
+  unit: z.enum(['hours', 'shifts']),
+  amountPerHousehold: z.number().positive().nullable(),
+  amountPerAthlete: z.number().positive().nullable(),
+  buyoutPriceCents: nonNegativeMoney.nullable(),
+  deadline: date,
+  autoInvoiceShortfall: z.boolean(),
+  noticeDays: z.number().int().positive(),
+  countsCoachRoles: z.boolean(),
+  version: z.number().int().positive(),
+});
+export const volunteerRequirementListSchema = z.strictObject({
+  requirements: z.array(volunteerRequirementSchema),
+});
+export const shiftSignupListSchema = z.strictObject({
+  signups: z.array(volunteerSignupSchema.extend({ personName: z.string() })),
+});
+export const myVolunteerHouseholdsSchema = z.strictObject({
+  households: z.array(z.strictObject({ id: uuid, personIds: z.array(uuid) })),
 });

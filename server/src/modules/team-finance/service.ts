@@ -483,6 +483,59 @@ export async function getTeamLedger(
   });
 }
 
+export async function listTeamLedgers(
+  database: Kysely<DB>,
+  context: OrgContext,
+) {
+  return createWithOrg(database)(context, async (trx) => {
+    const result = await sql<{
+      team_season_id: string;
+      team_name: string;
+      program_name: string;
+      status: string;
+      budget_cents: number;
+      income_cents: number;
+      expense_cents: number;
+      open_reimbursements: number;
+      overdue_obligations: number;
+    }>`
+      SELECT ledger.team_season_id,
+        COALESCE(ts.display_name, team.name) AS team_name,
+        program.name AS program_name,
+        ledger.status, ledger.budget_cents,
+        COALESCE(sum(entry.amount_cents) FILTER (WHERE entry.direction = 'income'), 0)::int AS income_cents,
+        COALESCE(sum(entry.amount_cents) FILTER (WHERE entry.direction = 'expense'), 0)::int AS expense_cents,
+        (SELECT count(*)::int FROM reimbursement_requests r
+          WHERE r.org_id = ledger.org_id AND r.team_ledger_id = ledger.id AND r.status = 'submitted') AS open_reimbursements,
+        (SELECT count(*)::int FROM team_fee_obligations obligation
+          JOIN invoices invoice ON invoice.org_id = obligation.org_id AND invoice.id = obligation.invoice_id
+          WHERE obligation.org_id = ledger.org_id AND obligation.team_ledger_id = ledger.id
+            AND invoice.balance_cents > 0 AND invoice.due_on < CURRENT_DATE) AS overdue_obligations
+      FROM team_ledgers ledger
+      JOIN team_seasons ts ON ts.org_id = ledger.org_id AND ts.id = ledger.team_season_id
+      JOIN teams team ON team.org_id = ledger.org_id AND team.id = ts.team_id
+      JOIN programs program ON program.org_id = ts.org_id AND program.id = ts.program_id
+      LEFT JOIN team_ledger_entries entry
+        ON entry.org_id = ledger.org_id AND entry.team_ledger_id = ledger.id
+      WHERE ledger.org_id = ${context.orgId}::uuid AND ledger.status <> 'archived'
+      GROUP BY ledger.id, ledger.team_season_id, team.name, ts.display_name, program.name, ledger.status, ledger.budget_cents
+      ORDER BY program.name, team.name
+    `.execute(trx);
+    return result.rows.map((row) => ({
+      teamSeasonId: row.team_season_id,
+      teamName: row.team_name,
+      programName: row.program_name,
+      status: row.status,
+      budgetCents: row.budget_cents,
+      incomeCents: row.income_cents,
+      expenseCents: row.expense_cents,
+      balanceCents: row.income_cents - row.expense_cents,
+      openReimbursements: row.open_reimbursements,
+      overdueObligations: row.overdue_obligations,
+    }));
+  });
+}
+
 export async function createManualLedgerEntry(
   database: Kysely<DB>,
   context: OrgContext,

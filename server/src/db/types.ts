@@ -2061,6 +2061,8 @@ export interface ProductVariants {
   color: string | null;
   created_at: Generated<Timestamp>;
   id: Generated<string>;
+  low_stock_notified_at: Timestamp | null;
+  low_stock_threshold: number | null;
   org_id: string;
   price_cents: number;
   product_id: string;
