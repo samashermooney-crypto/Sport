@@ -123,7 +123,9 @@ test('recipient accepts owner transfer from the staff screen', async ({
       .getByLabel('Choose logo')
       .setInputFiles('e2e/visual-reference/sign-in-390.png');
     await page.getByRole('button', { name: 'Upload logo and save' }).click();
-    await expect(page.getByRole('status')).toContainText('Logo uploaded');
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Logo uploaded' }),
+    ).toBeVisible();
     await expect(
       page.getByRole('img', { name: 'Updated Fixture Club logo' }),
     ).toBeVisible();

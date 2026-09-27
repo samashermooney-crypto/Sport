@@ -5,6 +5,7 @@ import { useParams } from 'react-router';
 import { z } from 'zod';
 
 import { apiGet, apiPatch, apiPost } from '../api/client';
+import { useToast } from '../ui/app-feedback';
 import { AuthFrame, AuthLink, ErrorBox } from '../ui/auth';
 import { Button, Field, Input, Select } from '../ui/primitives';
 
@@ -23,6 +24,7 @@ function ProfileEditor({
   profile: ProfileData;
 }): React.JSX.Element {
   const client = useQueryClient();
+  const notify = useToast();
   const [name, setName] = useState(profile.name);
   const [legalName, setLegalName] = useState(profile.legalName ?? '');
   const [timezone, setTimezone] = useState(profile.timezone);
@@ -43,7 +45,6 @@ function ProfileEditor({
   const [logo, setLogo] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -103,10 +104,9 @@ function ProfileEditor({
   async function submit(): Promise<void> {
     setBusy(true);
     setError('');
-    setNotice('');
     try {
       await save();
-      setNotice('Organization profile saved.');
+      notify('Organization profile saved.', 'success');
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -122,7 +122,6 @@ function ProfileEditor({
     if (!logo) return;
     setBusy(true);
     setError('');
-    setNotice('');
     try {
       const upload = await apiPost(
         '/files/uploads',
@@ -159,7 +158,7 @@ function ProfileEditor({
       );
       await save(upload.fileId);
       setLogo(null);
-      setNotice('Logo uploaded and organization profile saved.');
+      notify('Logo uploaded and organization profile saved.', 'success');
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -179,7 +178,6 @@ function ProfileEditor({
         <AuthLink to="/me/security">account security</AuthLink> before saving.
       </p>
       <ErrorBox error={error} />
-      {notice && <p role="status">{notice}</p>}
       <Field label="Organization name" required>
         <Input
           value={name}
