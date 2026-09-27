@@ -71,7 +71,7 @@ function PublicDivisionStandingsRoute(): React.JSX.Element {
   );
 }
 
-export const schedulePortalRoutes: readonly RouteObject[] = [
+export const portalScheduleRoutes: readonly RouteObject[] = [
   {
     path: '/portal/orgs/:orgId/schedule/teams/:teamSeasonId/people/:personId',
     element: <FamilyScheduleRoute />,
