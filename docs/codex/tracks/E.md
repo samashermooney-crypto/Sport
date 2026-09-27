@@ -6,6 +6,7 @@ Branch: `track/e-finance`
 Current: Schema spine merged; Phase 4 and Phase 5 money core continue with expanded checkout pricing sources, dispute evidence and remaining family/staff money flows.
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
 Ready for integration: local `5e14320..385d96a` — frozen checkout persistence and fail-closed database offering source; queue work continues.
+Ready for integration: local `385d96a..d63eaba` — payer-owned PaymentIntent HTTP API, replay guard and portal Payment Element binding; queue work continues.
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
@@ -26,7 +27,7 @@ Gateway review: test-only keys and events enforced; raw webhook bytes verified; 
 Gateway review: no live keys, no real payment or email sent; test-mode smoke script needs operator test credentials and onboarding.
 Gateway gate: 83 tests, typecheck, lint, build, registry/OpenAPI/codegen freshness green; no gateway screens for Playwright.
 Additional gate: 267 tests passed/1 skipped against isolated Postgres, typecheck, lint and build green; no affected mounted Playwright screens or generated inputs.
-Current gate: 524 tests passed/1 skipped with isolated Postgres and stripe-mock; typecheck, lint, build, and Playwright 22 passed/4 skipped on Chromium/WebKit mobile. A-owned registry/OpenAPI/codegen regeneration remains for integration.
+Current gate: 529 tests passed/1 skipped with isolated Postgres and stripe-mock; typecheck, lint, build, and Playwright 24 passed/4 skipped on Chromium/WebKit mobile. A-owned registry/OpenAPI/codegen regeneration remains for integration.
 Current review: Refund approval hashes bind requester, proposal, destination and key; checkout attempts serialize different keys before Stripe, and payout exports require exact reconciliation.
 Current review: Tenant finance data uses `withOrg`; account-wide payer methods use the authenticated account; no live keys, real charges or external messages were used.
 Current review: Frozen charge terms must be persisted with the checkout snapshot before the payment route is mounted; multi-payment refund allocation and dispute evidence remain in the queue.
@@ -38,6 +39,7 @@ Payment webhooks: `finance/payment-events.ts` maps five PaymentIntent events to 
 Webhook persistence: migration 1000 adds lease token/expiry; `stripe/repo.ts` atomically dedupes, claims, retries and fences stale workers on real Postgres; 4 targeted repository tests pass.
 Money UI: Stripe React/JS dependency `73bdd07`; unmounted Connect onboarding and Payment Element components use token CSS, frozen quote lines and test-key guards; 4 component tests pass.
 Payment screen: `CheckoutPaymentScreen` obtains a test-mode client secret with a session-stable idempotency key, rejects server/visible quote mismatches, and retries the same key after network errors; 2 focused component tests pass, A-owned route mounting awaits checkout flow.
+Payment confirmation: Payment Element catches an ambiguous Stripe confirmation rejection, hides the immediate resubmit button and asks the payer to check balance first; 1 focused component test passes.
 Money core: `finance/service.ts` uses Track B fee algorithms for service/application fees, validates frozen charges, enforces Connect/autopay gates and reserves idempotent PaymentIntent attempts; 9 targeted tests pass.
 Frozen charge reader: `finance/frozen-charge-repo.ts` loads only a payer-owned awaiting-payment checkout whose frozen `pricing_snapshot.paymentTerms`, invoice/credit balance, platform Customer and Connect account reconcile with Track B fee computation; mismatches fail before Stripe. Two real-Postgres tests pass; the checkout freeze writer must persist `paymentTerms` before this reader is wired into a payment route.
 Payment recording: migration 1005 adds honest `unknown` method and checkout FK; `finance/payment-repo.ts` writes pending intents plus invoice allocations before returning a client secret and blocks balance overcommit; 2 real-Postgres tests pass.

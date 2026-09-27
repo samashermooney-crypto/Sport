@@ -78,6 +78,7 @@ function PaymentForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [state, setState] = useState<PaymentSubmissionState | null>(null);
+  const [uncertain, setUncertain] = useState(false);
 
   async function submit(
     event: React.SubmitEvent<HTMLFormElement>,
@@ -91,11 +92,23 @@ function PaymentForm({
     }
     setBusy(true);
     setError('');
-    const result = await stripe.confirmPayment({
-      elements,
-      confirmParams: { return_url: returnTarget.toString() },
-      redirect: 'if_required',
-    });
+    const confirm = () =>
+      stripe.confirmPayment({
+        elements,
+        confirmParams: { return_url: returnTarget.toString() },
+        redirect: 'if_required',
+      });
+    let result: Awaited<ReturnType<typeof confirm>>;
+    try {
+      result = await confirm();
+    } catch {
+      setUncertain(true);
+      setError(
+        'Payment status is unknown. Check your balance before trying again.',
+      );
+      setBusy(false);
+      return;
+    }
     if (result.error) {
       setError(result.error.message ?? 'Payment could not be submitted.');
       setBusy(false);
@@ -161,7 +174,7 @@ function PaymentForm({
               : 'Additional authentication is required to complete payment.'}
         </p>
       )}
-      {!state && (
+      {!state && !uncertain && (
         <button
           className="button"
           type="submit"
