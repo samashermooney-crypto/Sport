@@ -550,3 +550,19 @@
 - **Decision:** The existing account `linked_org_ids` array remains an append-only candidate index. A trigger adds an org when a person-account link is inserted and a migration backfills existing links. The family reader starts from the authenticated global account, then checks active, verified links and active people separately inside `withOrg` for each candidate organization. Revocation does not remove the candidate ID.
 - **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
 - **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
+
+### DEC-080 — Keep global security-header policy in reusable middleware
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 security headers
+- **Context:** `server/src/app.ts` is owned by Track C, while Phase 16 security tests and policy are owned by Track SEC.
+- **Decision:** Implement the strict, testable header policy as a new reusable middleware under `server/src/lib/security/`; Track C mounts it at the application boundary before API/static routes. Keep production-only HSTS conditional and give `/embed/*` an explicit framing exception.
+- **Why:** Security behavior stays independently testable without crossing the app-wiring ownership boundary, and the app applies one header policy consistently.
+- **Consequences / follow-ups:** Track C must mount the middleware and preserve its embedding exception before global header acceptance is complete.
+
+### DEC-081 — Discover encryption-rotation tenants through the account index
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 key rotation
+- **Context:** Rotation must cover all known tenant ciphertext while every tenant row read or write remains under `withOrg`.
+- **Decision:** Use `accounts.linked_org_ids` only to discover candidate organization IDs, then process every organization-owned ciphertext batch in its own `withOrg` transaction. Continue to process global MFA factor ciphertext in a normal transaction. Append a tenant audit event for each rewrapped tenant value and a global security event for each rewrapped MFA secret; record only the table/entity ID and key IDs.
+- **Why:** The append-only account index supports cross-organization discovery without scanning protected organization rows outside the scoped helper; each candidate is still authorized by transaction-local tenant context and RLS. Audit evidence preserves the maintenance history without recording Restricted plaintext or ciphertext.
+- **Consequences / follow-ups:** Any new organization-creation path must maintain the candidate index. Rotation defaults to a dry run; operators pass `--apply` only after validating the candidate keyring.

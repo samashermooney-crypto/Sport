@@ -36,6 +36,32 @@ describe('Phase 0 server', () => {
     }
   });
 
+  it('mounts security headers before routes and serves the draft security contact', async () => {
+    const server = createApp().listen(0, '127.0.0.1');
+    try {
+      await once(server, 'listening');
+      const address = server.address();
+      if (!address || typeof address === 'string')
+        throw new Error('Server did not bind a TCP port');
+      const base = `http://127.0.0.1:${String(address.port)}`;
+      const health = await fetch(`${base}/healthz`);
+      expect(health.headers.get('content-security-policy')).toContain(
+        "default-src 'self'",
+      );
+      expect(health.headers.get('x-frame-options')).toBe('DENY');
+      expect(health.headers.get('strict-transport-security')).toBeNull();
+
+      const security = await fetch(`${base}/.well-known/security.txt`);
+      expect(security.status).toBe(200);
+      expect(security.headers.get('content-type')).toContain('text/plain');
+      expect(await security.text()).toContain(
+        'Contact: mailto:security@athlentry.example',
+      );
+    } finally {
+      await closeServer(server);
+    }
+  });
+
   it('mounts Stripe ingress with its raw body before the API routers', async () => {
     const event = {
       id: 'evt_app_wiring',
