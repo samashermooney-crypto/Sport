@@ -27,3 +27,4 @@ Known failing tests: none among the targeted checks above. The full merge gate h
 Open requests: Track E — offer checkout wired to registration, deposit/installment checkout, and family continuation. Track C — audited Files access for assigned evaluators, limited to currently consented participant photos. No owner request is open.
 
 Working branch: `track/f-safety`, currently based on `rebuild/trunk` through `27c2826`; trunk has advanced to `2ac58d6`. Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_f`, `PORT_OFFSET=600`.
+HANDED OFF 12:17
