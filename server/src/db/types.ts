@@ -488,6 +488,178 @@ export interface Checkouts {
   version: Generated<number>;
 }
 
+export interface ClassAttendance {
+  checked_in_at: Timestamp | null;
+  checked_out_at: Timestamp | null;
+  class_enrollment_id: string;
+  class_session_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  makeup_credit_issued: Generated<boolean>;
+  org_id: string;
+  pickup_account_id: string | null;
+  recorded_by: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassEnrollments {
+  billing_tier: Generated<string>;
+  class_offering_id: string;
+  created_at: Generated<Timestamp>;
+  enrolled_on: Generated<Timestamp>;
+  household_id: string;
+  id: string;
+  org_id: string;
+  person_id: string;
+  registration_id: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+  withdrawal_notice_on: Timestamp | null;
+  withdrawn_on: Timestamp | null;
+}
+
+export interface ClassInstructors {
+  class_offering_id: string;
+  created_at: Generated<Timestamp>;
+  ends_on: Timestamp | null;
+  id: string;
+  org_id: string;
+  person_id: string;
+  role: Generated<string>;
+  starts_on: Timestamp;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassLevelRecommendations {
+  applied_at: Timestamp | null;
+  class_enrollment_id: string;
+  created_at: Generated<Timestamp>;
+  from_level: string;
+  guardian_decision_at: Timestamp | null;
+  guardian_decision_by: string | null;
+  id: string;
+  instructor_account_id: string;
+  org_id: string;
+  recommended_level: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassMakeupBookings {
+  booked_by: string;
+  class_session_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  makeup_credit_id: string;
+  org_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassMakeupCredits {
+  class_enrollment_id: string;
+  created_at: Generated<Timestamp>;
+  expires_on: Timestamp;
+  id: string;
+  org_id: string;
+  source_attendance_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassOfferings {
+  active: Generated<boolean>;
+  billing_term: string;
+  capacity: number;
+  created_at: Generated<Timestamp>;
+  id: string;
+  instructor_ratio: number;
+  level: string;
+  makeup_credits_per_term: Generated<number>;
+  makeup_eligible: Generated<boolean>;
+  makeup_expires_after_days: Generated<number>;
+  maximum_age_months: number;
+  minimum_age_months: number;
+  name: string;
+  org_id: string;
+  program_id: string;
+  recurrence: Json | null;
+  trial_allowed: Generated<boolean>;
+  tuition_tiers: Generated<Json>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassSessions {
+  cancellation_reason: string | null;
+  class_offering_id: string;
+  created_at: Generated<Timestamp>;
+  ends_at: Timestamp;
+  event_id: string | null;
+  facility_id: string | null;
+  id: string;
+  local_date: Timestamp;
+  org_id: string;
+  starts_at: Timestamp;
+  status: Generated<string>;
+  timezone: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassSkillDefinitions {
+  active: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  id: string;
+  level: string;
+  name: string;
+  org_id: string;
+  program_id: string;
+  skill_key: string;
+  sort_order: Generated<number>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassSkillRecords {
+  class_enrollment_id: string;
+  created_at: Generated<Timestamp>;
+  evaluated_at: Generated<Timestamp>;
+  evaluated_by: string;
+  id: string;
+  notes: string | null;
+  org_id: string;
+  proficiency: string;
+  skill_definition_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ClassTuitionSubscriptions {
+  amount_cents: number;
+  billing_day: number;
+  class_enrollment_id: string;
+  created_at: Generated<Timestamp>;
+  currency: string;
+  id: string;
+  last_billing_key: string | null;
+  last_invoice_id: string | null;
+  next_invoice_on: Timestamp;
+  org_id: string;
+  paused_until: Timestamp | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Closures {
   affected_event_ids: Generated<string[]>;
   created_at: Generated<Timestamp>;
@@ -840,6 +1012,132 @@ export interface EmergencyContacts {
   priority: number;
   relationship: string;
   updated_at: Generated<Timestamp>;
+}
+
+export interface EvaluationCriteria {
+  created_at: Generated<Timestamp>;
+  criterion_key: string;
+  evaluation_event_id: string;
+  id: string;
+  label: string;
+  org_id: string;
+  position_keys: Generated<string[]>;
+  position_specific: Generated<boolean>;
+  scale_max: Numeric;
+  scale_min: Numeric;
+  sort_order: Generated<number>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+  weight: Numeric;
+}
+
+export interface EvaluationEvents {
+  created_at: Generated<Timestamp>;
+  id: string;
+  name: string;
+  normalization: Generated<string>;
+  org_id: string;
+  share_results_with_families: Generated<boolean>;
+  status: Generated<string>;
+  target_program_id: string;
+  tryout_program_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationGroups {
+  age_max_months: number | null;
+  age_min_months: number | null;
+  created_at: Generated<Timestamp>;
+  evaluation_event_id: string;
+  gender: string | null;
+  id: string;
+  name: string;
+  org_id: string;
+  position_keys: Generated<string[]>;
+  sort_order: Generated<number>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationParticipants {
+  bib_number: number;
+  check_in_status: Generated<string>;
+  checked_in_at: Timestamp | null;
+  checked_in_by: string | null;
+  created_at: Generated<Timestamp>;
+  evaluation_event_id: string;
+  evaluation_group_id: string;
+  evaluation_session_id: string | null;
+  id: string;
+  media_consent: Generated<boolean>;
+  notes: string | null;
+  org_id: string;
+  person_id: string;
+  photo_file_id: string | null;
+  registration_id: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationResults {
+  composite: Numeric | null;
+  computed_at: Generated<Timestamp>;
+  created_at: Generated<Timestamp>;
+  evaluation_event_id: string;
+  evaluation_participant_id: string;
+  evaluator_count: Generated<number>;
+  id: string;
+  missing_criteria: Generated<string[]>;
+  normalized_scores: Generated<Json>;
+  org_id: string;
+  rank_in_group: number | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationScores {
+  client_mutation_id: string;
+  created_at: Generated<Timestamp>;
+  evaluation_criterion_id: string;
+  evaluation_event_id: string;
+  evaluation_participant_id: string;
+  evaluator_account_id: string;
+  id: string;
+  notes: string | null;
+  org_id: string;
+  score: Numeric;
+  scored_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationSessionEvaluators {
+  account_id: string;
+  assigned_by: string;
+  created_at: Generated<Timestamp>;
+  evaluation_session_id: string;
+  id: string;
+  org_id: string;
+  revoked_at: Timestamp | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationSessions {
+  capacity: number | null;
+  created_at: Generated<Timestamp>;
+  ends_at: Timestamp;
+  evaluation_event_id: string;
+  evaluation_group_id: string | null;
+  facility_id: string | null;
+  id: string;
+  name: string;
+  org_id: string;
+  starts_at: Timestamp;
+  timezone: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
 }
 
 export interface EventParticipants {
@@ -1831,6 +2129,34 @@ export interface PgbossVersion {
   version: number;
 }
 
+export interface PlacementBoards {
+  created_at: Generated<Timestamp>;
+  evaluation_event_id: string | null;
+  fairness_metrics: Generated<Json>;
+  id: string;
+  options: Generated<Json>;
+  org_id: string;
+  published_at: Timestamp | null;
+  seed: number;
+  status: Generated<string>;
+  target_program_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface PlacementLocks {
+  created_at: Generated<Timestamp>;
+  id: string;
+  locked_by: string;
+  org_id: string;
+  person_id: string;
+  placement_board_id: string;
+  reason: string;
+  released_at: Timestamp | null;
+  team_season_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface Plans {
   active: Generated<boolean>;
   application_fee_bps: number;
@@ -2435,6 +2761,43 @@ export interface TeamEntries {
   version: Generated<number>;
 }
 
+export interface TeamOffers {
+  amount_cents: number;
+  checkout_id: string | null;
+  created_at: Generated<Timestamp>;
+  decline_reason: string | null;
+  deposit_cents: number;
+  expires_at: Timestamp;
+  household_id: string;
+  id: string;
+  message: string | null;
+  offering_id: string;
+  org_id: string;
+  person_id: string;
+  placement_id: string;
+  registration_id: string | null;
+  responded_at: Timestamp | null;
+  status: Generated<string>;
+  team_season_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface TeamPlacements {
+  created_at: Generated<Timestamp>;
+  id: string;
+  locked: Generated<boolean>;
+  org_id: string;
+  person_id: string;
+  placement_board_id: string;
+  seed_rating: Numeric | null;
+  source: string;
+  status: Generated<string>;
+  team_season_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Teams {
   age_label: string | null;
   birth_year: number | null;
@@ -2585,6 +2948,17 @@ export interface DB {
   chat_reports: ChatReports;
   checkout_capacity_refund_claims: CheckoutCapacityRefundClaims;
   checkouts: Checkouts;
+  class_attendance: ClassAttendance;
+  class_enrollments: ClassEnrollments;
+  class_instructors: ClassInstructors;
+  class_level_recommendations: ClassLevelRecommendations;
+  class_makeup_bookings: ClassMakeupBookings;
+  class_makeup_credits: ClassMakeupCredits;
+  class_offerings: ClassOfferings;
+  class_sessions: ClassSessions;
+  class_skill_definitions: ClassSkillDefinitions;
+  class_skill_records: ClassSkillRecords;
+  class_tuition_subscriptions: ClassTuitionSubscriptions;
   closures: Closures;
   communication_consent_events: CommunicationConsentEvents;
   communication_preferences: CommunicationPreferences;
@@ -2607,6 +2981,14 @@ export interface DB {
   disputes: Disputes;
   divisions: Divisions;
   emergency_contacts: EmergencyContacts;
+  evaluation_criteria: EvaluationCriteria;
+  evaluation_events: EvaluationEvents;
+  evaluation_groups: EvaluationGroups;
+  evaluation_participants: EvaluationParticipants;
+  evaluation_results: EvaluationResults;
+  evaluation_scores: EvaluationScores;
+  evaluation_session_evaluators: EvaluationSessionEvaluators;
+  evaluation_sessions: EvaluationSessions;
   event_participants: EventParticipants;
   event_series: EventSeries;
   events: Events;
@@ -2669,6 +3051,8 @@ export interface DB {
   'pgboss.schedule': PgbossSchedule;
   'pgboss.subscription': PgbossSubscription;
   'pgboss.version': PgbossVersion;
+  placement_boards: PlacementBoards;
+  placement_locks: PlacementLocks;
   plans: Plans;
   platform_audit_log: PlatformAuditLog;
   platform_feature_flags: PlatformFeatureFlags;
@@ -2713,6 +3097,8 @@ export interface DB {
   suppressions: Suppressions;
   tax_rates: TaxRates;
   team_entries: TeamEntries;
+  team_offers: TeamOffers;
+  team_placements: TeamPlacements;
   team_seasons: TeamSeasons;
   team_staff: TeamStaff;
   teams: Teams;
