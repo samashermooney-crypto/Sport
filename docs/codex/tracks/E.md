@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Finance notices now freeze a reconciled PDF and verified recipient before email delivery, suppressing a retry after an address change; the A-owned app still must mount raw webhooks and enqueue `stripe.event`.
+Current: Stored Stripe events now have a scheduled replay scan for crashed enqueue/worker paths; the A-owned app still must mount raw webhooks and enqueue `stripe.event`.
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
@@ -53,6 +53,10 @@ Ready for integration: local `9b6abd8..HEAD` — latest-state Billing invoice SD
 Ready for integration: local `fac0518..HEAD` — registered `stripe.event` worker dispatches every accepted webhook type with endpoint checks and checkout capacity transitions; full gate green (708 tests, 40 browser tests).
 Ready for integration: local `be0bf4d..HEAD` — scheduled `installments.charge` job scans active orgs with bounded work and durable pre-Stripe claims; full gate green (712 tests, 40 browser tests).
 Ready for integration: local `b79700b..HEAD` — finance invoice and payment emails freeze a payer-owned PDF and verified recipient before first send; full gate green (714 tests, 40 browser tests).
+Ready for integration: local `9001eeb..HEAD` — scheduled `stripe.replay` recovers unprocessed events after lost enqueue or expired leases without waiting for Stripe redelivery; full gate green (716 tests, 40 browser tests).
+Review: Replay selects only unprocessed, currently unleased event IDs, uses the same dispatcher and tenant handlers, and caps each minute at 100 events.
+Review: A poison event cannot starve later items in the selected batch; errors are surfaced after the batch while claimed events retain their normal failure and lease rules.
+Review: Typecheck, lint, 716 tests, 40 browser tests and build passed with test-mode gateway wiring; no live event or charge was used.
 Review: Invoice and receipt PDFs are rendered only for the notice's verified active payer; cross-account rendering needs the seeded system actor, and all reads remain in `withOrg`.
 Review: The outbox saves a PDF of at most 2 MiB and its verified recipient before the provider call, reuses identical bytes and key on ambiguous retries, and suppresses delivery after an address change.
 Review: The migrations preserve existing financial notices without deletion; typecheck, lint, 714 tests, 40 browser tests and build passed with fake/preview email only.
@@ -118,7 +122,7 @@ Luna finance: Use `shared/src/algorithms/{pricing,fees,installments,invoice-stat
 Luna finance: Read payer access from active `person_account_links` to the exact participant; household roles are descriptive; require session, same-origin write header, non-impersonation and the relevant active role before staff money actions.
 Luna finance: Mirror Stripe webhooks through raw-body verification and `StripeEventDispatcher`; handlers fetch latest Stripe state and apply invoice/allocation changes once, while ACH `processing` remains unpaid and refunds/disputes preserve append-only ledger history.
 Luna finance: Before readiness, prove card/3DS/ACH/refund/dispute lifecycle fixtures, duplicate webhook and key replay, 300-way capacity contention, derived invoice balances and reconciliation, plus typecheck, lint, tests, affected Chromium/WebKit screens and build with test-only Stripe keys.
-Next: add staff preview/approval and authenticated evidence submission API with signed-waiver PDF upload; register finance jobs/handlers once Track A provides the worker actor and webhook mount.
+Next: add authenticated dispute-evidence preview/approval/submission after Track A supplies the signed-waiver PDF source; complete pending Phase 4 integration requests, including raw webhook mount and finance route/navigation generation.
 Gateway: Stripe SDK 22.6.2 dependency-only commit `cf83f4c`; real SDK adapter covers Connect, Customers, payment methods, intents, refunds, reversals, disputes, payouts, Billing and domains.
 Gateway tests: 36 passed, including stripe-mock Express account and destination PaymentIntent; typecheck and targeted lint green.
 Gateway review: test-only keys and events enforced; raw webhook bytes verified; exact destination fee and idempotency key asserted.
@@ -234,3 +238,4 @@ Money documents: `pdf-lib` 1.17.1 and fontkit 1.1.1 are dependency-only commits;
 Money notices: migrations 1034–1035 and 1048–1049 add an indexed tenant outbox with frozen PDF bytes and verified recipient; invoice and succeeded payment transactions enqueue one payer notification and one delivery intent after source-account ownership checks. The per-org delivery service leases a row, suppresses unverified/inactive recipients, renders a reconciled payer PDF under the system actor, and retries identical bytes to the original address with the same provider key through the fake/preview sender. Money-route links await Track A integration.
 Manual installment pay: migration 1040 records an org-scoped claim and links a pre-Stripe pending payment to exact invoice/installment and line allocations. Payer ownership, active Connect/Customer, collectible balance and pending charges are checked under locks; uncertain external calls remain fenced. The mounted portal screen checks displayed cents against the returned intent and uses only a `pk_test_` client key. Recorded manual failures do not consume off-session dunning retries; Postgres tests cover failure, new-key retry, success, cross-payer denial and concurrent keys.
 Installment charge worker: `installments.charge` runs every minute with a test-key-only gateway, uses the seeded system actor and a stable UTC instant, drains at most 100 due claims per active org and reports errors after scanning other orgs; 8 focused job/dunning/Postgres tests pass.
+Stripe replay worker: `stripe.replay` scans up to 100 stored unprocessed events each minute after enqueue loss or lease expiry, dispatches through the same 27 typed handlers, continues past poison events and reports failures; 9 focused repository/worker tests pass.

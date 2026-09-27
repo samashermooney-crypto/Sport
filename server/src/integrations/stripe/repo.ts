@@ -38,6 +38,19 @@ function storedFrom(row: EventRow, claimToken: string): ClaimedStripeEvent {
 export class PostgresStripeEventRepository implements StripeEventRepository {
   constructor(private readonly database: Kysely<DB>) {}
 
+  /** Recover stored events when the enqueue or worker process did not survive. */
+  async pendingIds(limit = 100): Promise<string[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+      throw new RangeError('Stripe replay limit must be 1–100');
+    const result = await sql<{ stripe_event_id: string }>`
+      SELECT stripe_event_id FROM stripe_events
+      WHERE processed_at IS NULL
+        AND (lease_expires_at IS NULL OR lease_expires_at < now())
+      ORDER BY received_at, id LIMIT ${limit}
+    `.execute(this.database);
+    return result.rows.map((row) => row.stripe_event_id);
+  }
+
   async store(
     stored: StoredStripeEvent,
   ): Promise<'inserted' | 'pending' | 'processed'> {

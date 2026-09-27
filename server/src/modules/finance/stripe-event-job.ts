@@ -194,3 +194,35 @@ export function runFinanceStripeEventJob(data: unknown) {
     repository: new PostgresStripeEventRepository(database),
   });
 }
+
+export async function replayStoredStripeEvents(
+  repository: Pick<PostgresStripeEventRepository, 'pendingIds'>,
+  dispatch: (eventId: string) => Promise<'processed' | 'already_claimed'>,
+): Promise<{ processed: number }> {
+  const ids = await repository.pendingIds(100);
+  let processed = 0;
+  const errors: unknown[] = [];
+  for (const id of ids) {
+    try {
+      if ((await dispatch(id)) === 'processed') processed += 1;
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length)
+    throw new AggregateError(errors, 'Stripe event replay failed');
+  return { processed };
+}
+
+export function runFinanceStripeReplayJob(): Promise<{ processed: number }> {
+  const database = getDatabase();
+  const secret = process.env.STRIPE_SECRET_KEY;
+  if (!secret) throw new Error('STRIPE_SECRET_KEY is required');
+  const gateway = createStripeGateway(secret);
+  const repository = new PostgresStripeEventRepository(database);
+  const dispatcher = new StripeEventDispatcher(
+    repository,
+    financeStripeEventHandlers(database, gateway),
+  );
+  return replayStoredStripeEvents(repository, (id) => dispatcher.dispatch(id));
+}
