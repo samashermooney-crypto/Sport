@@ -4,6 +4,7 @@ import { sportProfileSchema } from '@shared/sport/schema';
 import { withOrg } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 import { VersionConflictError } from '../../lib/version-check';
+import { assertNotSuspendedForLineup } from '../discipline/service';
 import { assertSchedulePermission } from '../scheduling/access';
 import { SchedulingRuleError, scopeForEvent } from '../scheduling/events';
 
@@ -415,7 +416,7 @@ export async function saveLineup(
   entries: Array<{ personId: string; position: string; order?: number }>,
   expectedVersion?: number,
 ) {
-  return withOrg(context, async (trx) => {
+  const result = await withOrg(context, async (trx) => {
     await assertSchedulePermission(trx, context, 'results.manage', {
       teamSeasonId,
     });
@@ -426,7 +427,12 @@ export async function saveLineup(
           .onRef('events.org_id', '=', 'contests.org_id')
           .onRef('events.id', '=', 'contests.event_id'),
       )
-      .select(['contests.id', 'events.program_id', 'events.division_id'])
+      .select([
+        'contests.id',
+        'events.program_id',
+        'events.division_id',
+        'events.starts_at',
+      ])
       .where('contests.org_id', '=', context.orgId)
       .where('contests.id', '=', contestId)
       .executeTakeFirst();
@@ -491,29 +497,31 @@ export async function saveLineup(
         409,
         'CONFLICT',
       );
-    const suspended = personIds.length
-      ? await trx
-          .selectFrom('discipline_records')
-          .select(['person_id', 'suspension_games', 'games_served'])
-          .where('org_id', '=', context.orgId)
-          .where('team_season_id', '=', teamSeasonId)
-          .where('person_id', 'in', personIds)
-          .where('status', '=', 'active')
-          .where('suspension_games', '>', 0)
-          .execute()
-      : [];
-    if (
-      suspended.some(
-        (record) =>
-          record.suspension_games !== null &&
-          record.games_served < record.suspension_games,
-      )
-    )
-      throw new SchedulingRuleError(
-        'A suspended athlete cannot be added to this lineup.',
-        409,
-        'CONFLICT',
-      );
+    let suspensionBlocked = false;
+    for (const personId of personIds) {
+      try {
+        await assertNotSuspendedForLineup(
+          trx,
+          context,
+          personId,
+          teamSeasonId,
+          contest.starts_at,
+        );
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          'code' in error &&
+          error.code === 'DISCIPLINE_SUSPENSION_ACTIVE'
+        ) {
+          suspensionBlocked = true;
+          break;
+        }
+        throw error;
+      }
+    }
+    // Let the transaction commit the discipline audit row before surfacing the
+    // conflict. Throwing inside withOrg would roll that audit entry back.
+    if (suspensionBlocked) return { kind: 'suspension-blocked' as const };
     const existing = await trx
       .selectFrom('lineups')
       .selectAll()
@@ -527,31 +535,44 @@ export async function saveLineup(
       );
     const snapshot = entries as unknown as import('../../db/types').Json;
     if (existing)
-      return trx
-        .updateTable('lineups')
-        .set({
+      return {
+        kind: 'saved' as const,
+        lineup: await trx
+          .updateTable('lineups')
+          .set({
+            entries: snapshot,
+            submitted_by: context.actor.accountId,
+            version: existing.version + 1,
+          })
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', existing.id)
+          .where('version', '=', existing.version)
+          .returningAll()
+          .executeTakeFirstOrThrow(),
+      };
+    return {
+      kind: 'saved' as const,
+      lineup: await trx
+        .insertInto('lineups')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          contest_id: contestId,
+          team_season_id: teamSeasonId,
           entries: snapshot,
           submitted_by: context.actor.accountId,
-          version: existing.version + 1,
         })
-        .where('org_id', '=', context.orgId)
-        .where('id', '=', existing.id)
-        .where('version', '=', existing.version)
         .returningAll()
-        .executeTakeFirstOrThrow();
-    return trx
-      .insertInto('lineups')
-      .values({
-        id: newId(),
-        org_id: context.orgId,
-        contest_id: contestId,
-        team_season_id: teamSeasonId,
-        entries: snapshot,
-        submitted_by: context.actor.accountId,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
+        .executeTakeFirstOrThrow(),
+    };
   });
+  if (result.kind === 'suspension-blocked')
+    throw new SchedulingRuleError(
+      'A suspended athlete cannot be added to this lineup.',
+      409,
+      'CONFLICT',
+    );
+  return result.lineup;
 }
 
 export async function coachGameDay(context: OrgContext, eventId: string) {
