@@ -11,6 +11,7 @@ export type ImportKind = z.infer<typeof importKindSchema>;
 export const importDuplicateStrategySchema = z.enum([
   'skip',
   'update',
+  'merge',
   'create',
 ]);
 export type ImportDuplicateStrategy = z.infer<
@@ -35,7 +36,7 @@ export type ImportRowIssue = z.infer<typeof importRowIssueSchema>;
 
 export const importRowPreviewSchema = z.strictObject({
   rowNumber: z.number().int().positive(),
-  action: z.enum(['create', 'update', 'skip', 'invalid']),
+  action: z.enum(['create', 'update', 'merge', 'skip', 'invalid']),
   issues: z.array(importRowIssueSchema),
   normalized: z.record(z.string(), z.unknown()).nullable(),
 });
@@ -50,6 +51,7 @@ export const importBatchSchema = z.strictObject({
     total: z.number().int().nonnegative(),
     create: z.number().int().nonnegative(),
     update: z.number().int().nonnegative(),
+    merge: z.number().int().nonnegative(),
     skip: z.number().int().nonnegative(),
     invalid: z.number().int().nonnegative(),
   }),

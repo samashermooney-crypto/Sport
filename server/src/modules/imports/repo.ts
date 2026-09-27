@@ -17,6 +17,7 @@ import type { DB, JsonValue } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgTransaction } from '../../db/withOrg';
 import { PeopleError, requireStaff } from '../people/repo';
+import { ensureGuardianProfileAndHousehold } from '../people/guardianProfile';
 
 interface RawRow {
   [column: string]: string;
@@ -34,7 +35,6 @@ interface NormalizedPerson {
   householdName: string | null;
   emergencyContactName: string | null;
   emergencyContactPhoneE164: string | null;
-  guardianEmail: string | null;
 }
 
 interface NormalizedHousehold {
@@ -70,9 +70,21 @@ interface StagedRow {
   rowNumber: number;
   raw: RawRow;
   normalized: Normalized | null;
-  action: 'create' | 'update' | 'skip' | 'invalid';
+  action: 'create' | 'update' | 'merge' | 'skip' | 'invalid';
   issues: ImportRowIssue[];
   duplicateOf?: { personId: string } | { rowNumber: number };
+}
+
+interface PersonImportSnapshot {
+  expectedVersion: number;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  email: string | null;
+  phone_e164: string | null;
+  gender: 'female' | 'male' | 'nonbinary' | 'unspecified';
+  graduation_year: number | null;
+  school_name: string | null;
 }
 
 const issue = (
@@ -189,11 +201,6 @@ function normalizePersonRow(
       issue('emergencyContactPhone', 'invalid_phone', `Invalid emergency phone "${emergencyPhoneRaw}"`),
     );
 
-  const guardianEmailRaw = mapped(raw, mapping, 'guardianEmail');
-  const guardianEmail = normalizeEmail(guardianEmailRaw);
-  if (guardianEmailRaw !== '' && guardianEmail === null)
-    issues.push(issue('guardianEmail', 'invalid_email', `Invalid guardian email "${guardianEmailRaw}"`));
-
   if (issues.length > 0) return { normalized: null, issues };
   return {
     normalized: {
@@ -208,7 +215,6 @@ function normalizePersonRow(
       householdName: mapped(raw, mapping, 'householdName') || null,
       emergencyContactName: mapped(raw, mapping, 'emergencyContactName') || null,
       emergencyContactPhoneE164,
-      guardianEmail,
     },
     issues,
   };
@@ -325,6 +331,7 @@ function toBatch(row: {
       total: stats.total ?? 0,
       create: stats.create ?? 0,
       update: stats.update ?? 0,
+      merge: stats.merge ?? 0,
       skip: stats.skip ?? 0,
       invalid: stats.invalid ?? 0,
     },
@@ -414,6 +421,7 @@ export function createImportsRepository(database: Kysely<DB>) {
           }
         }
         if (duplicate !== undefined) {
+          row.duplicateOf = duplicate;
           row.issues.push(
             issue(
               'row',
@@ -424,7 +432,10 @@ export function createImportsRepository(database: Kysely<DB>) {
             ),
           );
           row.action = duplicateStrategy === 'skip' ? 'skip' : duplicateStrategy;
-          if (row.action === 'update' && 'rowNumber' in duplicate)
+          if (
+            (row.action === 'update' || row.action === 'merge') &&
+            'rowNumber' in duplicate
+          )
             row.action = 'skip';
         } else {
           row.action = 'create';
@@ -441,7 +452,14 @@ export function createImportsRepository(database: Kysely<DB>) {
   }
 
   function statsFor(staged: StagedRow[]) {
-    const stats = { total: staged.length, create: 0, update: 0, skip: 0, invalid: 0 };
+    const stats = {
+      total: staged.length,
+      create: 0,
+      update: 0,
+      merge: 0,
+      skip: 0,
+      invalid: 0,
+    };
     for (const row of staged) stats[row.action] += 1;
     return stats;
   }
@@ -496,11 +514,29 @@ export function createImportsRepository(database: Kysely<DB>) {
             raw: row.raw,
             normalized: row.normalized as unknown as JsonValue,
             action: row.action,
-            issues: row.issues as unknown as JsonValue,
+            // node-postgres serializes top-level arrays as PostgreSQL arrays;
+            // JSONB needs an explicit JSON string for issue lists.
+            issues: JSON.stringify(row.issues) as unknown as JsonValue,
+            target_person_id:
+              row.duplicateOf && 'personId' in row.duplicateOf
+                ? row.duplicateOf.personId
+                : null,
           }),
         );
         for (let index = 0; index < rowValues.length; index += 500)
           await trx.insertInto('import_rows').values(rowValues.slice(index, index + 500)).execute();
+        await trx
+          .insertInto('audit_log')
+          .values({
+            id: newId(),
+            org_id: orgId,
+            actor_account_id: actorId,
+            action: 'import.preview_created',
+            entity_type: 'import_batch',
+            entity_id: batchId,
+            changes: { kind: input.kind, rows: stats.total },
+          })
+          .execute();
         return {
           batch: toBatch({
             id: batchId,
@@ -544,12 +580,21 @@ export function createImportsRepository(database: Kysely<DB>) {
           .orderBy('row_number')
           .execute();
         const refs = new Map<number, CreatedRef[]>();
+        const beforeStates = new Map<number, PersonImportSnapshot>();
         if (batch.kind === 'people') {
-          await commitPeople(trx, orgId, rows, refs);
+          await commitPeople(
+            trx,
+            orgId,
+            actorId,
+            batchId,
+            rows,
+            refs,
+            beforeStates,
+          );
         } else if (batch.kind === 'households') {
           await commitHouseholds(trx, orgId, rows, refs);
         } else if (batch.kind === 'guardians') {
-          await commitGuardians(trx, orgId, rows, refs);
+          await commitGuardians(trx, orgId, actorId, rows, refs);
         } else {
           await commitContacts(trx, orgId, rows, refs);
         }
@@ -562,12 +607,29 @@ export function createImportsRepository(database: Kysely<DB>) {
             .set({
               entity_type: primary?.type ?? created[0]?.type ?? null,
               entity_id: primary?.id ?? created[0]?.id ?? null,
-              created_refs: JSON.stringify(created),
+              created_refs: JSON.stringify(
+                row.action === 'create' ? created : [],
+              ),
+              before_state: beforeStates.has(row.row_number)
+                ? (beforeStates.get(row.row_number) as unknown as JsonValue)
+                : null,
             })
             .where('org_id', '=', orgId)
             .where('id', '=', row.id)
             .execute();
         }
+        await trx
+          .insertInto('audit_log')
+          .values({
+            id: newId(),
+            org_id: orgId,
+            actor_account_id: actorId,
+            action: 'import.batch_committed',
+            entity_type: 'import_batch',
+            entity_id: batchId,
+            changes: { kind: batch.kind, rows: rows.length },
+          })
+          .execute();
         await trx
           .updateTable('import_batches')
           .set({ status: 'committed', committed_at: new Date(), committed_by: actorId })
@@ -593,18 +655,53 @@ export function createImportsRepository(database: Kysely<DB>) {
           throw new PeopleError(409, 'CONFLICT', 'Only committed batches roll back');
         const rows = await trx
           .selectFrom('import_rows')
-          .select(['id', 'row_number', 'created_refs'])
+          .select([
+            'id',
+            'row_number',
+            'action',
+            'entity_id',
+            'created_refs',
+            'before_state',
+          ])
           .where('org_id', '=', orgId)
           .where('batch_id', '=', batchId)
           .execute();
-        const refs = rows.flatMap(
-          (row) => (row.created_refs ?? []) as unknown as CreatedRef[],
-        );
+        const refs = rows
+          .filter((row) => row.action === 'create')
+          .flatMap((row) => (row.created_refs ?? []) as unknown as CreatedRef[]);
         const personIds = refs.filter((ref) => ref.type === 'person').map((ref) => ref.id);
         const householdIds = refs.filter((ref) => ref.type === 'household').map((ref) => ref.id);
         const memberIds = refs.filter((ref) => ref.type === 'household_member').map((ref) => ref.id);
         const contactIds = refs.filter((ref) => ref.type === 'emergency_contact').map((ref) => ref.id);
         const linkIds = refs.filter((ref) => ref.type === 'person_account_link').map((ref) => ref.id);
+        const reversibleUpdates = rows.filter(
+          (row) => row.action === 'update' || row.action === 'merge',
+        );
+        const snapshots = reversibleUpdates.map((row) => {
+          const snapshot = row.before_state as unknown as PersonImportSnapshot | null;
+          if (!snapshot || !row.entity_id)
+            throw new PeopleError(
+              409,
+              'CONFLICT',
+              'An imported update has no rollback snapshot',
+            );
+          return { row, snapshot };
+        });
+        for (const { row, snapshot } of snapshots) {
+          const current = await trx
+            .selectFrom('people')
+            .select(['id', 'version'])
+            .where('org_id', '=', orgId)
+            .where('id', '=', row.entity_id as string)
+            .forUpdate()
+            .executeTakeFirst();
+          if (!current || current.version !== snapshot.expectedVersion)
+            throw new PeopleError(
+              409,
+              'CONFLICT',
+              'An imported profile changed after the batch and cannot be restored',
+            );
+        }
         if (personIds.length > 0) {
           const touched = await countTouchedPeople(trx, orgId, personIds, {
             memberIds,
@@ -634,19 +731,106 @@ export function createImportsRepository(database: Kysely<DB>) {
               'Imported households have new members and cannot roll back',
             );
         }
-        const deletes: Array<[string, string[]]> = [
-          ['person_account_links', linkIds],
-          ['emergency_contacts', contactIds],
-          ['household_members', memberIds],
-          ['people', personIds],
-          ['households', householdIds],
-        ];
-        for (const [table, ids] of deletes) {
-          if (ids.length === 0) continue;
-          await sql`DELETE FROM ${sql.table(table)} WHERE org_id = ${orgId} AND id = ANY(${ids})`.execute(
-            trx,
-          );
+        const now = new Date();
+        if (linkIds.length > 0)
+          await trx
+            .updateTable('person_account_links')
+            .set({ revoked_at: now })
+            .where('org_id', '=', orgId)
+            .where('id', 'in', linkIds)
+            .where('revoked_at', 'is', null)
+            .execute();
+        if (contactIds.length > 0)
+          await trx
+            .updateTable('emergency_contacts')
+            .set({ removed_at: now })
+            .where('org_id', '=', orgId)
+            .where('id', 'in', contactIds)
+            .where('removed_at', 'is', null)
+            .execute();
+        if (memberIds.length > 0)
+          await trx
+            .updateTable('household_members')
+            .set({ removed_at: now })
+            .where('org_id', '=', orgId)
+            .where('id', 'in', memberIds)
+            .where('removed_at', 'is', null)
+            .execute();
+        if (personIds.length > 0)
+          await trx
+            .updateTable('people')
+            .set({ status: 'archived', version: sql`version + 1` })
+            .where('org_id', '=', orgId)
+            .where('id', 'in', personIds)
+            .where('status', '=', 'active')
+            .execute();
+        if (householdIds.length > 0)
+          await trx
+            .updateTable('households')
+            .set({ status: 'archived', version: sql`version + 1` })
+            .where('org_id', '=', orgId)
+            .where('id', 'in', householdIds)
+            .where('status', '=', 'active')
+            .execute();
+        for (const { row, snapshot } of snapshots) {
+          const personId = row.entity_id as string;
+          await trx
+            .updateTable('people')
+            .set({
+              first_name: snapshot.first_name,
+              last_name: snapshot.last_name,
+              date_of_birth: snapshot.date_of_birth,
+              email: snapshot.email,
+              phone_e164: snapshot.phone_e164,
+              gender: snapshot.gender,
+              graduation_year: snapshot.graduation_year,
+              school_name: snapshot.school_name,
+              version: sql`version + 1`,
+            })
+            .where('org_id', '=', orgId)
+            .where('id', '=', personId)
+            .where('version', '=', snapshot.expectedVersion)
+            .execute();
+          await trx
+            .insertInto('audit_log')
+            .values({
+              id: newId(),
+              org_id: orgId,
+              actor_account_id: actorId,
+              action: 'person.import_rollback',
+              entity_type: 'person',
+              entity_id: personId,
+              changes: { batchId },
+            })
+            .execute();
         }
+        if (personIds.length > 0)
+          await trx
+            .insertInto('audit_log')
+            .values(
+              personIds.map((personId) => ({
+                id: newId(),
+                org_id: orgId,
+                actor_account_id: actorId,
+                action: 'person.import_rollback_archived',
+                entity_type: 'person',
+                entity_id: personId,
+                changes: { batchId },
+              })),
+            )
+            .execute();
+        await trx
+          .insertInto('audit_log')
+          .values({
+            id: newId(),
+            org_id: orgId,
+            actor_account_id: actorId,
+            action: 'import.batch_rolled_back',
+            entity_type: 'import_batch',
+            entity_id: batchId,
+            changes: { kind: batch.kind, rows: rows.length },
+          })
+          .execute();
         await trx
           .updateTable('import_batches')
           .set({ status: 'rolled_back', rolled_back_at: new Date(), rolled_back_by: actorId })
@@ -769,16 +953,22 @@ type ImportRowRow = {
   row_number: number;
   action: string;
   normalized: unknown;
+  target_person_id: string | null;
 };
 
 async function commitPeople(
   trx: Trx,
   orgId: string,
+  actorId: string,
+  batchId: string,
   rows: ImportRowRow[],
   refs: Map<number, CreatedRef[]>,
+  beforeStates: Map<number, PersonImportSnapshot>,
 ) {
   const creates = rows.filter((row) => row.action === 'create');
-  const updates = rows.filter((row) => row.action === 'update');
+  const updates = rows.filter(
+    (row) => row.action === 'update' || row.action === 'merge',
+  );
   const people = creates.map((row) => row.normalized as NormalizedPerson);
   const householdNames = [
     ...new Set(
@@ -787,14 +977,7 @@ async function commitPeople(
         .filter((name): name is string => name !== undefined && name !== ''),
     ),
   ];
-  const guardianEmails = [
-    ...new Set(
-      people
-        .map((person) => person.guardianEmail)
-        .filter((email): email is string => email !== null),
-    ),
-  ];
-  const [existingHouseholds, guardianAccounts, existingPeople] =
+  const [existingHouseholds, existingPeople] =
     await Promise.all([
       householdNames.length === 0
         ? Promise.resolve([])
@@ -804,18 +987,22 @@ async function commitPeople(
             .where('org_id', '=', orgId)
             .where('status', '=', 'active')
             .execute(),
-      guardianEmails.length === 0
-        ? Promise.resolve([])
-        : trx
-            .selectFrom('accounts')
-            .select(['id', 'email'])
-            .where('email', 'in', guardianEmails)
-            .execute(),
       updates.length === 0
         ? Promise.resolve([])
         : trx
             .selectFrom('people')
-            .select(['id', 'email', 'phone_e164', 'first_name', 'last_name', 'date_of_birth'])
+            .select([
+              'id',
+              'email',
+              'phone_e164',
+              'first_name',
+              'last_name',
+              'date_of_birth',
+              'gender',
+              'graduation_year',
+              'school_name',
+              'version',
+            ])
             .where('org_id', '=', orgId)
             .where('status', '=', 'active')
             .execute(),
@@ -823,6 +1010,8 @@ async function commitPeople(
   const householdIdByName = new Map(
     existingHouseholds.map((household) => [household.name.toLowerCase(), household.id]),
   );
+  const importedHouseholdIds = new Set<string>();
+  const recordedHouseholdIds = new Set<string>();
   const missingNames = householdNames.filter((name) => !householdIdByName.has(name));
   if (missingNames.length > 0) {
     const originals = new Map(
@@ -841,12 +1030,11 @@ async function commitPeople(
       )
       .returning(['id', 'name'])
       .execute();
-    for (const household of inserted)
+    for (const household of inserted) {
       householdIdByName.set(household.name.toLowerCase(), household.id);
+      importedHouseholdIds.add(household.id);
+    }
   }
-  const accountIdByEmail = new Map(
-    guardianAccounts.map((account) => [account.email.toLowerCase(), account.id]),
-  );
 
   const inserts: Insertable<DB['people']>[] = people.map((person) => ({
     id: newId(),
@@ -870,9 +1058,23 @@ async function commitPeople(
       .execute();
     createdIds.push(...returned.map((row) => row.id));
   }
+  if (createdIds.length > 0)
+    await trx
+      .insertInto('audit_log')
+      .values(
+        creates.map((row, index) => ({
+          id: newId(),
+          org_id: orgId,
+          actor_account_id: actorId,
+          action: 'person.imported',
+          entity_type: 'person',
+          entity_id: createdIds[index] as string,
+          changes: { batchId, rowNumber: row.row_number },
+        })),
+      )
+      .execute();
   const memberInserts: Insertable<DB['household_members']>[] = [];
   const contactInserts: Insertable<DB['emergency_contacts']>[] = [];
-  const linkInserts: Insertable<DB['person_account_links']>[] = [];
   creates.forEach((row, index) => {
     const person = row.normalized as NormalizedPerson;
     const personId = createdIds[index] as string;
@@ -891,6 +1093,13 @@ async function commitPeople(
           is_primary_contact: false,
         });
         created.push({ type: 'household_member', id: memberId });
+        if (
+          importedHouseholdIds.has(householdId) &&
+          !recordedHouseholdIds.has(householdId)
+        ) {
+          created.push({ type: 'household', id: householdId });
+          recordedHouseholdIds.add(householdId);
+        }
       }
     }
     if (person.emergencyContactName && person.emergencyContactPhoneE164) {
@@ -906,21 +1115,6 @@ async function commitPeople(
       });
       created.push({ type: 'emergency_contact', id: contactId });
     }
-    if (person.guardianEmail) {
-      const accountId = accountIdByEmail.get(person.guardianEmail);
-      if (accountId) {
-        const linkId = newId();
-        linkInserts.push({
-          id: linkId,
-          org_id: orgId,
-          person_id: personId,
-          account_id: accountId,
-          relationship: 'guardian',
-          verified_at: new Date(),
-        });
-        created.push({ type: 'person_account_link', id: linkId });
-      }
-    }
   });
   for (let index = 0; index < memberInserts.length; index += 500)
     await trx
@@ -932,15 +1126,14 @@ async function commitPeople(
       .insertInto('emergency_contacts')
       .values(contactInserts.slice(index, index + 500))
       .execute();
-  for (let index = 0; index < linkInserts.length; index += 500)
-    await trx
-      .insertInto('person_account_links')
-      .values(linkInserts.slice(index, index + 500))
-      .execute();
+  // Guardian access is granted only by the explicit guardian import flow,
+  // which also creates the adult's self profile and household membership.
 
   for (const row of updates) {
     const person = row.normalized as NormalizedPerson;
     const target =
+      (row.target_person_id &&
+        existingPeople.find((existing) => existing.id === row.target_person_id)) ||
       (person.email &&
         existingPeople.find(
           (existing) => existing.email?.toLowerCase() === person.email,
@@ -954,19 +1147,67 @@ async function commitPeople(
       );
     if (target == null) continue;
     const targetId = target.id;
-    await trx
+    const snapshot: PersonImportSnapshot = {
+      expectedVersion: target.version + 1,
+      first_name: target.first_name,
+      last_name: target.last_name,
+      date_of_birth: dobKey(target.date_of_birth),
+      email: target.email,
+      phone_e164: target.phone_e164,
+      gender: target.gender as PersonImportSnapshot['gender'],
+      graduation_year: target.graduation_year,
+      school_name: target.school_name,
+    };
+    beforeStates.set(row.row_number, snapshot);
+    const merging = row.action === 'merge';
+    const updated = await trx
       .updateTable('people')
       .set({
-        first_name: person.firstName,
-        last_name: person.lastName,
-        phone_e164: person.phoneE164 ?? undefined,
-        email: person.email ?? undefined,
-        gender: person.gender,
-        graduation_year: person.graduationYear ?? undefined,
-        school_name: person.schoolName ?? undefined,
+        first_name: merging ? target.first_name : person.firstName,
+        last_name: merging ? target.last_name : person.lastName,
+        date_of_birth: merging
+          ? target.date_of_birth
+          : (person.dateOfBirth as string),
+        phone_e164:
+          merging
+            ? (target.phone_e164 ?? person.phoneE164)
+            : (person.phoneE164 ?? undefined),
+        email:
+          merging
+            ? (target.email ?? person.email)
+            : (person.email ?? undefined),
+        gender:
+          merging && target.gender !== 'unspecified'
+            ? target.gender
+            : person.gender,
+        graduation_year:
+          merging
+            ? (target.graduation_year ?? person.graduationYear)
+            : (person.graduationYear ?? undefined),
+        school_name:
+          merging
+            ? (target.school_name ?? person.schoolName)
+            : (person.schoolName ?? undefined),
+        version: sql`version + 1`,
       })
       .where('org_id', '=', orgId)
       .where('id', '=', targetId)
+      .where('version', '=', target.version)
+      .returning('version')
+      .executeTakeFirst();
+    if (!updated)
+      throw new PeopleError(409, 'CONFLICT', 'Person changed during import');
+    await trx
+      .insertInto('audit_log')
+      .values({
+        id: newId(),
+        org_id: orgId,
+        actor_account_id: actorId,
+        action: 'person.import_updated',
+        entity_type: 'person',
+        entity_id: targetId,
+        changes: { batchId, rowNumber: row.row_number, version: updated.version },
+      })
       .execute();
     refs.set(row.row_number, [{ type: 'person', id: targetId }]);
   }
@@ -993,6 +1234,7 @@ async function commitHouseholds(
 async function commitGuardians(
   trx: Trx,
   orgId: string,
+  actorId: string,
   rows: ImportRowRow[],
   refs: Map<number, CreatedRef[]>,
 ) {
@@ -1009,7 +1251,13 @@ async function commitGuardians(
       ? []
       : await trx
           .selectFrom('accounts')
-          .select(['id', 'email'])
+          .select([
+            'id',
+            'email',
+            'date_of_birth',
+            'email_verified_at',
+            'status',
+          ])
           .where('email', 'in', emails)
           .execute();
   const accountByEmail = new Map(
@@ -1039,9 +1287,47 @@ async function commitGuardians(
       );
     const accountId =
       guardian.guardianEmail && accountByEmail.get(guardian.guardianEmail);
-    if (!personId || !accountId) continue;
+    if (!personId || !accountId)
+      throw new PeopleError(
+        400,
+        'VALIDATION_ERROR',
+        `Guardian or person was not found for import row ${row.row_number}`,
+      );
+    const account = accounts.find((candidate) => candidate.id === accountId);
+    if (
+      !account ||
+      account.status !== 'active' ||
+      account.email_verified_at === null
+    )
+      throw new PeopleError(
+        400,
+        'VALIDATION_ERROR',
+        `Guardian account for import row ${row.row_number} is not verified and active`,
+      );
+    const existingLink = await trx
+      .selectFrom('person_account_links')
+      .select('id')
+      .where('org_id', '=', orgId)
+      .where('person_id', '=', personId)
+      .where('account_id', '=', accountId)
+      .where('relationship', '=', 'guardian')
+      .where('revoked_at', 'is', null)
+      .executeTakeFirst();
+    if (existingLink)
+      throw new PeopleError(
+        409,
+        'CONFLICT',
+        `Guardian is already linked for import row ${row.row_number}`,
+      );
+    const guardianProfile = await ensureGuardianProfileAndHousehold(
+      trx,
+      orgId,
+      accountId,
+      personId,
+      actorId,
+    );
     const id = newId();
-    await trx
+    const inserted = await trx
       .insertInto('person_account_links')
       .values({
         id,
@@ -1052,8 +1338,30 @@ async function commitGuardians(
         verified_at: new Date(),
       })
       .onConflict((conflict) => conflict.doNothing())
+      .returning('id')
       .execute();
-    refs.set(row.row_number, [{ type: 'person_account_link', id }]);
+    if (inserted.length === 0)
+      throw new PeopleError(
+        409,
+        'CONFLICT',
+        `Guardian link changed during import row ${row.row_number}`,
+      );
+    await trx
+      .insertInto('audit_log')
+      .values({
+        id: newId(),
+        org_id: orgId,
+        actor_account_id: actorId,
+        action: 'person.guardian_linked',
+        entity_type: 'person',
+        entity_id: personId,
+        changes: { linkId: id, importRow: row.row_number },
+      })
+      .execute();
+    refs.set(row.row_number, [
+      { type: 'person_account_link', id },
+      ...guardianProfile.createdRefs,
+    ]);
   }
 }
 

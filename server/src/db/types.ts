@@ -1116,6 +1116,7 @@ export interface ImportMappingPresets {
 export interface ImportRows {
   action: Generated<string>;
   batch_id: string;
+  before_state: Json | null;
   created_at: Generated<Timestamp>;
   created_refs: Generated<Json>;
   entity_id: string | null;
@@ -1126,6 +1127,7 @@ export interface ImportRows {
   org_id: string;
   raw: Json;
   row_number: number;
+  target_person_id: string | null;
   updated_at: Generated<Timestamp>;
 }
 

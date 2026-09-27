@@ -15,6 +15,7 @@ import { createAuthEmail } from '../../integrations/email/templates/auth';
 import { consumeAuthToken, issueAuthToken } from '../auth/tokens';
 
 import { PeopleError, requireStaff } from './repo';
+import { ensureGuardianProfileAndHousehold } from './guardianProfile';
 
 async function activePerson(
   trx: OrgTransaction,
@@ -124,6 +125,13 @@ export function createGuardianLinksRepository(database: Kysely<DB>) {
           .executeTakeFirst();
         if (existing)
           throw new PeopleError(409, 'CONFLICT', 'Guardian is already linked');
+        await ensureGuardianProfileAndHousehold(
+          trx,
+          orgId,
+          account.id,
+          personId,
+          actorId,
+        );
         const id = newId();
         await trx
           .insertInto('person_account_links')
@@ -332,6 +340,13 @@ export function createGuardianLinksRepository(database: Kysely<DB>) {
           .executeTakeFirst();
         if (existing)
           throw new PeopleError(409, 'CONFLICT', 'Guardian is already linked');
+        await ensureGuardianProfileAndHousehold(
+          trx,
+          orgId,
+          accountId,
+          personId,
+          accountId,
+        );
         const linkId = newId();
         await trx
           .insertInto('person_account_links')

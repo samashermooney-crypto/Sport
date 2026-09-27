@@ -6,6 +6,11 @@ const PeopleList = lazy(() =>
     default: Component,
   })),
 );
+const ImportsConsole = lazy(() =>
+  import('./ImportsConsole').then(({ ImportsConsole: Component }) => ({
+    default: Component,
+  })),
+);
 const AcceptAthleteInvitation = lazy(() =>
   import('./AcceptAthleteInvitation').then(
     ({ AcceptAthleteInvitation: Component }) => ({
@@ -113,6 +118,14 @@ export const peopleRoutes: readonly RouteObject[] = [
     element: (
       <Suspense fallback={<main role="status">Loading people…</main>}>
         <PeopleList />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/console/orgs/:orgId/imports',
+    element: (
+      <Suspense fallback={<main role="status">Loading imports…</main>}>
+        <ImportsConsole />
       </Suspense>
     ),
   },
