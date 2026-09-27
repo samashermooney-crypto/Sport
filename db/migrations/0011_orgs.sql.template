@@ -1,0 +1,15 @@
+-- Rename to .sql only after the module's schema and tenant constraints are complete.
+-- Every tenant table needs org_id, RLS, and composite tenant foreign keys.
+CREATE TABLE orgs (
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  id uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (org_id, id)
+);
+
+ALTER TABLE orgs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orgs FORCE ROW LEVEL SECURITY;
+CREATE POLICY orgs_org_scope ON orgs
+  USING (org_id = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK (org_id = NULLIF(current_setting('app.org_id', true), '')::uuid);

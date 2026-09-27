@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- M0 is on `main` at `d0f59a1`; `rebuild/trunk` and `track/a-core` start at `ff24020`. Track A follows `50-PARALLEL-PLAN.md §4`; other tracks start in separate worktrees from trunk. Phase 1 remains open until every task and acceptance criterion passes its gate.
+- M0 is on `main` at `d0f59a1`. `rebuild/trunk` holds the port-offset, registry, and module-generator checkpoints. Track A builds the schema spine and test factories next, then resumes Phase 1 tasks 3–5, 6–10, 13–15 and 17. Tracks B–E work in separate sibling worktrees and integrate from local branches. Phase 1 remains open until every task and acceptance criterion passes its gate.
 
 ## Phase status
 
@@ -32,10 +32,10 @@
 | Track | Scope | Model | Status | Branch |
 |---|---|---|---|---|
 | A | Core and integration | GPT-6 Sol until S1 | working | `track/a-core` |
-| B | Sport engine, algorithms, policies | GPT-6 Sol | awaiting kickoff | `track/b-logic` |
-| C | Files and provider adapters | GPT-6 Luna | awaiting kickoff | `track/c-adapters` |
-| D | Design system | GPT-6 Luna | awaiting kickoff | `track/d-design` |
-| E | Stripe and finance | GPT-6 Sol | awaiting kickoff | `track/e-finance` |
+| B | Sport engine, algorithms, policies | GPT-6 Sol | ready slice integrated; further queue active | `track/b-logic` |
+| C | Files and provider adapters | GPT-6 Luna | working | `track/c-adapters` |
+| D | Design system | GPT-6 Luna | working | `track/d-design` |
+| E | Stripe and finance | GPT-6 Sol | test-mode gateway ready slice integrated; money core awaiting spine | `track/e-finance` |
 
 ## Phase checklists
 
@@ -73,7 +73,7 @@
 - [ ] 5. Rate limiting and Turnstile on public auth endpoints. In progress: migration 0009 adds the shared Postgres rate-limit table; `rate-limiter-flexible` enforces 8 sign-ins per 15 minutes per IP+email, 5/hour per email and 30/hour per IP on magic-link and password-recovery requests. Additional local protection covers sign-up and MFA challenge by IP. Keys are SHA-256 digests, not raw identifiers. HTTP integration confirms 429 with `Retry-After`, and Postgres tests check limits and key privacy. Cloudflare Turnstile Siteverify adapter validates success, hostname and `sign-up` action with a timeout; fake fetch tests cover rejection and unavailable service. The browser now requests CAPTCHA mode and renders an explicit Turnstile widget with action `sign-up` when configured; local/test mode stays on AlwaysPass. Production credentials and adapter startup remain pending. Expired limiter cleanup is deferred to the Phase 1 job registry.
 
 **Organizations**
-- [ ] 6. Self-serve org creation at `/start`: account (or sign in) → org name, slug (live availability check), kind, timezone, address, primary sport(s) → creates org, owner membership + owner role assignment, default settings, default sport profiles cloned from chosen templates, default season, default credential types (Background check, SafeSport training, Concussion training, Coaching license — all editable/disable-able), default forms (athlete profile with emergency contact & medical sections, guardian contact), default waiver template draft marked "Draft — replace with your own reviewed text" and not publishable until edited, starter plan. In progress: migration 0010 seeds Starter, Pro and Enterprise plan data, adds the required tenant tables with forced RLS and a draft-waiver publication guard. Kysely types regenerated; migration and RLS/waiver tests pass. Sport templates, org creation service/API, defaults and `/start` UI remain.
+- [ ] 6. Self-serve org creation at `/start`: account (or sign in) → org name, slug (live availability check), kind, timezone, address, primary sport(s) → creates org, owner membership + owner role assignment, default settings, default sport profiles cloned from chosen templates, default season, default credential types (Background check, SafeSport training, Concussion training, Coaching license — all editable/disable-able), default forms (athlete profile with emergency contact & medical sections, guardian contact), default waiver template draft marked "Draft — replace with your own reviewed text" and not publishable until edited, starter plan. In progress: migration 0010 seeds plans and tenant tables with RLS and waiver guard; create/slug API and transactional defaults have Postgres isolation tests. Sport catalog seed and `/start` UI remain.
 - [ ] 7. Users & roles screen: invite by email with one or more roles and scope, resend, revoke, change roles, suspend/remove membership, last-owner protection, MFA-pending indicator, ownership transfer (owner only, step-up, recipient must accept).
 - [ ] 8. Org profile/branding settings with version checks; logo upload through files module.
 - [ ] 9. Platform console `/platform`: org list/search, org detail (plan, fees, status, Stripe status), suspend/reactivate org, plan management, feature flags, platform staff management, audited impersonation (reason required, read-only by default, banner in UI, auto-expire 60 minutes), system health (queues, webhooks, worker heartbeat), bootstrap script `scripts/create-platform-admin.ts` with hidden password prompt.

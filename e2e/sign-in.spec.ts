@@ -4,6 +4,8 @@ import { decodeBase32, totpCode } from '../server/src/modules/auth/totp';
 
 import { accessibilityViolations } from './axe';
 
+const mailpitApiPort = 8025 + Number(process.env.PORT_OFFSET ?? '0');
+
 test.beforeEach(async ({ request }) => {
   await expect
     .poll(
@@ -119,7 +121,7 @@ test('new account verifies its preview email and signs in', async ({
   await expect
     .poll(async () => {
       const response = await request.get(
-        'http://127.0.0.1:8025/api/v1/messages',
+        `http://127.0.0.1:${String(mailpitApiPort)}/api/v1/messages`,
       );
       const mailbox = (await response.json()) as {
         messages: Array<{ To: Array<{ Address: string }>; Snippet: string }>;

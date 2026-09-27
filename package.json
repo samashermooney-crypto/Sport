@@ -10,8 +10,8 @@
     "dev": "node scripts/dev.mjs",
     "start": "node --import tsx server/src/main.ts",
     "worker": "node --import tsx server/src/worker.ts",
-    "db:up": "docker compose up -d --wait postgres stripe-mock mailpit",
-    "db:down": "docker compose down",
+    "db:up": "node scripts/compose.mjs up -d --wait postgres stripe-mock mailpit",
+    "db:down": "node scripts/compose.mjs down",
     "db:migrate": "node --import tsx server/src/db/migrate.ts && npm run db:codegen",
     "db:codegen": "node scripts/db-codegen.mjs",
     "db:seed": "node --import tsx db/seeds/index.ts",
@@ -23,6 +23,8 @@
     "test:e2e": "playwright test",
     "build": "tsc -b --pretty false && vite build",
     "openapi": "node --import tsx scripts/openapi.ts",
+    "registry": "node --import tsx scripts/registry.mjs",
+    "gen:module": "node scripts/gen-module.mjs",
     "size": "size-limit",
     "knip": "knip",
     "prepare": "simple-git-hooks"
@@ -44,6 +46,7 @@
     "react-dom": "^19.2.4",
     "react-hook-form": "^7.89.0",
     "react-router": "^7.18.4",
+    "stripe": "22.6.2",
     "uuid": "^14.0.2",
     "zod": "^4.3.6"
   },

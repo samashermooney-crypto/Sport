@@ -1,0 +1,6 @@
+import { Card } from '../ui';
+import type { OrgsItem } from './List';
+
+export function OrgsDetail({ item }: { item: OrgsItem }) {
+  return <Card><h1>{item.name}</h1></Card>;
+}

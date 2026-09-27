@@ -60,7 +60,7 @@ Shared files that every module would otherwise edit are replaced by **generated 
 
 Other generated files (`server/src/db/types.ts`, `docs/api/openapi.json`, registries): on merge conflicts **never hand-merge** — regenerate (`npm run db:migrate && npm run registry && npm run openapi`) and commit.
 
-`package.json` / lockfile: add dependencies in a commit that touches only `package.json` and `package-lock.json`. On conflict, the integrator takes both sides' dependency lists and runs `npm install`.
+`package.json` / lockfile: **any track may add the dependencies it needs** in a commit that touches only `package.json` and `package-lock.json` on its own branch. On conflict, the integrator takes both sides' dependency lists and runs `npm install`. New worktrees need `npm ci` before tests run. If a session's sandbox cannot reach the npm registry, record the exact package and version in the track file and continue with other work; the owner installs it.
 
 ## 4. Waves
 
@@ -125,9 +125,9 @@ Blocked on: <what>
 
 **Per task (inside a track):** targeted tests only — the files changed plus their module's tests; Playwright only for specs touching the changed screens, Chromium only. Keep it fast.
 
-**Ready for integration (track):** track's full test suite, typecheck, lint, registry/openapi/codegen fresh, affected Playwright specs on Chromium + WebKit mobile, self-review against the relevant spec sections (write 3–5 lines in the track file: what was checked, any deviation → DECISIONS.md entry). Push the branch. Set status `ready-for-integration`.
+**Ready for integration (track):** track's full test suite, typecheck, lint, registry/openapi/codegen fresh, affected Playwright specs on Chromium + WebKit mobile, self-review against the relevant spec sections (write 3–5 lines in the track file: what was checked, any deviation → DECISIONS.md entry). Set status `ready-for-integration` on the local branch; pushing a track branch is optional.
 
-**Integration (integrator = Track A, at the start of each of its tasks, in `../Sport-trunk`):** for each ready branch: merge into `rebuild/trunk` (regenerate generated files on conflict), run the **full** gate (`typecheck`, `lint`, `test`, full `test:e2e`, `build`, registry/openapi freshness), push, let CI run. If red: revert the merge on trunk and set the track's status back with the failure. Then every track merges `rebuild/trunk` into its branch at the start of its next task.
+**Integration (integrator = Track A, at the start of each of its tasks, in `../Sport-trunk`):** read readiness with `git show track/<x>:docs/codex/tracks/<X>.md` and merge each ready LOCAL branch into `rebuild/trunk` (regenerate generated files on conflict). Run the **full** gate (`typecheck`, `lint`, `test`, full `test:e2e`, `build`, registry/openapi freshness), push trunk, let CI run. If red: revert the merge on trunk and set the track's status back with the failure. Then every track merges `rebuild/trunk` into its branch at the start of its next task.
 
 **Independent review (Claude):** the owner periodically asks Claude to review what landed on trunk. Findings are written to `docs/codex/reviews/<track>-<yyyymmdd>.md` in the main checkout (untracked); Track A commits new review files at the start of its next task. **The owning track's next task is always to fix open review findings** before new work. Reviews do not block merges; milestone gates require zero open findings.
 

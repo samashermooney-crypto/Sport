@@ -1,0 +1,12 @@
+import type { RouteObject } from 'react-router';
+import { __PASCAL__List } from './List';
+import { __PASCAL__Detail } from './Detail';
+import { __PASCAL__Form } from './Form';
+
+// Replace loaders/actions with the versioned API client and enforce permissions
+// before activating these routes in the generated registry.
+export const __camel__Routes: RouteObject[] = [
+  { path: '__NAME__', element: <__PASCAL__List items={[]} /> },
+  { path: '__NAME__/new', element: <__PASCAL__Form save={async () => { throw new Error('API client required'); }} /> },
+  { path: '__NAME__/:id', element: <__PASCAL__Detail item={{ id: '', name: '' }} /> },
+];
