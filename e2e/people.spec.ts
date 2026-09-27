@@ -99,6 +99,23 @@ test('owner creates, edits and archives a person from the console', async ({
       .selectOption({ label: 'Alex Rivera' });
     await page.getByRole('button', { name: 'Add member' }).click();
     await expect(page.getByRole('link', { name: 'Alex Rivera' })).toBeVisible();
+    const householdUrl = page.url();
+    await page.goto(`/console/orgs/${actor.orgId}/people`);
+    await page
+      .getByRole('searchbox', { name: 'Find household' })
+      .fill('Rivera');
+    await page
+      .getByRole('combobox', { name: 'Household' })
+      .selectOption({ label: 'Rivera household' });
+    await expect(page.getByRole('link', { name: 'Alex Rivera' })).toBeVisible();
+    await page.getByRole('combobox', { name: 'Balance' }).selectOption('true');
+    await expect(
+      page.getByText('No active people match this search.'),
+    ).toBeVisible();
+    await page.goto(householdUrl);
+    await expect(
+      page.getByRole('heading', { name: 'Rivera household' }),
+    ).toBeVisible();
     await page.getByText('Edit Alex Rivera').click();
     const memberEditor = page
       .locator('details')
