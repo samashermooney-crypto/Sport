@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import { allocate } from '@shared/money';
 import {
   proposeRefund,
   type ProposedRefund,
@@ -90,12 +91,33 @@ export interface RefundRecordStore {
     requestedByAccountId: string;
     approvedByAccountId: string | null;
     refundApplicationFee: boolean;
+    reason?: RefundReason;
+    note?: string | null;
   }): Promise<void>;
 }
+
+export type RefundReason =
+  | 'requested_by_customer'
+  | 'duplicate'
+  | 'fraudulent'
+  | 'program_canceled'
+  | 'withdrawal_policy'
+  | 'other';
 
 export interface RefundRequest {
   orgId: string;
   paymentId: string;
+  cancellationDate: string;
+  requestedByAccountId: string;
+  approvedByAccountId?: string;
+  idempotencyKey: string;
+}
+
+export interface ExactLineRefundRequest {
+  orgId: string;
+  paymentId: string;
+  invoiceLineId: string;
+  amountCents: number;
   cancellationDate: string;
   requestedByAccountId: string;
   approvedByAccountId?: string;
@@ -131,6 +153,74 @@ function hashRequest(input: RefundRequest): string {
     .digest('hex');
 }
 
+function hashExactLineRequest(input: ExactLineRefundRequest): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        kind: 'exact_line',
+        orgId: input.orgId,
+        paymentId: input.paymentId,
+        invoiceLineId: input.invoiceLineId,
+        amountCents: input.amountCents,
+        cancellationDate: input.cancellationDate,
+        requestedByAccountId: input.requestedByAccountId,
+      }),
+    )
+    .digest('hex');
+}
+
+function exactLineRefundProposal(
+  source: RefundSource,
+  invoiceLineId: string,
+  amountCents: number,
+): ProposedRefund {
+  if (source.paymentStatus !== 'succeeded') {
+    throw new RefundConflictError('Only succeeded payments may be refunded');
+  }
+  if (!Number.isSafeInteger(amountCents) || amountCents < 1)
+    throw new RefundConflictError('Refund amount must be positive cents');
+  const line = source.lines.find((candidate) => candidate.id === invoiceLineId);
+  if (!line)
+    throw new RefundConflictError('Refund line is not funded by this payment');
+  const remainingLineCents =
+    line.paidCents - (line.previouslyRefundedCents ?? 0);
+  if (amountCents > remainingLineCents)
+    throw new RefundConflictError(
+      "Refund exceeds the line's remaining paid amount",
+    );
+
+  const paidLinesCents = source.lines.reduce(
+    (sum, candidate) => sum + candidate.paidCents,
+    0,
+  );
+  const previouslyRefundedCents = source.lines.reduce(
+    (sum, candidate) => sum + (candidate.previouslyRefundedCents ?? 0),
+    0,
+  );
+  const cumulativeRefundedCents = previouslyRefundedCents + amountCents;
+  if (cumulativeRefundedCents > paidLinesCents)
+    throw new RefundConflictError(
+      "Refund exceeds this payment's refundable lines",
+    );
+  const feeTargetCents =
+    source.policy.serviceFeeRefund === 'none' || paidLinesCents === 0
+      ? 0
+      : (allocate(source.paidServiceFeeCents, [
+          cumulativeRefundedCents,
+          paidLinesCents - cumulativeRefundedCents,
+        ])[0] ?? 0);
+  const serviceFeeCents = Math.max(
+    0,
+    feeTargetCents - source.previouslyRefundedServiceFeeCents,
+  );
+  return {
+    lines: [{ lineId: invoiceLineId, amountCents }],
+    serviceFeeCents,
+    totalCents: amountCents + serviceFeeCents,
+    refundBps: 10_000,
+  };
+}
+
 export class StripeRefundService {
   constructor(
     private readonly reader: RefundSourceReader,
@@ -148,11 +238,55 @@ export class StripeRefundService {
     ) {
       throw new Error('Idempotency-Key must be a UUID');
     }
+    return this.execute(
+      input,
+      hashRequest(input),
+      input.cancellationDate,
+      (source) => refundProposal(source, input.cancellationDate),
+      'withdrawal_policy',
+      null,
+    );
+  }
+
+  /** Refund an exact invoice-line amount through the shared refund ledger. */
+  async refundExactLine(input: ExactLineRefundRequest): Promise<RefundResult> {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        input.idempotencyKey,
+      )
+    ) {
+      throw new Error('Idempotency-Key must be a UUID');
+    }
+    return this.execute(
+      input,
+      hashExactLineRequest(input),
+      input.cancellationDate,
+      (source) =>
+        exactLineRefundProposal(source, input.invoiceLineId, input.amountCents),
+      'other',
+      'Registration transfer price difference',
+    );
+  }
+
+  private async execute(
+    input: {
+      orgId: string;
+      paymentId: string;
+      requestedByAccountId: string;
+      approvedByAccountId?: string;
+      idempotencyKey: string;
+    },
+    requestHash: string,
+    cancellationDate: string,
+    createProposal: (source: RefundSource) => ProposedRefund,
+    reason: RefundReason,
+    note: string | null,
+  ): Promise<RefundResult> {
     const reservation = await this.attempts.reserve({
       orgId: input.orgId,
       paymentId: input.paymentId,
       key: input.idempotencyKey,
-      requestHash: hashRequest(input),
+      requestHash,
     });
     if (reservation.kind === 'replay') return reservation.result;
     if (reservation.kind === 'busy')
@@ -171,7 +305,7 @@ export class StripeRefundService {
       ) {
         throw new RefundConflictError('Payment not found');
       }
-      const proposal = refundProposal(source, input.cancellationDate);
+      const proposal = createProposal(source);
       if (proposal.totalCents < 1)
         throw new RefundConflictError('No refundable amount remains');
       if (proposal.totalCents > source.approvalThresholdCents) {
@@ -187,7 +321,7 @@ export class StripeRefundService {
               operationKey: input.idempotencyKey,
               destination: 'original_method',
               recipient: null,
-              cancellationDate: input.cancellationDate,
+              cancellationDate,
               requestedByAccountId: input.requestedByAccountId,
               proposal,
             },
@@ -226,6 +360,8 @@ export class StripeRefundService {
         requestedByAccountId: input.requestedByAccountId,
         approvedByAccountId: input.approvedByAccountId ?? null,
         refundApplicationFee: source.refundApplicationFee,
+        reason,
+        note,
       });
       await this.attempts.complete({
         orgId: input.orgId,
