@@ -1346,6 +1346,17 @@ export interface PaymentAttempts {
   version: Generated<number>;
 }
 
+export interface PaymentLineAllocations {
+  amount_cents: number;
+  created_at: Generated<Timestamp>;
+  id: string;
+  invoice_id: string;
+  invoice_line_id: string;
+  org_id: string;
+  payment_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface PaymentMethods {
   account_id: string;
   bank_name: string | null;
@@ -2343,6 +2354,7 @@ export interface DB {
   payment_accounts: PaymentAccounts;
   payment_allocations: PaymentAllocations;
   payment_attempts: PaymentAttempts;
+  payment_line_allocations: PaymentLineAllocations;
   payment_methods: PaymentMethods;
   payments: Payments;
   payouts: Payouts;
