@@ -3,186 +3,91 @@ import { z } from 'zod';
 export const importKindSchema = z.enum([
   'people',
   'households',
-  'registrations',
-  'teams',
-  'rosters',
-  'schedule',
-  'facilities',
-  'credentials',
-  'historical_payments',
-  'volunteer_hours',
+  'guardians',
+  'emergency_contacts',
 ]);
 export type ImportKind = z.infer<typeof importKindSchema>;
 
-export const importBatchStatusSchema = z.enum([
-  'uploaded',
-  'mapped',
-  'validating',
-  'validated',
-  'committing',
-  'committed',
-  'failed',
-  'rolled_back',
+export const importDuplicateStrategySchema = z.enum([
+  'skip',
+  'update',
+  'merge',
+  'create',
 ]);
+export type ImportDuplicateStrategy = z.infer<
+  typeof importDuplicateStrategySchema
+>;
 
-export const importIssueSchema = z.strictObject({
-  level: z.enum(['error', 'warning']),
-  field: z.string().optional(),
+export const importBatchCreateSchema = z.strictObject({
+  kind: importKindSchema,
+  filename: z.string().min(1).max(255),
+  content: z.string().min(1),
+  mapping: z.record(z.string(), z.string()),
+  duplicateStrategy: importDuplicateStrategySchema.default('skip'),
+});
+export type ImportBatchCreate = z.infer<typeof importBatchCreateSchema>;
+
+export const importRowIssueSchema = z.strictObject({
+  field: z.string(),
   code: z.string(),
   message: z.string(),
 });
-export type ImportIssue = z.infer<typeof importIssueSchema>;
+export type ImportRowIssue = z.infer<typeof importRowIssueSchema>;
 
-export const importDuplicateSchema = z.strictObject({
-  personId: z.uuid(),
-  name: z.string(),
-  reasons: z.array(z.string()),
+export const importRowPreviewSchema = z.strictObject({
+  rowNumber: z.number().int().positive(),
+  action: z.enum(['create', 'update', 'merge', 'skip', 'invalid']),
+  issues: z.array(importRowIssueSchema),
+  normalized: z.record(z.string(), z.unknown()).nullable(),
 });
-export type ImportDuplicate = z.infer<typeof importDuplicateSchema>;
-
-export const importRowActionSchema = z.enum([
-  'create',
-  'update',
-  'merge',
-  'skip',
-]);
-
-export const importMappingSchema = z.strictObject({
-  columns: z.record(z.string(), z.string().nullable()),
-  options: z
-    .strictObject({
-      duplicateStrategy: z.enum(['ask', 'skip_all', 'update_all']).optional(),
-      defaultStatus: z.string().optional(),
-    })
-    .optional(),
-});
-export type ImportMapping = z.infer<typeof importMappingSchema>;
-
-export const importFieldSchema = z.strictObject({
-  key: z.string(),
-  label: z.string(),
-  type: z.enum([
-    'text',
-    'email',
-    'phone',
-    'date',
-    'datetime',
-    'time',
-    'int',
-    'money',
-    'bool',
-    'enum',
-    'gender',
-    'list',
-    'address',
-  ]),
-  required: z.boolean(),
-  enum: z.array(z.string()).optional(),
-  description: z.string(),
-  aliases: z.array(z.string()),
-});
-export type ImportField = z.infer<typeof importFieldSchema>;
+export type ImportRowPreview = z.infer<typeof importRowPreviewSchema>;
 
 export const importBatchSchema = z.strictObject({
   id: z.uuid(),
-  orgId: z.uuid(),
   kind: importKindSchema,
-  fileName: z.string(),
-  fileBytes: z.number(),
-  headers: z.array(z.string()),
-  sampleRows: z.array(z.record(z.string(), z.string())),
-  mapping: importMappingSchema.nullable(),
-  mappingPresetId: z.uuid().nullable(),
-  status: importBatchStatusSchema,
-  rowCount: z.number(),
-  errorCount: z.number(),
-  progress: z.strictObject({ processed: z.number(), total: z.number() }),
-  summary: z.record(z.string(), z.unknown()).nullable(),
+  filename: z.string(),
+  status: z.enum(['preview', 'committed', 'rolled_back', 'failed']),
+  stats: z.object({
+    total: z.number().int().nonnegative(),
+    create: z.number().int().nonnegative(),
+    update: z.number().int().nonnegative(),
+    merge: z.number().int().nonnegative(),
+    skip: z.number().int().nonnegative(),
+    invalid: z.number().int().nonnegative(),
+  }),
   createdBy: z.uuid(),
-  committedAt: z.string().nullable(),
-  rolledBackAt: z.string().nullable(),
-  createdAt: z.string(),
+  createdAt: z.iso.datetime(),
+  committedAt: z.iso.datetime().nullable(),
+  rolledBackAt: z.iso.datetime().nullable(),
 });
 export type ImportBatch = z.infer<typeof importBatchSchema>;
 
+export const importBatchPreviewSchema = z.strictObject({
+  batch: importBatchSchema,
+  rows: z.array(importRowPreviewSchema),
+});
+export type ImportBatchPreview = z.infer<typeof importBatchPreviewSchema>;
+
 export const importBatchListSchema = z.strictObject({
-  items: z.array(importBatchSchema.omit({ headers: true, sampleRows: true })),
+  items: z.array(importBatchSchema),
 });
+export type ImportBatchList = z.infer<typeof importBatchListSchema>;
 
-export const importRowSchema = z.strictObject({
+export const importMappingPresetSchema = z.strictObject({
   id: z.uuid(),
-  rowNumber: z.number(),
-  raw: z.record(z.string(), z.string()),
-  normalized: z.record(z.string(), z.unknown()).nullable(),
-  issues: z.array(importIssueSchema),
-  duplicates: z.array(importDuplicateSchema),
-  action: importRowActionSchema,
-  targetId: z.uuid().nullable(),
-});
-export type ImportRow = z.infer<typeof importRowSchema>;
-
-export const importRowListSchema = z.strictObject({
-  items: z.array(importRowSchema),
-  nextCursor: z.string().nullable(),
-});
-
-export const importRowsQuerySchema = z.strictObject({
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
-  filter: z.enum(['all', 'errors', 'duplicates']).default('all'),
-});
-
-export const setMappingBodySchema = z.strictObject({
-  mapping: importMappingSchema,
-  savePresetAs: z.string().min(1).max(120).optional(),
-});
-
-export const decideRowBodySchema = z.strictObject({
-  action: importRowActionSchema,
-  targetId: z.uuid().optional(),
-});
-
-export const decideRowsBodySchema = z.strictObject({
-  rowIds: z.array(z.uuid()).min(1).max(500),
-  action: importRowActionSchema,
-});
-
-export const createBatchBodySchema = z.strictObject({
-  kind: importKindSchema,
-  fileName: z.string().min(1).max(255),
-  fileBase64: z.string().min(1),
-});
-
-export const mappingPresetSchema = z.strictObject({
-  id: z.uuid(),
-  orgId: z.uuid().nullable(),
   kind: importKindSchema,
   name: z.string(),
-  mapping: importMappingSchema,
-  builtin: z.boolean(),
+  mapping: z.record(z.string(), z.string()),
+  createdAt: z.iso.datetime(),
+});
+export type ImportMappingPreset = z.infer<typeof importMappingPresetSchema>;
+
+export const importMappingPresetSaveSchema = z.strictObject({
+  kind: importKindSchema,
+  name: z.string().min(1).max(120),
+  mapping: z.record(z.string(), z.string()),
 });
 
-export const mappingPresetListSchema = z.strictObject({
-  items: z.array(mappingPresetSchema),
-});
-
-export const suggestMappingResponseSchema = z.strictObject({
-  mapping: importMappingSchema,
-  unmatchedTargets: z.array(z.string()),
-});
-
-export const validateBatchResponseSchema = z.strictObject({
-  status: importBatchStatusSchema,
-  rowCount: z.number(),
-  errorCount: z.number(),
-});
-
-export const commitBatchResponseSchema = z.strictObject({
-  status: importBatchStatusSchema,
-  summary: z.record(z.string(), z.unknown()),
-});
-
-export const rollbackBatchResponseSchema = z.strictObject({
-  status: importBatchStatusSchema,
-  summary: z.record(z.string(), z.unknown()),
+export const importMappingPresetListSchema = z.strictObject({
+  items: z.array(importMappingPresetSchema),
 });

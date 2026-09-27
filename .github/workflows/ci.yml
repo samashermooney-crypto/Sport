@@ -28,7 +28,7 @@ jobs:
             size) npm run build && npm run size ;;
             knip) npm run knip ;;
             openapi) npm run openapi && git diff --exit-code -- docs/api/openapi.json ;;
-            registry) npm run registry && git diff --exit-code -- server/src/generated/registry.ts web/src/generated/registry.ts shared/src/generated/errors.ts shared/src/generated/permissions.ts ;;
+            registry) npm run registry && git diff --exit-code -- server/src/generated/registry.ts web/src/generated/registry.ts web/src/generated/nested-routes.ts shared/src/generated/errors.ts shared/src/generated/permissions.ts ;;
             audit) npm audit --omit=dev --audit-level=high ;;
           esac
 

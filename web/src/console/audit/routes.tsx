@@ -12,6 +12,6 @@ function AuditRoute(): React.JSX.Element {
   );
 }
 
-export const auditConsoleRoutes: readonly RouteObject[] = [
+export const consoleAuditRoutes: readonly RouteObject[] = [
   { path: '/console/orgs/:orgId/audit', element: <AuditRoute /> },
 ];

@@ -58,6 +58,34 @@ it('links verified adult accounts within the organization and retains a revocati
   );
   expect(linked.items).toHaveLength(1);
   expect(linked.items[0]?.email).toBe(email);
+  const guardianIdentity = await factories.scoped(staff, async (trx) => {
+    const selfLink = await trx
+      .selectFrom('person_account_links')
+      .select('person_id')
+      .where('org_id', '=', staff.orgId)
+      .where('account_id', '=', adultId)
+      .where('relationship', '=', 'self')
+      .where('revoked_at', 'is', null)
+      .executeTakeFirstOrThrow();
+    const householdLink = await trx
+      .selectFrom('household_members as guardian')
+      .innerJoin('household_members as child', (join) =>
+        join
+          .onRef('child.org_id', '=', 'guardian.org_id')
+          .onRef('child.household_id', '=', 'guardian.household_id'),
+      )
+      .select(['guardian.id', 'guardian.role'])
+      .where('guardian.org_id', '=', staff.orgId)
+      .where('guardian.person_id', '=', selfLink.person_id)
+      .where('guardian.role', '=', 'guardian')
+      .where('guardian.removed_at', 'is', null)
+      .where('child.person_id', '=', childId)
+      .where('child.removed_at', 'is', null)
+      .executeTakeFirst();
+    return { selfLink, householdLink };
+  });
+  expect(guardianIdentity.selfLink.person_id).toBeTruthy();
+  expect(guardianIdentity.householdLink).toBeDefined();
   await expect(
     guardians.linkExisting(staff.orgId, staff.accountId, childId, email),
   ).rejects.toMatchObject({ status: 409 });

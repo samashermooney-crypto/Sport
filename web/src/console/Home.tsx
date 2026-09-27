@@ -10,8 +10,6 @@ import { AuthFrame, AuthLink, ErrorBox } from '../ui/auth';
 import { Card, Link, PageHeader, Select } from '../ui/primitives';
 import { AppShell } from '../ui/shell';
 
-import { OnboardingChecklist } from './onboarding/OnboardingChecklist';
-
 import './home.css';
 
 export function ConsoleHome(): React.JSX.Element {
@@ -82,7 +80,21 @@ export function ConsoleHome(): React.JSX.Element {
     },
   ];
   const actions = [
-    ...(workspace.data.canManage ? manageActions.slice(0, 6) : []),
+    ...(workspace.data.canManage
+      ? [
+          ...manageActions.slice(0, 6),
+          {
+            label: 'Manage payment processing',
+            description: 'Connect your organization to accept online payments.',
+            to: `/console/orgs/${orgId}/money/connect`,
+          },
+          {
+            label: 'Manage platform billing',
+            description: 'Review or update your organization subscription.',
+            to: `/console/orgs/${orgId}/money/billing`,
+          },
+        ]
+      : []),
     ...(workspace.data.canAudit && manageActions[6] ? [manageActions[6]] : []),
   ];
   const navigation = [
@@ -130,7 +142,6 @@ export function ConsoleHome(): React.JSX.Element {
           kicker="ORGANIZATION HOME"
           description="Continue setting up and managing your organization."
         />
-        {workspace.data.canManage && <OnboardingChecklist orgId={orgId} />}
         <div className="console-home__cards">
           {actions.length === 0 && (
             <Card>

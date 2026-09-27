@@ -25,6 +25,7 @@ import {
 import { AppShell } from '../ui/shell';
 
 import { GuardianLinks } from './GuardianLinks';
+import { PersonClaim } from './PersonClaim';
 import { PersonPhoto } from './PersonPhoto';
 
 type Person = z.output<typeof personResponseSchema>;
@@ -235,6 +236,7 @@ export function PeopleShell({
             ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
             { label: 'People', to: people },
             { label: 'Households', to: `${home}/households` },
+            { label: 'Imports', to: `${home}/imports` },
             { label: 'Account', to: '/me' },
           ],
         },
@@ -243,6 +245,7 @@ export function PeopleShell({
         ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
         { label: 'People', to: people },
         { label: 'Households', to: `${home}/households` },
+        { label: 'Imports', to: `${home}/imports` },
         { label: 'Account', to: '/me' },
       ]}
     >
@@ -687,6 +690,11 @@ export function PersonDetail(): React.JSX.Element {
           <Card>
             <h2>Profile</h2>
             <p>
+              <Link to={`/console/orgs/${orgId}/people/${personId}/medical`}>
+                Medical profile
+              </Link>
+            </p>
+            <p>
               Age: {current.age} · Grade: {current.grade ?? 'Unknown'}
             </p>
             <PersonForm
@@ -801,6 +809,16 @@ export function PersonDetail(): React.JSX.Element {
             readOnly={Boolean(impersonationId)}
           />
         )}
+        {!impersonationId &&
+          current.status === 'active' &&
+          current.age >= 18 && (
+            <PersonClaim
+              key={`${current.id}:${current.email ?? ''}`}
+              orgId={orgId}
+              personId={personId}
+              profileEmail={current.email}
+            />
+          )}
       </main>
     </PeopleShell>
   );

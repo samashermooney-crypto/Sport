@@ -1,472 +1,447 @@
 import { newId } from '@shared/ids';
-import { Kysely, PostgresDialect } from 'kysely';
-import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Kysely } from 'kysely';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 
+import { createDatabase } from '../src/db/kysely';
 import type { DB } from '../src/db/types';
-import { MemoryStorage } from '../src/integrations/storage/storage';
-import { createImportsService } from '../src/modules/imports/service';
-import type { ImportsService } from '../src/modules/imports/service';
+import { createImportsRepository } from '../src/modules/imports/repo';
 
 import { createTestFactories } from './factories';
 import type { ActorFixture } from './factories';
 
-const { Pool } = pg;
-
 let database: Kysely<DB>;
-let factories: ReturnType<typeof createTestFactories>;
-let service: ImportsService;
-let actor: ActorFixture;
-let outsider: ActorFixture;
-
-function query<T>(
-  as: ActorFixture,
-  run: (
-    trx: Parameters<Parameters<typeof factories.scoped>[1]>[0],
-  ) => Promise<T>,
-): Promise<T> {
-  return factories.scoped(as, run);
-}
-
-beforeAll(async () => {
-  database = new Kysely<DB>({
-    dialect: new PostgresDialect({
-      pool: new Pool({
-        connectionString:
-          process.env.TEST_DATABASE_APP_URL ?? process.env.TEST_DATABASE_URL,
-      }),
-    }),
-  });
-  factories = createTestFactories(database);
-  service = createImportsService(database, null, new MemoryStorage());
-  actor = await factories.actor();
-  outsider = await factories.actor();
-  await factories.scoped(actor, async (trx) => {
-    await trx
-      .updateTable('role_assignments')
-      .set({ pending_mfa: false })
-      .where('org_id', '=', actor.orgId)
-      .execute();
-  });
+beforeAll(() => {
+  database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
 });
-
 afterAll(async () => {
   await database.destroy();
 });
 
-async function uploadAndValidate(
-  kind: string,
-  fileName: string,
-  content: string,
-  asActor: ActorFixture = actor,
-) {
-  const batch = await service.createBatch(asActor.orgId, asActor.accountId, {
-    kind: kind as never,
-    fileName,
-    bytes: new TextEncoder().encode(content),
+async function staffActor(
+  factories: ReturnType<typeof createTestFactories>,
+): Promise<ActorFixture> {
+  const staff = await factories.actor();
+  await factories.scoped(staff, async (trx) => {
+    await trx
+      .updateTable('role_assignments')
+      .set({ pending_mfa: false })
+      .where('org_id', '=', staff.orgId)
+      .where('account_id', '=', staff.accountId)
+      .execute();
   });
-  await service.validateBatch(asActor.orgId, batch.id, asActor.accountId);
-  return batch;
+  return staff;
 }
 
-describe('imports service', () => {
-  it('creates a batch, detects headers, and reports required gaps', async () => {
-    const batch = await service.createBatch(actor.orgId, actor.accountId, {
-      kind: 'people',
-      fileName: 'members.csv',
-      bytes: new TextEncoder().encode(
-        'First Name,Last Name,Email,Role\nAlex,Rivera,alex@example.test,guardian\n',
+const MAPPING = {
+  firstName: 'First Name',
+  lastName: 'Last Name',
+  dateOfBirth: 'DOB',
+  email: 'Email',
+  phone: 'Phone',
+  gender: 'Gender',
+  householdName: 'Household',
+};
+
+const DATE_FORMATS = [
+  (y: number, m: number, d: number) =>
+    `${String(y)}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+  (y: number, m: number, d: number) => `${String(m)}/${String(d)}/${String(y)}`,
+  (y: number, m: number, d: number) =>
+    `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}-${String(y)}`,
+  (y: number, m: number, d: number) => `${String(y)}/${String(m)}/${String(d)}`,
+];
+
+function buildCsv(rowCount: number): string {
+  const lines = ['First Name,Last Name,DOB,Email,Phone,Gender,Household'];
+  for (let index = 0; index < rowCount; index += 1) {
+    const format = DATE_FORMATS[index % DATE_FORMATS.length];
+    if (!format) throw new Error('Date format fixture is missing');
+    const dob = format(2010 + (index % 8), 1 + (index % 12), 1 + (index % 28));
+    lines.push(
+      `Bulk${String(index)},Athlete${String(index)},${dob},bulk${String(index)}@example.org,415555${String(1000 + (index % 9000))},${index % 2 ? 'F' : 'M'},Household ${String(index % 50)}`,
+    );
+  }
+  return lines.join('\n');
+}
+
+it(
+  'previews issues, commits a 2,000-row people import under 30 seconds and rolls back',
+  { timeout: 120_000 },
+  async () => {
+    const factories = createTestFactories(database);
+    const staff = await staffActor(factories);
+    const imports = createImportsRepository(database);
+
+    const duplicates = await Promise.all(
+      ['dup-a', 'dup-b', 'dup-c'].map((key) =>
+        factories.person(staff, {
+          firstName: 'Existing',
+          lastName: `Dup-${key}`,
+          dateOfBirth: '2013-04-05',
+        }),
       ),
+    );
+    await factories.scoped(staff, async (trx) => {
+      for (const [index, personId] of duplicates.entries())
+        await trx
+          .updateTable('people')
+          .set({ email: `existing-${String(index)}@example.org` })
+          .where('id', '=', personId)
+          .execute();
     });
-    expect(batch.rowCount).toBe(1);
-    expect(batch.mapping?.columns['First Name']).toBe('first_name');
-    expect(batch.mapping?.columns['Last Name']).toBe('last_name');
-    expect(batch.mapping?.columns['Email']).toBe('email');
-    expect(batch.status).toBe('uploaded');
-  });
 
-  it('rejects mapping that misses required fields', async () => {
-    const batch = await service.createBatch(actor.orgId, actor.accountId, {
+    const csv = [
+      buildCsv(1992),
+      'Existing,Dup-A,2013-04-05,existing-0@example.org,,M,',
+      'Existing,Dup-B,04/05/2013,existing-1@example.org,,F,',
+      'Existing,Dup-C,4-5-2013,existing-2@example.org,,M,',
+      'NoFirst,,2013-01-01,no-first@example.org,,M,',
+      ',NoLast,2013-01-01,no-last@example.org,,F,',
+      'Bad,Email,2013-01-01,not-an-email,,M,',
+      'Bad,Phone,2013-01-01,bad-phone@example.org,abc,F,',
+      'Bad,Date,not-a-date,bad-date@example.org,,M,',
+    ].join('\n');
+
+    const preview = await imports.create(staff.orgId, staff.accountId, {
       kind: 'people',
-      fileName: 'bad.csv',
-      bytes: new TextEncoder().encode('Nickname,Email\nAl,a@example.test\n'),
+      filename: 'roster.csv',
+      content: csv,
+      mapping: MAPPING,
+      duplicateStrategy: 'skip',
     });
-    await expect(
-      service.setMapping(
-        actor.orgId,
-        actor.accountId,
-        batch.id,
-        {
-          columns: { Nickname: 'preferred_name', Email: 'email' },
-        },
-        undefined,
-      ),
-    ).rejects.toMatchObject({ status: 400, code: 'VALIDATION_ERROR' });
-  });
-
-  it('validates and commits a people import with household grouping', async () => {
-    const batch = await uploadAndValidate(
-      'people',
-      'members.csv',
-      [
-        'First Name,Last Name,Email,Phone,Household,Household Role,Date of Birth,Emergency Contact,Emergency Phone,Emergency Note',
-        'Alex,Rivera,alex.r@example.test,555-010-0134,Rivera,guardian,1990-01-01,,,',
-        'Sam,Rivera,sam.r@example.test,,Rivera,guardian,1988-06-02,,,',
-        'Jordan,Rivera,,,Rivera,athlete,2016-03-12,Alex Rivera,555-010-0134,Mom',
-      ].join('\n'),
-    );
-    const after = await service.getBatch(
-      actor.orgId,
-      actor.accountId,
-      batch.id,
-    );
-    expect(after.status).toBe('validated');
-    expect(after.errorCount).toBe(0);
-    const rows = await service.listRows(
-      actor.orgId,
-      actor.accountId,
-      batch.id,
-      {
-        limit: 50,
-        filter: 'all',
-      },
-    );
-    expect(rows.items).toHaveLength(3);
-    expect(
-      rows.items.every((row) => !row.issues.some((i) => i.level === 'error')),
-    ).toBe(true);
-    const summary = await service.commitBatch(
-      actor.orgId,
-      batch.id,
-      actor.accountId,
-    );
-    expect(summary['committed']).toBe(3);
-    const people = await query(actor, (trx) =>
-      trx
-        .selectFrom('people')
-        .selectAll()
-        .where('org_id', '=', actor.orgId)
-        .execute(),
-    );
-    expect(people.length).toBeGreaterThanOrEqual(3);
-    const jordan = people.find((p) => p.first_name === 'Jordan');
-    expect(jordan).toBeTruthy();
-    const members = await query(actor, (trx) =>
-      trx
-        .selectFrom('household_members')
-        .selectAll()
-        .where('org_id', '=', actor.orgId)
-        .execute(),
-    );
-    expect(members).toHaveLength(3);
-    const households = await query(actor, (trx) =>
-      trx
-        .selectFrom('households')
-        .selectAll()
-        .where('org_id', '=', actor.orgId)
-        .execute(),
-    );
-    expect(households).toHaveLength(1);
-    const contacts = await query(actor, (trx) =>
-      trx
-        .selectFrom('emergency_contacts')
-        .selectAll()
-        .where('org_id', '=', actor.orgId)
-        .execute(),
-    );
-    expect(contacts).toHaveLength(1);
-    const rollback = await service.rollbackBatch(
-      actor.orgId,
-      batch.id,
-      actor.accountId,
-    );
-    expect((rollback['deleted'] as Record<string, number>)['people']).toBe(3);
-    const remaining = await query(actor, (trx) =>
-      trx
-        .selectFrom('people')
-        .selectAll()
-        .where('org_id', '=', actor.orgId)
-        .execute(),
-    );
-    expect(remaining.filter((p) => p.first_name === 'Jordan')).toHaveLength(0);
-  });
-
-  it('enforces kind-scoped roles and tenancy', async () => {
-    await expect(
-      service.createBatch(outsider.orgId, outsider.accountId, {
-        kind: 'people',
-        fileName: 'x.csv',
-        bytes: new TextEncoder().encode('a,b\n1,2\n'),
-      }),
-    ).rejects.toMatchObject({ status: 404 });
-    const batch = await service.createBatch(actor.orgId, actor.accountId, {
-      kind: 'people',
-      fileName: 'x.csv',
-      bytes: new TextEncoder().encode(
-        'First Name,Last Name,Email,Role\nA,B,a@example.test,guardian\n',
-      ),
+    expect(preview.batch.stats).toEqual({
+      total: 2000,
+      create: 1992,
+      update: 0,
+      merge: 0,
+      skip: 3,
+      invalid: 5,
     });
-    await expect(
-      service.getBatch(outsider.orgId, outsider.accountId, batch.id),
-    ).rejects.toMatchObject({ status: 404 });
-  });
-
-  it('imports historical payments as external, reporting-only records', async () => {
-    const fixture = await factories.program(actor);
-    expect(fixture.programId).toBeTruthy();
-    const batch = await uploadAndValidate(
-      'historical_payments',
-      'payments.csv',
-      [
-        'First Name,Last Name,Email,Amount,Paid On,Description,Method,Status,Reference',
-        'Alex,Rivera,alex.r@example.test,149.00,2025-08-15,Fall registration,card,paid,OLD-1042',
-      ].join('\n'),
-    );
-    const after = await service.getBatch(
-      actor.orgId,
-      actor.accountId,
-      batch.id,
-    );
-    expect(after.status).toBe('validated');
-    const summary = await service.commitBatch(
-      actor.orgId,
-      batch.id,
-      actor.accountId,
-    );
-    expect(summary['committed']).toBe(1);
-    const payments = await query(actor, (trx) =>
-      trx
-        .selectFrom('payments')
-        .selectAll()
-        .where('org_id', '=', actor.orgId)
-        .execute(),
-    );
-    expect(payments).toHaveLength(1);
-    expect(payments[0]?.method).toBe('external');
-    expect(payments[0]?.stripe_payment_intent_id).toBeNull();
-    expect(payments[0]?.stripe_charge_id).toBeNull();
-    expect(payments[0]?.status).toBe('succeeded');
-  });
-
-  it('imports teams, rosters and schedules end-to-end', async () => {
-    await factories.program(actor);
-    const teamsBatch = await uploadAndValidate(
-      'teams',
-      'teams.csv',
-      [
-        'Team,Division,Program,Coach First,Coach Last,Coach Email,Coach Phone,Coach Role,Roster Cap',
-        'Falcons,Open,Fixture League,Sam,Carter,sam.c@example.test,555-0101,head_coach,14',
-      ].join('\n'),
-    );
-    const teams = await service.commitBatch(
-      actor.orgId,
-      teamsBatch.id,
-      actor.accountId,
-    );
-    expect(teams['committed']).toBe(1);
-
-    const rosterBatch = await uploadAndValidate(
-      'rosters',
-      'roster.csv',
-      [
-        'Team,Program,Player First,Player Last,Player Email,Player DOB,Jersey,Status,Guardian First,Guardian Email',
-        'Falcons,Fixture League,Jordan,Rivera,jordan.r@example.test,2016-03-12,12,active,Alex,alex.r@example.test',
-      ].join('\n'),
-    );
-    const roster = await service.commitBatch(
-      actor.orgId,
-      rosterBatch.id,
-      actor.accountId,
-    );
-    expect(roster['committed']).toBe(1);
-    const entries = await query(actor, (trx) =>
-      trx
-        .selectFrom('roster_entries')
-        .selectAll()
-        .where('org_id', '=', actor.orgId)
-        .execute(),
-    );
-    expect(entries).toHaveLength(1);
-    expect(entries[0]?.jersey_number).toBe('12');
-
-    const scheduleBatch = await uploadAndValidate(
-      'schedule',
-      'schedule.csv',
-      [
-        'Title,Home Team,Away Team,Event Type,Program,Start Date,End Date,Date,Start Time,End Time,Space,Facility,Address,City,State,Zip,Notes',
-        'Falcons vs Wolves,Falcons,Wolves,game,Fixture League,2026-04-11,2026-04-11,2026-04-11,15:00,16:00,Field 1,Riverside Park,203 River Rd,Denver,CO,80205,',
-      ].join('\n'),
-    );
-    const schedule = await service.commitBatch(
-      actor.orgId,
-      scheduleBatch.id,
-      actor.accountId,
-    );
-    expect(schedule['committed']).toBe(1);
-    const events = await query(actor, (trx) =>
-      trx
-        .selectFrom('events')
-        .selectAll()
-        .where('org_id', '=', actor.orgId)
-        .execute(),
-    );
-    expect(events).toHaveLength(1);
-  });
-
-  it('imports registration history rows', async () => {
-    await factories.program(actor);
-    const personId = await factories.person(actor, {
-      firstName: 'Registered',
-      lastName: 'Kid',
-    });
-    await query(actor, (trx) =>
-      trx
-        .updateTable('people')
-        .set({ email: 'reg.kid@example.test' })
-        .where('org_id', '=', actor.orgId)
-        .where('id', '=', personId)
-        .execute(),
-    );
-    const batch = await uploadAndValidate(
-      'registrations',
-      'registrations.csv',
-      [
-        'Participant email,Participant first name,Participant last name,Participant date of birth,Program,Division,Offering,Status,Team,Registered on',
-        'reg.kid@example.test,Registered,Kid,2012-01-01,Fixture League,Open,Player,confirmed,,2025-08-01',
-      ].join('\n'),
-    );
-    const after = await service.getBatch(
-      actor.orgId,
-      actor.accountId,
-      batch.id,
-    );
-    expect(after.errorCount).toBe(0);
-    const summary = await service.commitBatch(
-      actor.orgId,
-      batch.id,
-      actor.accountId,
-    );
-    expect(summary['committed']).toBe(1);
-    const registrations = await query(actor, (trx) =>
-      trx
-        .selectFrom('registrations')
-        .selectAll()
-        .where('org_id', '=', actor.orgId)
-        .execute(),
-    );
-    expect(registrations).toHaveLength(1);
-    expect(registrations[0]?.status).toBe('confirmed');
-  });
-
-  it('imports credentials and volunteer hours', async () => {
-    const personId = await factories.person(actor, {
-      firstName: 'Coach',
-      lastName: 'One',
-    });
-    await query(actor, (trx) =>
-      trx
-        .updateTable('people')
-        .set({ email: 'coach.one@example.test' })
-        .where('org_id', '=', actor.orgId)
-        .where('id', '=', personId)
-        .execute(),
-    );
-    const credBatch = await uploadAndValidate(
-      'credentials',
-      'credentials.csv',
-      [
-        'First Name,Last Name,Email,Credential Type,Status,Expires On,Issuer,Document File,Identifier,Issued On,Notes',
-        'Coach,One,coach.one@example.test,Background Check,clear,2027-09-01,Sterling,,,2025-09-01,',
-      ].join('\n'),
-    );
-    const credResult = await service.commitBatch(
-      actor.orgId,
-      credBatch.id,
-      actor.accountId,
-    );
-    expect(credResult['committed']).toBe(1);
-    const creds = await query(actor, (trx) =>
-      trx
-        .selectFrom('person_credentials')
-        .selectAll()
-        .where('org_id', '=', actor.orgId)
-        .execute(),
-    );
-    expect(creds).toHaveLength(1);
-
-    const hoursBatch = await uploadAndValidate(
-      'volunteer_hours',
-      'hours.csv',
-      [
-        'First Name,Last Name,Email,Role,Event,Date,Hours,Status,Notes',
-        'Coach,One,coach.one@example.test,Field marshal,Opening day,2026-03-14,3.5,approved,',
-      ].join('\n'),
-    );
-    const hoursResult = await service.commitBatch(
-      actor.orgId,
-      hoursBatch.id,
-      actor.accountId,
-    );
-    expect(hoursResult['committed']).toBe(1);
-    const signups = await query(actor, (trx) =>
-      trx
-        .selectFrom('volunteer_signups')
-        .selectAll()
-        .where('org_id', '=', actor.orgId)
-        .execute(),
-    );
-    expect(signups).toHaveLength(1);
-    expect(Number(signups[0]?.hours_credited)).toBeCloseTo(3.5);
-  });
-
-  it('flags duplicates and applies skip/update decisions', async () => {
-    const existing = newId();
-    await query(actor, (trx) =>
-      trx
-        .insertInto('people')
-        .values({
-          id: existing,
-          org_id: actor.orgId,
-          first_name: 'Dupe',
-          last_name: 'Person',
-          email: 'dupe@example.test',
-          date_of_birth: '1990-01-01',
-        })
-        .execute(),
-    );
-    const batch = await uploadAndValidate(
-      'people',
-      'dupe.csv',
-      'First Name,Last Name,Email,Role\nDupe,Person,dupe@example.test,guardian\n',
-    );
-    const rows = await service.listRows(
-      actor.orgId,
-      actor.accountId,
-      batch.id,
-      {
-        limit: 10,
-        filter: 'all',
-      },
-    );
-    expect(rows.items[0]?.duplicates.length).toBeGreaterThan(0);
-    expect(rows.items[0]?.action).toBe('skip');
-    await service.decideRows(actor.orgId, actor.accountId, batch.id, [
-      { rowId: rows.items[0]?.id ?? '', action: 'update', targetId: existing },
+    const invalidRows = preview.rows.filter((row) => row.action === 'invalid');
+    expect(invalidRows.map((row) => row.rowNumber)).toEqual([
+      1996, 1997, 1998, 1999, 2000,
     ]);
-    const summary = await service.commitBatch(
-      actor.orgId,
-      batch.id,
-      actor.accountId,
+    expect(invalidRows[0]?.issues[0]?.code).toBe('required');
+    expect(invalidRows[2]?.issues[0]?.code).toBe('invalid_email');
+    expect(invalidRows[3]?.issues[0]?.code).toBe('invalid_phone');
+    expect(invalidRows[4]?.issues[0]?.code).toBe('invalid_date');
+    const skipped = preview.rows.filter((row) => row.action === 'skip');
+    expect(
+      skipped.every((row) => row.issues[0]?.code === 'possible_duplicate'),
+    ).toBe(true);
+    const secondRow = preview.rows[1];
+    if (!secondRow) throw new Error('Second preview row is missing');
+    expect(
+      (secondRow.normalized as { dateOfBirth: string }).dateOfBirth,
+    ).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    const started = Date.now();
+    const committed = await imports.commit(
+      staff.orgId,
+      staff.accountId,
+      preview.batch.id,
     );
-    expect(summary['updated']).toBe(1);
-    const still = await query(actor, (trx) =>
+    const elapsedMs = Date.now() - started;
+    expect(committed.status).toBe('committed');
+    expect(elapsedMs).toBeLessThan(30_000);
+
+    const created = await factories.scoped(staff, async (trx) => ({
+      people: await trx
+        .selectFrom('people')
+        .select(({ fn }) => fn.countAll().as('n'))
+        .where('org_id', '=', staff.orgId)
+        .where('email', 'like', 'bulk%@example.org')
+        .where('status', '=', 'active')
+        .executeTakeFirstOrThrow(),
+      members: await trx
+        .selectFrom('household_members')
+        .select(({ fn }) => fn.countAll().as('n'))
+        .where('org_id', '=', staff.orgId)
+        .where('removed_at', 'is', null)
+        .executeTakeFirstOrThrow(),
+      households: await trx
+        .selectFrom('households')
+        .select(({ fn }) => fn.countAll().as('n'))
+        .where('org_id', '=', staff.orgId)
+        .where('status', '=', 'active')
+        .executeTakeFirstOrThrow(),
+    }));
+    expect(Number(created.people.n)).toBe(1992);
+    expect(Number(created.members.n)).toBe(1992);
+    expect(Number(created.households.n)).toBe(50);
+
+    await expect(
+      imports.commit(staff.orgId, staff.accountId, preview.batch.id),
+    ).rejects.toMatchObject({ status: 409 });
+
+    const rolled = await imports.rollback(
+      staff.orgId,
+      staff.accountId,
+      preview.batch.id,
+    );
+    expect(rolled.status).toBe('rolled_back');
+    const after = await factories.scoped(staff, async (trx) => ({
+      people: await trx
+        .selectFrom('people')
+        .select(({ fn }) => fn.countAll().as('n'))
+        .where('org_id', '=', staff.orgId)
+        .where('email', 'like', 'bulk%@example.org')
+        .where('status', '=', 'active')
+        .executeTakeFirstOrThrow(),
+      archivedPeople: await trx
+        .selectFrom('people')
+        .select(({ fn }) => fn.countAll().as('n'))
+        .where('org_id', '=', staff.orgId)
+        .where('email', 'like', 'bulk%@example.org')
+        .where('status', '=', 'archived')
+        .executeTakeFirstOrThrow(),
+      members: await trx
+        .selectFrom('household_members')
+        .select(({ fn }) => fn.countAll().as('n'))
+        .where('org_id', '=', staff.orgId)
+        .where('removed_at', 'is', null)
+        .executeTakeFirstOrThrow(),
+      households: await trx
+        .selectFrom('households')
+        .select(({ fn }) => fn.countAll().as('n'))
+        .where('org_id', '=', staff.orgId)
+        .where('status', '=', 'active')
+        .executeTakeFirstOrThrow(),
+    }));
+    expect(Number(after.people.n)).toBe(0);
+    expect(Number(after.archivedPeople.n)).toBe(1992);
+    expect(Number(after.members.n)).toBe(0);
+    expect(Number(after.households.n)).toBe(0);
+  },
+);
+
+it('refuses to roll back a batch whose people were touched', async () => {
+  const factories = createTestFactories(database);
+  const staff = await staffActor(factories);
+  const imports = createImportsRepository(database);
+  const preview = await imports.create(staff.orgId, staff.accountId, {
+    kind: 'people',
+    filename: 'small.csv',
+    content: [
+      'First Name,Last Name,DOB,Email',
+      'Touched,Player,2012-06-15,touched@example.org',
+    ].join('\n'),
+    mapping: MAPPING,
+    duplicateStrategy: 'skip',
+  });
+  await imports.commit(staff.orgId, staff.accountId, preview.batch.id);
+  const personId = await factories.scoped(staff, async (trx) =>
+    trx
+      .selectFrom('people')
+      .select('id')
+      .where('org_id', '=', staff.orgId)
+      .where('email', '=', 'touched@example.org')
+      .executeTakeFirstOrThrow(),
+  );
+  const fixture = await factories.program(staff);
+  const householdId = await factories.household(staff);
+  await factories.registration(staff, fixture, personId.id, householdId);
+  await expect(
+    imports.rollback(staff.orgId, staff.accountId, preview.batch.id),
+  ).rejects.toMatchObject({ status: 409 });
+});
+
+it('restores updated profiles and merges only missing fields on rollback', async () => {
+  const factories = createTestFactories(database);
+  const staff = await staffActor(factories);
+  const imports = createImportsRepository(database);
+  const personId = await factories.person(staff, {
+    firstName: 'Original',
+    lastName: 'Name',
+    dateOfBirth: '2012-06-15',
+  });
+  await factories.scoped(staff, async (trx) => {
+    await trx
+      .updateTable('people')
+      .set({ email: 'original@example.org' })
+      .where('id', '=', personId)
+      .execute();
+  });
+
+  const update = await imports.create(staff.orgId, staff.accountId, {
+    kind: 'people',
+    filename: 'update.csv',
+    content:
+      'First Name,Last Name,DOB,Email,Phone,Gender,Household\nUpdated,Name,2012-06-16,original@example.org,,F,',
+    mapping: MAPPING,
+    duplicateStrategy: 'update',
+  });
+  expect(update.rows[0]?.action).toBe('update');
+  await imports.commit(staff.orgId, staff.accountId, update.batch.id);
+  await expect(
+    factories.scoped(staff, async (trx) =>
       trx
         .selectFrom('people')
-        .selectAll()
-        .where('org_id', '=', actor.orgId)
-        .where('email', '=', 'dupe@example.test')
-        .execute(),
-    );
-    expect(still).toHaveLength(1);
+        .select(['id', 'first_name', 'date_of_birth', 'version'])
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', personId)
+        .executeTakeFirstOrThrow(),
+    ),
+  ).resolves.toMatchObject({ first_name: 'Updated', version: 2 });
+  await imports.rollback(staff.orgId, staff.accountId, update.batch.id);
+  const restored = await factories.scoped(staff, async (trx) =>
+    trx
+      .selectFrom('people')
+      .select(['id', 'first_name', 'date_of_birth', 'email', 'version'])
+      .where('org_id', '=', staff.orgId)
+      .where('id', '=', personId)
+      .executeTakeFirstOrThrow(),
+  );
+  expect(restored).toMatchObject({
+    first_name: 'Original',
+    email: 'original@example.org',
+    version: 3,
   });
+  expect(restored.date_of_birth.toISOString().slice(0, 10)).toBe('2012-06-15');
+
+  const merge = await imports.create(staff.orgId, staff.accountId, {
+    kind: 'people',
+    filename: 'merge.csv',
+    content:
+      'First Name,Last Name,DOB,Email,Phone,Gender,Household\nConflicting,Name,2013-06-15,original@example.org,4155551212,F,',
+    mapping: MAPPING,
+    duplicateStrategy: 'merge',
+  });
+  expect(merge.rows[0]?.action).toBe('merge');
+  await imports.commit(staff.orgId, staff.accountId, merge.batch.id);
+  const merged = await factories.scoped(staff, async (trx) =>
+    trx
+      .selectFrom('people')
+      .select(['id', 'first_name', 'date_of_birth', 'phone_e164'])
+      .where('org_id', '=', staff.orgId)
+      .where('id', '=', personId)
+      .executeTakeFirstOrThrow(),
+  );
+  expect(merged).toMatchObject({
+    first_name: 'Original',
+    phone_e164: '+14155551212',
+  });
+  expect(merged.date_of_birth.toISOString().slice(0, 10)).toBe('2012-06-15');
+  await imports.rollback(staff.orgId, staff.accountId, merge.batch.id);
+  await expect(
+    factories.scoped(staff, async (trx) =>
+      trx
+        .selectFrom('people')
+        .select(['id', 'first_name', 'phone_e164'])
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', personId)
+        .executeTakeFirstOrThrow(),
+    ),
+  ).resolves.toMatchObject({ first_name: 'Original', phone_e164: null });
+});
+
+it('requires staff and scopes to the tenant', async () => {
+  const factories = createTestFactories(database);
+  const staff = await staffActor(factories);
+  const outsider = await factories.actor();
+  const imports = createImportsRepository(database);
+  await expect(
+    imports.create(outsider.orgId, outsider.accountId, {
+      kind: 'people',
+      filename: 'x.csv',
+      content: 'First Name,Last Name,DOB\nA,B,2012-01-01',
+      mapping: MAPPING,
+      duplicateStrategy: 'skip',
+    }),
+  ).rejects.toMatchObject({ status: 404 });
+  const batch = await imports.create(staff.orgId, staff.accountId, {
+    kind: 'people',
+    filename: 'y.csv',
+    content: 'First Name,Last Name,DOB\nA,B,2012-01-01',
+    mapping: MAPPING,
+    duplicateStrategy: 'skip',
+  });
+  await expect(
+    imports.get(outsider.orgId, outsider.accountId, batch.batch.id),
+  ).rejects.toMatchObject({ status: 404 });
+});
+
+it('imports guardian links with an adult self profile and shared household', async () => {
+  const factories = createTestFactories(database);
+  const staff = await staffActor(factories);
+  const childId = await factories.person(staff, {
+    firstName: 'Child',
+    lastName: 'Member',
+    dateOfBirth: '2014-02-03',
+  });
+  await factories.scoped(staff, async (trx) => {
+    await trx
+      .updateTable('people')
+      .set({ email: 'child-member@example.org' })
+      .where('id', '=', childId)
+      .execute();
+  });
+  const guardianId = newId();
+  const guardianEmail = 'guardian-import@example.org';
+  await database
+    .insertInto('accounts')
+    .values({
+      id: guardianId,
+      email: guardianEmail,
+      first_name: 'Guardian',
+      last_name: 'Imported',
+      date_of_birth: '1980-04-05',
+      email_verified_at: new Date(),
+    })
+    .execute();
+  const imports = createImportsRepository(database);
+  const preview = await imports.create(staff.orgId, staff.accountId, {
+    kind: 'guardians',
+    filename: 'guardians.csv',
+    content:
+      'Guardian Email,Person Email,Person First Name,Person Last Name,Person DOB\nguardian-import@example.org,child-member@example.org,Child,Member,2014-02-03',
+    mapping: {
+      guardianEmail: 'Guardian Email',
+      personEmail: 'Person Email',
+      personFirstName: 'Person First Name',
+      personLastName: 'Person Last Name',
+      personDateOfBirth: 'Person DOB',
+    },
+    duplicateStrategy: 'skip',
+  });
+  await imports.commit(staff.orgId, staff.accountId, preview.batch.id);
+  const result = await factories.scoped(staff, async (trx) => {
+    const guardianLink = await trx
+      .selectFrom('person_account_links')
+      .select(['person_id', 'account_id'])
+      .where('org_id', '=', staff.orgId)
+      .where('person_id', '=', childId)
+      .where('account_id', '=', guardianId)
+      .where('relationship', '=', 'guardian')
+      .where('revoked_at', 'is', null)
+      .executeTakeFirstOrThrow();
+    const selfLink = await trx
+      .selectFrom('person_account_links')
+      .select('person_id')
+      .where('org_id', '=', staff.orgId)
+      .where('account_id', '=', guardianId)
+      .where('relationship', '=', 'self')
+      .where('revoked_at', 'is', null)
+      .executeTakeFirstOrThrow();
+    const household = await trx
+      .selectFrom('household_members as child')
+      .innerJoin('household_members as guardian', (join) =>
+        join
+          .onRef('guardian.org_id', '=', 'child.org_id')
+          .onRef('guardian.household_id', '=', 'child.household_id'),
+      )
+      .select(['child.household_id'])
+      .where('child.org_id', '=', staff.orgId)
+      .where('child.person_id', '=', childId)
+      .where('child.removed_at', 'is', null)
+      .where('guardian.person_id', '=', selfLink.person_id)
+      .where('guardian.role', '=', 'guardian')
+      .where('guardian.removed_at', 'is', null)
+      .executeTakeFirstOrThrow();
+    return { guardianLink, selfLink, household };
+  });
+  expect(result.guardianLink.account_id).toBe(guardianId);
+  expect(result.selfLink.person_id).not.toBe(childId);
+  expect(result.household.household_id).toBeDefined();
+  await imports.rollback(staff.orgId, staff.accountId, preview.batch.id);
 });
