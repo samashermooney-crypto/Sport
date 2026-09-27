@@ -78,4 +78,13 @@ describe('SafeSport messaging', () => {
       }).guardianAdditions,
     ).toEqual([]);
   });
+
+  it('rejects duplicate members and a missing sender', () => {
+    expect(() =>
+      checkSafeSport({ ...base, members: [coach, coach, minor] }),
+    ).toThrow();
+    expect(() =>
+      checkSafeSport({ ...base, senderAccountId: 'absent' }),
+    ).toThrow();
+  });
 });

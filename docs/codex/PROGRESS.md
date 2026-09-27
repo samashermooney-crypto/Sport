@@ -44,7 +44,7 @@
 - [x] Shared Zod entity contracts cover the primary entities across people, programs, registration, scheduling, compliance, officials, attendance, and money. Generated Kysely types introspect 126 tables after the spine (including migration ledger).
 - [x] `server/test/factories.ts` provides a typed `row` insert for every tenant table, always inside `withOrg`, plus linked actor, person, household, program, team, registration, invoice, event, and contest presets. Integration tests prove linked rows and cross-tenant isolation.
 - [x] Split-space booking expands parent spaces to leaf rows in one transaction; GiST exclusion blocks overlaps, while sibling leaves can be booked independently. A forward-only hierarchy trigger rejects cycles and cross-facility parenting.
-- [ ] Integrate this checkpoint into `rebuild/trunk`, run the complete gate there, and push. Then Track E can resume Phase 4.
+- [x] Integrated the spine into `rebuild/trunk` at `f4295a0`; merged trunk passed typecheck, lint, 228 tests (one operator-credential smoke skipped), four browser e2e tests, and build. Trunk publication follows this progress commit; Track E can resume Phase 4 from trunk.
 
 ## Phase checklists
 

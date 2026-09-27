@@ -95,6 +95,10 @@ export const contestFormatSchema = z.discriminatedUnion('format', [
     heats: z.boolean(),
     lanes: positiveInt,
     placePoints,
+    relayPlacePoints: placePoints,
+    teamScoring: z
+      .object({ method: z.literal('sum_of_places_top_n'), count: positiveInt })
+      .optional(),
   }),
   z.object({
     format: z.literal('multi_measured'),
@@ -103,6 +107,9 @@ export const contestFormatSchema = z.discriminatedUnion('format', [
     unit: z.enum(['m', 'cm', 'ft_in', 'strokes', 'points', 'pins']),
     attempts: positiveInt.optional(),
     placePoints,
+    teamScoring: z
+      .object({ method: z.literal('best_n_of_m'), count: positiveInt })
+      .optional(),
   }),
   z.object({
     format: z.literal('judged'),
@@ -172,6 +179,7 @@ export const tiebreakerSchema = z.enum([
   'sets_won',
   'fewest_forfeits',
   'fewest_discipline_points',
+  'net_run_rate',
   'coin_toss_manual',
 ]);
 export type Tiebreaker = z.infer<typeof tiebreakerSchema>;
@@ -202,6 +210,7 @@ export const standingsColumnSchema = z.enum([
   'sets_lost',
   'set_ratio',
   'point_ratio',
+  'net_run_rate',
 ]);
 
 export const standingsConfigSchema = z.object({
@@ -220,6 +229,13 @@ export const standingsConfigSchema = z.object({
   winPercentageTieValue: z.union([z.literal(0.5), z.literal(0)]),
   forfeitScore: z.object({ winner: nonnegative, loser: nonnegative }),
   maxGoalDifferential: nonnegative.optional(),
+  bonusPoints: z
+    .object({
+      triesThreshold: positiveInt,
+      losingMargin: nonnegative,
+      bonusPoint: nonnegative,
+    })
+    .optional(),
   tiebreakers: z.array(tiebreakerSchema).min(1).max(8),
   include: z.object({
     stages: z.array(contestStageSchema).min(1),

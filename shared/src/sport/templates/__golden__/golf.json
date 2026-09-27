@@ -55,7 +55,11 @@
         }
       ],
       "lowerIsBetter": true,
-      "unit": "strokes"
+      "unit": "strokes",
+      "teamScoring": {
+        "method": "best_n_of_m",
+        "count": 4
+      }
     }
   ],
   "positions": [],

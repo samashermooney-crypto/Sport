@@ -283,6 +283,11 @@
       "winner": 3,
       "loser": 0
     },
+    "bonusPoints": {
+      "triesThreshold": 4,
+      "losingMargin": 7,
+      "bonusPoint": 1
+    },
     "tiebreakers": [
       "head_to_head_points",
       "head_to_head_differential",
