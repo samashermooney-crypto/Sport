@@ -1145,6 +1145,20 @@ export interface Installments {
   version: Generated<number>;
 }
 
+export interface InstallmentStaffActions {
+  action: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  installment_id: string;
+  operation_key: string;
+  org_id: string;
+  performed_by: string;
+  reason: string;
+  request_hash: string;
+  result: Json;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface InvoiceLines {
   amount_cents: number;
   created_at: Generated<Timestamp>;
@@ -2509,6 +2523,7 @@ export interface DB {
   injury_roster_holds: InjuryRosterHolds;
   installment_charge_attempts: InstallmentChargeAttempts;
   installment_plan_templates: InstallmentPlanTemplates;
+  installment_staff_actions: InstallmentStaffActions;
   installments: Installments;
   invoice_lines: InvoiceLines;
   invoices: Invoices;

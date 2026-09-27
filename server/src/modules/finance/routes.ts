@@ -47,6 +47,13 @@ import {
 } from './credits.js';
 import { PostgresFrozenChargeReader } from './frozen-charge-repo.js';
 import {
+  installmentStaffActionSchema,
+  installmentStaffResultSchema,
+  InstallmentStaffConflictError,
+  InstallmentStaffNotFoundError,
+  PostgresInstallmentStaffActions,
+} from './installment-staff-actions.js';
+import {
   installmentTemplateBodySchema,
   installmentTemplateListSchema,
   installmentTemplateSchema,
@@ -429,6 +436,7 @@ function sendError(response: Response, error: unknown): void {
           error instanceof ConnectConflictError ||
           error instanceof PaymentConflictError ||
           error instanceof InstallmentTemplateConflictError ||
+          error instanceof InstallmentStaffConflictError ||
           error instanceof InvoiceConflictError ||
           error instanceof AidAwardConflictError ||
           error instanceof AidProgramConflictError ||
@@ -441,6 +449,7 @@ function sendError(response: Response, error: unknown): void {
         ? 409
         : error instanceof InvoiceNotFoundError ||
             error instanceof AutopayAuthorizationNotFoundError ||
+            error instanceof InstallmentStaffNotFoundError ||
             error instanceof MoneyDocumentNotFoundError
           ? 404
           : error instanceof FinanceDependencyError
@@ -1121,6 +1130,34 @@ export function createFinanceRouter(
           context,
         ).list(true);
         response.json(installmentTemplateListSchema.parse({ templates }));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post(
+    '/orgs/:orgId/installments/:installmentId/actions',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const installmentId = z.uuid().parse(request.params.installmentId);
+        const operationKey = z.uuid().parse(request.get('Idempotency-Key'));
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        const input = installmentStaffActionSchema.parse(
+          request.body as unknown,
+        );
+        const result = await new PostgresInstallmentStaffActions(
+          dependencies.database,
+          context,
+        ).perform(installmentId, operationKey, input);
+        response.json(installmentStaffResultSchema.parse(result));
       } catch (error) {
         sendError(response, error);
       }

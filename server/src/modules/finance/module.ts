@@ -16,6 +16,10 @@ import {
 import { autopayAuthorizationListSchema } from './autopay-authorizations.js';
 import { creditBalanceSchema } from './credit-balances.js';
 import {
+  installmentStaffActionSchema,
+  installmentStaffResultSchema,
+} from './installment-staff-actions.js';
+import {
   installmentTemplateBodySchema,
   installmentTemplateSchema,
   installmentTemplateListSchema,
@@ -214,6 +218,13 @@ export const moduleDefinition = {
       summary: 'Void an unpaid invoice at an exact version',
       body: voidInvoiceBodySchema,
       response: voidInvoiceResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/installments/{installmentId}/actions',
+      summary: 'Change an installment due date or split it at an exact version',
+      body: installmentStaffActionSchema,
+      response: installmentStaffResultSchema,
     },
     {
       method: 'get',
