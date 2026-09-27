@@ -34,6 +34,7 @@ import {
   AutopayAuthorizationNotFoundError,
   PostgresAutopayAuthorizations,
   STAFF_METHOD_CONSENT_VERSION,
+  staffMethodOptionsSchema,
 } from './autopay-authorizations.js';
 import { ConnectConflictError, ConnectOnboardingService } from './connect.js';
 import {
@@ -576,6 +577,23 @@ export function createFinanceRouter(
         response
           .status(201)
           .json(staffMethodConsentResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.get(
+    '/orgs/:orgId/me/autopay/staff-method-options',
+    async (request, response) => {
+      try {
+        if (requestImpersonation(request)) throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const result = await new PostgresAutopayAuthorizations(
+          dependencies.database,
+          { orgId, actor: { accountId: session.accountId } },
+        ).staffMethodOptions();
+        response.json(staffMethodOptionsSchema.parse(result));
       } catch (error) {
         sendError(response, error);
       }

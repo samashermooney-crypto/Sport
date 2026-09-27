@@ -108,6 +108,10 @@ describe('payer autopay authorizations', () => {
   it('shows only the payer mandate and revokes future charges once', async () => {
     const payer = new PostgresAutopayAuthorizations(database, context);
     const outsider = new PostgresAutopayAuthorizations(database, other);
+    expect(await outsider.staffMethodOptions()).toEqual({ invoices: [] });
+    expect(await payer.staffMethodOptions()).toMatchObject({
+      invoices: [{ id: invoiceId, futureInstallments: 1 }],
+    });
     expect(await outsider.list()).toEqual([]);
     await expect(outsider.revoke(mandateId)).rejects.toThrow();
     expect(await payer.list()).toMatchObject([

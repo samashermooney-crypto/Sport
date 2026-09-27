@@ -23,6 +23,15 @@ export const autopayAuthorizationSchema = z.strictObject({
 export const autopayAuthorizationListSchema = z.strictObject({
   authorizations: z.array(autopayAuthorizationSchema),
 });
+export const staffMethodOptionsSchema = z.strictObject({
+  invoices: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      number: z.number().int().positive(),
+      futureInstallments: z.number().int().positive(),
+    }),
+  ),
+});
 export type AutopayAuthorization = z.output<typeof autopayAuthorizationSchema>;
 export class AutopayAuthorizationNotFoundError extends Error {
   constructor() {
@@ -55,6 +64,40 @@ export class PostgresAutopayAuthorizations {
     private readonly context: OrgContext,
   ) {
     this.withOrg = createWithOrg(database);
+  }
+
+  async staffMethodOptions(): Promise<
+    z.output<typeof staffMethodOptionsSchema>
+  > {
+    return this.withOrg(this.context, async (trx) => {
+      const rows = await sql<{
+        id: string;
+        number: number;
+        future_installments: number;
+      }>`
+        SELECT i.id, i.number,
+          count(inst.id)::integer AS future_installments
+        FROM invoices i
+        JOIN installments inst ON inst.org_id = i.org_id
+          AND inst.invoice_id = i.id
+          AND inst.status IN ('scheduled', 'failed')
+          AND inst.amount_cents > inst.paid_cents
+        WHERE i.org_id = ${this.context.orgId}::uuid
+          AND i.account_id = ${this.context.actor.accountId}::uuid
+          AND i.status IN ('open', 'partially_paid', 'past_due')
+          AND i.balance_cents > 0
+        GROUP BY i.id, i.number
+        ORDER BY i.number DESC
+        LIMIT 100
+      `.execute(trx);
+      return staffMethodOptionsSchema.parse({
+        invoices: rows.rows.map((row) => ({
+          id: row.id,
+          number: row.number,
+          futureInstallments: row.future_installments,
+        })),
+      });
+    });
   }
 
   async authorizeStaffMethod(input: {
