@@ -22,7 +22,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'node scripts/dev.mjs --e2e',
-    url: 'https://127.0.0.1:5173/healthz',
+    url: 'https://127.0.0.1:5173',
     ignoreHTTPSErrors: true,
     reuseExistingServer: false,
     timeout: 180_000,

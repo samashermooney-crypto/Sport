@@ -4,6 +4,21 @@ import { decodeBase32, totpCode } from '../server/src/modules/auth/totp';
 
 import { accessibilityViolations } from './axe';
 
+test.beforeEach(async ({ request }) => {
+  await expect
+    .poll(
+      async () => {
+        try {
+          return (await request.get('/healthz')).status();
+        } catch {
+          return 0;
+        }
+      },
+      { timeout: 30_000, message: 'API health endpoint should be ready' },
+    )
+    .toBe(200);
+});
+
 test('sign-in and reset request are accessible and functional', async ({
   page,
   request,
