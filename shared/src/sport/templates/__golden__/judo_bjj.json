@@ -1,0 +1,201 @@
+{
+  "key": "judo_bjj",
+  "name": {
+    "en": "Judo / BJJ",
+    "es": "Judo / BJJ"
+  },
+  "category": "individual",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Sensei",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Bout",
+      "es": "Juego"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Mat",
+      "es": "Tapiz"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "head_to_head_bout",
+      "methods": [
+        {
+          "key": "ippon",
+          "label": {
+            "en": "ippon",
+            "es": "ippon"
+          },
+          "teamPoints": 1
+        },
+        {
+          "key": "submission",
+          "label": {
+            "en": "submission",
+            "es": "submission"
+          },
+          "teamPoints": 1
+        },
+        {
+          "key": "points",
+          "label": {
+            "en": "points",
+            "es": "points"
+          },
+          "teamPoints": 1
+        }
+      ],
+      "periods": {
+        "label": {
+          "en": "Round",
+          "es": "Round"
+        },
+        "count": 1
+      }
+    }
+  ],
+  "positions": [
+    {
+      "key": "weight_class",
+      "label": {
+        "en": "Weight class",
+        "es": "Weight class"
+      }
+    }
+  ],
+  "maxPositionsPerAthlete": 2,
+  "roster": {
+    "defaultMax": 50,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "age_on_date",
+    "monthDay": "08-01",
+    "yearBasis": "season_start"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["mat"],
+  "officials": [
+    {
+      "key": "referee",
+      "label": {
+        "en": "Referee",
+        "es": "Referee"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "throws",
+      "label": {
+        "en": "Throws",
+        "es": "Throws"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "ground_control",
+      "label": {
+        "en": "Ground control",
+        "es": "Ground control"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "defense",
+      "label": {
+        "en": "Defense",
+        "es": "Defense"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "conditioning",
+      "label": {
+        "en": "Conditioning",
+        "es": "Conditioning"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "gi",
+      "label": {
+        "en": "Gi",
+        "es": "Gi"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "belt",
+      "label": {
+        "en": "Belt",
+        "es": "Belt"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "skillLevels": [
+    {
+      "name": {
+        "en": "White belt",
+        "es": "White belt"
+      },
+      "skills": [
+        {
+          "en": "Breakfall",
+          "es": "Breakfall"
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Black belt",
+        "es": "Black belt"
+      },
+      "skills": [
+        {
+          "en": "Advanced technique",
+          "es": "Advanced technique"
+        }
+      ]
+    }
+  ],
+  "disciplineTypes": []
+}

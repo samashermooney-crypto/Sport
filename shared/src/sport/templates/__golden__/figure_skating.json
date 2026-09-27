@@ -1,0 +1,199 @@
+{
+  "key": "figure_skating",
+  "name": {
+    "en": "Figure skating",
+    "es": "Figure skating"
+  },
+  "category": "individual",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Competition",
+      "es": "Juego"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Rink",
+      "es": "rink"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "judged",
+      "apparatusOrRoutines": [
+        {
+          "key": "short_program",
+          "label": {
+            "en": "short program",
+            "es": "short program"
+          }
+        },
+        {
+          "key": "free_skate",
+          "label": {
+            "en": "free skate",
+            "es": "free skate"
+          }
+        }
+      ],
+      "panel": {
+        "judges": 5,
+        "dropHighLow": true,
+        "components": [
+          {
+            "key": "execution",
+            "label": {
+              "en": "Execution",
+              "es": "Ejecución"
+            },
+            "max": 10
+          }
+        ],
+        "combine": "average"
+      }
+    }
+  ],
+  "positions": [],
+  "maxPositionsPerAthlete": 0,
+  "roster": {
+    "defaultMax": 20,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "age_on_date",
+    "monthDay": "08-01",
+    "yearBasis": "season_start"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["rink"],
+  "officials": [
+    {
+      "key": "judge",
+      "label": {
+        "en": "Judge",
+        "es": "Judge"
+      },
+      "required": true
+    },
+    {
+      "key": "technical_specialist",
+      "label": {
+        "en": "Technical specialist",
+        "es": "Technical specialist"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "edges",
+      "label": {
+        "en": "Edges",
+        "es": "Edges"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "jumps",
+      "label": {
+        "en": "Jumps",
+        "es": "Jumps"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "spins",
+      "label": {
+        "en": "Spins",
+        "es": "Spins"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "presentation",
+      "label": {
+        "en": "Presentation",
+        "es": "Presentation"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "costume",
+      "label": {
+        "en": "Costume",
+        "es": "Costume"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "skates",
+      "label": {
+        "en": "Skates",
+        "es": "Skates"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "skillLevels": [
+    {
+      "name": {
+        "en": "Basic",
+        "es": "Basic"
+      },
+      "skills": [
+        {
+          "en": "Forward skating",
+          "es": "Forward skating"
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Advanced",
+        "es": "Advanced"
+      },
+      "skills": [
+        {
+          "en": "Jumps",
+          "es": "Jumps"
+        }
+      ]
+    }
+  ],
+  "disciplineTypes": []
+}

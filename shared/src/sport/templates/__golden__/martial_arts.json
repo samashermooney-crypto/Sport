@@ -1,0 +1,203 @@
+{
+  "key": "martial_arts",
+  "name": {
+    "en": "Martial arts",
+    "es": "Martial arts"
+  },
+  "category": "individual",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Instructor",
+      "es": "Instructor"
+    },
+    "contest": {
+      "en": "Tournament",
+      "es": "Juego"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Mat",
+      "es": "Tapiz"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "head_to_head_bout",
+      "methods": [
+        {
+          "key": "points",
+          "label": {
+            "en": "points",
+            "es": "points"
+          },
+          "teamPoints": 1
+        },
+        {
+          "key": "submission",
+          "label": {
+            "en": "submission",
+            "es": "submission"
+          },
+          "teamPoints": 1
+        }
+      ],
+      "periods": {
+        "label": {
+          "en": "Round",
+          "es": "Round"
+        },
+        "count": 3
+      }
+    },
+    {
+      "format": "placement_only",
+      "events": [
+        {
+          "key": "forms",
+          "label": {
+            "en": "forms",
+            "es": "forms"
+          }
+        }
+      ]
+    }
+  ],
+  "positions": [],
+  "maxPositionsPerAthlete": 0,
+  "roster": {
+    "defaultMax": 50,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "none"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["mat"],
+  "officials": [
+    {
+      "key": "referee",
+      "label": {
+        "en": "Referee",
+        "es": "Referee"
+      },
+      "required": true
+    },
+    {
+      "key": "judge",
+      "label": {
+        "en": "Judge",
+        "es": "Judge"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "technique",
+      "label": {
+        "en": "Technique",
+        "es": "Technique"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "control",
+      "label": {
+        "en": "Control",
+        "es": "Control"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "respect",
+      "label": {
+        "en": "Respect",
+        "es": "Respect"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "forms",
+      "label": {
+        "en": "Forms",
+        "es": "Forms"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "uniform",
+      "label": {
+        "en": "Uniform",
+        "es": "Uniform"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "belt",
+      "label": {
+        "en": "Belt",
+        "es": "Belt"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "skillLevels": [
+    {
+      "name": {
+        "en": "White belt",
+        "es": "White belt"
+      },
+      "skills": [
+        {
+          "en": "Foundations",
+          "es": "Foundations"
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "Black belt",
+        "es": "Black belt"
+      },
+      "skills": [
+        {
+          "en": "Advanced techniques",
+          "es": "Advanced techniques"
+        }
+      ]
+    }
+  ],
+  "disciplineTypes": []
+}

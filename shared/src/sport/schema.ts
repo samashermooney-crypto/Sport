@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { type AgeGroupConfig } from './age.js';
 
-const key = z.string().regex(/^[a-z][a-z0-9_]*$/);
+const key = z.string().regex(/^[a-z0-9][a-z0-9_]*$/);
 const nonnegative = z.number().nonnegative();
 const positiveInt = z.number().int().positive();
 const monthDay = z

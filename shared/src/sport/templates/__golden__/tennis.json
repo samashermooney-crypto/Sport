@@ -1,0 +1,213 @@
+{
+  "key": "tennis",
+  "name": {
+    "en": "Tennis",
+    "es": "Tenis"
+  },
+  "category": "hybrid",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Match",
+      "es": "Partido"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Court",
+      "es": "Cancha"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "head_to_head_sets",
+      "bestOf": 3,
+      "pointsPerSet": 6,
+      "decidingSetPoints": 6,
+      "winBy": 2,
+      "scoringUnit": "games",
+      "tiebreakAt": 6
+    }
+  ],
+  "positions": [
+    {
+      "key": "singles",
+      "label": {
+        "en": "Singles",
+        "es": "Singles"
+      }
+    },
+    {
+      "key": "doubles",
+      "label": {
+        "en": "Doubles",
+        "es": "Doubles"
+      }
+    }
+  ],
+  "maxPositionsPerAthlete": 2,
+  "roster": {
+    "defaultMax": 12,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "age_on_date",
+    "monthDay": "08-01",
+    "yearBasis": "season_start"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["court"],
+  "officials": [
+    {
+      "key": "chair_umpire",
+      "label": {
+        "en": "Chair umpire",
+        "es": "Chair umpire"
+      },
+      "required": true
+    },
+    {
+      "key": "line_judge",
+      "label": {
+        "en": "Line judge",
+        "es": "Line judge"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "serve",
+      "label": {
+        "en": "Serve",
+        "es": "Serve"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "forehand",
+      "label": {
+        "en": "Forehand",
+        "es": "Forehand"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "backhand",
+      "label": {
+        "en": "Backhand",
+        "es": "Backhand"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "movement",
+      "label": {
+        "en": "Movement",
+        "es": "Movement"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "match_strategy",
+      "label": {
+        "en": "Match strategy",
+        "es": "Match strategy"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "jersey",
+      "label": {
+        "en": "Jersey",
+        "es": "Jersey"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "shorts",
+      "label": {
+        "en": "Shorts",
+        "es": "Shorts"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "socks",
+      "label": {
+        "en": "Socks",
+        "es": "Socks"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "defaultStandings": {
+    "basis": "match",
+    "points": {
+      "win": 3,
+      "overtimeWin": 2,
+      "tie": 1,
+      "overtimeLoss": 1,
+      "loss": 0,
+      "forfeitWin": 3,
+      "forfeitLoss": 0,
+      "forfeitDeduction": 0
+    },
+    "rankBy": "points",
+    "winPercentageTieValue": 0.5,
+    "forfeitScore": {
+      "winner": 3,
+      "loser": 0
+    },
+    "tiebreakers": [
+      "head_to_head_points",
+      "head_to_head_differential",
+      "differential",
+      "scored",
+      "coin_toss_manual"
+    ],
+    "include": {
+      "stages": ["regular"],
+      "crossDivision": false
+    },
+    "columns": ["rank", "team", "played", "wins", "losses", "ties", "points"],
+    "publicVisibility": "members"
+  },
+  "disciplineTypes": []
+}

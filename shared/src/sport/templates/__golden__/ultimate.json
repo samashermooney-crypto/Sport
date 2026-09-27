@@ -1,0 +1,215 @@
+{
+  "key": "ultimate",
+  "name": {
+    "en": "Ultimate",
+    "es": "Ultimate"
+  },
+  "category": "team",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Game",
+      "es": "Juego"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Field",
+      "es": "Campo"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "head_to_head_score",
+      "periods": {
+        "label": {
+          "en": "Half",
+          "es": "Half"
+        },
+        "count": 2
+      },
+      "scoreLabel": {
+        "en": "Score",
+        "es": "Marcador"
+      },
+      "allowTie": false,
+      "scoreDirection": "higher_wins"
+    }
+  ],
+  "positions": [
+    {
+      "key": "handler",
+      "label": {
+        "en": "Handler",
+        "es": "Handler"
+      }
+    },
+    {
+      "key": "cutter",
+      "label": {
+        "en": "Cutter",
+        "es": "Cutter"
+      }
+    }
+  ],
+  "maxPositionsPerAthlete": 2,
+  "roster": {
+    "defaultMax": 20,
+    "defaultMin": 1,
+    "onFieldCount": 7,
+    "jerseyNumbers": "optional",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [
+    {
+      "key": "spirit_score",
+      "label": {
+        "en": "Spirit score",
+        "es": "Spirit score"
+      },
+      "abbreviation": "SP",
+      "level": "athlete",
+      "valueType": "integer",
+      "aggregate": "sum",
+      "public": false
+    }
+  ],
+  "ageGroup": {
+    "method": "school_grade",
+    "schoolYearCutoff": "08-01"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["field"],
+  "officials": [
+    {
+      "key": "observer",
+      "label": {
+        "en": "Observer",
+        "es": "Observer"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "throwing",
+      "label": {
+        "en": "Throwing",
+        "es": "Throwing"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "catching",
+      "label": {
+        "en": "Catching",
+        "es": "Catching"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "cutting",
+      "label": {
+        "en": "Cutting",
+        "es": "Cutting"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "spirit",
+      "label": {
+        "en": "Spirit",
+        "es": "Spirit"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "jersey",
+      "label": {
+        "en": "Jersey",
+        "es": "Jersey"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "shorts",
+      "label": {
+        "en": "Shorts",
+        "es": "Shorts"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "socks",
+      "label": {
+        "en": "Socks",
+        "es": "Socks"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "defaultStandings": {
+    "basis": "match",
+    "points": {
+      "win": 3,
+      "overtimeWin": 2,
+      "tie": 1,
+      "overtimeLoss": 1,
+      "loss": 0,
+      "forfeitWin": 3,
+      "forfeitLoss": 0,
+      "forfeitDeduction": 0
+    },
+    "rankBy": "points",
+    "winPercentageTieValue": 0.5,
+    "forfeitScore": {
+      "winner": 3,
+      "loser": 0
+    },
+    "tiebreakers": [
+      "head_to_head_points",
+      "head_to_head_differential",
+      "differential",
+      "scored",
+      "coin_toss_manual"
+    ],
+    "include": {
+      "stages": ["regular"],
+      "crossDivision": false
+    },
+    "columns": ["rank", "team", "played", "wins", "losses", "ties", "points"],
+    "publicVisibility": "members"
+  },
+  "disciplineTypes": []
+}

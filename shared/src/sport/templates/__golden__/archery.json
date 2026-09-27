@@ -1,0 +1,137 @@
+{
+  "key": "archery",
+  "name": {
+    "en": "Archery",
+    "es": "Tiro con arco"
+  },
+  "category": "individual",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Competition",
+      "es": "Juego"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Range",
+      "es": "range"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "multi_measured",
+      "events": [
+        {
+          "key": "ends",
+          "label": {
+            "en": "ends",
+            "es": "ends"
+          }
+        }
+      ],
+      "lowerIsBetter": false,
+      "unit": "points"
+    }
+  ],
+  "positions": [],
+  "maxPositionsPerAthlete": 0,
+  "roster": {
+    "defaultMax": 20,
+    "defaultMin": 1,
+    "jerseyNumbers": "none",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [],
+  "ageGroup": {
+    "method": "age_on_date",
+    "monthDay": "08-01",
+    "yearBasis": "season_start"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["range"],
+  "officials": [
+    {
+      "key": "judge",
+      "label": {
+        "en": "Judge",
+        "es": "Judge"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "form",
+      "label": {
+        "en": "Form",
+        "es": "Form"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "aim",
+      "label": {
+        "en": "Aim",
+        "es": "Aim"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "release",
+      "label": {
+        "en": "Release",
+        "es": "Release"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "consistency",
+      "label": {
+        "en": "Consistency",
+        "es": "Consistency"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "team_shirt",
+      "label": {
+        "en": "Team shirt",
+        "es": "Team shirt"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "disciplineTypes": []
+}

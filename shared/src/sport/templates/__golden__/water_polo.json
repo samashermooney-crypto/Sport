@@ -1,0 +1,208 @@
+{
+  "key": "water_polo",
+  "name": {
+    "en": "Water polo",
+    "es": "Water polo"
+  },
+  "category": "team",
+  "participantTerms": {
+    "athlete": {
+      "en": "Athlete",
+      "es": "Atleta"
+    },
+    "athletes": {
+      "en": "Athletes",
+      "es": "Atletas"
+    },
+    "team": {
+      "en": "Team",
+      "es": "Equipo"
+    },
+    "coach": {
+      "en": "Coach",
+      "es": "Entrenador"
+    },
+    "contest": {
+      "en": "Game",
+      "es": "Juego"
+    },
+    "practice": {
+      "en": "Practice",
+      "es": "Práctica"
+    },
+    "venue": {
+      "en": "Pool",
+      "es": "Piscina"
+    }
+  },
+  "contestFormats": [
+    {
+      "format": "head_to_head_score",
+      "periods": {
+        "label": {
+          "en": "Quarter",
+          "es": "Quarter"
+        },
+        "count": 4
+      },
+      "scoreLabel": {
+        "en": "Score",
+        "es": "Marcador"
+      },
+      "allowTie": false,
+      "scoreDirection": "higher_wins"
+    }
+  ],
+  "positions": [
+    {
+      "key": "gk",
+      "label": {
+        "en": "GK",
+        "es": "GK"
+      }
+    },
+    {
+      "key": "field",
+      "label": {
+        "en": "Field",
+        "es": "Field"
+      }
+    }
+  ],
+  "maxPositionsPerAthlete": 2,
+  "roster": {
+    "defaultMax": 15,
+    "defaultMin": 1,
+    "onFieldCount": 7,
+    "jerseyNumbers": "optional",
+    "jerseyRange": [0, 99]
+  },
+  "stats": [
+    {
+      "key": "exclusions",
+      "label": {
+        "en": "Exclusions",
+        "es": "Exclusions"
+      },
+      "abbreviation": "EX",
+      "level": "athlete",
+      "valueType": "integer",
+      "aggregate": "sum",
+      "public": false
+    }
+  ],
+  "ageGroup": {
+    "method": "birth_year",
+    "label": "U{n}",
+    "seasonYearBasis": "season_end"
+  },
+  "defaultDurations": {
+    "contestMinutes": 60,
+    "practiceMinutes": 60,
+    "bufferMinutes": 15
+  },
+  "spaceKinds": ["pool"],
+  "officials": [
+    {
+      "key": "referee",
+      "label": {
+        "en": "Referee",
+        "es": "Referee"
+      },
+      "required": true
+    }
+  ],
+  "evaluationRubric": [
+    {
+      "key": "swimming",
+      "label": {
+        "en": "Swimming",
+        "es": "Swimming"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "passing",
+      "label": {
+        "en": "Passing",
+        "es": "Passing"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "shooting",
+      "label": {
+        "en": "Shooting",
+        "es": "Shooting"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    },
+    {
+      "key": "positioning",
+      "label": {
+        "en": "Positioning",
+        "es": "Positioning"
+      },
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "weight": 1
+    }
+  ],
+  "uniformItems": [
+    {
+      "key": "cap",
+      "label": {
+        "en": "Cap",
+        "es": "Cap"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    },
+    {
+      "key": "suit",
+      "label": {
+        "en": "Suit",
+        "es": "Suit"
+      },
+      "sizes": ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"]
+    }
+  ],
+  "defaultStandings": {
+    "basis": "match",
+    "points": {
+      "win": 3,
+      "overtimeWin": 2,
+      "tie": 1,
+      "overtimeLoss": 1,
+      "loss": 0,
+      "forfeitWin": 3,
+      "forfeitLoss": 0,
+      "forfeitDeduction": 0
+    },
+    "rankBy": "points",
+    "winPercentageTieValue": 0.5,
+    "forfeitScore": {
+      "winner": 3,
+      "loser": 0
+    },
+    "tiebreakers": [
+      "head_to_head_points",
+      "head_to_head_differential",
+      "differential",
+      "scored",
+      "coin_toss_manual"
+    ],
+    "include": {
+      "stages": ["regular"],
+      "crossDivision": false
+    },
+    "columns": ["rank", "team", "played", "wins", "losses", "ties", "points"],
+    "publicVisibility": "members"
+  },
+  "disciplineTypes": []
+}
