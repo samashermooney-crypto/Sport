@@ -1,0 +1,13 @@
+.public-sponsors ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.public-sponsors li {
+  display: grid;
+  gap: 0.25rem;
+}

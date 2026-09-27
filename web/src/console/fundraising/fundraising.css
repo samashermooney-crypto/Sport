@@ -1,0 +1,50 @@
+.fundraising-console {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.fundraising-console__form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 1rem;
+}
+
+.fundraising-console__form > button {
+  align-self: end;
+}
+
+.fundraising-console__check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fundraising-console__campaigns {
+  display: grid;
+  gap: 1rem;
+}
+
+.fundraising-console__campaign-heading,
+.fundraising-console__actions,
+.fundraising-console__statement {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.fundraising-console__actions {
+  flex-wrap: wrap;
+}
+
+.fundraising-console progress {
+  width: min(100%, 34rem);
+}
+
+@media (max-width: 42rem) {
+  .fundraising-console__campaign-heading,
+  .fundraising-console__statement {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

@@ -27,6 +27,7 @@ Branch: `track/qa`
 - D — QA-ACC-032: add an accessibility statement and footer links to the marketing and organization-site surfaces when they land; no public-site surfaces are on the current trunk snapshot.
 - G — QA-ACC-015–020: add the missing Phase 8/9 browser flows and complete the partial rainout and offline game-day flows; details and exact gaps are in `docs/codex/qa/DEFECTS.md`.
 - H — QA-ACC-021: extend the communications browser journey through quiet-hour deferral and tokenized unsubscribe. Details are in `docs/codex/qa/DEFECTS.md`.
+- H — QA-ACC-037: run the Phase 11 $300 donation acceptance flow from an anonymous browser context; its current scenario retains the authenticated setup session. Details are in `docs/codex/qa/DEFECTS.md`.
 - I — QA-ACC-024: extend the academy browser flow to cover monthly tuition/proration and level promotion in addition to its current make-up booking and attendance coverage. Details are in `docs/codex/qa/DEFECTS.md`.
 - I — release or move the active `athlentry_i` stack from the QA-required `PORT_OFFSET=1500`; its Postgres, Mailpit, and Stripe mock mappings collide with ports `6932`, `2525/9525`, and `13611`. Do not stop the other track's containers from QA.
 
@@ -46,6 +47,7 @@ Branch: `track/qa`
 - Audited the newly integrated Phase 13 federation slice: journey 25 exists and covers entries, shared-field schedule, result and standings, but the QA browser run is pending; filed QA-ACC-033, QA-ACC-034, and QA-SEC-007 for navigation discoverability and missing revocation/RLS regression evidence. Added a focused `test.fixme` navigation assertion for C to enable after wiring.
 - Filed QA-ACC-035 after finding that `federation_sharing_guard()` allows camelCase `teamEntries`/`complianceStatus` while the shared schema and service persist snake_case. Existing tests exercise those keys, but runtime behavior remains unverified until QA Postgres is available.
 - Filed QA-ACC-036: Phase 13 journey 25 submits both field windows but schedules one game only, so it cannot prove both clubs' availability affects the generated schedule.
+- Audited the integrated Phase 11 journeys: journey 23 now records its volunteer acceptance flow as covered but awaiting QA execution; QA-ACC-037 asks H to exercise the donation acceptance path without the setup session.
 - Filed QA-SEC-008: `readMemberCompliance` has no real-Postgres test for the status-only allow-list, denied-sharing response, or dual-org audit.
 - Re-ran `npm run knip` on the post-Phase 13 tree: 8 unused files, 44 exports, 28 types, and 1 duplicate. The new federation dead exports and demo helper are routed through the Track C quality-gate request.
 - Post-Phase 13 `npm run typecheck`, `npm run lint`, and `npm run build` pass; build warns that the 1.35 MB app entry chunk exceeds Vite's 500 KB warning threshold. `npm run size` measures 404.93 KB gzip against a 200 KB limit. Targeted federation/crawler Chromium exits before test collection because its configured web server cannot start; the stack conflict remains with Track I.

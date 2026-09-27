@@ -1,4 +1,5 @@
 export const moduleErrorCodes = [
+  'CHECKOUT_UNAVAILABLE',
   'CLASS_AGE_INELIGIBLE',
   'CLASS_OFFERING_FULL',
   'CLASS_SESSION_FULL',

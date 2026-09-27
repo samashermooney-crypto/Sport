@@ -62,6 +62,16 @@
 - **Request:** extend the deterministic schedule fixture to produce enough games and assert output references field windows from both clubs, or add an equivalent test that directly verifies the merged generator input.
 - **Status:** open acceptance coverage gap; the existing one-game journey has not been executed on the QA stack.
 
+### QA-ACC-037 — Donation acceptance flow is authenticated instead of guest
+
+- **Owner:** Track H
+- **Phase:** 11 acceptance criterion 3
+- **Evidence:** `e2e/phase11.spec.ts` signs in the actor before configuring nonprofit acknowledgment settings, then navigates to the public fundraiser and completes the $300 donation in the same browser context. The session cookie remains active, so this does not verify guest checkout.
+- **Reproduce:** inspect the donation acceptance test; `signInBrowser(page, ...)` runs before `/console/orgs/:orgId/fundraising`, and no sign-out, cookie removal, or anonymous browser context is used before submitting the donation.
+- **Expected:** an unauthenticated visitor can donate $300 to a team campaign and receive the required nonprofit acknowledgment email while the public campaign total updates.
+- **Request:** keep the authenticated setup for nonprofit settings, then use a fresh anonymous browser context (or clear the session cookie) for public donation and assert the context has no session before checkout.
+- **Status:** open acceptance gap; the existing scenario may still exercise the payment route but does not prove guest access.
+
 ### QA-OPS-001 — Render health probes have no `/readyz` handler and public status is missing
 
 - **Owner:** Track C
