@@ -17,6 +17,7 @@ import { moduleDefinition as disciplineModule } from '../modules/discipline/modu
 import { moduleDefinition as federationModule } from '../modules/federation/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
+import { moduleDefinition as fundraisingModule } from '../modules/fundraising/module';
 import { moduleDefinition as helpModule } from '../modules/help/module';
 import { moduleDefinition as importsModule } from '../modules/imports/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
@@ -28,8 +29,12 @@ import { moduleDefinition as peopleModule } from '../modules/people/module';
 import { moduleDefinition as platformModule } from '../modules/platform/module';
 import { moduleDefinition as safetyModule } from '../modules/safety/module';
 import { moduleDefinition as schedulingModule } from '../modules/scheduling/module';
+import { moduleDefinition as sponsorsModule } from '../modules/sponsors/module';
 import { moduleDefinition as standingsModule } from '../modules/standings/module';
+import { moduleDefinition as storeModule } from '../modules/store/module';
+import { moduleDefinition as teamFinanceModule } from '../modules/team-finance/module';
 import { moduleDefinition as tournamentsModule } from '../modules/tournaments/module';
+import { moduleDefinition as volunteersModule } from '../modules/volunteers/module';
 
 export const serverModules: readonly ServerModule[] = [
   aiModule,
@@ -44,6 +49,7 @@ export const serverModules: readonly ServerModule[] = [
   federationModule,
   filesModule,
   financeModule,
+  fundraisingModule,
   helpModule,
   importsModule,
   jobsModule,
@@ -55,8 +61,12 @@ export const serverModules: readonly ServerModule[] = [
   platformModule,
   safetyModule,
   schedulingModule,
+  sponsorsModule,
   standingsModule,
+  storeModule,
+  teamFinanceModule,
   tournamentsModule,
+  volunteersModule,
 ];
 export const integrationConfigs: readonly IntegrationConfig[] = [
   backgroundCheckConfig,
