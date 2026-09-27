@@ -1,0 +1,19 @@
+{
+  "legacyRevision": "9ef77bb",
+  "viewports": [1440, 390],
+  "height": 900,
+  "screenshots": [
+    "sign-in",
+    "dashboard",
+    "program-list",
+    "program-editor",
+    "members-list",
+    "team-profile",
+    "invoice-detail",
+    "schedule",
+    "website-editor",
+    "member-portal-home",
+    "public-site-home",
+    "open-modal"
+  ]
+}

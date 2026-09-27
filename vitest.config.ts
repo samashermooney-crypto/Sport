@@ -31,7 +31,7 @@ export default defineConfig({
         resolve: { alias },
         test: {
           name: 'web',
-          include: ['web/src/**/*.test.tsx'],
+          include: ['web/src/**/*.test.{ts,tsx}'],
           environment: 'jsdom',
         },
       },
