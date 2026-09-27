@@ -134,8 +134,16 @@ test('owner creates, edits and archives a person from the console', async ({
     expect((await consentRevoked).ok()).toBe(true);
     await expect(page.getByRole('img', { name: 'Alex Rivera' })).toHaveCount(0);
     expect(await accessibilityViolations(page)).toEqual([]);
+    const archivedPerson = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response
+          .url()
+          .endsWith(`/people/orgs/${actor.orgId}/${personId}/archive`),
+    );
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Archive person' }).click();
+    expect((await archivedPerson).ok()).toBe(true);
     await expect(page).toHaveURL(`/console/orgs/${actor.orgId}/people`);
     await expect(
       page.getByText('No active people match this search.'),

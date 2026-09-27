@@ -14,9 +14,6 @@ import type { ServerModule } from '../../lib/module-contract';
 import { createWaiversRouter } from './routes';
 
 const publishSchema = z.strictObject({ expectedVersion: z.int().positive() });
-const signaturesQuerySchema = z.strictObject({
-  participantPersonId: z.uuid(),
-});
 
 export const moduleDefinition = {
   name: 'waivers',
@@ -80,7 +77,7 @@ export const moduleDefinition = {
       method: 'get',
       path: '/api/v1/waivers/orgs/{orgId}/signatures',
       summary: 'List waiver signatures for a participant',
-      query: signaturesQuerySchema,
+      query: { participantPersonId: z.uuid() },
       response: waiverSignatureListSchema,
       tags: ['waivers'],
     },

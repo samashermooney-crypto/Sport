@@ -766,8 +766,8 @@ export function PersonDetail(): React.JSX.Element {
                   },
                   personResponseSchema,
                 )
-                  .then(async () => {
-                    await client.invalidateQueries({
+                  .then(() => {
+                    void client.invalidateQueries({
                       queryKey: ['people', orgId],
                     });
                     void navigate(`/console/orgs/${orgId}/people`);
