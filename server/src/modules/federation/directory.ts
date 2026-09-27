@@ -1,6 +1,9 @@
-
-import { federationSharingSchema } from '@shared/schemas/federation';
+import {
+  federationSharingSchema,
+  rosterSnapshotPlayerSchema,
+} from '@shared/schemas/federation';
 import type {
+  FederationSharing,
   FederationRelationship,
   RosterSnapshotPlayer,
 } from '@shared/schemas/federation';
@@ -9,6 +12,7 @@ import type { Kysely } from 'kysely';
 import type { DB } from '../../db/types';
 import type { OrgContext } from '../../db/withOrg';
 import { createWithOrg } from '../../db/withOrg';
+import type { Storage } from '../../integrations/storage/storage';
 
 import { federationNotFound } from './errors';
 import {
@@ -22,10 +26,22 @@ export interface MemberSummary {
   memberOrgId: string;
   memberOrgName: string;
   status: string;
-  dataSharing: Record<string, boolean>;
+  dataSharing: FederationSharing;
+  teamCount: number | null;
+  playerCount: number | null;
+  compliancePercent: number | null;
   entryCounts: Record<string, number>;
   openDiscipline: number;
   outstandingFeeCents: number;
+}
+
+interface StoredRosterSnapshotPlayer extends RosterSnapshotPlayer {
+  photoFileId: string | null;
+}
+
+interface StoredRosterSnapshot {
+  captainPersonRef: string | null;
+  players: StoredRosterSnapshotPlayer[];
 }
 
 /** League-side member club directory built from league-owned rows only. */
@@ -34,10 +50,10 @@ export async function listMembers(
   context: OrgContext,
 ): Promise<MemberSummary[]> {
   const withOrg = createWithOrg(database);
-  return withOrg(context, async (trx) => {
+  const base = await withOrg(context, async (trx) => {
     const relationships = await trx
       .selectFrom('org_relationships')
-      .selectAll()
+      .select(['id', 'child_org_id', 'status', 'data_sharing'])
       .where('parent_org_id', '=', context.orgId)
       .where('status', 'in', ['active', 'suspended'])
       .orderBy('created_at')
@@ -52,12 +68,28 @@ export async function listMembers(
     const nameById = new Map(orgNames.map((row) => [row.id, row.name]));
     const entries = await trx
       .selectFrom('team_entries')
-      .select(['entrant_org_id', 'status'])
+      .select(['id', 'entrant_org_id', 'status'])
+      .where('org_id', '=', context.orgId)
       .where('entrant_org_id', 'in', memberIds)
+      .execute();
+    const snapshots = await trx
+      .selectFrom('federation_roster_snapshots as snapshot')
+      .innerJoin('team_entries as entry', (join) =>
+        join
+          .onRef('entry.org_id', '=', 'snapshot.org_id')
+          .onRef('entry.id', '=', 'snapshot.team_entry_id'),
+      )
+      .select(['entry.entrant_org_id', 'snapshot.roster'])
+      .where('snapshot.org_id', '=', context.orgId)
+      .where('snapshot.member_org_id', 'in', memberIds)
+      .where('snapshot.status', '<>', 'superseded')
+      .where('entry.entrant_org_id', 'in', memberIds)
+      .where('entry.status', '=', 'accepted')
       .execute();
     const discipline = await trx
       .selectFrom('federation_discipline_records')
       .select(['member_org_id'])
+      .where('org_id', '=', context.orgId)
       .where('member_org_id', 'in', memberIds)
       .where('status', '=', 'active')
       .execute();
@@ -69,6 +101,7 @@ export async function listMembers(
           .onRef('invoices.id', '=', 'fee.invoice_id'),
       )
       .select(['fee.member_org_id', 'invoices.balance_cents'])
+      .where('fee.org_id', '=', context.orgId)
       .where('fee.member_org_id', 'in', memberIds)
       .where('fee.status', '=', 'invoiced')
       .execute();
@@ -83,10 +116,12 @@ export async function listMembers(
         memberOrgId: relationship.child_org_id,
         memberOrgName: nameById.get(relationship.child_org_id) ?? 'Member club',
         status: relationship.status,
-        dataSharing: (relationship.data_sharing ?? {}) as Record<
-          string,
-          boolean
-        >,
+        dataSharing: federationSharingSchema.parse(
+          relationship.data_sharing ?? {},
+        ),
+        teamCount: null,
+        playerCount: null,
+        compliancePercent: null,
         entryCounts,
         openDiscipline: discipline.filter(
           (row) => row.member_org_id === relationship.child_org_id,
@@ -94,15 +129,64 @@ export async function listMembers(
         outstandingFeeCents: fees
           .filter((row) => row.member_org_id === relationship.child_org_id)
           .reduce((sum, row) => sum + (row.balance_cents ?? 0), 0),
+        ...(federationSharingSchema.parse(relationship.data_sharing ?? {})
+          .team_entries
+          ? {
+              teamCount: entries.filter(
+                (entry) =>
+                  entry.entrant_org_id === relationship.child_org_id &&
+                  entry.status === 'accepted',
+              ).length,
+            }
+          : {}),
+        ...(federationSharingSchema.parse(relationship.data_sharing ?? {})
+          .rosters
+          ? {
+              playerCount: snapshots
+                .filter(
+                  (snapshot) =>
+                    snapshot.entrant_org_id === relationship.child_org_id,
+                )
+                .reduce((total, snapshot) => {
+                  const players = (
+                    snapshot.roster as { players?: unknown } | null
+                  )?.players;
+                  return total + (Array.isArray(players) ? players.length : 0);
+                }, 0),
+            }
+          : {}),
       };
     });
   });
+  return Promise.all(
+    base.map(async (member) => {
+      if (member.status !== 'active' || !member.dataSharing.compliance_status)
+        return member;
+      const compliance = await readMemberCompliance(
+        context,
+        member.memberOrgId,
+      );
+      const staffCount = compliance.staff.length;
+      return {
+        ...member,
+        compliancePercent:
+          staffCount === 0
+            ? null
+            : Math.round(
+                (100 *
+                  compliance.staff.filter(
+                    (staff) => staff.credentialStatus === 'cleared',
+                  ).length) /
+                  staffCount,
+              ),
+      };
+    }),
+  );
 }
 
 /**
- * Privileged read: roster of a member-club team_season. Requires
- * `rosters` sharing. Returns ONLY the allow-listed fields — person ids are
- * opaque references; emails, phones, DOB, addresses and photos never cross.
+ * Privileged read: the immutable submitted roster snapshot for a member-club
+ * team_season. Current media consent is rechecked before advertising a photo.
  */
 export async function readMemberRoster(
   context: OrgContext,
@@ -132,55 +216,157 @@ export async function readMemberRoster(
         memberOrgId,
       );
       requireSharingKey(relationship, 'rosters');
-      const teamSeason = await trx
-        .selectFrom('team_seasons')
-        .select(['id'])
-        .where('org_id', '=', memberOrgId)
-        .where('id', '=', teamSeasonId)
+      const snapshot = await trx
+        .selectFrom('federation_roster_snapshots as snapshot')
+        .innerJoin('team_entries as entry', (join) =>
+          join
+            .onRef('entry.org_id', '=', 'snapshot.org_id')
+            .onRef('entry.id', '=', 'snapshot.team_entry_id'),
+        )
+        .select(['snapshot.roster'])
+        .where('snapshot.org_id', '=', context.orgId)
+        .where('snapshot.member_org_id', '=', memberOrgId)
+        .where('snapshot.source_team_season_id', '=', teamSeasonId)
+        .where('snapshot.status', '<>', 'superseded')
+        .where('entry.entrant_org_id', '=', memberOrgId)
+        .orderBy('snapshot.submitted_at', 'desc')
         .executeTakeFirst();
-      if (!teamSeason) throw federationNotFound('Team season not found');
-      const rows = await trx
-        .selectFrom('roster_entries')
-        .innerJoin('people', (join) =>
-          join
-            .onRef('people.org_id', '=', 'roster_entries.org_id')
-            .onRef('people.id', '=', 'roster_entries.person_id'),
-        )
-        .leftJoin('athlete_cards', (join) =>
-          join
-            .onRef('athlete_cards.org_id', '=', 'people.org_id')
-            .onRef('athlete_cards.person_id', '=', 'people.id')
-            .on('athlete_cards.status', '=', 'active'),
-        )
-        .select([
-          'people.id as person_ref',
-          'people.first_name',
-          'people.last_name',
-          'people.date_of_birth',
-          'people.media_consent',
-          'roster_entries.jersey_number',
-          'roster_entries.positions',
-          'athlete_cards.card_number',
-        ])
-        .where('roster_entries.org_id', '=', memberOrgId)
-        .where('roster_entries.team_season_id', '=', teamSeasonId)
-        .where('roster_entries.status', '=', 'active')
-        .orderBy('people.last_name')
-        .orderBy('people.first_name')
-        .execute();
+      if (!snapshot) throw federationNotFound('Submitted roster not found');
+      const saved = snapshot.roster as unknown as StoredRosterSnapshot;
+      const candidatePlayers = saved.players;
+      const candidates = candidatePlayers.filter(
+        (player) => player.photoAvailable && player.photoFileId,
+      );
+      const currentPhotos = candidates.length
+        ? await trx
+            .selectFrom('people')
+            .select(['id', 'photo_file_id'])
+            .where('org_id', '=', memberOrgId)
+            .where(
+              'id',
+              'in',
+              candidates.map((player) => player.personRef),
+            )
+            .where('media_consent', '=', 'granted')
+            .execute()
+        : [];
+      const permittedPhotoRefs = new Set(
+        currentPhotos
+          .filter((row) =>
+            candidates.some(
+              (player) =>
+                player.personRef === row.id &&
+                player.photoFileId === row.photo_file_id,
+            ),
+          )
+          .map((row) => row.id),
+      );
       return {
         teamSeasonId,
-        players: rows.map((row) => ({
-          personRef: row.person_ref,
-          firstName: row.first_name,
-          lastName: row.last_name,
-          birthYear: new Date(row.date_of_birth).getUTCFullYear(),
-          ageLabel: null,
-          jerseyNumber: row.jersey_number,
-          positions: row.positions,
-          cardNumber: row.card_number,
-          mediaConsent: row.media_consent as 'granted' | 'denied' | 'unknown',
-        })),
+        players: candidatePlayers.map(({ photoFileId, ...player }) =>
+          rosterSnapshotPlayerSchema.parse({
+            ...player,
+            photoAvailable:
+              Boolean(photoFileId) && permittedPhotoRefs.has(player.personRef),
+          }),
+        ),
+      };
+    },
+  );
+}
+
+/** A consent-gated roster image is returned only through this audited read. */
+export async function readMemberPhoto(
+  context: OrgContext,
+  memberOrgId: string,
+  teamSeasonId: string,
+  personRef: string,
+  storage: Storage,
+): Promise<{
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  base64: string;
+}> {
+  return withFederationAccess(
+    {
+      requesting: context,
+      sourceOrgId: memberOrgId,
+      audit: {
+        action: 'federation.cross_org.read',
+        entityType: 'person.photo',
+        entityId: personRef,
+        requestingChanges: {
+          dataset: { tier: 'sensitive', after: 'consented roster photo' },
+        },
+        sourceChanges: {
+          dataset: { tier: 'sensitive', after: 'consented roster photo' },
+        },
+      },
+    },
+    async (trx) => {
+      const relationship = await assertActiveRelationship(
+        trx,
+        context.orgId,
+        memberOrgId,
+      );
+      requireSharingKey(relationship, 'rosters');
+      const snapshot = await trx
+        .selectFrom('federation_roster_snapshots as snapshot')
+        .innerJoin('team_entries as entry', (join) =>
+          join
+            .onRef('entry.org_id', '=', 'snapshot.org_id')
+            .onRef('entry.id', '=', 'snapshot.team_entry_id'),
+        )
+        .select(['snapshot.roster'])
+        .where('snapshot.org_id', '=', context.orgId)
+        .where('snapshot.member_org_id', '=', memberOrgId)
+        .where('snapshot.source_team_season_id', '=', teamSeasonId)
+        .where('snapshot.status', '<>', 'superseded')
+        .where('entry.entrant_org_id', '=', memberOrgId)
+        .orderBy('snapshot.submitted_at', 'desc')
+        .executeTakeFirst();
+      if (!snapshot)
+        throw federationNotFound('Consented roster photo not found');
+      const saved = snapshot.roster as unknown as StoredRosterSnapshot;
+      const player = saved.players.find(
+        (candidate) => candidate.personRef === personRef,
+      );
+      if (!player?.photoAvailable || !player.photoFileId)
+        throw federationNotFound('Consented roster photo not found');
+      const person = await trx
+        .selectFrom('people')
+        .select(['id'])
+        .where('org_id', '=', memberOrgId)
+        .where('id', '=', personRef)
+        .where('photo_file_id', '=', player.photoFileId)
+        .where('media_consent', '=', 'granted')
+        .executeTakeFirst();
+      if (!person) throw federationNotFound('Consented roster photo not found');
+      const file = await trx
+        .selectFrom('files')
+        .select([
+          'storage_key',
+          'mime',
+          'purpose',
+          'sensitivity',
+          'upload_state',
+        ])
+        .where('org_id', '=', memberOrgId)
+        .where('id', '=', player.photoFileId)
+        .executeTakeFirst();
+      if (
+        !file ||
+        file.purpose !== 'image' ||
+        file.sensitivity === 'restricted' ||
+        file.upload_state !== 'complete' ||
+        !['image/jpeg', 'image/png', 'image/webp'].includes(file.mime)
+      )
+        throw federationNotFound('Consented roster photo not found');
+      const object = await storage.get(file.storage_key);
+      if (!object || object.bytes.byteLength > 4_500_000)
+        throw federationNotFound('Consented roster photo not found');
+      return {
+        mimeType: file.mime as 'image/jpeg' | 'image/png' | 'image/webp',
+        base64: Buffer.from(object.bytes).toString('base64'),
       };
     },
   );
@@ -188,7 +374,7 @@ export async function readMemberRoster(
 
 /**
  * Privileged read: compliance status rollup for member-club team staff.
- * Requires `complianceStatus` sharing. Returns derived statuses only —
+ * Requires `compliance_status` sharing. Returns derived statuses only —
  * never documents, notes, or medical data.
  */
 export async function readMemberCompliance(
@@ -203,7 +389,6 @@ export async function readMemberCompliance(
     role: string;
     teamName: string | null;
     credentialStatus: 'cleared' | 'pending' | 'expired' | 'missing';
-    expiresOn: string | null;
   }[];
 }> {
   return withFederationAccess(
@@ -215,10 +400,10 @@ export async function readMemberCompliance(
         entityType: 'org_relationship',
         entityId: memberOrgId,
         requestingChanges: {
-          dataset: { tier: 'internal', after: 'complianceStatus' },
+          dataset: { tier: 'internal', after: 'compliance_status' },
         },
         sourceChanges: {
-          dataset: { tier: 'internal', after: 'complianceStatus' },
+          dataset: { tier: 'internal', after: 'compliance_status' },
         },
       },
     },
@@ -228,7 +413,7 @@ export async function readMemberCompliance(
         context.orgId,
         memberOrgId,
       );
-      requireSharingKey(relationship, 'complianceStatus');
+      requireSharingKey(relationship, 'compliance_status');
       const staff = await trx
         .selectFrom('team_staff')
         .innerJoin('people', (join) =>
@@ -272,12 +457,10 @@ export async function readMemberCompliance(
         list: (typeof credentials)[number][] | undefined,
       ): {
         credentialStatus: 'cleared' | 'pending' | 'expired' | 'missing';
-        expiresOn: string | null;
       } => {
-        if (!list?.length) return { credentialStatus: 'missing', expiresOn: null };
+        if (!list?.length) return { credentialStatus: 'missing' };
         let hasPending = false;
         let hasExpired = false;
-        let earliestExpiry: string | null = null;
         for (const credential of list) {
           const expiresOn = credential.expires_on
             ? new Date(credential.expires_on).toISOString().slice(0, 10)
@@ -289,8 +472,6 @@ export async function readMemberCompliance(
           )
             hasExpired = true;
           else if (credential.status !== 'verified') hasPending = true;
-          if (expiresOn && (!earliestExpiry || expiresOn < earliestExpiry))
-            earliestExpiry = expiresOn;
         }
         return {
           credentialStatus: hasExpired
@@ -298,7 +479,6 @@ export async function readMemberCompliance(
             : hasPending
               ? 'pending'
               : 'cleared',
-          expiresOn: earliestExpiry,
         };
       };
       return {
@@ -318,7 +498,7 @@ export async function readMemberCompliance(
 
 /**
  * Privileged read: a member club's federation-ready teams. Requires
- * `teamEntries` sharing.
+ * `team_entries` sharing.
  */
 export async function readMemberTeams(
   context: OrgContext,
@@ -342,10 +522,10 @@ export async function readMemberTeams(
         entityType: 'org_relationship',
         entityId: memberOrgId,
         requestingChanges: {
-          dataset: { tier: 'internal', after: 'teamEntries' },
+          dataset: { tier: 'internal', after: 'team_entries' },
         },
         sourceChanges: {
-          dataset: { tier: 'internal', after: 'teamEntries' },
+          dataset: { tier: 'internal', after: 'team_entries' },
         },
       },
     },
@@ -355,63 +535,58 @@ export async function readMemberTeams(
         context.orgId,
         memberOrgId,
       );
-      requireSharingKey(relationship, 'teamEntries');
+      requireSharingKey(relationship, 'team_entries');
       const rows = await trx
-        .selectFrom('team_seasons')
-        .innerJoin('programs', (join) =>
+        .selectFrom('team_entries as entry')
+        .innerJoin('external_teams as team', (join) =>
           join
-            .onRef('programs.org_id', '=', 'team_seasons.org_id')
-            .onRef('programs.id', '=', 'team_seasons.program_id'),
+            .onRef('team.org_id', '=', 'entry.org_id')
+            .onRef('team.id', '=', 'entry.external_team_id'),
         )
-        .innerJoin('divisions', (join) =>
+        .innerJoin('programs as program', (join) =>
           join
-            .onRef('divisions.org_id', '=', 'team_seasons.org_id')
-            .onRef('divisions.id', '=', 'team_seasons.division_id'),
+            .onRef('program.org_id', '=', 'entry.org_id')
+            .onRef('program.id', '=', 'entry.program_id'),
         )
-        .innerJoin('teams', (join) =>
+        .innerJoin('divisions as division', (join) =>
           join
-            .onRef('teams.org_id', '=', 'team_seasons.org_id')
-            .onRef('teams.id', '=', 'team_seasons.team_id'),
+            .onRef('division.org_id', '=', 'entry.org_id')
+            .onRef('division.id', '=', 'entry.division_id'),
+        )
+        .innerJoin('federation_roster_snapshots as snapshot', (join) =>
+          join
+            .onRef('snapshot.org_id', '=', 'entry.org_id')
+            .onRef('snapshot.team_entry_id', '=', 'entry.id'),
         )
         .select([
-          'team_seasons.id as team_season_id',
-          'team_seasons.display_name',
-          'teams.name as team_name',
-          'programs.name as program_name',
-          'divisions.name as division_name',
+          'snapshot.source_team_season_id',
+          'team.name as team_name',
+          'program.name as program_name',
+          'division.name as division_name',
+          'snapshot.roster',
         ])
-        .where('team_seasons.org_id', '=', memberOrgId)
-        .where('team_seasons.status', 'in', ['forming', 'active'])
-        .orderBy('programs.name')
+        .where('entry.org_id', '=', context.orgId)
+        .where('entry.entrant_org_id', '=', memberOrgId)
+        .where('entry.status', '=', 'accepted')
+        .where('snapshot.member_org_id', '=', memberOrgId)
+        .where('snapshot.status', '<>', 'superseded')
+        .orderBy('program.name')
         .limit(500)
         .execute();
-      const rosterCounts = rows.length
-        ? await trx
-            .selectFrom('roster_entries')
-            .select(['team_season_id'])
-            .select((eb) => eb.fn.countAll().as('count'))
-            .where('org_id', '=', memberOrgId)
-            .where(
-              'team_season_id',
-              'in',
-              rows.map((row) => row.team_season_id),
-            )
-            .where('status', '=', 'active')
-            .groupBy('team_season_id')
-            .execute()
-        : [];
-      const countByTeam = new Map(
-        rosterCounts.map((row) => [row.team_season_id, Number(row.count)]),
-      );
       return {
         memberOrgId,
-        teams: rows.map((row) => ({
-          teamSeasonId: row.team_season_id,
-          displayName: row.display_name ?? row.team_name,
-          programName: row.program_name,
-          divisionName: row.division_name,
-          rosterSize: countByTeam.get(row.team_season_id) ?? 0,
-        })),
+        teams: rows.map((row) => {
+          const roster = row.roster as { players?: unknown } | null;
+          return {
+            teamSeasonId: row.source_team_season_id,
+            displayName: row.team_name,
+            programName: row.program_name,
+            divisionName: row.division_name,
+            rosterSize: Array.isArray(roster?.players)
+              ? roster.players.length
+              : 0,
+          };
+        }),
       };
     },
   );
@@ -510,7 +685,11 @@ export interface FederationProgramOption {
   programId: string;
   programName: string;
   mode: string;
-  divisions: { divisionId: string; divisionName: string; ageLabel: string | null }[];
+  divisions: {
+    divisionId: string;
+    divisionName: string;
+    ageLabel: string | null;
+  }[];
 }
 
 /** Own-org league programs + divisions for federation pickers. */
@@ -555,7 +734,7 @@ export async function listFederationPrograms(
 
 /**
  * Privileged read: a league's programs + divisions so a member club can pick
- * one when submitting a team entry. Requires `teamEntries` sharing.
+ * one when submitting a team entry. Requires `team_entries` sharing.
  */
 export async function listLeagueProgramPicker(
   context: OrgContext,
@@ -570,17 +749,17 @@ export async function listLeagueProgramPicker(
         entityType: 'org_relationship',
         entityId: leagueOrgId,
         requestingChanges: {
-          dataset: { tier: 'internal', after: 'teamEntries' },
+          dataset: { tier: 'internal', after: 'team_entries' },
         },
         sourceChanges: {
-          dataset: { tier: 'internal', after: 'teamEntries' },
+          dataset: { tier: 'internal', after: 'team_entries' },
         },
       },
     },
     async (trx) => {
       requireSharingKey(
         await assertActiveRelationship(trx, leagueOrgId, context.orgId),
-        'teamEntries',
+        'team_entries',
       );
       const programs = await trx
         .selectFrom('programs')
@@ -755,6 +934,7 @@ export async function getRelationshipFor(
     pendingDataSharing: row.pending_data_sharing
       ? federationSharingSchema.parse(row.pending_data_sharing)
       : null,
+    pendingSharingByMe: row.pending_sharing_by === context.actor.accountId,
     note: row.note,
     respondedAt: row.responded_at?.toISOString() ?? null,
     suspendedAt: row.suspended_at?.toISOString() ?? null,

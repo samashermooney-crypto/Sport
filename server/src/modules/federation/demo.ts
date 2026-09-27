@@ -9,11 +9,7 @@ import type { OrgContext } from '../../db/withOrg';
 import { offerSpaceWindows } from './availability';
 import { issueFederationDiscipline } from './discipline';
 import { reviewEntry, setRosterWindow, submitEntry } from './entries';
-import {
-  createFeeAssessment,
-  issueFeeInvoice,
-  setMemberPayer,
-} from './fees';
+import { createFeeAssessment, issueFeeInvoice, setMemberPayer } from './fees';
 import { addReferee, assignReferee } from './officials';
 import { getFederationAdminDatabase } from './privileged';
 import { acceptRelationship, createRelationship } from './relationships';
@@ -442,16 +438,14 @@ export async function seedFederationDemo(
   const admin = getFederationAdminDatabase();
   const clubOrgIds: string[] = [];
   const teamEntryIds: string[] = [];
-  const clubs: { ctx: OrgContext; spaceId: string; def: (typeof CLUBS)[number] }[] =
-    [];
+  const clubs: {
+    ctx: OrgContext;
+    spaceId: string;
+    def: (typeof CLUBS)[number];
+  }[] = [];
 
   for (const def of CLUBS) {
-    const accountId = await ensureAccount(
-      database,
-      def.email,
-      'Club',
-      'Admin',
-    );
+    const accountId = await ensureAccount(database, def.email, 'Club', 'Admin');
     const orgId = await ensureOrg(database, {
       slug: def.slug,
       name: def.name,
@@ -466,8 +460,8 @@ export async function seedFederationDemo(
 
   const sharing = {
     rosters: true,
-    complianceStatus: true,
-    teamEntries: true,
+    compliance_status: true,
+    team_entries: true,
     discipline: true,
   };
   const relationships: string[] = [];

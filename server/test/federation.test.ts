@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createDatabase } from '../src/db/kysely';
 import type { DB } from '../src/db/types';
+import { MemoryStorage } from '../src/integrations/storage/storage';
 import {
   offerSpaceWindows,
   readProgramAvailability,
@@ -11,10 +12,12 @@ import {
 import { associationDashboard } from '../src/modules/federation/dashboard';
 import {
   listMembers,
+  readMemberPhoto,
   readMemberRoster,
   readMemberTeams,
 } from '../src/modules/federation/directory';
 import {
+  appealMemberFederationDiscipline,
   issueFederationDiscipline,
   listFederationDiscipline,
   listMemberFederationDiscipline,
@@ -155,8 +158,8 @@ async function federate(
   club: ActorFixture,
   dataSharing: Record<string, boolean> = {
     rosters: true,
-    complianceStatus: true,
-    teamEntries: true,
+    compliance_status: true,
+    team_entries: true,
     discipline: true,
   },
 ) {
@@ -216,6 +219,20 @@ describe('federation relationships', () => {
       club.orgId.slice(0, 8).replaceAll('-', ''),
     );
     expect(Array.isArray(found)).toBe(true);
+    const ownerEmail = await getFederationAdminDatabase()
+      .selectFrom('accounts')
+      .select('email')
+      .where('id', '=', club.accountId)
+      .executeTakeFirstOrThrow();
+    const ownerMatch = await searchOrganizations(
+      database,
+      ctx(league),
+      ownerEmail.email,
+    );
+    expect(ownerMatch.map((organization) => organization.id)).toContain(
+      club.orgId,
+    );
+    expect(JSON.stringify(ownerMatch)).not.toContain(ownerEmail.email);
 
     const invited = await createRelationship(database, ctx(league), {
       direction: 'invite',
@@ -243,13 +260,13 @@ describe('federation relationships', () => {
       invited.id,
       {
         rosters: true,
-        teamEntries: true,
+        team_entries: true,
       },
       active.version,
     );
     expect(proposed.pendingDataSharing).toEqual({
       rosters: true,
-      teamEntries: true,
+      team_entries: true,
     });
     const amended = await respondToSharing(
       ctx(league),
@@ -259,7 +276,7 @@ describe('federation relationships', () => {
     );
     expect(amended.dataSharing).toEqual({
       rosters: true,
-      teamEntries: true,
+      team_entries: true,
     });
 
     const suspended = await suspendRelationship(
@@ -319,12 +336,12 @@ describe('federation relationships', () => {
       direction: 'request',
       organizationId: league.orgId,
       type: 'member_club',
-      dataSharing: { teamEntries: true },
+      dataSharing: { team_entries: true },
     });
     expect(request.initiator).toBe('child');
     const accepted = await acceptRelationship(ctx(league), request.id);
     expect(accepted.status).toBe('active');
-    expect(accepted.dataSharing).toEqual({ teamEntries: true });
+    expect(accepted.dataSharing).toEqual({ team_entries: true });
     const listed = await listRelationships(database, ctx(league));
     expect(listed.map((row) => row.id)).toContain(request.id);
   });
@@ -332,20 +349,35 @@ describe('federation relationships', () => {
 
 describe('privileged member directory reads', () => {
   it('enforces the sharing allow-list and audits both orgs', async () => {
-    const { league } = await leagueWithProgram();
+    const { league, program } = await leagueWithProgram();
     const club = await factory.actor();
-    const { team, people } = await clubTeam(club);
+    const { team, people, program: clubProgram } = await clubTeam(club);
+    const privateTeam = await factory.team(club, clubProgram);
 
-    // Relationship grants only teamEntries — roster reads must be denied.
-    await federate(league, club, { teamEntries: true });
+    // Relationship grants only team_entries — roster reads must be denied.
+    await federate(league, club, { team_entries: true });
 
     await expect(
       readMemberRoster(ctx(league), club.orgId, team.teamSeasonId),
     ).rejects.toMatchObject({ status: 422, code: 'FEDERATION_SHARING_DENIED' });
 
+    const entry = await submitEntry(ctx(club), {
+      leagueOrgId: league.orgId,
+      programId: program.programId,
+      divisionId: program.divisionId,
+      teamSeasonId: team.teamSeasonId,
+    });
+    await reviewEntry(database, ctx(league), entry.id, {
+      action: 'accept',
+      version: entry.version,
+    });
+
     const teams = await readMemberTeams(ctx(league), club.orgId);
-    expect(teams.teams.map((row) => row.teamSeasonId)).toContain(
+    expect(teams.teams.map((row) => row.teamSeasonId)).toEqual([
       team.teamSeasonId,
+    ]);
+    expect(teams.teams.map((row) => row.teamSeasonId)).not.toContain(
+      privateTeam.teamSeasonId,
     );
     expect(teams.teams[0]?.rosterSize).toBe(people.length);
 
@@ -361,10 +393,23 @@ describe('privileged member directory reads', () => {
   });
 
   it('returns allow-listed roster fields only when rosters are shared', async () => {
-    const { league } = await leagueWithProgram();
+    const { league, program } = await leagueWithProgram();
+    await factory.scoped(league, (trx) =>
+      trx
+        .updateTable('divisions')
+        .set({ age_label: 'U12' })
+        .where('id', '=', program.divisionId)
+        .execute(),
+    );
     const club = await factory.actor();
     const { team } = await clubTeam(club);
     await federate(league, club);
+    await submitEntry(ctx(club), {
+      leagueOrgId: league.orgId,
+      programId: program.programId,
+      divisionId: program.divisionId,
+      teamSeasonId: team.teamSeasonId,
+    });
 
     const roster = await readMemberRoster(
       ctx(league),
@@ -379,14 +424,98 @@ describe('privileged member directory reads', () => {
         'personRef',
         'firstName',
         'lastName',
-        'birthYear',
         'ageLabel',
         'jerseyNumber',
         'positions',
         'cardNumber',
-        'mediaConsent',
+        'photoAvailable',
       ].sort(),
     );
+    expect(player?.ageLabel).toBe('U12');
+    expect(player?.photoAvailable).toBe(false);
+  });
+
+  it('serves a submitted roster photo only while consent remains granted', async () => {
+    const { league, program } = await leagueWithProgram();
+    const club = await factory.actor();
+    const { team, people } = await clubTeam(club, 1);
+    const personId = people[0];
+    if (!personId) throw new Error('fixture person was not created');
+    await federate(league, club);
+    const photoId = newId();
+    const storageKey = `${club.orgId}/people/${photoId}.webp`;
+    const image = new Uint8Array([82, 73, 70, 70, 4, 0, 0, 0, 87, 69, 66, 80]);
+    const storage = new MemoryStorage();
+    await storage.put(storageKey, image, 'image/webp');
+    await factory.scoped(club, async (trx) => {
+      await trx
+        .insertInto('files')
+        .values({
+          id: photoId,
+          org_id: club.orgId,
+          purpose: 'image',
+          owner_type: 'person',
+          owner_id: personId,
+          storage_key: storageKey,
+          mime: 'image/webp',
+          bytes: image.byteLength,
+          sensitivity: 'sensitive',
+          created_by: club.accountId,
+          upload_state: 'complete',
+        })
+        .execute();
+      await trx
+        .updateTable('people')
+        .set({ media_consent: 'granted', photo_file_id: photoId })
+        .where('org_id', '=', club.orgId)
+        .where('id', '=', personId)
+        .execute();
+    });
+    await submitEntry(ctx(club), {
+      leagueOrgId: league.orgId,
+      programId: program.programId,
+      divisionId: program.divisionId,
+      teamSeasonId: team.teamSeasonId,
+    });
+
+    const roster = await readMemberRoster(
+      ctx(league),
+      club.orgId,
+      team.teamSeasonId,
+    );
+    expect(roster.players[0]?.photoAvailable).toBe(true);
+    const photo = await readMemberPhoto(
+      ctx(league),
+      club.orgId,
+      team.teamSeasonId,
+      personId,
+      storage,
+    );
+    expect(photo.mimeType).toBe('image/webp');
+    expect(Buffer.from(photo.base64, 'base64')).toEqual(Buffer.from(image));
+
+    await factory.scoped(club, (trx) =>
+      trx
+        .updateTable('people')
+        .set({ media_consent: 'denied' })
+        .where('org_id', '=', club.orgId)
+        .where('id', '=', personId)
+        .execute()
+        .then(() => undefined),
+    );
+    expect(
+      (await readMemberRoster(ctx(league), club.orgId, team.teamSeasonId))
+        .players[0]?.photoAvailable,
+    ).toBe(false);
+    await expect(
+      readMemberPhoto(
+        ctx(league),
+        club.orgId,
+        team.teamSeasonId,
+        personId,
+        storage,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
   });
 
   it('fails when the relationship is suspended', async () => {
@@ -426,6 +555,8 @@ describe('team entries and roster snapshots', () => {
     const detail = await getLeagueEntry(database, ctx(league), view.id);
     expect(detail.roster?.players).toHaveLength(3);
     expect(detail.roster?.players[0]).not.toHaveProperty('email');
+    expect(detail.roster?.players[0]).not.toHaveProperty('photoFileId');
+    expect(detail.roster?.players[0]).not.toHaveProperty('birthYear');
 
     const reviewed = await reviewEntry(database, ctx(league), view.id, {
       action: 'accept',
@@ -446,6 +577,16 @@ describe('team entries and roster snapshots', () => {
         teamSeasonId: team.teamSeasonId,
       }),
     ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      factory.scoped(league, (trx) =>
+        trx
+          .updateTable('federation_roster_snapshots')
+          .set({ roster: { altered: true } })
+          .where('org_id', '=', league.orgId)
+          .where('id', '=', view.snapshot?.id ?? '')
+          .execute(),
+      ),
+    ).rejects.toThrow('federation roster snapshots are immutable');
     const other = await factory.team(club, clubProgram);
     const second = await submitEntry(ctx(club), {
       leagueOrgId: league.orgId,
@@ -485,11 +626,7 @@ describe('team entries and roster snapshots', () => {
       divisionId: program.divisionId,
       teamSeasonId: team.teamSeasonId,
     });
-    const resubmitted = await resubmitRoster(
-      ctx(club),
-      league.orgId,
-      view.id,
-    );
+    const resubmitted = await resubmitRoster(ctx(club), league.orgId, view.id);
     expect(resubmitted.playerCount).toBe(3);
 
     const { frozen } = await freezeRosters(
@@ -704,13 +841,18 @@ describe('results, standings and discipline', () => {
     if (!contest) throw new Error('expected a league contest');
     const [home, away] = entryIds as [string, string];
 
-    const entered = await enterLeagueResult(database, ctx(league), contest.contestId, {
-      results: [
-        { externalTeamId: home, score: 3, outcome: 'win', status: 'ok' },
-        { externalTeamId: away, score: 1, outcome: 'loss', status: 'ok' },
-      ],
-      finalize: true,
-    });
+    const entered = await enterLeagueResult(
+      database,
+      ctx(league),
+      contest.contestId,
+      {
+        results: [
+          { externalTeamId: home, score: 3, outcome: 'win', status: 'ok' },
+          { externalTeamId: away, score: 1, outcome: 'loss', status: 'ok' },
+        ],
+        finalize: true,
+      },
+    );
     expect(entered.status).toBe('final');
 
     const standings = await leagueStandings(
@@ -811,6 +953,27 @@ describe('results, standings and discipline', () => {
       { action: 'overturn', version: appealed.version },
     );
     expect(overturned.status).toBe('overturned');
+
+    const clubAppealable = await issueFederationDiscipline(ctx(league), {
+      memberOrgId: clubA.orgId,
+      subjectType: 'person',
+      personRef: newId(),
+      personLabel: 'Player A',
+      type: 'caution',
+      description: 'Unsporting conduct',
+    });
+    const memberAppeal = await appealMemberFederationDiscipline(
+      ctx(clubA),
+      clubAppealable.id,
+      clubAppealable.version,
+    );
+    expect(memberAppeal.status).toBe('appealed');
+    expect(await auditActions(league.orgId)).toContain(
+      'federation.discipline.appealed',
+    );
+    expect(await auditActions(clubA.orgId)).toContain(
+      'federation.discipline.appealed',
+    );
   });
 });
 
@@ -837,12 +1000,12 @@ describe('league referee pool', () => {
       eventId,
       program.sportProfileId,
     );
-    const assigned = await assignReferee(
-      database,
-      ctx(league),
-      contestId,
-      { personId, positionKey: 'center', feeCents: 6500, mileageCents: 500 },
-    );
+    const assigned = await assignReferee(database, ctx(league), contestId, {
+      personId,
+      positionKey: 'center',
+      feeCents: 6500,
+      mileageCents: 500,
+    });
     expect(assigned.status).toBe('offered');
     const accepted = await updateAssignment(
       database,
@@ -875,17 +1038,13 @@ describe('league fees and member payers', () => {
     await federate(league, club);
 
     // Issuing without a payer fails cleanly.
-    const assessment = await createFeeAssessment(
-      database,
-      ctx(league),
-      {
-        memberOrgId: club.orgId,
-        programId: program.programId,
-        description: 'Season registration fee',
-        amountCents: 25000,
-        dueOn: '2026-10-01',
-      },
-    );
+    const assessment = await createFeeAssessment(database, ctx(league), {
+      memberOrgId: club.orgId,
+      programId: program.programId,
+      description: 'Season registration fee',
+      amountCents: 25000,
+      dueOn: '2026-10-01',
+    });
     expect(assessment.status).toBe('draft');
     await expect(
       issueFeeInvoice(database, ctx(league), assessment.id),
@@ -899,11 +1058,7 @@ describe('league fees and member payers', () => {
     const payers = await listMemberPayers(database, ctx(league));
     expect(payers[0]?.billingAccountId).toBe(club.accountId);
 
-    const issued = await issueFeeInvoice(
-      database,
-      ctx(league),
-      assessment.id,
-    );
+    const issued = await issueFeeInvoice(database, ctx(league), assessment.id);
     expect(issued.invoiceId).toBeTruthy();
     expect(issued.invoiceNumber).toBeGreaterThan(0);
 

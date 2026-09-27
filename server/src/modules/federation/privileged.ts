@@ -7,7 +7,6 @@ import type {
 import type { Kysely, Transaction } from 'kysely';
 import { sql } from 'kysely';
 
-
 import { createDatabase } from '../../db/kysely';
 import type { DB } from '../../db/types';
 import type { OrgContext } from '../../db/withOrg';
@@ -71,7 +70,17 @@ export async function findRelationship(
 ): Promise<FederationRelationshipRow | undefined> {
   return trx
     .selectFrom('org_relationships')
-    .selectAll()
+    .select([
+      'id',
+      'parent_org_id',
+      'child_org_id',
+      'type',
+      'initiator',
+      'status',
+      'data_sharing',
+      'pending_data_sharing',
+      'version',
+    ])
     .where((eb) =>
       eb.or([
         eb.and({ parent_org_id: orgAId, child_org_id: orgBId }),
@@ -90,7 +99,14 @@ export async function assertActiveRelationship(
 ): Promise<ActiveRelationship> {
   const row = await trx
     .selectFrom('org_relationships')
-    .selectAll()
+    .select([
+      'id',
+      'parent_org_id',
+      'child_org_id',
+      'type',
+      'data_sharing',
+      'version',
+    ])
     .where('parent_org_id', '=', parentOrgId)
     .where('child_org_id', '=', childOrgId)
     .where('status', '=', 'active')

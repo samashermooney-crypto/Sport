@@ -32,8 +32,8 @@ export type FederationRelationshipStatus = z.infer<
 export const federationSharingSchema = z
   .strictObject({
     rosters: z.boolean().optional(),
-    complianceStatus: z.boolean().optional(),
-    teamEntries: z.boolean().optional(),
+    compliance_status: z.boolean().optional(),
+    team_entries: z.boolean().optional(),
     discipline: z.boolean().optional(),
   })
   .refine(
@@ -44,8 +44,8 @@ export type FederationSharing = z.infer<typeof federationSharingSchema>;
 
 export const federationSharingKeySchema = z.enum([
   'rosters',
-  'complianceStatus',
-  'teamEntries',
+  'compliance_status',
+  'team_entries',
   'discipline',
 ]);
 export type FederationSharingKey = z.infer<typeof federationSharingKeySchema>;
@@ -61,6 +61,7 @@ export const federationRelationshipSchema = z.strictObject({
   status: federationRelationshipStatusSchema,
   dataSharing: federationSharingSchema,
   pendingDataSharing: federationSharingSchema.nullable(),
+  pendingSharingByMe: z.boolean(),
   note: z.string().nullable(),
   respondedAt: z.string().nullable(),
   suspendedAt: z.string().nullable(),
@@ -90,14 +91,18 @@ export const rosterSnapshotPlayerSchema = z.strictObject({
   personRef: z.uuid(),
   firstName: z.string(),
   lastName: z.string(),
-  birthYear: z.number().int().min(1900).max(2200).nullable(),
   ageLabel: z.string().nullable(),
   jerseyNumber: z.string().nullable(),
   positions: z.array(z.string()),
   cardNumber: z.string().nullable(),
-  mediaConsent: z.enum(['granted', 'denied', 'unknown']),
+  photoAvailable: z.boolean(),
 });
 export type RosterSnapshotPlayer = z.infer<typeof rosterSnapshotPlayerSchema>;
+
+export const federationMemberPhotoSchema = z.strictObject({
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  base64: z.string().min(1).max(6_000_000),
+});
 
 export const submitEntryBodySchema = z.strictObject({
   leagueOrgId: z.uuid(),
@@ -167,7 +172,15 @@ export const contestResultBodySchema = z.strictObject({
         score: z.number().min(0).max(10000).nullable().optional(),
         outcome: z.enum(['win', 'loss', 'tie', 'none']).optional(),
         status: z
-          .enum(['ok', 'dnf', 'dns', 'dq', 'forfeit_win', 'forfeit_loss', 'no_contest'])
+          .enum([
+            'ok',
+            'dnf',
+            'dns',
+            'dq',
+            'forfeit_win',
+            'forfeit_loss',
+            'no_contest',
+          ])
           .default('ok'),
       }),
     )

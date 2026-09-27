@@ -1,5 +1,8 @@
 import { newId } from '@shared/ids';
-import type { RosterSnapshotPlayer } from '@shared/schemas/federation';
+import {
+  rosterSnapshotPlayerSchema,
+  type RosterSnapshotPlayer,
+} from '@shared/schemas/federation';
 import type { Kysely } from 'kysely';
 import type { Transaction } from 'kysely';
 
@@ -46,7 +49,17 @@ export interface FederationEntryView {
   version: number;
 }
 
+interface StoredRosterSnapshotPlayer extends RosterSnapshotPlayer {
+  /** Server-only reference, retained only when the athlete's media consent is granted. */
+  photoFileId: string | null;
+}
+
 interface SnapshotEnvelope {
+  captainPersonRef: string | null;
+  players: StoredRosterSnapshotPlayer[];
+}
+
+interface PublicSnapshotEnvelope {
   captainPersonRef: string | null;
   players: RosterSnapshotPlayer[];
 }
@@ -158,7 +171,7 @@ export async function submitEntry(
       input.leagueOrgId,
       context.orgId,
     );
-    requireSharingKey(relationship, 'teamEntries');
+    requireSharingKey(relationship, 'team_entries');
     // Source-side reads are scoped explicitly to the club org (admin bypasses
     // RLS — filters are mandatory).
     const teamSeason = await trx
@@ -286,8 +299,8 @@ export async function submitEntry(
         'people.id as person_ref',
         'people.first_name',
         'people.last_name',
-        'people.date_of_birth',
         'people.media_consent',
+        'people.photo_file_id',
         'roster_entries.jersey_number',
         'roster_entries.positions',
         'athlete_cards.card_number',
@@ -298,16 +311,17 @@ export async function submitEntry(
       .orderBy('people.last_name')
       .orderBy('people.first_name')
       .execute();
-    const players: RosterSnapshotPlayer[] = rosterRows.map((row) => ({
+    const players: StoredRosterSnapshotPlayer[] = rosterRows.map((row) => ({
       personRef: row.person_ref,
       firstName: row.first_name,
       lastName: row.last_name,
-      birthYear: new Date(row.date_of_birth).getUTCFullYear(),
       ageLabel: division.age_label,
       jerseyNumber: row.jersey_number,
       positions: row.positions,
       cardNumber: row.card_number,
-      mediaConsent: row.media_consent as 'granted' | 'denied' | 'unknown',
+      photoAvailable:
+        row.media_consent === 'granted' && row.photo_file_id !== null,
+      photoFileId: row.media_consent === 'granted' ? row.photo_file_id : null,
     }));
     const envelope: SnapshotEnvelope = {
       captainPersonRef: input.captainPersonId ?? null,
@@ -374,16 +388,20 @@ export async function submitEntry(
         },
       },
     );
-    await appendAuditEvent(trx, { orgId: context.orgId, actor }, {
-      action: 'federation.entry.submitted',
-      entityType: 'team_entry',
-      entityId: entryId,
-      changes: {
-        leagueOrgId: { tier: 'internal', after: input.leagueOrgId },
-        programId: { tier: 'internal', after: input.programId },
-        playerCount: { tier: 'internal', after: players.length },
+    await appendAuditEvent(
+      trx,
+      { orgId: context.orgId, actor },
+      {
+        action: 'federation.entry.submitted',
+        entityType: 'team_entry',
+        entityId: entryId,
+        changes: {
+          leagueOrgId: { tier: 'internal', after: input.leagueOrgId },
+          programId: { tier: 'internal', after: input.programId },
+          playerCount: { tier: 'internal', after: players.length },
+        },
       },
-    });
+    );
     const names = await orgNames(trx, [input.leagueOrgId, context.orgId]);
     const snapshot = await trx
       .selectFrom('federation_roster_snapshots')
@@ -454,7 +472,8 @@ export async function listLeagueEntries(
       ])
       .where('team_entries.entrant_org_id', 'is not', null)
       .orderBy('team_entries.created_at', 'desc');
-    if (programId) query = query.where('team_entries.program_id', '=', programId);
+    if (programId)
+      query = query.where('team_entries.program_id', '=', programId);
     const rows = await query.execute();
     const names = await orgNames(
       trx,
@@ -462,11 +481,7 @@ export async function listLeagueEntries(
     );
     const views: FederationEntryView[] = [];
     for (const row of rows) {
-      const snapshot = await latestSnapshot(
-        trx,
-        context.orgId,
-        row.id,
-      );
+      const snapshot = await latestSnapshot(trx, context.orgId, row.id);
       views.push(toEntryView(row, names, snapshot));
     }
     return views;
@@ -647,15 +662,19 @@ export async function withdrawEntry(
       .execute();
     const actor = { accountId: context.actor.accountId };
     for (const orgId of [leagueOrgId, context.orgId]) {
-      await appendAuditEvent(trx, { orgId, actor }, {
-        action: 'federation.entry.withdrawn',
-        entityType: 'team_entry',
-        entityId: entryId,
-        changes: {
-          leagueOrgId: { tier: 'internal', after: leagueOrgId },
-          memberOrgId: { tier: 'internal', after: context.orgId },
+      await appendAuditEvent(
+        trx,
+        { orgId, actor },
+        {
+          action: 'federation.entry.withdrawn',
+          entityType: 'team_entry',
+          entityId: entryId,
+          changes: {
+            leagueOrgId: { tier: 'internal', after: leagueOrgId },
+            memberOrgId: { tier: 'internal', after: context.orgId },
+          },
         },
-      });
+      );
     }
     return { id: entryId, status: 'withdrawn' };
   });
@@ -666,7 +685,7 @@ export async function getLeagueEntry(
   database: Kysely<DB>,
   context: OrgContext,
   entryId: string,
-): Promise<FederationEntryView & { roster: SnapshotEnvelope | null }> {
+): Promise<FederationEntryView & { roster: PublicSnapshotEnvelope | null }> {
   const withOrg = createWithOrg(database);
   return withOrg(context, async (trx) => {
     const entry = await trx
@@ -716,9 +735,20 @@ export async function getLeagueEntry(
       entry.org_id,
       entry.entrant_org_id ?? '',
     ]);
+    const savedRoster = snapshot?.roster as SnapshotEnvelope | undefined;
     return {
       ...toEntryView(entry, names, snapshot ?? null),
-      roster: (snapshot?.roster as SnapshotEnvelope | undefined) ?? null,
+      roster: savedRoster
+        ? {
+            captainPersonRef: savedRoster.captainPersonRef,
+            players: savedRoster.players.map(({ photoFileId, ...player }) =>
+              rosterSnapshotPlayerSchema.parse({
+                ...player,
+                photoAvailable: player.photoAvailable && photoFileId !== null,
+              }),
+            ),
+          }
+        : null,
     };
   });
 }
@@ -736,7 +766,7 @@ export async function resubmitRoster(
       leagueOrgId,
       context.orgId,
     );
-    requireSharingKey(relationship, 'teamEntries');
+    requireSharingKey(relationship, 'team_entries');
     const entry = await trx
       .selectFrom('team_entries')
       .selectAll()
@@ -788,8 +818,8 @@ export async function resubmitRoster(
         'people.id as person_ref',
         'people.first_name',
         'people.last_name',
-        'people.date_of_birth',
         'people.media_consent',
+        'people.photo_file_id',
         'roster_entries.jersey_number',
         'roster_entries.positions',
         'athlete_cards.card_number',
@@ -799,16 +829,17 @@ export async function resubmitRoster(
       .where('roster_entries.status', '=', 'active')
       .orderBy('people.last_name')
       .execute();
-    const players: RosterSnapshotPlayer[] = rosterRows.map((row) => ({
+    const players: StoredRosterSnapshotPlayer[] = rosterRows.map((row) => ({
       personRef: row.person_ref,
       firstName: row.first_name,
       lastName: row.last_name,
-      birthYear: new Date(row.date_of_birth).getUTCFullYear(),
       ageLabel: division?.age_label ?? null,
       jerseyNumber: row.jersey_number,
       positions: row.positions,
       cardNumber: row.card_number,
-      mediaConsent: row.media_consent as 'granted' | 'denied' | 'unknown',
+      photoAvailable:
+        row.media_consent === 'granted' && row.photo_file_id !== null,
+      photoFileId: row.media_consent === 'granted' ? row.photo_file_id : null,
     }));
     const snapshotId = newId();
     await trx
@@ -828,7 +859,10 @@ export async function resubmitRoster(
         member_org_id: context.orgId,
         source_team_season_id: prior.source_team_season_id,
         roster: JSON.parse(
-          JSON.stringify({ captainPersonRef: captainPersonRef ?? null, players }),
+          JSON.stringify({
+            captainPersonRef: captainPersonRef ?? null,
+            players,
+          }),
         ) as never,
         status: 'submitted',
         submitted_by: context.actor.accountId,
@@ -836,15 +870,19 @@ export async function resubmitRoster(
       .execute();
     const actor = { accountId: context.actor.accountId };
     for (const orgId of [leagueOrgId, context.orgId]) {
-      await appendAuditEvent(trx, { orgId, actor }, {
-        action: 'federation.roster.resubmitted',
-        entityType: 'team_entry',
-        entityId: entryId,
-        changes: {
-          snapshotId: { tier: 'internal', after: snapshotId },
-          playerCount: { tier: 'internal', after: players.length },
+      await appendAuditEvent(
+        trx,
+        { orgId, actor },
+        {
+          action: 'federation.roster.resubmitted',
+          entityType: 'team_entry',
+          entityId: entryId,
+          changes: {
+            snapshotId: { tier: 'internal', after: snapshotId },
+            playerCount: { tier: 'internal', after: players.length },
+          },
         },
-      });
+      );
     }
     return { id: snapshotId, playerCount: players.length };
   });

@@ -1,4 +1,5 @@
 import {
+  federationMemberPhotoSchema,
   contestResultBodySchema,
   contributionBodySchema,
   createRelationshipBodySchema,
@@ -19,7 +20,7 @@ import {
 import express from 'express';
 import { z } from 'zod';
 
-
+import { LocalDiskStorage } from '../../integrations/storage/storage';
 import { parseIdempotencyKey } from '../../lib/idempotency';
 import type { AuthDependencies } from '../auth/routes';
 import {
@@ -44,10 +45,12 @@ import {
   listOwnTeamSeasons,
   readMemberCompliance,
   readMemberDiscipline,
+  readMemberPhoto,
   readMemberRoster,
   readMemberTeams,
 } from './directory';
 import {
+  appealMemberFederationDiscipline,
   listMemberFederationDiscipline,
   issueFederationDiscipline,
   listFederationDiscipline,
@@ -64,9 +67,7 @@ import {
   submitEntry,
   withdrawEntry,
 } from './entries';
-import {
-  federationNotFound,
-} from './errors';
+import { federationNotFound } from './errors';
 import {
   createFeeAssessment,
   issueFeeInvoice,
@@ -129,6 +130,7 @@ export function createFederationRouter(
   dependencies: AuthDependencies,
 ): express.Router {
   const router = express.Router();
+  const photoStorage = new LocalDiskStorage('data/uploads');
   router.use((_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Referrer-Policy', 'no-referrer');
@@ -407,10 +409,7 @@ export function createFederationRouter(
     endpoint(async (request, response) => {
       const actor = await actorFor(request, FEDERATION_SUBMIT_ROLES);
       response.json({
-        items: await listOwnTeamSeasons(
-          dependencies.database,
-          actor.context,
-        ),
+        items: await listOwnTeamSeasons(dependencies.database, actor.context),
       });
     }),
   );
@@ -459,6 +458,21 @@ export function createFederationRouter(
           teamSeasonId,
         ),
       );
+    }),
+  );
+
+  router.get(
+    '/organizations/:orgId/members/:memberOrgId/roster/:teamSeasonId/photos/:personRef',
+    endpoint(async (request, response) => {
+      const actor = await actorFor(request, FEDERATION_READ_ROLES);
+      const photo = await readMemberPhoto(
+        actor.context,
+        uuid(request.params.memberOrgId),
+        uuid(request.params.teamSeasonId),
+        uuid(request.params.personRef),
+        photoStorage,
+      );
+      response.json(federationMemberPhotoSchema.parse(photo));
     }),
   );
 
@@ -843,11 +857,7 @@ export function createFederationRouter(
       const leagueOrgId = z.uuid().parse(request.query.leagueOrgId);
       const programId = z.uuid().parse(request.query.programId);
       response.json({
-        divisions: await memberStandings(
-          actor.context,
-          leagueOrgId,
-          programId,
-        ),
+        divisions: await memberStandings(actor.context, leagueOrgId, programId),
       });
     }),
   );
@@ -879,9 +889,7 @@ export function createFederationRouter(
       const body = federationDisciplineBodySchema.parse(request.body);
       response
         .status(201)
-        .json(
-          await issueFederationDiscipline(actor.context, body),
-        );
+        .json(await issueFederationDiscipline(actor.context, body));
     }),
   );
 
@@ -909,6 +917,24 @@ export function createFederationRouter(
       response.json({
         items: await listMemberFederationDiscipline(actor.context),
       });
+    }),
+  );
+
+  router.post(
+    '/organizations/:orgId/member-discipline/:recordId/appeal',
+    endpoint(async (request, response) => {
+      idemKey(request);
+      const actor = await actorFor(request, FEDERATION_SUBMIT_ROLES);
+      const body = z
+        .strictObject({ version: z.number().int().positive() })
+        .parse(request.body);
+      response.json(
+        await appealMemberFederationDiscipline(
+          actor.context,
+          uuid(request.params.recordId),
+          body.version,
+        ),
+      );
     }),
   );
 
@@ -1022,9 +1048,7 @@ export function createFederationRouter(
       idemKey(request);
       const actor = await actorFor(request, FEDERATION_ADMIN_ROLES);
       const body = memberPayerBodySchema.parse(request.body);
-      response
-        .status(201)
-        .json(await setMemberPayer(actor.context, body));
+      response.status(201).json(await setMemberPayer(actor.context, body));
     }),
   );
 
@@ -1054,11 +1078,7 @@ export function createFederationRouter(
       response
         .status(201)
         .json(
-          await createFeeAssessment(
-            dependencies.database,
-            actor.context,
-            body,
-          ),
+          await createFeeAssessment(dependencies.database, actor.context, body),
         );
     }),
   );

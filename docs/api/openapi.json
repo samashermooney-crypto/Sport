@@ -11365,8 +11365,8 @@
                     "type": "object",
                     "properties": {
                       "rosters": { "type": "boolean" },
-                      "complianceStatus": { "type": "boolean" },
-                      "teamEntries": { "type": "boolean" },
+                      "compliance_status": { "type": "boolean" },
+                      "team_entries": { "type": "boolean" },
                       "discipline": { "type": "boolean" }
                     },
                     "additionalProperties": false
@@ -11931,8 +11931,8 @@
                     "type": "object",
                     "properties": {
                       "rosters": { "type": "boolean" },
-                      "complianceStatus": { "type": "boolean" },
-                      "teamEntries": { "type": "boolean" },
+                      "compliance_status": { "type": "boolean" },
+                      "team_entries": { "type": "boolean" },
                       "discipline": { "type": "boolean" }
                     },
                     "additionalProperties": false
@@ -12111,6 +12111,209 @@
         }
       }
     },
+    "/api/v1/federation/organizations/{orgId}/programs": {
+      "get": {
+        "operationId": "get_api_v1_federation_organizations_orgId_programs",
+        "summary": "List this organization’s programs and divisions",
+        "tags": ["federation"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "number" },
+                    { "type": "boolean" },
+                    { "type": "null" },
+                    { "type": "array", "items": { "$ref": "#" } },
+                    {
+                      "type": "object",
+                      "propertyNames": { "type": "string" },
+                      "additionalProperties": { "$ref": "#" }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
+      }
+    },
+    "/api/v1/federation/organizations/{orgId}/league-programs": {
+      "get": {
+        "operationId": "get_api_v1_federation_organizations_orgId_league_programs",
+        "summary": "Read a league’s programs for entry submission (requires team_entries sharing)",
+        "tags": ["federation"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "number" },
+                    { "type": "boolean" },
+                    { "type": "null" },
+                    { "type": "array", "items": { "$ref": "#" } },
+                    {
+                      "type": "object",
+                      "propertyNames": { "type": "string" },
+                      "additionalProperties": { "$ref": "#" }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "leagueOrgId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/federation/organizations/{orgId}/my-teams": {
+      "get": {
+        "operationId": "get_api_v1_federation_organizations_orgId_my_teams",
+        "summary": "List this organization’s team seasons for entry submission",
+        "tags": ["federation"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "number" },
+                    { "type": "boolean" },
+                    { "type": "null" },
+                    { "type": "array", "items": { "$ref": "#" } },
+                    {
+                      "type": "object",
+                      "propertyNames": { "type": "string" },
+                      "additionalProperties": { "$ref": "#" }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
+      }
+    },
+    "/api/v1/federation/organizations/{orgId}/my-spaces": {
+      "get": {
+        "operationId": "get_api_v1_federation_organizations_orgId_my_spaces",
+        "summary": "List this organization’s spaces for availability offers",
+        "tags": ["federation"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "number" },
+                    { "type": "boolean" },
+                    { "type": "null" },
+                    { "type": "array", "items": { "$ref": "#" } },
+                    {
+                      "type": "object",
+                      "propertyNames": { "type": "string" },
+                      "additionalProperties": { "$ref": "#" }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
+      }
+    },
     "/api/v1/federation/organizations/{orgId}/members": {
       "get": {
         "operationId": "get_api_v1_federation_organizations_orgId_members",
@@ -12162,7 +12365,7 @@
     "/api/v1/federation/organizations/{orgId}/members/{memberOrgId}/teams": {
       "get": {
         "operationId": "get_api_v1_federation_organizations_orgId_members_memberOrgId_teams",
-        "summary": "Read member club teams (requires teamEntries sharing)",
+        "summary": "Read member club teams (requires team_entries sharing)",
         "tags": ["federation"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -12278,10 +12481,78 @@
         ]
       }
     },
+    "/api/v1/federation/organizations/{orgId}/members/{memberOrgId}/roster/{teamSeasonId}/photos/{personRef}": {
+      "get": {
+        "operationId": "get_api_v1_federation_organizations_orgId_members_memberOrgId_roster_teamSeasonId_photos_personRef",
+        "summary": "Read a roster photo when the athlete has granted media consent",
+        "tags": ["federation"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "mimeType": {
+                      "type": "string",
+                      "enum": ["image/jpeg", "image/png", "image/webp"]
+                    },
+                    "base64": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 6000000
+                    }
+                  },
+                  "required": ["mimeType", "base64"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "memberOrgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "teamSeasonId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "personRef",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ]
+      }
+    },
     "/api/v1/federation/organizations/{orgId}/members/{memberOrgId}/compliance": {
       "get": {
         "operationId": "get_api_v1_federation_organizations_orgId_members_memberOrgId_compliance",
-        "summary": "Read member staff compliance rollup (requires complianceStatus sharing)",
+        "summary": "Read member staff compliance rollup (requires compliance_status sharing)",
         "tags": ["federation"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -13419,8 +13690,8 @@
                       "properties": {
                         "weekday": {
                           "type": "integer",
-                          "minimum": 0,
-                          "maximum": 6
+                          "minimum": 1,
+                          "maximum": 7
                         },
                         "startMinute": {
                           "type": "integer",
@@ -14609,6 +14880,86 @@
             "schema": { "type": "string", "format": "uuid" }
           }
         ]
+      }
+    },
+    "/api/v1/federation/organizations/{orgId}/member-discipline/{recordId}/appeal": {
+      "post": {
+        "operationId": "post_api_v1_federation_organizations_orgId_member_discipline_recordId_appeal",
+        "summary": "Member club appeals a league-issued discipline record",
+        "tags": ["federation"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "number" },
+                    { "type": "boolean" },
+                    { "type": "null" },
+                    { "type": "array", "items": { "$ref": "#" } },
+                    {
+                      "type": "object",
+                      "propertyNames": { "type": "string" },
+                      "additionalProperties": { "$ref": "#" }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "recordId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["version"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/federation/organizations/{orgId}/referees": {

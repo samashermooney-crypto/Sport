@@ -51,6 +51,7 @@ async function names(
 function toRelationship(
   row: RelationshipRow,
   orgNames: Map<string, string>,
+  accountId?: string,
 ): FederationRelationship {
   return {
     id: row.id,
@@ -65,6 +66,9 @@ function toRelationship(
     pendingDataSharing: row.pending_data_sharing
       ? federationSharingSchema.parse(row.pending_data_sharing)
       : null,
+    pendingSharingByMe: Boolean(
+      accountId && row.pending_sharing_by === accountId,
+    ),
     note: row.note,
     respondedAt: row.responded_at?.toISOString() ?? null,
     suspendedAt: row.suspended_at?.toISOString() ?? null,
@@ -79,18 +83,22 @@ export async function listRelationships(
   context: OrgContext,
 ): Promise<FederationRelationship[]> {
   const withOrg = createWithOrg(database);
-  const rows = (await withOrg(context, (trx) =>
-    trx
-      .selectFrom('org_relationships')
-      .selectAll()
-      .orderBy('created_at', 'desc')
-      .execute(),
-  )).map(relationshipRow);
+  const rows = (
+    await withOrg(context, (trx) =>
+      trx
+        .selectFrom('org_relationships')
+        .selectAll()
+        .orderBy('created_at', 'desc')
+        .execute(),
+    )
+  ).map(relationshipRow);
   const orgNames = await names(
     database,
     rows.flatMap((row) => [row.parent_org_id, row.child_org_id]),
   );
-  return rows.map((row) => toRelationship(row, orgNames));
+  return rows.map((row) =>
+    toRelationship(row, orgNames, context.actor.accountId),
+  );
 }
 
 export async function searchOrganizations(
@@ -102,10 +110,8 @@ export async function searchOrganizations(
   if (term.length < 2 || term.length > 100)
     throw new RangeError('Search requires 2–100 characters');
   const withOrg = createWithOrg(database);
-  return withOrg(context, async (trx) => {
-    // Membership sanity check happens at the route layer (orgActor); orgs are
-    // global rows — return only directory-level fields, never tenant data.
-    const rows = await trx
+  const nameMatches = await withOrg(context, async (trx) =>
+    trx
       .selectFrom('organizations')
       .select(['id', 'name', 'slug', 'kind'])
       .where('status', 'in', ['onboarding', 'active'])
@@ -118,9 +124,65 @@ export async function searchOrganizations(
       .where('id', '<>', context.orgId)
       .orderBy('name')
       .limit(20)
+      .execute(),
+  );
+  if (!term.includes('@')) return nameMatches;
+
+  const admin = getFederationAdminDatabase();
+  const ownerMatches = await admin.transaction().execute(async (trx) => {
+    const rows = await trx
+      .selectFrom('organizations as organization')
+      .innerJoin('org_memberships as membership', (join) =>
+        join
+          .onRef('membership.org_id', '=', 'organization.id')
+          .on('membership.status', '=', 'active'),
+      )
+      .innerJoin('role_assignments as assignment', (join) =>
+        join
+          .onRef('assignment.org_id', '=', 'membership.org_id')
+          .onRef('assignment.account_id', '=', 'membership.account_id')
+          .on('assignment.role', '=', 'owner')
+          .on('assignment.scope_type', '=', 'org')
+          .on('assignment.revoked_at', 'is', null),
+      )
+      .innerJoin('accounts as owner', 'owner.id', 'membership.account_id')
+      .select([
+        'organization.id',
+        'organization.name',
+        'organization.slug',
+        'organization.kind',
+      ])
+      .distinct()
+      .where('organization.status', 'in', ['onboarding', 'active'])
+      .where('organization.id', '<>', context.orgId)
+      .where('owner.email', '=', term)
+      .orderBy('organization.name')
+      .limit(20)
       .execute();
+    for (const row of rows) {
+      for (const orgId of [context.orgId, row.id]) {
+        await appendAuditEvent(
+          trx,
+          { orgId, actor: context.actor },
+          {
+            action: 'federation.organization.lookup',
+            entityType: 'organization',
+            entityId: row.id,
+            changes: {
+              lookupMethod: { tier: 'internal', after: 'owner_email' },
+            },
+          },
+        );
+      }
+    }
     return rows;
   });
+  const matchesById = new Map(
+    [...nameMatches, ...ownerMatches].map((row) => [row.id, row]),
+  );
+  return [...matchesById.values()]
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .slice(0, 20);
 }
 
 export async function createRelationship(
@@ -173,26 +235,48 @@ export async function createRelationship(
       })
       .execute();
     for (const orgId of [context.orgId, input.organizationId]) {
-      const other = orgId === context.orgId ? input.organizationId : context.orgId;
-      await appendAuditEvent(trx, { orgId, actor: context.actor }, {
-        action: 'federation.relationship.invited',
-        entityType: 'org_relationship',
-        entityId: id,
-        changes: {
-          direction: { tier: 'internal', after: input.direction },
-          otherOrgId: { tier: 'internal', after: other },
+      const other =
+        orgId === context.orgId ? input.organizationId : context.orgId;
+      await appendAuditEvent(
+        trx,
+        { orgId, actor: context.actor },
+        {
+          action: 'federation.relationship.invited',
+          entityType: 'org_relationship',
+          entityId: id,
+          changes: {
+            direction: { tier: 'internal', after: input.direction },
+            otherOrgId: { tier: 'internal', after: other },
+          },
         },
-      });
+      );
     }
     const row = relationshipRow(
       await trx
         .selectFrom('org_relationships')
-        .selectAll()
+        .select([
+          'id',
+          'parent_org_id',
+          'child_org_id',
+          'type',
+          'initiator',
+          'status',
+          'data_sharing',
+          'pending_data_sharing',
+          'pending_sharing_by',
+          'initiated_by_account_id',
+          'note',
+          'responded_at',
+          'suspended_at',
+          'ended_at',
+          'created_at',
+          'version',
+        ])
         .where('id', '=', id)
         .executeTakeFirstOrThrow(),
     );
     const orgNames = await names(database, [parentOrgId, childOrgId]);
-    return toRelationship(row, orgNames);
+    return toRelationship(row, orgNames, context.actor.accountId);
   });
 }
 
@@ -206,29 +290,68 @@ async function transition(
   return admin.transaction().execute(async (trx) => {
     const raw = await trx
       .selectFrom('org_relationships')
-      .selectAll()
+      .select([
+        'id',
+        'parent_org_id',
+        'child_org_id',
+        'type',
+        'initiator',
+        'status',
+        'data_sharing',
+        'pending_data_sharing',
+        'pending_sharing_by',
+        'initiated_by_account_id',
+        'note',
+        'responded_at',
+        'suspended_at',
+        'ended_at',
+        'created_at',
+        'version',
+      ])
       .where('id', '=', relationshipId)
       .forUpdate()
       .executeTakeFirst();
     const row = raw ? relationshipRow(raw) : undefined;
     if (
       !row ||
-      (row.parent_org_id !== context.orgId && row.child_org_id !== context.orgId)
+      (row.parent_org_id !== context.orgId &&
+        row.child_org_id !== context.orgId)
     )
       throw federationNotFound('Relationship not found');
     await run(trx, row);
     for (const orgId of [row.parent_org_id, row.child_org_id]) {
-      await appendAuditEvent(trx, { orgId, actor: context.actor }, {
-        action: auditAction,
-        entityType: 'org_relationship',
-        entityId: row.id,
-        changes: { status: { tier: 'internal', after: undefined } },
-      });
+      await appendAuditEvent(
+        trx,
+        { orgId, actor: context.actor },
+        {
+          action: auditAction,
+          entityType: 'org_relationship',
+          entityId: row.id,
+          changes: { status: { tier: 'internal', after: undefined } },
+        },
+      );
     }
     const fresh = relationshipRow(
       await trx
         .selectFrom('org_relationships')
-        .selectAll()
+        .select([
+          'id',
+          'parent_org_id',
+          'child_org_id',
+          'type',
+          'initiator',
+          'status',
+          'data_sharing',
+          'pending_data_sharing',
+          'pending_sharing_by',
+          'initiated_by_account_id',
+          'note',
+          'responded_at',
+          'suspended_at',
+          'ended_at',
+          'created_at',
+          'version',
+        ])
         .where('id', '=', relationshipId)
         .executeTakeFirstOrThrow(),
     );
@@ -238,7 +361,7 @@ async function transition(
       .where('id', 'in', [fresh.parent_org_id, fresh.child_org_id])
       .execute()
       .then((rows) => new Map(rows.map((r) => [r.id, r.name])));
-    return toRelationship(fresh, orgNames);
+    return toRelationship(fresh, orgNames, context.actor.accountId);
   });
 }
 
@@ -419,8 +542,9 @@ export async function proposeSharing(
       requireVersion(row, expectedVersion);
       const current = federationSharingSchema.parse(row.data_sharing ?? {});
       const isChildSide = row.child_org_id === context.orgId;
-      const pureRevocation = (Object.keys(proposed) as (keyof FederationSharing)[])
-        .every((key) => !proposed[key] || current[key] === true);
+      const pureRevocation = (
+        Object.keys(proposed) as (keyof FederationSharing)[]
+      ).every((key) => !proposed[key] || current[key] === true);
       if (isChildSide && pureRevocation) {
         await trx
           .updateTable('org_relationships')
@@ -464,7 +588,9 @@ export async function respondToSharing(
       if (!row.pending_data_sharing)
         throw federationConflict('No pending data-sharing proposal');
       if (row.pending_sharing_by === context.actor.accountId)
-        throw federationConflict('The proposing side cannot accept its own proposal');
+        throw federationConflict(
+          'The proposing side cannot accept its own proposal',
+        );
       await trx
         .updateTable('org_relationships')
         .set(
@@ -484,9 +610,7 @@ export async function respondToSharing(
         .where('id', '=', row.id)
         .execute();
     },
-    accept
-      ? 'federation.sharing.accepted'
-      : 'federation.sharing.declined',
+    accept ? 'federation.sharing.accepted' : 'federation.sharing.declined',
   );
 }
 

@@ -94,11 +94,7 @@ export async function issueFederationDiscipline(
 ): Promise<FederationDisciplineView> {
   const admin = getFederationAdminDatabase();
   return admin.transaction().execute(async (trx) => {
-    await assertActiveRelationship(
-      trx,
-      context.orgId,
-      input.memberOrgId,
-    );
+    await assertActiveRelationship(trx, context.orgId, input.memberOrgId);
     if (input.subjectType === 'team') {
       if (!input.externalTeamId)
         throw federationUnprocessable('Team subject requires externalTeamId');
@@ -110,9 +106,7 @@ export async function issueFederationDiscipline(
         .executeTakeFirst();
       if (!team) throw federationNotFound('External team not found');
       if (team.linked_org_id !== input.memberOrgId)
-        throw federationUnprocessable(
-          'Team is not linked to that member club',
-        );
+        throw federationUnprocessable('Team is not linked to that member club');
     } else if (!input.personRef || !input.personLabel) {
       throw federationUnprocessable(
         'Person subject requires personRef and personLabel',
@@ -152,17 +146,21 @@ export async function issueFederationDiscipline(
       .execute();
     const actor = { accountId: context.actor.accountId };
     for (const orgId of [context.orgId, input.memberOrgId]) {
-      await appendAuditEvent(trx, { orgId, actor }, {
-        action: 'federation.discipline.issued',
-        entityType: 'federation_discipline_record',
-        entityId: id,
-        changes: {
-          memberOrgId: { tier: 'internal', after: input.memberOrgId },
-          leagueOrgId: { tier: 'internal', after: context.orgId },
-          type: { tier: 'internal', after: input.type },
-          subjectType: { tier: 'internal', after: input.subjectType },
+      await appendAuditEvent(
+        trx,
+        { orgId, actor },
+        {
+          action: 'federation.discipline.issued',
+          entityType: 'federation_discipline_record',
+          entityId: id,
+          changes: {
+            memberOrgId: { tier: 'internal', after: input.memberOrgId },
+            leagueOrgId: { tier: 'internal', after: context.orgId },
+            type: { tier: 'internal', after: input.type },
+            subjectType: { tier: 'internal', after: input.subjectType },
+          },
         },
-      });
+      );
     }
     const orgName = await trx
       .selectFrom('organizations')
@@ -240,7 +238,25 @@ export async function updateFederationDiscipline(
   return withOrg(context, async (trx) => {
     const record = await trx
       .selectFrom('federation_discipline_records')
-      .selectAll()
+      .select([
+        'id',
+        'org_id',
+        'member_org_id',
+        'contest_id',
+        'external_team_id',
+        'subject_type',
+        'person_ref',
+        'person_label',
+        'type',
+        'description',
+        'suspension_games',
+        'suspension_until',
+        'games_served',
+        'status',
+        'issued_by',
+        'created_at',
+        'version',
+      ])
       .where('org_id', '=', context.orgId)
       .where('id', '=', recordId)
       .forUpdate()
@@ -345,30 +361,129 @@ export async function listMemberFederationDiscipline(
     const nameById = new Map(leagueNames.map((row) => [row.id, row.name]));
     const actor = { accountId: context.actor.accountId };
     for (const leagueId of parentIds) {
-      await appendAuditEvent(trx, { orgId: leagueId, actor }, {
+      await appendAuditEvent(
+        trx,
+        { orgId: leagueId, actor },
+        {
+          action: 'federation.cross_org.read',
+          entityType: 'federation_discipline_record',
+          entityId: context.orgId,
+          changes: {
+            dataset: { tier: 'internal', after: 'federation_discipline' },
+            requestingOrgId: { tier: 'internal', after: context.orgId },
+          },
+        },
+      );
+    }
+    await appendAuditEvent(
+      trx,
+      { orgId: context.orgId, actor },
+      {
         action: 'federation.cross_org.read',
         entityType: 'federation_discipline_record',
         entityId: context.orgId,
         changes: {
           dataset: { tier: 'internal', after: 'federation_discipline' },
-          requestingOrgId: { tier: 'internal', after: context.orgId },
+          count: { tier: 'internal', after: rows.length },
         },
-      });
-    }
-    await appendAuditEvent(trx, { orgId: context.orgId, actor }, {
-      action: 'federation.cross_org.read',
-      entityType: 'federation_discipline_record',
-      entityId: context.orgId,
-      changes: {
-        dataset: { tier: 'internal', after: 'federation_discipline' },
-        count: { tier: 'internal', after: rows.length },
       },
-    });
+    );
     return rows.map((row) =>
       toView({
         ...row,
         member_name: nameById.get(row.league_org_id) ?? null,
       }),
     );
+  });
+}
+
+/** A member club may appeal a league-issued record about itself. */
+export async function appealMemberFederationDiscipline(
+  context: OrgContext,
+  recordId: string,
+  version: number,
+): Promise<FederationDisciplineView> {
+  const admin = getFederationAdminDatabase();
+  return admin.transaction().execute(async (trx) => {
+    const relationships = await trx
+      .selectFrom('org_relationships')
+      .select(['parent_org_id'])
+      .where('child_org_id', '=', context.orgId)
+      .where('status', '=', 'active')
+      .execute();
+    const leagueIds = relationships.map((row) => row.parent_org_id);
+    const record = await trx
+      .selectFrom('federation_discipline_records')
+      .select([
+        'id',
+        'org_id',
+        'member_org_id',
+        'contest_id',
+        'external_team_id',
+        'subject_type',
+        'person_ref',
+        'person_label',
+        'type',
+        'description',
+        'suspension_games',
+        'suspension_until',
+        'games_served',
+        'status',
+        'issued_by',
+        'created_at',
+        'version',
+      ])
+      .where('id', '=', recordId)
+      .where('member_org_id', '=', context.orgId)
+      .where('org_id', 'in', leagueIds)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!record) throw federationNotFound('Record not found');
+    await assertActiveRelationship(trx, record.org_id, context.orgId);
+    requireVersion(record, version);
+    if (record.status !== 'active')
+      throw federationConflict('Only active records can be appealed');
+    await trx
+      .updateTable('federation_discipline_records')
+      .set({ status: 'appealed', version: record.version + 1 })
+      .where('org_id', '=', record.org_id)
+      .where('id', '=', record.id)
+      .execute();
+    const actor = { accountId: context.actor.accountId };
+    for (const orgId of [record.org_id, context.orgId]) {
+      await appendAuditEvent(
+        trx,
+        { orgId, actor },
+        {
+          action: 'federation.discipline.appealed',
+          entityType: 'federation_discipline_record',
+          entityId: record.id,
+          changes: {
+            status: { tier: 'internal', before: 'active', after: 'appealed' },
+            appealedBy: { tier: 'internal', after: context.orgId },
+          },
+        },
+      );
+    }
+    const league = await trx
+      .selectFrom('organizations')
+      .select('name')
+      .where('id', '=', record.org_id)
+      .executeTakeFirst();
+    const team = record.external_team_id
+      ? await trx
+          .selectFrom('external_teams')
+          .select('name')
+          .where('org_id', '=', record.org_id)
+          .where('id', '=', record.external_team_id)
+          .executeTakeFirst()
+      : undefined;
+    return toView({
+      ...record,
+      status: 'appealed',
+      version: record.version + 1,
+      member_name: league?.name ?? null,
+      team_name: team?.name ?? null,
+    });
   });
 }

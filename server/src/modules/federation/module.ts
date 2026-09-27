@@ -2,6 +2,7 @@ import {
   contestResultBodySchema,
   contributionBodySchema,
   createRelationshipBodySchema,
+  federationMemberPhotoSchema,
   feeAssessmentBodySchema,
   federationDisciplineBodySchema,
   federationDisciplineUpdateSchema,
@@ -158,7 +159,7 @@ export const moduleDefinition = {
       method: 'get',
       path: `${base}/league-programs`,
       summary:
-        'Read a league’s programs for entry submission (requires teamEntries sharing)',
+        'Read a league’s programs for entry submission (requires team_entries sharing)',
       query: { leagueOrgId: z.uuid() },
       response: json,
       tags: ['federation'],
@@ -187,7 +188,7 @@ export const moduleDefinition = {
     {
       method: 'get',
       path: `${base}/members/{memberOrgId}/teams`,
-      summary: 'Read member club teams (requires teamEntries sharing)',
+      summary: 'Read member club teams (requires team_entries sharing)',
       response: json,
       tags: ['federation'],
     },
@@ -201,9 +202,16 @@ export const moduleDefinition = {
     },
     {
       method: 'get',
+      path: `${base}/members/{memberOrgId}/roster/{teamSeasonId}/photos/{personRef}`,
+      summary: 'Read a roster photo when the athlete has granted media consent',
+      response: federationMemberPhotoSchema,
+      tags: ['federation'],
+    },
+    {
+      method: 'get',
       path: `${base}/members/{memberOrgId}/compliance`,
       summary:
-        'Read member staff compliance rollup (requires complianceStatus sharing)',
+        'Read member staff compliance rollup (requires compliance_status sharing)',
       response: json,
       tags: ['federation'],
     },
@@ -352,7 +360,8 @@ export const moduleDefinition = {
     {
       method: 'post',
       path: `${base}/schedule-runs/{runId}/apply`,
-      summary: 'Apply a draft schedule (creates events, contests, host bookings)',
+      summary:
+        'Apply a draft schedule (creates events, contests, host bookings)',
       response: json,
       idempotencyKey: true,
       tags: ['federation'],
@@ -452,6 +461,15 @@ export const moduleDefinition = {
       path: `${base}/member-discipline`,
       summary: 'Member club reads league discipline records about itself',
       response: json,
+      tags: ['federation'],
+    },
+    {
+      method: 'post',
+      path: `${base}/member-discipline/{recordId}/appeal`,
+      summary: 'Member club appeals a league-issued discipline record',
+      body: versionBody,
+      response: json,
+      idempotencyKey: true,
       tags: ['federation'],
     },
     {
