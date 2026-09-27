@@ -11,6 +11,8 @@ import type { EmailSender } from '../../integrations/email/sender.js';
 import { appendAuditEvent } from '../audit/service.js';
 import { createNotification } from '../notifications/service.js';
 
+import { PostgresMoneyDocuments } from './money-documents.js';
+
 export type FinanceNoticeKind = 'invoice_issued' | 'payment_received';
 interface NoticeRow {
   id: string;
@@ -19,6 +21,8 @@ interface NoticeRow {
   source_id: string;
   message_key: string;
   lease_token: string;
+  attachment_pdf: Buffer | null;
+  delivery_email: string | null;
 }
 
 /** Commit the notification and durable email intent in the money transaction. */
@@ -76,7 +80,7 @@ export async function enqueueFinanceNotice(
 export class PostgresFinanceNoticeDelivery {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
   constructor(
-    database: Kysely<DB>,
+    private readonly database: Kysely<DB>,
     private readonly context: OrgContext,
     private readonly sender: EmailSender,
     private readonly appUrl: string,
@@ -100,7 +104,7 @@ export class PostgresFinanceNoticeDelivery {
         FROM next WHERE o.org_id = ${this.context.orgId}::uuid
           AND o.id = next.id
         RETURNING o.id, o.account_id, o.kind, o.source_id,
-          o.message_key, o.lease_token
+          o.message_key, o.lease_token, o.attachment_pdf, o.delivery_email
       `.execute(trx);
       return result.rows[0] ?? null;
     });
@@ -116,6 +120,10 @@ export class PostgresFinanceNoticeDelivery {
       await this.finish(notice, 'suppressed', null);
       return 'suppressed';
     }
+    if (notice.delivery_email && notice.delivery_email !== recipient.email) {
+      await this.finish(notice, 'suppressed', null);
+      return 'suppressed';
+    }
     const title =
       notice.kind === 'invoice_issued'
         ? 'Your invoice is ready'
@@ -126,12 +134,21 @@ export class PostgresFinanceNoticeDelivery {
         : `/portal/orgs/${this.context.orgId}/money/receipts`;
     const url = new URL(path, this.appUrl).toString();
     try {
+      const pdf = await this.attachment(notice, recipient.email);
       const sent = await this.sender.send({
         to: recipient.email,
         subject: title,
         text: `${title}. Sign in to Athlentry to view it: ${url}`,
         kind: 'transactional',
         idempotencyKey: notice.message_key,
+        attachments: [
+          {
+            filename:
+              notice.kind === 'invoice_issued' ? 'invoice.pdf' : 'receipt.pdf',
+            content: pdf,
+            contentType: 'application/pdf',
+          },
+        ],
       });
       await this.finish(notice, 'sent', sent.providerId);
       return 'sent';
@@ -139,6 +156,36 @@ export class PostgresFinanceNoticeDelivery {
       await this.finish(notice, 'failed', null);
       throw error;
     }
+  }
+
+  private async attachment(notice: NoticeRow, email: string): Promise<Buffer> {
+    if (notice.attachment_pdf) return notice.attachment_pdf;
+    const documents = new PostgresMoneyDocuments(
+      this.database,
+      this.context,
+      notice.account_id,
+    );
+    const rendered = Buffer.from(
+      notice.kind === 'invoice_issued'
+        ? await documents.invoice(notice.source_id)
+        : await documents.receipt(notice.source_id),
+    );
+    if (rendered.length > 2_097_152)
+      throw new Error('Finance notice PDF exceeds 2 MiB');
+    return this.withOrg(this.context, async (trx) => {
+      const saved = await sql<{ attachment_pdf: Buffer }>`
+        UPDATE finance_notice_outbox SET attachment_pdf = ${rendered}::bytea,
+          delivery_email = ${email}
+        WHERE org_id = ${this.context.orgId}::uuid
+          AND id = ${notice.id}::uuid
+          AND status = 'sending' AND lease_token = ${notice.lease_token}::uuid
+          AND attachment_pdf IS NULL
+        RETURNING attachment_pdf
+      `.execute(trx);
+      const pdf = saved.rows[0]?.attachment_pdf;
+      if (!pdf) throw new Error('Finance notice lease was lost');
+      return pdf;
+    });
   }
 
   private async finish(
