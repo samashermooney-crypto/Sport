@@ -12,10 +12,46 @@ type SafetyScreen =
   | 'SafetyRequirements'
   | 'SafetySettings';
 
+const safetyScreens: Record<
+  SafetyScreen,
+  () => Promise<{ default: ComponentType }>
+> = {
+  SafetyBackgroundChecks: () =>
+    import('./ConsoleSafety').then(({ SafetyBackgroundChecks }) => ({
+      default: SafetyBackgroundChecks,
+    })),
+  SafetyCards: () =>
+    import('./ConsoleSafety').then(({ SafetyCards }) => ({
+      default: SafetyCards,
+    })),
+  SafetyCredentialReviews: () =>
+    import('./ConsoleSafety').then(({ SafetyCredentialReviews }) => ({
+      default: SafetyCredentialReviews,
+    })),
+  SafetyDashboard: () =>
+    import('./ConsoleSafety').then(({ SafetyDashboard }) => ({
+      default: SafetyDashboard,
+    })),
+  SafetyIncidents: () =>
+    import('./ConsoleSafety').then(({ SafetyIncidents }) => ({
+      default: SafetyIncidents,
+    })),
+  SafetyInjuries: () =>
+    import('./ConsoleSafety').then(({ SafetyInjuries }) => ({
+      default: SafetyInjuries,
+    })),
+  SafetyRequirements: () =>
+    import('./ConsoleSafety').then(({ SafetyRequirements }) => ({
+      default: SafetyRequirements,
+    })),
+  SafetySettings: () =>
+    import('./ConsoleSafety').then(({ SafetySettings }) => ({
+      default: SafetySettings,
+    })),
+};
+
 function screen(name: SafetyScreen): LazyExoticComponent<ComponentType> {
-  return lazy(() =>
-    import('./ConsoleSafety').then((module) => ({ default: module[name] })),
-  );
+  return lazy(safetyScreens[name]);
 }
 
 function route(path: string, name: SafetyScreen): RouteObject {

@@ -856,7 +856,7 @@ export async function sendCampaign(
   };
 }
 
-export async function runScheduledCampaign(
+async function runScheduledCampaign(
   context: OrgContext,
   campaignId: string,
   dependencies: DeliveryDependencies,

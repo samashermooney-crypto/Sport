@@ -10,6 +10,7 @@ import { createNotification } from '../notifications/service.js';
 
 import { activeFinanceNotificationRecipients } from './finance-notification-recipients.js';
 import { recomputeInvoiceStatus } from './invoice-repo.js';
+import { applyFinalInstallmentLateFee } from './late-fees.js';
 import { enqueueFinanceNotice } from './money-notices.js';
 import type {
   PaymentEventRepository,
@@ -244,6 +245,12 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
               .where('org_id', '=', input.orgId)
               .where('id', '=', allocation.installment_id)
               .execute();
+            if (target === 'failed' && !retry.retry) {
+              await applyFinalInstallmentLateFee(trx, context, {
+                invoiceId: allocation.invoice_id,
+                installmentId: allocation.installment_id,
+              });
+            }
             await recomputeInvoiceStatus(
               trx,
               input.orgId,

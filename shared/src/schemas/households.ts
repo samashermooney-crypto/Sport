@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const householdAddressSchema = z.strictObject({
+const householdAddressSchema = z.strictObject({
   street: z.string().trim().min(1).max(200),
   city: z.string().trim().min(1).max(120),
   region: z.string().trim().max(120).default(''),
@@ -38,7 +38,7 @@ export const householdMemberRemoveSchema = z.strictObject({
   expectedVersion: z.int().positive(),
 });
 
-export const householdMemberResponseSchema = z.strictObject({
+const householdMemberResponseSchema = z.strictObject({
   id: z.uuid(),
   personId: z.uuid(),
   firstName: z.string(),
