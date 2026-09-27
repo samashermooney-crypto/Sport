@@ -61,6 +61,13 @@ const orgSettingsSchema = z
   })
   .strict();
 
+const siblingRuleSchema = z
+  .object({
+    second_bps: z.number().int().min(0).max(10_000),
+    third_plus_bps: z.number().int().min(0).max(10_000),
+  })
+  .strict();
+
 interface OfferingRow {
   id: string;
   program_id: string;
@@ -225,7 +232,7 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
     );
     const rules = await trx
       .selectFrom('automatic_discount_rules')
-      .select('id')
+      .select(['id', 'kind', 'config', 'season_id'])
       .where('org_id', '=', checkout.orgId)
       .where('active', '=', true)
       .where((eb) =>
@@ -233,8 +240,68 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
       )
       .forUpdate()
       .execute();
-    if (rules.length)
-      throw new Error('Active discounts need a supported source loader');
+    let siblingRule: PricingInput['siblingRule'];
+    let existingConfirmed: PricingInput['existingConfirmed'] = [];
+    if (rules.length) {
+      if (
+        rules.length !== 1 ||
+        rules[0]?.kind !== 'sibling' ||
+        (rules[0].season_id &&
+          seasonIds.some((id) => id !== rules[0]?.season_id)) ||
+        new Set(rows.map((row) => row.household_id)).size !== 1
+      )
+        throw new Error('Active discounts need a supported source loader');
+      const config = siblingRuleSchema.safeParse(rules[0].config);
+      if (!config.success)
+        throw new Error('Sibling discount configuration is unsupported');
+      siblingRule = {
+        secondBps: config.data.second_bps,
+        thirdPlusBps: config.data.third_plus_bps,
+      };
+      const householdId = rows[0]?.household_id;
+      if (!householdId)
+        throw new Error('Sibling discount household is missing');
+      const currentPeople = [...new Set(rows.map((row) => row.person_id))];
+      await sql`LOCK TABLE registrations IN SHARE MODE`.execute(trx);
+      const prior = await sql<{
+        id: string;
+        person_id: string;
+        season_id: string;
+        base_price_cents: number | null;
+      }>`
+        SELECT r.id, r.person_id, p.season_id,
+          il.amount_cents AS base_price_cents
+        FROM registrations r JOIN programs p
+          ON p.org_id = r.org_id AND p.id = r.program_id
+        LEFT JOIN invoice_lines il
+          ON il.org_id = r.org_id AND il.id = r.invoice_line_id
+            AND il.kind = 'registration'
+        WHERE r.org_id = ${checkout.orgId}::uuid
+          AND r.household_id = ${householdId}::uuid
+          AND r.status = 'confirmed'
+          AND p.season_id = ANY(${sql`ARRAY[${sql.join(seasonIds.map((id) => sql`${id}::uuid`))}]`})
+        FOR UPDATE OF r
+      `.execute(trx);
+      if (
+        prior.rows.some(
+          (item) =>
+            currentPeople.includes(item.person_id) ||
+            item.base_price_cents === null ||
+            !Number.isSafeInteger(item.base_price_cents) ||
+            item.base_price_cents < 0,
+        ) ||
+        new Set(prior.rows.map((item) => `${item.person_id}:${item.season_id}`))
+          .size !== prior.rows.length
+      )
+        throw new Error(
+          'Existing sibling registrations need a supported source loader',
+        );
+      existingConfirmed = prior.rows.map((item) => ({
+        id: item.id,
+        seasonId: item.season_id,
+        basePriceCents: item.base_price_cents ?? 0,
+      }));
+    }
     const aid = await trx
       .selectFrom('aid_applications as a')
       .innerJoin('financial_aid_programs as p', (join) =>
@@ -324,7 +391,8 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
           priceCents: row.price_cents,
         })),
         addOns: [],
-        existingConfirmed: [],
+        existingConfirmed,
+        siblingRule,
         automaticRules: [],
         codes: [],
         aid: [],

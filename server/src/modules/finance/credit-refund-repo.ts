@@ -13,6 +13,9 @@ import type {
   CreditRefundResult,
 } from './credit-refunds.js';
 import { recomputeInvoiceStatus } from './invoice-repo.js';
+import { assertPaymentFundsRefund } from './payment-line-allocations.js';
+import { PostgresRefundSourceReader } from './refund-source-repo.js';
+import { refundProposal } from './refunds.js';
 
 interface CreditRefundRow {
   id: string;
@@ -25,6 +28,7 @@ interface CreditRefundRow {
 /** Refund allocations, invoice reopening and new credit commit together. */
 export class PostgresCreditRefundRepository implements CreditRefundRepository {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
+  private readonly sourceReader: PostgresRefundSourceReader;
 
   constructor(
     database: Kysely<DB>,
@@ -32,6 +36,7 @@ export class PostgresCreditRefundRepository implements CreditRefundRepository {
     private readonly now: () => Temporal.Instant = () => Temporal.Now.instant(),
   ) {
     this.withOrg = createWithOrg(database);
+    this.sourceReader = new PostgresRefundSourceReader(database, context);
   }
 
   async replay(
@@ -76,6 +81,24 @@ export class PostgresCreditRefundRepository implements CreditRefundRepository {
       `.execute(trx);
       if (priorKey.rows[0])
         return this.validateReplay(priorKey.rows[0], input, requestHash);
+      const pendingStripeRefund = await sql<{ id: string }>`
+        SELECT id FROM refund_attempts
+        WHERE org_id = ${input.orgId}::uuid
+          AND payment_id = ${input.paymentId}::uuid
+          AND status IN ('reserved', 'external_started')
+        LIMIT 1
+      `.execute(trx);
+      if (pendingStripeRefund.rows.length)
+        throw new Error('Original-method refund is in progress');
+      const source = await this.sourceReader.loadInTransaction(
+        trx,
+        input.orgId,
+        input.paymentId,
+      );
+      if (!source) throw new Error('Credit refund source is unavailable');
+      const currentProposal = refundProposal(source, input.cancellationDate);
+      if (JSON.stringify(currentProposal) !== JSON.stringify(proposal))
+        throw new Error('Credit refund proposal changed before application');
       const allocation = await trx
         .selectFrom('payment_allocations')
         .select(['invoice_id', 'amount_cents'])
@@ -162,6 +185,13 @@ export class PostgresCreditRefundRepository implements CreditRefundRepository {
         )
           throw new Error('Credit refund line exceeds remaining paid amount');
       }
+      await assertPaymentFundsRefund(trx, {
+        orgId: input.orgId,
+        paymentId: input.paymentId,
+        invoiceId,
+        paymentAmountCents: payment.amount_cents,
+        lines,
+      });
       const accountId =
         input.recipient === 'account' ? invoice.account_id : null;
       const householdId =
