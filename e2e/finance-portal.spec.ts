@@ -55,6 +55,24 @@ test('payer opens working finance pages from the family portal', async ({
       .getByRole('link', { name: 'Receipts' })
       .click();
     await expect(page.getByText('No receipts yet.')).toBeVisible();
+    await page.route('**/api/v1/finance/stripe-client-config', (route) =>
+      route.fulfill({
+        json: { publishableKey: 'pk_test_finance_portal' },
+      }),
+    );
+    await page.route('**/api/v1/finance/me/payment-methods', (route) =>
+      route.fulfill({
+        json: { methods: [], defaultMethodId: null },
+      }),
+    );
+    await page
+      .getByRole('navigation', { name: 'Payment pages' })
+      .getByRole('link', { name: 'Payment methods' })
+      .click();
+    await expect(
+      page.getByRole('heading', { name: 'Saved payment methods' }),
+    ).toBeVisible();
+    await expect(page.getByText('No saved payment methods yet.')).toBeVisible();
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
     await database.destroy();

@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, useLocation, useRoutes } from 'react-router';
 
 import { apiGet } from './api/client';
+import { webNestedRoutes } from './generated/nested-routes';
 import { webFeatures } from './generated/registry';
 import { i18n } from './lib/i18n';
 import { ImpersonationBanner } from './platform/PlatformConsole';
@@ -65,5 +66,8 @@ function AuthenticatedLocale({ path }: { path: string }): null {
 }
 
 function AppRoutes(): React.ReactNode {
-  return useRoutes(webFeatures.flatMap((feature) => [...feature.routes]));
+  return useRoutes([
+    ...webFeatures.flatMap((feature) => [...feature.routes]),
+    ...webNestedRoutes,
+  ]);
 }

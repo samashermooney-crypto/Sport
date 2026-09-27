@@ -30,9 +30,16 @@ const guardianAccount = randomUUID();
 const complianceAccount = randomUUID();
 const adminAccount = randomUUID();
 const unverifiedGuardianAccount = randomUUID();
+const chatMemberAccount = randomUUID();
+const otherChatMemberAccount = randomUUID();
+const revokedChatMemberAccount = randomUUID();
 const personA = randomUUID();
 const personB = randomUUID();
 const injuryReportId = randomUUID();
+const chatConversationId = randomUUID();
+const otherChatConversationId = randomUUID();
+const archivedChatConversationId = randomUUID();
+const revokedChatConversationId = randomUUID();
 const contextA: OrgContext = { orgId: orgA, actor: { accountId: accountA } };
 const contextB: OrgContext = { orgId: orgB, actor: { accountId: accountB } };
 const guardianContext: OrgContext = {
@@ -50,6 +57,18 @@ const adminContext: OrgContext = {
 const unverifiedGuardianContext: OrgContext = {
   orgId: orgA,
   actor: { accountId: unverifiedGuardianAccount },
+};
+const chatMemberContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: chatMemberAccount },
+};
+const otherChatMemberContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: otherChatMemberAccount },
+};
+const revokedChatMemberContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: revokedChatMemberAccount },
 };
 const storage = new MemoryStorage();
 const authorization: FileAuthorization = {
@@ -83,7 +102,10 @@ beforeAll(async () => {
               ($5, $6, 'File', 'Guardian', '1980-01-01'),
               ($7, $8, 'File', 'Compliance', '1980-01-01'),
               ($9, $10, 'File', 'Admin', '1980-01-01'),
-              ($11, $12, 'File', 'Unverified', '1980-01-01')`,
+              ($11, $12, 'File', 'Unverified', '1980-01-01'),
+              ($13, $14, 'Chat', 'Member', '1980-01-01'),
+              ($15, $16, 'Chat', 'Other Member', '1980-01-01'),
+              ($17, $18, 'Chat', 'Revoked Member', '1980-01-01')`,
       [
         accountA,
         `${accountA}@example.test`,
@@ -97,6 +119,12 @@ beforeAll(async () => {
         `${adminAccount}@example.test`,
         unverifiedGuardianAccount,
         `${unverifiedGuardianAccount}@example.test`,
+        chatMemberAccount,
+        `${chatMemberAccount}@example.test`,
+        otherChatMemberAccount,
+        `${otherChatMemberAccount}@example.test`,
+        revokedChatMemberAccount,
+        `${revokedChatMemberAccount}@example.test`,
       ],
     );
     await admin.query(
@@ -161,6 +189,43 @@ beforeAll(async () => {
         guardianAccount,
         randomUUID(),
         unverifiedGuardianAccount,
+      ],
+    );
+    await admin.query(
+      `INSERT INTO conversations (id, org_id, kind, title, created_by, archived_at)
+       VALUES ($1, $2, 'group', 'Chat file access', $3, NULL),
+              ($4, $2, 'group', 'Other chat file access', $3, NULL),
+              ($5, $2, 'group', 'Archived chat file access', $3, now()),
+              ($6, $2, 'group', 'Revoked chat file access', $3, NULL)`,
+      [
+        chatConversationId,
+        orgA,
+        accountA,
+        otherChatConversationId,
+        archivedChatConversationId,
+        revokedChatConversationId,
+      ],
+    );
+    await admin.query(
+      `INSERT INTO conversation_members (id, org_id, conversation_id, account_id, role, revoked_at)
+       VALUES ($1, $2, $3, $4, 'member', NULL),
+              ($5, $2, $6, $7, 'member', NULL),
+              ($8, $2, $9, $10, 'member', NULL),
+              ($11, $2, $12, $13, 'member', now())`,
+      [
+        randomUUID(),
+        orgA,
+        chatConversationId,
+        chatMemberAccount,
+        randomUUID(),
+        otherChatConversationId,
+        otherChatMemberAccount,
+        randomUUID(),
+        archivedChatConversationId,
+        revokedChatMemberAccount,
+        randomUUID(),
+        revokedChatConversationId,
+        revokedChatMemberAccount,
       ],
     );
   } finally {
@@ -280,6 +345,184 @@ describe('files tenancy and lifecycle', () => {
     await expect(
       service.readLocalContent(contextB, pending.fileId),
     ).rejects.toBeInstanceOf(FileValidationError);
+  });
+
+  it('limits chat image and PDF uploads and downloads to active conversation members', async () => {
+    const chatService = new FilesService(
+      storage,
+      createFilesAuthorization(database),
+      new SharpImageProcessor(),
+      createWithOrg(database),
+    );
+    const imageBytes = await readFile(
+      new URL('../../../test/fixtures/gps-photo.jpg', import.meta.url),
+    );
+    const imageUpload = await chatService.beginUpload({
+      context: chatMemberContext,
+      purpose: 'image',
+      mime: 'image/jpeg',
+      bytes: imageBytes.byteLength,
+    });
+    await chatService.uploadLocalBytes(
+      chatMemberContext,
+      imageUpload.fileId,
+      imageBytes,
+    );
+    const image = await chatService.completeUpload(
+      chatMemberContext,
+      imageUpload.fileId,
+    );
+    expect(image.mime).toBe('image/webp');
+    const imageBase = image.storageKey.replace(/\.[^.]+$/, '');
+    for (const key of [
+      image.storageKey,
+      `${imageBase}-medium.webp`,
+      `${imageBase}-thumbnail.webp`,
+    ]) {
+      const object = await storage.get(key);
+      if (!object) throw new Error('Processed chat image is missing');
+      const metadata = await sharp(object.bytes).metadata();
+      expect(metadata.exif).toBeUndefined();
+      expect(metadata.xmp).toBeUndefined();
+      expect(metadata.iptc).toBeUndefined();
+    }
+
+    const pdfBytes = new TextEncoder().encode('%PDF-1.7 chat attachment');
+    const pdfUpload = await chatService.beginUpload({
+      context: chatMemberContext,
+      purpose: 'document',
+      mime: 'application/pdf',
+      bytes: pdfBytes.byteLength,
+    });
+    await chatService.uploadLocalBytes(
+      chatMemberContext,
+      pdfUpload.fileId,
+      pdfBytes,
+    );
+    await chatService.completeUpload(chatMemberContext, pdfUpload.fileId);
+
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    try {
+      await admin.query(
+        `INSERT INTO chat_messages (id, org_id, conversation_id, author_account_id, body, attachments)
+         VALUES ($1, $2, $3, $4, 'Chat file', $5::jsonb)`,
+        [
+          randomUUID(),
+          orgA,
+          chatConversationId,
+          chatMemberAccount,
+          JSON.stringify([
+            { fileId: pdfUpload.fileId, mime: 'application/pdf' },
+          ]),
+        ],
+      );
+    } finally {
+      await admin.end();
+    }
+
+    await expect(
+      chatService.download(chatMemberContext, pdfUpload.fileId),
+    ).resolves.toBe(`/api/v1/files/${pdfUpload.fileId}/content`);
+    for (const context of [
+      contextA,
+      otherChatMemberContext,
+      revokedChatMemberContext,
+    ]) {
+      await expect(
+        chatService.download(context, pdfUpload.fileId),
+      ).rejects.toBeInstanceOf(FileValidationError);
+      await expect(
+        chatService.readLocalContent(context, pdfUpload.fileId),
+      ).rejects.toBeInstanceOf(FileValidationError);
+    }
+    await expect(
+      chatService.readLocalContent(chatMemberContext, pdfUpload.fileId),
+    ).resolves.toMatchObject({ mime: 'application/pdf', bytes: pdfBytes });
+
+    const scopedUpload = await chatService.beginUpload({
+      context: chatMemberContext,
+      purpose: 'document',
+      mime: 'application/pdf',
+      bytes: pdfBytes.byteLength,
+      ownerType: 'conversation',
+      ownerId: chatConversationId,
+    });
+    await chatService.uploadLocalBytes(
+      chatMemberContext,
+      scopedUpload.fileId,
+      pdfBytes,
+    );
+    await chatService.completeUpload(chatMemberContext, scopedUpload.fileId);
+    await expect(
+      chatService.download(otherChatMemberContext, scopedUpload.fileId),
+    ).rejects.toBeInstanceOf(FileValidationError);
+    await expect(
+      chatService.beginUpload({
+        context: chatMemberContext,
+        purpose: 'document',
+        mime: 'application/pdf',
+        bytes: pdfBytes.byteLength,
+        ownerType: 'conversation',
+        ownerId: archivedChatConversationId,
+      }),
+    ).rejects.toBeInstanceOf(FilePermissionError);
+    await expect(
+      chatService.beginUpload({
+        context: chatMemberContext,
+        purpose: 'document',
+        mime: 'application/pdf',
+        bytes: pdfBytes.byteLength,
+        ownerType: 'conversation',
+        ownerId: chatConversationId,
+        sensitivity: 'restricted',
+      }),
+    ).rejects.toBeInstanceOf(FilePermissionError);
+    await expect(
+      chatService.beginUpload({
+        context: unverifiedGuardianContext,
+        purpose: 'document',
+        mime: 'application/pdf',
+        bytes: pdfBytes.byteLength,
+      }),
+    ).rejects.toBeInstanceOf(FilePermissionError);
+
+    let requestContext = otherChatMemberContext;
+    const app = express();
+    app.use(
+      createFilesRouter({
+        files: chatService,
+        context: () => Promise.resolve(requestContext),
+      }),
+    );
+    const server = createServer(app);
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const address = server.address();
+    if (!address || typeof address === 'string')
+      throw new Error('Files test server did not bind to a TCP port');
+    try {
+      const hidden = await fetch(
+        `http://127.0.0.1:${String(address.port)}/${pdfUpload.fileId}/download`,
+      );
+      expect(hidden.status).toBe(404);
+      requestContext = chatMemberContext;
+      const visible = await fetch(
+        `http://127.0.0.1:${String(address.port)}/${pdfUpload.fileId}/download`,
+      );
+      expect(visible.status).toBe(200);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+    }
   });
 
   it('allows verified guardians to upload person-owned restricted evidence and audits every authorized read', async () => {
