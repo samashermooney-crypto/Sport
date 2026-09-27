@@ -2,11 +2,11 @@
 
 Status: working
 Branch: `track/sec`
-Current: synced `rebuild/trunk` at `5ae5499`. The earlier SEC control set is already on trunk; this pass is closing stale verification gaps and extending the browser security checks.
+Current: synced `rebuild/trunk` through `9b934b0`. The earlier SEC control set is already on trunk; this pass is closing stale verification gaps and extending the browser security checks.
 
 ## Ready for integration ranges
 
-- `5ae5499..HEAD` — current SEC verification extensions, guardian IDOR and CSRF tests, header activation, and security documentation refresh. The full trunk merge gate remains pending.
+- SEC commits `a4eabf0` and `22109ee` — guardian IDOR and CSRF regressions, security header activation, SSRF and step-up regression requests, and security documentation refresh. Branch is synced through `9b934b0`; integration gate remains pending.
 
 ## Requests to other tracks
 
@@ -27,10 +27,11 @@ Current: synced `rebuild/trunk` at `5ae5499`. The earlier SEC control set is alr
 
 ## Verification
 
-- Targeted security/regression Vitest selection: 13 files, 31 tests passed, including new missing-header/missing-origin CSRF and production security.txt checks.
+- Affected security Vitest selection: 16 files, 66 tests passed, including missing-header/missing-origin CSRF, production security.txt, rate limits, webhook signatures, upload bypass, stored XSS, session fixation, MFA/impersonation, key rotation, headers, and platform-staff authorization.
+- Full Vitest suite with a four-worker cap: 239 files and 842 tests passed; 1 existing skipped file/test. The initial default-worker run timed out broadly under database contention; limiting concurrency kept every test enabled and completed green.
 - Platform-staff MFA/authorization regression: `server/src/modules/platform/routes.test.ts` — 2 passed.
 - Targeted Chromium security specs: 2 passed (global response headers and guardian direct-medical IDOR); 5 skipped with `test.fixme` for the documented Track C and Track A dependencies.
-- `npm run typecheck`, `npm run lint`, Prettier checks, and `git diff --check` pass after the latest browser assertion change.
-- `npm run build` passes. `npm audit --omit=dev --audit-level=high` exits clean for high/critical findings; npm reports two moderate transitive `uuid` advisories beneath `exceljs`.
+- `npm run typecheck`, `npm run lint`, targeted Prettier checks, and `git diff --check` pass on the latest `9b934b0` trunk sync.
+- `npm run build` passes on the latest `9b934b0` trunk sync. `npm audit --omit=dev --audit-level=high` exits clean for high/critical findings; npm reports two moderate transitive `uuid` advisories beneath `exceljs`.
 - `npm run knip` fails on 2 unused G schedule nav files, 22 unused exports, 9 unused types, and 1 duplicate export; detailed owner requests are above.
-- Existing rate-limit, webhook-signature, upload bypass, SSRF, stored-XSS, session fixation, MFA/impersonation, and key-rotation checks are included in the 31 passing tests. Step-up token rotation remains `test.fixme` against the observed Track A gap.
+- Existing rate-limit, webhook-signature, upload bypass, SSRF, stored-XSS, session fixation, MFA/impersonation, and key-rotation checks are included in the 66 passing tests. Step-up token rotation remains `test.fixme` against the observed Track A gap.
