@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const auditEntrySchema = z.strictObject({
+const auditEntrySchema = z.strictObject({
   id: z.uuid(),
   orgId: z.uuid(),
   actorAccountId: z.uuid().nullable(),

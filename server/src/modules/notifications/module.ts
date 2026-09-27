@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { ServerModule } from '../../lib/module-contract';
 
 import { notificationTypes } from './catalog';
-import { createNotificationsRouter, createStreamRouter } from './routes';
+import { createNotificationsRouter } from './routes';
 import {
   inboxPageSchema,
   markReadSchema,
@@ -11,6 +11,7 @@ import {
   preferenceSchema,
   updatePreferenceSchema,
 } from './schema';
+import { createStreamRouter } from './stream-routes';
 
 export const moduleDefinition = {
   name: 'notifications',

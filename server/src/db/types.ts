@@ -497,6 +497,7 @@ export interface DeviceTokens {
   last_seen_at: Generated<Timestamp>;
   platform: string;
   revoked_at: Timestamp | null;
+  session_id: string | null;
   token_hash: Buffer | null;
   token_or_subscription: Json;
   updated_at: Generated<Timestamp>;
@@ -1182,6 +1183,7 @@ export interface OrgMemberships {
   status: string;
   title: string | null;
   updated_at: Generated<Timestamp>;
+  version: Generated<number>;
 }
 
 export interface PayerProfiles {

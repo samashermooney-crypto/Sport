@@ -4,6 +4,7 @@ import prettier from 'prettier';
 import { z } from 'zod';
 
 import { serverModules } from '../server/src/generated/registry';
+import { uploadBody } from '../server/src/modules/files/routes';
 import * as auth from '../shared/src/schemas/auth';
 import { apiErrorSchema } from '../shared/src/schemas/errors';
 import { healthResponseSchema } from '../shared/src/schemas/health';
@@ -21,10 +22,12 @@ export type OpenApiRoute = {
   public?: boolean;
   query?: Record<string, z.ZodType>;
   contentType?: string;
+  binary?: boolean;
 };
 
 const authBase = '/api/v1/auth';
 const orgsBase = '/api/v1/orgs';
+const filesBase = '/api/v1/files';
 const authRoutes: OpenApiRoute[] = [
   {
     method: 'get',
@@ -231,7 +234,89 @@ const authRoutes: OpenApiRoute[] = [
     status: 202,
   },
 ];
+const fileRecordSchema = z.strictObject({
+  id: z.uuid(),
+  orgId: z.uuid(),
+  purpose: z.enum(['image', 'document', 'import', 'website_asset']),
+  ownerType: z.string().nullable(),
+  ownerId: z.uuid().nullable(),
+  storageKey: z.string(),
+  mime: z.string(),
+  bytes: z.number().int(),
+  sha256: z.string().nullable(),
+  width: z.number().int().nullable(),
+  height: z.number().int().nullable(),
+  sensitivity: z.string(),
+  createdBy: z.uuid().nullable(),
+  uploadState: z.string(),
+});
+const fileRoutes: OpenApiRoute[] = [
+  {
+    method: 'post',
+    path: `${filesBase}/uploads`,
+    summary: 'Begin file upload',
+    body: uploadBody,
+    response: z.strictObject({ fileId: z.uuid(), uploadUrl: z.string() }),
+    status: 201,
+  },
+  {
+    method: 'post',
+    path: `${filesBase}/uploads/{id}/complete`,
+    summary: 'Complete file upload',
+    response: fileRecordSchema,
+  },
+  {
+    method: 'put',
+    path: `${filesBase}/uploads/{id}/content`,
+    summary: 'Upload local file content',
+    response: z.null(),
+    status: 204,
+    binary: true,
+  },
+  {
+    method: 'get',
+    path: `${filesBase}/{id}/download`,
+    summary: 'Issue permission-checked file download link',
+    response: z.strictObject({
+      url: z.string(),
+      expiresInSeconds: z.number().int(),
+    }),
+  },
+  {
+    method: 'get',
+    path: `${filesBase}/{id}/content`,
+    summary: 'Download local file content',
+    response: z.string(),
+    binary: true,
+  },
+];
 const orgRoutes: OpenApiRoute[] = [
+  {
+    method: 'get',
+    path: `${orgsBase}/sport-templates`,
+    summary: 'List built-in sport templates',
+    response: orgs.sportTemplateCatalogSchema,
+  },
+  {
+    method: 'get',
+    path: `${orgsBase}/{orgId}/credential-types`,
+    summary: 'List organization safety requirements',
+    response: orgs.orgCredentialsResponseSchema,
+  },
+  {
+    method: 'patch',
+    path: `${orgsBase}/{orgId}/credential-types/{credentialId}`,
+    summary: 'Update organization safety requirement',
+    body: orgs.updateOrgCredentialSchema,
+    response: orgs.orgCredentialSchema,
+  },
+  {
+    method: 'patch',
+    path: `${orgsBase}/{orgId}/members/{memberId}/roles`,
+    summary: 'Update organization member roles',
+    body: orgs.updateOrgMemberRolesSchema,
+    response: orgs.orgMemberRolesResponseSchema,
+  },
   {
     method: 'get',
     path: `${orgsBase}/slug-availability`,
@@ -281,11 +366,20 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
     responses: {
       [status]: {
         description: 'Success',
-        content: {
-          [route.contentType ?? 'application/json']: {
-            schema: jsonSchema(route.response),
-          },
-        },
+        content:
+          route.status === 204
+            ? undefined
+            : route.binary
+              ? {
+                  'application/octet-stream': {
+                    schema: { type: 'string', format: 'binary' },
+                  },
+                }
+              : {
+                  [route.contentType ?? 'application/json']: {
+                    schema: jsonSchema(route.response),
+                  },
+                },
       },
       '400': { $ref: '#/components/responses/ValidationError' },
       '401': { $ref: '#/components/responses/Unauthenticated' },
@@ -346,6 +440,7 @@ const routes: OpenApiRoute[] = [
   },
   ...authRoutes,
   ...orgRoutes,
+  ...fileRoutes,
   ...moduleRoutes,
 ];
 const keys = new Set(routes.map((route) => `${route.method} ${route.path}`));

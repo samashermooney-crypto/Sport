@@ -4,7 +4,6 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 
 import { parsePageRequest } from '../../lib/pagination';
-import { listenSse } from '../../lib/sse';
 import { VersionConflictError } from '../../lib/version-check';
 import { requireSession } from '../auth/routes';
 import type { AuthDependencies } from '../auth/routes';
@@ -17,7 +16,6 @@ import {
   NotificationAccessError,
   updatePreference,
 } from './service';
-import { notificationChannel, notificationStreamEvent } from './stream';
 
 function sendError(response: Response, error: unknown): void {
   const status =
@@ -176,35 +174,5 @@ export function createNotificationsRouter(
       }
     },
   );
-  return router;
-}
-
-export function createStreamRouter(
-  dependencies: AuthDependencies,
-): express.Router {
-  const router = express.Router();
-  router.get('/', async (request, response) => {
-    try {
-      const session = await requireSession(dependencies, request);
-      await listenSse(response, {
-        connectionString:
-          process.env.DATABASE_URL ??
-          'postgres://athlentry_app@127.0.0.1:5432/athlentry_dev',
-        channel: notificationChannel,
-        accept: (payload) =>
-          notificationStreamEvent(payload, session.accountId),
-        authorize: async () => {
-          try {
-            const current = await requireSession(dependencies, request);
-            return current.id === session.id;
-          } catch {
-            return false;
-          }
-        },
-      });
-    } catch (error) {
-      if (!response.headersSent) sendError(response, error);
-    }
-  });
   return router;
 }

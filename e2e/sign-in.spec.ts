@@ -1,10 +1,43 @@
 import { expect, test } from '@playwright/test';
+import type { APIRequestContext } from '@playwright/test';
 
 import { decodeBase32, totpCode } from '../server/src/modules/auth/totp';
 
 import { accessibilityViolations } from './axe';
 
 const mailpitApiPort = 8025 + Number(process.env.PORT_OFFSET ?? '0');
+
+async function previewLink(
+  request: APIRequestContext,
+  address: string,
+  path: string,
+): Promise<string> {
+  let link = '';
+  await expect
+    .poll(async () => {
+      const response = await request.get(
+        `http://127.0.0.1:${String(mailpitApiPort)}/api/v1/messages`,
+      );
+      const mailbox = (await response.json()) as {
+        messages: Array<{ To: Array<{ Address: string }>; Snippet: string }>;
+      };
+      link =
+        mailbox.messages
+          .filter((message) =>
+            message.To.some((recipient) => recipient.Address === address),
+          )
+          .map(
+            (message) =>
+              new RegExp(
+                `https?:\\/\\/[^\\s]+\\/${path}\\/[A-Za-z0-9_-]+`,
+              ).exec(message.Snippet)?.[0] ?? '',
+          )
+          .find(Boolean) ?? '';
+      return link;
+    })
+    .not.toBe('');
+  return link;
+}
 
 test.beforeEach(async ({ request }) => {
   await expect
@@ -117,29 +150,7 @@ test('new account verifies its preview email and signs in', async ({
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('status')).toContainText('verification link');
 
-  let verificationUrl = '';
-  await expect
-    .poll(async () => {
-      const response = await request.get(
-        `http://127.0.0.1:${String(mailpitApiPort)}/api/v1/messages`,
-      );
-      const mailbox = (await response.json()) as {
-        messages: Array<{ To: Array<{ Address: string }>; Snippet: string }>;
-      };
-      verificationUrl =
-        mailbox.messages
-          .filter((message) =>
-            message.To.some((recipient) => recipient.Address === email),
-          )
-          .map(
-            (message) =>
-              /https?:\/\/[^\s]+\/verify\/[A-Za-z0-9_-]+/.exec(
-                message.Snippet,
-              )?.[0] ?? '',
-          )[0] ?? '';
-      return verificationUrl;
-    })
-    .not.toBe('');
+  const verificationUrl = await previewLink(request, email, 'verify');
 
   await page.goto(verificationUrl);
   await expect(
@@ -185,6 +196,10 @@ test('new account verifies its preview email and signs in', async ({
   await expect(page.getByRole('status')).toContainText('Identity confirmed');
   await page.getByRole('button', { name: 'Regenerate recovery codes' }).click();
   await expect(page.locator('.recovery-codes li')).toHaveCount(10);
+  const recoveryCode =
+    (await page.locator('.recovery-codes li').first().textContent())?.trim() ??
+    '';
+  expect(recoveryCode).not.toBe('');
   await page.getByRole('button', { name: 'I saved these codes' }).click();
   await page
     .getByRole('button', { name: 'Enable browser notifications' })
@@ -200,6 +215,84 @@ test('new account verifies its preview email and signs in', async ({
   await expect(page.getByRole('button', { name: 'Revoke device' })).toHaveCount(
     0,
   );
+  await page.goto('/start');
+  await expect(
+    page.getByRole('heading', { name: 'Start an organization' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('checkbox', { name: 'Soccer', exact: true }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  const orgSlug = `e2e-${Date.now().toString()}`;
+  await page
+    .getByRole('textbox', { name: 'Organization name' })
+    .fill('E2E Youth Club');
+  await page.getByRole('textbox', { name: 'Organization URL' }).fill(orgSlug);
+  await expect(page.getByRole('status')).toContainText('URL available');
+  await page
+    .getByRole('textbox', { name: 'Street address' })
+    .fill('1 Main Street');
+  await page.getByRole('textbox', { name: 'City' }).fill('Chicago');
+  await page.getByRole('textbox', { name: 'State' }).fill('IL');
+  await page.getByRole('textbox', { name: 'ZIP code' }).fill('60601');
+  await page.getByRole('checkbox', { name: 'Soccer', exact: true }).check();
+  await page.getByRole('button', { name: 'Create organization' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'E2E Youth Club is ready for setup' }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('link', { name: 'Review safety requirements' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Safety requirements' }),
+  ).toBeVisible();
+  const backgroundCheck = page.getByRole('region', {
+    name: 'Background check',
+  });
+  await expect(
+    backgroundCheck.getByRole('checkbox', { name: 'Requirement active' }),
+  ).toBeChecked();
+  await backgroundCheck
+    .getByRole('checkbox', { name: 'Requirement active' })
+    .uncheck();
+  await backgroundCheck
+    .getByRole('button', { name: 'Save requirement' })
+    .click();
+  await expect(backgroundCheck.getByRole('status')).toContainText('saved');
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('link', { name: 'account security' }).click();
+  await page.getByRole('button', { name: 'Request deletion review' }).click();
+  await expect(page.getByRole('status')).toContainText('privacy review');
+  const changedEmail = `changed-${email}`;
+  await page.getByLabel('New email address').fill(changedEmail);
+  await page.getByRole('button', { name: 'Send confirmation' }).click();
+  await expect(page.getByRole('status')).toContainText('new address');
+  const emailChangeUrl = await previewLink(
+    request,
+    changedEmail,
+    'verify-email-change',
+  );
+  await page.goto(emailChangeUrl);
+  await expect(
+    page.getByRole('heading', { name: 'Confirm your new email' }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('button', { name: 'Confirm email' }).click();
+  await expect(page.getByRole('status')).toContainText('Email changed');
+  await page.getByRole('link', { name: 'Return to sign in' }).click();
+  await page.getByRole('textbox', { name: /Email address/ }).fill(changedEmail);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Verify it’s you' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Use a recovery code' }).click();
+  await page.getByLabel('Recovery code').fill(recoveryCode);
+  await page.getByRole('button', { name: 'Verify and sign in' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Welcome, Alex.' }),
+  ).toBeVisible();
+  await page.getByRole('link', { name: 'Account security' }).click();
+  expect(await accessibilityViolations(page)).toEqual([]);
   await page.getByRole('button', { name: 'Revoke' }).click();
   await expect(
     page.getByRole('heading', { name: 'Welcome back.' }),

@@ -25,7 +25,7 @@ export function collectRegisteredJobs(
         throw new TypeError(`Invalid job schedule: ${declaration.name}`);
       result.push({
         name: declaration.name,
-        run: run as RegisteredJob['run'],
+        run,
         ...(cron === undefined ? {} : { cron }),
       });
       names.add(declaration.name);
