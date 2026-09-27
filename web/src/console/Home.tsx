@@ -10,8 +10,6 @@ import { AuthFrame, AuthLink, ErrorBox } from '../ui/auth';
 import { Card, Link, PageHeader, Select } from '../ui/primitives';
 import { AppShell } from '../ui/shell';
 
-import { OnboardingChecklist } from './onboarding/OnboardingChecklist';
-
 import './home.css';
 
 export function ConsoleHome(): React.JSX.Element {
@@ -144,7 +142,6 @@ export function ConsoleHome(): React.JSX.Element {
           kicker="ORGANIZATION HOME"
           description="Continue setting up and managing your organization."
         />
-        {workspace.data.canManage && <OnboardingChecklist orgId={orgId} />}
         <div className="console-home__cards">
           {actions.length === 0 && (
             <Card>

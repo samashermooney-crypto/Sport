@@ -24,8 +24,6 @@ export type OpenApiRoute = {
   query?: Record<string, z.ZodType>;
   idempotencyKey?: boolean;
   contentType?: string;
-  requestContentType?: string;
-  requestBinary?: boolean;
   binary?: boolean;
 };
 
@@ -506,17 +504,10 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
     },
   };
   if (parameters.length) result.parameters = parameters;
-  const requestSchema = route.requestBinary
-    ? { schema: { type: 'string', format: 'binary' } }
-    : route.body
-      ? { schema: jsonSchema(route.body) }
-      : undefined;
-  if (requestSchema)
+  if (route.body)
     result.requestBody = {
       required: true,
-      content: {
-        [route.requestContentType ?? 'application/json']: requestSchema,
-      },
+      content: { 'application/json': { schema: jsonSchema(route.body) } },
     };
   return result;
 }

@@ -14,7 +14,7 @@ export class ApiError extends Error {
 async function request<T extends z.ZodType>(
   path: string,
   schema: T,
-  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   body?: unknown,
   idempotencyKey?: string,
   extraHeaders?: Record<string, string>,
@@ -78,13 +78,8 @@ async function request<T extends z.ZodType>(
 export function apiGet<T extends z.ZodType>(
   path: string,
   schema: T,
-  extraHeaders?: Record<string, string>,
 ): Promise<z.output<T>> {
-  return request(path, schema, 'GET', undefined, undefined, extraHeaders);
-}
-
-export function orgHeaders(orgId: string): Record<string, string> {
-  return { 'X-Athlentry-Org': orgId };
+  return request(path, schema, 'GET');
 }
 
 export function apiPost<T extends z.ZodType>(
@@ -100,9 +95,8 @@ export function apiPost<T extends z.ZodType>(
 export function apiDelete<T extends z.ZodType>(
   path: string,
   schema: T,
-  extraHeaders?: Record<string, string>,
 ): Promise<z.output<T>> {
-  return request(path, schema, 'DELETE', undefined, undefined, extraHeaders);
+  return request(path, schema, 'DELETE');
 }
 
 export function apiPatch<T extends z.ZodType>(
@@ -111,13 +105,4 @@ export function apiPatch<T extends z.ZodType>(
   schema: T,
 ): Promise<z.output<T>> {
   return request(path, schema, 'PATCH', body);
-}
-
-export function apiPut<T extends z.ZodType>(
-  path: string,
-  body: unknown,
-  schema: T,
-  extraHeaders?: Record<string, string>,
-): Promise<z.output<T>> {
-  return request(path, schema, 'PUT', body, undefined, extraHeaders);
 }

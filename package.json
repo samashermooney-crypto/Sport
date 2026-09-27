@@ -43,7 +43,6 @@
     "@tiptap/pm": "^3.31.3",
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
-    "exceljs": "4.4.0",
     "express": "^5.2.1",
     "i18next": "^26.4.2",
     "kysely": "^0.29.6",

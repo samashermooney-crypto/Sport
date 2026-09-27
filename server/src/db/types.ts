@@ -68,27 +68,6 @@ export interface Accounts {
   version: Generated<number>;
 }
 
-export interface AiConversationMessages {
-  citations: Generated<Json>;
-  content: string;
-  conversation_id: string;
-  created_at: Generated<Timestamp>;
-  id: string;
-  org_id: string;
-  role: string;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface AiConversations {
-  account_id: string | null;
-  created_at: Generated<Timestamp>;
-  expires_at: Timestamp;
-  id: string;
-  org_id: string;
-  updated_at: Generated<Timestamp>;
-  visitor_key: string | null;
-}
-
 export interface AidApplications {
   answers: Generated<Json>;
   award_bps: number | null;
@@ -109,35 +88,6 @@ export interface AidApplications {
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
-}
-
-export interface AiDrafts {
-  applied_at: Timestamp | null;
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  draft: Json;
-  id: string;
-  kind: string;
-  org_id: string;
-  redactions: Generated<number>;
-  source_file_name: string | null;
-  status: Generated<string>;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface AiUsageEvents {
-  actor_account_id: string | null;
-  completion_tokens: Generated<number>;
-  created_at: Generated<Timestamp>;
-  detail: string | null;
-  feature: string;
-  id: string;
-  model: string;
-  org_id: string;
-  prompt_tokens: Generated<number>;
-  redactions: Generated<number>;
-  status: string;
-  updated_at: Generated<Timestamp>;
 }
 
 export interface Allocations {
@@ -1132,43 +1082,6 @@ export interface IdempotencyKeys {
   updated_at: Generated<Timestamp>;
 }
 
-export interface ImportBatches {
-  committed_at: Timestamp | null;
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  error_count: Generated<number>;
-  file_bytes: number;
-  file_id: string | null;
-  file_name: string;
-  id: string;
-  kind: string;
-  mapping: Json | null;
-  mapping_preset_id: string | null;
-  org_id: string;
-  progress: Generated<Json>;
-  rolled_back_at: Timestamp | null;
-  row_count: Generated<number>;
-  status: Generated<string>;
-  summary: Json | null;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface ImportRows {
-  action: Generated<string>;
-  batch_id: string;
-  created_at: Generated<Timestamp>;
-  duplicates: Generated<Json>;
-  id: string;
-  issues: Generated<Json>;
-  normalized: Json | null;
-  org_id: string;
-  raw: Json;
-  row_number: number;
-  target_id: string | null;
-  target_version: number | null;
-  updated_at: Generated<Timestamp>;
-}
-
 export interface IncidentReports {
   category: string;
   created_at: Generated<Timestamp>;
@@ -1371,18 +1284,6 @@ export interface ManualInstallmentPaymentAttempts {
   request_hash: string;
   result: Json | null;
   status: string;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface MappingPresets {
-  builtin: Generated<boolean>;
-  created_at: Generated<Timestamp>;
-  created_by: string | null;
-  id: string;
-  kind: string;
-  mapping: Json;
-  name: string;
-  org_id: string | null;
   updated_at: Generated<Timestamp>;
 }
 
@@ -1642,18 +1543,6 @@ export interface OrgMemberships {
   title: string | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
-}
-
-export interface OrgOnboardingItems {
-  completed_at: Timestamp | null;
-  completed_by_event: string | null;
-  created_at: Generated<Timestamp>;
-  dismissed_at: Timestamp | null;
-  dismissed_by: string | null;
-  id: string;
-  key: string;
-  org_id: string;
-  updated_at: Generated<Timestamp>;
 }
 
 export interface OrgSubscriptions {
@@ -2504,21 +2393,6 @@ export interface StripeEvents {
   updated_at: Generated<Timestamp>;
 }
 
-export interface SupportRequests {
-  body: string;
-  contact_email: string | null;
-  context: Generated<Json>;
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  id: string;
-  kind: string;
-  notified_at: Timestamp | null;
-  org_id: string;
-  status: Generated<string>;
-  subject: string;
-  updated_at: Generated<Timestamp>;
-}
-
 export interface Suppressions {
   address: string;
   channel: string;
@@ -2624,62 +2498,6 @@ export interface Transfers {
   updated_at: Generated<Timestamp>;
 }
 
-export interface VolunteerRequirements {
-  amount_per_athlete: Numeric | null;
-  amount_per_household: Numeric | null;
-  buyout_offering_id: string | null;
-  buyout_price_cents: number | null;
-  created_at: Generated<Timestamp>;
-  deadline: Timestamp | null;
-  id: string;
-  org_id: string;
-  program_id: string | null;
-  season_id: string | null;
-  unit: string;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface VolunteerRoles {
-  active: Generated<boolean>;
-  created_at: Generated<Timestamp>;
-  description: string | null;
-  id: string;
-  minimum_age: number | null;
-  name: string;
-  org_id: string;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface VolunteerShifts {
-  created_at: Generated<Timestamp>;
-  credit_hours: Generated<Numeric>;
-  ends_at: Timestamp;
-  event_id: string | null;
-  facility_id: string | null;
-  id: string;
-  imported: Generated<boolean>;
-  notes: string | null;
-  org_id: string;
-  slots: Generated<number>;
-  starts_at: Timestamp;
-  title: string | null;
-  updated_at: Generated<Timestamp>;
-  volunteer_role_id: string | null;
-}
-
-export interface VolunteerSignups {
-  created_at: Generated<Timestamp>;
-  credited_by: string | null;
-  hours_credited: Generated<Numeric>;
-  household_id: string | null;
-  id: string;
-  org_id: string;
-  person_id: string;
-  status: Generated<string>;
-  updated_at: Generated<Timestamp>;
-  volunteer_shift_id: string;
-}
-
 export interface WaitlistEntries {
   created_at: Generated<Timestamp>;
   household_id: string;
@@ -2742,10 +2560,6 @@ export interface WorkerHeartbeats {
 export interface DB {
   account_consents: AccountConsents;
   accounts: Accounts;
-  ai_conversation_messages: AiConversationMessages;
-  ai_conversations: AiConversations;
-  ai_drafts: AiDrafts;
-  ai_usage_events: AiUsageEvents;
   aid_applications: AidApplications;
   allocations: Allocations;
   athlete_cards: AthleteCards;
@@ -2809,8 +2623,6 @@ export interface DB {
   household_members: HouseholdMembers;
   households: Households;
   idempotency_keys: IdempotencyKeys;
-  import_batches: ImportBatches;
-  import_rows: ImportRows;
   incident_reports: IncidentReports;
   injury_reports: InjuryReports;
   injury_roster_holds: InjuryRosterHolds;
@@ -2822,7 +2634,6 @@ export interface DB {
   invoices: Invoices;
   lineups: Lineups;
   manual_installment_payment_attempts: ManualInstallmentPaymentAttempts;
-  mapping_presets: MappingPresets;
   medical_profiles: MedicalProfiles;
   message_campaigns: MessageCampaigns;
   message_deliveries: MessageDeliveries;
@@ -2839,7 +2650,6 @@ export interface DB {
   org_billing_invoices: OrgBillingInvoices;
   org_counters: OrgCounters;
   org_memberships: OrgMemberships;
-  org_onboarding_items: OrgOnboardingItems;
   org_subscriptions: OrgSubscriptions;
   organizations: Organizations;
   payer_profiles: PayerProfiles;
@@ -2901,7 +2711,6 @@ export interface DB {
   standings_snapshots: StandingsSnapshots;
   stat_lines: StatLines;
   stripe_events: StripeEvents;
-  support_requests: SupportRequests;
   suppressions: Suppressions;
   tax_rates: TaxRates;
   team_entries: TeamEntries;
@@ -2909,10 +2718,6 @@ export interface DB {
   team_staff: TeamStaff;
   teams: Teams;
   transfers: Transfers;
-  volunteer_requirements: VolunteerRequirements;
-  volunteer_roles: VolunteerRoles;
-  volunteer_shifts: VolunteerShifts;
-  volunteer_signups: VolunteerSignups;
   waitlist_entries: WaitlistEntries;
   waiver_documents: WaiverDocuments;
   waiver_signatures: WaiverSignatures;
