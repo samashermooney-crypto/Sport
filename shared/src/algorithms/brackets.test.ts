@@ -94,4 +94,49 @@ describe('bracket generation', () => {
       ['B1', 'A2'],
     ]);
   });
+
+  it('rejects invalid seeds, pools and result changes', () => {
+    expect(() => nextPowerOfTwo(1)).toThrow();
+    expect(() => seedPositions(3)).toThrow();
+    expect(seedPositions(2)).toEqual([1, 2]);
+    expect(seedPositions(32)).toHaveLength(32);
+    expect(() =>
+      generateSingleElimination([
+        { id: 'a', seed: 1 },
+        { id: 'a', seed: 2 },
+      ]),
+    ).toThrow();
+    expect(() =>
+      generateSingleElimination([
+        { id: 'a', seed: 1 },
+        { id: 'b', seed: 3 },
+      ]),
+    ).toThrow();
+    expect(() => crossSeedPools(entrants(4), 'cross_pool')).toThrow();
+    expect(
+      crossSeedPools(
+        [
+          { id: 'a', seed: 1, pointsPerGame: 1 },
+          { id: 'b', seed: 2, pointsPerGame: 2 },
+        ],
+        'overall',
+      )[0]?.id,
+    ).toBe('b');
+    const bracket = generateSingleElimination(entrants(4));
+    expect(() => finalizeBracketMatch(bracket, 'absent', 'team1')).toThrow();
+    expect(() => finalizeBracketMatch(bracket, 'W1-1', 'team2')).toThrow();
+    expect(() => generateDoubleElimination(entrants(2))).toThrow();
+  });
+
+  it('clears an unfinalized downstream slot when an upstream winner changes', () => {
+    const bracket = finalizeBracketMatch(
+      generateSingleElimination(entrants(4)),
+      'W1-1',
+      'team1',
+    );
+    const edited = finalizeBracketMatch(bracket, 'W1-1', 'team4');
+    expect(
+      edited.matches.find((match) => match.id === 'W2-1')?.home.entrantId,
+    ).toBe('team4');
+  });
 });

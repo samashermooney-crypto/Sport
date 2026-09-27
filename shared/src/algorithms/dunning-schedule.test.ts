@@ -67,4 +67,15 @@ describe('dunning schedule', () => {
       ).nextAttemptAt,
     ).toBe('2026-11-03T16:00:00Z');
   });
+
+  it('rejects invalid attempt numbers', () => {
+    expect(() =>
+      nextInstallmentAttempt(
+        '2026-09-01T15:00:00Z',
+        0,
+        'do_not_honor',
+        'America/Chicago',
+      ),
+    ).toThrow();
+  });
 });

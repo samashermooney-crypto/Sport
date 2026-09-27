@@ -103,4 +103,28 @@ describe('waitlist advance', () => {
       }),
     ).toBeNull();
   });
+
+  it('rejects invalid counters and too-short offers', () => {
+    const common = {
+      entries,
+      offeringId: 'o1',
+      mode: 'auto' as const,
+      now: '2026-09-02T15:00:00Z',
+    };
+    expect(() =>
+      nextWaitlistOffer({ ...common, capacity: 2, confirmed: -1, held: 0 }),
+    ).toThrow();
+    expect(() =>
+      nextWaitlistOffer({ ...common, capacity: 1, confirmed: 1, held: 1 }),
+    ).toThrow();
+    expect(() =>
+      nextWaitlistOffer({
+        ...common,
+        capacity: 2,
+        confirmed: 1,
+        held: 0,
+        offerExpiryHours: 3,
+      }),
+    ).toThrow();
+  });
 });

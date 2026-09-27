@@ -112,4 +112,60 @@ describe('installments', () => {
       ),
     );
   });
+
+  it('merges fixed-date installments to satisfy a minimum', () => {
+    const plan = generateInstallments(
+      500,
+      {
+        deposit: { kind: 'fixed', amountCents: 0 },
+        schedule: {
+          kind: 'fixed_dates',
+          dates: ['2026-10-01', '2026-11-01', '2026-12-01'],
+        },
+        minAmountCents: 200,
+      },
+      '2026-09-01',
+    );
+    expect(plan?.installments.map((item) => item.amountCents)).toEqual([500]);
+  });
+
+  it('rejects malformed schedules and protects already-paid installments', () => {
+    expect(() =>
+      generateInstallments(
+        1000,
+        {
+          deposit: { kind: 'fixed', amountCents: 0 },
+          schedule: { kind: 'monthly', count: 0, dayOfMonth: 10 },
+          minAmountCents: 1,
+        },
+        '2026-09-01',
+      ),
+    ).toThrow();
+    expect(() =>
+      generateInstallments(
+        1000,
+        {
+          deposit: { kind: 'fixed', amountCents: 0 },
+          schedule: {
+            kind: 'fixed_dates',
+            dates: ['2026-11-01', '2026-10-01'],
+          },
+          minAmountCents: 1,
+        },
+        '2026-09-01',
+      ),
+    ).toThrow();
+    expect(() =>
+      reSpreadUnpaidInstallments(
+        [{ dueOn: '2026-10-01', amountCents: 100, paidCents: 100 }],
+        1,
+      ),
+    ).toThrow();
+    expect(
+      reSpreadUnpaidInstallments(
+        [{ dueOn: '2026-10-01', amountCents: 100, paidCents: 100 }],
+        0,
+      ),
+    ).toHaveLength(1);
+  });
 });
