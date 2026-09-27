@@ -2,6 +2,7 @@
 Status: working
 Branch: `track/c-adapters`
 Current: merged the locally available `rebuild/trunk` at `af353fc`; Track C is resuming the trunk gates and wiring queue. Phase 15 remains owned by Track K.
+TRUNK GREEN 9381acd1d7eddb5d286e882ccd8e1b7f6200c32c — combined local trunk repair passed the full gate; not pushed.
 Ready for integration: no; trunk merge and current wiring changes need the required gates.
 Requests to other tracks: Track A — reconcile DEC-023 with verified-guardian restricted uploads and owner/compliance-only restricted downloads. Track E — registration module/route and checkout contracts are prerequisites for registration UI wiring.
 ## Done by OPS
