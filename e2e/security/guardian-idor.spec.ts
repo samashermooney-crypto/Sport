@@ -1,16 +1,18 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { expect, test } from '@playwright/test';
 import { newId } from '@shared/ids';
 
 import { createDatabase } from '../../server/src/db/kysely';
 import { createWithOrg } from '../../server/src/db/withOrg';
+import { parseEncryptionKeys } from '../../server/src/lib/crypto';
 import { issueSession } from '../../server/src/modules/auth/sessions';
+import { createMedicalRepository } from '../../server/src/modules/people/medical';
 import { createTestFactories } from '../../server/test/factories';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test('guardian A family view excludes guardian B child', async ({
+test('guardian A family view and medical ID lookup exclude guardian B child', async ({
   request,
 }) => {
   const database = createDatabase(
@@ -68,6 +70,25 @@ test('guardian A family view excludes guardian B child', async ({
         ])
         .execute();
     });
+    const medical = createMedicalRepository(
+      database,
+      parseEncryptionKeys(
+        JSON.stringify({ test: randomBytes(32).toString('base64') }),
+        'test',
+      ),
+    );
+    await medical.write(org.orgId, guardianB, childB, {
+      expectedVersion: 0,
+      allergies: 'Private child B allergy fixture',
+      allergyFlags: ['peanut'],
+      conditions: null,
+      medications: null,
+      physicianName: null,
+      physicianPhone: null,
+      insuranceCarrier: null,
+      insurancePolicy: null,
+      notes: null,
+    });
     const session = await database.transaction().execute((trx) =>
       issueSession(
         trx,
@@ -101,6 +122,9 @@ test('guardian A family view excludes guardian B child', async ({
       { headers },
     );
     expect(foreignMedicalProfile.status()).toBe(404);
+    expect(await foreignMedicalProfile.text()).not.toContain(
+      'Private child B allergy fixture',
+    );
   } finally {
     await database.destroy();
   }

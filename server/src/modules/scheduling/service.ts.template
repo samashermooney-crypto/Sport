@@ -1,0 +1,10 @@
+import type { CreateSchedulingInput } from '../../../../shared/src/schemas/scheduling.js';
+import type { SchedulingRepository } from './repo.js';
+
+export function createSchedulingService(repository: SchedulingRepository) {
+  return {
+    list: () => repository.list(),
+    get: (id: string) => repository.get(id),
+    create: (input: CreateSchedulingInput) => repository.create(input),
+  };
+}
