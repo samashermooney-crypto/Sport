@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { IntegrationConfig } from '../../lib/module-contract';
+
 export const smsConfigSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('fake') }),
   z.strictObject({ mode: z.literal('preview') }),
@@ -12,3 +14,7 @@ export const smsConfigSchema = z.discriminatedUnion('mode', [
   }),
 ]);
 export type SmsConfig = z.infer<typeof smsConfigSchema>;
+export const integrationConfig = {
+  name: 'sms',
+  schema: smsConfigSchema,
+} satisfies IntegrationConfig;

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { IntegrationConfig } from '../../lib/module-contract';
+
 export const backgroundCheckConfigSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('manual') }),
   z.strictObject({
@@ -11,3 +13,7 @@ export const backgroundCheckConfigSchema = z.discriminatedUnion('mode', [
   }),
 ]);
 export type BackgroundCheckConfig = z.infer<typeof backgroundCheckConfigSchema>;
+export const integrationConfig = {
+  name: 'background-check',
+  schema: backgroundCheckConfigSchema,
+} satisfies IntegrationConfig;

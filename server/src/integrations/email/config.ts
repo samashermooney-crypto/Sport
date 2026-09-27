@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { IntegrationConfig } from '../../lib/module-contract';
+
 export const emailConfigSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('fake') }),
   z.strictObject({
@@ -15,3 +17,7 @@ export const emailConfigSchema = z.discriminatedUnion('mode', [
   }),
 ]);
 export type EmailConfig = z.infer<typeof emailConfigSchema>;
+export const integrationConfig = {
+  name: 'email',
+  schema: emailConfigSchema,
+} satisfies IntegrationConfig;

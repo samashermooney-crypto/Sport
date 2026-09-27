@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { IntegrationConfig } from '../../lib/module-contract';
+
 export const pushConfigSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('fake') }),
   z.strictObject({ mode: z.literal('preview') }),
@@ -13,3 +15,7 @@ export const pushConfigSchema = z.discriminatedUnion('mode', [
   }),
 ]);
 export type PushConfig = z.infer<typeof pushConfigSchema>;
+export const integrationConfig = {
+  name: 'push',
+  schema: pushConfigSchema,
+} satisfies IntegrationConfig;

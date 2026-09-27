@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { IntegrationConfig } from '../../lib/module-contract';
+
 export const storageConfigSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('memory') }),
   z.strictObject({ mode: z.literal('local'), directory: z.string().min(1) }),
@@ -13,3 +15,7 @@ export const storageConfigSchema = z.discriminatedUnion('mode', [
   }),
 ]);
 export type StorageConfig = z.infer<typeof storageConfigSchema>;
+export const integrationConfig = {
+  name: 'storage',
+  schema: storageConfigSchema,
+} satisfies IntegrationConfig;
