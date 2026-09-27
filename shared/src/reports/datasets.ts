@@ -6,13 +6,7 @@
 export type DataTier = 'public' | 'internal' | 'sensitive' | 'restricted';
 
 export type ColumnType =
-  | 'text'
-  | 'number'
-  | 'money'
-  | 'date'
-  | 'datetime'
-  | 'boolean'
-  | 'enum';
+  'text' | 'number' | 'money' | 'date' | 'datetime' | 'boolean' | 'enum';
 
 export interface DatasetColumn {
   /** Stable key used in report definitions and CSV headers. */
@@ -101,10 +95,22 @@ export const REPORT_DATASETS: readonly Dataset[] = [
       col('address', 'Address', 'text', 'sensitive'),
       col('graduation_year', 'Graduation year', 'number', 'internal'),
       col('school_name', 'School', 'text', 'sensitive'),
-      col('media_consent', 'Media consent', 'enum', 'internal', 't.media_consent'),
+      col(
+        'media_consent',
+        'Media consent',
+        'enum',
+        'internal',
+        't.media_consent',
+      ),
       col('status', 'Status', 'enum', 'internal'),
       col('created_at', 'Created', 'datetime', 'internal'),
-      col('allergy_flags', 'Allergy flags', 'text', 'restricted', 'm.allergy_flags'),
+      col(
+        'allergy_flags',
+        'Allergy flags',
+        'text',
+        'restricted',
+        'm.allergy_flags',
+      ),
     ],
   },
   {
@@ -168,8 +174,20 @@ export const REPORT_DATASETS: readonly Dataset[] = [
       col('source', 'Source', 'enum', 'internal'),
       col('created_at', 'Registered at', 'datetime', 'internal'),
       col('canceled_at', 'Canceled at', 'datetime', 'internal'),
-      col('person_name', 'Participant', 'text', 'internal', "p.first_name || ' ' || p.last_name"),
-      col('person_birthdate', 'Participant birthdate', 'date', 'sensitive', 'p.date_of_birth'),
+      col(
+        'person_name',
+        'Participant',
+        'text',
+        'internal',
+        "p.first_name || ' ' || p.last_name",
+      ),
+      col(
+        'person_birthdate',
+        'Participant birthdate',
+        'date',
+        'sensitive',
+        'p.date_of_birth',
+      ),
       col('person_email', 'Participant email', 'text', 'sensitive', 'p.email'),
       col('program_name', 'Program', 'text', 'internal', 'pr.name'),
       col('division_name', 'Division', 'text', 'internal', 'd.name'),
@@ -210,8 +228,20 @@ export const REPORT_DATASETS: readonly Dataset[] = [
     roles: STAFF,
     columns: [
       col('id', 'Entry ID', 'text', 'internal'),
-      col('person_name', 'Athlete', 'text', 'internal', "p.first_name || ' ' || p.last_name"),
-      col('person_birthdate', 'Birthdate', 'date', 'sensitive', 'p.date_of_birth'),
+      col(
+        'person_name',
+        'Athlete',
+        'text',
+        'internal',
+        "p.first_name || ' ' || p.last_name",
+      ),
+      col(
+        'person_birthdate',
+        'Birthdate',
+        'date',
+        'sensitive',
+        'p.date_of_birth',
+      ),
       col('team_name', 'Team', 'text', 'internal', 'ts.display_name'),
       col('division_name', 'Division', 'text', 'internal', 'd.name'),
       col('jersey_number', 'Jersey', 'text', 'internal'),
@@ -285,7 +315,13 @@ export const REPORT_DATASETS: readonly Dataset[] = [
       col('gl_code', 'GL code', 'text', 'internal'),
       col('amount_cents', 'Amount', 'money', 'sensitive'),
       col('quantity', 'Quantity', 'number', 'internal'),
-      col('person_name', 'Person', 'text', 'internal', "p.first_name || ' ' || p.last_name"),
+      col(
+        'person_name',
+        'Person',
+        'text',
+        'internal',
+        "p.first_name || ' ' || p.last_name",
+      ),
       col('program_name', 'Program', 'text', 'internal', 'pr.name'),
       col('created_at', 'Created', 'datetime', 'internal'),
     ],
@@ -333,7 +369,13 @@ export const REPORT_DATASETS: readonly Dataset[] = [
       col('amount_cents', 'Amount', 'money', 'sensitive'),
       col('reason', 'Reason', 'text', 'internal'),
       col('destination', 'Destination', 'enum', 'internal'),
-      col('payment_reference', 'Payment reference', 'text', 'internal', 'p.reference'),
+      col(
+        'payment_reference',
+        'Payment reference',
+        'text',
+        'internal',
+        'p.reference',
+      ),
       col('succeeded_at', 'Succeeded at', 'datetime', 'internal'),
       col('created_at', 'Created', 'datetime', 'internal'),
     ],
@@ -386,9 +428,21 @@ export const REPORT_DATASETS: readonly Dataset[] = [
     roles: STAFF,
     columns: [
       col('id', 'Record ID', 'text', 'internal'),
-      col('person_name', 'Person', 'text', 'internal', "p.first_name || ' ' || p.last_name"),
+      col(
+        'person_name',
+        'Person',
+        'text',
+        'internal',
+        "p.first_name || ' ' || p.last_name",
+      ),
       col('event_title', 'Event', 'text', 'internal', 'e.title'),
-      col('event_starts_at', 'Event start', 'datetime', 'internal', 'e.starts_at'),
+      col(
+        'event_starts_at',
+        'Event start',
+        'datetime',
+        'internal',
+        'e.starts_at',
+      ),
       col('status', 'Status', 'enum', 'internal'),
       col('rsvp', 'RSVP', 'enum', 'internal'),
       col('checked_in_at', 'Checked in', 'datetime', 'internal'),
@@ -416,7 +470,13 @@ export const REPORT_DATASETS: readonly Dataset[] = [
     roles: SAFETY_ROLES,
     columns: [
       col('id', 'Credential ID', 'text', 'internal'),
-      col('person_name', 'Person', 'text', 'internal', "p.first_name || ' ' || p.last_name"),
+      col(
+        'person_name',
+        'Person',
+        'text',
+        'internal',
+        "p.first_name || ' ' || p.last_name",
+      ),
       col('credential_type', 'Type', 'text', 'internal', 'ct.name'),
       col('status', 'Status', 'enum', 'internal'),
       col('issued_on', 'Issued', 'date', 'internal'),
@@ -440,11 +500,15 @@ export const REPORT_DATASETS: readonly Dataset[] = [
     roles: SAFETY_ROLES,
     columns: [
       col('id', 'Order ID', 'text', 'internal'),
-      col('person_name', 'Person', 'text', 'internal', "p.first_name || ' ' || p.last_name"),
+      col(
+        'person_name',
+        'Person',
+        'text',
+        'internal',
+        "p.first_name || ' ' || p.last_name",
+      ),
       col('provider', 'Provider', 'enum', 'internal'),
       col('status', 'Status', 'enum', 'internal'),
-      col('result_summary', 'Result', 'enum', 'internal'),
-      col('adjudication', 'Adjudication', 'enum', 'internal'),
       col('completed_at', 'Completed', 'datetime', 'internal'),
       col('created_at', 'Ordered', 'datetime', 'internal'),
     ],
@@ -513,7 +577,13 @@ export const REPORT_DATASETS: readonly Dataset[] = [
     roles: MONEY_ROLES,
     columns: [
       col('id', 'Line ID', 'text', 'internal'),
-      col('person_name', 'Official', 'text', 'internal', "p.first_name || ' ' || p.last_name"),
+      col(
+        'person_name',
+        'Official',
+        'text',
+        'internal',
+        "p.first_name || ' ' || p.last_name",
+      ),
       col('fee_cents', 'Fee', 'money', 'sensitive'),
       col('mileage_cents', 'Mileage', 'money', 'sensitive'),
       col('total_cents', 'Total', 'money', 'sensitive'),
@@ -565,7 +635,13 @@ export const REPORT_DATASETS: readonly Dataset[] = [
     roles: STAFF,
     columns: [
       col('id', 'Entry ID', 'text', 'internal'),
-      col('person_name', 'Person', 'text', 'internal', "p.first_name || ' ' || p.last_name"),
+      col(
+        'person_name',
+        'Person',
+        'text',
+        'internal',
+        "p.first_name || ' ' || p.last_name",
+      ),
       col('offering_name', 'Offering', 'text', 'internal', 'o.name'),
       col('position', 'Position', 'number', 'internal'),
       col('status', 'Status', 'enum', 'internal'),
@@ -650,4 +726,33 @@ export function tierAllowed(
         (options.registrarMedicalAccess === true && roles.includes('registrar'))
       );
   }
+}
+
+/** Sensitive-tier exports require step-up auth; reporters are read-only. */
+export function canExportTier(
+  roles: readonly string[],
+  tier: DataTier,
+  stepUpAuthenticated: boolean,
+): boolean {
+  if (tier === 'public' || tier === 'internal') return true;
+  if (!stepUpAuthenticated) return false;
+  if (tier === 'sensitive')
+    return roles.some((role) =>
+      [
+        'owner',
+        'admin',
+        'registrar',
+        'finance',
+        'scheduler',
+        'compliance',
+        'communications',
+        'director',
+        'volunteer_coordinator',
+      ].includes(role),
+    );
+  return (
+    roles.includes('owner') ||
+    roles.includes('admin') ||
+    roles.includes('compliance')
+  );
 }

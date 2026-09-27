@@ -1,10 +1,10 @@
+import { datasetByKey, tierAllowed } from '@shared/reports/datasets';
+import type { Dataset, DatasetColumn } from '@shared/reports/datasets';
+import type { ReportDefinition, ReportFilter } from '@shared/schemas/reports';
 import { sql } from 'kysely';
 import type { RawBuilder } from 'kysely';
 
 import type { OrgTransaction } from '../../db/withOrg';
-import { datasetByKey, tierAllowed } from '@shared/reports/datasets';
-import type { Dataset, DatasetColumn } from '@shared/reports/datasets';
-import type { ReportDefinition, ReportFilter } from '@shared/schemas/reports';
 
 export class ReportError extends Error {
   constructor(
@@ -65,7 +65,123 @@ export function resolveColumns(
       );
     }
   }
-  return keys.map((key) => visible.find((column) => column.key === key)!);
+  return keys.map((key) => {
+    const column = visible.find((candidate) => candidate.key === key);
+    if (!column) {
+      throw new ReportError(400, 'VALIDATION_ERROR', `Unknown column "${key}"`);
+    }
+    return column;
+  });
+}
+
+function filterValueMatches(
+  type: DatasetColumn['type'],
+  value: unknown,
+): boolean {
+  switch (type) {
+    case 'number':
+    case 'money':
+      return typeof value === 'number' && Number.isFinite(value);
+    case 'boolean':
+      return typeof value === 'boolean';
+    case 'date':
+      return (
+        typeof value === 'string' &&
+        /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+        !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
+      );
+    case 'datetime':
+      return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+    case 'enum':
+    case 'text':
+      return typeof value === 'string';
+  }
+}
+
+function validateFilter(filter: ReportFilter, column: DatasetColumn): void {
+  if (filter.op === 'is_null' || filter.op === 'not_null') {
+    if (filter.value !== undefined)
+      throw new ReportError(
+        400,
+        'VALIDATION_ERROR',
+        'Null checks take no value',
+      );
+    return;
+  }
+  if (filter.value === undefined)
+    throw new ReportError(400, 'VALIDATION_ERROR', 'Filter value is required');
+  if (
+    (filter.op === 'contains' || filter.op === 'starts_with') &&
+    column.type !== 'text' &&
+    column.type !== 'enum'
+  )
+    throw new ReportError(
+      400,
+      'VALIDATION_ERROR',
+      'Text filter requires a text column',
+    );
+
+  const values = Array.isArray(filter.value) ? filter.value : [filter.value];
+  if (
+    (filter.op === 'in' && values.length === 0) ||
+    (filter.op === 'between' && values.length !== 2) ||
+    (filter.op !== 'in' && filter.op !== 'between' && values.length !== 1) ||
+    !values.every((value) => filterValueMatches(column.type, value))
+  )
+    throw new ReportError(
+      400,
+      'VALIDATION_ERROR',
+      'Filter value does not match its column type',
+    );
+}
+
+export function validateReportDefinition(
+  dataset: Dataset,
+  visible: DatasetColumn[],
+  definition: ReportDefinition,
+): void {
+  resolveColumns(dataset, visible, definition);
+  const filters = definition.filters.map((filter) =>
+    tierCheck(visible, dataset, filter.column, 'filter'),
+  );
+  definition.filters.forEach((filter, index) => {
+    const column = filters[index];
+    if (!column)
+      throw new ReportError(400, 'VALIDATION_ERROR', 'Unknown filter column');
+    validateFilter(filter, column);
+  });
+  definition.groupBy.forEach((key) =>
+    tierCheck(visible, dataset, key, 'group'),
+  );
+  definition.aggregates.forEach((aggregate) => {
+    if (aggregate.column === 'id' && aggregate.fn === 'count') return;
+    const column = tierCheck(visible, dataset, aggregate.column, 'aggregate');
+    if (
+      ['sum', 'avg'].includes(aggregate.fn) &&
+      column.type !== 'number' &&
+      column.type !== 'money'
+    )
+      throw new ReportError(
+        400,
+        'VALIDATION_ERROR',
+        'Sum and average require a numeric column',
+      );
+  });
+}
+
+export function reportUsesRestrictedColumns(
+  dataset: Dataset,
+  definition: ReportDefinition,
+): string[] {
+  const keys = new Set([
+    ...definition.columns,
+    ...definition.filters.map((filter) => filter.column),
+    ...definition.groupBy,
+    ...definition.aggregates.map((aggregate) => aggregate.column),
+  ]);
+  return dataset.columns
+    .filter((column) => keys.has(column.key) && column.tier === 'restricted')
+    .map((column) => column.key);
 }
 
 function columnExpression(column: DatasetColumn): RawBuilder<unknown> {
@@ -157,6 +273,12 @@ export async function runDatasetQuery(
   const filterColumns = definition.filters.map((filter) =>
     tierCheck(visible, dataset, filter.column, 'filter'),
   );
+  definition.filters.forEach((filter, index) => {
+    const column = filterColumns[index];
+    if (!column)
+      throw new ReportError(400, 'VALIDATION_ERROR', 'Unknown filter column');
+    validateFilter(filter, column);
+  });
   const grouped =
     definition.groupBy.length > 0 || definition.aggregates.length > 0;
   const groupColumns = definition.groupBy.map((key) =>
@@ -211,15 +333,18 @@ export async function runDatasetQuery(
     }
   }
 
-  const joins = dataset.joins.map((join) =>
-    sql`${sql.raw(join.kind === 'left' ? 'LEFT JOIN' : 'JOIN')} ${sql.table(join.table)} ${sql.raw('AS')} ${sql.id(join.alias)} ON ${sql.raw(join.on)}`,
+  const joins = dataset.joins.map(
+    (join) =>
+      sql`${sql.raw(join.kind === 'left' ? 'LEFT JOIN' : 'JOIN')} ${sql.table(join.table)} ${sql.raw('AS')} ${sql.id(join.alias)} ON (${sql.raw(join.on)}) AND ${sql.id(join.alias, 'org_id')} = t.org_id`,
   );
-  const whereParts = [
-    sql`t.org_id = ${orgId}`,
-    ...definition.filters.map((filter, index) =>
-      filterExpression(filter, filterColumns[index]!),
-    ),
-  ];
+  const whereParts = [sql`t.org_id = ${orgId}`];
+  for (const [index, filter] of definition.filters.entries()) {
+    const column = filterColumns[index];
+    if (!column) {
+      throw new ReportError(400, 'VALIDATION_ERROR', 'Unknown filter column');
+    }
+    whereParts.push(filterExpression(filter, column));
+  }
   const sortParts = definition.sort.map((sort) => {
     const output = outputColumns.find((c) => c.key === sort.column);
     if (!output)

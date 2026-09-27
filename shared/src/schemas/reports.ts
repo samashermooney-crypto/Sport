@@ -1,8 +1,6 @@
 import { z } from 'zod';
 
-const columnKey = z
-  .string()
-  .regex(/^[a-z0-9_]{1,60}$/, 'Invalid column key');
+const columnKey = z.string().regex(/^[a-z0-9_]{1,60}$/, 'Invalid column key');
 
 export const reportFilterSchema = z.strictObject({
   column: columnKey,
@@ -23,9 +21,12 @@ export const reportFilterSchema = z.strictObject({
   value: z
     .union([
       z.string().max(500),
-      z.number().finite(),
+      z.number(),
       z.boolean(),
-      z.array(z.union([z.string().max(500), z.number().finite()])).min(1).max(200),
+      z
+        .array(z.union([z.string().max(500), z.number()]))
+        .min(1)
+        .max(200),
     ])
     .optional(),
 });
@@ -56,29 +57,35 @@ export type ReportDefinition = z.infer<typeof reportDefinitionSchema>;
 export const savedReportBodySchema = z.strictObject({
   name: z.string().trim().min(1).max(200),
   definition: reportDefinitionSchema,
-  sharedRoles: z.array(z.string().regex(/^[a-z_]{1,40}$/)).max(20).default([]),
+  sharedRoles: z
+    .array(z.string().regex(/^[a-z_]{1,40}$/))
+    .max(20)
+    .default([]),
 });
 
 export const savedReportUpdateSchema = z.strictObject({
   name: z.string().trim().min(1).max(200).optional(),
   definition: reportDefinitionSchema.optional(),
-  sharedRoles: z.array(z.string().regex(/^[a-z_]{1,40}$/)).max(20).optional(),
+  sharedRoles: z
+    .array(z.string().regex(/^[a-z_]{1,40}$/))
+    .max(20)
+    .optional(),
   expectedVersion: z.number().int().positive(),
 });
 
 export const reportScheduleBodySchema = z.strictObject({
   savedReportId: z.uuid(),
   cadence: z.enum(['daily', 'weekly', 'monthly']),
-  recipients: z.array(z.email()).min(1).max(20),
+  recipientAccountIds: z.array(z.uuid()).min(1).max(20),
   delivery: z.enum(['link', 'csv_attachment']),
   format: z.enum(['csv', 'xlsx']).default('csv'),
-  /** Minutes after UTC midnight when the schedule fires. */
+  /** Minutes after midnight in the organization's timezone. */
   runAtMinute: z.number().int().min(0).max(1439).default(360),
 });
 
 export const reportScheduleUpdateSchema = z.strictObject({
   cadence: z.enum(['daily', 'weekly', 'monthly']).optional(),
-  recipients: z.array(z.email()).min(1).max(20).optional(),
+  recipientAccountIds: z.array(z.uuid()).min(1).max(20).optional(),
   delivery: z.enum(['link', 'csv_attachment']).optional(),
   format: z.enum(['csv', 'xlsx']).optional(),
   runAtMinute: z.number().int().min(0).max(1439).optional(),
@@ -92,4 +99,58 @@ export const reportExportQuerySchema = z.strictObject({
 
 export const reportPreviewBodySchema = z.strictObject({
   definition: reportDefinitionSchema,
+});
+
+export const reportDatasetColumnSchema = z.strictObject({
+  key: columnKey,
+  label: z.string(),
+  type: z.enum([
+    'text',
+    'number',
+    'money',
+    'date',
+    'datetime',
+    'boolean',
+    'enum',
+  ]),
+  tier: z.enum(['public', 'internal', 'sensitive', 'restricted']),
+});
+
+export const reportDatasetSchema = z.strictObject({
+  key: z.string(),
+  label: z.string(),
+  description: z.string(),
+  available: z.boolean(),
+  columns: z.array(reportDatasetColumnSchema),
+});
+
+export const reportDatasetListSchema = z.strictObject({
+  items: z.array(reportDatasetSchema),
+});
+
+export const reportPreviewResponseSchema = z.strictObject({
+  columns: z.array(
+    z.strictObject({ key: columnKey, label: z.string(), type: z.string() }),
+  ),
+  rows: z.array(z.array(z.unknown())),
+  truncated: z.boolean(),
+});
+
+export const savedReportResponseSchema = z.strictObject({
+  id: z.uuid(),
+  name: z.string(),
+  definition: reportDefinitionSchema,
+  sharedRoles: z.array(z.string()),
+  isPreset: z.boolean(),
+  version: z.number().int().positive(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const savedReportListSchema = z.strictObject({
+  items: z.array(savedReportResponseSchema),
+});
+
+export const savedReportCreateResponseSchema = z.strictObject({
+  report: savedReportResponseSchema,
 });

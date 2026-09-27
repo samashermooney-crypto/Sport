@@ -19,7 +19,9 @@ const CRC_TABLE = (() => {
 export function crc32(data: Uint8Array): number {
   let crc = 0xffffffff;
   for (let i = 0; i < data.length; i += 1) {
-    crc = CRC_TABLE[(crc ^ data[i]!) & 0xff]! ^ (crc >>> 8);
+    const byte = data[i] ?? 0;
+    const tableValue = CRC_TABLE[(crc ^ byte) & 0xff] ?? 0;
+    crc = tableValue ^ (crc >>> 8);
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
@@ -34,8 +36,14 @@ export interface ZipEntry {
 function dosDateTime(date: Date): { date: number; time: number } {
   const year = Math.max(1980, date.getUTCFullYear());
   return {
-    date: ((year - 1980) << 9) | ((date.getUTCMonth() + 1) << 5) | date.getUTCDate(),
-    time: (date.getUTCHours() << 11) | (date.getUTCMinutes() << 5) | (date.getUTCSeconds() >> 1),
+    date:
+      ((year - 1980) << 9) |
+      ((date.getUTCMonth() + 1) << 5) |
+      date.getUTCDate(),
+    time:
+      (date.getUTCHours() << 11) |
+      (date.getUTCMinutes() << 5) |
+      (date.getUTCSeconds() >> 1),
   };
 }
 
@@ -51,7 +59,9 @@ export function createZip(entries: readonly ZipEntry[]): Uint8Array {
       throw new RangeError('Unsafe ZIP entry name');
     const compressed = deflateRawSync(entry.data, { level: 6 });
     const crc = crc32(entry.data);
-    const stamp = dosDateTime(entry.modifiedAt ?? new Date('2024-01-01T00:00:00Z'));
+    const stamp = dosDateTime(
+      entry.modifiedAt ?? new Date('2024-01-01T00:00:00Z'),
+    );
 
     const local = new DataView(new ArrayBuffer(30));
     local.setUint32(0, 0x04034b50, true);
