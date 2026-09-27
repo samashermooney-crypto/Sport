@@ -58,6 +58,12 @@ export function FamilyHome(): React.JSX.Element {
                     : 'Your profile'}{' '}
                   ·{' '}
                   <RouterLink
+                    to={`/me/family/${org.orgId}/${person.personId}/profile`}
+                  >
+                    Profile
+                  </RouterLink>{' '}
+                  ·{' '}
+                  <RouterLink
                     to={`/me/family/${org.orgId}/${person.personId}/medical`}
                   >
                     Medical profile

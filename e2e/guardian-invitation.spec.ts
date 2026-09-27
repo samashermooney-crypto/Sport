@@ -216,6 +216,21 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
     await expect(guardianPage.getByText('Ava Rivera')).toBeVisible();
     await expect(guardianPage.getByText('Zoe Morgan')).toBeVisible();
     expect(await accessibilityViolations(guardianPage)).toEqual([]);
+    await guardianPage.goto(`/me/family/${staff.orgId}/${childId}/profile`);
+    await expect(
+      guardianPage.getByRole('heading', { name: 'Mia Rivera' }),
+    ).toBeVisible();
+    await guardianPage
+      .getByRole('textbox', { name: 'Preferred name' })
+      .fill('Mimi');
+    await guardianPage.getByRole('button', { name: 'Save profile' }).click();
+    await expect(
+      guardianPage.getByRole('status').filter({ hasText: 'Profile saved.' }),
+    ).toBeVisible();
+    await expect(
+      guardianPage.getByRole('textbox', { name: 'Preferred name' }),
+    ).toHaveValue('Mimi');
+    expect(await accessibilityViolations(guardianPage)).toEqual([]);
     await guardianPage.goto(`/me/family/${staff.orgId}/${childId}/medical`);
     await expect(
       guardianPage.getByRole('heading', { name: 'Medical profile' }),
@@ -282,6 +297,15 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
     expect(householdMembers.some((member) => member.role === 'guardian')).toBe(
       true,
     );
+    const profile = await createWithOrg(database)(staff, (trx) =>
+      trx
+        .selectFrom('people')
+        .select('preferred_name')
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', childId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(profile.preferred_name).toBe('Mimi');
   } finally {
     await guardianContext.close();
     await database.destroy();
@@ -610,6 +634,17 @@ test('guardian invites a teen athlete who accepts a read-only view and is revoke
     ).toBeVisible();
     await expect(
       athletePage.getByRole('button', { name: 'Save medical profile' }),
+    ).toHaveCount(0);
+    expect(await accessibilityViolations(athletePage)).toEqual([]);
+    await athletePage.goto(`/me/family/${staff.orgId}/${childId}/profile`);
+    await expect(
+      athletePage.getByRole('heading', { name: 'Sam Rivera' }),
+    ).toBeVisible();
+    await expect(
+      athletePage.getByText('read-only for this account'),
+    ).toBeVisible();
+    await expect(
+      athletePage.getByRole('button', { name: 'Save profile' }),
     ).toHaveCount(0);
     expect(await accessibilityViolations(athletePage)).toEqual([]);
 

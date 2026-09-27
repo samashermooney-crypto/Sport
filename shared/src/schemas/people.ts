@@ -47,6 +47,10 @@ export const personResponseSchema = z.strictObject({
   version: z.int().positive(),
 });
 
+export const familyProfileResponseSchema = personResponseSchema.extend({
+  canEdit: z.boolean(),
+});
+
 export const peopleListSchema = z.strictObject({
   items: z.array(personResponseSchema),
   nextCursor: z.uuid().nullable(),

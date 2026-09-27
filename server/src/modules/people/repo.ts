@@ -1,7 +1,11 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { ageOnDate, orgToday } from '@shared/dates';
 import { newId } from '@shared/ids';
-import { peopleListSchema, personResponseSchema } from '@shared/schemas/people';
+import {
+  familyProfileResponseSchema,
+  peopleListSchema,
+  personResponseSchema,
+} from '@shared/schemas/people';
 import {
   gradeFromGraduationYear,
   gradeLabel,
@@ -188,6 +192,122 @@ async function audit(
       changes: { version },
     })
     .execute();
+}
+
+async function relatedProfileAccess(
+  trx: OrgTransaction,
+  orgId: string,
+  actorId: string,
+  personId: string,
+  lock = false,
+) {
+  const personQuery = trx
+    .selectFrom('people')
+    .select(selection)
+    .where('org_id', '=', orgId)
+    .where('id', '=', personId)
+    .where('status', '=', 'active');
+  const person = lock
+    ? await personQuery.forUpdate().executeTakeFirst()
+    : await personQuery.executeTakeFirst();
+  if (!person) throw new PeopleError(404, 'NOT_FOUND', 'Person not found');
+
+  const linkQuery = trx
+    .selectFrom('person_account_links')
+    .select('relationship')
+    .where('org_id', '=', orgId)
+    .where('person_id', '=', personId)
+    .where('account_id', '=', actorId)
+    .where('verified_at', 'is not', null)
+    .where('revoked_at', 'is', null);
+  const link = lock
+    ? await linkQuery.forUpdate().executeTakeFirst()
+    : await linkQuery.executeTakeFirst();
+  if (!link) throw new PeopleError(404, 'NOT_FOUND', 'Person not found');
+
+  const context = await presentation(trx, orgId);
+  const age = ageOnDate(
+    person.date_of_birth.toISOString().slice(0, 10),
+    context.today,
+  );
+  return {
+    person,
+    context,
+    relationship: link.relationship,
+    canEdit:
+      link.relationship === 'guardian' ||
+      (link.relationship === 'self' && age >= 18),
+  };
+}
+
+async function updatePersonRecord(
+  trx: OrgTransaction,
+  orgId: string,
+  actorId: string,
+  personId: string,
+  input: Update,
+): Promise<Person> {
+  const context = await presentation(trx, orgId);
+  if (input.dateOfBirth !== undefined)
+    validateBirthDate(input.dateOfBirth, context);
+  const priorPhoto =
+    input.mediaConsent && input.mediaConsent !== 'granted'
+      ? await trx
+          .selectFrom('people')
+          .select('photo_file_id')
+          .where('org_id', '=', orgId)
+          .where('id', '=', personId)
+          .where('version', '=', input.expectedVersion)
+          .forUpdate()
+          .executeTakeFirst()
+      : null;
+  const fields = {
+    ...(input.firstName !== undefined ? { first_name: input.firstName } : {}),
+    ...(input.lastName !== undefined ? { last_name: input.lastName } : {}),
+    ...(input.preferredName !== undefined
+      ? { preferred_name: input.preferredName }
+      : {}),
+    ...(input.dateOfBirth !== undefined
+      ? { date_of_birth: input.dateOfBirth }
+      : {}),
+    ...(input.graduationYear !== undefined
+      ? { graduation_year: input.graduationYear }
+      : {}),
+    ...(input.gender !== undefined ? { gender: input.gender } : {}),
+    ...(input.email !== undefined ? { email: input.email } : {}),
+    ...(input.phoneE164 !== undefined ? { phone_e164: input.phoneE164 } : {}),
+    ...(input.mediaConsent !== undefined
+      ? {
+          media_consent: input.mediaConsent,
+          ...(input.mediaConsent !== 'granted' ? { photo_file_id: null } : {}),
+        }
+      : {}),
+  };
+  const row = await trx
+    .updateTable('people')
+    .set({ ...fields, version: sql`version + 1` })
+    .where('org_id', '=', orgId)
+    .where('id', '=', personId)
+    .where('version', '=', input.expectedVersion)
+    .where('status', '=', 'active')
+    .returning(selection)
+    .executeTakeFirst();
+  if (!row)
+    throw new PeopleError(
+      409,
+      'CONFLICT',
+      'Person changed; reload before saving',
+    );
+  if (priorPhoto?.photo_file_id)
+    await trx
+      .updateTable('files')
+      .set({ deleted_at: new Date() })
+      .where('org_id', '=', orgId)
+      .where('id', '=', priorPhoto.photo_file_id)
+      .where('deleted_at', 'is', null)
+      .execute();
+  await audit(trx, orgId, actorId, personId, 'person.updated', row.version);
+  return mapPerson(row, context);
 }
 
 export function createPeopleRepository(database: Kysely<DB>) {
@@ -400,6 +520,20 @@ export function createPeopleRepository(database: Kysely<DB>) {
         return mapPerson(row, context);
       });
     },
+    async getRelated(orgId: string, actorId: string, personId: string) {
+      return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
+        const access = await relatedProfileAccess(
+          trx,
+          orgId,
+          actorId,
+          personId,
+        );
+        return familyProfileResponseSchema.parse({
+          ...mapPerson(access.person, access.context),
+          canEdit: access.canEdit,
+        });
+      });
+    },
     async create(orgId: string, actorId: string, input: Create) {
       return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
         await requireStaff(trx, orgId, actorId, false);
@@ -435,82 +569,39 @@ export function createPeopleRepository(database: Kysely<DB>) {
     ) {
       return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
         await requireStaff(trx, orgId, actorId, false);
-        const context = await presentation(trx, orgId);
-        if (input.dateOfBirth !== undefined)
-          validateBirthDate(input.dateOfBirth, context);
-        const priorPhoto =
-          input.mediaConsent && input.mediaConsent !== 'granted'
-            ? await trx
-                .selectFrom('people')
-                .select('photo_file_id')
-                .where('org_id', '=', orgId)
-                .where('id', '=', personId)
-                .where('version', '=', input.expectedVersion)
-                .forUpdate()
-                .executeTakeFirst()
-            : null;
-        const fields = {
-          ...(input.firstName !== undefined
-            ? { first_name: input.firstName }
-            : {}),
-          ...(input.lastName !== undefined
-            ? { last_name: input.lastName }
-            : {}),
-          ...(input.preferredName !== undefined
-            ? { preferred_name: input.preferredName }
-            : {}),
-          ...(input.dateOfBirth !== undefined
-            ? { date_of_birth: input.dateOfBirth }
-            : {}),
-          ...(input.graduationYear !== undefined
-            ? { graduation_year: input.graduationYear }
-            : {}),
-          ...(input.gender !== undefined ? { gender: input.gender } : {}),
-          ...(input.email !== undefined ? { email: input.email } : {}),
-          ...(input.phoneE164 !== undefined
-            ? { phone_e164: input.phoneE164 }
-            : {}),
-          ...(input.mediaConsent !== undefined
-            ? {
-                media_consent: input.mediaConsent,
-                ...(input.mediaConsent !== 'granted'
-                  ? { photo_file_id: null }
-                  : {}),
-              }
-            : {}),
-        };
-        const row = await trx
-          .updateTable('people')
-          .set({ ...fields, version: sql`version + 1` })
-          .where('org_id', '=', orgId)
-          .where('id', '=', personId)
-          .where('version', '=', input.expectedVersion)
-          .where('status', '=', 'active')
-          .returning(selection)
-          .executeTakeFirst();
-        if (!row)
-          throw new PeopleError(
-            409,
-            'CONFLICT',
-            'Person changed; reload before saving',
-          );
-        if (priorPhoto?.photo_file_id)
-          await trx
-            .updateTable('files')
-            .set({ deleted_at: new Date() })
-            .where('org_id', '=', orgId)
-            .where('id', '=', priorPhoto.photo_file_id)
-            .where('deleted_at', 'is', null)
-            .execute();
-        await audit(
+        return updatePersonRecord(trx, orgId, actorId, personId, input);
+      });
+    },
+    async updateRelated(
+      orgId: string,
+      actorId: string,
+      personId: string,
+      input: Update,
+    ) {
+      return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
+        const access = await relatedProfileAccess(
           trx,
           orgId,
           actorId,
           personId,
-          'person.updated',
-          row.version,
+          true,
         );
-        return mapPerson(row, context);
+        if (!access.canEdit)
+          throw new PeopleError(404, 'NOT_FOUND', 'Person not found');
+        const person = await updatePersonRecord(
+          trx,
+          orgId,
+          actorId,
+          personId,
+          input,
+        );
+        const age = ageOnDate(person.dateOfBirth, access.context.today);
+        return familyProfileResponseSchema.parse({
+          ...person,
+          canEdit:
+            access.relationship === 'guardian' ||
+            (access.relationship === 'self' && age >= 18),
+        });
       });
     },
     async setPhoto(

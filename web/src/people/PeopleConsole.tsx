@@ -53,7 +53,7 @@ const blank: FormValues = {
   mediaConsent: 'unknown',
 };
 
-function PersonForm({
+export function PersonForm({
   initial,
   submitLabel,
   onSubmit,

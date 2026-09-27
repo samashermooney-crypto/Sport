@@ -30,6 +30,11 @@ const FamilyHome = lazy(() =>
     default: Component,
   })),
 );
+const FamilyProfile = lazy(() =>
+  import('./FamilyProfile').then(({ FamilyProfile: Component }) => ({
+    default: Component,
+  })),
+);
 const FamilyMedical = lazy(() =>
   import('./FamilyMedical').then(({ FamilyMedical: Component }) => ({
     default: Component,
@@ -70,6 +75,14 @@ export const peopleRoutes: readonly RouteObject[] = [
     element: (
       <Suspense fallback={<main role="status">Loading family…</main>}>
         <FamilyHome />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/me/family/:orgId/:personId/profile',
+    element: (
+      <Suspense fallback={<main role="status">Loading profile…</main>}>
+        <FamilyProfile />
       </Suspense>
     ),
   },

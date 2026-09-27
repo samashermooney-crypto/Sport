@@ -24,6 +24,7 @@ import {
   athleteInvitationSchema,
   athleteLinkResponseSchema,
   duplicatesResponseSchema,
+  familyProfileResponseSchema,
   familyResponseSchema,
   guardianInvitationAcceptedResponseSchema,
   guardianInvitationAcceptSchema,
@@ -130,6 +131,19 @@ export const moduleDefinition = {
       summary:
         'List verified family links across organizations for this account',
       response: familyResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/family-profile',
+      summary: 'Read a profile linked to the signed-in guardian or adult',
+      response: familyProfileResponseSchema,
+    },
+    {
+      method: 'patch',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/family-profile',
+      summary: 'Update a guardian-linked profile or adult self profile',
+      body: personUpdateSchema,
+      response: familyProfileResponseSchema,
     },
     {
       method: 'get',
