@@ -26,3 +26,6 @@ Branch: `track/sec`
 - `npm run typecheck`, `npm run lint`, and `git diff --check` pass.
 - Isolated `athlentry_sec` Vitest security/regression selection: 16 files, 44 tests passed, including the CLI dry-run and apply paths.
 - SEC Chromium checks: guardian family-isolation passes; header/route-metadata/matrix/tenancy checks remain `test.fixme` until Track C wiring lands (4 skipped).
+- Full branch gate: 203 Vitest files passed, 1 existing skip; Chromium 24 passed with the 4 Track C fixmes; `npm run build` passes.
+
+Track SEC sprint complete

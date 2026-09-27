@@ -1,7 +1,9 @@
+import { newId } from '@shared/ids';
 import { sql } from 'kysely';
 import type { Kysely, Transaction } from 'kysely';
 
 import type { DB } from '../../db/types';
+import type { Json } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 import { decryptRestricted, encryptRestricted } from '../crypto';
@@ -148,6 +150,41 @@ async function rotateColumn(
         where id = ${row.id}
           ${rowScopeFilter}
       `.execute(trx);
+      if (column.scope === 'global') {
+        await trx
+          .insertInto('security_events')
+          .values({
+            id: newId(),
+            account_id: null,
+            action: 'encryption.key_rotated',
+            details: {
+              entityId: row.id,
+              entityType: column.table,
+              keyIdBefore: embeddedKeyId(row.ciphertext),
+              keyIdAfter: encryption.activeKid,
+            },
+          })
+          .execute();
+      } else {
+        await trx
+          .insertInto('audit_log')
+          .values({
+            id: newId(),
+            org_id: orgId,
+            actor_account_id: null,
+            action: 'encryption.key_rotated',
+            entity_type: column.table,
+            entity_id: row.id,
+            changes: {
+              encryptionKeyId: {
+                tier: 'internal',
+                before: embeddedKeyId(row.ciphertext) ?? 'unknown',
+                after: encryption.activeKid,
+              },
+            } as Json,
+          })
+          .execute();
+      }
       summary.rowsRotated += 1;
     }
     return rows.length > 0 ? (rows.at(-1)?.id ?? null) : null;

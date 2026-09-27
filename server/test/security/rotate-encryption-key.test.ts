@@ -44,12 +44,27 @@ describe('encryption-key rotation', () => {
     const plaintext = Buffer.from('restricted medical fixture');
     const encrypted = encryptRestricted(plaintext, original);
     const medicalProfileId = '00000000-0000-4000-8000-000000000017';
+    const mfaFactorId = '00000000-0000-4000-8000-000000000018';
     await factories.row(actor, 'medical_profiles', {
       id: medicalProfileId,
       org_id: actor.orgId,
       person_id: personId,
       allergies_enc: encrypted,
     });
+    const encryptedMfaSecret = encryptRestricted(
+      Buffer.from('totp-secret-fixture'),
+      original,
+    );
+    await database
+      .insertInto('mfa_factors')
+      .values({
+        id: mfaFactorId,
+        account_id: actor.accountId,
+        type: 'totp',
+        secret_enc: encryptedMfaSecret,
+        confirmed_at: new Date(),
+      })
+      .execute();
 
     const scriptPath = fileURLToPath(
       new URL('../../../scripts/rotate-encryption-key.ts', import.meta.url),
@@ -70,7 +85,7 @@ describe('encryption-key rotation', () => {
     const dryRun = runScript([]);
     expect(dryRun.status, dryRun.stderr).toBe(0);
     expect(dryRun.stdout).toMatch(
-      /Dry run: examined \d+ encrypted values; 1 need rotation; rotated 0\./,
+      /Dry run: examined \d+ encrypted values; 2 need rotation; rotated 0\./,
     );
     const unchanged = await createWithOrg(database)(actor, (trx) =>
       trx
@@ -80,11 +95,17 @@ describe('encryption-key rotation', () => {
         .executeTakeFirstOrThrow(),
     );
     expect(unchanged.allergies_enc).toEqual(encrypted);
+    const unchangedMfa = await database
+      .selectFrom('mfa_factors')
+      .select('secret_enc')
+      .where('id', '=', mfaFactorId)
+      .executeTakeFirstOrThrow();
+    expect(unchangedMfa.secret_enc).toEqual(encryptedMfaSecret);
 
     const applied = runScript(['--apply']);
     expect(applied.status, applied.stderr).toBe(0);
     expect(applied.stdout).toMatch(
-      /Applied: examined \d+ encrypted values; 1 need rotation; rotated 1\./,
+      /Applied: examined \d+ encrypted values; 2 need rotation; rotated 2\./,
     );
     const rotated = await createWithOrg(database)(actor, (trx) =>
       trx
@@ -100,5 +121,34 @@ describe('encryption-key rotation', () => {
     expect(decryptRestricted(rotated.allergies_enc, keyring)).toEqual(
       plaintext,
     );
+    const rotatedMfa = await database
+      .selectFrom('mfa_factors')
+      .select('secret_enc')
+      .where('id', '=', mfaFactorId)
+      .executeTakeFirstOrThrow();
+    expect(decryptRestricted(rotatedMfa.secret_enc, keyring)).toEqual(
+      Buffer.from('totp-secret-fixture'),
+    );
+    const tenantAudit = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('audit_log')
+        .select(['action', 'changes'])
+        .where('entity_id', '=', medicalProfileId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(tenantAudit.action).toBe('encryption.key_rotated');
+    expect(tenantAudit.changes).toMatchObject({
+      encryptionKeyId: { tier: 'internal', before: 'previous', after: 'next' },
+    });
+    const globalAudit = await database
+      .selectFrom('security_events')
+      .select(['action', 'details'])
+      .where('action', '=', 'encryption.key_rotated')
+      .executeTakeFirstOrThrow();
+    expect(globalAudit.details).toMatchObject({
+      entityId: mfaFactorId,
+      keyIdBefore: 'previous',
+      keyIdAfter: 'next',
+    });
   });
 });
