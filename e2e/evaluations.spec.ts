@@ -626,6 +626,9 @@ test('family accepts a team offer and continues to registration checkout', async
   );
 
   await page.goto(`/portal/orgs/${orgId}/offers`);
+  await expect(page.getByRole('status')).toContainText(
+    'Online checkout is unavailable for this offer.',
+  );
   await expect(
     page.getByRole('heading', { name: 'Team offers' }),
   ).toBeVisible();
