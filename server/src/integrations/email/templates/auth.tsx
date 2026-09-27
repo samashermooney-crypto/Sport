@@ -11,6 +11,8 @@ type AuthEmailKind =
   | 'password-reset'
   | 'invitation'
   | 'guardian-invitation'
+  | 'athlete-invitation'
+  | 'person-claim'
   | 'ownership-transfer'
   | 'email-change-verification'
   | 'password-reset-confirmed'
@@ -41,6 +43,14 @@ const copy = {
     'guardian-invitation': [
       'Accept guardian access in Athlentry',
       'An organization invited you to manage a family member in Athlentry. Sign in with this email address and accept within 7 days.',
+    ],
+    'athlete-invitation': [
+      'Join your athlete profile in Athlentry',
+      'Your guardian invited you to connect your athlete account. Create or verify an account with this email address, then accept within 7 days.',
+    ],
+    'person-claim': [
+      'Claim your Athlentry profile',
+      'An organization invited you to link your adult profile to this account. Sign in with this email address and accept within 7 days.',
     ],
     'ownership-transfer': [
       'Accept Athlentry organization ownership',
@@ -99,6 +109,14 @@ const copy = {
     'guardian-invitation': [
       'Acepte acceso como tutor en Athlentry',
       'Una organización le invitó a gestionar a un familiar en Athlentry. Inicie sesión con este correo y acepte en un plazo de 7 días.',
+    ],
+    'athlete-invitation': [
+      'Conecte su perfil de atleta en Athlentry',
+      'Su tutor le invitó a conectar su cuenta de atleta. Cree o verifique una cuenta con este correo y acepte en un plazo de 7 días.',
+    ],
+    'person-claim': [
+      'Vincule su perfil de Athlentry',
+      'Una organización le invitó a vincular su perfil adulto a esta cuenta. Inicie sesión con este correo y acepte en un plazo de 7 días.',
     ],
     'ownership-transfer': [
       'Acepte la titularidad de una organización en Athlentry',

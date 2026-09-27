@@ -1,0 +1,36 @@
+import { Router } from 'express';
+import { createOfficialsSchema } from '../../../../shared/src/schemas/officials.js';
+import type { OfficialsRepository } from './repo.js';
+import { createOfficialsService } from './service.js';
+import { __camel__Permissions } from './policy.js';
+
+// Supply the application's withOrg and permission middleware; all repository
+// operations must execute inside the same org-scoped transaction.
+export function createOfficialsRouter(dependencies: {
+  withOrg<T>(orgId: string, action: (repository: OfficialsRepository) => Promise<T>): Promise<T>;
+  requirePermission(permission: string): import('express').RequestHandler;
+}) {
+  const router = Router();
+  router.get('/', dependencies.requirePermission(__camel__Permissions.list), async (request, response, next) => {
+    try {
+      const orgId = response.locals.orgId as string;
+      response.json(await dependencies.withOrg(orgId, (repository) => createOfficialsService(repository).list()));
+    } catch (error) { next(error); }
+  });
+  router.get('/:id', dependencies.requirePermission(__camel__Permissions.get), async (request, response, next) => {
+    try {
+      const orgId = response.locals.orgId as string;
+      const record = await dependencies.withOrg(orgId, (repository) => createOfficialsService(repository).get(String(request.params.id)));
+      if (!record) { response.sendStatus(404); return; }
+      response.json(record);
+    } catch (error) { next(error); }
+  });
+  router.post('/', dependencies.requirePermission(__camel__Permissions.create), async (request, response, next) => {
+    try {
+      const input = createOfficialsSchema.parse(request.body);
+      const orgId = response.locals.orgId as string;
+      response.status(201).json(await dependencies.withOrg(orgId, (repository) => createOfficialsService(repository).create(input)));
+    } catch (error) { next(error); }
+  });
+  return router;
+}

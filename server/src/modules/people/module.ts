@@ -1,4 +1,10 @@
 import {
+  emergencyContactCreateSchema,
+  emergencyContactRemoveSchema,
+  emergencyContactsSchema,
+  emergencyContactUpdateSchema,
+} from '@shared/schemas/emergencyContacts';
+import {
   householdCreateSchema,
   householdListSchema,
   householdMemberCreateSchema,
@@ -8,6 +14,16 @@ import {
   householdUpdateSchema,
 } from '@shared/schemas/households';
 import {
+  medicalResponseSchema,
+  medicalUpdateSchema,
+} from '@shared/schemas/medical';
+import {
+  athleteInvitationAcceptSchema,
+  athleteInvitationAcceptedResponseSchema,
+  athleteInvitationResponseSchema,
+  athleteInvitationSchema,
+  athleteLinkResponseSchema,
+  duplicatesResponseSchema,
   familyResponseSchema,
   guardianInvitationAcceptedResponseSchema,
   guardianInvitationAcceptSchema,
@@ -17,7 +33,13 @@ import {
   peopleFilterOptionsSchema,
   peopleFilterOptionsQuerySchema,
   peopleListSchema,
+  personClaimAcceptSchema,
+  personClaimAcceptedResponseSchema,
+  personClaimInvitationResponseSchema,
+  personClaimInvitationSchema,
   personCreateSchema,
+  personMergeCreateSchema,
+  personMergeResponseSchema,
   personPhotoUpdateSchema,
   personResponseSchema,
   personUpdateSchema,
@@ -37,6 +59,72 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/athlete-link',
+      summary: 'Read a child athlete account link as a verified guardian',
+      response: athleteLinkResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/athlete-invitations',
+      summary: 'Invite a 13–17-year-old athlete account as a guardian',
+      body: athleteInvitationSchema,
+      response: athleteInvitationResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/athlete-invitations/accept',
+      summary: 'Accept a guardian-issued athlete account invitation',
+      body: athleteInvitationAcceptSchema,
+      response: athleteInvitationAcceptedResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/athlete-link/revoke',
+      summary: 'Revoke a minor athlete account as a guardian',
+      response: athleteLinkResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/emergency-contacts',
+      summary: 'List audited emergency contacts for an authorized person',
+      response: emergencyContactsSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/emergency-contacts',
+      summary: 'Add an emergency contact',
+      body: emergencyContactCreateSchema,
+      response: emergencyContactsSchema,
+    },
+    {
+      method: 'patch',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/emergency-contacts/{contactId}',
+      summary: 'Update a versioned emergency contact',
+      body: emergencyContactUpdateSchema,
+      response: emergencyContactsSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/emergency-contacts/{contactId}/remove',
+      summary: 'Retain and remove an emergency contact',
+      body: emergencyContactRemoveSchema,
+      response: emergencyContactsSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/medical',
+      summary: 'Read audited medical profile at actor visibility level',
+      response: medicalResponseSchema,
+    },
+    {
+      method: 'patch',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/medical',
+      summary: 'Replace a versioned encrypted medical profile',
+      body: medicalUpdateSchema,
+      response: medicalResponseSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/people/me/family',
@@ -99,6 +187,19 @@ export const moduleDefinition = {
     },
     {
       method: 'get',
+      path: '/api/v1/people/orgs/{orgId}/duplicates',
+      summary: 'List suspected duplicate people pairs for review',
+      response: duplicatesResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/merges',
+      summary: 'Merge a duplicate person into the surviving record',
+      body: personMergeCreateSchema,
+      response: personMergeResponseSchema,
+    },
+    {
+      method: 'get',
       path: '/api/v1/people/orgs/{orgId}/filter-options',
       summary:
         'Search organization programs and team seasons for People filters',
@@ -137,6 +238,20 @@ export const moduleDefinition = {
       summary: 'Accept a person-bound guardian invitation',
       body: guardianInvitationAcceptSchema,
       response: guardianInvitationAcceptedResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/claim-invitations',
+      summary: 'Staff invite an adult to claim their person profile',
+      body: personClaimInvitationSchema,
+      response: personClaimInvitationResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/claim-invitations/accept',
+      summary: 'Accept a person- and email-bound adult claim invitation',
+      body: personClaimAcceptSchema,
+      response: personClaimAcceptedResponseSchema,
     },
     {
       method: 'post',

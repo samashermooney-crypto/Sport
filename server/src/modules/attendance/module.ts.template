@@ -1,0 +1,9 @@
+import { createAttendanceRouter } from './routes.js';
+
+// Adapt dependencies to ServerModule after routes, permissions, and schemas are specialized.
+export const __camel__Module = {
+  name: 'attendance',
+  path: '/api/v1/attendance',
+  router: createAttendanceRouter,
+  permissions: ['attendance.read', 'attendance.write'],
+};
