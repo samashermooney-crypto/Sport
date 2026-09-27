@@ -78,6 +78,16 @@ const promotionDecisionBodySchema = z.strictObject({
   targetClassOfferingId: z.uuid().nullable().optional(),
 });
 
+const portalEnrollBodySchema = enrollBodySchema.extend({
+  householdId: z.uuid().optional(),
+});
+const portalDropInBodySchema = dropInBodySchema.extend({
+  householdId: z.uuid().optional(),
+});
+const portalPunchCardPurchaseSchema = punchCardPurchaseSchema.extend({
+  householdId: z.uuid().optional(),
+});
+
 const waitlistAcceptBodySchema = enrollBodySchema;
 
 function writeOriginValid(request: express.Request, appUrl: string): boolean {
@@ -246,6 +256,30 @@ export function createClassesRouter(
 
   const key = (request: express.Request): string =>
     z.uuid().parse(request.get('Idempotency-Key'));
+
+  const personHousehold = async (
+    ctx: OrgContext,
+    personId: string,
+    supplied?: string,
+  ): Promise<string> => {
+    if (supplied) return supplied;
+    const row = await withOrg(ctx, (trx) =>
+      trx
+        .selectFrom('household_members')
+        .select('household_id')
+        .where('org_id', '=', ctx.orgId)
+        .where('person_id', '=', personId)
+        .where('removed_at', 'is', null)
+        .orderBy('created_at')
+        .limit(1)
+        .executeTakeFirst(),
+    );
+    if (!row)
+      throw new ClassesConflictError(
+        'The athlete must belong to a household before enrolling',
+      );
+    return row.household_id;
+  };
 
   const services = async (request: express.Request) => {
     const ctx = await context(request);
@@ -1079,11 +1113,18 @@ export function createClassesRouter(
       write(request);
       const { ctx, enrollments } = await services(request);
       await requireMember(dependencies.database, ctx);
-      const body = enrollBodySchema.parse(request.body);
+      const body = portalEnrollBodySchema.parse(request.body);
       await requireLinkedPerson(dependencies.database, ctx, body.personId);
-      response
-        .status(201)
-        .json(await enrollments.enroll(body, key(request), { staff: false }));
+      const householdId = await personHousehold(
+        ctx,
+        body.personId,
+        body.householdId,
+      );
+      response.status(201).json(
+        await enrollments.enroll({ ...body, householdId }, key(request), {
+          staff: false,
+        }),
+      );
     }),
   );
 
@@ -1223,15 +1264,20 @@ export function createClassesRouter(
       write(request);
       const { ctx, bookings } = await services(request);
       await requireMember(dependencies.database, ctx);
-      const body = dropInBodySchema.parse(request.body);
+      const body = portalDropInBodySchema.parse(request.body);
       await requireLinkedPerson(dependencies.database, ctx, body.personId);
+      const householdId = await personHousehold(
+        ctx,
+        body.personId,
+        body.householdId,
+      );
       response
         .status(201)
         .json(
           await bookings.bookDropIn(
             body.classSessionId,
             body.personId,
-            body.householdId,
+            householdId,
             key(request),
           ),
         );
@@ -1260,15 +1306,20 @@ export function createClassesRouter(
       write(request);
       const { ctx, bookings } = await services(request);
       await requireMember(dependencies.database, ctx);
-      const body = punchCardPurchaseSchema.parse(request.body);
+      const body = portalPunchCardPurchaseSchema.parse(request.body);
       await requireLinkedPerson(dependencies.database, ctx, body.personId);
+      const householdId = await personHousehold(
+        ctx,
+        body.personId,
+        body.householdId,
+      );
       response
         .status(201)
         .json(
           await bookings.purchasePunchCard(
             body.classOfferingId,
             body.personId,
-            body.householdId,
+            householdId,
             key(request),
           ),
         );
