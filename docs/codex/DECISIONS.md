@@ -479,6 +479,14 @@
 - **Why:** This keeps directory and eligibility values current across birthdays and school years without bulk data updates.
 - **Consequences / follow-ups:** Filters use the same local date and cutoff. A later organization settings control can expose the cutoff after its validation and audit flow is built.
 
+### DEC-063 — Batch outbound unread chat fallback per conversation
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 10 chat notifications
+- **Context:** Busy conversations can produce repeated push and email alerts, while chat itself must remain realtime over Track B's inbox/SSE path.
+- **Decision:** Keep the per-message in-app/SSE notification immediate, and batch only external unread fallback by organization, conversation and recipient for ten minutes from the first message. Recheck active membership, mute and unread state at dispatch; send push when enabled and use email only when push is unavailable; never include chat body text. Push delivery follows the shared quiet-hours policy.
+- **Why:** Families keep realtime chat while notification bursts are reduced, read conversations do not produce stale fallback, and message content stays out of external notification bodies.
+- **Consequences / follow-ups:** H stores retryable tenant-scoped batch state in migrations `4005`–`4006`; preference defaults and channel selection come from Track B. Provider failures retry with bounded backoff.
+
 ### DEC-070 — Keep household primary contacts and balances explicit
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 2 households

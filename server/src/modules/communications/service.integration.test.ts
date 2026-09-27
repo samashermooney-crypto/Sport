@@ -6,8 +6,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
+import { preferencesCenterPath } from '../notifications/links';
 
 import { createCommunicationNotificationSink } from './adapters';
+import { createUnsubscribeToken } from './delivery';
 import { campaignPreviewSchema } from './schema';
 import {
   CommunicationsAccessError,
@@ -18,6 +20,7 @@ import {
   previewCampaign,
   previewCampaignDraft,
 } from './service';
+import { unsubscribeFromCategory } from './settings';
 
 let database: ReturnType<typeof createDatabase>;
 let withOrg: ReturnType<typeof createWithOrg>;
@@ -48,7 +51,7 @@ beforeAll(async () => {
       [noRole, 'Campaign C'],
     ] as const)
       await admin.query(
-        'INSERT INTO accounts(id,email,first_name,last_name,date_of_birth) VALUES ($1,$2,$3,$4,$5)',
+        'INSERT INTO accounts(id,email,email_verified_at,first_name,last_name,date_of_birth) VALUES ($1,$2,now(),$3,$4,$5)',
         [id, `${id}@example.invalid`, name, 'Owner', '1980-01-01'],
       );
     for (const [id, slug] of [
@@ -123,6 +126,40 @@ const draft = () => ({
 });
 
 describe('communications tenancy and permissions', () => {
+  it('applies a signed unsubscribe and returns the notification preferences destination', async () => {
+    const now = new Date('2026-09-27T12:00:00.000Z');
+    const token = createUnsubscribeToken({
+      orgId: orgA,
+      accountId: noRole,
+      category: 'announcement',
+      channel: 'email',
+      expiresAt: Math.floor(now.getTime() / 1000) + 3600,
+    });
+    const result = await unsubscribeFromCategory(token, now, withOrg);
+    expect(result).toMatchObject({
+      orgId: orgA,
+      category: 'announcement',
+      channel: 'email',
+      enabled: false,
+      locale: 'en',
+    });
+    expect(preferencesCenterPath(result.orgId)).toBe(
+      `/portal/orgs/${orgA}/notifications#preferences`,
+    );
+    await expect(
+      withOrg(contextA, (trx) =>
+        trx
+          .selectFrom('communication_preferences')
+          .select('enabled')
+          .where('org_id', '=', orgA)
+          .where('account_id', '=', noRole)
+          .where('category', '=', 'announcement')
+          .where('channel', '=', 'email')
+          .executeTakeFirstOrThrow(),
+      ),
+    ).resolves.toEqual({ enabled: false });
+  });
+
   it('keeps campaigns inside their organization and requires an active communications role', async () => {
     const campaign = await createCampaign(
       contextA,
@@ -214,7 +251,7 @@ describe('communications tenancy and permissions', () => {
     ).rejects.toBeInstanceOf(CommunicationsPermissionError);
   });
 
-  it('uses the Track B notification service for in-app campaign and emergency delivery', async () => {
+  it('passes all Phase 10 communications notification IDs through Track B catalog validation', async () => {
     const campaignId = randomUUID();
     const notificationDeliveryId = randomUUID();
     const notificationId = await createCommunicationNotificationSink(withOrg)({
@@ -233,13 +270,42 @@ describe('communications tenancy and permissions', () => {
 
     expect(notification).toMatchObject({
       id: notificationId,
-      type: 'safety.emergency',
+      type: 'communications.emergency',
       payload: {
         resourceType: 'message_campaign',
         resourceId: campaignId,
         href: `/me/orgs/${orgA}/messages`,
       },
     });
+    const campaignNotificationId = await createCommunicationNotificationSink(
+      withOrg,
+    )({
+      context: contextA,
+      accountId: ownerA,
+      type: 'communications.campaign',
+      payload: { campaignId, deliveryId: notificationDeliveryId },
+    });
+    const chatConversationId = randomUUID();
+    const chatNotificationId = await createCommunicationNotificationSink(
+      withOrg,
+    )({
+      context: contextA,
+      accountId: ownerA,
+      type: 'communications.chat_message',
+      payload: { conversationId: chatConversationId, messageId: randomUUID() },
+    });
+    const phase10Types = await withOrg(contextA, (trx) =>
+      trx
+        .selectFrom('notifications')
+        .select(['id', 'type'])
+        .where('org_id', '=', orgA)
+        .where('id', 'in', [campaignNotificationId, chatNotificationId])
+        .execute(),
+    );
+    expect(phase10Types.map((row) => row.type).sort()).toEqual([
+      'communications.campaign',
+      'communications.chat_message',
+    ]);
     const campaign = await createCampaign(
       contextA,
       {
