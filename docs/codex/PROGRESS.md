@@ -34,7 +34,7 @@
 | A | Core and integration | GPT-6 Sol until S1 | working | `track/a-core` |
 | B | Sport engine, algorithms, policies; platform infrastructure | GPT-6 Sol | full logic queue integrated; Phase 1 tasks 9, 10, 13–15 in progress | `track/b-logic` |
 | C | Files and provider adapters | GPT-6 Luna | complete adapter queue integrated; files API mounted, acceptance still open | `track/c-adapters` |
-| D | Design system | GPT-6 Luna | primitives and dev showcase ready locally | `track/d-design` |
+| D | Design system | GPT-6 Luna | shared primitives, extended controls, shell and dev showcase integrated; auth restyle still open | `track/d-design` |
 | E | Stripe and finance | GPT-6 Sol | test-mode gateway ready slice integrated; money core awaiting trunk spine | `track/e-finance` |
 
 ## Cross-phase schema spine checkpoint
@@ -47,6 +47,7 @@
 - [x] Integrated the spine into `rebuild/trunk` at `f4295a0`; merged trunk passed typecheck, lint, 228 tests (one operator-credential smoke skipped), four browser e2e tests, and build. Trunk publication follows this progress commit; Track E can resume Phase 4 from trunk.
 - [x] Integrated Track B's complete logic queue through `5c01024`; merged trunk passed typecheck, lint and 310 tests. Track B's new infrastructure queue is separate and remains open.
 - [x] Integrated Track C's adapter queue through `d47dc0f`. Added the files module to the generated registry, local tenant/role authorization, Sharp/Web Push dependencies, migration 0502 for the `files.created_by` FK index, and generated types for 127 tables. Isolated-port browser tests pass with Track C's SMTP offset support; 337 unit/integration tests pass. Task 11 and 12 acceptance remains open pending full API/provider checks.
+- [x] Integrated Track D's ready design range through `a0a20f2`, including frozen tokens, primitives, extended controls, shell and development-only `/__ui` through the feature registry. The merged app passed typecheck, lint, 342 tests, 9 browser e2e tests (3 WebKit design cases intentionally skipped), build and a zero-advisory production audit. Auth restyle and the full Phase 1 design acceptance remain open.
 
 ## Phase checklists
 
