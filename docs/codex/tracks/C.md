@@ -2,7 +2,7 @@
 Status: working
 Model: GPT-6 Luna
 Branch: `track/c-adapters`
-Current: Files, email, and SMS commits are `75db839`, `fc76848`, `a443b23`, `e23877d`, `17dca69`; isolated Postgres service/RLS tests and 22 adapter tests pass; committing push next.
+Current: Files, email, SMS, and push commits through `73ed80d`; 23 adapter tests and isolated Postgres service/RLS tests pass; committing background-check provider next.
 Ready for integration: none yet
 Requests to other tracks: A — update `server/src/app.test.ts` migration-count expectation from 10 to 12; merge `sharp` and `web-push` package dependencies; mount `filesModule`, compose its authorization/storage dependencies, and regenerate DB types after migrations 0500–0501; add DECISIONS.md entries for tenant-owned files (`org_id NOT NULL`, preserving the RLS coverage invariant) and separate tracked Resend campaign sender domain (2026-09-26).
 Blocked on: Track A app-test ownership request (the full suite still asserts 10 migrations; migrations 0500–0501 bring this branch to 12); app mounting, generated types, and the `sharp`/`web-push` dependency merge are required before integration gates.
