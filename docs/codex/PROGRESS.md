@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- Phase 1 is in progress. [CI run 36285846119](https://github.com/samashermooney-crypto/Sport/actions/runs/36285846119) failed browser tests because fresh VAPID key creation crashed API startup; regression test `server/src/config.test.ts` now covers the fixed path. Establish green trunk and Track A branch, then follow `50-PARALLEL-PLAN.md §4`; do not check off Phase 1 yet.
+- M0 is on `main` at `d0f59a1`; `rebuild/trunk` and `track/a-core` start at `ff24020`. Track A follows `50-PARALLEL-PLAN.md §4`; other tracks start in separate worktrees from trunk. Phase 1 remains open until every task and acceptance criterion passes its gate.
 
 ## Phase status
 
@@ -26,6 +26,16 @@
 | 14 | Reporting, website, exports | not started | |
 | 15 | Onboarding, imports, demo, AI assist | not started | |
 | 16 | Production hardening and launch gate | not started | |
+
+## Track status
+
+| Track | Scope | Model | Status | Branch |
+|---|---|---|---|---|
+| A | Core and integration | GPT-6 Sol until S1 | working | `track/a-core` |
+| B | Sport engine, algorithms, policies | GPT-6 Sol | awaiting kickoff | `track/b-logic` |
+| C | Files and provider adapters | GPT-6 Luna | awaiting kickoff | `track/c-adapters` |
+| D | Design system | GPT-6 Luna | awaiting kickoff | `track/d-design` |
+| E | Stripe and finance | GPT-6 Sol | awaiting kickoff | `track/e-finance` |
 
 ## Phase checklists
 
@@ -70,14 +80,14 @@
 
 **Infrastructure modules**
 - [ ] 10. pg-boss setup, job registry, worker heartbeat, failed-job visibility.
-- [ ] 11. Files module (`01 §7`) with S3, local-disk and memory adapters; image processing with EXIF stripping; permission-checked download links.
-- [ ] 12. Email module: React Email layout with org branding, `EmailSender` adapters (Resend, Mailpit SMTP via `nodemailer`, Fake), preview mode; send auth emails (verification, magic link, reset, invitations, security alerts) in en/es.
+- [ ] 11. **Track C:** Files module (`01 §7`) with S3, local-disk and memory adapters; image processing with EXIF stripping; permission-checked download links.
+- [ ] 12. **Track C:** Email module: React Email layout with org branding, `EmailSender` adapters (Resend, Mailpit SMTP via `nodemailer`, Fake), preview mode; send auth emails (verification, magic link, reset, invitations, security alerts) in en/es.
 - [ ] 13. Notifications core: `notification_types` catalog in code, `notifications` table, in-app inbox API + SSE stream (`01 §5`), preferences API. (Channels other than in-app/email wired in Phase 10.)
 - [ ] 14. Audit module with redaction; audit viewer component.
 - [ ] 15. OpenAPI generation, error code enum, pagination helpers, idempotency middleware, version-check helpers.
 
 **Web app shell**
-- [ ] 16. Design system per `01 §11a`: capture the legacy visual reference screenshots and `tokens.json` first, extract tokens verbatim from the legacy CSS, port legacy components with identical appearance, then build the remaining components in `01 §11` from those tokens (Storybook-free visual test pages under `/__ui` in development only; light theme only). Then i18n setup (en/es), TanStack Query client, API client with typed endpoints generated from shared schemas, error boundary (port legacy behavior), toast system, layout shells for console/portal/platform/public, org switcher, global search stub wired to `people` once Phase 2 lands (hidden until then), command palette. In progress: isolated legacy worktree at `9ef77bb` generated 12 desktop and 12 mobile screenshots in `e2e/visual-reference/`, including sign-in, dashboard, lists/editors, team, invoice, schedule, public site, member portal and modal. The extracted `tokens.json` freezes all legacy custom properties plus recurring colors, type sizes, spacing, radii, heights and shadows; `web/src/ui/tokens.css` contains those exact values. A Vitest assertion checks CSS against the frozen snapshot after formatting normalization (41 tests pass). Component ports and shell parity remain open.
+- [ ] 16. **Track D:** Design system per `01 §11a`: capture the legacy visual reference screenshots and `tokens.json` first, extract tokens verbatim from the legacy CSS, port legacy components with identical appearance, then build the remaining components in `01 §11` from those tokens (Storybook-free visual test pages under `/__ui` in development only; light theme only). Then i18n setup (en/es), TanStack Query client, API client with typed endpoints generated from shared schemas, error boundary (port legacy behavior), toast system, layout shells for console/portal/platform/public, org switcher, global search stub wired to `people` once Phase 2 lands (hidden until then), command palette. In progress: isolated legacy worktree at `9ef77bb` generated 12 desktop and 12 mobile screenshots in `e2e/visual-reference/`, including sign-in, dashboard, lists/editors, team, invoice, schedule, public site, member portal and modal. The extracted `tokens.json` freezes all legacy custom properties plus recurring colors, type sizes, spacing, radii, heights and shadows; `web/src/ui/tokens.css` contains those exact values. A Vitest assertion checks CSS against the frozen snapshot after formatting normalization (41 tests pass). Component ports and shell parity remain open.
 - [ ] 17. Auth screens (all flows in task 3), onboarding `/start`, console Home placeholder that shows only real cards available so far (e.g. "Connect payments", "Create your first season") — no fake data. In progress: functional identity and account-security routes now exist; org onboarding and console home remain.
 
 #### Acceptance criteria
