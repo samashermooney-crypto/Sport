@@ -20,6 +20,7 @@ export class PeopleError extends Error {
     readonly status: 400 | 403 | 404 | 409,
     readonly code: 'VALIDATION_ERROR' | 'FORBIDDEN' | 'NOT_FOUND' | 'CONFLICT',
     message: string,
+    readonly details?: unknown,
   ) {
     super(message);
   }
