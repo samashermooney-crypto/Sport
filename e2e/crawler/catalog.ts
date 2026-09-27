@@ -25,8 +25,6 @@ export const organizationRoles = [
   'reporter',
 ] as const;
 
-export type OrganizationRole = (typeof organizationRoles)[number];
-
 export const platformRoles = [
   { name: 'platform_super_admin', databaseRole: 'super_admin' },
   { name: 'platform_support', databaseRole: 'support' },

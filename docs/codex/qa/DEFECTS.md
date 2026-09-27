@@ -2,6 +2,46 @@
 
 ## Open
 
+### QA-OPS-001 — Render health probes have no `/readyz` handler and public status is missing
+
+- **Owner:** Track C
+- **Phase:** 16 §4.1 and §4.4
+- **Evidence:** `render.yaml` sets `healthCheckPath: /readyz`, but no `/readyz` route is registered; the required public `/status` route is also absent.
+- **Reproduce:** inspect the Render web service and search `server/src` for `/readyz` and a public `/status` handler; the health path is configuration-only and platform `/orgs/:orgId/status` is a separate authenticated mutation.
+- **Expected:** `/readyz` reports readiness for the web service, and `/status` exposes only non-sensitive service state publicly.
+- **Request:** implement/register both endpoints and add HTTP tests for ready/unready and public redaction behavior.
+- **Status:** open launch blocker; configured production health checks currently target a missing route.
+
+### QA-OPS-002 — Required key-generation npm scripts are missing
+
+- **Owner:** Track C
+- **Phase:** 16 §4.7
+- **Evidence:** `scripts/keys-generate.ts` and `scripts/keys-vapid.ts` exist, but `package.json` defines neither `keys:generate` nor `keys:vapid`.
+- **Reproduce:** inspect `package.json` scripts; both required commands are absent.
+- **Expected:** operators can invoke `npm run keys:generate` and `npm run keys:vapid`, with safe owner-only output files and no key material in logs.
+- **Request:** register the scripts and retain the existing file-permission protections.
+- **Status:** open operator-tooling acceptance gap.
+
+### QA-OPS-003 — Operational alert rules are not wired to a runtime check
+
+- **Owner:** Track C
+- **Phase:** 16 §4.3
+- **Evidence:** `evaluateOperationalAlerts`, `captureOperationalAlert`, and `writeStructuredLog` are unused in production code; Knip reports the latter two as unused exports. Their unit tests do not schedule metric collection or deliver alerts.
+- **Reproduce:** search non-test `server/src` for calls to those functions; only their definitions are present.
+- **Expected:** periodic checks collect worker, queue, webhook, payment-failure, and email-bounce metrics and deliver redacted alerts through the configured sink.
+- **Request:** wire the operational check/sink and structured logger in web and worker startup, with an integration test proving a synthetic alert reaches the fake sink.
+- **Status:** open reliability acceptance gap.
+
+### QA-OPS-004 — Web runtime receives `DATABASE_ADMIN_URL`
+
+- **Owner:** Track C
+- **Phase:** 16 §4.3
+- **Evidence:** `render.yaml` supplies `DATABASE_ADMIN_URL` to the web service even though it is needed for pre-deploy migrations; OPS has an explicit request to remove it from web runtime after pre-deploy.
+- **Reproduce:** inspect the `athlentry-web` environment variables in `render.yaml`.
+- **Expected:** the privileged database URL is available to the pre-deploy migration command and absent from the running web process.
+- **Request:** scope the admin URL to pre-deploy only and verify the web service starts without it.
+- **Status:** open least-privilege deployment gap.
+
 ### QA-SEC-001 — Route permission and tenancy checks are not executable
 
 - **Owner:** Track C
@@ -41,6 +81,26 @@
 - **Expected:** loopback, private, link-local, and non-provider destinations are rejected before transport, with DNS resolution protected from rebinding.
 - **Request:** validate/pin permitted Web Push destinations and enable the regression test; keep the test synthetic and assert the transport is never called.
 - **Status:** open security defect; no live request was made.
+
+### QA-SEC-005 — Step-up reauthentication does not rotate the session
+
+- **Owner:** Track A
+- **Phase:** 16 §1.5
+- **Evidence:** `e2e/security/session-step-up-fixation.spec.ts:10` is `test.fixme`; `stepUpWithPassword`/`stepUpWithTotp` elevate the existing session and the route does not issue a replacement cookie.
+- **Reproduce:** inspect the step-up route and its regression; the required assertions for a new cookie token and revocation of the prior token are skipped.
+- **Expected:** successful step-up rotates the session token, sends the replacement cookie with the required flags, and revokes the prior session token.
+- **Request:** implement step-up session rotation and enable the regression after it passes.
+- **Status:** open security defect; implementation is owned by Track A.
+
+### QA-SEC-006 — CI has no SQL raw-interpolation guard
+
+- **Owner:** Track C
+- **Phase:** 16 §1.2
+- **Evidence:** `.github/workflows/ci.yml` has no guard for interpolated `sql.raw` usage, although Phase 16 requires a CI check. No `sql.raw` call is currently present in `server/src` or `shared/src`.
+- **Reproduce:** search the workflow and CI scripts for `sql.raw`; no check is defined.
+- **Expected:** CI fails on `sql.raw` that incorporates interpolated or user-controlled input while allowing any explicitly reviewed static fragments.
+- **Request:** add the source guard and a fixture test proving an unsafe interpolated use fails.
+- **Status:** open security acceptance gap; no vulnerable `sql.raw` call was found in the current source.
 
 ### QA-ACC-002 — Guardian medical journey awaits browser verification
 
@@ -152,3 +212,43 @@
 - **Expected:** the production entry bundle meets the configured 200 KB gzip budget through appropriate code splitting and deferred feature imports.
 - **Request:** reduce the entry bundle to the enforced budget and add `npm run size` to the final launch gate.
 - **Status:** open; `npm run build` itself is green, but the separate bundle-budget check fails.
+
+### QA-QUAL-001 — Knip launch gate fails on unused files and exports
+
+- **Owner:** Tracks A, C, G, and I; Track C owns the launch gate.
+- **Phase:** 16 §1.3
+- **Evidence:** `npm run knip` exits 1 with 6 unused files, 43 unused exports, 28 unused exported types, and 1 duplicate export across A/C/G/I-owned code.
+- **Reproduce:** run `npm run knip`; the output names the unused exports and `eventSeriesCreateSchema|eventSeriesSchema` duplicate.
+- **Expected:** `npm run knip` exits 0 after owners remove dead exports/files or wire intended public contracts into their generated registries.
+- **Request:** clear the findings listed in `docs/codex/tracks/SEC.md` and make the required Knip gate green. QA removed its own unused `OrganizationRole` crawler type; no other QA-owned Knip finding remains.
+- **Status:** open cross-track quality gate.
+
+### QA-ACC-030 — Manual keyboard-only acceptance script is missing
+
+- **Owner:** Track D
+- **Phase:** 16 §3.1
+- **Evidence:** `docs/qa/ACCESSIBILITY.md` is absent; no accessibility manual-pass script is present under `docs/`.
+- **Reproduce:** search the docs tree for an accessibility keyboard-only pass script; no match exists.
+- **Expected:** `docs/qa/ACCESSIBILITY.md` documents keyboard-only checks across all journeys in `30 §3` (currently 27 entries; Phase 16 §3.1 says 25), including dialogs, menus, calendar/drag alternatives, and focus behavior.
+- **Request:** add the manual accessibility pass script and record its completion evidence.
+- **Status:** open accessibility acceptance gap.
+
+### QA-ACC-031 — CI has no English-to-Spanish completeness check
+
+- **Owner:** Track D
+- **Phase:** 16 §3.3
+- **Evidence:** no locale/i18n/translation completeness script or workflow check is present under `scripts/` or `.github/`. The three current English/Spanish JSON pairs (`auth`, `platform`, and `portal`) have matching keys, but no automated gate checks them and `site`/`email` namespaces are not present.
+- **Reproduce:** search `scripts/` and `.github/` for locale, i18n, translation, or Spanish completeness checks; no match exists.
+- **Expected:** CI fails when any English key in the portal, site, auth, or email namespaces has no Spanish value.
+- **Request:** add the completeness checker, a missing-key regression fixture, and the CI step.
+- **Status:** open internationalization acceptance gap.
+
+### QA-ACC-032 — Accessibility statements are absent from public site surfaces
+
+- **Owner:** Track D
+- **Phase:** 16 §3.4
+- **Evidence:** no accessibility statement page or footer link exists in `web/src` or `server/src`; the public marketing/org-site surfaces are also not present on the current trunk snapshot.
+- **Reproduce:** search the source tree for an accessibility statement page or link; no match exists.
+- **Expected:** a public accessibility statement is linked from the marketing site and each organization-site footer when those surfaces land.
+- **Request:** include the statement page and footer links in the public-site integration, then add browser coverage.
+- **Status:** open launch acceptance dependency; no current public-site route is available to test.
