@@ -14,7 +14,7 @@
 | 2 | People, households, forms, imports | not started | |
 | 3 | Sport engine, programs, teams, facilities | not started | |
 | 4 | Payments and finance | in progress | Test-mode Stripe gateway and finance migrations 1000–1021 integrated; durable webhook, Connect UI and full phase acceptance remain. |
-| 5 | Registration | in progress | Checkout capacity, frozen pricing, payment terms and the payer-owned PaymentIntent API from Track E are integrated; registration flows and acceptance remain. |
+| 5 | Registration | in progress | Checkout capacity, frozen pricing, payment terms, unique invoice binding and the payer-owned PaymentIntent API from Track E are integrated; registration flows and acceptance remain. |
 | 6 | Evaluations and team formation | not started | |
 | 7 | Compliance and safety | in progress on Track F | Local `track/f-safety` range is ready; trunk merge aborted on integration gate gaps. |
 | 8 | Scheduling and facilities | in progress on Track G | Local `track/g-schedule` is working; no range integrated. |
@@ -35,7 +35,7 @@
 | B | Sport engine, algorithms, policies; platform infrastructure | GPT-6 Sol | logic queue and Phase 1 tasks 10, 14–15 integrated; tasks 9 and 13 in progress | `track/b-logic` |
 | C | Files and provider adapters | GPT-6 Luna | complete adapter queue integrated; files acceptance passed, email acceptance still open | `track/c-adapters` |
 | D | Design system | GPT-6 Luna | complete component and auth restyle range integrated; app-wide shell acceptance remains with A | `track/d-design` |
-| E | Stripe and finance | GPT-6 Sol | finance and checkout core through direct participant checks, installment templates and Connect account sync integrated; phase acceptance remains | `track/e-finance` |
+| E | Stripe and finance | GPT-6 Sol | finance and checkout core through unique frozen checkout invoice binding integrated; phase acceptance remains | `track/e-finance` |
 | F | Safety and compliance | GPT-6 Luna | local range ready; integration gaps after aborted merge | `track/f-safety` |
 | G | Scheduling and game day | GPT-6 Luna | working locally; no ready range | `track/g-schedule` |
 | H | Communications | GPT-6 Luna | working locally; no ready range | `track/h-comms` |
@@ -57,6 +57,7 @@
 - [x] Integrated Track E's next ready range through `d63eaba`: payer-owned, idempotent checkout PaymentIntent API and portal Payment Element binding. Regenerated OpenAPI for the new route. The merged gate passed typecheck, lint, 529 tests (one operator smoke skipped), 24 browser tests (4 guarded design skips) and build. The browser gate exposed an Escape/keyboard shortcut close-event race in the shared command palette, which was fixed and verified in Chromium and WebKit before accepting the range. Registration flow and finance integration acceptance remain open.
 - [x] Integrated Track E's ready ambiguous-confirmation guard through `c609ac2`. Payment Element resubmission waits for authoritative reconciliation after an ambiguous result, with a regression test. The merged trunk passed typecheck, lint, 532 tests (one operator smoke skipped), 24 browser tests (four guarded design skips) and build. Finance and registration phase acceptance remain open.
 - [x] Integrated Track E's ready ranges through `189e0e9`: direct participant authorization for frozen checkout pricing, versioned installment-template finance API, and idempotent Stripe Connect `account.updated` sync handler. Regenerated OpenAPI for the four installment routes; the merged trunk passed typecheck, lint, 537 tests (one operator smoke skipped), 24 browser tests (four guarded design skips), build and registry freshness. The webhook router/worker and full Phase 4 acceptance remain open.
+- [x] Integrated Track E's ready frozen checkout-to-invoice binding through `a6a5ed4`: migration 1022 adds the tenant FK and unique invoice link, and PaymentIntent reads require that binding. Regenerated Kysely types. The merged trunk passed typecheck, lint, 540 tests (one operator smoke skipped), 26 browser tests (four guarded design skips) and build. Phase 5 registration acceptance remains open.
 - [x] Integrated Track D's ready design range through `a0a20f2`, including frozen tokens, primitives, extended controls, shell and development-only `/__ui` through the feature registry. The merged app passed typecheck, lint, 342 tests, 9 browser e2e tests (3 WebKit design cases intentionally skipped), build and a zero-advisory production audit. Auth restyle and the full Phase 1 design acceptance remain open.
 - [x] Integrated Track D's later auth restyle and parity range through `d184ced`. The merged trunk passed typecheck, lint, 447 tests (one operator-credential smoke skipped), 22 browser tests (4 guarded WebKit/Chromium design skips), build, registry/OpenAPI freshness and Knip. The shell chrome now compares with the captured legacy desktop and phone headers, and showcase controls pass axe and 44px phone target checks. Phase 1 task 16 remains open for app-wide shells, org switching, i18n and end-to-end design parity.
 
