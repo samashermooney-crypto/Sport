@@ -35,10 +35,14 @@ export async function startImpersonation(
   return database.transaction().execute(async (trx) => {
     const org = await trx
       .selectFrom('organizations')
-      .select('id')
+      .select(['id', 'status'])
       .where('id', '=', organizationId)
       .executeTakeFirst();
     if (!org) throw new PlatformAccessError('Organization not found', 404);
+    if (org.status !== 'active')
+      throw new PlatformAccessError(
+        'Only active organizations can be impersonated',
+      );
     await sql`INSERT INTO platform_impersonations
       (id, staff_account_id, target_organization_id, reason, started_at, expires_at)
       VALUES (${id}, ${actor.accountId}, ${organizationId}, ${cleanReason},

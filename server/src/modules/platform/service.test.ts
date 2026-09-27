@@ -204,6 +204,20 @@ describe('platform administration', () => {
       }),
     ).rejects.toBeInstanceOf(PlatformAccessError);
     const now = new Date();
+    await expect(
+      startImpersonation(
+        adminDatabase,
+        support,
+        orgId,
+        'Investigate a reported issue',
+        now,
+      ),
+    ).rejects.toBeInstanceOf(PlatformAccessError);
+    const suspended = await getOrganization(database, platformAdmin, orgId);
+    await setOrganizationStatus(database, platformAdmin, orgId, {
+      status: 'active',
+      expectedVersion: suspended.version,
+    });
     const current = await startImpersonation(
       adminDatabase,
       support,

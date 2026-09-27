@@ -88,6 +88,7 @@ test('platform staff and portal notifications work accessibly', async ({
     await expect
       .poll(async () => (await request.get('/healthz')).status())
       .toBe(200);
+    expect((await request.get('/api/v1/stream')).status()).toBe(401);
     await page.goto('/platform');
     await expect(
       page.getByRole('heading', { name: 'Platform', exact: true }),
@@ -128,6 +129,16 @@ test('platform staff and portal notifications work accessibly', async ({
     const impersonationId = impersonation.rows[0]?.id;
     if (!impersonationId)
       throw new Error('Impersonation record was not created');
+    await page
+      .getByRole('link', { name: 'Review safety requirements' })
+      .click();
+    await expect(
+      page.getByRole('heading', { name: 'Safety requirements' }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Viewing as platform staff. Changes are disabled.'),
+    ).toBeVisible();
+    expect(await accessibilityViolations(page)).toEqual([]);
     const guardedInbox = page.waitForRequest(
       (request) =>
         request.url().includes(`/notifications/orgs/${orgId}/inbox`) &&
@@ -152,10 +163,20 @@ test('platform staff and portal notifications work accessibly', async ({
       'SELECT action FROM platform_audit_log WHERE impersonation_id = $1 ORDER BY created_at',
       [impersonationId],
     );
-    expect(audits.rows.map((row) => row.action)).toContain(
-      'impersonation.start',
+    const actions = audits.rows.map((row) => row.action);
+    expect(actions).toContain('impersonation.start');
+    expect(actions).toContain('impersonation.request');
+    expect(actions).toContain('impersonation.end');
+    const tenantAudits = await database.query<{ impersonation_id: string }>(
+      `SELECT impersonation_id FROM audit_log WHERE org_id = $1 AND action = 'platform.impersonation_read'`,
+      [orgId],
     );
-    expect(audits.rows.map((row) => row.action)).toContain('impersonation.end');
+    expect(tenantAudits.rows.length).toBeGreaterThanOrEqual(1);
+    expect(
+      tenantAudits.rows.every(
+        (row) => row.impersonation_id === impersonationId,
+      ),
+    ).toBe(true);
     expect(await accessibilityViolations(page)).toEqual([]);
     await page.goto('/platform');
     await page.getByRole('button', { name: 'Health' }).click();
