@@ -28,10 +28,7 @@ function orderedSubjects(
   return ordered;
 }
 
-export class PostgresCheckoutHoldRepository implements Pick<
-  CheckoutCapacityRepository,
-  'reserve' | 'extend' | 'confirm' | 'release'
-> {
+export class PostgresCheckoutHoldRepository implements CheckoutCapacityRepository {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
 
   constructor(
@@ -314,6 +311,209 @@ export class PostgresCheckoutHoldRepository implements Pick<
         },
       });
       return 'confirmed';
+    });
+  }
+
+  async keepForFailedPayment(input: {
+    orgId: string;
+    checkoutId: string;
+    expiresAt: string;
+  }): Promise<void> {
+    this.assertOrg(input.orgId);
+    const expiry = Temporal.Instant.from(input.expiresAt);
+    if (Temporal.Instant.compare(expiry, this.now()) <= 0)
+      throw new Error('Failed-payment hold expiry must be in the future');
+    await this.withOrg(this.context, async (trx) => {
+      const checkout = await trx
+        .selectFrom('checkouts')
+        .select('status')
+        .where('org_id', '=', input.orgId)
+        .where('id', '=', input.checkoutId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (
+        !checkout ||
+        !['awaiting_payment', 'completed'].includes(checkout.status)
+      )
+        throw new Error('Checkout is unavailable for a failed-payment hold');
+      const holds = await trx
+        .selectFrom('capacity_holds')
+        .select([
+          'subject_type',
+          'subject_id',
+          'quantity',
+          'released_at',
+          'converted_at',
+        ])
+        .where('org_id', '=', input.orgId)
+        .where('checkout_id', '=', input.checkoutId)
+        .execute();
+      if (!holds.length || holds.some((hold) => hold.released_at))
+        throw new Error('Failed-payment capacity holds are unavailable');
+      const ordered = [...holds].sort(
+        (a, b) =>
+          subjectOrder[a.subject_type as keyof typeof subjectOrder] -
+            subjectOrder[b.subject_type as keyof typeof subjectOrder] ||
+          a.subject_id.localeCompare(b.subject_id),
+      );
+      for (const hold of ordered) {
+        if (!hold.converted_at) continue;
+        const counter = await trx
+          .selectFrom('capacity_counters')
+          .select(['id', 'confirmed'])
+          .where('org_id', '=', input.orgId)
+          .where('subject_type', '=', hold.subject_type)
+          .where('subject_id', '=', hold.subject_id)
+          .forUpdate()
+          .executeTakeFirst();
+        if (!counter || counter.confirmed < hold.quantity)
+          throw new Error('Confirmed capacity does not reconcile');
+        await trx
+          .updateTable('capacity_counters')
+          .set({
+            confirmed: sql`confirmed - ${hold.quantity}`,
+            held: sql`held + ${hold.quantity}`,
+            version: sql`version + 1`,
+          })
+          .where('org_id', '=', input.orgId)
+          .where('id', '=', counter.id)
+          .execute();
+      }
+      await trx
+        .updateTable('capacity_holds')
+        .set({
+          converted_at: null,
+          expires_at: new Date(expiry.epochMilliseconds),
+        })
+        .where('org_id', '=', input.orgId)
+        .where('checkout_id', '=', input.checkoutId)
+        .execute();
+      await trx
+        .updateTable('checkouts')
+        .set({
+          status: 'awaiting_payment',
+          completed_at: null,
+          expires_at: new Date(expiry.epochMilliseconds),
+          version: sql`version + 1`,
+        })
+        .where('org_id', '=', input.orgId)
+        .where('id', '=', input.checkoutId)
+        .execute();
+      await trx
+        .updateTable('registrations')
+        .set({ status: 'pending_payment', version: sql`version + 1` })
+        .where('org_id', '=', input.orgId)
+        .where('checkout_id', '=', input.checkoutId)
+        .where('status', '=', 'confirmed')
+        .execute();
+      await appendAuditEvent(trx, this.context, {
+        action: 'checkout.payment_failed',
+        entityType: 'checkout',
+        entityId: input.checkoutId,
+        changes: { expiresAt: { tier: 'internal', after: input.expiresAt } },
+      });
+    });
+  }
+
+  async claimLostCapacityRefund(input: {
+    orgId: string;
+    checkoutId: string;
+    paymentIntentId: string;
+    amountCents: number;
+  }): Promise<'claimed' | 'pending'> {
+    this.assertOrg(input.orgId);
+    if (!Number.isSafeInteger(input.amountCents) || input.amountCents < 1)
+      throw new RangeError(
+        'Lost-capacity refund amount must be positive cents',
+      );
+    return this.withOrg(this.context, async (trx) => {
+      const payment = await trx
+        .selectFrom('payments')
+        .select(['id', 'status', 'amount_cents'])
+        .select(sql<string | null>`checkout_id`.as('checkout_id'))
+        .where('org_id', '=', input.orgId)
+        .where('stripe_payment_intent_id', '=', input.paymentIntentId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (
+        !payment ||
+        payment.status !== 'succeeded' ||
+        payment.checkout_id !== input.checkoutId ||
+        payment.amount_cents !== input.amountCents
+      )
+        throw new Error(
+          'Lost-capacity refund must match a successful checkout payment',
+        );
+      const inserted = await sql<{ id: string }>`
+        INSERT INTO checkout_capacity_refund_claims
+          (id, org_id, checkout_id, payment_intent_id, amount_cents)
+        VALUES
+          (${newId()}::uuid, ${input.orgId}::uuid, ${input.checkoutId}::uuid,
+           ${input.paymentIntentId}, ${input.amountCents})
+        ON CONFLICT (org_id, checkout_id, payment_intent_id) DO NOTHING
+        RETURNING id
+      `.execute(trx);
+      if (inserted.rows.length) return 'claimed';
+      const existing = await sql<{ amount_cents: number }>`
+        SELECT amount_cents FROM checkout_capacity_refund_claims
+        WHERE org_id = ${input.orgId}::uuid
+          AND checkout_id = ${input.checkoutId}::uuid
+          AND payment_intent_id = ${input.paymentIntentId}
+        FOR UPDATE
+      `.execute(trx);
+      if (existing.rows[0]?.amount_cents !== input.amountCents)
+        throw new Error('Lost-capacity refund claim amount conflicts');
+      return 'pending';
+    });
+  }
+
+  async recordLostCapacityRefund(input: {
+    orgId: string;
+    checkoutId: string;
+    paymentIntentId: string;
+    refundId: string;
+    status: string;
+  }): Promise<void> {
+    this.assertOrg(input.orgId);
+    if (!input.refundId.startsWith('re_') || !input.status)
+      throw new Error('Invalid Stripe refund result');
+    await this.withOrg(this.context, async (trx) => {
+      const existing = await sql<{
+        stripe_refund_id: string | null;
+        refund_status: string | null;
+      }>`
+        SELECT stripe_refund_id, refund_status
+        FROM checkout_capacity_refund_claims
+        WHERE org_id = ${input.orgId}::uuid
+          AND checkout_id = ${input.checkoutId}::uuid
+          AND payment_intent_id = ${input.paymentIntentId}
+        FOR UPDATE
+      `.execute(trx);
+      const row = existing.rows[0];
+      if (!row) throw new Error('Lost-capacity refund claim is missing');
+      if (row.stripe_refund_id) {
+        if (
+          row.stripe_refund_id !== input.refundId ||
+          row.refund_status !== input.status
+        )
+          throw new Error('Lost-capacity refund result conflicts');
+        return;
+      }
+      await sql`
+        UPDATE checkout_capacity_refund_claims
+        SET stripe_refund_id = ${input.refundId}, refund_status = ${input.status}
+        WHERE org_id = ${input.orgId}::uuid
+          AND checkout_id = ${input.checkoutId}::uuid
+          AND payment_intent_id = ${input.paymentIntentId}
+      `.execute(trx);
+      await appendAuditEvent(trx, this.context, {
+        action: 'checkout.capacity_refund_initiated',
+        entityType: 'checkout',
+        entityId: input.checkoutId,
+        changes: {
+          stripeRefundId: { tier: 'internal', after: input.refundId },
+        },
+      });
     });
   }
 

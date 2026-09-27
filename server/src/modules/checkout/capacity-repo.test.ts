@@ -8,6 +8,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../../db/kysely.js';
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
+import { PostgresInvoiceRepository } from '../finance/invoice-repo.js';
+import { PostgresPaymentEventRepository } from '../finance/payment-event-repo.js';
+import { PostgresPaymentRecordStore } from '../finance/payment-repo.js';
 
 import { PostgresCheckoutHoldRepository } from './capacity-repo.js';
 import type { SubjectQuantity } from './service.js';
@@ -144,5 +147,102 @@ describe('transactional checkout capacity', () => {
       { held: 0, confirmed: 1 },
       { held: 0, confirmed: 1 },
     ]);
+  });
+
+  it('moves ACH-confirmed seats back to a 72-hour hold after failure', async () => {
+    await repo.keepForFailedPayment({
+      orgId: context.orgId,
+      checkoutId: firstCheckout,
+      expiresAt: '2026-09-29T12:00:00Z',
+    });
+    expect(await counterState()).toEqual([
+      { held: 1, confirmed: 0 },
+      { held: 1, confirmed: 0 },
+      { held: 1, confirmed: 0 },
+    ]);
+    const checkout = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('checkouts')
+        .select(['status', 'completed_at', 'expires_at'])
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', firstCheckout)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(checkout.status).toBe('awaiting_payment');
+    expect(checkout.completed_at).toBeNull();
+    expect(checkout.expires_at.toISOString()).toBe('2026-09-29T12:00:00.000Z');
+  });
+
+  it('claims a lost-capacity refund once and fences an ambiguous external result', async () => {
+    const invoice = await new PostgresInvoiceRepository(
+      database,
+      context,
+    ).issue({
+      orgId: context.orgId,
+      accountId: context.actor.accountId,
+      source: 'checkout',
+      creationKey: randomUUID(),
+      lines: [
+        {
+          kind: 'registration',
+          description: 'Registration',
+          amountCents: 1000,
+          refundable: true,
+        },
+      ],
+    });
+    const paymentIntentId = `pi_${randomUUID()}`;
+    await new PostgresPaymentRecordStore(database, context).recordPending({
+      orgId: context.orgId,
+      checkoutId: firstCheckout,
+      invoiceId: invoice.id,
+      accountId: context.actor.accountId,
+      paymentIntentId,
+      amountCents: 1000,
+      applicationFeeCents: 10,
+      idempotencyKey: randomUUID(),
+    });
+    await new PostgresPaymentEventRepository(
+      database,
+      context.actor.accountId,
+      () => now,
+    ).applyLatest({
+      orgId: context.orgId,
+      paymentIntentId,
+      latest: {
+        id: paymentIntentId,
+        clientSecret: null,
+        status: 'succeeded',
+        amountCents: 1000,
+        latestChargeId: `ch_${randomUUID()}`,
+        method: 'card',
+      },
+    });
+    const claim = {
+      orgId: context.orgId,
+      checkoutId: firstCheckout,
+      paymentIntentId,
+      amountCents: 1000,
+    };
+    expect(await repo.claimLostCapacityRefund(claim)).toBe('claimed');
+    expect(await repo.claimLostCapacityRefund(claim)).toBe('pending');
+    await expect(
+      repo.claimLostCapacityRefund({ ...claim, amountCents: 999 }),
+    ).rejects.toThrow('must match');
+    const result = {
+      orgId: context.orgId,
+      checkoutId: firstCheckout,
+      paymentIntentId,
+      refundId: `re_${randomUUID()}`,
+      status: 'pending',
+    };
+    await repo.recordLostCapacityRefund(result);
+    await repo.recordLostCapacityRefund(result);
+    await expect(
+      repo.recordLostCapacityRefund({
+        ...result,
+        refundId: `re_${randomUUID()}`,
+      }),
+    ).rejects.toThrow('conflicts');
   });
 });
