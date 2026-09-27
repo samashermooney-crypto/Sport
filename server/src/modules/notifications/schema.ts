@@ -41,6 +41,3 @@ export const updatePreferenceSchema = z.strictObject({
 export const markReadSchema = z.strictObject({
   readAt: z.iso.datetime({ offset: true }),
 });
-export const streamReadySchema = z.strictObject({
-  connected: z.literal(true),
-});

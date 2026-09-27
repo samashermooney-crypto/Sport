@@ -853,7 +853,6 @@ export function PlatformConsole(): React.JSX.Element {
   const staffRole = role.data?.role;
   return (
     <main className="platform-console">
-      <ImpersonationBanner />
       <header>
         <h1>Platform</h1>
         <p>Organization operations and system health</p>
