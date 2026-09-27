@@ -10,7 +10,11 @@ export type ShellNavItem = {
   icon?: ReactNode;
   current?: boolean;
 };
-export type ShellNavGroup = { label: string; items: ShellNavItem[] };
+export type ShellNavGroup = {
+  label: string;
+  icon?: ReactNode;
+  items: ShellNavItem[];
+};
 
 export function AppShell({
   orgName,
@@ -83,7 +87,7 @@ export function AppShell({
     >
       <header className="topbar ui-topbar">
         <Link to="/" className="brand-mark" aria-label="Athlentry home">
-          A
+          <span>A</span>
         </Link>
         {orgSwitcher ?? <span className="org-name">{orgName}</span>}
         <nav className="main-navigation" aria-label="Main navigation">
@@ -97,7 +101,7 @@ export function AppShell({
                   setActive(active === group.label ? null : group.label);
                 }}
               >
-                {group.items[0]?.icon}
+                {group.icon ?? group.items[0]?.icon}
                 <span>{group.label}</span>
               </button>
               {active === group.label && (
@@ -129,8 +133,21 @@ export function AppShell({
             setPaletteOpen(true);
           }}
         >
-          <span>Search</span>
-          <kbd>⌘K</kbd>
+          <svg
+            aria-hidden="true"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-4-4" />
+          </svg>
+          <span>Search…</span>
         </button>
         <div className="ui-shell-actions">{actions}</div>
       </header>
