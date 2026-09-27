@@ -43,6 +43,23 @@
   gap: var(--space-12);
 }
 
+.evaluation-athlete-navigation,
+.evaluation-athlete-navigation > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.evaluation-athlete-navigation > div {
+  flex-wrap: wrap;
+}
+
+.evaluation-score-athlete {
+  touch-action: pan-y;
+}
+
 .evaluation-score-card h2,
 .evaluation-offer-list h2 {
   margin: 0;

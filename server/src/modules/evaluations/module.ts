@@ -212,6 +212,7 @@ export const moduleDefinition = {
   notificationTypes: ['evaluation.offer', 'offer.expiring'],
   errorCodes: [
     'ALREADY_CHECKED_IN',
+    'ALREADY_ROSTERED',
     'BALANCING_FAILED',
     'BOARD_NOT_DRAFT',
     'CAPACITY_EXCEEDED',
@@ -234,6 +235,7 @@ export const moduleDefinition = {
     'PLACEMENT_LOCKED',
     'PREFERENCE_CONFLICT',
     'RESULTS_REQUIRED',
+    'REGISTRATION_REQUIRED',
     'SCORE_CONFLICT',
     'SPORT_PROFILE_MISMATCH',
     'TEAMS_REQUIRED',

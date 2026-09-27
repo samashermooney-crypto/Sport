@@ -1123,6 +1123,25 @@ describe('Phase 6 evaluations integration', () => {
         ],
       );
     }
+    const waitlistedPersonId = randomUUID();
+    await admin.query(
+      `INSERT INTO people (id, org_id, first_name, last_name, date_of_birth) VALUES ($1, $2, 'Waitlisted', 'Rec', '2017-01-01')`,
+      [waitlistedPersonId, orgA],
+    );
+    await admin.query(
+      `INSERT INTO registrations (id, org_id, program_id, division_id, offering_id, person_id, household_id, registered_by_account_id, source, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'online', 'waitlisted')`,
+      [
+        randomUUID(),
+        orgA,
+        recProgramId,
+        recDivisionId,
+        recOffering,
+        waitlistedPersonId,
+        householdId,
+        guardianAccount,
+      ],
+    );
     // Mutual friend request between childA and childB.
     await upsertPlacementPreference(
       dependencies(),
@@ -1217,6 +1236,44 @@ describe('Phase 6 evaluations integration', () => {
       board.id,
     );
     expect(detail.placements).toHaveLength(9);
+    expect(
+      detail.placements.map((placement) => placement.personId),
+    ).not.toContain(waitlistedPersonId);
+    await admin.query(
+      `UPDATE registrations SET status='canceled' WHERE org_id=$1 AND program_id=$2 AND person_id=$3`,
+      [orgA, recProgramId, childB],
+    );
+    await expect(
+      publishPlacementBoard(dependencies(), ownerContext, board.id),
+    ).rejects.toMatchObject({ code: 'REGISTRATION_REQUIRED' });
+    const rosterBeforeRestore = await admin.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM roster_entries entry
+       JOIN team_seasons team ON team.org_id=entry.org_id AND team.id=entry.team_season_id
+       WHERE entry.org_id=$1 AND team.program_id=$2 AND entry.status='active'`,
+      [orgA, recProgramId],
+    );
+    expect(rosterBeforeRestore.rows[0]?.count).toBe(0);
+    await admin.query(
+      `UPDATE registrations SET status='confirmed' WHERE org_id=$1 AND program_id=$2 AND person_id=$3`,
+      [orgA, recProgramId, childB],
+    );
+    await publishPlacementBoard(dependencies(), ownerContext, board.id);
+    const roster = await admin.query<{
+      person_id: string;
+      registration_id: string | null;
+    }>(
+      `SELECT entry.person_id,entry.registration_id
+       FROM roster_entries entry JOIN team_seasons team
+         ON team.org_id=entry.org_id AND team.id=entry.team_season_id
+       WHERE entry.org_id=$1 AND team.program_id=$2 AND entry.status='active'
+       ORDER BY entry.person_id`,
+      [orgA, recProgramId],
+    );
+    expect(roster.rows).toHaveLength(9);
+    expect(roster.rows.every((row) => row.registration_id !== null)).toBe(true);
+    expect(roster.rows.map((row) => row.person_id)).not.toContain(
+      waitlistedPersonId,
+    );
   });
 
   it('caps a tryout board at roster capacity and surfaces next-in-line athletes', async () => {

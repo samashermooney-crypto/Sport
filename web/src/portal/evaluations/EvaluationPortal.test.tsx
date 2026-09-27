@@ -18,6 +18,14 @@ const eventId = randomUUID();
 const participantId = randomUUID();
 const personId = randomUUID();
 const criterionId = randomUUID();
+const originalOnlineDescriptor = Object.getOwnPropertyDescriptor(
+  window.navigator,
+  'onLine',
+);
+const originalScrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  'scrollIntoView',
+);
 const sheet = {
   event: {
     id: eventId,
@@ -58,6 +66,15 @@ afterEach(() => {
   cleanup();
   sessionStorage.clear();
   vi.unstubAllGlobals();
+  if (originalOnlineDescriptor)
+    Object.defineProperty(window.navigator, 'onLine', originalOnlineDescriptor);
+  if (originalScrollIntoViewDescriptor)
+    Object.defineProperty(
+      HTMLElement.prototype,
+      'scrollIntoView',
+      originalScrollIntoViewDescriptor,
+    );
+  else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
 });
 
 describe('evaluation scoring sheet', () => {
@@ -149,5 +166,148 @@ describe('evaluation scoring sheet', () => {
       criterionId,
       score: 3,
     });
+  });
+
+  it('syncs scores added while an earlier score request is still in flight', async () => {
+    Object.defineProperty(window.navigator, 'onLine', {
+      configurable: true,
+      value: true,
+    });
+    const secondAthleteId = randomUUID();
+    const secondPersonId = randomUUID();
+    const twoAthleteSheet = {
+      ...sheet,
+      participants: [
+        ...sheet.participants,
+        {
+          id: secondAthleteId,
+          personId: secondPersonId,
+          bibNumber: 15,
+          groupId: randomUUID(),
+          groupName: 'U10',
+          positionKeys: ['keeper'],
+          checkInStatus: 'checked_in',
+          firstName: 'Jordan',
+          lastName: 'Athlete',
+          photoFileId: null,
+        },
+      ],
+    };
+    const scoreRequests: Array<{ body: Record<string, unknown> }> = [];
+    let resolveFirstRequest!: (response: Response) => void;
+    const firstRequest = new Promise<Response>((resolve) => {
+      resolveFirstRequest = resolve;
+    });
+    const scoreResponse = (body: Record<string, unknown>) =>
+      ({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: randomUUID(),
+            participantId: body.participantId,
+            criterionId: body.criterionId,
+            version: 1,
+            clientMutationId: body.clientMutationId,
+          }),
+      }) as Response;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const path =
+          input instanceof Request
+            ? input.url
+            : typeof input === 'string'
+              ? input
+              : input.href;
+        if (path.endsWith('/scoring-sheet'))
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(twoAthleteSheet),
+          } as Response);
+        const body =
+          typeof init?.body === 'string'
+            ? (JSON.parse(init.body) as Record<string, unknown>)
+            : {};
+        scoreRequests.push({ body });
+        return scoreRequests.length === 1
+          ? firstRequest
+          : Promise.resolve(scoreResponse(body));
+      }),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter
+          initialEntries={[
+            `/portal/orgs/${orgId}/evaluations/${eventId}/score`,
+          ]}
+        >
+          <Routes>
+            <Route
+              path="/portal/orgs/:orgId/evaluations/:eventId/score"
+              element={<EvaluationScoringSheet />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByRole('heading', { name: 'U10 tryout' }),
+    ).toBeDefined();
+    const sliders = await screen.findAllByRole('slider');
+    const firstAthleteHeader = screen.getByRole('heading', {
+      name: 'Alex Athlete',
+    }).parentElement?.parentElement;
+    if (!firstAthleteHeader) throw new Error('Athlete header is missing');
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    fireEvent.pointerDown(firstAthleteHeader, {
+      clientX: 150,
+      clientY: 100,
+      pointerId: 1,
+      pointerType: 'touch',
+    });
+    fireEvent.pointerUp(firstAthleteHeader, {
+      clientX: 70,
+      clientY: 104,
+      pointerId: 1,
+      pointerType: 'touch',
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Athlete 2 of 2')).toBeDefined();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Previous athlete' }));
+    await waitFor(() => {
+      expect(screen.getByText('Athlete 1 of 2')).toBeDefined();
+    });
+    fireEvent.change(sliders[0] as HTMLElement, { target: { value: '3' } });
+    await waitFor(() => {
+      expect(scoreRequests).toHaveLength(1);
+    });
+    fireEvent.change(sliders[1] as HTMLElement, { target: { value: '4' } });
+    await waitFor(() => {
+      expect(screen.getByText('2 unsynced scores')).toBeDefined();
+    });
+
+    resolveFirstRequest(scoreResponse(scoreRequests[0]?.body ?? {}));
+    await waitFor(() => {
+      expect(scoreRequests).toHaveLength(2);
+    });
+    await waitFor(() => {
+      expect(screen.getByText('0 unsynced scores')).toBeDefined();
+    });
+    expect(scoreRequests.map((request) => request.body.participantId)).toEqual([
+      participantId,
+      secondAthleteId,
+    ]);
+    expect(
+      new Set(scoreRequests.map((request) => request.body.clientMutationId))
+        .size,
+    ).toBe(2);
   });
 });

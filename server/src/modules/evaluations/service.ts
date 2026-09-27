@@ -991,7 +991,7 @@ export async function createPlacementBoard(
         household_id: string | null;
         group_name: string;
         coach_rating: number | null;
-      }>`SELECT r.person_id,pe.school_name AS school,
+      }>`SELECT DISTINCT ON (r.person_id) r.person_id,pe.school_name AS school,
         (SELECT hm.household_id FROM household_members hm WHERE hm.org_id=r.org_id AND hm.person_id=r.person_id ORDER BY hm.is_primary_contact DESC LIMIT 1) AS household_id,
         d.name AS group_name,pref.coach_rating::float8 AS coach_rating
         FROM registrations r
@@ -999,9 +999,9 @@ export async function createPlacementBoard(
         JOIN divisions d ON d.org_id=r.org_id AND d.id=r.division_id
         LEFT JOIN placement_preferences pref ON pref.org_id=r.org_id AND pref.program_id=r.program_id AND pref.person_id=r.person_id
         WHERE r.org_id=${context.orgId} AND r.program_id=${targetProgramId}
-          AND r.status NOT IN ('canceled','withdrawn','transferred_out')
+          AND r.status='confirmed'
           AND (${input.divisionId}::uuid IS NULL OR r.division_id=${input.divisionId})
-        ORDER BY d.name,pref.coach_rating DESC NULLS LAST,r.created_at`.execute(
+        ORDER BY r.person_id,d.name,pref.coach_rating DESC NULLS LAST,r.created_at,r.id`.execute(
         trx,
       );
       participants = rows.rows.map((row) => ({
@@ -1342,16 +1342,120 @@ export async function publishPlacementBoard(
     const board = await sql<{
       id: string;
       status: string;
-    }>`UPDATE placement_boards SET status='published',published_at=${dependencies.clock()},version=version+1,updated_at=now()
-      WHERE org_id=${context.orgId} AND id=${boardId} AND status='draft' RETURNING id,status`.execute(
+      evaluation_event_id: string | null;
+      target_program_id: string;
+      division_id: string | null;
+    }>`SELECT id,status,evaluation_event_id,target_program_id,division_id
+      FROM placement_boards WHERE org_id=${context.orgId} AND id=${boardId} FOR UPDATE`.execute(
       trx,
     );
-    if (!board.rows[0])
+    const boardRow = board.rows[0];
+    if (!boardRow || boardRow.status !== 'draft')
       throw new EvaluationError(
         409,
         'BOARD_NOT_DRAFT',
         'Draft placement board not found',
       );
+    if (!boardRow.evaluation_event_id) {
+      const placements = await sql<{
+        person_id: string;
+        team_season_id: string;
+        roster_limit: number | null;
+      }>`SELECT placement.person_id,placement.team_season_id,team.roster_limit
+        FROM team_placements placement
+        JOIN team_seasons team ON team.org_id=placement.org_id AND team.id=placement.team_season_id
+        WHERE placement.org_id=${context.orgId} AND placement.placement_board_id=${boardId}
+        ORDER BY placement.person_id`.execute(trx);
+      if (!placements.rows.length)
+        throw new EvaluationError(
+          409,
+          'PARTICIPANTS_REQUIRED',
+          'A placement board needs players before it can be published',
+        );
+      const counts = await sql<{
+        team_season_id: string;
+        count: number;
+      }>`SELECT team_season_id,count(*)::int AS count
+        FROM roster_entries WHERE org_id=${context.orgId}
+          AND team_season_id IN (${sql.join(placements.rows.map((row) => sql`${row.team_season_id}::uuid`))})
+          AND status IN ('active','injured','suspended')
+        GROUP BY team_season_id`.execute(trx);
+      const rosterCountByTeam = new Map(
+        counts.rows.map((row) => [row.team_season_id, row.count]),
+      );
+      for (const placement of placements.rows) {
+        const registration = await sql<{
+          id: string;
+        }>`SELECT id FROM registrations
+          WHERE org_id=${context.orgId} AND program_id=${boardRow.target_program_id}
+            AND person_id=${placement.person_id} AND status='confirmed'
+            AND (${boardRow.division_id}::uuid IS NULL OR division_id=${boardRow.division_id})
+          ORDER BY created_at,id LIMIT 1 FOR UPDATE`.execute(trx);
+        const registrationId = registration.rows[0]?.id;
+        if (!registrationId)
+          throw new EvaluationError(
+            409,
+            'REGISTRATION_REQUIRED',
+            'Every rec-league placement must still have a confirmed registration',
+          );
+        const roster = await sql<{
+          id: string;
+          team_season_id: string;
+        }>`SELECT entry.id,entry.team_season_id FROM roster_entries entry
+          JOIN team_seasons team ON team.org_id=entry.org_id AND team.id=entry.team_season_id
+          WHERE entry.org_id=${context.orgId} AND team.program_id=${boardRow.target_program_id}
+            AND team.division_id IS NOT DISTINCT FROM ${boardRow.division_id}::uuid
+            AND entry.person_id=${placement.person_id}
+            AND entry.status IN ('active','injured','suspended')
+          FOR UPDATE OF entry`.execute(trx);
+        if (
+          roster.rows.some(
+            (row) => row.team_season_id !== placement.team_season_id,
+          )
+        )
+          throw new EvaluationError(
+            409,
+            'ALREADY_ROSTERED',
+            'A player is already rostered on another team in this division',
+          );
+        if (
+          roster.rows.some(
+            (row) => row.team_season_id === placement.team_season_id,
+          )
+        )
+          continue;
+        const rosterCount =
+          rosterCountByTeam.get(placement.team_season_id) ?? 0;
+        if (
+          placement.roster_limit !== null &&
+          rosterCount >= placement.roster_limit
+        )
+          throw new EvaluationError(
+            409,
+            'CAPACITY_EXCEEDED',
+            'A team roster reached capacity before this board was published',
+          );
+        const rosterEntryId = randomUUID();
+        await sql`INSERT INTO roster_entries
+          (id,org_id,team_season_id,person_id,registration_id,status)
+          VALUES (${rosterEntryId},${context.orgId},${placement.team_season_id},${placement.person_id},${registrationId},'active')`.execute(
+          trx,
+        );
+        rosterCountByTeam.set(placement.team_season_id, rosterCount + 1);
+        await appendAuditEvent(trx, context, {
+          action: 'roster.entry.created',
+          entityType: 'roster_entry',
+          entityId: rosterEntryId,
+        });
+      }
+    }
+    const published = await sql<{
+      id: string;
+      status: string;
+    }>`UPDATE placement_boards SET status='published',published_at=${dependencies.clock()},version=version+1,updated_at=now()
+      WHERE org_id=${context.orgId} AND id=${boardId} AND status='draft' RETURNING id,status`.execute(
+      trx,
+    );
     await sql`UPDATE team_placements SET status='published',version=version+1,updated_at=now()
       WHERE org_id=${context.orgId} AND placement_board_id=${boardId} AND status='draft'`.execute(
       trx,
@@ -1361,7 +1465,7 @@ export async function publishPlacementBoard(
       entityType: 'placement_board',
       entityId: boardId,
     });
-    return board.rows[0];
+    return published.rows[0];
   });
 }
 

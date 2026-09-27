@@ -40,6 +40,7 @@ const participantSchema = z.object({
   lastName: z.string(),
   photoFileId: z.string().nullable(),
 });
+const EMPTY_PARTICIPANTS: z.infer<typeof participantSchema>[] = [];
 const scoringSheetSchema = z.object({
   event: z.object({
     id: z.uuid(),
@@ -109,8 +110,12 @@ const queueSchema = z.array(
 function readQueue(key: string): QueuedScore[] {
   const raw = sessionStorage.getItem(key);
   if (!raw) return [];
-  const parsed = queueSchema.safeParse(JSON.parse(raw));
-  return parsed.success ? parsed.data : [];
+  try {
+    const parsed = queueSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : [];
+  } catch {
+    return [];
+  }
 }
 
 function scoreKey(
@@ -160,12 +165,20 @@ export function EvaluationScoringSheet(): React.JSX.Element {
   const { orgId = '', eventId = '' } = useParams();
   const key = `athlentry.evaluation.queue.${orgId}.${eventId}`;
   const [queue, setQueue] = useState<QueuedScore[]>(() => readQueue(key));
+  const queueRef = useRef(queue);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [activeAthleteIndex, setActiveAthleteIndex] = useState(0);
+  const swipeStart = useRef<{
+    x: number;
+    y: number;
+    athleteIndex: number;
+  } | null>(null);
   const [online, setOnline] = useState(
     () => typeof navigator === 'undefined' || navigator.onLine,
   );
   const [notice, setNotice] = useState('');
   const syncing = useRef(false);
+  const queuedDuringSync = useRef(false);
   const autoSyncAttempt = useRef('');
   const queryClient = useQueryClient();
   const sheet = useQuery({
@@ -193,8 +206,12 @@ export function EvaluationScoringSheet(): React.JSX.Element {
   }, []);
 
   const sync = useCallback(
-    async (pending = queue) => {
-      if (!navigator.onLine || !pending.length || syncing.current) return;
+    async (pending = queueRef.current) => {
+      if (!navigator.onLine || !pending.length) return;
+      if (syncing.current) {
+        queuedDuringSync.current = true;
+        return;
+      }
       syncing.current = true;
       try {
         const remaining: QueuedScore[] = [];
@@ -215,29 +232,41 @@ export function EvaluationScoringSheet(): React.JSX.Element {
             );
           }
         }
-        setQueue((current) => {
-          const sentIds = new Set(pending.map((item) => item.clientMutationId));
-          return [
-            ...current.filter((item) => !sentIds.has(item.clientMutationId)),
-            ...remaining,
-          ];
-        });
+        const sentIds = new Set(pending.map((item) => item.clientMutationId));
+        const next = [
+          ...queueRef.current.filter(
+            (item) => !sentIds.has(item.clientMutationId),
+          ),
+          ...remaining.filter(
+            (item) =>
+              !queueRef.current.some(
+                (currentItem) =>
+                  currentItem.clientMutationId === item.clientMutationId,
+              ),
+          ),
+        ];
+        queueRef.current = next;
+        setQueue(next);
         if (remaining.length === 0) setNotice('All saved scores are synced.');
         await queryClient.invalidateQueries({
           queryKey: ['evaluation-scoring-sheet', orgId, eventId],
         });
       } finally {
         syncing.current = false;
+        if (queuedDuringSync.current) {
+          queuedDuringSync.current = false;
+          const latest = queueRef.current;
+          if (latest.length)
+            queueMicrotask(() => {
+              void syncRef.current(latest);
+            });
+        }
       }
     },
-    [eventId, orgId, queryClient, queue],
+    [eventId, orgId, queryClient],
   );
 
-  const queueRef = useRef(queue);
   const syncRef = useRef(sync);
-  useEffect(() => {
-    queueRef.current = queue;
-  }, [queue]);
   useEffect(() => {
     syncRef.current = sync;
   }, [sync]);
@@ -269,9 +298,12 @@ export function EvaluationScoringSheet(): React.JSX.Element {
         clientMutationId: crypto.randomUUID(),
       };
       const updated = [
-        ...queue.filter((queued) => scoreKey(queued) !== scoreKey(item)),
+        ...queueRef.current.filter(
+          (queued) => scoreKey(queued) !== scoreKey(item),
+        ),
         item,
       ];
+      queueRef.current = updated;
       setQueue(updated);
       setNotice(
         online
@@ -280,7 +312,7 @@ export function EvaluationScoringSheet(): React.JSX.Element {
       );
       if (online) await sync(updated);
     },
-    [online, queue, sync],
+    [online, sync],
   );
 
   const scoreValues = useMemo(() => {
@@ -297,6 +329,44 @@ export function EvaluationScoringSheet(): React.JSX.Element {
     for (const item of queue) values.set(scoreKey(item), item.notes);
     return values;
   }, [queue, sheet.data?.scores]);
+  const participants = sheet.data?.participants ?? EMPTY_PARTICIPANTS;
+  const showAthlete = useCallback(
+    (index: number) => {
+      if (!participants.length) return;
+      const nextIndex = Math.max(0, Math.min(index, participants.length - 1));
+      setActiveAthleteIndex(nextIndex);
+      const participant = participants[nextIndex];
+      if (!participant) return;
+      const card = document.getElementById(
+        `evaluation-athlete-${participant.id}`,
+      );
+      card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card?.focus({ preventScroll: true });
+    },
+    [participants],
+  );
+  const onAthletePointerDown = (
+    event: React.PointerEvent<HTMLDivElement>,
+    athleteIndex: number,
+  ) => {
+    swipeStart.current = {
+      x: event.clientX,
+      y: event.clientY,
+      athleteIndex,
+    };
+  };
+  const onAthletePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start) return;
+    const distanceX = event.clientX - start.x;
+    const distanceY = event.clientY - start.y;
+    if (Math.abs(distanceX) < 56 || Math.abs(distanceY) > 48) return;
+    showAthlete(start.athleteIndex + (distanceX < 0 ? 1 : -1));
+  };
+  const currentAthleteIndex = participants.length
+    ? Math.min(activeAthleteIndex, participants.length - 1)
+    : 0;
 
   if (!orgId || !eventId)
     return <main className="console-home">Evaluation unavailable.</main>;
@@ -335,11 +405,44 @@ export function EvaluationScoringSheet(): React.JSX.Element {
               {scoreValues.size} score entries saved for{' '}
               {sheet.data.participants.length} assigned athletes.
             </div>
+            {participants.length > 0 && (
+              <nav
+                className="evaluation-athlete-navigation"
+                aria-label="Athlete scoring navigation"
+              >
+                <span role="status">
+                  Athlete {String(currentAthleteIndex + 1)} of{' '}
+                  {String(participants.length)}
+                </span>
+                <div>
+                  <Button
+                    secondary
+                    type="button"
+                    disabled={currentAthleteIndex === 0}
+                    onClick={() => {
+                      showAthlete(currentAthleteIndex - 1);
+                    }}
+                  >
+                    Previous athlete
+                  </Button>
+                  <Button
+                    secondary
+                    type="button"
+                    disabled={currentAthleteIndex >= participants.length - 1}
+                    onClick={() => {
+                      showAthlete(currentAthleteIndex + 1);
+                    }}
+                  >
+                    Next athlete
+                  </Button>
+                </div>
+              </nav>
+            )}
             <section
               className="evaluation-score-list"
               aria-label="Athlete scoring list"
             >
-              {sheet.data.participants.map((athlete) => {
+              {participants.map((athlete, athleteIndex) => {
                 const criteria = sheet.data.criteria.filter(
                   (criterion) =>
                     !criterion.positionSpecific ||
@@ -349,8 +452,22 @@ export function EvaluationScoringSheet(): React.JSX.Element {
                     ),
                 );
                 return (
-                  <Card key={athlete.id} className="evaluation-score-card">
-                    <div className="evaluation-score-athlete">
+                  <Card
+                    id={`evaluation-athlete-${athlete.id}`}
+                    tabIndex={-1}
+                    key={athlete.id}
+                    className="evaluation-score-card"
+                  >
+                    <div
+                      className="evaluation-score-athlete"
+                      onPointerDown={(event) => {
+                        onAthletePointerDown(event, athleteIndex);
+                      }}
+                      onPointerUp={onAthletePointerUp}
+                      onPointerCancel={() => {
+                        swipeStart.current = null;
+                      }}
+                    >
                       <div>
                         <p className="evaluation-bib">
                           Bib {athlete.bibNumber} · {athlete.groupName}
