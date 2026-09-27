@@ -2,7 +2,7 @@
 
 Status: ready-for-integration (H-owned work and gates are green; Phase 10 completion awaits the listed A/C/G work)
 Branch: `track/h-comms` (local only; no push)
-Merged trunk: `rebuild/trunk` at `1b6777d` (including the dependency merge at `8f6ec98`)
+Merged trunk: `rebuild/trunk` at `15b35a8` (including the dependency, finance and household integrations)
 Local range: `c577d62..HEAD` (includes the resolved trunk merge and H follow-ups)
 Migration range: `4000–4006`
 
@@ -20,10 +20,10 @@ Migration range: `4000–4006`
 ## Verification
 
 - Targeted H Postgres integration tests: 21 passed. Coverage includes tenant and role enforcement, all Phase 10 notification IDs, tokenized unsubscribe destination, provider-ID callbacks, chat grouping, unread/muted suppression, push/email preferences and quiet-hour deferral.
-- Full `npm test`: 178 files passed, 1 skipped; 679 tests passed, 1 skipped.
+- Full `npm test`: 180 files passed, 1 skipped; 681 tests passed, 1 skipped.
 - H Playwright journeys: 4 passed across Chromium desktop and WebKit mobile. Full `npm run test:e2e`: 40 passed, 4 skipped; axe checks in the H journeys reported no serious or critical violations.
 - `npm run db:migrate` applied migrations `4005_chat_notification_batches.sql` and `4006_chat_notification_batch_indexes.sql`; `npm run db:codegen` introspected 157 tables.
-- `npm run typecheck`, `npm run lint`, `npm run build`, `npm run registry`, `npm run openapi` and `git diff --check` passed. Build emitted upstream dependency/chunk-size advisories only.
+- `npm run typecheck`, `npm run lint`, `npm run build`, `npm run registry`, `npm run openapi` and `git diff --check` passed against the merged trunk. Build emitted upstream dependency/chunk-size advisories only.
 - No real email, SMS or push was sent. The branch was not pushed.
 
 ## Remaining work owned by other tracks

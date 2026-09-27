@@ -1,4 +1,11 @@
 import {
+  householdCreateSchema,
+  householdListSchema,
+  householdMemberCreateSchema,
+  householdResponseSchema,
+  householdUpdateSchema,
+} from '@shared/schemas/households';
+import {
   peopleListSchema,
   personCreateSchema,
   personResponseSchema,
@@ -19,6 +26,39 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: '/api/v1/people/households/orgs/{orgId}',
+      summary: 'List staff-visible households',
+      response: householdListSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/people/households/orgs/{orgId}/{householdId}',
+      summary: 'Read household, members, registrations and balance',
+      response: householdResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/households/orgs/{orgId}',
+      summary: 'Create household',
+      body: householdCreateSchema,
+      response: householdResponseSchema,
+    },
+    {
+      method: 'patch',
+      path: '/api/v1/people/households/orgs/{orgId}/{householdId}',
+      summary: 'Versioned household update',
+      body: householdUpdateSchema,
+      response: householdResponseSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/households/orgs/{orgId}/{householdId}/members',
+      summary: 'Add household member',
+      body: householdMemberCreateSchema,
+      response: householdResponseSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/people/orgs/{orgId}',

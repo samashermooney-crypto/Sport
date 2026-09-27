@@ -3,7 +3,7 @@
 Status: ready-for-integration
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/e-finance`
-Current: Staff installment due-date, split, consented method-switch and waiver actions are versioned, idempotent and audited; waiver posts a balancing discount and refuses unsettled payments. The portal captures payer consent; finance notice worker delivery waits for A's system actor contract.
+Current: Staff installment due-date, split, consented method-switch and waiver actions are versioned, idempotent and audited; a finance console component now drives those actions from exact schedule versions. Finance notice worker delivery waits for A's system actor contract.
 Requests to other tracks: A: regenerate OpenAPI for the finance installment-template list/create/replace/archive routes after merging E; the active list is the Phase 3 offering picker contract (2026-09-27).
 Requests to other tracks: A: copy the `Luna finance:` lines below into `docs/codex/60-LUNA-PLAYBOOK.md` when that A-owned file is created; E cannot edit the A-owned playbook (2026-09-27).
 Ready for integration: local `64d5481..5e14320` — Track E Stripe, Phase 4 finance core and Phase 5 checkout core through frozen charge validation; queue work continues.
@@ -39,6 +39,7 @@ Ready for integration: local `059b13e..HEAD` — staff method switch requires an
 Ready for integration: local `da4a859..HEAD` — payer-owned, exact-invoice staff-method consent capture with versioned text hash, request evidence and UUID replay key; full gate green (672 tests, 36 browser tests).
 Ready for integration: local `1b44435..HEAD` — portal consent selector with payer-scoped eligible invoices, saved methods, required versioned text and stable retry key; full gate green (673 tests, 36 browser tests).
 Ready for integration: local `818ad18..HEAD` — installment waiver posts a negative discount ledger line, reduces invoice total, excludes waived installments from delinquency and blocks in-flight payments; full gate green (674 tests, 36 browser tests).
+Ready for integration: local `62e3448..HEAD` — finance-only installment schedule/consent read API and staff action component; full gate green (675 tests, 36 browser tests), console route mount awaits A.
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
@@ -52,6 +53,7 @@ Requests to other tracks: A: regenerate registry/OpenAPI for `/api/v1/finance/or
 Requests to other tracks: A: regenerate registry/OpenAPI for E's payer receipts feed and invoice/receipt binary PDF routes, and mount `ReceiptsScreen` beside `InvoiceBalanceScreen` in portal money; OpenAPI binary responses currently advertise octet-stream although the routes return application/pdf (2026-09-27).
 Requests to other tracks: A: supply a tenant-scoped system actor and a per-org finance notice job dispatch contract so E can schedule `PostgresFinanceNoticeDelivery.deliverOne()` from the committed outbox; register it only after portal invoice/receipt routes are mounted so notice links resolve (2026-09-27).
 Requests to other tracks: A: regenerate finance OpenAPI/registry for `POST /api/v1/finance/orgs/{orgId}/installments/{installmentId}/actions` after E merge; the action requires finance staff, an exact installment version and an Idempotency-Key UUID (2026-09-27).
+Requests to other tracks: A: regenerate finance OpenAPI for `GET /api/v1/finance/orgs/{orgId}/invoices/{invoiceId}/installments` and mount E's `InstallmentStaffScreen` on the finance invoice detail route with `orgId` and `invoiceId`; the component uses the four action APIs (2026-09-27).
 Requests to other tracks: A: regenerate finance OpenAPI for `POST /api/v1/finance/orgs/{orgId}/me/autopay/staff-method-consents` and `GET /api/v1/finance/orgs/{orgId}/me/autopay/staff-method-options` after E merge; portal money now presents the exact `staff-method-consent-v1` text before payer acceptance (2026-09-27).
 Requests to other tracks: A: mount E's `ConnectScreen`, `ConnectReturn`, and `ConnectRefresh` at the console money route and `/orgs/{orgId}/money/connect/{return,refresh}` targets in A-owned app router; E's Connect API supplies onboarding, continue, status and dashboard links (2026-09-27).
 Requests to other tracks: A: mount E's `CheckoutPaymentScreen` only after A/B checkout flow supplies payer-owned checkout/invoice IDs and the frozen quote; E's screen posts the stable key to its PaymentIntent route and validates returned cents before rendering Stripe (2026-09-27).
