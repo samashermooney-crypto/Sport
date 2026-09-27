@@ -8,6 +8,7 @@ import { Card, PageHeader } from '../ui/primitives';
 import { AppShell } from '../ui/shell';
 
 import { PersonForm } from './PeopleConsole';
+import { PersonPhoto } from './PersonPhoto';
 
 export function FamilyProfile(): React.JSX.Element {
   const { orgId, personId } = useParams();
@@ -100,6 +101,19 @@ export function FamilyProfile(): React.JSX.Element {
               }}
             />
             {saved && <p role="status">Profile saved.</p>}
+          </Card>
+        )}
+        {current?.canEdit && orgId && (
+          <Card>
+            <PersonPhoto
+              orgId={orgId}
+              person={current}
+              familyManaged
+              onSaved={async () => {
+                setSaved(null);
+                await profile.refetch();
+              }}
+            />
           </Card>
         )}
         {current && !current.canEdit && (

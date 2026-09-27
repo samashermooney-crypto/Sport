@@ -30,10 +30,12 @@ export function PersonPhoto({
   orgId,
   person,
   onSaved,
+  familyManaged = false,
 }: {
   orgId: string;
   person: Person;
   onSaved: () => Promise<void>;
+  familyManaged?: boolean;
 }): React.JSX.Element {
   const [file, setFile] = useState<File | null>(null);
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
@@ -148,7 +150,7 @@ export function PersonPhoto({
         },
       );
       await apiPost(
-        `/people/orgs/${orgId}/${person.id}/photo`,
+        `/people/orgs/${orgId}/${person.id}/${familyManaged ? 'family-photo' : 'photo'}`,
         {
           expectedVersion: person.version,
           fileId: upload.fileId,
@@ -172,7 +174,7 @@ export function PersonPhoto({
     setError('');
     try {
       await apiPost(
-        `/people/orgs/${orgId}/${person.id}/photo`,
+        `/people/orgs/${orgId}/${person.id}/${familyManaged ? 'family-photo' : 'photo'}`,
         {
           expectedVersion: person.version,
           fileId: null,

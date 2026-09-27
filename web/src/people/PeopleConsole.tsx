@@ -236,6 +236,8 @@ export function PeopleShell({
             ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
             { label: 'People', to: people },
             { label: 'Households', to: `${home}/households` },
+            { label: 'Forms', to: `${home}/forms` },
+            { label: 'Waivers', to: `${home}/waivers` },
             { label: 'Imports', to: `${home}/imports` },
             { label: 'Account', to: '/me' },
           ],
@@ -245,6 +247,8 @@ export function PeopleShell({
         ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
         { label: 'People', to: people },
         { label: 'Households', to: `${home}/households` },
+        { label: 'Forms', to: `${home}/forms` },
+        { label: 'Waivers', to: `${home}/waivers` },
         { label: 'Imports', to: `${home}/imports` },
         { label: 'Account', to: '/me' },
       ]}

@@ -61,6 +61,17 @@ export const personPhotoUpdateSchema = z.strictObject({
   fileId: z.uuid().nullable(),
 });
 
+export const familyPersonDocumentSchema = z.strictObject({
+  id: z.uuid(),
+  mime: z.string(),
+  bytes: z.number().int().positive(),
+  uploadedAt: z.iso.datetime(),
+});
+
+export const familyPersonDocumentsSchema = z.strictObject({
+  items: z.array(familyPersonDocumentSchema),
+});
+
 export const guardianLinkCreateSchema = z.strictObject({
   email: z.email().max(254),
 });

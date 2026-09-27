@@ -694,3 +694,17 @@
 - **Decision:** Keep signer and participant IDs exactly as captured. Resolve the full `person_merges` lineage when listing signatures or authorizing a linked person to download historical PDF evidence.
 - **Why:** A merge must not rewrite legally significant signature evidence or fail because an immutable record references the pre-merge person.
 - **Consequences / follow-ups:** Signatures retain their original person IDs and document hashes. PostgreSQL merge tests verify that the survivor can list and download the preserved evidence through the active guardian link.
+### DEC-110 — Keep family documents restricted to verified profile links
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 family portal documents and photos
+- **Context:** Phase 2 allows guardians and adult selves to manage family documents, while the Files module separates Restricted evidence from ordinary organization files.
+- **Decision:** Store family documents as Restricted person-owned files. Only an active, verified guardian or adult self link for that person can upload, list, or download them; authorized Restricted staff retain their existing access. Profile photos use the existing sensitive-image class and remain available only when media consent is granted.
+- **Why:** Family records can contain identity and medical information, so the narrowest relationship-based access protects privacy while enabling the specified family workflow.
+- **Consequences / follow-ups:** Uploaded records are retained; this UI does not hard-delete them. Documents use PDF, JPEG, and PNG, and every upload/download still passes through Files authorization and audit.
+### DEC-111 — Define dual-signer waivers as adult plus guardian
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 waivers
+- **Context:** The waiver schema offers a `both` signer requirement but does not define which two legally accountable people fulfill it.
+- **Decision:** Require the adult participant to sign as self and a distinct, verified guardian account to sign as guardian. Reject this requirement for minors because the permission spec does not allow minors to sign their own waivers.
+- **Why:** A guardian signature cannot substitute for the adult participant signature, and one account cannot satisfy both roles.
+- **Consequences / follow-ups:** The family portal shows partial completion and permits the missing role to sign. Waiver managers see this rule when selecting `both`.

@@ -40,6 +40,31 @@ const FamilyMedical = lazy(() =>
     default: Component,
   })),
 );
+const FamilyForms = lazy(() =>
+  import('./FamilyForms').then(({ FamilyForms: Component }) => ({
+    default: Component,
+  })),
+);
+const FamilyWaivers = lazy(() =>
+  import('./FamilyWaivers').then(({ FamilyWaivers: Component }) => ({
+    default: Component,
+  })),
+);
+const FamilyDocuments = lazy(() =>
+  import('./FamilyDocuments').then(({ FamilyDocuments: Component }) => ({
+    default: Component,
+  })),
+);
+const FormsConsole = lazy(() =>
+  import('./FormsConsole').then(({ FormsConsole: Component }) => ({
+    default: Component,
+  })),
+);
+const WaiversConsole = lazy(() =>
+  import('./WaiversConsole').then(({ WaiversConsole: Component }) => ({
+    default: Component,
+  })),
+);
 const AcceptPersonClaim = lazy(() =>
   import('./AcceptPersonClaim').then(({ AcceptPersonClaim: Component }) => ({
     default: Component,
@@ -95,6 +120,30 @@ export const peopleRoutes: readonly RouteObject[] = [
     ),
   },
   {
+    path: '/me/family/:orgId/:personId/forms',
+    element: (
+      <Suspense fallback={<main role="status">Loading forms…</main>}>
+        <FamilyForms />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/me/family/:orgId/:personId/waivers',
+    element: (
+      <Suspense fallback={<main role="status">Loading waivers…</main>}>
+        <FamilyWaivers />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/me/family/:orgId/:personId/documents',
+    element: (
+      <Suspense fallback={<main role="status">Loading documents…</main>}>
+        <FamilyDocuments />
+      </Suspense>
+    ),
+  },
+  {
     path: '/athlete-invitations/:orgId/:token',
     element: (
       <Suspense fallback={<main role="status">Loading invitation…</main>}>
@@ -139,6 +188,22 @@ export const peopleRoutes: readonly RouteObject[] = [
     element: (
       <Suspense fallback={<main role="status">Loading imports…</main>}>
         <ImportsConsole />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/console/orgs/:orgId/forms',
+    element: (
+      <Suspense fallback={<main role="status">Loading forms…</main>}>
+        <FormsConsole />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/console/orgs/:orgId/waivers',
+    element: (
+      <Suspense fallback={<main role="status">Loading waivers…</main>}>
+        <WaiversConsole />
       </Suspense>
     ),
   },

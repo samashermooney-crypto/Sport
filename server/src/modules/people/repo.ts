@@ -2,6 +2,7 @@ import { Temporal } from '@js-temporal/polyfill';
 import { ageOnDate, orgToday } from '@shared/dates';
 import { newId } from '@shared/ids';
 import {
+  familyPersonDocumentsSchema,
   familyProfileResponseSchema,
   peopleListSchema,
   personResponseSchema,
@@ -534,6 +535,42 @@ export function createPeopleRepository(database: Kysely<DB>) {
         });
       });
     },
+    async listFamilyDocuments(
+      orgId: string,
+      actorId: string,
+      personId: string,
+    ) {
+      return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
+        const access = await relatedProfileAccess(
+          trx,
+          orgId,
+          actorId,
+          personId,
+        );
+        if (!access.canEdit)
+          throw new PeopleError(404, 'NOT_FOUND', 'Person not found');
+        const rows = await trx
+          .selectFrom('files')
+          .select(['id', 'mime', 'bytes', 'created_at'])
+          .where('org_id', '=', orgId)
+          .where('owner_type', '=', 'person_document')
+          .where('owner_id', '=', personId)
+          .where('purpose', '=', 'document')
+          .where('sensitivity', '=', 'restricted')
+          .where('upload_state', '=', 'complete')
+          .where('deleted_at', 'is', null)
+          .orderBy('created_at', 'desc')
+          .execute();
+        return familyPersonDocumentsSchema.parse({
+          items: rows.map((row) => ({
+            id: row.id,
+            mime: row.mime,
+            bytes: row.bytes,
+            uploadedAt: row.created_at.toISOString(),
+          })),
+        });
+      });
+    },
     async create(orgId: string, actorId: string, input: Create) {
       return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
         await requireStaff(trx, orgId, actorId, false);
@@ -612,6 +649,90 @@ export function createPeopleRepository(database: Kysely<DB>) {
     ) {
       return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
         await requireStaff(trx, orgId, actorId, false);
+        const current = await trx
+          .selectFrom('people')
+          .select(['version', 'status', 'media_consent', 'photo_file_id'])
+          .where('org_id', '=', orgId)
+          .where('id', '=', personId)
+          .forUpdate()
+          .executeTakeFirst();
+        if (!current)
+          throw new PeopleError(404, 'NOT_FOUND', 'Person not found');
+        if (
+          current.status !== 'active' ||
+          current.version !== input.expectedVersion
+        )
+          throw new PeopleError(
+            409,
+            'CONFLICT',
+            'Person changed; reload before saving',
+          );
+        if (input.fileId) {
+          if (current.media_consent !== 'granted')
+            throw new PeopleError(409, 'CONFLICT', 'Photo consent is required');
+          const file = await trx
+            .selectFrom('files')
+            .select('id')
+            .where('org_id', '=', orgId)
+            .where('id', '=', input.fileId)
+            .where('owner_type', '=', 'person')
+            .where('owner_id', '=', personId)
+            .where('purpose', '=', 'image')
+            .where('sensitivity', '=', 'sensitive')
+            .where('upload_state', '=', 'complete')
+            .where('deleted_at', 'is', null)
+            .where('mime', 'in', ['image/jpeg', 'image/png', 'image/webp'])
+            .executeTakeFirst();
+          if (!file)
+            throw new PeopleError(
+              400,
+              'VALIDATION_ERROR',
+              'Photo file is unavailable',
+            );
+        }
+        const row = await trx
+          .updateTable('people')
+          .set({ photo_file_id: input.fileId, version: sql`version + 1` })
+          .where('org_id', '=', orgId)
+          .where('id', '=', personId)
+          .where('version', '=', input.expectedVersion)
+          .returning(selection)
+          .executeTakeFirstOrThrow();
+        if (current.photo_file_id && current.photo_file_id !== input.fileId)
+          await trx
+            .updateTable('files')
+            .set({ deleted_at: new Date() })
+            .where('org_id', '=', orgId)
+            .where('id', '=', current.photo_file_id)
+            .where('deleted_at', 'is', null)
+            .execute();
+        await audit(
+          trx,
+          orgId,
+          actorId,
+          personId,
+          input.fileId ? 'person.photo_attached' : 'person.photo_removed',
+          row.version,
+        );
+        return mapPerson(row, await presentation(trx, orgId));
+      });
+    },
+    async setRelatedPhoto(
+      orgId: string,
+      actorId: string,
+      personId: string,
+      input: { expectedVersion: number; fileId: string | null },
+    ) {
+      return withOrg({ orgId, actor: { accountId: actorId } }, async (trx) => {
+        const access = await relatedProfileAccess(
+          trx,
+          orgId,
+          actorId,
+          personId,
+          true,
+        );
+        if (!access.canEdit)
+          throw new PeopleError(404, 'NOT_FOUND', 'Person not found');
         const current = await trx
           .selectFrom('people')
           .select(['version', 'status', 'media_consent', 'photo_file_id'])

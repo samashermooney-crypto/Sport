@@ -276,6 +276,45 @@ export function createWaiversService(database: Kysely<DB>) {
       });
     },
 
+    async listForPerson(context: OrgContext, participantPersonId: string) {
+      const personId = z.uuid().parse(participantPersonId);
+      return withOrg(context, async (trx) => {
+        const person = await trx
+          .selectFrom('people')
+          .select('id')
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', personId)
+          .where('status', '=', 'active')
+          .executeTakeFirst();
+        if (!person)
+          throw new WaiversError(404, 'NOT_FOUND', 'Waiver was not found');
+        const link = await trx
+          .selectFrom('person_account_links')
+          .select('id')
+          .where('org_id', '=', context.orgId)
+          .where('person_id', '=', personId)
+          .where('account_id', '=', context.actor.accountId)
+          .where('verified_at', 'is not', null)
+          .where('revoked_at', 'is', null)
+          .executeTakeFirst();
+        if (!link)
+          throw new WaiversError(404, 'NOT_FOUND', 'Waiver was not found');
+        const rows = await trx
+          .selectFrom('waiver_documents')
+          .selectAll()
+          .where('org_id', '=', context.orgId)
+          .where('published_at', 'is not', null)
+          .where('retired_at', 'is', null)
+          .where('template_unreviewed', '=', false)
+          .orderBy('name')
+          .orderBy('version', 'desc')
+          .execute();
+        return waiverDocumentListSchema.parse({
+          items: rows.map(documentView),
+        });
+      });
+    },
+
     async create(context: OrgContext, input: WaiverDocumentCreate) {
       const value = waiverDocumentCreateSchema.parse(input);
       return withOrg(context, async (trx) => {
@@ -486,6 +525,7 @@ export function createWaiversService(database: Kysely<DB>) {
           .where('org_id', '=', context.orgId)
           .where('id', '=', value.participantPersonId)
           .where('status', '=', 'active')
+          .forUpdate()
           .executeTakeFirst();
         if (!participant)
           throw new WaiversError(404, 'NOT_FOUND', 'Participant was not found');
@@ -511,13 +551,24 @@ export function createWaiversService(database: Kysely<DB>) {
         const canSignAsGuardian = relationship?.relationship === 'guardian';
         const canSignAsParticipant =
           relationship?.relationship === 'self' && !isMinor;
+        if (document.requires === 'both' && isMinor)
+          throw new WaiversError(
+            409,
+            'CONFLICT',
+            'This waiver requires participant and guardian signatures. Minors cannot sign their own waivers.',
+          );
         if (
           (document.requires === 'guardian_if_minor' &&
             (isMinor ? !canSignAsGuardian : !canSignAsParticipant)) ||
           (document.requires === 'participant' &&
             (isMinor || !canSignAsParticipant)) ||
           (document.requires === 'both' &&
-            (isMinor ? !canSignAsGuardian : !canSignAsParticipant))
+            !(
+              (canSignAsParticipant &&
+                value.signerPersonId === value.participantPersonId) ||
+              (canSignAsGuardian &&
+                value.signerPersonId !== value.participantPersonId)
+            ))
         )
           throw new WaiversError(404, 'NOT_FOUND', 'Waiver was not found');
         if (value.signerPersonId) {
@@ -569,6 +620,54 @@ export function createWaiversService(database: Kysely<DB>) {
               404,
               'NOT_FOUND',
               'Registration was not found',
+            );
+        }
+        if (document.requires === 'both') {
+          let signaturesQuery = trx
+            .selectFrom('waiver_signatures')
+            .select(['signer_account_id', 'signer_person_id'])
+            .where('org_id', '=', context.orgId)
+            .where('waiver_document_id', '=', document.id)
+            .where('document_version', '=', document.version)
+            .where('participant_person_id', '=', value.participantPersonId);
+          signaturesQuery = value.registrationId
+            ? signaturesQuery.where(
+                'registration_id',
+                '=',
+                value.registrationId,
+              )
+            : signaturesQuery.where('registration_id', 'is', null);
+          const signatures = await signaturesQuery.execute();
+          if (
+            signatures.some(
+              (signature) =>
+                signature.signer_account_id === context.actor.accountId,
+            )
+          )
+            throw new WaiversError(
+              409,
+              'CONFLICT',
+              'The other signer must use a different account.',
+            );
+          const participantAlreadySigned = signatures.some(
+            (signature) =>
+              signature.signer_person_id === value.participantPersonId,
+          );
+          const guardianAlreadySigned = signatures.some(
+            (signature) =>
+              signature.signer_person_id !== value.participantPersonId,
+          );
+          const signingAsParticipant =
+            canSignAsParticipant &&
+            value.signerPersonId === value.participantPersonId;
+          if (
+            (signingAsParticipant && participantAlreadySigned) ||
+            (!signingAsParticipant && guardianAlreadySigned)
+          )
+            throw new WaiversError(
+              409,
+              'CONFLICT',
+              'This signer has already signed the current waiver version.',
             );
         }
         const text = bodyText(document.body_html);

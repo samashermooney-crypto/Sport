@@ -549,6 +549,34 @@ describe('files tenancy and lifecycle', () => {
     );
     await restrictedService.completeUpload(guardianContext, pending.fileId);
 
+    const familyDocument = await restrictedService.beginUpload({
+      context: guardianContext,
+      purpose: 'document',
+      mime: 'application/pdf',
+      bytes: bytes.byteLength,
+      ownerType: 'person_document',
+      ownerId: personA,
+      sensitivity: 'restricted',
+    });
+    await restrictedService.uploadLocalBytes(
+      guardianContext,
+      familyDocument.fileId,
+      bytes,
+    );
+    await restrictedService.completeUpload(
+      guardianContext,
+      familyDocument.fileId,
+    );
+    await expect(
+      restrictedService.download(guardianContext, familyDocument.fileId),
+    ).resolves.toBe(`/api/v1/files/${familyDocument.fileId}/content`);
+    await expect(
+      restrictedService.download(
+        unverifiedGuardianContext,
+        familyDocument.fileId,
+      ),
+    ).rejects.toBeInstanceOf(FileValidationError);
+
     await expect(
       restrictedService.beginUpload({
         context: unverifiedGuardianContext,

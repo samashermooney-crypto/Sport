@@ -35,6 +35,14 @@ export const moduleDefinition = {
       tags: ['waivers'],
     },
     {
+      method: 'get',
+      path: '/api/v1/waivers/orgs/{orgId}/person',
+      summary: 'List published waivers for a linked person',
+      query: { personId: z.uuid() },
+      response: waiverDocumentListSchema,
+      tags: ['waivers'],
+    },
+    {
       method: 'post',
       path: '/api/v1/waivers/orgs/{orgId}',
       summary: 'Create a draft waiver from plain text',

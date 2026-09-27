@@ -24,6 +24,7 @@ import {
   athleteInvitationSchema,
   athleteLinkResponseSchema,
   duplicatesResponseSchema,
+  familyPersonDocumentsSchema,
   familyProfileResponseSchema,
   familyResponseSchema,
   guardianInvitationAcceptedResponseSchema,
@@ -144,6 +145,19 @@ export const moduleDefinition = {
       summary: 'Update a guardian-linked profile or adult self profile',
       body: personUpdateSchema,
       response: familyProfileResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/family-documents',
+      summary: 'List retained documents for a linked guardian or adult self',
+      response: familyPersonDocumentsSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/people/orgs/{orgId}/{personId}/family-photo',
+      summary: 'Attach or remove a profile photo with verified family access',
+      body: personPhotoUpdateSchema,
+      response: personResponseSchema,
     },
     {
       method: 'get',

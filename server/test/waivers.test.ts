@@ -79,6 +79,14 @@ it('versions published waivers, authorizes signers, and renders immutable PDF ev
           id: newId(),
           org_id: owner.orgId,
           person_id: adultId,
+          account_id: guardianId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        },
+        {
+          id: newId(),
+          org_id: owner.orgId,
+          person_id: adultId,
           account_id: adultAccountId,
           relationship: 'self',
           verified_at: new Date(),
@@ -113,6 +121,18 @@ it('versions published waivers, authorizes signers, and renders immutable PDF ev
     renewal: 'annual_season',
   });
   await waivers.publish(owner, draft.id, draft.version);
+  const linkedWaivers = await waivers.listForPerson(guardian, minorId);
+  expect(linkedWaivers.items).toHaveLength(1);
+  expect(linkedWaivers.items[0]).toMatchObject({
+    id: draft.id,
+    version: draft.version,
+    retiredAt: null,
+  });
+  expect(typeof linkedWaivers.items[0]?.publishedAt).toBe('string');
+  await expect(waivers.listForPerson(outsider, minorId)).rejects.toMatchObject({
+    status: 404,
+    code: 'NOT_FOUND',
+  });
 
   await expect(
     waivers.create(guardian, {
@@ -201,6 +221,96 @@ it('versions published waivers, authorizes signers, and renders immutable PDF ev
   expect(keywords).toContain('Method: online_typed');
   expect(keywords).toContain(`Signed at: ${signature.signedAt}`);
   expect(keywords).toContain(`Document SHA-256: ${expectedHash}`);
+
+  const bothDraft = await waivers.create(owner, {
+    name: 'Adult participant and guardian agreement',
+    bodyText:
+      'Both the adult participant and a guardian must sign this waiver.',
+    requires: 'both',
+    renewal: 'every_registration',
+  });
+  await waivers.publish(owner, bothDraft.id, bothDraft.version);
+  await expect(
+    waivers.sign(
+      guardian,
+      bothDraft.id,
+      {
+        participantPersonId: minorId,
+        signerPersonId: guardianPersonId,
+        signerNameTyped: 'Morgan Guardian',
+        method: 'online_typed',
+        signatureFileId: null,
+        registrationId: null,
+      },
+      { ip: null, userAgent: null },
+    ),
+  ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+
+  const participantSignature = await waivers.sign(
+    adult,
+    bothDraft.id,
+    {
+      participantPersonId: adultId,
+      signerPersonId: adultId,
+      signerNameTyped: 'Avery Athlete',
+      method: 'online_typed',
+      signatureFileId: null,
+      registrationId: null,
+    },
+    { ip: null, userAgent: null },
+  );
+  expect(participantSignature.signerPersonId).toBe(adultId);
+  await expect(
+    waivers.sign(
+      adult,
+      bothDraft.id,
+      {
+        participantPersonId: adultId,
+        signerPersonId: adultId,
+        signerNameTyped: 'Avery Athlete',
+        method: 'online_typed',
+        signatureFileId: null,
+        registrationId: null,
+      },
+      { ip: null, userAgent: null },
+    ),
+  ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+
+  const guardianSignature = await waivers.sign(
+    guardian,
+    bothDraft.id,
+    {
+      participantPersonId: adultId,
+      signerPersonId: guardianPersonId,
+      signerNameTyped: 'Morgan Guardian',
+      method: 'online_typed',
+      signatureFileId: null,
+      registrationId: null,
+    },
+    { ip: null, userAgent: null },
+  );
+  expect(guardianSignature.signerPersonId).toBe(guardianPersonId);
+  await expect(
+    waivers.sign(
+      guardian,
+      bothDraft.id,
+      {
+        participantPersonId: adultId,
+        signerPersonId: guardianPersonId,
+        signerNameTyped: 'Morgan Guardian',
+        method: 'online_typed',
+        signatureFileId: null,
+        registrationId: null,
+      },
+      { ip: null, userAgent: null },
+    ),
+  ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+  const bothSignatures = await waivers.listSignatures(guardian, adultId);
+  expect(
+    bothSignatures.items.filter(
+      (item) => item.waiverDocumentId === bothDraft.id,
+    ),
+  ).toHaveLength(2);
 
   await expect(
     factories.scoped(owner, (trx) =>

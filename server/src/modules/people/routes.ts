@@ -168,6 +168,26 @@ export function createPeopleRouter(
     },
   );
 
+  router.get(
+    '/orgs/:orgId/:personId/family-documents',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(404, 'NOT_FOUND', 'Person not found');
+        response.json(
+          await people.listFamilyDocuments(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            z.uuid().parse(request.params.personId),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
   router.patch(
     '/orgs/:orgId/:personId/family-profile',
     async (request, response) => {
@@ -734,6 +754,29 @@ export function createPeopleRouter(
       sendError(response, error);
     }
   });
+
+  router.post(
+    '/orgs/:orgId/:personId/family-photo',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        response.json(
+          await people.setRelatedPhoto(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            z.uuid().parse(request.params.personId),
+            personPhotoUpdateSchema.parse(request.body),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
 
   router.post('/orgs/:orgId/:personId/archive', async (request, response) => {
     try {

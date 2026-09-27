@@ -57,6 +57,65 @@ it('allows verified guardians and adult selves to edit while teen selves stay re
     { expectedVersion: linkedChild.version, preferredName: 'Mimi' },
   );
   expect(editedChild).toMatchObject({ preferredName: 'Mimi', version: 2 });
+  const consentedChild = await people.updateRelated(
+    staff.orgId,
+    guardianId,
+    childId,
+    { expectedVersion: editedChild.version, mediaConsent: 'granted' },
+  );
+  const photoId = newId();
+  await factories.row(staff, 'files', {
+    id: photoId,
+    org_id: staff.orgId,
+    purpose: 'image',
+    owner_type: 'person',
+    owner_id: childId,
+    storage_key: `family-photo-${randomUUID()}`,
+    mime: 'image/jpeg',
+    bytes: 123,
+    sensitivity: 'sensitive',
+    created_by: staff.accountId,
+    upload_state: 'complete',
+  });
+  const familyPhoto = await people.setRelatedPhoto(
+    staff.orgId,
+    guardianId,
+    childId,
+    { expectedVersion: consentedChild.version, fileId: photoId },
+  );
+  expect(familyPhoto.photoFileId).toBe(photoId);
+  await expect(
+    people.setRelatedPhoto(staff.orgId, staff.accountId, childId, {
+      expectedVersion: familyPhoto.version,
+      fileId: null,
+    }),
+  ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+
+  const familyDocumentId = newId();
+  await factories.row(staff, 'files', {
+    id: familyDocumentId,
+    org_id: staff.orgId,
+    purpose: 'document',
+    owner_type: 'person_document',
+    owner_id: childId,
+    storage_key: `family-document-${randomUUID()}`,
+    mime: 'application/pdf',
+    bytes: 1234,
+    sensitivity: 'restricted',
+    created_by: staff.accountId,
+    upload_state: 'complete',
+  });
+  const familyDocuments = await people.listFamilyDocuments(
+    staff.orgId,
+    guardianId,
+    childId,
+  );
+  expect(familyDocuments.items).toMatchObject([
+    { id: familyDocumentId, mime: 'application/pdf', bytes: 1234 },
+  ]);
+  await expect(
+    people.listFamilyDocuments(staff.orgId, staff.accountId, childId),
+  ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
   await expect(
     people.getRelated(otherOrg.orgId, guardianId, childId),
   ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });

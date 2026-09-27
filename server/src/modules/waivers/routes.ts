@@ -16,6 +16,7 @@ const publishSchema = z.strictObject({ expectedVersion: z.int().positive() });
 const signaturesQuerySchema = z.strictObject({
   participantPersonId: z.uuid(),
 });
+const personQuerySchema = z.strictObject({ personId: z.uuid() });
 
 function validWriteOrigin(request: express.Request, appUrl: string): boolean {
   const bearer =
@@ -81,6 +82,26 @@ export function createWaiversRouter(
           orgId: z.uuid().parse(request.params.orgId),
           actor: { accountId: session.accountId },
         }),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.get('/orgs/:orgId/person', async (request, response) => {
+    try {
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new WaiversError(404, 'NOT_FOUND', 'Waiver was not found');
+      const query = personQuerySchema.parse(request.query);
+      response.json(
+        await waivers.listForPerson(
+          {
+            orgId: z.uuid().parse(request.params.orgId),
+            actor: { accountId: session.accountId },
+          },
+          query.personId,
+        ),
       );
     } catch (error) {
       sendError(response, error);

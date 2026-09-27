@@ -68,6 +68,24 @@ export function FamilyHome(): React.JSX.Element {
                   >
                     Medical profile
                   </RouterLink>
+                  {' · '}
+                  <RouterLink
+                    to={`/me/family/${org.orgId}/${person.personId}/forms`}
+                  >
+                    Forms
+                  </RouterLink>
+                  {' · '}
+                  <RouterLink
+                    to={`/me/family/${org.orgId}/${person.personId}/waivers`}
+                  >
+                    Waivers
+                  </RouterLink>
+                  {' · '}
+                  <RouterLink
+                    to={`/me/family/${org.orgId}/${person.personId}/documents`}
+                  >
+                    Documents
+                  </RouterLink>
                 </li>
               ))}
             </ul>
