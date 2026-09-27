@@ -28,7 +28,7 @@ export function NotificationCenter({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
   const [revision, setRevision] = useState(0);
-  const base = `/api/v1/notifications/orgs/${encodeURIComponent(orgId)}`;
+  const base = `/api/v1/me/notifications/orgs/${encodeURIComponent(orgId)}`;
 
   useEffect(() => {
     const controller = new AbortController();

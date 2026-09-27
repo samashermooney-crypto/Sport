@@ -88,6 +88,7 @@ function requireWriteOrigin(
 
 export function createNotificationsRouter(
   dependencies: AuthDependencies,
+  scopePrefix = '/orgs/:orgId',
 ): express.Router {
   const router = express.Router();
   router.use(express.json({ limit: '8kb' }));
@@ -95,10 +96,12 @@ export function createNotificationsRouter(
     response.setHeader('Cache-Control', 'no-store');
     next();
   });
-  router.get('/orgs/:orgId/inbox', async (request, response) => {
+  router.get(`${scopePrefix}/inbox`, async (request, response) => {
     try {
       const session = await requireSession(dependencies, request);
-      const orgId = z.uuid().parse(request.params.orgId);
+      const orgId = z
+        .uuid()
+        .parse((request.params as Record<string, unknown>).orgId);
       const query = request.query as Record<string, unknown>;
       const page = parsePageRequest(query, ['created_at'], 'created_at');
       const unreadOnly =
@@ -119,11 +122,13 @@ export function createNotificationsRouter(
       sendError(response, error);
     }
   });
-  router.patch('/orgs/:orgId/inbox/:id/read', async (request, response) => {
+  router.patch(`${scopePrefix}/inbox/:id/read`, async (request, response) => {
     try {
       requireWriteOrigin(dependencies, request);
       const session = await requireSession(dependencies, request);
-      const orgId = z.uuid().parse(request.params.orgId);
+      const orgId = z
+        .uuid()
+        .parse((request.params as Record<string, unknown>).orgId);
       const id = z.uuid().parse(request.params.id);
       const readAt = await markNotificationRead(
         { orgId, actor: { accountId: session.accountId } },
@@ -135,10 +140,12 @@ export function createNotificationsRouter(
       sendError(response, error);
     }
   });
-  router.get('/orgs/:orgId/preferences', async (request, response) => {
+  router.get(`${scopePrefix}/preferences`, async (request, response) => {
     try {
       const session = await requireSession(dependencies, request);
-      const orgId = z.uuid().parse(request.params.orgId);
+      const orgId = z
+        .uuid()
+        .parse((request.params as Record<string, unknown>).orgId);
       response.json(
         await listPreferences({
           orgId,
@@ -150,12 +157,14 @@ export function createNotificationsRouter(
     }
   });
   router.put(
-    '/orgs/:orgId/preferences/:category/:channel',
+    `${scopePrefix}/preferences/:category/:channel`,
     async (request, response) => {
       try {
         requireWriteOrigin(dependencies, request);
         const session = await requireSession(dependencies, request);
-        const orgId = z.uuid().parse(request.params.orgId);
+        const orgId = z
+          .uuid()
+          .parse((request.params as Record<string, unknown>).orgId);
         const category = z
           .enum(['operational', 'announcement', 'marketing', 'emergency'])
           .parse(request.params.category);
