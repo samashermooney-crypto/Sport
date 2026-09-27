@@ -9,6 +9,7 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg } from '../../db/withOrg.js';
 import type { OrgContext } from '../../db/withOrg.js';
 
+import { ConnectAccountEventService } from './connect-events.js';
 import type { ConnectAccount } from './connect.js';
 import { PostgresConnectAccountRepository } from './repo.js';
 import { resolveConnectAccountOrg } from './resolve-connect-account.js';
@@ -130,6 +131,57 @@ describe('Postgres Connect account repository', () => {
     );
     expect(row.onboarding_status).toBe('active');
     expect(row.version).toBe(3);
+    await repository.update(ready);
+    const duplicate = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('payment_accounts')
+        .select('version')
+        .where('org_id', '=', actor.orgId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(duplicate.version).toBe(3);
+    const disabled = {
+      ...stripeAccount,
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      requirements: {
+        currentlyDue: ['individual.verification.document'],
+        disabledReason: 'requirements.past_due',
+      },
+    };
+    const service = new ConnectAccountEventService(
+      database,
+      actor.actor.accountId,
+      { retrieveAccount: () => Promise.resolve(disabled) },
+    );
+    const event = {
+      id: 'evt_connect_repo',
+      object: 'event' as const,
+      type: 'account.updated',
+      account: account.stripeAccountId,
+      livemode: false,
+      created: 1,
+      data: { object: { id: account.stripeAccountId, object: 'account' } },
+    };
+    await service.handle(event);
+    await service.handle(event);
+    expect(await repository.load(actor.orgId)).toMatchObject({
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      requirementsDue: ['individual.verification.document'],
+      disabledReason: 'requirements.past_due',
+    });
+    const afterEvents = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('payment_accounts')
+        .select('version')
+        .where('org_id', '=', actor.orgId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(afterEvents.version).toBe(4);
+    await expect(
+      service.handle({ ...event, account: 'acct_foreign' }),
+    ).rejects.toThrow('does not match');
     await expect(
       repository.update({ ...ready, stripeAccountId: 'acct_foreign' }),
     ).rejects.toThrow('does not belong');
