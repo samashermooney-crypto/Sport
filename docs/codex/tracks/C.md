@@ -2,7 +2,7 @@
 Status: working
 Model: GPT-6 Luna
 Branch: `track/c-adapters`
-Current: Files/storage, email, SMS, push, and background-check adapters are committed; geocoder and registry descriptors are implemented; final gates in progress.
+Current: Provider implementations and registry descriptors are committed through `0d6186f`; geocoder implementation passed focused lint/typecheck; final gates in progress.
 Ready for integration: none yet
 Requests to other tracks: A — update `server/src/app.test.ts` migration-count expectation from 10 to 12; merge `sharp` and `web-push` dependencies; compose/mount `filesModule` routes and regenerate DB types after migrations 0500–0501; add DECISIONS.md entries for tenant-owned files (`org_id NOT NULL`, preserving the RLS coverage invariant) and separate tracked Resend campaign sender domain (2026-09-26).
 Blocked on: Track A app-test ownership request; full suite has that one migration-count failure. App mounting, generated types, and the `sharp`/`web-push` dependency merge remain integration requirements.
