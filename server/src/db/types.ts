@@ -625,6 +625,11 @@ export interface Disputes {
   amount_cents: number;
   created_at: Generated<Timestamp>;
   evidence_due_by: Timestamp | null;
+  evidence_packet: Json | null;
+  evidence_packet_hash: string | null;
+  evidence_response_status: string | null;
+  evidence_submission_key: string | null;
+  evidence_submission_state: Generated<string>;
   evidence_submitted_at: Timestamp | null;
   fee_cents: Generated<number>;
   funds_reinstated: Generated<boolean>;
