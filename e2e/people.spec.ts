@@ -77,6 +77,26 @@ test('owner creates, edits and archives a person from the console', async ({
       page.getByRole('textbox', { name: 'Preferred name' }),
     ).toHaveValue('Lex');
     const personId = page.url().split('/').at(-1) ?? '';
+    const credentialTypeId = newId();
+    await factories.row(actor, 'credential_types', {
+      id: credentialTypeId,
+      org_id: actor.orgId,
+      key: `e2e_coach_${newId().replaceAll('-', '_')}`,
+      name: 'Head coach safety training',
+      verification: 'manual_staff',
+      validity: {},
+      applies_to: { roles: ['head_coach'], minimumAge: 18 },
+      active: true,
+    });
+    await factories.row(actor, 'role_credential_requirements', {
+      id: newId(),
+      org_id: actor.orgId,
+      role: 'head_coach',
+      credential_type_id: credentialTypeId,
+      scope_type: 'org',
+      scope_id: null,
+      minimum_age: 18,
+    });
     await expect(
       page.getByText(
         'Grant media consent in this profile before adding a photo.',
@@ -233,6 +253,17 @@ test('owner creates, edits and archives a person from the console', async ({
       .selectOption('pending_review');
     await expect(
       page.getByText('No active people match this search.'),
+    ).toBeVisible();
+    await page
+      .getByRole('combobox', { name: 'Compliance credential status' })
+      .selectOption('');
+    await page
+      .getByRole('combobox', { name: 'Review role eligibility' })
+      .selectOption('head_coach');
+    await expect(page.getByText(/Head coach: Needs review/)).toBeVisible();
+    await expect(page.getByText(/at least 18 years old/)).toBeVisible();
+    await expect(
+      page.getByText('Required credential has not been submitted.'),
     ).toBeVisible();
     await page.goto(householdUrl);
     await expect(

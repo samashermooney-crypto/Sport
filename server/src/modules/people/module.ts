@@ -34,6 +34,7 @@ import {
   guardianLinksResponseSchema,
   peopleFilterOptionsSchema,
   peopleListSchema,
+  peopleComplianceRoleSchema,
   personClaimAcceptSchema,
   personClaimAcceptedResponseSchema,
   personClaimInvitationResponseSchema,
@@ -211,6 +212,10 @@ export const moduleDefinition = {
       path: '/api/v1/people/orgs/{orgId}',
       summary: 'List and search staff-visible people',
       response: peopleListSchema,
+      query: {
+        eligibilityRole: peopleComplianceRoleSchema.optional(),
+        programId: z.uuid().optional(),
+      },
     },
     {
       method: 'get',

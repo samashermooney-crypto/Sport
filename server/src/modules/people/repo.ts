@@ -19,6 +19,7 @@ import type { z } from 'zod';
 import type { DB } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgTransaction } from '../../db/withOrg';
+import { evaluateRoleEligibility } from '../compliance/policy';
 
 export class PeopleError extends Error {
   constructor(
@@ -496,8 +497,31 @@ export function createPeopleRepository(database: Kysely<DB>) {
           .limit(query.limit + 1)
           .execute();
         const page = rows.slice(0, query.limit);
+        const eligibilityByPersonId = new Map<
+          string,
+          Awaited<ReturnType<typeof evaluateRoleEligibility>>
+        >();
+        if (query.eligibilityRole) {
+          const orgContext = { orgId, actor: { accountId: actorId } };
+          for (const person of page) {
+            eligibilityByPersonId.set(
+              person.id,
+              await evaluateRoleEligibility(trx, orgContext, {
+                personId: person.id,
+                role: query.eligibilityRole,
+                ...(query.programId ? { programId: query.programId } : {}),
+              }),
+            );
+          }
+        }
         return peopleListSchema.parse({
-          items: page.map((row) => mapPerson(row, context)),
+          items: page.map((row) => {
+            const roleEligibility = eligibilityByPersonId.get(row.id);
+            return {
+              ...mapPerson(row, context),
+              ...(roleEligibility ? { roleEligibility } : {}),
+            };
+          }),
           nextCursor: rows.length > query.limit ? page.at(-1)?.id : null,
         });
       });

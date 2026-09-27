@@ -1,5 +1,6 @@
 import { householdListSchema } from '@shared/schemas/households';
 import {
+  peopleComplianceRoleSchema,
   peopleFilterOptionsSchema,
   peopleListSchema,
   personResponseSchema,
@@ -28,6 +29,17 @@ import { PersonClaim } from './PersonClaim';
 import { PersonPhoto } from './PersonPhoto';
 
 type Person = z.output<typeof personResponseSchema>;
+type ComplianceRole = z.output<typeof peopleComplianceRoleSchema>;
+const complianceRoleLabels: Record<ComplianceRole, string> = {
+  head_coach: 'Head coach',
+  assistant_coach: 'Assistant coach',
+  team_manager: 'Team manager',
+  trainer: 'Trainer',
+  treasurer: 'Treasurer',
+  official: 'Official',
+  volunteer: 'Volunteer',
+  evaluator: 'Evaluator',
+};
 type FormValues = {
   firstName: string;
   lastName: string;
@@ -254,6 +266,7 @@ export function PeopleList(): React.JSX.Element {
   const [teamSearch, setTeamSearch] = useState('');
   const [teamSeasonId, setTeamSeasonId] = useState('');
   const [credentialStatus, setCredentialStatus] = useState('');
+  const [eligibilityRole, setEligibilityRole] = useState('');
   const [hasBalance, setHasBalance] = useState('');
   const programs = useQuery({
     queryKey: ['people-filter-programs', orgId, programSearch],
@@ -296,6 +309,7 @@ export function PeopleList(): React.JSX.Element {
       programId,
       teamSeasonId,
       credentialStatus,
+      eligibilityRole,
       hasBalance,
       cursor,
     ],
@@ -312,6 +326,7 @@ export function PeopleList(): React.JSX.Element {
           ...(programId ? { programId } : {}),
           ...(teamSeasonId ? { teamSeasonId } : {}),
           ...(credentialStatus ? { credentialStatus } : {}),
+          ...(eligibilityRole ? { eligibilityRole } : {}),
           ...(hasBalance ? { hasBalance } : {}),
           ...(cursor ? { cursor } : {}),
         })}`,
@@ -529,6 +544,27 @@ export function PeopleList(): React.JSX.Element {
               }}
             />
           </Field>
+          <Field label="Review role eligibility">
+            <Select
+              value={eligibilityRole}
+              options={[
+                { value: '', label: 'No role selected' },
+                ...Object.entries(complianceRoleLabels).map(
+                  ([value, label]) => ({ value, label }),
+                ),
+              ]}
+              onChange={(event) => {
+                setEligibilityRole(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          {eligibilityRole && (
+            <p>
+              Eligibility uses active organization requirements. Choose a
+              program above to include program-specific rules.
+            </p>
+          )}
           {people.isPending && <p role="status">Loading people…</p>}
           {people.isError && <ErrorBox error="People could not be loaded." />}
           {people.data && (
@@ -543,6 +579,30 @@ export function PeopleList(): React.JSX.Element {
                     {' · Age '}
                     {person.age}
                     {person.grade ? ` · ${person.grade}` : ''}
+                    {person.roleEligibility && eligibilityRole ? (
+                      <p>
+                        <strong>
+                          {
+                            complianceRoleLabels[
+                              eligibilityRole as ComplianceRole
+                            ]
+                          }
+                          :{' '}
+                          {person.roleEligibility.eligible
+                            ? 'Eligible'
+                            : 'Needs review'}
+                        </strong>
+                        {person.roleEligibility.missing.length > 0
+                          ? ` — ${person.roleEligibility.missing.map(({ message }) => message).join(' ')}`
+                          : null}
+                        {person.roleEligibility.expiryDate
+                          ? ` Valid through ${person.roleEligibility.expiryDate}.`
+                          : null}
+                        {person.roleEligibility.overridden
+                          ? ' A temporary override is active.'
+                          : null}
+                      </p>
+                    ) : null}
                   </li>
                 ))}
               </ul>
