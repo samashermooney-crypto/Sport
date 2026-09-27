@@ -19,6 +19,6 @@ function SponsorsRoute(): React.JSX.Element {
   );
 }
 
-export const sponsorsConsoleRoutes: readonly RouteObject[] = [
+export const consoleSponsorsRoutes: readonly RouteObject[] = [
   { path: '/console/orgs/:orgId/sponsors', element: <SponsorsRoute /> },
 ];

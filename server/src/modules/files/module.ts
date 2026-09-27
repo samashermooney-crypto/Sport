@@ -1,5 +1,6 @@
 import express from 'express';
 import type { Kysely } from 'kysely';
+import { sql } from 'kysely';
 import { z } from 'zod';
 
 import type { DB } from '../../db/types';
@@ -74,6 +75,69 @@ export function createFilesAuthorization(
       return Boolean(link);
     });
 
+  const hasActiveConversationMembership = async (
+    context: { orgId: string; actor: { accountId: string } },
+    conversationId?: string,
+  ): Promise<boolean> =>
+    scoped(context, async (trx) => {
+      let query = trx
+        .selectFrom('conversation_members as member')
+        .innerJoin('conversations as conversation', (join) =>
+          join
+            .onRef('conversation.org_id', '=', 'member.org_id')
+            .onRef('conversation.id', '=', 'member.conversation_id'),
+        )
+        .select('member.id')
+        .where('member.org_id', '=', context.orgId)
+        .where('member.account_id', '=', context.actor.accountId)
+        .where('member.revoked_at', 'is', null)
+        .where('conversation.archived_at', 'is', null);
+      if (conversationId)
+        query = query.where('member.conversation_id', '=', conversationId);
+      return Boolean(await query.executeTakeFirst());
+    });
+
+  const isChatAttachment = async (
+    context: { orgId: string; actor: { accountId: string } },
+    fileId: string,
+    requireConversationMembership: boolean,
+  ): Promise<boolean> =>
+    scoped(context, async (trx) => {
+      let query = trx
+        .selectFrom('chat_messages as message')
+        .select('message.id')
+        .where('message.org_id', '=', context.orgId)
+        .where('message.deleted_at', 'is', null)
+        .where(
+          sql<boolean>`message.attachments @> ${JSON.stringify([{ fileId }])}::jsonb`,
+        );
+      if (requireConversationMembership) {
+        query = query
+          .innerJoin('conversation_members as member', (join) =>
+            join
+              .onRef('member.org_id', '=', 'message.org_id')
+              .onRef('member.conversation_id', '=', 'message.conversation_id'),
+          )
+          .innerJoin('conversations as conversation', (join) =>
+            join
+              .onRef('conversation.org_id', '=', 'message.org_id')
+              .onRef('conversation.id', '=', 'message.conversation_id'),
+          )
+          .where('member.account_id', '=', context.actor.accountId)
+          .where('member.revoked_at', 'is', null)
+          .where('conversation.archived_at', 'is', null);
+      }
+      return Boolean(await query.executeTakeFirst());
+    });
+
+  // The chat portal uploads before it creates the message. For those unscoped
+  // uploads, bind download permission to the live message reference instead.
+  const isApprovedChatFile = (file: FileRecord): boolean =>
+    ['public', 'internal'].includes(file.sensitivity) &&
+    ['image', 'document'].includes(file.purpose) &&
+    (/^image\/(jpeg|png|webp|heic)$/.test(file.mime) ||
+      file.mime === 'application/pdf');
+
   const restrictedOwnerPersonId = async (
     context: { orgId: string; actor: { accountId: string } },
     ownerType: string,
@@ -109,14 +173,27 @@ export function createFilesAuthorization(
   return {
     canUpload: async (
       context,
-      _purpose: FilePurpose,
+      purpose: FilePurpose,
       ownerType?: string,
       ownerId?: string,
       sensitivity: FileSensitivity = 'internal',
     ) => {
       const roles = await membershipRoles(context);
+      if (ownerType === 'conversation')
+        return (
+          ['image', 'document'].includes(purpose) &&
+          ['public', 'internal'].includes(sensitivity) &&
+          Boolean(ownerId) &&
+          (await hasActiveConversationMembership(context, ownerId))
+        );
       if (sensitivity !== 'restricted')
-        return roles.some((role) => uploadRoles.includes(role));
+        return (
+          roles.some((role) => uploadRoles.includes(role)) ||
+          (!ownerType &&
+            ['image', 'document'].includes(purpose) &&
+            ['public', 'internal'].includes(sensitivity) &&
+            (await hasActiveConversationMembership(context)))
+        );
       if (!ownerType || !ownerId) return false;
       const personId = await restrictedOwnerPersonId(
         context,
@@ -140,6 +217,19 @@ export function createFilesAuthorization(
           await restrictedOwnerPersonId(context, file.ownerType, file.ownerId),
         );
       }
+      if (file.ownerType === 'conversation')
+        return (
+          isApprovedChatFile(file) &&
+          Boolean(file.ownerId) &&
+          (await hasActiveConversationMembership(
+            context,
+            file.ownerId ?? undefined,
+          ))
+        );
+      const referencedByChat =
+        isApprovedChatFile(file) &&
+        (await isChatAttachment(context, file.id, false));
+      if (referencedByChat) return isChatAttachment(context, file.id, true);
       if (file.sensitivity === 'sensitive')
         return roles.some((role) =>
           ['owner', 'admin', 'registrar'].includes(role),
@@ -204,7 +294,18 @@ function createMountedFilesRouter(
             .where('status', '=', 'active')
             .executeTakeFirst(),
         );
-        if (!member) throw new FilePermissionError();
+        if (!member) {
+          const personLink = await scoped(context, (trx) =>
+            trx
+              .selectFrom('person_account_links')
+              .select('id')
+              .where('org_id', '=', context.orgId)
+              .where('account_id', '=', accountId)
+              .where('revoked_at', 'is', null)
+              .executeTakeFirst(),
+          );
+          if (!personLink) throw new FilePermissionError();
+        }
         return context;
       },
     }),

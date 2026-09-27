@@ -18,6 +18,6 @@ function StoreRoute(): React.JSX.Element {
   );
 }
 
-export const storeConsoleRoutes: readonly RouteObject[] = [
+export const consoleStoreRoutes: readonly RouteObject[] = [
   { path: '/console/orgs/:orgId/store', element: <StoreRoute /> },
 ];

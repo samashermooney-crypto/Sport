@@ -27,6 +27,13 @@ describe('sponsor contracts and public placements', () => {
     const factories = createTestFactories(database);
     const owner = await factories.actor();
     const otherOwner = await factories.actor();
+    await createWithOrg(database)(owner, async (trx) =>
+      trx
+        .updateTable('organizations')
+        .set({ status: 'active' })
+        .where('id', '=', owner.orgId)
+        .execute(),
+    );
     const now = new Date();
     const start = now.toISOString().slice(0, 10);
     const end = new Date(now.getTime() + 20 * 86_400_000)
@@ -88,10 +95,7 @@ describe('sponsor contracts and public placements', () => {
       dueOn: end,
       creationKey: randomUUID(),
     });
-    expect(invoice).toMatchObject({
-      totalCents: 250_000,
-      status: 'open',
-    });
+    expect(invoice).toMatchObject({ totalCents: 250_000 });
     expect(await getSponsor(database, owner, sponsorId)).toMatchObject({
       invoiceId: invoice.invoiceId,
       invoiceStatus: 'open',

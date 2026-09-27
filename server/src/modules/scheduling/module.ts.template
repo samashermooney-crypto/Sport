@@ -1,0 +1,9 @@
+import { createSchedulingRouter } from './routes.js';
+
+// Adapt dependencies to ServerModule after routes, permissions, and schemas are specialized.
+export const __camel__Module = {
+  name: 'scheduling',
+  path: '/api/v1/scheduling',
+  router: createSchedulingRouter,
+  permissions: ['scheduling.read', 'scheduling.write'],
+};

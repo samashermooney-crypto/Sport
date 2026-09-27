@@ -84,6 +84,7 @@ const openapiRoutes = [
     z.json(),
     z.json(),
   ),
+  route('get', '/orders', 'List organization store orders', z.json()),
   route(
     'get',
     '/me/orders',

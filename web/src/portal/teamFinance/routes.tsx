@@ -5,9 +5,9 @@ import { useParams } from 'react-router';
 import { PortalShell } from '../PortalShell';
 
 const TeamFinancePortalPage = lazy(() =>
-  import('./TeamFinancePortal').then(({ TeamFinancePortal: Component }) => ({
-    default: Component,
-  })),
+  import('../team-finance/TeamFinancePortal').then(
+    ({ TeamFinancePortal: Component }) => ({ default: Component }),
+  ),
 );
 
 function TeamFinancePortalRoute(): React.JSX.Element {
@@ -23,6 +23,6 @@ function TeamFinancePortalRoute(): React.JSX.Element {
   );
 }
 
-export const teamFinancePortalRoutes: readonly RouteObject[] = [
+export const portalTeamFinanceRoutes: readonly RouteObject[] = [
   { path: '/me/orgs/:orgId/team-finance', element: <TeamFinancePortalRoute /> },
 ];

@@ -23,6 +23,6 @@ function StorePortalRoute(): React.JSX.Element {
   );
 }
 
-export const storePortalRoutes: readonly RouteObject[] = [
+export const portalStoreRoutes: readonly RouteObject[] = [
   { path: '/me/orgs/:orgId/store', element: <StorePortalRoute /> },
 ];

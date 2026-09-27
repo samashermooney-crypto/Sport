@@ -3,9 +3,9 @@ import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
 const TeamFinanceConsolePage = lazy(() =>
-  import('./TeamFinanceConsole').then(({ TeamFinanceConsole: Component }) => ({
-    default: Component,
-  })),
+  import('../team-finance/TeamFinanceConsole').then(
+    ({ TeamFinanceConsole: Component }) => ({ default: Component }),
+  ),
 );
 
 function TeamFinanceRoute(): React.JSX.Element {
@@ -19,6 +19,6 @@ function TeamFinanceRoute(): React.JSX.Element {
   );
 }
 
-export const teamFinanceConsoleRoutes: readonly RouteObject[] = [
+export const consoleTeamFinanceRoutes: readonly RouteObject[] = [
   { path: '/console/orgs/:orgId/team-finance', element: <TeamFinanceRoute /> },
 ];

@@ -77,6 +77,15 @@ const openapiRoutes = [
     fundraisingSettingsSchema,
     fundraisingSettingsBodySchema,
   ),
+  {
+    method: 'get',
+    path: '/api/v1/fundraising/preview-checkout/{orgId}/{checkoutSessionId}/complete',
+    summary: 'Complete preview donation checkout and redirect to its campaign',
+    response: z.null(),
+    status: 302,
+    public: true,
+    tags: ['fundraising'],
+  },
   route(
     'get',
     `${base}/donor-statements/{year}`,

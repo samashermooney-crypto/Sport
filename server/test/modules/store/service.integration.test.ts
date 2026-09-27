@@ -276,4 +276,103 @@ describe('store inventory ledger', () => {
     expect(recovered.invoiceId).toBe(original.invoiceId);
     expect(invoiceCount.count).toBe(1);
   });
+
+  it('requires and snapshots the household shipping address at order placement', async () => {
+    const factories = createTestFactories(database);
+    const actor = await factories.actor();
+    const householdId = await factories.household(actor);
+    const personId = await factories.person(actor, {
+      dateOfBirth: '2015-06-01',
+    });
+    await factories.scoped(actor, async (trx) => {
+      await trx
+        .insertInto('household_members')
+        .values({
+          id: randomUUID(),
+          org_id: actor.orgId,
+          household_id: householdId,
+          person_id: personId,
+          role: 'athlete',
+          financially_responsible: false,
+        })
+        .execute();
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: randomUUID(),
+          org_id: actor.orgId,
+          person_id: personId,
+          account_id: actor.accountId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute();
+    });
+    const productId = await createProduct(database, actor, {
+      name: 'Shipped warm-up jacket',
+      kind: 'uniform',
+      requiredForRegistration: false,
+      variants: [
+        {
+          sku: `JACKET-${randomUUID().slice(0, 8)}`,
+          size: 'Youth Large',
+          priceCents: 3_500,
+        },
+      ],
+    });
+    const variantId = (await listProducts(database, actor)).find(
+      (item) => item.id === productId,
+    )?.variants[0]?.id;
+    if (!variantId) throw new Error('Created jacket variant was not listed');
+    await receiveStock(database, actor, variantId, 2);
+
+    await expect(
+      placeStoreOrder(database, actor, {
+        householdId,
+        fulfillmentMethod: 'ship',
+        idempotencyKey: randomUUID(),
+        lines: [{ variantId, quantity: 1, personId }],
+      }),
+    ).rejects.toThrow('Add a valid US shipping address');
+
+    const originalAddress = {
+      line1: '12 Field Road',
+      city: 'Madison',
+      region: 'WI',
+      postalCode: '53703',
+      country: 'US' as const,
+    };
+    await createWithOrg(database)(actor, (trx) =>
+      trx
+        .updateTable('households')
+        .set({ address: originalAddress })
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', householdId)
+        .execute(),
+    );
+    const order = await placeStoreOrder(database, actor, {
+      householdId,
+      fulfillmentMethod: 'ship',
+      idempotencyKey: randomUUID(),
+      lines: [{ variantId, quantity: 1, personId }],
+    });
+    const savedOrder = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('store_orders')
+        .select('shipping_address')
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', order.id)
+        .executeTakeFirstOrThrow(),
+    );
+    await createWithOrg(database)(actor, (trx) =>
+      trx
+        .updateTable('households')
+        .set({ address: { ...originalAddress, line1: '99 New Address Ave' } })
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', householdId)
+        .execute(),
+    );
+
+    expect(savedOrder.shipping_address).toEqual(originalAddress);
+  });
 });

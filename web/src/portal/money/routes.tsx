@@ -1,7 +1,11 @@
+import { orgWorkspaceSchema } from '@shared/schemas/orgs';
+import { useQuery } from '@tanstack/react-query';
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
+import { z } from 'zod';
 
+import { apiGet } from '../../api/client';
 import { Link, PageHeader } from '../../ui/primitives';
 import { PortalShell } from '../PortalShell';
 
@@ -35,6 +39,15 @@ const Installments = lazy(() =>
     ({ ManualInstallmentPayScreen: component }) => ({ default: component }),
   ),
 );
+const SavedMethods = lazy(() =>
+  import('./SavedPaymentMethodsScreen').then(
+    ({ SavedPaymentMethodsScreen: component }) => ({ default: component }),
+  ),
+);
+
+const stripeClientConfigSchema = z.strictObject({
+  publishableKey: z.string().startsWith('pk_test_'),
+});
 
 type Area =
   | 'home'
@@ -43,13 +56,26 @@ type Area =
   | 'credits'
   | 'receipts'
   | 'statements'
-  | 'autopay';
+  | 'autopay'
+  | 'payment-methods';
 
 function MoneyRoute({ area }: { area: Area }): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
+  const workspace = useQuery({
+    queryKey: ['orgs', orgId, 'workspace'],
+    queryFn: () =>
+      apiGet(`/orgs/${String(orgId)}/workspace`, orgWorkspaceSchema),
+    enabled: Boolean(orgId),
+  });
+  const stripeClient = useQuery({
+    queryKey: ['finance', 'stripe-client-config'],
+    queryFn: () =>
+      apiGet('/finance/stripe-client-config', stripeClientConfigSchema),
+    enabled: area === 'payment-methods',
+  });
   if (!orgId) return <main>Organization not found.</main>;
   const base = `/portal/orgs/${orgId}/money`;
-  const name = 'Your organization';
+  const name = workspace.data?.name ?? 'Your organization';
   const links = [
     { label: 'Invoices', path: 'invoices' },
     { label: 'Pay installments', path: 'installments' },
@@ -57,6 +83,7 @@ function MoneyRoute({ area }: { area: Area }): React.JSX.Element {
     { label: 'Receipts', path: 'receipts' },
     { label: 'Year-end statements', path: 'statements' },
     { label: 'Autopay', path: 'autopay' },
+    { label: 'Payment methods', path: 'payment-methods' },
   ];
   return (
     <PortalShell orgId={orgId}>
@@ -82,13 +109,24 @@ function MoneyRoute({ area }: { area: Area }): React.JSX.Element {
           {area === 'receipts' && <Receipts orgId={orgId} orgName={name} />}
           {area === 'statements' && <Statements orgId={orgId} orgName={name} />}
           {area === 'autopay' && <Autopay orgId={orgId} orgName={name} />}
+          {area === 'payment-methods' &&
+            (stripeClient.isPending ? (
+              <p role="status">Loading payment method settings…</p>
+            ) : stripeClient.isError ? (
+              <p role="alert">Payment method settings are unavailable.</p>
+            ) : (
+              <SavedMethods
+                publishableKey={stripeClient.data.publishableKey}
+                returnUrl={`${window.location.origin}${base}/payment-methods`}
+              />
+            ))}
         </Suspense>
       </main>
     </PortalShell>
   );
 }
 
-export const moneyPortalRoutes: readonly RouteObject[] = [
+export const portalMoneyRoutes: readonly RouteObject[] = [
   { path: '/portal/orgs/:orgId/money', element: <MoneyRoute area="home" /> },
   ...(
     [
@@ -98,6 +136,7 @@ export const moneyPortalRoutes: readonly RouteObject[] = [
       'receipts',
       'statements',
       'autopay',
+      'payment-methods',
     ] as const
   ).map((area) => ({
     path: `/portal/orgs/:orgId/money/${area}`,

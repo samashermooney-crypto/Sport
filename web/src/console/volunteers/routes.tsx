@@ -19,6 +19,6 @@ function VolunteersRoute(): React.JSX.Element {
   );
 }
 
-export const volunteersConsoleRoutes: readonly RouteObject[] = [
+export const consoleVolunteersRoutes: readonly RouteObject[] = [
   { path: '/console/orgs/:orgId/volunteers', element: <VolunteersRoute /> },
 ];

@@ -33,7 +33,7 @@ function PublicFundraiser({
   return <Component orgSlug={orgSlug} campaignSlug={campaignSlug} />;
 }
 
-export const fundraisingSiteRoutes: readonly RouteObject[] = [
+export const siteFundraisingRoutes: readonly RouteObject[] = [
   {
     path: '/site/:orgSlug/fundraisers/:campaignSlug',
     element: <PublicFundraiserRoute />,

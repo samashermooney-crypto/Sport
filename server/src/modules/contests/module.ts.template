@@ -1,0 +1,9 @@
+import { createContestsRouter } from './routes.js';
+
+// Adapt dependencies to ServerModule after routes, permissions, and schemas are specialized.
+export const __camel__Module = {
+  name: 'contests',
+  path: '/api/v1/contests',
+  router: createContestsRouter,
+  permissions: ['contests.read', 'contests.write'],
+};

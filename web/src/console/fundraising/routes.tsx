@@ -19,6 +19,6 @@ function FundraisingRoute(): React.JSX.Element {
   );
 }
 
-export const fundraisingConsoleRoutes: readonly RouteObject[] = [
+export const consoleFundraisingRoutes: readonly RouteObject[] = [
   { path: '/console/orgs/:orgId/fundraising', element: <FundraisingRoute /> },
 ];
