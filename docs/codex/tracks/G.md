@@ -37,10 +37,10 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Updated scheduling access integration passes, including official closure recipients and emergency batch timing.
 - [x] Program statistic settings, leaderboard aggregation, enabled/public filters, private-stat staff access, and optimistic-concurrency integration regression pass against the isolated Postgres stack.
 - [x] Season-award listing query regression passes against isolated Postgres after qualifying joined table columns.
-- [x] Program-stat configuration and leaderboard Playwright journey passes on Chromium desktop and WebKit mobile; both runs pass axe and report no schedule-page alerts.
+- [x] Program-stat configuration, contest creation, finalized score submission with per-team stats, persisted stat rows, and public leaderboard Playwright journey passes on Chromium desktop and WebKit mobile; both runs pass axe and report no schedule-page alerts.
 - [x] Chromium + WebKit mobile baseline E2E: 38 passed, 4 failed, 4 skipped; failures were unrelated sign-in, ownership-transfer and people journeys, and no G schedule journey ran.
 - [x] Lock-protected merge gate against `rebuild/trunk` through `2ac58d6`: typecheck and full lint passed; `heavy.sh npm test` passed 803 tests (1 skipped); full Chromium desktop Playwright passed 28 tests (4 skipped).
-- [ ] Most Phase 8/9 schedule journeys remain outstanding; only the program-stat configuration and leaderboard journey currently runs in Chromium and WebKit mobile. The console and portal routes mount via the generated nested-route registry.
+- [ ] Most Phase 8/9 schedule journeys remain outstanding; only the combined statistics/result/leaderboard journey currently runs in Chromium and WebKit mobile. The console and portal routes mount via the generated nested-route registry.
 - [ ] Full gates remain blocked by missing Phase 8/9 browser journeys, discipline result/game-served integration, notification email fan-out, volunteer closure recipients, the facility image serving contract, and baseline WebKit failures. Do not mark ready until browser journeys and all acceptance criteria pass.
 
 ## Cross-track requests and blockers
