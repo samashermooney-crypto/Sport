@@ -58,14 +58,20 @@ export function ConsoleHome(): React.JSX.Element {
       to: `/orgs/${orgId}/profile`,
     },
     {
+      label: 'Open safety center',
+      description:
+        'Review credentials, injuries, incidents and background checks.',
+      to: `/console/safety/${orgId}`,
+    },
+    {
       label: 'Review audit history',
       description: 'Inspect recorded changes and protected access.',
       to: `/console/orgs/${orgId}/audit`,
     },
   ];
   const actions = [
-    ...(workspace.data.canManage ? manageActions.slice(0, 3) : []),
-    ...(workspace.data.canAudit && manageActions[3] ? [manageActions[3]] : []),
+    ...(workspace.data.canManage ? manageActions.slice(0, 4) : []),
+    ...(workspace.data.canAudit && manageActions[4] ? [manageActions[4]] : []),
   ];
   const navigation = [
     {
