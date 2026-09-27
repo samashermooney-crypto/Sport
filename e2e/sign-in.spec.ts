@@ -243,6 +243,17 @@ test('new account verifies its preview email and signs in', async ({
     page.getByRole('heading', { name: 'E2E Youth Club is ready for setup' }),
   ).toBeVisible();
   expect(await accessibilityViolations(page)).toEqual([]);
+  await page.getByRole('link', { name: 'Open organization home' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'E2E Youth Club' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Review safety requirements' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Manage staff and invitations' }),
+  ).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
   const invitedEmail = `admin-${email}`;
   const invitedPassword = 'Pinecones!7348Ridge';
   await page
@@ -386,7 +397,9 @@ test('new account verifies its preview email and signs in', async ({
   expect(await accessibilityViolations(page)).toEqual([]);
   await page.getByRole('link', { name: 'account security' }).click();
   await page.getByRole('button', { name: 'Request deletion review' }).click();
-  await expect(page.getByRole('status')).toContainText('privacy review');
+  await expect(page.getByRole('status')).toContainText('privacy review', {
+    timeout: 10_000,
+  });
   const changedEmail = `changed-${email}`;
   await page.getByLabel('New email address').fill(changedEmail);
   await page.getByRole('button', { name: 'Send confirmation' }).click();

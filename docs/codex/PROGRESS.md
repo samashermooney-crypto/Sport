@@ -3,7 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- M0 is on `main` at `d0f59a1`. The spine, ready B/C/D/E ranges, Phase 1 task 6 and Track B's platform/notification range are integrated on `rebuild/trunk`. Track A continues tasks 4–5 and 16–17; Track C owns 11–12. Inspect E/F/G/H readiness at every task boundary and keep Phase 1 open until every acceptance criterion passes.
+- M0 is on `main` at `d0f59a1`. The spine, ready B/C/D/E ranges, Phase 1 tasks 5–9 and 13, and Track B's infrastructure are integrated on `rebuild/trunk`. Track A continues tasks 4 and 16; Track C owns 11–12. Track F published a ready Phase 7 range, but its first trunk merge was aborted because new routes lack OpenAPI operations, `credentials.expiry` has no handler, and its web routes are not mounted. Revisit F after the integration gaps are fixed. Inspect E/F/G/H readiness at every task boundary and keep Phase 1 open until every acceptance criterion passes.
 
 ## Phase status
 
@@ -103,7 +103,7 @@
 
 **Web app shell**
 - [ ] 16. **Track D:** Design system per `01 §11a`: capture the legacy visual reference screenshots and `tokens.json` first, extract tokens verbatim from the legacy CSS, port legacy components with identical appearance, then build the remaining components in `01 §11` from those tokens (Storybook-free visual test pages under `/__ui` in development only; light theme only). Then i18n setup (en/es), TanStack Query client, API client with typed endpoints generated from shared schemas, error boundary (port legacy behavior), toast system, layout shells for console/portal/platform/public, org switcher, global search stub wired to `people` once Phase 2 lands (hidden until then), command palette. In progress: isolated legacy worktree at `9ef77bb` generated 12 desktop and 12 mobile screenshots in `e2e/visual-reference/`, including sign-in, dashboard, lists/editors, team, invoice, schedule, public site, member portal and modal. The extracted `tokens.json` freezes all legacy custom properties plus recurring colors, type sizes, spacing, radii, heights and shadows; `web/src/ui/tokens.css` contains those exact values. A Vitest assertion checks CSS against the frozen snapshot after formatting normalization (41 tests pass). Component ports and shell parity remain open.
-- [ ] 17. Auth screens (all flows in task 3), onboarding `/start`, console Home placeholder that shows only real cards available so far (e.g. "Connect payments", "Create your first season") — no fake data. Functional identity, account-security and `/start` routes are complete; console Home remains.
+- [x] 17. Auth screens (all flows in task 3), onboarding `/start`, and console Home with only working cards. The owner workspace at `/console/orgs/:orgId` loads the versioned organization profile and links to active safety requirements, staff/invitations, profile/branding and audit screens through the existing shell; `/start` links to it after creation. Unauthorized or MFA-pending access shows a clear account-security path. The complete owner journey opens Home and checks its links and axe in Chromium and WebKit mobile (13 browser tests passed; 3 guarded design skips). No payment or season card is shown before its destination works.
 
 #### Acceptance criteria
 - [ ] Tenancy: an automated test creates two orgs and proves for every Phase 1 tenant route that org A's actor receives 404 for org B's ids, and a direct SQL query under `withOrg(A)` cannot read B's rows (RLS).
