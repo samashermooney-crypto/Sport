@@ -121,6 +121,15 @@ export const authLegalResponseSchema = z.strictObject({
   terms: z.strictObject({ version: z.string(), text: z.string() }),
   privacy: z.strictObject({ version: z.string(), text: z.string() }),
 });
+export const authMeResponseSchema = z.strictObject({
+  id: z.uuid(),
+  email: z.email(),
+  firstName: z.string(),
+  lastName: z.string(),
+  mfaEnabled: z.boolean(),
+  sessionId: z.uuid(),
+  client: z.enum(['web', 'ios', 'android']),
+});
 export const mfaEnrollmentResponseSchema = z.strictObject({
   manualKey: z.string(),
   otpauthUrl: z.string(),

@@ -1,5 +1,6 @@
 import {
   authLegalResponseSchema,
+  authMeResponseSchema,
   authMessageResponseSchema,
   authSignInResponseSchema,
   authStatusResponseSchema,
@@ -219,6 +220,33 @@ export function createAuthRouter(
 
   router.get('/legal', (_request, response) => {
     response.json(authLegalResponseSchema.parse(localLegalDocuments));
+  });
+  router.get('/me', async (request, response) => {
+    const session = await requireSession(dependencies, request);
+    const [account, factor] = await Promise.all([
+      dependencies.database
+        .selectFrom('accounts')
+        .select(['id', 'email', 'first_name', 'last_name'])
+        .where('id', '=', session.accountId)
+        .executeTakeFirstOrThrow(),
+      dependencies.database
+        .selectFrom('mfa_factors')
+        .select('id')
+        .where('account_id', '=', session.accountId)
+        .where('confirmed_at', 'is not', null)
+        .executeTakeFirst(),
+    ]);
+    response.json(
+      authMeResponseSchema.parse({
+        id: account.id,
+        email: account.email,
+        firstName: account.first_name,
+        lastName: account.last_name,
+        mfaEnabled: Boolean(factor),
+        sessionId: session.id,
+        client: session.client,
+      }),
+    );
   });
   router.post('/sign-up', async (request, response) => {
     const body: unknown = request.body;

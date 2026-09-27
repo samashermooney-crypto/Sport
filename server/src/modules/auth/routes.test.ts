@@ -133,6 +133,13 @@ describe('auth HTTP contract', () => {
     expect(signedIn.status).toBe(200);
     expect(await signedIn.json()).toEqual({ status: 'session' });
     const cookie = authCookie(signedIn);
+    const me = await fetch(`${baseUrl}/me`, { headers: { Cookie: cookie } });
+    expect(me.status).toBe(200);
+    expect(await me.json()).toMatchObject({
+      email: input.email,
+      mfaEnabled: false,
+      client: 'web',
+    });
 
     const enrollment = await post('/mfa/enroll/start', {}, cookie);
     expect(enrollment.status).toBe(200);
