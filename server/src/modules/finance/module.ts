@@ -13,7 +13,10 @@ import {
   aidDecisionResponseSchema,
   aidQueueSchema,
 } from './aid-review.js';
-import { autopayAuthorizationListSchema } from './autopay-authorizations.js';
+import {
+  autopayAuthorizationListSchema,
+  staffMethodOptionsSchema,
+} from './autopay-authorizations.js';
 import { creditBalanceSchema } from './credit-balances.js';
 import {
   installmentStaffActionSchema,
@@ -55,6 +58,8 @@ import {
   voidInvoiceResponseSchema,
   payerInvoiceListSchema,
   autopayRevocationResponseSchema,
+  staffMethodConsentBodySchema,
+  staffMethodConsentResponseSchema,
 } from './routes.js';
 import {
   taxRateBodySchema,
@@ -92,6 +97,20 @@ export const moduleDefinition = {
       summary: 'Download a reconciled payer payment receipt PDF',
       response: z.string(),
       binary: true,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/me/autopay/staff-method-options',
+      summary: 'List payer invoices with unpaid future installments',
+      response: staffMethodOptionsSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/me/autopay/staff-method-consents',
+      summary:
+        'Record payer consent for a saved method on one installment invoice',
+      body: staffMethodConsentBodySchema,
+      response: staffMethodConsentResponseSchema,
     },
     {
       method: 'get',

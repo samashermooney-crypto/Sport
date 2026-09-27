@@ -10,6 +10,8 @@ import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import { appendAuditEvent } from '../audit/service.js';
 
+import { recomputeInvoiceStatus } from './invoice-repo.js';
+
 export const installmentStaffActionSchema = z.discriminatedUnion('action', [
   z.strictObject({
     action: z.literal('change_due_date'),
@@ -31,6 +33,11 @@ export const installmentStaffActionSchema = z.discriminatedUnion('action', [
     consentMandateId: z.uuid(),
     reason: z.string().trim().min(5).max(500),
   }),
+  z.strictObject({
+    action: z.literal('waive'),
+    expectedVersion: z.number().int().positive(),
+    reason: z.string().trim().min(5).max(500),
+  }),
 ]);
 export const installmentStaffResultSchema = z.strictObject({
   installmentId: z.uuid(),
@@ -41,6 +48,7 @@ export const installmentStaffResultSchema = z.strictObject({
   addedAmountCents: z.number().int().positive().nullable(),
   paymentMethodId: z.uuid().nullable().optional(),
   consentMandateId: z.uuid().nullable().optional(),
+  waivedCents: z.number().int().positive().nullable().optional(),
 });
 export type InstallmentStaffAction = z.output<
   typeof installmentStaffActionSchema
@@ -123,7 +131,14 @@ export class PostgresInstallmentStaffActions {
         throw new InstallmentStaffConflictError('Installment version changed');
       const invoice = await trx
         .selectFrom('invoices')
-        .select(['account_id', 'status', 'balance_cents', 'disputed_cents'])
+        .select([
+          'account_id',
+          'status',
+          'balance_cents',
+          'disputed_cents',
+          'discount_cents',
+          'total_cents',
+        ])
         .where('org_id', '=', this.context.orgId)
         .where('id', '=', installment.invoice_id)
         .forUpdate()
@@ -163,7 +178,7 @@ export class PostgresInstallmentStaffActions {
         .toZonedDateTimeISO(org.timezone)
         .toPlainDate()
         .toString();
-      if (input.action !== 'switch_payment_method' && input.newDueOn <= today)
+      if ('newDueOn' in input && input.newDueOn <= today)
         throw new InstallmentStaffConflictError(
           'New due date must be in the future',
         );
@@ -252,7 +267,7 @@ export class PostgresInstallmentStaffActions {
           addedInstallmentId: addedId,
           addedAmountCents: input.splitCents,
         };
-      } else {
+      } else if (input.action === 'switch_payment_method') {
         const mandate = await sql<{ id: string }>`
           SELECT mandate.id FROM autopay_authorizations mandate
           JOIN payment_methods method
@@ -298,6 +313,80 @@ export class PostgresInstallmentStaffActions {
           addedAmountCents: null,
           paymentMethodId: input.paymentMethodId,
           consentMandateId: input.consentMandateId,
+        };
+      } else {
+        const waivedCents = installment.amount_cents - installment.paid_cents;
+        if (invoice.balance_cents < waivedCents)
+          throw new InstallmentStaffConflictError(
+            'Waiver exceeds collectible invoice balance',
+          );
+        const unsettled = await sql<{ pending: boolean }>`
+          SELECT EXISTS (
+            SELECT 1 FROM installment_charge_attempts a
+            WHERE a.org_id = ${this.context.orgId}::uuid
+              AND a.invoice_id = ${installment.invoice_id}::uuid
+              AND a.status IN ('reserved', 'external_started')
+            UNION ALL
+            SELECT 1 FROM payment_allocations pa
+            JOIN payments p ON p.org_id = pa.org_id AND p.id = pa.payment_id
+            WHERE pa.org_id = ${this.context.orgId}::uuid
+              AND pa.invoice_id = ${installment.invoice_id}::uuid
+              AND p.status IN ('requires_action', 'processing')
+          ) AS pending
+        `.execute(trx);
+        if (unsettled.rows[0]?.pending)
+          throw new InstallmentStaffConflictError(
+            'Invoice has a payment in progress',
+          );
+        await trx
+          .insertInto('invoice_lines')
+          .values({
+            id: newId(),
+            org_id: this.context.orgId,
+            invoice_id: installment.invoice_id,
+            kind: 'discount',
+            description: `Installment waiver: ${input.reason}`,
+            amount_cents: -waivedCents,
+            unit_amount_cents: -waivedCents,
+            refundable: false,
+          })
+          .execute();
+        await trx
+          .updateTable('invoices')
+          .set({
+            discount_cents: invoice.discount_cents + waivedCents,
+            total_cents: invoice.total_cents - waivedCents,
+            version: sql`version + 1`,
+          })
+          .where('org_id', '=', this.context.orgId)
+          .where('id', '=', installment.invoice_id)
+          .execute();
+        await trx
+          .updateTable('installments')
+          .set({
+            status: 'waived',
+            autopay: false,
+            payment_method_id: null,
+            next_attempt_at: null,
+            version: sql`version + 1`,
+          })
+          .where('org_id', '=', this.context.orgId)
+          .where('id', '=', id)
+          .execute();
+        await recomputeInvoiceStatus(
+          trx,
+          this.context.orgId,
+          installment.invoice_id,
+          today,
+        );
+        result = {
+          installmentId: id,
+          version: installment.version + 1,
+          dueOn: installment.due_on,
+          amountCents: installment.amount_cents,
+          addedInstallmentId: null,
+          addedAmountCents: null,
+          waivedCents,
         };
       }
       await sql`

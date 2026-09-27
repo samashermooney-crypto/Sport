@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 
 import { apiGet, apiPost } from '../../api/client';
@@ -24,6 +24,36 @@ const revocationSchema = z.strictObject({
   revoked: z.boolean(),
   stoppedInstallments: z.number().int().nonnegative(),
 });
+const optionsSchema = z.strictObject({
+  invoices: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      number: z.number().int().positive(),
+      futureInstallments: z.number().int().positive(),
+    }),
+  ),
+});
+const savedMethodsSchema = z.strictObject({
+  methods: z.array(
+    z.strictObject({
+      id: z.string().startsWith('pm_'),
+      type: z.enum(['card', 'us_bank_account', 'link']),
+      brand: z.string().nullable(),
+      last4: z.string().nullable(),
+      expMonth: z.number().int().nullable(),
+      expYear: z.number().int().nullable(),
+      bankName: z.string().nullable(),
+    }),
+  ),
+  defaultMethodId: z.string().startsWith('pm_').nullable(),
+});
+const consentResultSchema = z.strictObject({
+  id: z.uuid(),
+  paymentMethodId: z.uuid(),
+});
+const consentVersion = 'staff-method-consent-v1';
+const consentText =
+  'I authorize this organization to charge my selected saved payment method for future unpaid installments of this invoice. I may stop future automatic charges at any time. A charge already in progress may still complete.';
 type Authorization = z.output<typeof authorizationSchema>;
 
 export function AutopayScreen({
@@ -38,15 +68,29 @@ export function AutopayScreen({
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [eligibleInvoices, setEligibleInvoices] = useState<
+    z.output<typeof optionsSchema>['invoices']
+  >([]);
+  const [savedMethods, setSavedMethods] = useState<
+    z.output<typeof savedMethodsSchema>['methods']
+  >([]);
+  const [invoiceId, setInvoiceId] = useState('');
+  const [methodId, setMethodId] = useState('');
+  const [accepted, setAccepted] = useState(false);
+  const consentKey = useRef<string | null>(null);
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError('');
     try {
-      const result = await apiGet(
-        `/finance/orgs/${encodeURIComponent(orgId)}/me/autopay`,
-        listSchema,
-      );
+      const base = `/finance/orgs/${encodeURIComponent(orgId)}/me/autopay`;
+      const [result, options, methods] = await Promise.all([
+        apiGet(base, listSchema),
+        apiGet(`${base}/staff-method-options`, optionsSchema),
+        apiGet('/finance/me/payment-methods', savedMethodsSchema),
+      ]);
       setAuthorizations(result.authorizations);
+      setEligibleInvoices(options.invoices);
+      setSavedMethods(methods.methods);
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : 'Autopay is unavailable.',
@@ -86,6 +130,40 @@ export function AutopayScreen({
         caught instanceof Error
           ? caught.message
           : 'Autopay could not be stopped.',
+      );
+    } finally {
+      setPendingId(null);
+    }
+  };
+  const authorize = async (): Promise<void> => {
+    if (!accepted || !invoiceId || !methodId) return;
+    setPendingId('consent');
+    setError('');
+    setNotice('');
+    consentKey.current ??= crypto.randomUUID();
+    try {
+      await apiPost(
+        `/finance/orgs/${encodeURIComponent(orgId)}/me/autopay/staff-method-consents`,
+        {
+          invoiceId,
+          stripePaymentMethodId: methodId,
+          consentVersion,
+          accepted: true,
+        },
+        consentResultSchema,
+        consentKey.current,
+      );
+      consentKey.current = null;
+      setAccepted(false);
+      setNotice(
+        'Consent recorded. Finance staff may use this method for unpaid installments on the selected invoice.',
+      );
+      await refresh();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Consent could not be recorded.',
       );
     } finally {
       setPendingId(null);
@@ -146,6 +224,74 @@ export function AutopayScreen({
             </li>
           ))}
         </ul>
+      ) : null}
+      {!loading && eligibleInvoices.length > 0 && savedMethods.length > 0 ? (
+        <div className="money-consent">
+          <h3>Authorize a saved method for staff assistance</h3>
+          <p>
+            This records your permission. Staff must choose the method for an
+            installment before any new automatic charge.
+          </p>
+          <label htmlFor="autopay-invoice">Invoice</label>
+          <select
+            id="autopay-invoice"
+            value={invoiceId}
+            onChange={(event) => {
+              setInvoiceId(event.target.value);
+              setAccepted(false);
+              consentKey.current = null;
+            }}
+          >
+            <option value="">Choose an invoice</option>
+            {eligibleInvoices.map((invoice) => (
+              <option value={invoice.id} key={invoice.id}>
+                Invoice #{invoice.number} ({invoice.futureInstallments} unpaid
+                installments)
+              </option>
+            ))}
+          </select>
+          <label htmlFor="autopay-method">Saved payment method</label>
+          <select
+            id="autopay-method"
+            value={methodId}
+            onChange={(event) => {
+              setMethodId(event.target.value);
+              setAccepted(false);
+              consentKey.current = null;
+            }}
+          >
+            <option value="">Choose a saved method</option>
+            {savedMethods.map((method) => (
+              <option value={method.id} key={method.id}>
+                {method.type} ending {method.last4 ?? 'unknown'}
+              </option>
+            ))}
+          </select>
+          <label className="money-consent-accept">
+            <input
+              type="checkbox"
+              checked={accepted}
+              onChange={(event) => {
+                setAccepted(event.target.checked);
+              }}
+            />
+            <span>{consentText}</span>
+          </label>
+          <button
+            className="button"
+            type="button"
+            disabled={
+              pendingId !== null || !accepted || !invoiceId || !methodId
+            }
+            onClick={() => {
+              void authorize();
+            }}
+          >
+            {pendingId === 'consent'
+              ? 'Recording consent…'
+              : 'Record authorization'}
+          </button>
+        </div>
       ) : null}
     </section>
   );

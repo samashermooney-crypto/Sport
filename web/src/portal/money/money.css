@@ -39,6 +39,30 @@
   color: var(--bad);
 }
 
+.money-consent {
+  display: grid;
+  gap: var(--space-12);
+  margin-top: var(--space-20);
+  padding-top: var(--space-20);
+  border-top: 1px solid var(--line-2);
+}
+
+.money-consent h3,
+.money-consent p {
+  margin: 0;
+}
+
+.money-consent select {
+  width: 100%;
+  min-height: 44px;
+}
+
+.money-consent-accept {
+  display: flex;
+  gap: var(--space-12);
+  align-items: flex-start;
+}
+
 .money-invoices {
   display: grid;
   gap: var(--space-20);
