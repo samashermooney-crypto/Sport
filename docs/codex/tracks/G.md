@@ -62,3 +62,4 @@ Status: working; integration readiness is pending because Phase 8/9 acceptance e
 - **Open requests:** Track B: generator and bracket fixes; Track C: route mounting, schedule journeys/axe and facility image contract; Track B/C: notification email fan-out; Track H: volunteer assignments; Track F: discipline transaction/game-served APIs; Track A: baseline browser failures.
 - **Local test stack:** `COMPOSE_PROJECT_NAME=athlentry_g PORT_OFFSET=700`.
 - **Integration state:** `track/g-schedule` is local and unpushed. The trunk merge attempt failed the full unit gate and was rolled back; skip self-merge while the gate remains red.
+HANDED OFF 08:24
