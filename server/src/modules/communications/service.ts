@@ -794,14 +794,3 @@ export async function getCampaignStats(
     return { id: campaign.id, status: campaign.status, counts };
   });
 }
-
-export function campaignCategory(value: string): CommunicationCategory {
-  if (
-    value === 'operational' ||
-    value === 'announcement' ||
-    value === 'marketing' ||
-    value === 'emergency'
-  )
-    return value;
-  throw new RangeError('Campaign category is invalid');
-}
