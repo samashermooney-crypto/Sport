@@ -25,6 +25,7 @@ import {
 import { AppShell } from '../ui/shell';
 
 import { GuardianLinks } from './GuardianLinks';
+import { PersonClaim } from './PersonClaim';
 import { PersonPhoto } from './PersonPhoto';
 
 type Person = z.output<typeof personResponseSchema>;
@@ -801,6 +802,16 @@ export function PersonDetail(): React.JSX.Element {
             readOnly={Boolean(impersonationId)}
           />
         )}
+        {!impersonationId &&
+          current.status === 'active' &&
+          current.age >= 18 && (
+            <PersonClaim
+              key={`${current.id}:${current.email ?? ''}`}
+              orgId={orgId}
+              personId={personId}
+              profileEmail={current.email}
+            />
+          )}
       </main>
     </PeopleShell>
   );

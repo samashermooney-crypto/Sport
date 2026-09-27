@@ -11,6 +11,8 @@ import {
   guardianLinkCreateSchema,
   peopleFilterOptionsQuerySchema,
   peopleQuerySchema,
+  personClaimAcceptSchema,
+  personClaimInvitationSchema,
   personCreateSchema,
   personPhotoUpdateSchema,
   personUpdateSchema,
@@ -26,6 +28,7 @@ import { listFamily } from './family';
 import { createGuardianLinksRepository } from './guardianLinks';
 import { createHouseholdsRepository } from './households';
 import { createPeopleRepository, PeopleError } from './repo';
+import { createSelfClaimsRepository } from './selfClaims';
 
 const archiveBodySchema = z.strictObject({
   expectedVersion: z.int().positive(),
@@ -80,6 +83,7 @@ export function createPeopleRouter(
   const people = createPeopleRepository(dependencies.database);
   const households = createHouseholdsRepository(dependencies.database);
   const guardianLinks = createGuardianLinksRepository(dependencies.database);
+  const selfClaims = createSelfClaimsRepository(dependencies.database);
   router.use(express.json({ limit: '32kb' }));
   router.use((_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
@@ -260,6 +264,57 @@ export function createPeopleRouter(
             session.accountId,
             z.uuid().parse(request.params.personId),
             z.uuid().parse(request.params.linkId),
+          ),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/:personId/claim-invitations',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        const { email } = personClaimInvitationSchema.parse(request.body);
+        response
+          .status(201)
+          .json(
+            await selfClaims.invite(
+              z.uuid().parse(request.params.orgId),
+              session.accountId,
+              z.uuid().parse(request.params.personId),
+              email,
+              dependencies.email,
+              dependencies.appUrl,
+            ),
+          );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+
+  router.post(
+    '/orgs/:orgId/claim-invitations/accept',
+    async (request, response) => {
+      try {
+        const session = await requireSession(dependencies, request);
+        if (requestImpersonation(request))
+          throw new PeopleError(403, 'FORBIDDEN', 'Impersonation is read-only');
+        if (!validWriteOrigin(request, dependencies.appUrl))
+          throw new PeopleError(403, 'FORBIDDEN', 'Invalid write origin');
+        const { token } = personClaimAcceptSchema.parse(request.body);
+        response.json(
+          await selfClaims.accept(
+            z.uuid().parse(request.params.orgId),
+            session.accountId,
+            token,
           ),
         );
       } catch (error) {

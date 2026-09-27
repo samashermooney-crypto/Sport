@@ -550,3 +550,11 @@
 - **Decision:** The existing account `linked_org_ids` array remains an append-only candidate index. A trigger adds an org when a person-account link is inserted and a migration backfills existing links. The family reader starts from the authenticated global account, then checks active, verified links and active people separately inside `withOrg` for each candidate organization. Revocation does not remove the candidate ID.
 - **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
 - **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
+
+### DEC-080 — Require a staff-issued, email-bound adult profile claim
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 adult self links
+- **Context:** An adult person may need to claim an existing profile, but a typed email search would let an account attach itself to another person's record.
+- **Decision:** Staff issue a seven-day one-use invitation for an active adult person. A nonblank profile email must equal the invited email; a blank profile email is filled only at redemption. The token is bound to person, organization and email. Redemption requires an active, email-verified adult account, rechecks the current profile email against its issuance snapshot, rejects another person's use of that email, and allows only one active self link. The same global account may hold organization staff roles and a self person link.
+- **Why:** Staff approval and email control authorize the exact profile attachment, while the redemption recheck closes the stale-record window. A shared account model lets an adult also serve as staff without creating a duplicate identity.
+- **Consequences / follow-ups:** Email changes invalidate pending claims. Staff must issue a new invitation after a profile email change; existing verified links are handled through the account and person privacy flows.

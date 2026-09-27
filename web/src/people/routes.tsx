@@ -18,6 +18,11 @@ const FamilyHome = lazy(() =>
     default: Component,
   })),
 );
+const AcceptPersonClaim = lazy(() =>
+  import('./AcceptPersonClaim').then(({ AcceptPersonClaim: Component }) => ({
+    default: Component,
+  })),
+);
 const PersonDetail = lazy(() =>
   import('./PeopleConsole').then(({ PersonDetail: Component }) => ({
     default: Component,
@@ -35,6 +40,14 @@ const HouseholdDetail = lazy(() =>
 );
 
 export const peopleRoutes: readonly RouteObject[] = [
+  {
+    path: '/claim-person/:orgId/:token',
+    element: (
+      <Suspense fallback={<main role="status">Loading invitation…</main>}>
+        <AcceptPersonClaim />
+      </Suspense>
+    ),
+  },
   {
     path: '/me/family',
     element: (
