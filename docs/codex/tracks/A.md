@@ -3,8 +3,8 @@
 Status: working
 Model: GPT-6 Sol until S1; GPT-6 Luna after S1
 Branch: `track/a-core`
-Current: Spine, ready B/C/D ranges, task 6 onboarding, ready E finance contracts and Track B's platform/notification range are integrated and pushed on `rebuild/trunk`. Phase 1 tasks 5–9 and 13 are complete. Task 4 remains open for a trusted HTTPS native browser push subscription; tasks 16–17 remain on A's queue.
-Ready for integration: Production Turnstile/Resend auth startup and hourly rate-limit cleanup with isolated database tests, pending merged full gate. Task 4 remains open for a real trusted HTTPS browser subscription check.
+Current: Spine, ready B/C/D ranges, task 6 onboarding, ready E finance contracts and Track B's platform/notification range are integrated and pushed on `rebuild/trunk`. Phase 1 tasks 5–9, 13 and 17 are complete. Task 4 remains open for a trusted HTTPS native browser push subscription; task 16 remains. Track F's ready Phase 7 merge was aborted on red generated OpenAPI, an unhandled expiry job and unmounted web routes; revisit after the integration gaps are fixed.
+Ready for integration: Console Home with four working owner actions, owner onboarding link and Chromium/WebKit mobile accessibility journeys, pending merged full gate. Task 4 remains open for a real trusted HTTPS browser subscription check.
 Requests to other tracks: E — proceed with Phase 4 against the spine now on trunk.
 Requests to other tracks: D — identity screens in task 3 are stable for your auth restyle queue; console Home in task 17 remains with A.
 Blocked on: none

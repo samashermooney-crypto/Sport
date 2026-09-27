@@ -1,0 +1,23 @@
+.console-home {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-30);
+}
+.console-home__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-16);
+}
+.console-home__cards h2 {
+  margin-top: 0;
+  color: var(--ink);
+  font-size: var(--font-size-18);
+}
+.console-home__cards p {
+  color: var(--muted);
+}
+@media (max-width: 600px) {
+  .console-home {
+    padding: var(--space-16);
+  }
+}

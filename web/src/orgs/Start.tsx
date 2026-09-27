@@ -118,6 +118,11 @@ export function Start(): React.JSX.Element {
             role becomes active after MFA enrollment.
           </p>
           <p>
+            <AuthLink to={`/console/orgs/${created.id}`}>
+              Open organization home
+            </AuthLink>
+          </p>
+          <p>
             <AuthLink to="/me/security">Set up account security</AuthLink>
           </p>
           <p>
