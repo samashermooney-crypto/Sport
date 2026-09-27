@@ -12,6 +12,10 @@ import {
   orgStaffResponseSchema,
   orgMemberRolesResponseSchema,
   orgMemberStatusResponseSchema,
+  ownershipTransferAcceptResponseSchema,
+  ownershipTransferAcceptSchema,
+  ownershipTransferRequestResponseSchema,
+  ownershipTransferRequestSchema,
   scopedRoleResponseSchema,
   orgSlugAvailabilitySchema,
   orgSlugSchema,
@@ -43,6 +47,10 @@ import {
   setOrgMemberStatus,
   setScopedRole,
 } from './memberRoles';
+import {
+  acceptOwnershipTransfer,
+  requestOwnershipTransfer,
+} from './ownershipTransfer';
 import { isOrgSlugAvailable } from './slug';
 
 class OrgCredentialsError extends Error {
@@ -378,6 +386,63 @@ export function createOrgRouter(
           now: dependencies.clock(),
         });
         response.json(scopedRoleResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
+  router.post('/:orgId/ownership-transfer', async (request, response) => {
+    try {
+      if (!mutationOriginIsValid(request, dependencies.appUrl))
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Request origin could not be verified',
+        );
+      const { context, session } = await ownerContext(request);
+      if (
+        !session.elevatedUntil ||
+        session.elevatedUntil <= dependencies.clock()
+      )
+        throw new OrgMemberRolesError(
+          403,
+          'FORBIDDEN',
+          'Confirm your identity before transferring ownership',
+        );
+      const body = ownershipTransferRequestSchema.parse(request.body);
+      const result = await requestOwnershipTransfer(dependencies, {
+        orgId: context.orgId,
+        actorId: session.accountId,
+        recipientAccountId: body.recipientAccountId,
+        expectedVersion: body.expectedVersion,
+        now: dependencies.clock(),
+      });
+      response
+        .status(201)
+        .json(ownershipTransferRequestResponseSchema.parse(result));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/:orgId/ownership-transfer/accept',
+    async (request, response) => {
+      try {
+        if (!mutationOriginIsValid(request, dependencies.appUrl))
+          throw new OrgMemberRolesError(
+            403,
+            'FORBIDDEN',
+            'Request origin could not be verified',
+          );
+        const session = await requireSession(dependencies, request);
+        const body = ownershipTransferAcceptSchema.parse(request.body);
+        const result = await acceptOwnershipTransfer(dependencies.database, {
+          orgId: z.uuid().parse(request.params.orgId),
+          recipientId: session.accountId,
+          token: body.token,
+          now: dependencies.clock(),
+        });
+        response.json(ownershipTransferAcceptResponseSchema.parse(result));
       } catch (error) {
         sendError(response, error);
       }
