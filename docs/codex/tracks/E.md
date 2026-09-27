@@ -21,6 +21,7 @@ Ready for integration: local `4e1b9ef..5ba8c41` — scoped discount-code reserva
 In progress: local `45c8a05..b151f55` — authenticated staff invoice issuance with payer/household checks and frozen refund terms; full Playwright gate remains red outside E-owned paths.
 In progress: local `a6296f1..9af07ea` — finance invoice detail and versioned void API; void refuses net money, active disputes, unsettled payments and active installments; full Playwright gate remains red outside E-owned paths.
 In progress: local `fa0b5b0..84c7407` — account-owned invoice balance feed and paginated portal component; full Playwright gate remains red outside E-owned paths.
+In progress: local `1ab284c..fbe26f7` — test-mode SetupIntent, saved-method list/default/remove portal UI and default-method API result; full Playwright gate remains red outside E-owned paths.
 Ready for integration: local `cf83f4c..4e97356` — Stripe SDK dependency and test-mode gateway.
 Additional ready for integration: local `4e97356..c7dd637` — spine-independent webhook, Connect, payment UI and money orchestration contracts.
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1021 merge (2026-09-26).
@@ -45,6 +46,7 @@ Requests to other tracks: A: regenerate Kysely types after migration 1027 and us
 Requests to other tracks: A: regenerate finance OpenAPI/registry for `POST /api/v1/finance/orgs/{orgId}/invoices`; full Playwright also timed out in A-owned `e2e/sign-in.spec.ts` waiting for a preview-email link in the second run (2026-09-27).
 Requests to other tracks: A: also include finance `GET /api/v1/finance/orgs/{orgId}/invoices/{invoiceId}` and `POST /api/v1/finance/orgs/{orgId}/invoices/{invoiceId}/void` in generated OpenAPI; the latter requires an exact invoice version (2026-09-27).
 Requests to other tracks: A: include `GET /api/v1/finance/orgs/{orgId}/me/invoices` in generated OpenAPI and mount E's `InvoiceBalanceScreen` in the family money route with the active org ID/name; E's feed returns only invoices billed to the signed-in account (2026-09-27).
+Requests to other tracks: A: mount E's `SavedPaymentMethodsScreen` at the family money settings route with a `pk_test_` publishable key and same-origin SetupIntent return URL; regenerate OpenAPI for the added `defaultMethodId` in `GET /api/v1/finance/me/payment-methods` (2026-09-27).
 Requests to other tracks: D: fix the WebKit mobile 44px touch target for the `Items per page` select in `web/src/ui/overlays.tsx`; full Playwright measured 49×19 in two runs, although the isolated check passed (2026-09-27).
 Blocked on: None; schema spine and test factories are on `rebuild/trunk`.
 Luna finance: Build checkout flow by calling `CheckoutPricingService` with `PostgresCheckoutPricingRepository`, then `PostgresInvoiceRepository.issue`, then `CheckoutPaymentService` with `PostgresFrozenChargeReader`/attempt/record stores; never calculate or trust client-provided prices or create a Stripe intent before a frozen invoice reconciles.
@@ -63,6 +65,7 @@ Current gate: 569 tests passed/1 skipped with isolated Postgres and stripe-mock;
 Latest gate: 570 tests passed/1 skipped; typecheck, lint and build green. Full Playwright ran twice: D-owned WebKit touch target failed both times; the second run also timed out in A-owned preview-email sign-in. Targeted WebKit touch-target rerun passed. Staff invoice range is not marked ready until the full gate is green.
 Latest invoice gate: 571 tests passed/1 skipped; typecheck, lint and build green. The affected finance routes are unmounted from the A-owned web router, so no new browser case exists; the last full Playwright failures remain recorded above.
 Latest payer gate: 573 tests passed/1 skipped; typecheck, lint and build green. Portal invoice component test covers balance display and pagination; the unmounted route has no affected Playwright case yet.
+Latest saved-method gate: 578 tests passed/1 skipped; typecheck, lint and build green. Focused portal tests cover setup, default/remove actions and ambiguous confirmation; A-owned route mounting is still needed for browser coverage.
 Current review: Refund approval hashes bind requester, proposal, destination and key; checkout attempts serialize different keys before Stripe, and payout exports require exact reconciliation.
 Current review: Tenant finance data uses `withOrg`; account-wide payer methods use the authenticated account; no live keys, real charges or external messages were used.
 Current review: Net line shares include parent-linked discounts and aid, use Track B's integer `allocate`, and reconcile to invoice cents before a payment is recorded.
@@ -73,6 +76,7 @@ Current review: Code row locks serialize final-use reservations and invoice rede
 Current review: Staff invoice API requires active finance access, same-origin write, an org-linked payer and a financially responsible household link when supplied; issuance freezes refund terms and rejects changed idempotency-key replays.
 Current review: Invoice read is finance-only; void uses an exact version and idempotent reason, and locks the invoice before checking net money, disputes, pending allocations and installments.
 Current review: Family invoice feed uses `withOrg`, exact billed account and keyset pagination; the portal shows amounts and history without a payment action until invoice payment collection is wired.
+Current review: Saved-method UI permits only test publishable keys, shows the account default, warns before removal revokes related autopay, and fences an uncertain SetupIntent confirmation until methods are refreshed.
 Current review: Frozen charge terms must be persisted with the checkout snapshot before the payment route is mounted; multi-payment refund allocation and dispute evidence remain in the queue.
 Additional review: `20 §3–§5` fee, installment and state rules checked; every external Stripe money call now has a durable claim before invocation.
 Additional review: webhook handlers fetch latest Stripe state and require org-scoped id/amount matching; repository persistence and real concurrency gates await spine.
