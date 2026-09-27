@@ -404,6 +404,26 @@ export interface ChatMessages {
   version: Generated<number>;
 }
 
+export interface ChatNotificationBatches {
+  attempt_count: Generated<number>;
+  available_at: Timestamp;
+  claimed_at: Timestamp | null;
+  conversation_id: string;
+  created_at: Generated<Timestamp>;
+  email_sent_at: Timestamp | null;
+  first_message_id: string;
+  id: string;
+  last_error: string | null;
+  latest_message_id: string;
+  message_count: Generated<number>;
+  org_id: string;
+  push_sent_at: Timestamp | null;
+  recipient_account_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  window_started_at: Timestamp;
+}
+
 export interface ChatReports {
   created_at: Generated<Timestamp>;
   id: string;
@@ -2437,6 +2457,7 @@ export interface DB {
   capacity_counters: CapacityCounters;
   capacity_holds: CapacityHolds;
   chat_messages: ChatMessages;
+  chat_notification_batches: ChatNotificationBatches;
   chat_reports: ChatReports;
   checkout_capacity_refund_claims: CheckoutCapacityRefundClaims;
   checkouts: Checkouts;

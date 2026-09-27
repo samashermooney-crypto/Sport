@@ -26,10 +26,6 @@ export function createCommunicationNotificationSink(
     const isChat = type === 'communications.chat_message';
     const resourceId = isChat ? payload.conversationId : payload.campaignId;
     if (!resourceId) throw new Error('Notification resource is unavailable');
-    const notificationType =
-      type === 'communications.emergency'
-        ? 'safety.emergency'
-        : 'organization.announcement';
     const safePayload = {
       resourceType: isChat ? 'conversation' : 'message_campaign',
       resourceId,
@@ -40,7 +36,7 @@ export function createCommunicationNotificationSink(
     return runWithOrg(context, (trx) =>
       createNotification(trx, context, {
         accountId,
-        type: notificationType,
+        type,
         payload: safePayload,
       }),
     );

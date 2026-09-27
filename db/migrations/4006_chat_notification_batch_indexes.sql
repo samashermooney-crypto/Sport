@@ -1,0 +1,6 @@
+CREATE INDEX chat_notification_batches_recipient_idx
+  ON chat_notification_batches(recipient_account_id);
+CREATE INDEX chat_notification_batches_first_message_idx
+  ON chat_notification_batches(org_id, first_message_id);
+CREATE INDEX chat_notification_batches_latest_message_idx
+  ON chat_notification_batches(org_id, latest_message_id);
