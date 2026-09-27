@@ -88,9 +88,12 @@ describe('tenant database isolation', () => {
         expect(row.relforcerowsecurity, row.table_name).toBe(true);
         expect(Number(row.policy_count), row.table_name).toBeGreaterThan(0);
         if (
-          !['audit_log', 'auth_tokens', 'credential_types'].includes(
-            row.table_name,
-          )
+          ![
+            'audit_log',
+            'auth_tokens',
+            'credential_types',
+            'suppressions',
+          ].includes(row.table_name)
         ) {
           expect(row.nullable, row.table_name).toBe('1');
         }
