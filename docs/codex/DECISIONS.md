@@ -528,3 +528,11 @@
 - **Decision:** Persist each scheduled pool game and reserved bracket slot in a tenant-scoped reservation table; attach bracket match IDs when they are available and retain event IDs for the full schedule history.
 - **Why:** The shared tournament generator can reserve real space and time before the bracket is seeded without inventing placeholder bracket rows or losing schedule-to-match links.
 - **Consequences / follow-ups:** Tournament event creation and match binding must run transactionally, and bracket views must expose reservation times only through the authorized tournament response.
+
+### DEC-069 — Keep resource-calendar moves in the schedule feature
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 8 resource calendar
+- **Context:** The shared calendar renders read-only resource slots, while the schedule acceptance requires event moves by drag-and-drop and an equivalent keyboard path. Track G cannot change Track D’s owned design-system components.
+- **Decision:** Compose a schedule-owned resource calendar from existing UI controls. Both move paths use the versioned event update endpoint, preserve elapsed duration, interpret the target slot in the destination facility timezone, and pass optional reason text for server-approved soft-conflict overrides. Event and recurrence create/edit forms expose the same reason field; hard conflicts remain unoverridable.
+- **Why:** The scheduling feature needs its operational move workflow while retaining the frozen shared design system and backend as the authority for booking conflicts.
+- **Consequences / follow-ups:** The calendar remains inside `web/src/console/schedule`; Track A must mount the feature and add the cross-browser schedule journeys.
