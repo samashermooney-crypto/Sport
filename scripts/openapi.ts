@@ -21,6 +21,7 @@ export type OpenApiRoute = {
   tags?: string[];
   public?: boolean;
   query?: Record<string, z.ZodType>;
+  contentType?: string;
   binary?: boolean;
 };
 
@@ -408,7 +409,11 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
                     schema: { type: 'string', format: 'binary' },
                   },
                 }
-              : { 'application/json': { schema: jsonSchema(route.response) } },
+              : {
+                  [route.contentType ?? 'application/json']: {
+                    schema: jsonSchema(route.response),
+                  },
+                },
       },
       '400': { $ref: '#/components/responses/ValidationError' },
       '401': { $ref: '#/components/responses/Unauthenticated' },

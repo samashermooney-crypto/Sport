@@ -9,14 +9,18 @@ import { moduleDefinition as auditModule } from '../modules/audit/module';
 import { moduleDefinition as authModule } from '../modules/auth/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
+import { moduleDefinition as notificationsModule } from '../modules/notifications/module';
 import { moduleDefinition as orgsModule } from '../modules/orgs/module';
+import { moduleDefinition as platformModule } from '../modules/platform/module';
 
 export const serverModules: readonly ServerModule[] = [
   auditModule,
   authModule,
   filesModule,
   jobsModule,
+  notificationsModule,
   orgsModule,
+  platformModule,
 ];
 export const integrationConfigs: readonly IntegrationConfig[] = [
   backgroundCheckConfig,

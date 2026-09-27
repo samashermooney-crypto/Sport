@@ -1,0 +1,134 @@
+@import '../ui/tokens.css';
+
+.platform-console {
+  background: var(--canvas);
+  color: var(--ink-2);
+  font-family: var(--font-app);
+  min-height: 100vh;
+  padding: var(--space-24);
+}
+.platform-console h1,
+.platform-console h2,
+.platform-console h3 {
+  color: var(--ink);
+  font-family: var(--font-display);
+}
+.platform-console h1 {
+  font-size: var(--font-size-28);
+  margin: 0;
+}
+.platform-console header p {
+  color: var(--muted);
+  margin: var(--space-4) 0 var(--space-24);
+}
+.platform-console__tabs,
+.platform-console__row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin: var(--space-16) 0;
+}
+.platform-console__tabs {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-8);
+}
+.platform-console button {
+  background: var(--accent);
+  border: 1px solid var(--accent-600);
+  border-radius: var(--radius-4);
+  color: var(--on-accent);
+  cursor: pointer;
+  min-height: var(--control-height-40);
+  padding: 0 var(--space-16);
+}
+.platform-console button[aria-current='page'] {
+  background: var(--accent-700);
+}
+.platform-console input,
+.platform-console select,
+.platform-console textarea {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-4);
+  color: var(--ink);
+  font: inherit;
+  min-height: var(--control-height-40);
+  padding: 0 var(--space-12);
+}
+.platform-console textarea {
+  min-height: 5rem;
+  padding: var(--space-12);
+}
+.platform-console input[type='checkbox'] {
+  min-height: auto;
+}
+.platform-console__form {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-6);
+  display: grid;
+  gap: var(--space-12);
+  margin-top: var(--space-16);
+  max-width: 40rem;
+  padding: var(--space-20);
+}
+.platform-console__form label {
+  display: grid;
+  gap: var(--space-4);
+}
+.platform-console__list {
+  list-style: none;
+  margin: var(--space-16) 0;
+  padding: 0;
+}
+.platform-console__list li {
+  align-items: center;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-16);
+  padding: var(--space-12);
+}
+.platform-console__card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-6);
+  margin-top: var(--space-24);
+  padding: var(--space-20);
+}
+.platform-console dl {
+  display: grid;
+  gap: var(--space-8) var(--space-20);
+  grid-template-columns: auto 1fr;
+}
+.platform-console dt {
+  color: var(--muted);
+}
+.platform-console dd {
+  margin: 0;
+}
+.platform-console table {
+  border-collapse: collapse;
+  margin-top: var(--space-16);
+  width: 100%;
+}
+.platform-console th,
+.platform-console td {
+  border-bottom: 1px solid var(--line);
+  padding: var(--space-12);
+  text-align: left;
+}
+.platform-console__error {
+  color: var(--bad);
+}
+.platform-console__impersonation {
+  align-items: center;
+  background: var(--bad-bg);
+  border: 1px solid var(--bad);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  padding: var(--space-12);
+}
