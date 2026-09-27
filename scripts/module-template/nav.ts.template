@@ -1,0 +1,6 @@
+// Add to navigation only when the route and permission are active.
+export const __camel__Nav = {
+  label: '__PASCAL__',
+  path: '/__NAME__',
+  permission: '__NAME__.read',
+} as const;

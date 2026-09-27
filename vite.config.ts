@@ -11,7 +11,7 @@ export default defineConfig({
   publicDir: '../public',
   server: {
     host: '127.0.0.1',
-    port: 5173,
+    port: Number(process.env.ATHLENTRY_VITE_PORT ?? '5173'),
     strictPort: true,
     ...(process.env.ATHLENTRY_E2E_HTTPS === '1'
       ? {
@@ -22,8 +22,8 @@ export default defineConfig({
         }
       : {}),
     proxy: {
-      '/api': 'http://127.0.0.1:3001',
-      '/healthz': 'http://127.0.0.1:3001',
+      '/api': `http://127.0.0.1:${process.env.ATHLENTRY_API_PORT ?? '3001'}`,
+      '/healthz': `http://127.0.0.1:${process.env.ATHLENTRY_API_PORT ?? '3001'}`,
     },
   },
   build: { outDir: '../dist/web', emptyOutDir: true },
