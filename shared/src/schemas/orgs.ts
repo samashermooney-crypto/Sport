@@ -183,6 +183,26 @@ export const scopedRoleResponseSchema = z.strictObject({
   pendingMfa: z.boolean(),
 });
 
+export const ownershipTransferRequestSchema = z.strictObject({
+  recipientAccountId: z.uuid(),
+  expectedVersion: z.number().int().positive(),
+});
+
+export const ownershipTransferRequestResponseSchema = z.strictObject({
+  recipientAccountId: z.uuid(),
+  expiresAt: z.iso.datetime(),
+});
+
+export const ownershipTransferAcceptSchema = z.strictObject({
+  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+});
+
+export const ownershipTransferAcceptResponseSchema = z.strictObject({
+  orgId: z.uuid(),
+  previousOwnerId: z.uuid(),
+  ownerId: z.uuid(),
+});
+
 export const orgInvitationSchema = z
   .strictObject({
     email: z.email().max(254),
