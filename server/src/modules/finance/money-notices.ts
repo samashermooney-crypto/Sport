@@ -13,7 +13,11 @@ import { createNotification } from '../notifications/service.js';
 
 import { PostgresMoneyDocuments } from './money-documents.js';
 
-export type FinanceNoticeKind = 'invoice_issued' | 'payment_received';
+export type FinanceNoticeKind =
+  | 'invoice_issued'
+  | 'payment_received'
+  | 'installment_failed'
+  | 'installment_final_notice';
 interface NoticeRow {
   id: string;
   account_id: string;
@@ -40,14 +44,29 @@ export async function enqueueFinanceNotice(
           .where('id', '=', input.sourceId)
           .where('account_id', '=', input.accountId)
           .executeTakeFirst()
-      : await trx
-          .selectFrom('payments')
-          .select('id')
-          .where('org_id', '=', context.orgId)
-          .where('id', '=', input.sourceId)
-          .where('account_id', '=', input.accountId)
-          .where('status', '=', 'succeeded')
-          .executeTakeFirst();
+      : input.kind === 'payment_received'
+        ? await trx
+            .selectFrom('payments')
+            .select('id')
+            .where('org_id', '=', context.orgId)
+            .where('id', '=', input.sourceId)
+            .where('account_id', '=', input.accountId)
+            .where('status', '=', 'succeeded')
+            .executeTakeFirst()
+        : await trx
+            .selectFrom('payments as payment')
+            .innerJoin('payment_allocations as allocation', (join) =>
+              join
+                .onRef('allocation.org_id', '=', 'payment.org_id')
+                .onRef('allocation.payment_id', '=', 'payment.id'),
+            )
+            .select('payment.id')
+            .where('payment.org_id', '=', context.orgId)
+            .where('payment.id', '=', input.sourceId)
+            .where('payment.account_id', '=', input.accountId)
+            .where('payment.status', '=', 'failed')
+            .where('allocation.installment_id', 'is not', null)
+            .executeTakeFirst();
   if (!owned) throw new Error('Finance notice recipient does not own source');
   const id = newId();
   const key = newId();
@@ -64,7 +83,13 @@ export async function enqueueFinanceNotice(
   await createNotification(trx, context, {
     accountId: input.accountId,
     type:
-      input.kind === 'invoice_issued' ? 'invoice.issued' : 'payment.succeeded',
+      input.kind === 'invoice_issued'
+        ? 'invoice.issued'
+        : input.kind === 'payment_received'
+          ? 'payment.succeeded'
+          : input.kind === 'installment_final_notice'
+            ? 'installment.final_notice'
+            : 'installment.failed',
     payload: { resourceType, resourceId: input.sourceId },
   });
   await appendAuditEvent(trx, context, {
@@ -127,11 +152,17 @@ export class PostgresFinanceNoticeDelivery {
     const title =
       notice.kind === 'invoice_issued'
         ? 'Your invoice is ready'
-        : 'Your payment receipt is ready';
+        : notice.kind === 'payment_received'
+          ? 'Your payment receipt is ready'
+          : notice.kind === 'installment_final_notice'
+            ? 'Your installment needs a new payment method'
+            : 'Your installment payment failed';
     const path =
       notice.kind === 'invoice_issued'
         ? `/portal/orgs/${this.context.orgId}/money/invoices`
-        : `/portal/orgs/${this.context.orgId}/money/receipts`;
+        : notice.kind === 'payment_received'
+          ? `/portal/orgs/${this.context.orgId}/money/receipts`
+          : `/portal/orgs/${this.context.orgId}/money/installments`;
     const url = new URL(path, this.appUrl).toString();
     try {
       const pdf = await this.attachment(notice, recipient.email);
@@ -141,14 +172,20 @@ export class PostgresFinanceNoticeDelivery {
         text: `${title}. Sign in to Athlentry to view it: ${url}`,
         kind: 'transactional',
         idempotencyKey: notice.message_key,
-        attachments: [
-          {
-            filename:
-              notice.kind === 'invoice_issued' ? 'invoice.pdf' : 'receipt.pdf',
-            content: pdf,
-            contentType: 'application/pdf',
-          },
-        ],
+        ...(pdf
+          ? {
+              attachments: [
+                {
+                  filename:
+                    notice.kind === 'invoice_issued'
+                      ? 'invoice.pdf'
+                      : 'receipt.pdf',
+                  content: pdf,
+                  contentType: 'application/pdf',
+                },
+              ],
+            }
+          : {}),
       });
       await this.finish(notice, 'sent', sent.providerId);
       return 'sent';
@@ -158,7 +195,29 @@ export class PostgresFinanceNoticeDelivery {
     }
   }
 
-  private async attachment(notice: NoticeRow, email: string): Promise<Buffer> {
+  private async attachment(
+    notice: NoticeRow,
+    email: string,
+  ): Promise<Buffer | null> {
+    if (
+      notice.kind === 'installment_failed' ||
+      notice.kind === 'installment_final_notice'
+    ) {
+      if (notice.delivery_email) return null;
+      await this.withOrg(this.context, async (trx) => {
+        const saved = await sql<{ id: string }>`
+          UPDATE finance_notice_outbox SET delivery_email = ${email}
+          WHERE org_id = ${this.context.orgId}::uuid
+            AND id = ${notice.id}::uuid
+            AND status = 'sending' AND lease_token = ${notice.lease_token}::uuid
+            AND delivery_email IS NULL
+          RETURNING id
+        `.execute(trx);
+        if (!saved.rows.length)
+          throw new Error('Finance notice lease was lost');
+      });
+      return null;
+    }
     if (notice.attachment_pdf) return notice.attachment_pdf;
     const documents = new PostgresMoneyDocuments(
       this.database,
