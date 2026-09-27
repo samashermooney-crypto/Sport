@@ -215,3 +215,11 @@
 - **Decision:** Owners with completed MFA and recent step-up can edit the name, validity, activation blocking and active state with a version check. Show the verification method as read-only until a working provider workflow exists. Audit each change and hide another tenant's credential identifiers with 404.
 - **Why:** This lets an owner control every default requirement while preventing a setting that claims to verify credentials through an unavailable provider.
 - **Consequences / follow-ups:** Add selectable verification methods only with their complete review or provider workflow in a later phase.
+
+### DEC-026 — Bind delivery devices to sessions
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 native and Web Push devices
+- **Context:** An account-level device record could remain active after the session that registered it expired or was revoked.
+- **Decision:** Bind new device registrations to the registering session, reject a concurrent stale session, hide expired-session devices from reads, scrub subscription or token data on explicit session revocation, and run hourly expiry cleanup. Revoke and scrub pre-migration device records that have no session association.
+- **Why:** Delivery endpoints can identify a family's device; their validity must not outlast the authenticated session that supplied them.
+- **Consequences / follow-ups:** Push dispatchers must select only active session-bound devices. A trusted HTTPS browser subscription check remains before Phase 1 task 4 is complete.
