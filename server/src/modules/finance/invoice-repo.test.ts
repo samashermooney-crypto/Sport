@@ -247,6 +247,45 @@ describe('invoice issuance', () => {
         ),
       ).toBe('open');
     });
+    const unsettledPaymentId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('payments')
+        .values({
+          id: unsettledPaymentId,
+          org_id: context.orgId,
+          account_id: context.actor.accountId,
+          method: 'card',
+          status: 'processing',
+          amount_cents: 100,
+        })
+        .execute();
+      await trx
+        .insertInto('payment_allocations')
+        .values({
+          id: newId(),
+          org_id: context.orgId,
+          payment_id: unsettledPaymentId,
+          invoice_id: invoice.id,
+          amount_cents: 100,
+        })
+        .execute();
+    });
+    await expect(
+      repository.void({
+        orgId: context.orgId,
+        invoiceId: invoice.id,
+        reason: 'Duplicate assessment',
+      }),
+    ).rejects.toThrow('unsettled payment');
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('payments')
+        .set({ status: 'failed' })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', unsettledPaymentId)
+        .execute(),
+    );
     await repository.void({
       orgId: context.orgId,
       invoiceId: invoice.id,

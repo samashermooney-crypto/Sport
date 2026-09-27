@@ -24,6 +24,9 @@ import {
   checkoutPaymentResponseSchema,
   staffInvoiceBodySchema,
   staffInvoiceResponseSchema,
+  invoiceDetailSchema,
+  voidInvoiceBodySchema,
+  voidInvoiceResponseSchema,
 } from './routes.js';
 
 export const moduleDefinition = {
@@ -41,6 +44,19 @@ export const moduleDefinition = {
       summary: 'Issue an idempotent staff invoice with frozen refund terms',
       body: staffInvoiceBodySchema,
       response: staffInvoiceResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/invoices/{invoiceId}',
+      summary: 'Read a finance invoice and its line ledger',
+      response: invoiceDetailSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/invoices/{invoiceId}/void',
+      summary: 'Void an unpaid invoice at an exact version',
+      body: voidInvoiceBodySchema,
+      response: voidInvoiceResponseSchema,
     },
     {
       method: 'get',

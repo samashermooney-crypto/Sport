@@ -315,6 +315,40 @@ describe('staff invoice HTTP', () => {
     );
     expect(stored.source).toBe('staff');
     expect(stored.refund_terms).toMatchObject(body.refundTerms);
+    const invoicePath = `${baseUrl}/orgs/${context.orgId}/invoices/${created.id}`;
+    const detailResponse = await fetch(invoicePath, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(detailResponse.status).toBe(200);
+    const detail = (await detailResponse.json()) as {
+      version: number;
+      lines: { amountCents: number }[];
+    };
+    expect(detail.lines.map((line) => line.amountCents)).toEqual([2500]);
+    const voidInvoice = (reason: string, expectedVersion = detail.version) =>
+      fetch(`${invoicePath}/void`, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: origin,
+          'X-Athlentry-Request': '1',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason, expectedVersion }),
+      });
+    expect((await voidInvoice('Canceled', detail.version + 1)).status).toBe(
+      409,
+    );
+    expect((await voidInvoice('Canceled')).status).toBe(200);
+    expect((await voidInvoice('Canceled')).status).toBe(200);
+    expect((await voidInvoice('Different reason')).status).toBe(409);
+    const voided = await fetch(invoicePath, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(await voided.json()).toMatchObject({
+      status: 'void',
+      voidReason: 'Canceled',
+    });
   });
 });
 

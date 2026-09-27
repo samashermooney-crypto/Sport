@@ -25,6 +25,7 @@ import {
 } from './installment-templates.js';
 import {
   InvoiceConflictError,
+  InvoiceNotFoundError,
   PostgresInvoiceRepository,
 } from './invoice-repo.js';
 import {
@@ -106,6 +107,55 @@ export const staffInvoiceResponseSchema = z.strictObject({
   number: z.number().int().positive(),
   totalCents: z.number().int().nonnegative(),
   status: z.enum(['open', 'paid']),
+});
+export const invoiceDetailSchema = z.strictObject({
+  id: z.uuid(),
+  number: z.number().int().positive(),
+  accountId: z.uuid(),
+  householdId: z.uuid().nullable(),
+  status: z.enum([
+    'draft',
+    'open',
+    'paid',
+    'partially_paid',
+    'past_due',
+    'void',
+    'uncollectible',
+  ]),
+  issuedAt: z.iso.datetime().nullable(),
+  dueOn: z.iso.date().nullable(),
+  subtotalCents: z.number().int().nonnegative(),
+  discountCents: z.number().int().nonnegative(),
+  serviceFeeCents: z.number().int().nonnegative(),
+  taxCents: z.number().int().nonnegative(),
+  totalCents: z.number().int().nonnegative(),
+  paidCents: z.number().int().nonnegative(),
+  refundedCents: z.number().int().nonnegative(),
+  creditAppliedCents: z.number().int().nonnegative(),
+  balanceCents: z.number().int().nonnegative().nullable(),
+  memo: z.string().nullable(),
+  source: z.string(),
+  version: z.number().int().positive(),
+  voidedAt: z.iso.datetime().nullable(),
+  voidReason: z.string().nullable(),
+  lines: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      kind: z.string(),
+      description: z.string(),
+      amountCents: z.number().int(),
+      refundable: z.boolean(),
+      parentLineId: z.uuid().nullable(),
+    }),
+  ),
+});
+export const voidInvoiceBodySchema = z.strictObject({
+  reason: z.string().trim().min(1).max(500),
+  expectedVersion: z.number().int().positive(),
+});
+export const voidInvoiceResponseSchema = z.strictObject({
+  id: z.uuid(),
+  status: z.literal('void'),
 });
 export const offlinePaymentReceiptSchema = z.strictObject({
   paymentId: z.uuid(),
@@ -246,15 +296,17 @@ function sendError(response: Response, error: unknown): void {
           error instanceof InstallmentTemplateConflictError ||
           error instanceof InvoiceConflictError
         ? 409
-        : error instanceof FinanceDependencyError
-          ? 503
-          : error instanceof z.ZodError || error instanceof RangeError
-            ? 400
-            : error instanceof Error &&
-                'status' in error &&
-                error.status === 401
-              ? 401
-              : 500;
+        : error instanceof InvoiceNotFoundError
+          ? 404
+          : error instanceof FinanceDependencyError
+            ? 503
+            : error instanceof z.ZodError || error instanceof RangeError
+              ? 400
+              : error instanceof Error &&
+                  'status' in error &&
+                  error.status === 401
+                ? 401
+                : 500;
   response.status(status).json(
     apiErrorSchema.parse({
       error: {
@@ -263,13 +315,15 @@ function sendError(response: Response, error: unknown): void {
             ? 'FORBIDDEN'
             : status === 409
               ? 'CONFLICT'
-              : status === 503
-                ? 'DEPENDENCY_UNAVAILABLE'
-                : status === 400
-                  ? 'VALIDATION_ERROR'
-                  : status === 401
-                    ? 'UNAUTHENTICATED'
-                    : 'INTERNAL_ERROR',
+              : status === 404
+                ? 'NOT_FOUND'
+                : status === 503
+                  ? 'DEPENDENCY_UNAVAILABLE'
+                  : status === 400
+                    ? 'VALIDATION_ERROR'
+                    : status === 401
+                      ? 'UNAUTHENTICATED'
+                      : 'INTERNAL_ERROR',
         message:
           status === 500
             ? 'The request could not be completed'
@@ -311,6 +365,55 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.get('/orgs/:orgId/invoices/:invoiceId', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const invoiceId = z.uuid().parse(request.params.invoiceId);
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const invoice = await new PostgresInvoiceRepository(
+        dependencies.database,
+        context,
+      ).read(orgId, invoiceId);
+      response.json(invoiceDetailSchema.parse(invoice));
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.post(
+    '/orgs/:orgId/invoices/:invoiceId/void',
+    async (request, response) => {
+      try {
+        if (
+          !writeOriginValid(request, dependencies.appUrl) ||
+          requestImpersonation(request)
+        )
+          throw new FinanceAccessError();
+        const session = await requireSession(dependencies, request);
+        const orgId = z.uuid().parse(request.params.orgId);
+        const invoiceId = z.uuid().parse(request.params.invoiceId);
+        const input = voidInvoiceBodySchema.parse(request.body as unknown);
+        const context = { orgId, actor: { accountId: session.accountId } };
+        await requireFinanceStaff(dependencies.database, context);
+        await new PostgresInvoiceRepository(
+          dependencies.database,
+          context,
+        ).void({
+          orgId,
+          invoiceId,
+          reason: input.reason,
+          expectedVersion: input.expectedVersion,
+        });
+        response.json(
+          voidInvoiceResponseSchema.parse({ id: invoiceId, status: 'void' }),
+        );
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   router.post('/orgs/:orgId/invoices', async (request, response) => {
     try {
       if (
