@@ -480,3 +480,158 @@ test('family member uploads a restricted document on a phone', async ({
   ).toBeVisible();
   expect(await accessibilityViolations(page)).toEqual([]);
 });
+
+test('guardian grants photo consent and crops a family profile photo on a phone', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const fileId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  let profile = {
+    id: personId,
+    orgId,
+    firstName: 'Maya',
+    lastName: 'Guardian',
+    preferredName: null,
+    dateOfBirth: '2012-01-01',
+    graduationYear: null,
+    age: 14,
+    grade: null,
+    gender: 'female',
+    email: null,
+    phoneE164: null,
+    mediaConsent: 'unknown',
+    photoFileId: null as string | null,
+    status: 'active',
+    version: 1,
+    canEdit: true,
+  };
+  let uploadedJpegBytes = 0;
+  let uploadContentType = '';
+  await page.route('**/api/v1/auth/me', (route) =>
+    route.fulfill({
+      json: {
+        id: '66666666-6666-4666-8666-666666666666',
+        email: 'guardian@example.invalid',
+        firstName: 'Morgan',
+        lastName: 'Guardian',
+        locale: 'en',
+        mfaEnabled: false,
+        sessionId: '77777777-7777-4777-8777-777777777777',
+        client: 'web',
+      },
+    }),
+  );
+  await page.route(
+    `**/api/v1/people/orgs/${orgId}/${personId}/family-profile`,
+    async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ json: profile });
+        return;
+      }
+      const body = route.request().postDataJSON() as {
+        expectedVersion: number;
+        mediaConsent: 'granted' | 'denied' | 'unknown';
+      };
+      expect(body.expectedVersion).toBe(profile.version);
+      expect(body.mediaConsent).toBe('granted');
+      profile = {
+        ...profile,
+        mediaConsent: body.mediaConsent,
+        version: profile.version + 1,
+      };
+      await route.fulfill({ json: profile });
+    },
+  );
+  await page.route('**/api/v1/files/uploads', async (route) => {
+    const body = route.request().postDataJSON() as {
+      mime: string;
+      bytes: number;
+      ownerType: string;
+      ownerId: string;
+      sensitivity: string;
+    };
+    expect(body).toMatchObject({
+      mime: 'image/jpeg',
+      ownerType: 'person',
+      ownerId: personId,
+      sensitivity: 'sensitive',
+    });
+    uploadedJpegBytes = body.bytes;
+    await route.fulfill({
+      json: {
+        fileId,
+        uploadUrl: `/api/v1/files/uploads/${fileId}/content`,
+      },
+    });
+  });
+  await page.route(
+    `**/api/v1/files/uploads/${fileId}/content`,
+    async (route) => {
+      expect(route.request().method()).toBe('PUT');
+      uploadContentType = route.request().headers()['content-type'] ?? '';
+      await route.fulfill({ status: 204, body: '' });
+    },
+  );
+  await page.route(`**/api/v1/files/uploads/${fileId}/complete`, (route) =>
+    route.fulfill({ json: { id: fileId } }),
+  );
+  await page.route(
+    `**/api/v1/people/orgs/${orgId}/${personId}/family-photo`,
+    async (route) => {
+      const body = route.request().postDataJSON() as {
+        expectedVersion: number;
+        fileId: string;
+      };
+      expect(body).toEqual({ expectedVersion: profile.version, fileId });
+      profile = {
+        ...profile,
+        photoFileId: fileId,
+        version: profile.version + 1,
+      };
+      const person = Object.fromEntries(
+        Object.entries(profile).filter(([key]) => key !== 'canEdit'),
+      );
+      await route.fulfill({ json: person });
+    },
+  );
+  await page.route(`**/api/v1/files/${fileId}/download`, (route) =>
+    route.fulfill({
+      json: {
+        url: `/api/v1/files/${fileId}/content`,
+      },
+    }),
+  );
+  await page.route(`**/api/v1/files/${fileId}/content`, (route) =>
+    route.fulfill({
+      contentType: 'image/png',
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/n9sAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    }),
+  );
+
+  await page.goto(`/me/family/${orgId}/${personId}/profile`);
+  await expect(
+    page.getByRole('heading', { name: 'Maya Guardian' }),
+  ).toBeVisible();
+  await page.getByLabel('Media consent').selectOption('granted');
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByRole('status')).toContainText('Profile saved.');
+  await page
+    .getByLabel('Choose photo')
+    .setInputFiles('server/test/fixtures/gps-photo.jpg');
+  await expect(
+    page.getByRole('img', { name: 'Photo crop preview' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Crop and upload photo' }),
+  ).toBeEnabled();
+  await page.getByLabel('Crop left or right').fill('70');
+  await page.getByLabel('Zoom crop').fill('1.5');
+  await page.getByRole('button', { name: 'Crop and upload photo' }).click();
+  await expect(page.getByRole('img', { name: 'Maya Guardian' })).toBeVisible();
+  expect(uploadedJpegBytes).toBeGreaterThan(0);
+  expect(uploadContentType).toBe('image/jpeg');
+  expect(await accessibilityViolations(page)).toEqual([]);
+});

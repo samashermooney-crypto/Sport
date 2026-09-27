@@ -130,6 +130,7 @@ small {
 }
 .button.secondary:hover {
   background: #f0f4f6;
+  color: var(--ink-2);
 }
 .icon-button {
   border: 0;

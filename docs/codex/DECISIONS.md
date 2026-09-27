@@ -869,3 +869,11 @@
 - **Decision:** Require the adult participant to sign as self and a distinct, verified guardian account to sign as guardian. Reject this requirement for minors because the permission spec does not allow minors to sign their own waivers.
 - **Why:** A guardian signature cannot substitute for the adult participant signature, and one account cannot satisfy both roles.
 - **Consequences / follow-ups:** The family portal shows partial completion and permits the missing role to sign. Waiver managers see this rule when selecting `both`.
+
+### DEC-118 — Preserve secondary-button text contrast on hover
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 design system accessibility
+- **Context:** The legacy hover rule changed a secondary button's background to pale gray while the shared hover rule left its text white, producing a 1.1:1 contrast ratio.
+- **Decision:** Keep the legacy secondary hover background and explicitly retain the normal dark text color while hovered.
+- **Why:** This is the smallest contrast-only correction permitted by `01 §11a`; it does not change the button's shape, spacing, or color palette.
+- **Consequences / follow-ups:** Axe checks on the cropped family-photo journey verify the hover state in Chromium and mobile WebKit.
