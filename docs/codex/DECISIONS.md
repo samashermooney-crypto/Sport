@@ -551,6 +551,21 @@
 - **Decision:** The existing account `linked_org_ids` array remains an append-only candidate index. A trigger adds an org when a person-account link is inserted and a migration backfills existing links. The family reader starts from the authenticated global account, then checks active, verified links and active people separately inside `withOrg` for each candidate organization. Revocation does not remove the candidate ID.
 - **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
 - **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
+### DEC-109 — Keep guest donation checkout behind the finance adapter
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 11 fundraising
+- **Context:** E's current payment service requires an account-bound customer and invoice, while a guest donor must not receive a synthetic Athlentry account or have a donation misrepresented as another payer's invoice.
+- **Decision:** H exposes a `GuestDonationCheckoutPort` and signed-payment completion seam for E/C to implement through the Stripe adapter and webhook dispatcher. Store orders use one active product-tax rate per invoice, matching E's invoice invariant of a single tax line.
+- **Why:** This preserves payer identity and accounting integrity and keeps provider details in E's adapter.
+- **Consequences / follow-ups:** Guest donation checkout remains unavailable on trunk until E/C wire the adapter and webhook. Orders containing products with different tax rates need separate invoices.
+
+### DEC-110 — Keep store order terms recoverable and registration add-ons versioned
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 11 store
+- **Context:** A store order reserves inventory in one tenant transaction, then issues an E-owned invoice in a separate transaction. A process interruption between those commits must not lose the invoice link or change what the purchaser agreed to buy. Registration add-on requirements must remain reviewable as products and sizes change, and shipped orders must retain the address used at purchase.
+- **Decision:** Store orders persist a request hash and tax-rate snapshot, and shipped orders snapshot either the explicit checkout address or the household address; shipping fails if neither is valid. Retries recover an invoice with the same creation key. Product categories and offering add-ons are archived/disabled with optimistic versions rather than deleted. A registration product marked required cannot be made optional through its offering configuration; the registration contract returns only active product sizes and ledger-backed availability.
+- **Why:** Replay can restore the original invoice without duplicating inventory reservation, families cannot bypass a required uniform choice, and later household address edits cannot silently change an existing order's destination.
+- **Consequences / follow-ups:** E must consume H's offering add-on contract in registration checkout and reserve the selected variant through H's inventory order path. The H API exposes allowed variants and availability; the integration remains open until E wires it.
 
 ### DEC-080 — Keep global security-header policy in reusable middleware
 - **Date:** 2026-09-27
