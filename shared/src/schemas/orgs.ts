@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const orgKindSchema = z.enum([
+const orgKindSchema = z.enum([
   'club',
   'league',
   'association',
@@ -46,7 +46,7 @@ export const orgSlugSchema = z
     'Reserved organization slug',
   );
 
-export const orgAddressSchema = z.strictObject({
+const orgAddressSchema = z.strictObject({
   line1: z.string().trim().min(1).max(160),
   line2: z.string().trim().max(160).optional(),
   city: z.string().trim().min(1).max(100),
@@ -81,15 +81,3 @@ export const createOrgSchema = z.strictObject({
     .max(10)
     .refine((keys) => new Set(keys).size === keys.length, 'Duplicate sport'),
 });
-
-export const orgSlugAvailabilitySchema = z.strictObject({
-  available: z.boolean(),
-});
-
-export const createdOrgSchema = z.strictObject({
-  id: z.uuid(),
-  slug: orgSlugSchema,
-  status: z.literal('onboarding'),
-});
-
-export type CreateOrgInput = z.infer<typeof createOrgSchema>;
