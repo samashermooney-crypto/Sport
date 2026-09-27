@@ -229,15 +229,24 @@ export function createFilesAuthorization(
       );
       if (!personId) return false;
       if (roles.some((role) => uploadRoles.includes(role))) return true;
-      return canManageFamilyPerson(context, personId);
+      const approvedGuardianEvidence =
+        purpose === 'document' &&
+        ['person_credential', 'return_to_play_clearance'].includes(ownerType);
+      const familyDocument =
+        purpose === 'document' && ownerType === 'person_document';
+      return (
+        (approvedGuardianEvidence || familyDocument) &&
+        canManageFamilyPerson(context, personId)
+      );
     },
     canDownload: async (context, file: FileRecord) => {
       const roles = await membershipRoles(context);
       if (file.sensitivity === 'restricted') {
+        // DEC-116 is the narrow family-portal exception to DEC-023's
+        // owner/compliance-only access for other Restricted evidence.
         if (
           file.purpose === 'document' &&
-          (file.ownerType === 'person_document' ||
-            file.ownerType === 'person') &&
+          file.ownerType === 'person_document' &&
           file.ownerId &&
           (await canManageFamilyPerson(context, file.ownerId))
         )
