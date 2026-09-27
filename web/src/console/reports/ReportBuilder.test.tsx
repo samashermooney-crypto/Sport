@@ -50,6 +50,26 @@ it('limits reports to available role columns and previews the selected definitio
                 },
               ],
             },
+            {
+              key: 'payouts',
+              label: 'Payouts',
+              description: 'Settlement payouts',
+              available: true,
+              columns: [
+                {
+                  key: 'status',
+                  label: 'Status',
+                  type: 'enum',
+                  tier: 'internal',
+                },
+                {
+                  key: 'amount_cents',
+                  label: 'Amount',
+                  type: 'money',
+                  tier: 'sensitive',
+                },
+              ],
+            },
           ],
         };
       } else if (url.endsWith('/saved-reports')) {
@@ -100,4 +120,12 @@ it('limits reports to available role columns and previews the selected definitio
   );
   expect(previewRequestBody).toContain('"dataset":"registrations"');
   expect(previewRequestBody).toContain('"timeGrain":"week"');
+
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Payouts by settlement status' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Preview report' }));
+  await screen.findByText('open');
+  expect(previewRequestBody).toContain('"dataset":"payouts"');
+  expect(previewRequestBody).toContain('"amount_cents"');
 });

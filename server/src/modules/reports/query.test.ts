@@ -48,6 +48,22 @@ describe('report dataset access', () => {
     );
   });
 
+  it('offers payout reconciliation fields only to money-report roles', () => {
+    const payouts = datasetForActor('payouts', ['finance']);
+    expect(payouts.columns.map((column) => column.key)).toEqual([
+      'id',
+      'status',
+      'amount_cents',
+      'arrival_date',
+    ]);
+    expect(
+      payouts.columns.find((column) => column.key === 'amount_cents'),
+    ).toMatchObject({ tier: 'sensitive', type: 'money' });
+    expect(() => datasetForActor('payouts', ['registrar'])).toThrow(
+      ReportError,
+    );
+  });
+
   it('validates filter values against the selected column type', () => {
     const dataset = datasetForActor('people', ['registrar']);
     const visible = columnsForActor(dataset, ['registrar']);

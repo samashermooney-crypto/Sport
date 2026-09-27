@@ -79,6 +79,22 @@ const reportPresets: readonly ReportPreset[] = [
     sortColumn: 'count_id',
   },
   {
+    label: 'Registration by program',
+    dataset: 'registrations',
+    columns: ['program_name'],
+    groupBy: ['program_name'],
+    aggregate: { fn: 'count', column: 'id' },
+    sortColumn: 'count_id',
+  },
+  {
+    label: 'Registration by age group',
+    dataset: 'registrations',
+    columns: ['age_label'],
+    groupBy: ['age_label'],
+    aggregate: { fn: 'count', column: 'id' },
+    sortColumn: 'age_label',
+  },
+  {
     label: 'Aging receivables',
     dataset: 'invoices',
     columns: ['aging_bucket'],
@@ -110,6 +126,30 @@ const reportPresets: readonly ReportPreset[] = [
     groupBy: ['status'],
     aggregate: { fn: 'count', column: 'id' },
     sortColumn: 'status',
+  },
+  {
+    label: 'Payouts by settlement status',
+    dataset: 'payouts',
+    columns: ['status'],
+    groupBy: ['status'],
+    aggregate: { fn: 'sum', column: 'amount_cents' },
+    sortColumn: 'status',
+  },
+  {
+    label: 'Official pay by official',
+    dataset: 'officials_pay',
+    columns: ['person_name'],
+    groupBy: ['person_name'],
+    aggregate: { fn: 'sum', column: 'total_cents' },
+    sortColumn: 'sum_total_cents',
+  },
+  {
+    label: 'Donations by campaign',
+    dataset: 'donations',
+    columns: ['campaign_name'],
+    groupBy: ['campaign_name'],
+    aggregate: { fn: 'sum', column: 'amount_cents' },
+    sortColumn: 'sum_amount_cents',
   },
 ];
 

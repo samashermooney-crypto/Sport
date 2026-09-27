@@ -22,12 +22,54 @@ const receivablesAging: DatasetColumn = {
   END`,
 };
 
-export const reportDatasetCatalog: readonly Dataset[] = REPORT_DATASETS.map(
-  (dataset) =>
+const payoutDataset: Dataset = {
+  key: 'payouts',
+  label: 'Payouts',
+  description: 'Settlement payouts and arrival status',
+  table: 'payouts',
+  requiredTables: ['payouts'],
+  joins: [],
+  roles: ['owner', 'admin', 'finance', 'reporter'],
+  columns: [
+    {
+      key: 'id',
+      label: 'Payout ID',
+      type: 'text',
+      tier: 'internal',
+      source: 't.id',
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      type: 'enum',
+      tier: 'internal',
+      source: 't.status',
+    },
+    {
+      key: 'amount_cents',
+      label: 'Amount',
+      type: 'money',
+      tier: 'sensitive',
+      source: 't.amount_cents',
+    },
+    {
+      key: 'arrival_date',
+      label: 'Arrival date',
+      type: 'date',
+      tier: 'internal',
+      source: 't.arrival_date',
+    },
+  ],
+};
+
+export const reportDatasetCatalog: readonly Dataset[] = [
+  ...REPORT_DATASETS.map((dataset) =>
     dataset.key === 'invoices'
       ? { ...dataset, columns: [...dataset.columns, receivablesAging] }
       : dataset,
-);
+  ),
+  payoutDataset,
+];
 const datasetsByKey = new Map(
   reportDatasetCatalog.map((dataset) => [dataset.key, dataset]),
 );
