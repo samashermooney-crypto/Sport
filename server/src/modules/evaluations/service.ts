@@ -2343,7 +2343,7 @@ export async function listOfferDashboard(
       count(offer.id) FILTER (WHERE offer.status='declined')::int AS "declined",
       count(offer.id) FILTER (WHERE offer.status='expired')::int AS "expired",
       count(offer.id) FILTER (WHERE offer.status='withdrawn')::int AS "withdrawn",
-      count(placement.id)::int AS "placed"
+      count(placement.id) FILTER (WHERE placement.status<>'declined')::int AS "placed"
       FROM team_placements placement
       JOIN team_seasons ts ON ts.org_id=placement.org_id AND ts.id=placement.team_season_id
       JOIN teams t ON t.org_id=ts.org_id AND t.id=ts.team_id

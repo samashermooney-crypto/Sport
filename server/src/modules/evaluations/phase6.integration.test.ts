@@ -1075,7 +1075,7 @@ describe('Phase 6 evaluations integration', () => {
     const placementB = await withOrg(ownerContext, async (trx) =>
       trx
         .selectFrom('team_placements')
-        .select('id')
+        .select(['id', 'team_season_id'])
         .where('placement_board_id', '=', boardId)
         .where('person_id', '=', childB)
         .executeTakeFirstOrThrow(),
@@ -1099,12 +1099,45 @@ describe('Phase 6 evaluations integration', () => {
     await expect(
       declineTeamOffer(dependencies(), guardianContext, offerB.id, 'no', 1),
     ).rejects.toMatchObject({ status: 404 });
-    const withdrawn = await withdrawTeamOffer(
+    const beforeDecline = await listOfferDashboard(
       dependencies(),
       ownerContext,
-      offerB.id,
+      boardId,
     );
-    expect(withdrawn.id).toBe(offerB.id);
+    const beforeDeclineTeam = beforeDecline.teams.find(
+      (row) => row.teamSeasonId === placementB.team_season_id,
+    );
+    if (!beforeDeclineTeam) throw new Error('Expected the offer team row');
+    await admin.query(
+      `INSERT INTO person_account_links (id, org_id, person_id, account_id, relationship, verified_at)
+       VALUES ($1, $2, $3, $4, 'guardian', now())`,
+      [randomUUID(), orgA, childB, outsiderAccount],
+    );
+    const currentOffer = await withOrg(ownerContext, async (trx) =>
+      trx
+        .selectFrom('team_offers')
+        .select('version')
+        .where('id', '=', offerB.id)
+        .executeTakeFirstOrThrow(),
+    );
+    const declined = await declineTeamOffer(
+      dependencies(),
+      outsiderContext,
+      offerB.id,
+      'Family declined',
+      currentOffer.version,
+    );
+    expect(declined.id).toBe(offerB.id);
+    const afterDecline = await listOfferDashboard(
+      dependencies(),
+      ownerContext,
+      boardId,
+    );
+    const afterDeclineTeam = afterDecline.teams.find(
+      (row) => row.teamSeasonId === placementB.team_season_id,
+    );
+    expect(afterDeclineTeam?.declined).toBe(beforeDeclineTeam.declined + 1);
+    expect(afterDeclineTeam?.placed).toBe(beforeDeclineTeam.placed - 1);
 
     const placementC = await withOrg(ownerContext, async (trx) =>
       trx
@@ -1114,6 +1147,30 @@ describe('Phase 6 evaluations integration', () => {
         .where('person_id', '=', childC)
         .executeTakeFirstOrThrow(),
     );
+    const offerC = await createTeamOffer(
+      dependencies(),
+      ownerContext,
+      placementC.id,
+      offeringId,
+      25000,
+      5000,
+      new Date(clockNow.getTime() + 10 * 3_600_000).toISOString(),
+      null,
+    );
+    const withdrawn = await withdrawTeamOffer(
+      dependencies(),
+      ownerContext,
+      offerC.id,
+    );
+    expect(withdrawn.id).toBe(offerC.id);
+    const publishedPlacement = await withOrg(ownerContext, async (trx) =>
+      trx
+        .selectFrom('team_placements')
+        .select('status')
+        .where('id', '=', placementC.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(publishedPlacement.status).toBe('published');
     await createTeamOffer(
       dependencies(),
       ownerContext,
