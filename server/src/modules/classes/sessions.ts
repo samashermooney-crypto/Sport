@@ -9,8 +9,9 @@ import {
   type OrgTransaction,
 } from '../../db/withOrg.js';
 import { appendAuditEvent } from '../audit/service.js';
+import { evaluateRoleEligibility } from '../compliance/policy.js';
 
-import { ClassesNotFoundError } from './errors.js';
+import { ClassesConflictError, ClassesNotFoundError } from './errors.js';
 
 interface SessionRow {
   session_id: string;
@@ -169,6 +170,80 @@ export class PostgresClassSessions {
       const row = rows.rows[0];
       if (!row) throw new ClassesNotFoundError('Class session not found');
       return mapSession(row);
+    });
+  }
+
+  async assignSubstitute(
+    classSessionId: string,
+    personId: string,
+  ): Promise<{ personId: string; name: string }> {
+    return this.withOrg(this.context, async (trx) => {
+      const session = await trx
+        .selectFrom('class_sessions as session')
+        .innerJoin('class_offerings as offering', (join) =>
+          join
+            .onRef('offering.org_id', '=', 'session.org_id')
+            .onRef('offering.id', '=', 'session.class_offering_id'),
+        )
+        .innerJoin('events as event', (join) =>
+          join
+            .onRef('event.org_id', '=', 'session.org_id')
+            .onRef('event.id', '=', 'session.event_id'),
+        )
+        .select([
+          'event.status as status',
+          'offering.program_id',
+          'event.starts_at',
+        ])
+        .where('session.org_id', '=', this.context.orgId)
+        .where('session.id', '=', classSessionId)
+        .forUpdate('session')
+        .executeTakeFirst();
+      if (!session) throw new ClassesNotFoundError('Class session not found');
+      if (session.status !== 'scheduled' || session.starts_at < new Date())
+        throw new ClassesConflictError(
+          'A substitute can only be assigned to a future scheduled class',
+        );
+
+      const person = await trx
+        .selectFrom('people')
+        .select(['id', 'first_name', 'last_name'])
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', personId)
+        .where('status', '=', 'active')
+        .executeTakeFirst();
+      if (!person) throw new ClassesNotFoundError('Instructor not found');
+
+      const eligibility = await evaluateRoleEligibility(
+        trx,
+        this.context,
+        { personId, role: 'head_coach', programId: session.program_id },
+        session.starts_at,
+      );
+      if (!eligibility.eligible)
+        throw new ClassesConflictError(
+          'This instructor is not cleared for this class',
+          'INSTRUCTOR_INELIGIBLE',
+        );
+
+      await trx
+        .updateTable('class_sessions')
+        .set({ substitute_person_id: personId })
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', classSessionId)
+        .execute();
+      await appendAuditEvent(trx, this.context, {
+        action: 'classes.substitute_assigned',
+        entityType: 'class_session',
+        entityId: classSessionId,
+        changes: {
+          substitutePersonId: { tier: 'internal', after: personId },
+        },
+      });
+      return {
+        personId,
+        name: `${person.first_name} ${person.last_name}`,
+      };
     });
   }
 

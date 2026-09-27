@@ -1,6 +1,7 @@
 import { newId } from '@shared/ids';
 import type {
   BookingResult,
+  ClassSession,
   MakeupCredit,
   PunchCard,
 } from '@shared/schemas/classes';
@@ -24,6 +25,7 @@ import {
   SessionFullError,
 } from './errors.js';
 import { issueInvoiceInTransaction } from './invoice-writer.js';
+import { PostgresClassSessions } from './sessions.js';
 
 const makeupPolicySchema = z.strictObject({
   creditsPerTerm: z.number().int().nonnegative().default(0),
@@ -114,7 +116,7 @@ function assertBookable(session: {
 export class PostgresClassBookings {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
   constructor(
-    database: Kysely<DB>,
+    private readonly database: Kysely<DB>,
     private readonly context: OrgContext,
   ) {
     this.withOrg = createWithOrg(database);
@@ -231,6 +233,7 @@ export class PostgresClassBookings {
   async bookMakeup(
     creditId: string,
     classSessionId: string,
+    accountId?: string,
   ): Promise<BookingResult> {
     return this.withOrg(this.context, async (trx) => {
       const credit = await trx
@@ -242,6 +245,18 @@ export class PostgresClassBookings {
         .executeTakeFirst();
       if (!credit) throw new MakeupCreditError();
       if (credit.status !== 'available') throw new MakeupCreditError();
+      if (accountId) {
+        const link = await trx
+          .selectFrom('person_account_links')
+          .select('id')
+          .where('org_id', '=', this.context.orgId)
+          .where('person_id', '=', credit.person_id)
+          .where('account_id', '=', accountId)
+          .where('verified_at', 'is not', null)
+          .where('revoked_at', 'is', null)
+          .executeTakeFirst();
+        if (!link) throw new ClassesNotFoundError('Make-up credit not found');
+      }
       const session = await loadSessionForBooking(
         trx,
         this.context.orgId,
@@ -320,6 +335,88 @@ export class PostgresClassBookings {
         amountDueCents: null,
         status: 'booked',
       };
+    });
+  }
+
+  /** List open sessions allowed by an available, account-owned credit. */
+  async eligibleMakeupSessions(
+    creditId: string,
+    accountId: string,
+    input: { from: string; to: string; limit: number },
+  ): Promise<ClassSession[]> {
+    const credit = await this.withOrg(this.context, async (trx) => {
+      const rows = await sql<{
+        status: string;
+        expires_on: string;
+        makeup_policy: unknown;
+      }>`
+        SELECT credit.status, credit.expires_on::text, offering.makeup_policy
+        FROM makeup_credits credit
+        JOIN class_offerings offering ON offering.org_id = credit.org_id
+          AND offering.id = credit.class_offering_id
+        WHERE credit.org_id = ${this.context.orgId}::uuid
+          AND credit.id = ${creditId}::uuid
+          AND EXISTS (
+            SELECT 1 FROM person_account_links link
+            WHERE link.org_id = credit.org_id
+              AND link.person_id = credit.person_id
+              AND link.account_id = ${accountId}::uuid
+              AND link.verified_at IS NOT NULL
+              AND link.revoked_at IS NULL
+          )
+      `.execute(trx);
+      const row = rows.rows[0];
+      if (!row || row.status !== 'available')
+        throw new ClassesNotFoundError('Make-up credit not found');
+      return {
+        expiresOn: dateOnly(row.expires_on),
+        policy: makeupPolicySchema.parse(row.makeup_policy ?? {}),
+      };
+    });
+
+    if (input.from > credit.expiresOn) return [];
+    const sessions = await new PostgresClassSessions(
+      this.database,
+      this.context,
+    ).list(input);
+    const levels =
+      credit.policy.eligibleLevelIds === null || sessions.length === 0
+        ? new Map<string, string | null>()
+        : await this.withOrg(this.context, async (trx) => {
+            const offerings = await trx
+              .selectFrom('class_offerings')
+              .select(['id', 'skill_level_id'])
+              .where('org_id', '=', this.context.orgId)
+              .where('id', 'in', [
+                ...new Set(sessions.map((session) => session.classOfferingId)),
+              ])
+              .execute();
+            return new Map(
+              offerings.map((offering) => [
+                offering.id,
+                offering.skill_level_id,
+              ]),
+            );
+          });
+
+    return sessions.filter((session) => {
+      const offeringOk =
+        credit.policy.eligibleOfferingIds === null ||
+        credit.policy.eligibleOfferingIds.includes(session.classOfferingId);
+      const levelId = levels.get(session.classOfferingId);
+      const levelOk =
+        credit.policy.eligibleLevelIds === null ||
+        (levelId !== null &&
+          levelId !== undefined &&
+          credit.policy.eligibleLevelIds.includes(levelId));
+      return (
+        session.status === 'scheduled' &&
+        session.spotsRemaining > 0 &&
+        session.localDate >= input.from &&
+        session.localDate <= credit.expiresOn &&
+        offeringOk &&
+        levelOk
+      );
     });
   }
 

@@ -34,6 +34,59 @@ interface SessionContext {
   event_date: string;
 }
 
+interface PickupPerson {
+  personId: string;
+  name: string;
+}
+
+async function authorizedPickups(
+  trx: OrgTransaction,
+  orgId: string,
+  athletePersonId: string,
+): Promise<PickupPerson[]> {
+  const result = await sql<{ person_id: string; name: string }>`
+    SELECT person.id AS person_id,
+      person.first_name || ' ' || person.last_name AS name
+    FROM people person
+    WHERE person.org_id = ${orgId}::uuid
+      AND person.status = 'active'
+      AND (
+        EXISTS (
+          SELECT 1 FROM household_members member
+          JOIN household_members athlete_member
+            ON athlete_member.org_id = member.org_id
+            AND athlete_member.household_id = member.household_id
+            AND athlete_member.person_id = ${athletePersonId}::uuid
+            AND athlete_member.removed_at IS NULL
+          WHERE member.org_id = ${orgId}::uuid
+            AND member.person_id = person.id
+            AND member.can_pick_up = true
+            AND member.removed_at IS NULL
+        )
+        OR EXISTS (
+          SELECT 1 FROM person_account_links picker_link
+          JOIN person_account_links guardian_link
+            ON guardian_link.org_id = picker_link.org_id
+            AND guardian_link.account_id = picker_link.account_id
+          WHERE picker_link.org_id = ${orgId}::uuid
+            AND picker_link.person_id = person.id
+            AND picker_link.relationship = 'self'
+            AND picker_link.verified_at IS NOT NULL
+            AND picker_link.revoked_at IS NULL
+            AND guardian_link.person_id = ${athletePersonId}::uuid
+            AND guardian_link.relationship = 'guardian'
+            AND guardian_link.verified_at IS NOT NULL
+            AND guardian_link.revoked_at IS NULL
+        )
+      )
+    ORDER BY person.last_name, person.first_name, person.id
+  `.execute(trx);
+  return result.rows.map((row) => ({
+    personId: row.person_id,
+    name: row.name,
+  }));
+}
+
 async function loadSession(
   trx: OrgTransaction,
   orgId: string,
@@ -303,6 +356,24 @@ export class PostgresClassAttendance {
     });
   }
 
+  /** List verified people allowed to pick up an athlete in this org. */
+  async pickupPeople(
+    classSessionId: string,
+    personId: string,
+  ): Promise<PickupPerson[]> {
+    return this.withOrg(this.context, async (trx) => {
+      await loadSession(trx, this.context.orgId, classSessionId);
+      const athlete = await trx
+        .selectFrom('people')
+        .select('id')
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', personId)
+        .executeTakeFirst();
+      if (!athlete) throw new ClassesNotFoundError('Athlete not found');
+      return authorizedPickups(trx, this.context.orgId, personId);
+    });
+  }
+
   /**
    * Check out an athlete. The picking-up person must be an authorized pickup:
    * a household member flagged can_pick_up or a verified guardian link.
@@ -325,48 +396,33 @@ export class PostgresClassAttendance {
         .where('id', '=', personId)
         .executeTakeFirst();
       if (!athlete) throw new ClassesNotFoundError('Athlete not found');
-      const authorized = await sql<{ name: string }>`
-        SELECT person.first_name || ' ' || person.last_name AS name
-        FROM people person
-        WHERE person.org_id = ${this.context.orgId}::uuid
-          AND person.id = ${pickedUpByPersonId}::uuid
-          AND (
-            EXISTS (
-              SELECT 1 FROM household_members member
-              JOIN household_members athlete_member
-                ON athlete_member.org_id = member.org_id
-                AND athlete_member.household_id = member.household_id
-                AND athlete_member.person_id = ${personId}::uuid
-                AND athlete_member.removed_at IS NULL
-              WHERE member.org_id = ${this.context.orgId}::uuid
-                AND member.person_id = person.id
-                AND member.can_pick_up = true
-                AND member.removed_at IS NULL
-            )
-            OR EXISTS (
-              SELECT 1 FROM person_account_links picker_link
-              JOIN person_account_links guardian_link
-                ON guardian_link.org_id = picker_link.org_id
-                AND guardian_link.account_id = picker_link.account_id
-              WHERE picker_link.org_id = ${this.context.orgId}::uuid
-                AND picker_link.person_id = person.id
-                AND picker_link.verified_at IS NOT NULL
-                AND picker_link.revoked_at IS NULL
-                AND guardian_link.person_id = ${personId}::uuid
-                AND guardian_link.relationship = 'guardian'
-                AND guardian_link.verified_at IS NOT NULL
-                AND guardian_link.revoked_at IS NULL
-            )
-          )
-      `.execute(trx);
-      const pickup = authorized.rows[0];
+      const attendance = await trx
+        .selectFrom('attendance')
+        .select(['checked_in_at', 'checked_out_at'])
+        .where('org_id', '=', this.context.orgId)
+        .where('event_id', '=', session.event_id)
+        .where('person_id', '=', personId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!attendance?.checked_in_at)
+        throw new ClassesConflictError(
+          'Record check-in before checking out this athlete',
+          'CHECK_IN_REQUIRED',
+        );
+      if (attendance.checked_out_at)
+        throw new ClassesConflictError(
+          'This athlete has already been checked out',
+          'ALREADY_CHECKED_OUT',
+        );
+      const pickup = (
+        await authorizedPickups(trx, this.context.orgId, personId)
+      ).find((person) => person.personId === pickedUpByPersonId);
       if (!pickup)
         throw new ClassesConflictError(
           'This person is not an authorized pickup for the athlete',
           'PICKUP_UNAUTHORIZED',
         );
       const now = new Date();
-      await upsertAttendance(trx, this.context, session, personId, 'present');
       await trx
         .updateTable('attendance')
         .set({

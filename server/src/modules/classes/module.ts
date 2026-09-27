@@ -108,6 +108,18 @@ const checkOutResultSchema = z.strictObject({
   checkedOutAt: z.iso.datetime(),
   pickedUpBy: z.string(),
 });
+const pickupPeopleSchema = z.strictObject({
+  items: z.array(
+    z.strictObject({
+      personId: z.uuid(),
+      name: z.string(),
+    }),
+  ),
+});
+const substituteBodySchema = z.strictObject({ personId: z.uuid() });
+const substituteResponseSchema = z.strictObject({
+  substitute: z.strictObject({ personId: z.uuid(), name: z.string() }),
+});
 const syncResultSchema = z.strictObject({
   levelsCreated: z.number().int().nonnegative(),
   skillsCreated: z.number().int().nonnegative(),
@@ -245,6 +257,13 @@ export const moduleDefinition = {
       response: sessionResponseSchema,
     },
     {
+      method: 'post',
+      path: '/api/v1/classes/orgs/{orgId}/sessions/{sessionId}/substitute',
+      summary: 'Assign a compliant substitute instructor to a future class',
+      body: substituteBodySchema,
+      response: substituteResponseSchema,
+    },
+    {
       method: 'get',
       path: '/api/v1/classes/orgs/{orgId}/sessions/{sessionId}/roster',
       summary: 'Read the session roster and attendance',
@@ -277,6 +296,12 @@ export const moduleDefinition = {
       summary: 'Check out with verified pickup',
       body: checkOutBodySchema,
       response: checkOutResultSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/classes/orgs/{orgId}/sessions/{sessionId}/people/{personId}/pickups',
+      summary: 'List people currently authorized to pick up an athlete',
+      response: pickupPeopleSchema,
     },
     {
       method: 'get',
@@ -518,6 +543,12 @@ export const moduleDefinition = {
       response: makeupCreditListSchema,
     },
     {
+      method: 'get',
+      path: '/api/v1/classes/orgs/{orgId}/me/makeup-credits/{creditId}/sessions',
+      summary: 'List eligible open class sessions for a family make-up credit',
+      response: classSessionListSchema,
+    },
+    {
       method: 'post',
       path: '/api/v1/classes/orgs/{orgId}/me/makeup-credits/{creditId}/book',
       summary: 'Book a make-up credit into an eligible session',
@@ -569,6 +600,12 @@ export const moduleDefinition = {
       summary: 'Update family payment method or autopay',
       body: subscriptionUpdateSchema,
       response: subscriptionResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/classes/orgs/{orgId}/me/waitlist',
+      summary: 'List family waitlist entries and open offers',
+      response: waitlistListSchema,
     },
     {
       method: 'post',

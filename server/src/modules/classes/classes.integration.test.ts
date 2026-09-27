@@ -21,6 +21,7 @@ import { PostgresClassEnrollments } from './enrollments';
 import {
   AgeIneligibleError,
   ClassesAccessError,
+  ClassesConflictError,
   ClassesNotFoundError,
 } from './errors';
 import { PostgresClassOfferings } from './offerings';
@@ -28,7 +29,7 @@ import { PostgresClassPromotions } from './promotions';
 import { PostgresClassSchedules } from './schedules';
 import { PostgresClassSessions } from './sessions';
 import { PostgresClassSkills } from './skills';
-import { PostgresTuitionSubscriptions } from './tuition';
+import { PostgresTuitionSubscriptions, tuitionForOffering } from './tuition';
 import { runTuitionBilling } from './tuition-job';
 
 const orgA = randomUUID();
@@ -38,9 +39,11 @@ const guardianA = randomUUID();
 const memberOnly = randomUUID();
 const ownerB = randomUUID();
 const instructorPersonA = randomUUID();
+const guardianPersonA = randomUUID();
 const childA1 = randomUUID();
 const childA2 = randomUUID();
 const childA3 = randomUUID();
+const childA4 = randomUUID();
 const householdA = randomUUID();
 const seasonA = randomUUID();
 const profileA = randomUUID();
@@ -182,27 +185,45 @@ async function insertFixtures(): Promise<void> {
     await admin.query(
       `INSERT INTO people (id, org_id, first_name, last_name, date_of_birth)
        VALUES ($1, $2, 'Instructor', 'Kim', '1990-05-01'),
-              ($3, $2, 'Gymnast', 'One', '2018-03-15'),
-              ($4, $2, 'Gymnast', 'Two', '2019-06-20'),
-              ($5, $2, 'Gymnast', 'Three', '2017-11-05'),
-              ($6, $7, 'Other', 'Org', '2018-01-01')`,
-      [instructorPersonA, orgA, childA1, childA2, childA3, randomUUID(), orgB],
+              ($3, $2, 'Guardian', 'One', '1986-01-01'),
+              ($4, $2, 'Gymnast', 'One', '2018-03-15'),
+              ($5, $2, 'Gymnast', 'Two', '2019-06-20'),
+              ($6, $2, 'Gymnast', 'Three', '2017-11-05'),
+              ($7, $2, 'Gymnast', 'Four', '2016-09-12'),
+              ($8, $9, 'Other', 'Org', '2018-01-01')`,
+      [
+        instructorPersonA,
+        orgA,
+        guardianPersonA,
+        childA1,
+        childA2,
+        childA3,
+        childA4,
+        randomUUID(),
+        orgB,
+      ],
     );
     await admin.query(
       `INSERT INTO person_account_links
         (id, org_id, person_id, account_id, relationship, verified_at)
-       VALUES ($1, $2, $3, $4, 'guardian', now()),
+       VALUES ($1, $2, $3, $4, 'self', now()),
               ($5, $2, $6, $4, 'guardian', now()),
-              ($7, $2, $8, $4, 'guardian', now())`,
+              ($7, $2, $8, $4, 'guardian', now()),
+              ($9, $2, $10, $4, 'guardian', now()),
+              ($11, $2, $12, $4, 'guardian', now())`,
       [
         randomUUID(),
         orgA,
-        childA1,
+        guardianPersonA,
         guardianA,
+        randomUUID(),
+        childA1,
         randomUUID(),
         childA2,
         randomUUID(),
         childA3,
+        randomUUID(),
+        childA4,
       ],
     );
     await admin.query(
@@ -213,18 +234,24 @@ async function insertFixtures(): Promise<void> {
     await admin.query(
       `INSERT INTO household_members
         (id, org_id, household_id, person_id, role, can_pick_up)
-       VALUES ($1, $2, $3, $4, 'athlete', true),
-              ($5, $2, $3, $6, 'athlete', true),
-              ($7, $2, $3, $8, 'athlete', true)`,
+       VALUES ($1, $2, $3, $4, 'guardian', true),
+              ($5, $2, $3, $6, 'athlete', false),
+              ($7, $2, $3, $8, 'athlete', false),
+              ($9, $2, $3, $10, 'athlete', false),
+              ($11, $2, $3, $12, 'athlete', false)`,
       [
         randomUUID(),
         orgA,
         householdA,
+        guardianPersonA,
+        randomUUID(),
         childA1,
         randomUUID(),
         childA2,
         randomUUID(),
         childA3,
+        randomUUID(),
+        childA4,
       ],
     );
     for (const [org, season, profile, program] of [
@@ -275,6 +302,34 @@ describe('academy classes integration', () => {
       must(process.env.TEST_DATABASE_URL, 'TEST_DATABASE_URL'),
     );
     await insertFixtures();
+  });
+
+  it('prices family tiers and per-sibling discounts in integer cents', () => {
+    expect(
+      tuitionForOffering(
+        1,
+        [10_000, 8_000, 6_000],
+        [
+          { maxClassesPerWeek: 2, amountCents: 45_000 },
+          { maxClassesPerWeek: null, amountCents: 80_000 },
+        ],
+        [0, 1_000],
+      ),
+    ).toBe(45_000);
+    expect(
+      tuitionForOffering(
+        3,
+        [10_000, 8_000, 6_000],
+        [
+          { maxClassesPerWeek: 2, amountCents: 45_000 },
+          { maxClassesPerWeek: null, amountCents: 80_000 },
+        ],
+        [0, 1_000],
+      ),
+    ).toBe(80_000);
+    expect(
+      tuitionForOffering(3, [10_000, 8_000, 6_000], [], [1_000, 2_000]),
+    ).toBe(22_000);
   });
 
   afterAll(async () => {
@@ -330,7 +385,7 @@ describe('academy classes integration', () => {
   });
 
   it('assigns an instructor and reports compliance state', async () => {
-    const { schedules } = services(ownerContext);
+    const { schedules, sessions } = services(ownerContext);
     const assigned = await schedules.assignInstructor(scheduleId, {
       personId: instructorPersonA,
     });
@@ -338,6 +393,20 @@ describe('academy classes integration', () => {
     const roster = await schedules.instructorRoster(scheduleId);
     expect(roster).toHaveLength(1);
     expect(must(roster[0]).personId).toBe(instructorPersonA);
+    const future = await sessions.list({
+      scheduleId,
+      from: thisMonthRange().today,
+      to: thisMonthRange().end,
+      limit: 200,
+    });
+    const next = future.find((item) => new Date(item.startsAt) > new Date());
+    expect(next).toBeTruthy();
+    expect(
+      await sessions.assignSubstitute(must(next).id, instructorPersonA),
+    ).toEqual({
+      personId: instructorPersonA,
+      name: 'Instructor Kim',
+    });
   });
 
   it('enrolls a child with a tuition subscription and prorated invoice', async () => {
@@ -456,6 +525,16 @@ describe('academy classes integration', () => {
     const entries = await enrollments.waitlist(tiny.id);
     expect(entries).toHaveLength(1);
     expect(must(entries[0]).personId).toBe(childA3);
+    expect(await enrollments.waitlistForAccount(ownerA)).toHaveLength(1);
+    expect(await enrollments.waitlistForAccount(guardianA)).toHaveLength(0);
+    await expect(
+      services(memberContext).enrollments.acceptWaitlistOffer(
+        must(second.waitlistEntry).id,
+        { ...body, personId: childA3 },
+        randomUUID(),
+        { staff: false },
+      ),
+    ).rejects.toBeInstanceOf(ClassesNotFoundError);
   });
 
   it('marks attendance, grants make-up credit, books another session', async () => {
@@ -500,15 +579,32 @@ describe('academy classes integration', () => {
     const credits = await bookings.listMakeupCredits({ personId: childA1 });
     expect(credits).toHaveLength(1);
     expect(must(credits[0]).status).toBe('available');
+    const eligible = await bookings.eligibleMakeupSessions(
+      must(credits[0]).id,
+      guardianA,
+      { from: start, to: end, limit: 200 },
+    );
+    expect(eligible.map((item) => item.classOfferingId)).toContain(second.id);
+    await expect(
+      bookings.eligibleMakeupSessions(must(credits[0]).id, ownerA, {
+        from: start,
+        to: end,
+        limit: 200,
+      }),
+    ).rejects.toBeInstanceOf(ClassesNotFoundError);
     const targets = await sessions.list({
       offeringId: second.id,
       from: start,
       to: end,
       limit: 200,
     });
+    await expect(
+      bookings.bookMakeup(must(credits[0]).id, must(targets[0]).id, ownerA),
+    ).rejects.toBeInstanceOf(ClassesNotFoundError);
     const booked = await bookings.bookMakeup(
       must(credits[0]).id,
       must(targets[0]).id,
+      guardianA,
     );
     expect(booked.status).toBe('booked');
     const roster = await withOrg()(ownerContext, (trx) =>
@@ -522,6 +618,24 @@ describe('academy classes integration', () => {
     // The credit is now used.
     const after = await bookings.listMakeupCredits({ personId: childA1 });
     expect(must(after[0]).status).toBe('used');
+  });
+
+  it('lists verified pickups and rejects an unauthorized pickup person', async () => {
+    const { attendance } = services(ownerContext);
+    const pickups = await attendance.pickupPeople(firstSessionId, childA1);
+    expect(pickups).toContainEqual({
+      personId: guardianPersonA,
+      name: 'Guardian One',
+    });
+    expect(pickups.some((pickup) => pickup.personId === childA2)).toBe(false);
+    await expect(
+      attendance.checkOut(firstSessionId, childA1, guardianPersonA),
+    ).rejects.toBeInstanceOf(ClassesConflictError);
+    await attendance.checkIn(firstSessionId, childA1);
+    await expect(
+      attendance.checkOut(firstSessionId, childA1, childA2),
+    ).rejects.toBeInstanceOf(ClassesConflictError);
+    await attendance.checkOut(firstSessionId, childA1, guardianPersonA);
   });
 
   it('runs the monthly tuition job and issues an invoice', async () => {
@@ -635,6 +749,68 @@ describe('academy classes integration', () => {
     expect(moved).toBeTruthy();
     const pdf = await promotions.certificatePdf(confirmed.id);
     expect(pdf.byteLength).toBeGreaterThan(500);
+  });
+
+  it('defers a subscribed level change to the next bill without double charging', async () => {
+    const { enrollments, promotions, skills } = services(guardianContext);
+    const levels = await skills.listLevels(profileA);
+    const nextLevel = must(levels[1]);
+    const started = await enrollments.enroll(
+      {
+        classOfferingId: offeringId,
+        personId: childA4,
+        householdId: householdA,
+        startsOn: thisMonthRange().today,
+        classesPerWeek: 1,
+        trial: false,
+        trialSessionId: null,
+        paymentMethodId: null,
+        autopay: false,
+        billingDay: 1,
+      },
+      randomUUID(),
+      { staff: false },
+    );
+    expect(started.invoiceId).toBeTruthy();
+
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    try {
+      const before = await admin.query<{ count: number }>(
+        `SELECT count(*)::integer AS count FROM invoices
+         WHERE org_id = $1 AND household_id = $2`,
+        [orgA, householdA],
+      );
+      const recommendation = await promotions.recommend({
+        personId: childA4,
+        toLevelId: nextLevel.id,
+        targetClassOfferingId: secondOfferingId,
+      });
+      const approved = await promotions.approve(
+        recommendation.id,
+        recommendation.version,
+      );
+      const completed = await promotions.confirm(
+        approved.id,
+        { expectedVersion: approved.version },
+        randomUUID(),
+      );
+      const after = await admin.query<{ count: number }>(
+        `SELECT count(*)::integer AS count FROM invoices
+         WHERE org_id = $1 AND household_id = $2`,
+        [orgA, householdA],
+      );
+      expect(completed.status).toBe('completed');
+      expect(must(after.rows[0]).count).toBe(must(before.rows[0]).count);
+      const moved = (
+        await enrollments.list({ personId: childA4, limit: 20 })
+      ).items.find((item) => item.classOfferingId === secondOfferingId);
+      expect(moved?.status).toBe('active');
+    } finally {
+      await admin.end();
+    }
   });
 
   it('supports drop-in booking and punch cards', async () => {

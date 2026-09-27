@@ -1,28 +1,34 @@
 # Track I — academy / class mode (Phase 12)
 
-Status: working
-Model: Devin (SWE 2)
+Status: ready for integration
+Model: Codex (GPT-6 Luna XH)
 Branch: `track/i-academy`
 Worktree: `/Users/sammooney/Sport-i-academy`
-Owns: `server/src/modules/classes/**`, `web/src/console/classes/**`, `web/src/portal/classes/**`, `shared/src/schemas/classes.ts` (per-module schema file, per module generator convention), migrations 5000–5999, `docs/codex/tracks/I.md`. Own tests only.
+Owns: `server/src/modules/classes/**`, `web/src/console/classes/**`, `web/src/portal/classes/**`, own tests, migrations 5000–5999, this file.
 
 ## Ready for integration
 
-(none yet)
+- Class backend, console and family portal are implemented; nested route discovery now includes both academy route files in `web/src/generated/nested-routes.ts`.
+- Focused academy integration (17 tests), family portal component test, and the Chromium make-up journey pass; full trunk merge gate remains pending.
 
 ## Requests to other tracks
 
-- **C (wiring):** `web/src/console/routes.tsx` and `web/src/portal/routes.tsx` aggregate feature routes by hand. I added minimal wiring imports for `classesConsoleRoutes`/`classesPortalRoutes` so my screens are reachable; please adopt or replace with nested feature-route discovery when it lands.
-- **F (compliance):** `role_credential_requirements.role` CHECK does not include `instructor`. I gate class instructor assignment with the existing `trainer` role via `assertEligibleForRole`/`evaluateRoleEligibility` (DEC-080). Consider adding `instructor` so academies can set distinct requirements.
-- **K (Phase 15 seed):** Phase 12 acceptance references a seeded gymnastics academy (40 classes, 300 students). Please build the Northstar Gymnastics & Swim seed against `class_offerings`/`class_schedules`/`class_enrollments`/`tuition_subscriptions`/`skill_levels` (module `classes`); my own tests create equivalent fixtures meanwhile.
-- **G (scheduling):** Class sessions are `events` rows with `kind='class_session'` plus a `class_sessions` link row. Closures should cancel/flag these like other events; my generator already skips blackouts.
+- **C (navigation, 2026-09-27):** add a family-portal Classes link in `PortalShell`. The current nested-route generator now registers `/console/orgs/:orgId/classes` and `/me/orgs/:orgId/classes` without changes to central aggregators.
+- **C (stack, 2026-09-27):** I's prescribed `PORT_OFFSET=900` collides with C's active mailpit/Postgres/Stripe listeners (including `127.0.0.1:1925`); I isolated work at offset 1500 and requests a free, stable offset or release of 900 before the final gate.
+- **B (program listing, 2026-09-27):** expose published programs filtered by `mode=class` to replace the functional program-ID field with a picker; current Programs API is not present in I's merged trunk.
+- **F (compliance):** `role_credential_requirements.role` still has no `instructor`; class instructor and substitute checks use existing `head_coach`/DEC-080 contract until F adds the instructor role.
+- **K (Phase 15 seed):** seed Northstar Gymnastics & Swim Academy with class-mode program, 40 classes, 300 students, tuition tiers, skills and schedules.
+- **G (scheduling):** ensure facility closure/blackout changes cancel or flag materialized `class_session` events; I's schedule generator skips registered holidays/blackouts at creation time.
 
 ## Blocked on
 
-(none)
+None for Track I-owned Phase 12 acceptance. The portal shell link and other track-owned follow-ups remain requested above.
 
-## Decisions taken (mirrored in DECISIONS.md)
+## Decisions taken
 
-- DEC-080: instructors use compliance role `trainer` until F adds `instructor`.
-- DEC-081: subscription autopay = subscription-scoped mandate row + per-invoice mandate row at billing time (the Phase 4 charge engine requires an invoice-scoped `autopay_authorizations` row).
-- DEC-082: class enrollment capacity is serialized with `SELECT … FOR UPDATE` on the offering row; session-level drop-in/make-up capacity uses `capacity_counters` subject `class_session`.
+- DEC-109: instructor and substitute eligibility use the existing `head_coach` policy until compliance adds `instructor`.
+- DEC-110: monthly tuition autopay requires explicit subscription consent and an invoice-scoped authorization.
+- DEC-111: pickup requires an active household permission or verified family links, with check-in required first.
+- DEC-112: enrollment locks the offering; session bookings lock the `class_session` capacity counter.
+- DEC-113: level promotions defer tuition changes by default and settle only the household's remaining-session delta when immediate.
+- I temporarily used `PORT_OFFSET=1500` because the required 900 was occupied; no other track's containers were stopped or changed.

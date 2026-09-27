@@ -20,6 +20,7 @@ import {
   skillLevelBodySchema,
   subscriptionUpdateSchema,
   syncLevelsBodySchema,
+  waitlistListSchema,
   withdrawBodySchema,
 } from '@shared/schemas/classes';
 import { apiErrorSchema } from '@shared/schemas/errors';
@@ -72,6 +73,7 @@ const cancelSessionBodySchema = z.strictObject({
 const checkInBodySchema = z.strictObject({
   personId: z.uuid(),
 });
+const substituteBodySchema = z.strictObject({ personId: z.uuid() });
 
 const promotionDecisionBodySchema = z.strictObject({
   expectedVersion: z.int().positive(),
@@ -238,6 +240,7 @@ export function createClassesRouter(
   dependencies: AuthDependencies,
 ): express.Router {
   const router = express.Router();
+  router.use(express.json({ limit: '32kb' }));
   const withOrg = createWithOrg(dependencies.database);
 
   const context = async (request: express.Request): Promise<OrgContext> => {
@@ -550,6 +553,41 @@ export function createClassesRouter(
       response.json(
         await withOrg(ctx, (trx) => sessions.roster(trx, sessionId)),
       );
+    }),
+  );
+
+  router.post(
+    '/orgs/:orgId/sessions/:sessionId/substitute',
+    route(async (request, response) => {
+      write(request);
+      const { ctx, sessions } = await services(request);
+      await requireClassStaff(dependencies.database, ctx);
+      const body = substituteBodySchema.parse(request.body);
+      response.json({
+        substitute: await sessions.assignSubstitute(
+          z.uuid().parse(request.params.sessionId),
+          body.personId,
+        ),
+      });
+    }),
+  );
+
+  router.get(
+    '/orgs/:orgId/sessions/:sessionId/people/:personId/pickups',
+    route(async (request, response) => {
+      const { ctx, attendance } = await services(request);
+      const sessionId = z.uuid().parse(request.params.sessionId);
+      await requireSessionStaffOrInstructor(
+        dependencies.database,
+        ctx,
+        sessionId,
+      );
+      response.json({
+        items: await attendance.pickupPeople(
+          sessionId,
+          z.uuid().parse(request.params.personId),
+        ),
+      });
     }),
   );
 
@@ -1240,6 +1278,28 @@ export function createClassesRouter(
     }),
   );
 
+  router.get(
+    '/orgs/:orgId/me/makeup-credits/:creditId/sessions',
+    route(async (request, response) => {
+      const { ctx, bookings } = await services(request);
+      await requireMember(dependencies.database, ctx);
+      const query = z
+        .strictObject({
+          from: z.iso.date(),
+          to: z.iso.date(),
+          limit: z.coerce.number().int().min(1).max(500).default(200),
+        })
+        .parse(request.query);
+      response.json({
+        items: await bookings.eligibleMakeupSessions(
+          z.uuid().parse(request.params.creditId),
+          ctx.actor.accountId,
+          clean(query),
+        ),
+      });
+    }),
+  );
+
   router.post(
     '/orgs/:orgId/me/makeup-credits/:creditId/book',
     route(async (request, response) => {
@@ -1252,7 +1312,13 @@ export function createClassesRouter(
         throw new ClassesConflictError('Credit id does not match the path');
       response
         .status(201)
-        .json(await bookings.bookMakeup(creditId, body.classSessionId));
+        .json(
+          await bookings.bookMakeup(
+            creditId,
+            body.classSessionId,
+            ctx.actor.accountId,
+          ),
+        );
     }),
   );
 
@@ -1400,6 +1466,27 @@ export function createClassesRouter(
 
   // ---------- Portal: waitlist offers ----------
 
+  router.get(
+    '/orgs/:orgId/me/waitlist',
+    route(async (request, response) => {
+      const { ctx, enrollments } = await services(request);
+      await requireMember(dependencies.database, ctx);
+      const query = z
+        .strictObject({ personId: z.uuid().optional() })
+        .parse(request.query);
+      if (query.personId)
+        await requireLinkedPerson(dependencies.database, ctx, query.personId);
+      response.json(
+        waitlistListSchema.parse({
+          items: await enrollments.waitlistForAccount(
+            ctx.actor.accountId,
+            query.personId,
+          ),
+        }),
+      );
+    }),
+  );
+
   router.post(
     '/orgs/:orgId/me/waitlist/:entryId/accept',
     route(async (request, response) => {
@@ -1427,6 +1514,7 @@ export function createClassesRouter(
       await requireMember(dependencies.database, ctx);
       await enrollments.declineWaitlistOffer(
         z.uuid().parse(request.params.entryId),
+        ctx.actor.accountId,
       );
       response.status(204).end();
     }),

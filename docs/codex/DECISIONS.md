@@ -590,3 +590,43 @@
 - **Decision:** Migration 0900 adds `removed_at` and `version` after the spine and changes the priority constraint to apply only to active rows. Contacts are removed by timestamp, never deleted. The last active contact cannot be removed while a person has an active registration. Guardian, adult self, owner/admin/compliance and registrar editors may manage contacts; active team staff may read them. Minor self accounts may read but not edit. All permitted reads and writes are audited without copying phone numbers into audit changes.
 - **Why:** Teams retain an emergency contact for active participants, concurrent edits cannot silently overwrite, and replacement does not erase the safety record.
 - **Consequences / follow-ups:** 0900 is an unused post-spine migration slot outside the original A range because a pre-spine ALTER cannot apply. The emergency-contact API and editor are shared by staff and family screens.
+
+### DEC-109 — Reuse the existing head coach compliance role for class instructors
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 12 academy instructor assignment
+- **Context:** The compliance role constraint does not yet include `instructor`, but class schedules and substitute assignment must not bypass credential checks.
+- **Decision:** Evaluate class instructors and substitutes against the existing `head_coach` role and the class program. Do not add a new role in the academy module.
+- **Why:** Existing role policy preserves the established credential and age gates until the compliance schema adds an instructor role.
+- **Consequences / follow-ups:** Track F can add a dedicated `instructor` role later; update both assignment checks and tests together when it is available.
+
+### DEC-110 — Keep monthly tuition autopay explicit and invoice-scoped
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 12 academy billing
+- **Context:** Monthly tuition uses recurring invoices, while the finance charge engine requires an authorization tied to each invoice. A routine subscription edit must not silently revoke consent or clear the saved payment method.
+- **Decision:** Store explicit autopay consent on the tuition subscription, attach an invoice-scoped authorization when each tuition invoice is created, and require an explicit stop-autopay action to revoke consent and clear the method.
+- **Why:** Recurring charges remain tied to the family's stated choice and the exact invoice while preserving correct payment audit records.
+- **Consequences / follow-ups:** The family portal distinguishes saving a method from stopping autopay; finance collection continues through the shared installment charge engine.
+
+### DEC-111 — Restrict class pickup to active household permissions or verified family links
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 12 academy attendance
+- **Context:** The checkout record needs a named pickup person, but a sibling or an unverified account link must not gain pickup authority by sharing a family account.
+- **Decision:** Allow pickup only for an active household member with `can_pick_up`, or a verified self-linked person whose account also has a verified guardian link to the athlete. Require the athlete to be checked in before checkout and reject duplicate checkout.
+- **Why:** The pickup list reflects explicit current permission and verified relationships, and session attendance retains a consistent arrival/departure record.
+- **Consequences / follow-ups:** Staff check-in views use the same authorization query for discovery and checkout; pickup changes remain governed by household membership controls.
+
+### DEC-112 — Serialize academy capacity at the owning record
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 12 enrollment and session bookings
+- **Context:** Concurrent family enrollments and make-up/drop-in bookings can otherwise exceed capacity.
+- **Decision:** Lock the class offering when creating a normal enrollment or waitlist position, and lock the `capacity_counters` row for session-level bookings.
+- **Why:** Each operation serializes at the row that owns its capacity, without broad locks across unrelated offerings or sessions.
+- **Consequences / follow-ups:** Keep concurrency coverage for enrollment and bookings in the classes integration suite.
+
+### DEC-113 — Settle only the tuition difference when a family confirms a level promotion
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 12 academy promotions
+- **Context:** Promoting a student inside an existing monthly family subscription must not issue a second full first-month tuition charge; the specification leaves the timing of tier changes open.
+- **Decision:** Apply the new tier on the next invoice by default. For an immediate change, calculate the remaining-session household tuition difference and issue an invoice or household credit for that delta. Skip duplicate initial tuition when the promotion creates the new enrollment.
+- **Why:** Families are charged only for the agreed change in service, preserving the financial balance through a mid-cycle level move.
+- **Consequences / follow-ups:** Promotion pricing uses the shared proration algorithm and the household's tiered total; non-monthly registration fees remain invoiced normally.

@@ -655,7 +655,7 @@ export class PostgresClassEnrollments {
     trx: OrgTransaction,
     input: EnrollBody,
     operationKey: string,
-    options: { staff: boolean },
+    options: { staff: boolean; skipInitialTuition?: boolean },
   ): Promise<EnrollResult> {
     const replay = await trx
       .selectFrom('class_enrollments')
@@ -958,7 +958,10 @@ export class PostgresClassEnrollments {
 
     let invoiceId: string | null = null;
     let amountDue: number | null = null;
-    if (lines.length) {
+    const invoiceLines = options.skipInitialTuition
+      ? lines.filter((line) => line.kind !== 'tuition')
+      : lines;
+    if (invoiceLines.length) {
       const invoice = await issueInvoiceInTransaction(trx, this.context, {
         orgId: this.context.orgId,
         accountId: this.context.actor.accountId,
@@ -967,7 +970,7 @@ export class PostgresClassEnrollments {
         memo: `${offering.name} enrollment`,
         creationKey: operationKey,
         ...(dueOn ? { dueOn } : {}),
-        lines,
+        lines: invoiceLines,
       });
       invoiceId = invoice.id;
       amountDue = invoice.totalCents;
@@ -1003,7 +1006,7 @@ export class PostgresClassEnrollments {
    * If the subscription carries an autopay mandate, bind the invoice's first
    * installment to the saved method so installments.charge can collect it.
    */
-  private async attachAutopayInstallment(
+  async attachAutopayInstallment(
     trx: OrgTransaction,
     subscriptionId: string,
     invoiceId: string,
@@ -1446,6 +1449,54 @@ export class PostgresClassEnrollments {
     });
   }
 
+  async waitlistForAccount(
+    accountId: string,
+    personId?: string,
+  ): Promise<Awaited<ReturnType<PostgresClassEnrollments['waitlist']>>> {
+    return this.withOrg(this.context, async (trx) => {
+      const rows = await trx
+        .selectFrom('class_waitlist_entries as entry')
+        .innerJoin('people as person', (join) =>
+          join
+            .onRef('person.org_id', '=', 'entry.org_id')
+            .onRef('person.id', '=', 'entry.person_id'),
+        )
+        .select([
+          'entry.id',
+          'entry.class_offering_id',
+          'entry.person_id',
+          'entry.household_id',
+          'entry.position',
+          'entry.status',
+          'entry.offered_at',
+          'entry.offer_expires_at',
+          'entry.created_at',
+          'person.first_name',
+          'person.last_name',
+        ])
+        .where('entry.org_id', '=', this.context.orgId)
+        .where('entry.account_id', '=', accountId)
+        .where('entry.status', 'in', ['waiting', 'offered'])
+        .$if(Boolean(personId), (query) =>
+          query.where('entry.person_id', '=', personId ?? ''),
+        )
+        .orderBy('entry.created_at', 'desc')
+        .execute();
+      return rows.map((row) => ({
+        id: row.id,
+        classOfferingId: row.class_offering_id,
+        personId: row.person_id,
+        personName: `${row.first_name} ${row.last_name}`,
+        householdId: row.household_id,
+        position: row.position,
+        status: row.status,
+        offeredAt: row.offered_at?.toISOString() ?? null,
+        offerExpiresAt: row.offer_expires_at?.toISOString() ?? null,
+        createdAt: row.created_at.toISOString(),
+      }));
+    });
+  }
+
   async acceptWaitlistOffer(
     entryId: string,
     body: EnrollBody,
@@ -1460,7 +1511,10 @@ export class PostgresClassEnrollments {
         .where('id', '=', entryId)
         .forUpdate()
         .executeTakeFirst();
-      if (!entry || entry.status !== 'offered')
+      if (!entry) throw new ClassesNotFoundError('Waitlist offer not found');
+      if (!options.staff && entry.account_id !== this.context.actor.accountId)
+        throw new ClassesNotFoundError('Waitlist offer not found');
+      if (entry.status !== 'offered')
         throw new ClassesConflictError('No open offer exists');
       if (entry.offer_expires_at && entry.offer_expires_at < new Date())
         throw new ClassesConflictError('The offer expired');
@@ -1503,13 +1557,19 @@ export class PostgresClassEnrollments {
     });
   }
 
-  async declineWaitlistOffer(entryId: string): Promise<void> {
+  async declineWaitlistOffer(
+    entryId: string,
+    accountId?: string,
+  ): Promise<void> {
     return this.withOrg(this.context, async (trx) => {
       const entry = await trx
         .selectFrom('class_waitlist_entries')
         .select(['id', 'status', 'class_offering_id'])
         .where('org_id', '=', this.context.orgId)
         .where('id', '=', entryId)
+        .$if(Boolean(accountId), (query) =>
+          query.where('account_id', '=', accountId ?? ''),
+        )
         .forUpdate()
         .executeTakeFirst();
       if (!entry || entry.status !== 'offered')

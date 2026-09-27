@@ -18,7 +18,10 @@ import { createNotification } from '../notifications/service.js';
 import { PostgresClassEnrollments } from './enrollments.js';
 import { sessionDatesInRange } from './enrollments.js';
 import { ClassesConflictError, ClassesNotFoundError } from './errors.js';
-import { issueInvoiceInTransaction } from './invoice-writer.js';
+import {
+  issueCreditInTransaction,
+  issueInvoiceInTransaction,
+} from './invoice-writer.js';
 
 interface PromotionRow {
   id: string;
@@ -252,7 +255,7 @@ export class PostgresClassPromotions {
             resourceType: 'level_promotion',
             resourceId: promotionId,
             personId: row.person_id,
-            href: '/classes',
+            href: `/me/orgs/${this.context.orgId}/classes`,
           },
         });
       }
@@ -316,6 +319,31 @@ export class PostgresClassPromotions {
           const today = new Intl.DateTimeFormat('en-CA', {
             timeZone: org.timezone,
           }).format(new Date());
+          const enrollments = new PostgresClassEnrollments(
+            this.database,
+            this.context,
+          );
+          const targetOffering = await trx
+            .selectFrom('class_offerings')
+            .select(['billing', 'name'])
+            .where('org_id', '=', this.context.orgId)
+            .where('id', '=', targetOfferingId)
+            .executeTakeFirst();
+          if (
+            !targetOffering ||
+            targetOffering.billing === 'drop_in' ||
+            targetOffering.billing === 'punch_card'
+          )
+            throw new ClassesConflictError(
+              'The promoted level must have an ongoing class offering',
+            );
+          const oldHouseholdMonthlyCents = source.billing_subscription_id
+            ? await enrollments.householdMonthlyCents(
+                trx,
+                source.household_id,
+                null,
+              )
+            : null;
           await trx
             .updateTable('class_enrollments')
             .set({
@@ -327,10 +355,6 @@ export class PostgresClassPromotions {
             .where('org_id', '=', this.context.orgId)
             .where('id', '=', source.id)
             .execute();
-          const enrollments = new PostgresClassEnrollments(
-            this.database,
-            this.context,
-          );
           const result = await enrollments.enrollInTransaction(
             trx,
             {
@@ -346,7 +370,12 @@ export class PostgresClassPromotions {
               billingDay: 1,
             },
             operationKey,
-            { staff: true },
+            {
+              staff: true,
+              skipInitialTuition:
+                Boolean(source.billing_subscription_id) &&
+                targetOffering.billing === 'monthly',
+            },
           );
           if (!result.enrollment)
             throw new ClassesConflictError(
@@ -354,7 +383,10 @@ export class PostgresClassPromotions {
             );
           newEnrollmentId = result.enrollment.id;
 
-          // Immediate tier-change billing when the subscription asks for it.
+          // A level change on an existing monthly subscription must not charge
+          // the target class's full first month again. Default changes take
+          // effect on the next invoice; immediate changes settle only the
+          // session-based difference for the remainder of this month.
           if (
             source.billing_subscription_id &&
             result.enrollment.billingSubscriptionId ===
@@ -387,29 +419,56 @@ export class PostgresClassPromotions {
                 month.start,
                 month.end,
               );
+              const newHouseholdMonthlyCents =
+                await enrollments.householdMonthlyCents(
+                  trx,
+                  source.household_id,
+                  null,
+                );
               const delta = tierChangeAdjustment(
-                sourceOffering.price_cents,
-                target.price_cents,
+                oldHouseholdMonthlyCents ?? sourceOffering.price_cents,
+                newHouseholdMonthlyCents,
                 sessions,
                 today,
                 'immediate',
               );
               if (delta > 0) {
-                await issueInvoiceInTransaction(trx, this.context, {
-                  orgId: this.context.orgId,
-                  accountId: subscription.account_id,
+                const invoice = await issueInvoiceInTransaction(
+                  trx,
+                  this.context,
+                  {
+                    orgId: this.context.orgId,
+                    accountId: subscription.account_id,
+                    householdId: subscription.household_id,
+                    source: 'tuition',
+                    memo: `${target.name} — level change`,
+                    creationKey: deterministicPromotionKey(promotionId),
+                    dueOn: today,
+                    lines: [
+                      {
+                        kind: 'tuition',
+                        description: `${target.name} — level change proration`,
+                        amountCents: delta,
+                        refundable: true,
+                      },
+                    ],
+                  },
+                );
+                await enrollments.attachAutopayInstallment(
+                  trx,
+                  source.billing_subscription_id,
+                  invoice.id,
+                  invoice.totalCents,
+                  today,
+                  operationKey,
+                );
+              } else if (delta < 0) {
+                await issueCreditInTransaction(trx, this.context, {
                   householdId: subscription.household_id,
-                  source: 'tuition',
-                  memo: `${target.name} — level change`,
-                  creationKey: deterministicPromotionKey(promotionId),
-                  lines: [
-                    {
-                      kind: 'tuition',
-                      description: `${target.name} — level change proration`,
-                      amountCents: delta,
-                      refundable: true,
-                    },
-                  ],
+                  amountCents: -delta,
+                  source: 'class_level_change',
+                  note: `Session-based tuition adjustment for ${target.name}`,
+                  operationKey,
                 });
               }
             }
