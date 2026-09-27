@@ -334,21 +334,36 @@ describe('result entry validates every seeded sport format', () => {
           checked += 1;
         }
 
+        const snapshots = await withOrg(actor, (trx) =>
+          trx
+            .selectFrom('standings_snapshots')
+            .select(['scope_type', 'scope_id'])
+            .where('org_id', '=', orgId)
+            .where('scope_id', 'in', [programId, divisionId])
+            .execute(),
+        );
         if (!profile.defaultStandings) {
           unconfiguredProfiles += 1;
           await expect(
             getStandings(actor, { programId }),
           ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
-          const snapshots = await withOrg(actor, (trx) =>
-            trx
-              .selectFrom('standings_snapshots')
-              .select(['scope_type', 'scope_id'])
-              .where('org_id', '=', orgId)
-              .where('scope_type', '=', 'program')
-              .where('scope_id', '=', programId)
-              .execute(),
-          );
           expect(snapshots).toHaveLength(0);
+        } else {
+          expect(snapshots).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                scope_type: 'program',
+                scope_id: programId,
+              }),
+              expect.objectContaining({
+                scope_type: 'division',
+                scope_id: divisionId,
+              }),
+            ]),
+          );
+          await expect(
+            getStandings(actor, { programId }),
+          ).resolves.toMatchObject({ config: profile.defaultStandings });
         }
       }
       expect(checked).toBe(50);
