@@ -19,13 +19,27 @@ export interface PayerProfileRepository {
   load(accountId: string): Promise<string | null>;
 }
 
+export interface SavedPaymentMethodRepository {
+  sync(
+    accountId: string,
+    methods: readonly GatewayPaymentMethod[],
+  ): Promise<void>;
+  setDefault(accountId: string, paymentMethodId: string): Promise<void>;
+  markDetached(accountId: string, paymentMethodId: string): Promise<void>;
+}
+
 export class PayerMethodsService {
   constructor(
     private readonly profiles: PayerProfileRepository,
     private readonly gateway: Pick<
       PaymentsGateway,
-      'createCustomer' | 'createSetupIntent' | 'listPaymentMethods'
+      | 'createCustomer'
+      | 'createSetupIntent'
+      | 'listPaymentMethods'
+      | 'detachPaymentMethod'
+      | 'setDefaultPaymentMethod'
     >,
+    private readonly methods?: SavedPaymentMethodRepository,
   ) {}
 
   async createSetupIntent(input: {
@@ -49,7 +63,38 @@ export class PayerMethodsService {
 
   async list(accountId: string): Promise<GatewayPaymentMethod[]> {
     const customerId = await this.profiles.load(accountId);
-    return customerId ? this.gateway.listPaymentMethods(customerId) : [];
+    if (!customerId) return [];
+    const methods = await this.gateway.listPaymentMethods(customerId);
+    await this.methods?.sync(accountId, methods);
+    return methods;
+  }
+
+  async remove(accountId: string, paymentMethodId: string): Promise<void> {
+    await this.requireOwnedMethod(accountId, paymentMethodId);
+    await this.gateway.detachPaymentMethod(paymentMethodId);
+    await this.methods?.markDetached(accountId, paymentMethodId);
+  }
+
+  async setDefault(accountId: string, paymentMethodId: string): Promise<void> {
+    const customerId = await this.requireOwnedMethod(
+      accountId,
+      paymentMethodId,
+    );
+    await this.gateway.setDefaultPaymentMethod(customerId, paymentMethodId);
+    await this.methods?.setDefault(accountId, paymentMethodId);
+  }
+
+  private async requireOwnedMethod(
+    accountId: string,
+    paymentMethodId: string,
+  ): Promise<string> {
+    const customerId = await this.profiles.load(accountId);
+    if (!customerId) throw new Error('Payer has no Stripe Customer');
+    const methods = await this.gateway.listPaymentMethods(customerId);
+    if (!methods.some((method) => method.id === paymentMethodId))
+      throw new Error('Payment method is not attached to this payer');
+    await this.methods?.sync(accountId, methods);
+    return customerId;
   }
 
   private async ensureCustomer(accountId: string, email: string) {

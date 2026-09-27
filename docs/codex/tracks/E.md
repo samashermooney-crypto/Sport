@@ -9,7 +9,7 @@ Additional ready for integration: local `4e97356..c7dd637` — spine-independent
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1003 merge (2026-09-26).
 Requests to other tracks: B: confirm whether `generateInstallments` must support `weekly` from `02 §L` (current `20 §3` algorithm and shared function cover fixed dates/monthly only) (2026-09-26).
 Blocked on: None; schema spine and test factories are on `rebuild/trunk`.
-Next: wire settled PaymentIntent webhooks to checkout capacity and registration transitions, then implement saved-method sync, installment dunning, credits and reconciliation.
+Next: wire saved-method webhooks and settled PaymentIntent checkout transitions, then installment dunning, credits and reconciliation.
 Gateway: Stripe SDK 22.6.2 dependency-only commit `cf83f4c`; real SDK adapter covers Connect, Customers, payment methods, intents, refunds, reversals, disputes, payouts, Billing and domains.
 Gateway tests: 36 passed, including stripe-mock Express account and destination PaymentIntent; typecheck and targeted lint green.
 Gateway review: test-only keys and events enforced; raw webhook bytes verified; exact destination fee and idempotency key asserted.
@@ -35,6 +35,7 @@ Connect core: `finance/connect.ts` defines withOrg reservation/persistence, org-
 Connect persistence: `finance/repo.ts` implements a durable one-row reservation, idempotent account sync and cross-org RLS isolation on spine `payment_accounts`; 2 real-Postgres tests pass.
 Payer methods: `finance/payer-methods.ts` lazily creates one platform Customer with a durable reservation, creates off-session SetupIntents and lists account-attached methods; 4 targeted tests pass.
 Payer persistence: migration 1001 permits a durable incomplete `payer_profiles` row; `finance/payer-repo.ts` fences duplicate Customer creation and stores one customer ID; 2 real-Postgres tests pass.
+Saved methods: `finance/payment-method-repo.ts` syncs attached Stripe methods, enforces account ownership and revokes org-scoped autopay on detach; service checks ownership before Stripe default/remove calls; 7 targeted tests pass.
 Checkout core: `checkout/service.ts` contracts for atomic holds, fixed lock order, processing/72-hour holds and automatic lost-capacity refunds; pure state machine and 9 targeted tests pass; real-Postgres oversell test awaits spine.
 Lost-capacity refunds: checkout now durably claims each intent before Stripe refund and preserves uncertain claims for reconciliation; 1 replay/failure test added.
 Checkout pricing: `checkout/pricing.ts` freezes Track B pricing from repository-owned inputs in one withOrg transaction, validates invoice/credit reconciliation and replays stored cents; 2 targeted tests pass.
