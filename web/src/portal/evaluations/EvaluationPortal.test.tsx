@@ -11,13 +11,15 @@ import {
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { EvaluationScoringSheet } from './EvaluationPortal';
+import { EvaluationScoringSheet, FamilyOffers } from './EvaluationPortal';
 
 const orgId = randomUUID();
 const eventId = randomUUID();
 const participantId = randomUUID();
 const personId = randomUUID();
 const criterionId = randomUUID();
+const offerId = randomUUID();
+const checkoutId = randomUUID();
 const originalOnlineDescriptor = Object.getOwnPropertyDescriptor(
   window.navigator,
   'onLine',
@@ -309,5 +311,84 @@ describe('evaluation scoring sheet', () => {
       new Set(scoreRequests.map((request) => request.body.clientMutationId))
         .size,
     ).toBe(2);
+  });
+});
+
+describe('family team offers', () => {
+  it('continues an accepted offer into the registration checkout requirements', async () => {
+    const acceptRequests: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const path =
+          input instanceof Request
+            ? input.url
+            : typeof input === 'string'
+              ? input
+              : input.href;
+        if (path.endsWith('/me/offers'))
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve([
+                {
+                  id: offerId,
+                  personId,
+                  firstName: 'Alex',
+                  lastName: 'Athlete',
+                  teamSeasonId: randomUUID(),
+                  teamName: 'North U10',
+                  amountCents: 25000,
+                  depositCents: 5000,
+                  expiresAt: '2026-10-01T00:00:00.000Z',
+                  message: null,
+                  status: 'sent',
+                  version: 1,
+                  acceptanceReady: true,
+                },
+              ]),
+          } as Response);
+        if (path.endsWith(`/offers/${offerId}/accept`)) {
+          acceptRequests.push(path);
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ checkoutId }),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ name: 'North Club' }),
+        } as Response);
+      }),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[`/portal/orgs/${orgId}/offers`]}>
+          <Routes>
+            <Route
+              path="/portal/orgs/:orgId/offers"
+              element={<FamilyOffers />}
+            />
+            <Route
+              path="/portal/orgs/:orgId/register/checkouts/:checkoutId/requirements"
+              element={<h1>Checkout requirements</h1>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Accept and continue to deposit checkout',
+      }),
+    );
+    expect(
+      await screen.findByRole('heading', { name: 'Checkout requirements' }),
+    ).toBeDefined();
+    expect(acceptRequests).toHaveLength(1);
   });
 });

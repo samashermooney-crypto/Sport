@@ -14,6 +14,8 @@ const blueTeamId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const goldTeamId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const alexId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 const jordanId = '99999999-9999-4999-8999-999999999999';
+const offerId = 'abababab-abab-4bab-8bab-abababababab';
+const checkoutId = 'bcbcbcbc-bcbc-4cbc-8cbc-bcbcbcbcbcbc';
 
 async function mockAuthenticatedAccount(page: import('@playwright/test').Page) {
   await page.route('**/api/v1/auth/me', (route) =>
@@ -328,4 +330,68 @@ test('director moves a rec player with drag/drop or keyboard controls', async ({
     teamSeasonId: goldTeamId,
     expectedVersion: 3,
   });
+});
+
+test('family accepts a team offer and continues to registration checkout', async ({
+  page,
+}) => {
+  const acceptances: Array<Record<string, unknown>> = [];
+  await mockAuthenticatedAccount(page);
+  await page.route(`**/api/v1/orgs/${orgId}/workspace`, (route) =>
+    route.fulfill({ json: { name: 'North Club' } }),
+  );
+  await page.route(`**/api/v1/evaluations/orgs/${orgId}/me/offers`, (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: offerId,
+          personId,
+          firstName: 'Alex',
+          lastName: 'Athlete',
+          teamSeasonId: blueTeamId,
+          teamName: 'Blue U10',
+          amountCents: 25000,
+          depositCents: 5000,
+          expiresAt: '2026-10-01T00:00:00.000Z',
+          message: 'Welcome to the team.',
+          status: 'sent',
+          version: 1,
+          acceptanceReady: true,
+        },
+      ],
+    }),
+  );
+  await page.route(
+    `**/api/v1/evaluations/orgs/${orgId}/offers/${offerId}/accept`,
+    async (route) => {
+      acceptances.push(
+        route.request().postDataJSON() as Record<string, unknown>,
+      );
+      await route.fulfill({
+        json: {
+          offerId,
+          status: 'accepted',
+          registrationId: participantId,
+          checkoutId,
+          invoiceId: eventId,
+          depositCents: 5000,
+          paymentPlanId: null,
+        },
+      });
+    },
+  );
+
+  await page.goto(`/portal/orgs/${orgId}/offers`);
+  await expect(
+    page.getByRole('heading', { name: 'Team offers' }),
+  ).toBeVisible();
+  await expect(page.getByText('Welcome to the team.')).toBeVisible();
+  expect(await accessibilityViolations(page)).toEqual([]);
+  await page
+    .getByRole('button', { name: 'Accept and continue to deposit checkout' })
+    .click();
+  await expect(page).toHaveURL(
+    `/portal/orgs/${orgId}/register/checkouts/${checkoutId}/requirements`,
+  );
+  expect(acceptances).toHaveLength(1);
 });

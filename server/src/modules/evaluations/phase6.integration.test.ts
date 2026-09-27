@@ -27,6 +27,7 @@ import {
   listEvaluationEvaluatorCandidates,
   listEvaluationRegistrants,
   listFamilyOffers,
+  listEvaluationScoringSheet,
   listMyPlacementPrograms,
   listMyEvaluationResults,
   listOfferDashboard,
@@ -623,6 +624,40 @@ describe('Phase 6 evaluations integration', () => {
       }),
     );
 
+    const evaluatorCredentialTypeId = randomUUID();
+    await admin.query(
+      `INSERT INTO credential_types (id, org_id, key, name, verification, validity, applies_to, blocks_activation)
+       VALUES ($1, $2, 'phase6_evaluator', 'Evaluator credential', 'manual_staff', '{"kind":"never"}', '{"roles":["evaluator"],"minimumAge":18}', true)`,
+      [evaluatorCredentialTypeId, orgA],
+    );
+    await admin.query(
+      `INSERT INTO role_credential_requirements (id, org_id, role, credential_type_id, scope_type, scope_id, minimum_age)
+       VALUES ($1, $2, 'evaluator', $3, 'program', $4, 18)`,
+      [randomUUID(), orgA, evaluatorCredentialTypeId, targetProgramId],
+    );
+    await expect(
+      assignEvaluationEvaluator(
+        dependencies(),
+        ownerContext,
+        sessionId,
+        evaluatorAccountA,
+      ),
+    ).rejects.toMatchObject({ status: 409, code: 'COMPLIANCE_REQUIRED' });
+    for (const personId of [evaluatorPersonA, evaluatorPersonB]) {
+      await admin.query(
+        `INSERT INTO person_credentials (id, org_id, person_id, credential_type_id, status, expires_on, verified_by, verified_at)
+         VALUES ($1, $2, $3, $4, 'verified', '2027-12-31', $5, $6)`,
+        [
+          randomUUID(),
+          orgA,
+          personId,
+          evaluatorCredentialTypeId,
+          ownerAccount,
+          clockNow,
+        ],
+      );
+    }
+
     const assigned = await assignEvaluationEvaluator(
       dependencies(),
       ownerContext,
@@ -637,6 +672,34 @@ describe('Phase 6 evaluations integration', () => {
       evaluatorAccountB,
     );
     expect(second.accountId).toBe(evaluatorAccountB);
+
+    const assignedSheet = await listEvaluationScoringSheet(
+      dependencies(),
+      ownerContext,
+      eventId,
+      evaluatorAccountA,
+      false,
+    );
+    expect(assignedSheet.participants[0]).not.toHaveProperty('email');
+    expect(assignedSheet.participants[0]).not.toHaveProperty('phone');
+    await expect(
+      listEvaluationScoringSheet(
+        dependencies(),
+        ownerContext,
+        eventId,
+        outsiderAccount,
+        false,
+      ),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+    await expect(
+      listEvaluationScoringSheet(
+        dependencies(),
+        orgBContext,
+        eventId,
+        evaluatorAccountA,
+        false,
+      ),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
   });
 
   it('persists concurrent evaluator scores and dedupes clientMutationId replays', async () => {

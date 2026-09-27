@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { z } from 'zod';
 
 import { apiGet, apiPost, apiPut } from '../../api/client';
@@ -89,6 +89,7 @@ const offerResponseSchema = z.looseObject({
   status: z.string().optional(),
   invoiceId: z.string().optional(),
 });
+const acceptedOfferSchema = z.looseObject({ checkoutId: z.uuid() });
 
 type QueuedScore = {
   participantId: string;
@@ -565,6 +566,7 @@ export function EvaluationScoringSheet(): React.JSX.Element {
 
 export function FamilyOffers(): React.JSX.Element {
   const { orgId = '' } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState('');
@@ -580,15 +582,19 @@ export function FamilyOffers(): React.JSX.Element {
   ) => {
     try {
       if (action === 'accept') {
-        await apiPost(
+        const accepted = await apiPost(
           `/evaluations/orgs/${orgId}/offers/${offerId}/accept`,
           {},
-          offerResponseSchema,
+          acceptedOfferSchema,
           offerId,
         );
-        setNotice(
-          'Offer accepted. Your registration and deposit checkout are ready.',
+        await queryClient.invalidateQueries({
+          queryKey: ['team-offers', orgId],
+        });
+        void navigate(
+          `/portal/orgs/${orgId}/register/checkouts/${accepted.checkoutId}/requirements`,
         );
+        return;
       } else {
         const reason = reasons[offerId]?.trim();
         if (!reason) {
