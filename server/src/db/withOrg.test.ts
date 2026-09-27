@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from './kysely';
 import { allocateOrgNumber } from './orgCounters';
 import type { DB } from './types';
-import { createWithOrg } from './withOrg';
+import { createWithOrg, withOrgInTransaction } from './withOrg';
 
 const orgA = randomUUID();
 const orgB = randomUUID();
@@ -161,6 +161,48 @@ describe('tenant database isolation', () => {
           .execute(),
       ),
     ).rejects.toThrow();
+  });
+
+  it('keeps a global bootstrap write and scoped writes atomic', async () => {
+    const slug = `rollback-${randomUUID().slice(0, 8)}`;
+    const newOrgId = randomUUID();
+    await expect(
+      appDb.transaction().execute(async (trx) => {
+        await trx
+          .insertInto('organizations')
+          .values({
+            id: newOrgId,
+            slug,
+            name: 'Rollback Org',
+            kind: 'club',
+            timezone: 'America/Chicago',
+          })
+          .execute();
+        await withOrgInTransaction(
+          trx,
+          {
+            orgId: newOrgId,
+            actor: { accountId: actorA },
+          },
+          async (scoped) => {
+            await scoped
+              .insertInto('org_counters')
+              .values({
+                org_id: newOrgId,
+                name: 'invoice',
+              })
+              .execute();
+            throw new Error('abort bootstrap');
+          },
+        );
+      }),
+    ).rejects.toThrow('abort bootstrap');
+    const remaining = await appDb
+      .selectFrom('organizations')
+      .select('id')
+      .where('id', '=', newOrgId)
+      .executeTakeFirst();
+    expect(remaining).toBeUndefined();
   });
 
   it('allocates independent per-org numbers within transactions', async () => {

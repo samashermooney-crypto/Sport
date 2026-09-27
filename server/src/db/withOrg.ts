@@ -15,20 +15,28 @@ export interface OrgContext {
 
 export type OrgTransaction = Transaction<DB>;
 
+export async function withOrgInTransaction<T>(
+  trx: OrgTransaction,
+  context: OrgContext,
+  fn: (trx: OrgTransaction) => Promise<T>,
+): Promise<T> {
+  await sql`select set_config('app.org_id', ${context.orgId}, true)`.execute(
+    trx,
+  );
+  await sql`select set_config('app.actor_id', ${context.actor.accountId}, true)`.execute(
+    trx,
+  );
+  return fn(trx);
+}
+
 export function createWithOrg(database: Kysely<DB>) {
   return async function withOrg<T>(
     context: OrgContext,
     fn: (trx: OrgTransaction) => Promise<T>,
   ): Promise<T> {
-    return database.transaction().execute(async (trx) => {
-      await sql`select set_config('app.org_id', ${context.orgId}, true)`.execute(
-        trx,
-      );
-      await sql`select set_config('app.actor_id', ${context.actor.accountId}, true)`.execute(
-        trx,
-      );
-      return fn(trx);
-    });
+    return database
+      .transaction()
+      .execute((trx) => withOrgInTransaction(trx, context, fn));
   };
 }
 
