@@ -3,6 +3,7 @@ import { BrowserRouter, useLocation, useRoutes } from 'react-router';
 
 import { webFeatures } from './generated/registry';
 import { ImpersonationBanner } from './platform/PlatformConsole';
+import { PlatformShell } from './ui/PlatformShell';
 import { AppErrorBoundary, ToastProvider } from './ui/app-feedback';
 
 const queryClient = new QueryClient({
@@ -26,7 +27,13 @@ function RoutedContent(): React.JSX.Element {
   return (
     <AppErrorBoundary key={location.pathname}>
       <ImpersonationBanner />
-      <AppRoutes />
+      {location.pathname.startsWith('/platform') ? (
+        <PlatformShell>
+          <AppRoutes />
+        </PlatformShell>
+      ) : (
+        <AppRoutes />
+      )}
     </AppErrorBoundary>
   );
 }
