@@ -824,10 +824,17 @@
 - **Why:** Families are charged only for the agreed change in service, preserving the financial balance through a mid-cycle level move.
 - **Consequences / follow-ups:** Promotion pricing uses the shared proration algorithm and the household's tiered total; non-monthly registration fees remain invoiced normally.
 
-### DEC-114 — Scope family placement preferences to active registrations
+### DEC-115 — Scope family placement preferences to active registrations
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 6 team formation
 - **Context:** Families need to submit rec-league practice-location and mutual-friend preferences, while staff-only coach ratings and placement notes share the same backing record.
 - **Decision:** Family endpoints list and update only active league registrations linked to the signed-in guardian or athlete account. Friend requests must name another confirmed registrant in that program. Family responses never expose or overwrite staff notes or coach ratings; family endpoints do not collect free-text notes.
 - **Why:** This limits child-data exposure, prevents arbitrary person IDs from granting access, and keeps staff ratings intact when a family edits its own preferences.
 - **Consequences / follow-ups:** The team balancer consumes requests only when both athletes request one another. Staff preferences remain accessible through director-only routes.
+### DEC-114 — Fail closed on incomplete route-security metadata
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 §1 security verification
+- **Context:** The generated OpenAPI document has no route permission/resource/scope metadata, and the checked-in permission matrix has no operation rows. Deriving expected access from path names or role labels would turn assumptions into security assertions.
+- **Decision:** Keep the all-route authorization, permission-matrix, and tenancy-fuzz Playwright checks marked `test.fixme` until Track C publishes operation metadata, real synthetic out-of-tenant resource fixtures, and a reviewed allow/deny row for every route. Do not count a random nonexistent ID as proof that an existing foreign resource is isolated.
+- **Why:** The checks must fail on real authorization gaps without inventing route policy or hiding a cross-tenant read behind an unrelated 404.
+- **Consequences / follow-ups:** Track C owns the generated contracts and CI wiring; the precise requests are recorded in `docs/codex/tracks/SEC.md` and `docs/codex/tracks/C.md`. Remove the `test.fixme` markers when those contracts are available and the checks can exercise real fixtures.
