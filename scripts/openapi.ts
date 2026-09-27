@@ -333,6 +333,21 @@ const orgRoutes: OpenApiRoute[] = [
   },
   {
     method: 'post',
+    path: `${orgsBase}/{orgId}/ownership-transfer`,
+    summary: 'Request recipient-accepted ownership transfer',
+    body: orgs.ownershipTransferRequestSchema,
+    response: orgs.ownershipTransferRequestResponseSchema,
+    status: 201,
+  },
+  {
+    method: 'post',
+    path: `${orgsBase}/{orgId}/ownership-transfer/accept`,
+    summary: 'Accept organization ownership transfer',
+    body: orgs.ownershipTransferAcceptSchema,
+    response: orgs.ownershipTransferAcceptResponseSchema,
+  },
+  {
+    method: 'post',
     path: `${orgsBase}/{orgId}/invitations`,
     summary: 'Invite organization member',
     body: orgs.orgInvitationSchema,

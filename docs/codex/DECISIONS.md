@@ -255,3 +255,11 @@
 - **Decision:** Grant or revoke one scoped role at a time after checking the scoped entity under `withOrg`, with the same membership version, organization lock, owner step-up and target-session revocation as organization role edits. Ownership is restricted to organization scope and its separate accepted transfer flow.
 - **Why:** Each change is independently auditable and concurrent edits cannot silently overwrite each other.
 - **Consequences / follow-ups:** The staff UI needs a usable selector for existing scope records as the Phase 2 and 3 directories become available; it currently accepts a validated scope ID.
+
+### DEC-031 — Transfer ownership only after recipient acceptance
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 users and roles
+- **Context:** The spec requires owner-initiated, step-up protected transfer that the recipient accepts. It does not specify token lifetime or how concurrent changes invalidate a pending request.
+- **Decision:** Send a single-use 24-hour transfer link to an active member's verified account. Acceptance requires that account's authenticated session and confirmed MFA; it checks both membership versions and both roles under the organization lock, grants the new owner first, revokes the previous owner's assignment, audits the action and revokes both accounts' sessions. A failed email send revokes the request.
+- **Why:** Consent, identity and tenant checks precede the authority change; stale transfers cannot override later membership changes.
+- **Consequences / follow-ups:** A changed membership requires a new request. The recipient signs in again after accepting because both sessions are revoked.

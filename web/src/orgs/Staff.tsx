@@ -1,7 +1,9 @@
+import { authMeResponseSchema } from '@shared/schemas/auth';
 import {
   orgInvitationResponseSchema,
   orgMemberRolesResponseSchema,
   orgMemberStatusResponseSchema,
+  ownershipTransferRequestResponseSchema,
   scopedRoleResponseSchema,
   orgRoleSchema,
   orgStaffResponseSchema,
@@ -23,10 +25,12 @@ function MemberEditor({
   orgId,
   member,
   lastOwner,
+  ownerVersion,
 }: {
   orgId: string;
   member: Member;
   lastOwner: boolean;
+  ownerVersion: number | null;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const [roles, setRoles] = useState<string[]>(
@@ -137,6 +141,38 @@ function MemberEditor({
         caught instanceof Error
           ? caught.message
           : 'Scoped role could not be changed.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function transferOwnership(): Promise<void> {
+    if (
+      !ownerVersion ||
+      !window.confirm(
+        `Ask ${member.name} to accept ownership of this organization? Your owner role will end when they accept.`,
+      )
+    )
+      return;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await apiPost(
+        `/orgs/${orgId}/ownership-transfer`,
+        {
+          recipientAccountId: member.accountId,
+          expectedVersion: ownerVersion,
+        },
+        ownershipTransferRequestResponseSchema,
+        crypto.randomUUID(),
+      );
+      setNotice(`Ownership acceptance link sent to ${member.email}.`);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Ownership transfer could not be requested.',
       );
     } finally {
       setBusy(false);
@@ -268,6 +304,19 @@ function MemberEditor({
           {busy ? 'Saving…' : 'Save roles'}
         </Button>
       )}
+      {ownerVersion &&
+        member.status === 'active' &&
+        !member.roles.some(
+          (role) => role.role === 'owner' && role.scopeType === 'org',
+        ) && (
+          <Button
+            type="button"
+            disabled={busy}
+            onClick={() => void transferOwnership()}
+          >
+            Request ownership transfer
+          </Button>
+        )}
       {lastOwner && (
         <p>The last active owner cannot be suspended or removed.</p>
       )}
@@ -310,6 +359,11 @@ export function Staff(): React.JSX.Element {
     queryKey: ['orgs', id, 'staff'],
     queryFn: () => apiGet(`/orgs/${id}/staff`, orgStaffResponseSchema),
     enabled: Boolean(orgId),
+    retry: false,
+  });
+  const account = useQuery({
+    queryKey: ['auth', 'me'],
+    queryFn: () => apiGet('/auth/me', authMeResponseSchema),
     retry: false,
   });
   const [email, setEmail] = useState('');
@@ -509,6 +563,11 @@ export function Staff(): React.JSX.Element {
                 key={member.accountId}
                 orgId={id}
                 member={member}
+                ownerVersion={
+                  query.data.members.find(
+                    (item) => item.accountId === account.data?.id,
+                  )?.version ?? null
+                }
                 lastOwner={
                   member.roles.some(
                     (role) =>
