@@ -82,6 +82,24 @@ it('limits reports to available role columns and previews the selected definitio
                 },
               ],
             },
+            {
+              key: 'retention_cohorts',
+              label: 'Year-over-year retention',
+              description: 'Unique confirmed participant retention',
+              available: true,
+              columns: [
+                'current_year',
+                'previous_year',
+                'previous_participants',
+                'retained_participants',
+                'retention_rate_percent',
+              ].map((key) => ({
+                key,
+                label: key,
+                type: 'number',
+                tier: 'internal',
+              })),
+            },
           ],
         };
       } else if (url.endsWith('/saved-reports')) {
@@ -154,4 +172,12 @@ it('limits reports to available role columns and previews the selected definitio
   fireEvent.click(screen.getByRole('button', { name: 'Preview report' }));
   await screen.findByText('open');
   expect(previewRequestBody).toContain('"household_postal_code"');
+
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Retention year over year' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Preview report' }));
+  await screen.findByText('open');
+  expect(previewRequestBody).toContain('"dataset":"retention_cohorts"');
+  expect(previewRequestBody).toContain('"retention_rate_percent"');
 });

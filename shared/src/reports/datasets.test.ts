@@ -73,6 +73,23 @@ describe('report dataset catalog', () => {
     });
   });
 
+  it('defines a privacy-safe year-over-year retention cohort dataset', () => {
+    const cohorts = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'retention_cohorts',
+    );
+    expect(cohorts?.roles).toContain('registrar');
+    expect(cohorts?.columns.map((column) => column.key)).toEqual([
+      'current_year',
+      'previous_year',
+      'previous_participants',
+      'retained_participants',
+      'retention_rate_percent',
+    ]);
+    expect(cohorts?.columns.every((column) => column.tier === 'internal')).toBe(
+      true,
+    );
+  });
+
   it('keeps aid details and uniform reports on the intended source fields', () => {
     const aidAwards = REPORT_DATASETS.find(
       (candidate) => candidate.key === 'aid_awards',

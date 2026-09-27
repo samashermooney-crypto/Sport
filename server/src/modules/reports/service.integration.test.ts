@@ -24,6 +24,18 @@ const financeId = randomUUID();
 const registrarId = randomUUID();
 const complianceId = randomUUID();
 const personId = randomUUID();
+const priorOnlyPersonId = randomUUID();
+const newPersonId = randomUUID();
+const householdId = randomUUID();
+const sportProfileId = randomUUID();
+const priorSeasonId = randomUUID();
+const currentSeasonId = randomUUID();
+const priorProgramId = randomUUID();
+const currentProgramId = randomUUID();
+const priorDivisionId = randomUUID();
+const currentDivisionId = randomUUID();
+const priorOfferingId = randomUUID();
+const currentOfferingId = randomUUID();
 let database: ReturnType<typeof createDatabase>;
 let withOrg: ReturnType<typeof createWithOrg>;
 
@@ -85,6 +97,72 @@ beforeAll(async () => {
     await admin.query(
       'INSERT INTO people(id,org_id,first_name,last_name,date_of_birth,email) VALUES ($1,$2,$3,$4,$5,$6)',
       [personId, orgA, 'Alex', 'Athlete', '2012-01-01', 'alex@example.invalid'],
+    );
+    await admin.query(
+      "INSERT INTO people(id,org_id,first_name,last_name,date_of_birth) VALUES ($1,$2,'Prior','Only','2012-01-01'),($3,$2,'New','Athlete','2012-01-01')",
+      [priorOnlyPersonId, orgA, newPersonId],
+    );
+    await admin.query(
+      "INSERT INTO households(id,org_id,name) VALUES ($1,$2,'Cohort family')",
+      [householdId, orgA],
+    );
+    await admin.query(
+      "INSERT INTO sport_profiles(id,org_id,name,profile) VALUES ($1,$2,'Cohort sport','{}'::jsonb)",
+      [sportProfileId, orgA],
+    );
+    await admin.query(
+      "INSERT INTO seasons(id,org_id,name,starts_on,ends_on,status) VALUES ($1,$3,'2024 cohort','2024-01-01','2024-12-31','completed'),($2,$3,'2025 cohort','2025-01-01','2025-12-31','completed')",
+      [priorSeasonId, currentSeasonId, orgA],
+    );
+    await admin.query(
+      "INSERT INTO programs(id,org_id,season_id,sport_profile_id,mode,name,slug,starts_on,ends_on) VALUES ($1,$3,$4,$6,'league','Prior cohort','prior-cohort','2024-01-01','2024-12-31'),($2,$3,$5,$6,'league','Current cohort','current-cohort','2025-01-01','2025-12-31')",
+      [
+        priorProgramId,
+        currentProgramId,
+        orgA,
+        priorSeasonId,
+        currentSeasonId,
+        sportProfileId,
+      ],
+    );
+    await admin.query(
+      "INSERT INTO divisions(id,org_id,program_id,name) VALUES ($1,$3,$4,'Prior division'),($2,$3,$5,'Current division')",
+      [
+        priorDivisionId,
+        currentDivisionId,
+        orgA,
+        priorProgramId,
+        currentProgramId,
+      ],
+    );
+    await admin.query(
+      "INSERT INTO registration_offerings(id,org_id,program_id,division_id,name,registrant_role,active) VALUES ($1,$3,$4,$6,'Prior offering','athlete',true),($2,$3,$5,$7,'Current offering','athlete',true)",
+      [
+        priorOfferingId,
+        currentOfferingId,
+        orgA,
+        priorProgramId,
+        currentProgramId,
+        priorDivisionId,
+        currentDivisionId,
+      ],
+    );
+    await admin.query(
+      "INSERT INTO registrations(id,org_id,program_id,division_id,offering_id,person_id,household_id,registered_by_account_id,source,status) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,'staff','confirmed'),(gen_random_uuid(),$1,$2,$3,$4,$8,$6,$7,'staff','confirmed'),(gen_random_uuid(),$1,$9,$10,$11,$5,$6,$7,'staff','confirmed'),(gen_random_uuid(),$1,$9,$10,$11,$12,$6,$7,'staff','confirmed')",
+      [
+        orgA,
+        priorProgramId,
+        priorDivisionId,
+        priorOfferingId,
+        personId,
+        householdId,
+        ownerId,
+        priorOnlyPersonId,
+        currentProgramId,
+        currentDivisionId,
+        currentOfferingId,
+        newPersonId,
+      ],
     );
     await admin.query(
       'INSERT INTO medical_profiles(id,org_id,person_id,allergy_flags) VALUES ($1,$2,$3,$4)',
@@ -187,6 +265,26 @@ describe('report service', () => {
 
     expect(preview.rows).toHaveLength(200);
     expect(preview.truncated).toBe(true);
+  });
+
+  it('calculates year-over-year retention from unique confirmed participants', async () => {
+    const cohorts = await previewReport(
+      context(orgA, registrarId),
+      {
+        dataset: 'retention_cohorts',
+        columns: [
+          'current_year',
+          'previous_year',
+          'previous_participants',
+          'retained_participants',
+          'retention_rate_percent',
+        ],
+        sort: [{ column: 'current_year', direction: 'asc' }],
+      },
+      withOrg,
+    );
+
+    expect(cohorts.rows).toEqual([[2025, 2024, 2, 1, 50]]);
   });
 
   it('shares reports by role, limits edits to the author or administrators, and checks versions', async () => {

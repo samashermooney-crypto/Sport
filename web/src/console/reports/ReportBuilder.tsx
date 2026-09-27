@@ -48,12 +48,25 @@ type ReportPreset = {
   columns: string[];
   groupBy: string[];
   timeGrain?: TimeGrain;
-  aggregate: { fn: 'count' | 'sum'; column: string };
+  aggregate?: { fn: 'count' | 'sum'; column: string };
   sortColumn: string;
   filters?: ReportFilter[];
 };
 
 const reportPresets: readonly ReportPreset[] = [
+  {
+    label: 'Retention year over year',
+    dataset: 'retention_cohorts',
+    columns: [
+      'current_year',
+      'previous_year',
+      'previous_participants',
+      'retained_participants',
+      'retention_rate_percent',
+    ],
+    groupBy: [],
+    sortColumn: 'current_year',
+  },
   {
     label: 'Registration pace',
     dataset: 'registrations',
@@ -405,6 +418,28 @@ function previewChart(
   aggregate: string;
   data: { label: string; value: number }[];
 } | null {
+  if (definition.dataset === 'retention_cohorts') {
+    const yearIndex = preview.columns.findIndex(
+      (column) => column.key === 'current_year',
+    );
+    const rateIndex = preview.columns.findIndex(
+      (column) => column.key === 'retention_rate_percent',
+    );
+    if (yearIndex < 0 || rateIndex < 0) return null;
+    const yearColumn = preview.columns[yearIndex];
+    const rateColumn = preview.columns[rateIndex];
+    if (!yearColumn || !rateColumn) return null;
+    return {
+      label: yearColumn.label,
+      aggregate: rateColumn.label,
+      data: preview.rows.flatMap((row) => {
+        const value = chartNumber(row[rateIndex]);
+        return value === null
+          ? []
+          : [{ label: chartLabel(row[yearIndex]), value }];
+      }),
+    };
+  }
   const groupKey = definition.groupBy[0];
   const aggregateDefinition = definition.aggregates[0];
   if (
@@ -761,7 +796,8 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
       !(preset.filters ?? []).every((filter) =>
         availableColumns.has(filter.column),
       ) ||
-      (preset.aggregate.fn !== 'count' &&
+      (preset.aggregate &&
+        preset.aggregate.fn !== 'count' &&
         !availableColumns.has(preset.aggregate.column))
     ) {
       setError(
@@ -774,8 +810,8 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
     setFilters(preset.filters ?? []);
     setGroupBy(preset.groupBy);
     setTimeGrain(preset.timeGrain ?? '');
-    setAggregate(preset.aggregate.fn);
-    setAggregateColumn(preset.aggregate.column);
+    setAggregate(preset.aggregate?.fn ?? '');
+    setAggregateColumn(preset.aggregate?.column ?? '');
     setSortColumn(preset.sortColumn);
     setSortDirection('asc');
     setReportName(preset.label);
@@ -924,10 +960,11 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
                       (preset.filters ?? []).every((filter) =>
                         available.has(filter.column),
                       ) &&
-                      (preset.aggregate.fn === 'count' &&
-                      preset.aggregate.column === 'id'
-                        ? true
-                        : available.has(preset.aggregate.column))
+                      (!preset.aggregate ||
+                        (preset.aggregate.fn === 'count' &&
+                        preset.aggregate.column === 'id'
+                          ? true
+                          : available.has(preset.aggregate.column)))
                     );
                   })
                   .map((preset) => (
@@ -976,6 +1013,14 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
 
                 {dataset && (
                   <>
+                    {dataset.key === 'retention_cohorts' && (
+                      <p className="report-builder__muted">
+                        Retention compares unique confirmed participants in
+                        adjacent calendar years. This cohort report keeps its
+                        defined comparison and supports saving, sharing,
+                        scheduling and export.
+                      </p>
+                    )}
                     <fieldset className="report-builder__fieldset">
                       <legend>Columns</legend>
                       <div className="report-builder__column-list">
@@ -1009,7 +1054,12 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
                     >
                       <div className="report-builder__section-heading">
                         <h3 id="report-filters-title">Filters</h3>
-                        <Button type="button" secondary onClick={addFilter}>
+                        <Button
+                          type="button"
+                          secondary
+                          disabled={dataset.key === 'retention_cohorts'}
+                          onClick={addFilter}
+                        >
                           Add filter
                         </Button>
                       </div>
@@ -1141,6 +1191,7 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
                       <Field label="Group by">
                         <Select
                           aria-label="Group by"
+                          disabled={dataset.key === 'retention_cohorts'}
                           value={groupBy[0] ?? ''}
                           options={[
                             { value: '', label: 'No grouping' },
@@ -1179,6 +1230,7 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
                       <Field label="Aggregate">
                         <Select
                           aria-label="Aggregate function"
+                          disabled={dataset.key === 'retention_cohorts'}
                           value={aggregate}
                           options={[
                             { value: '', label: 'No aggregate' },

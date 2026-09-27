@@ -389,6 +389,9 @@ export async function runDatasetQuery(
   selected: DatasetColumn[],
   visible: DatasetColumn[],
 ): Promise<ReportResult> {
+  if (dataset.key === 'retention_cohorts')
+    return runRetentionCohortQuery(trx, orgId, definition, selected);
+
   const filterColumns = definition.filters.map((filter) =>
     tierCheck(visible, dataset, filter.column, 'filter'),
   );
@@ -498,6 +501,113 @@ export async function runDatasetQuery(
     .slice(0, limit)
     .map((row) => outputColumns.map((column) => row[column.key]));
   return { columns: outputColumns, rows, truncated };
+}
+
+interface RetentionCohortRow {
+  current_year: number;
+  previous_year: number;
+  previous_participants: number;
+  retained_participants: number;
+  retention_rate_percent: number | null;
+}
+
+async function runRetentionCohortQuery(
+  trx: OrgTransaction,
+  orgId: string,
+  definition: ReportDefinition,
+  selected: DatasetColumn[],
+): Promise<ReportResult> {
+  if (
+    definition.filters.length > 0 ||
+    definition.groupBy.length > 0 ||
+    definition.aggregates.length > 0 ||
+    definition.timeGrain
+  )
+    throw new ReportError(
+      400,
+      'VALIDATION_ERROR',
+      'Retention cohorts support column selection and sorting only',
+    );
+  if (
+    definition.sort.some(
+      (sort) => !selected.some((column) => column.key === sort.column),
+    )
+  )
+    throw new ReportError(
+      400,
+      'VALIDATION_ERROR',
+      'Retention cohorts can only sort by selected columns',
+    );
+
+  const result = await sql<RetentionCohortRow>`
+    WITH season_people AS (
+      SELECT DISTINCT
+        EXTRACT(YEAR FROM s.starts_on)::integer AS year,
+        r.person_id
+      FROM registrations r
+      JOIN programs p
+        ON p.id = r.program_id AND p.org_id = r.org_id
+      JOIN seasons s
+        ON s.id = p.season_id AND s.org_id = p.org_id
+      WHERE r.org_id = ${orgId}
+        AND r.status = 'confirmed'
+    ), people_by_year AS (
+      SELECT year, count(*)::integer AS participant_count
+      FROM season_people
+      GROUP BY year
+    )
+    SELECT
+      current_year.year AS current_year,
+      previous_year.year AS previous_year,
+      previous_year.participant_count AS previous_participants,
+      count(DISTINCT previous_person.person_id)::integer AS retained_participants,
+      ROUND(
+        count(DISTINCT previous_person.person_id)::numeric * 100 /
+          NULLIF(previous_year.participant_count, 0),
+        1
+      )::double precision AS retention_rate_percent
+    FROM people_by_year current_year
+    JOIN people_by_year previous_year
+      ON previous_year.year = current_year.year - 1
+    LEFT JOIN season_people current_person
+      ON current_person.year = current_year.year
+    LEFT JOIN season_people previous_person
+      ON previous_person.year = previous_year.year
+      AND previous_person.person_id = current_person.person_id
+    GROUP BY
+      current_year.year,
+      previous_year.year,
+      previous_year.participant_count
+    ORDER BY current_year.year ASC
+  `.execute(trx);
+
+  const sortColumn = definition.sort[0];
+  const sortedRows = sortColumn
+    ? [...result.rows].sort((left, right) => {
+        for (const sort of definition.sort) {
+          const a = left[sort.column as keyof RetentionCohortRow];
+          const b = right[sort.column as keyof RetentionCohortRow];
+          if (a === b) continue;
+          if (a === null) return 1;
+          if (b === null) return -1;
+          const order =
+            typeof a === 'number' && typeof b === 'number'
+              ? a - b
+              : String(a).localeCompare(String(b));
+          if (order !== 0) return sort.direction === 'desc' ? -order : order;
+        }
+        return 0;
+      })
+    : result.rows;
+  const limit = Math.min(definition.limit ?? 200, 50_000);
+  const rows = sortedRows.slice(0, limit);
+  return {
+    columns: selected.map(({ key, label, type }) => ({ key, label, type })),
+    rows: rows.map((row) =>
+      selected.map((column) => row[column.key as keyof RetentionCohortRow]),
+    ),
+    truncated: sortedRows.length > limit,
+  };
 }
 
 export async function datasetAvailable(

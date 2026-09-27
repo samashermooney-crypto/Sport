@@ -223,6 +223,33 @@ export const REPORT_DATASETS: readonly Dataset[] = [
     ],
   },
   {
+    key: 'retention_cohorts',
+    label: 'Year-over-year retention',
+    description:
+      'Unique confirmed participants retained from the previous calendar year',
+    table: 'seasons',
+    requiredTables: ['seasons', 'programs', 'registrations'],
+    joins: [],
+    roles: STAFF,
+    columns: [
+      col('current_year', 'Current year', 'number', 'internal'),
+      col('previous_year', 'Prior year', 'number', 'internal'),
+      col(
+        'previous_participants',
+        'Prior-year participants',
+        'number',
+        'internal',
+      ),
+      col(
+        'retained_participants',
+        'Retained participants',
+        'number',
+        'internal',
+      ),
+      col('retention_rate_percent', 'Retention rate (%)', 'number', 'internal'),
+    ],
+  },
+  {
     key: 'rosters',
     label: 'Rosters',
     description: 'Team roster entries',
