@@ -247,3 +247,11 @@
 - **Decision:** Suspension preserves role assignments while denying effective access through inactive membership status; reactivation restores those assignments. Removal keeps the membership and audit history, revokes all active assignments and sessions, and requires a new invitation to rejoin. Both operations use membership versions and the organization-row lock to protect the last active owner.
 - **Why:** A temporary safety or administrative hold can be reversed without reconstructing scoped access, while removal cannot silently reactivate old privileges.
 - **Consequences / follow-ups:** Future permission checks must require active membership as well as an active assignment; the staff UI shows suspended memberships and hides removed ones.
+
+### DEC-030 — Version scoped role changes with membership
+- **Date:** 2026-09-26
+- **Phase / area:** Phase 1 users and roles
+- **Context:** A member can hold distinct grants for a season, program, division or team season. Editing one grant must not overwrite grants at other scopes or let an owner use an ID from another organization.
+- **Decision:** Grant or revoke one scoped role at a time after checking the scoped entity under `withOrg`, with the same membership version, organization lock, owner step-up and target-session revocation as organization role edits. Ownership is restricted to organization scope and its separate accepted transfer flow.
+- **Why:** Each change is independently auditable and concurrent edits cannot silently overwrite each other.
+- **Consequences / follow-ups:** The staff UI needs a usable selector for existing scope records as the Phase 2 and 3 directories become available; it currently accepts a validated scope ID.

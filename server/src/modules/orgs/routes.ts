@@ -12,12 +12,14 @@ import {
   orgStaffResponseSchema,
   orgMemberRolesResponseSchema,
   orgMemberStatusResponseSchema,
+  scopedRoleResponseSchema,
   orgSlugAvailabilitySchema,
   orgSlugSchema,
   sportTemplateCatalogSchema,
   updateOrgCredentialSchema,
   updateOrgMemberRolesSchema,
   updateOrgMemberStatusSchema,
+  updateScopedRoleSchema,
 } from '@shared/schemas/orgs';
 import express from 'express';
 import { z } from 'zod';
@@ -39,6 +41,7 @@ import {
   OrgMemberRolesError,
   setOrgMemberRoles,
   setOrgMemberStatus,
+  setScopedRole,
 } from './memberRoles';
 import { isOrgSlugAvailable } from './slug';
 
@@ -347,6 +350,39 @@ export function createOrgRouter(
       sendError(response, error);
     }
   });
+  router.patch(
+    '/:orgId/members/:memberId/scoped-role',
+    async (request, response) => {
+      try {
+        if (!mutationOriginIsValid(request, dependencies.appUrl))
+          throw new OrgMemberRolesError(
+            403,
+            'FORBIDDEN',
+            'Request origin could not be verified',
+          );
+        const { context, session } = await ownerContext(request);
+        if (
+          !session.elevatedUntil ||
+          session.elevatedUntil <= dependencies.clock()
+        )
+          throw new OrgMemberRolesError(
+            403,
+            'FORBIDDEN',
+            'Confirm your identity before changing roles',
+          );
+        const result = await setScopedRole(dependencies.database, {
+          orgId: context.orgId,
+          actorId: session.accountId,
+          targetId: z.uuid().parse(request.params.memberId),
+          changes: updateScopedRoleSchema.parse(request.body),
+          now: dependencies.clock(),
+        });
+        response.json(scopedRoleResponseSchema.parse(result));
+      } catch (error) {
+        sendError(response, error);
+      }
+    },
+  );
   router.patch(
     '/:orgId/members/:memberId/status',
     async (request, response) => {
