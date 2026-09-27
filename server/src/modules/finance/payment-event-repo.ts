@@ -8,6 +8,7 @@ import type { GatewayPaymentIntent } from '../../integrations/stripe/gateway.js'
 import { appendAuditEvent } from '../audit/service.js';
 
 import { recomputeInvoiceStatus } from './invoice-repo.js';
+import { enqueueFinanceNotice } from './money-notices.js';
 import type {
   PaymentEventRepository,
   PaymentEventResult,
@@ -66,6 +67,7 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
         .selectFrom('payments')
         .select([
           'id',
+          'account_id',
           'amount_cents',
           'status',
           'method',
@@ -241,6 +243,15 @@ export class PostgresPaymentEventRepository implements PaymentEventRepository {
           status: { tier: 'internal', before: payment.status, after: target },
         },
       });
+      if (firstSuccess) {
+        if (!payment.account_id)
+          throw new Error('Successful Stripe payment lacks a payer account');
+        await enqueueFinanceNotice(trx, context, {
+          kind: 'payment_received',
+          sourceId: payment.id,
+          accountId: payment.account_id,
+        });
+      }
       return 'applied';
     });
   }

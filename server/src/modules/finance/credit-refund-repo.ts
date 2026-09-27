@@ -212,13 +212,15 @@ export class PostgresCreditRefundRepository implements CreditRefundRepository {
         INSERT INTO refunds
           (id, org_id, payment_id, amount_cents, reason, status,
            refund_application_fee, reverse_transfer, requested_by, approved_by,
-           destination, credit_operation_key, request_hash, credit_id)
+           destination, credit_operation_key, request_hash, credit_id,
+           succeeded_at)
         VALUES
           (${refundId}::uuid, ${input.orgId}::uuid, ${input.paymentId}::uuid,
            ${proposal.totalCents}, 'withdrawal_policy', 'succeeded', false, false,
            ${input.requestedByAccountId}::uuid,
            ${input.approvedByAccountId ?? null}::uuid, 'credit',
-           ${input.idempotencyKey}::uuid, ${requestHash}, ${creditId}::uuid)
+           ${input.idempotencyKey}::uuid, ${requestHash}, ${creditId}::uuid,
+           ${new Date(this.now().toString())}::timestamptz)
       `.execute(trx);
       for (const line of lines) {
         await trx

@@ -17,6 +17,7 @@ import {
   invoiceTotals,
   type IssueInvoiceInput,
 } from './invoices.js';
+import { enqueueFinanceNotice } from './money-notices.js';
 import { refundTermsSchema } from './refund-terms.js';
 
 export interface IssuedInvoice {
@@ -36,6 +37,14 @@ interface InvoiceRow {
 }
 
 class DuplicateInvoice extends Error {}
+
+export class InvoiceConflictError extends Error {
+  readonly status = 409;
+}
+
+export class InvoiceNotFoundError extends Error {
+  readonly status = 404;
+}
 
 /** Creates header and lines in one withOrg transaction; the DB reconciles at commit. */
 export class PostgresInvoiceRepository {
@@ -133,6 +142,11 @@ export class PostgresInvoiceRepository {
             number: { tier: 'internal', after: number },
           },
         });
+        await enqueueFinanceNotice(trx, this.context, {
+          kind: 'invoice_issued',
+          sourceId: id,
+          accountId: input.accountId,
+        });
         return {
           id,
           orgId: input.orgId,
@@ -161,6 +175,7 @@ export class PostgresInvoiceRepository {
     orgId: string;
     invoiceId: string;
     reason: string;
+    expectedVersion?: number;
   }): Promise<void> {
     if (input.orgId !== this.context.orgId)
       throw new Error('Invoice organization mismatch');
@@ -176,13 +191,59 @@ export class PostgresInvoiceRepository {
           'paid_cents',
           'refunded_cents',
           'credit_applied_cents',
+          'disputed_cents',
+          'dispute_lost_cents',
+          'void_reason',
+          'version',
         ])
         .where('org_id', '=', input.orgId)
         .where('id', '=', input.invoiceId)
         .forUpdate()
         .executeTakeFirst();
-      if (!invoice) throw new Error('Invoice not found');
-      if (invoice.status === 'void') return;
+      if (!invoice) throw new InvoiceNotFoundError('Invoice not found');
+      if (invoice.status === 'void') {
+        if (invoice.void_reason !== input.reason)
+          throw new InvoiceConflictError(
+            'Invoice was voided for a different reason',
+          );
+        return;
+      }
+      if (
+        input.expectedVersion !== undefined &&
+        invoice.version !== input.expectedVersion
+      )
+        throw new InvoiceConflictError('Invoice version changed');
+      if (
+        invoice.paid_cents !== invoice.refunded_cents ||
+        invoice.credit_applied_cents !== 0 ||
+        invoice.disputed_cents !== 0 ||
+        invoice.dispute_lost_cents !== 0
+      )
+        throw new InvoiceConflictError(
+          'Cannot void invoice with net money or dispute',
+        );
+      const unsettled = await sql<{ count: number }>`
+        SELECT count(*)::integer AS count FROM payment_allocations pa
+        JOIN payments p ON p.org_id = pa.org_id AND p.id = pa.payment_id
+        WHERE pa.org_id = ${input.orgId}::uuid
+          AND pa.invoice_id = ${input.invoiceId}::uuid
+          AND p.status IN ('requires_action', 'processing')
+      `.execute(trx);
+      if ((unsettled.rows[0]?.count ?? 0) > 0)
+        throw new InvoiceConflictError(
+          'Cannot void invoice with unsettled payment',
+        );
+      const installments = await trx
+        .selectFrom('installments')
+        .select('id')
+        .where('org_id', '=', input.orgId)
+        .where('invoice_id', '=', input.invoiceId)
+        .where('status', 'in', ['scheduled', 'processing'])
+        .executeTakeFirst();
+      if (installments)
+        throw new InvoiceConflictError(
+          'Cannot void invoice with active installments',
+        );
       deriveInvoiceState({
         totalCents: invoice.total_cents,
         succeededAllocationsCents: invoice.paid_cents,
@@ -212,9 +273,95 @@ export class PostgresInvoiceRepository {
     });
   }
 
+  async read(orgId: string, invoiceId: string) {
+    if (orgId !== this.context.orgId)
+      throw new Error('Invoice organization mismatch');
+    return this.withOrg(this.context, async (trx) => {
+      const invoice = await trx
+        .selectFrom('invoices')
+        .select([
+          'id',
+          'number',
+          'account_id',
+          'household_id',
+          'status',
+          'issued_at',
+          'due_on',
+          'subtotal_cents',
+          'discount_cents',
+          'service_fee_cents',
+          'tax_cents',
+          'total_cents',
+          'paid_cents',
+          'refunded_cents',
+          'credit_applied_cents',
+          'balance_cents',
+          'memo',
+          'source',
+          'version',
+          'voided_at',
+          'void_reason',
+        ])
+        .where('org_id', '=', orgId)
+        .where('id', '=', invoiceId)
+        .executeTakeFirst();
+      if (!invoice) throw new InvoiceNotFoundError('Invoice not found');
+      const lines = await trx
+        .selectFrom('invoice_lines')
+        .select([
+          'id',
+          'kind',
+          'description',
+          'amount_cents',
+          'refundable',
+          'parent_line_id',
+        ])
+        .where('org_id', '=', orgId)
+        .where('invoice_id', '=', invoiceId)
+        .orderBy('created_at')
+        .orderBy('id')
+        .execute();
+      return {
+        id: invoice.id,
+        number: invoice.number,
+        accountId: invoice.account_id,
+        householdId: invoice.household_id,
+        status: invoice.status,
+        issuedAt: invoice.issued_at?.toISOString() ?? null,
+        dueOn: invoice.due_on
+          ? new Date(invoice.due_on).toISOString().slice(0, 10)
+          : null,
+        subtotalCents: invoice.subtotal_cents,
+        discountCents: invoice.discount_cents,
+        serviceFeeCents: invoice.service_fee_cents,
+        taxCents: invoice.tax_cents,
+        totalCents: invoice.total_cents,
+        paidCents: invoice.paid_cents,
+        refundedCents: invoice.refunded_cents,
+        creditAppliedCents: invoice.credit_applied_cents,
+        balanceCents: invoice.balance_cents,
+        memo: invoice.memo,
+        source: invoice.source,
+        version: invoice.version,
+        voidedAt: invoice.voided_at?.toISOString() ?? null,
+        voidReason: invoice.void_reason,
+        lines: lines.map((line) => ({
+          id: line.id,
+          kind: line.kind,
+          description: line.description,
+          amountCents: line.amount_cents,
+          refundable: line.refundable,
+          parentLineId: line.parent_line_id,
+        })),
+      };
+    });
+  }
+
   private replay(row: InvoiceRow, hash: string): IssuedInvoice {
     if (row.creation_hash !== hash) {
-      throw new Error('Invoice creation key was used for a different request');
+      throw new InvoiceConflictError(
+        'Invoice creation key was used for a different request',
+      );
     }
     return {
       id: row.id,
