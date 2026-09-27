@@ -22,6 +22,8 @@ import {
   connectStatusResponseSchema,
   checkoutPaymentBodySchema,
   checkoutPaymentResponseSchema,
+  staffInvoiceBodySchema,
+  staffInvoiceResponseSchema,
 } from './routes.js';
 
 export const moduleDefinition = {
@@ -33,6 +35,13 @@ export const moduleDefinition = {
   notificationTypes: [],
   errorCodes: [],
   openapiRoutes: [
+    {
+      method: 'post',
+      path: '/api/v1/finance/orgs/{orgId}/invoices',
+      summary: 'Issue an idempotent staff invoice with frozen refund terms',
+      body: staffInvoiceBodySchema,
+      response: staffInvoiceResponseSchema,
+    },
     {
       method: 'get',
       path: '/api/v1/finance/orgs/{orgId}/installment-templates',

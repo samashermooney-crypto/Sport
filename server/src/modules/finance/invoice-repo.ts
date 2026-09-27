@@ -37,6 +37,10 @@ interface InvoiceRow {
 
 class DuplicateInvoice extends Error {}
 
+export class InvoiceConflictError extends Error {
+  readonly status = 409;
+}
+
 /** Creates header and lines in one withOrg transaction; the DB reconciles at commit. */
 export class PostgresInvoiceRepository {
   private readonly withOrg: ReturnType<typeof createWithOrg>;
@@ -214,7 +218,9 @@ export class PostgresInvoiceRepository {
 
   private replay(row: InvoiceRow, hash: string): IssuedInvoice {
     if (row.creation_hash !== hash) {
-      throw new Error('Invoice creation key was used for a different request');
+      throw new InvoiceConflictError(
+        'Invoice creation key was used for a different request',
+      );
     }
     return {
       id: row.id,

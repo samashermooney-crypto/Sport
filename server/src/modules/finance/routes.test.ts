@@ -259,6 +259,65 @@ function request(
   });
 }
 
+describe('staff invoice HTTP', () => {
+  it('requires finance origin, dedupes the issue key, and rejects a changed replay', async () => {
+    const key = randomUUID();
+    const body = {
+      accountId: context.actor.accountId,
+      refundTerms: {
+        policy: {
+          rules: [],
+          afterLastBps: 5000,
+          serviceFeeRefund: 'proportional',
+        },
+        approvalThresholdCents: 500,
+        refundApplicationFee: true,
+      },
+      lines: [
+        {
+          kind: 'team_fee',
+          description: 'Season fee',
+          amountCents: 2500,
+          refundable: true,
+        },
+      ],
+    };
+    const post = (payload: unknown, originHeader = origin) =>
+      fetch(`${baseUrl}/orgs/${context.orgId}/invoices`, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: originHeader,
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': key,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+    expect((await post(body, 'https://attacker.example')).status).toBe(403);
+    expect((await post({ ...body, accountId: newId() })).status).toBe(403);
+    expect((await post({ ...body, householdId: newId() })).status).toBe(403);
+    const first = await post(body);
+    expect(first.status).toBe(201);
+    const created = (await first.json()) as { id: string; totalCents: number };
+    expect(created.totalCents).toBe(2500);
+    const replay = await post(body);
+    expect(replay.status).toBe(201);
+    expect(await replay.json()).toMatchObject({ id: created.id });
+    expect((await post({ ...body, memo: 'changed' })).status).toBe(409);
+    const stored = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('invoices')
+        .select(['source', 'refund_terms'])
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', created.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(stored.source).toBe('staff');
+    expect(stored.refund_terms).toMatchObject(body.refundTerms);
+  });
+});
+
 describe('staff refund HTTP', () => {
   it('rejects cross-origin writes, records an approved-threshold refund and replays it', async () => {
     const key = randomUUID();

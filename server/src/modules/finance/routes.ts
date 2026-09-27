@@ -24,6 +24,10 @@ import {
   PostgresInstallmentTemplates,
 } from './installment-templates.js';
 import {
+  InvoiceConflictError,
+  PostgresInvoiceRepository,
+} from './invoice-repo.js';
+import {
   JournalExportError,
   payoutJournalCsv,
   payoutJournalLines,
@@ -44,6 +48,7 @@ import { PostgresRefundApprovalPolicy } from './refund-approval-repo.js';
 import { PostgresRefundAttemptStore } from './refund-attempt-repo.js';
 import { PostgresRefundRecordStore } from './refund-record-repo.js';
 import { PostgresRefundSourceReader } from './refund-source-repo.js';
+import { refundTermsSchema } from './refund-terms.js';
 import {
   refundProposal,
   RefundConflictError,
@@ -58,6 +63,49 @@ export const offlinePaymentBodySchema = z.strictObject({
   method: z.enum(['cash', 'check', 'external']),
   amountCents: z.number().int().positive(),
   reference: z.string().max(200).nullable().optional(),
+});
+export const staffInvoiceBodySchema = z.strictObject({
+  accountId: z.uuid(),
+  householdId: z.uuid().optional(),
+  dueOn: z.iso.date().optional(),
+  memo: z.string().max(2000).optional(),
+  refundTerms: refundTermsSchema,
+  lines: z
+    .array(
+      z.strictObject({
+        kind: z.enum([
+          'registration',
+          'add_on',
+          'product',
+          'team_fee',
+          'tuition',
+          'volunteer_buyout',
+          'donation',
+          'service_fee',
+          'late_fee',
+          'adjustment',
+          'discount',
+          'aid',
+        ]),
+        description: z.string().trim().min(1).max(500),
+        amountCents: z
+          .number()
+          .int()
+          .min(-Number.MAX_SAFE_INTEGER)
+          .max(Number.MAX_SAFE_INTEGER)
+          .refine((value) => value !== 0),
+        refundable: z.boolean(),
+        parentLineIndex: z.number().int().nonnegative().optional(),
+      }),
+    )
+    .min(1)
+    .max(100),
+});
+export const staffInvoiceResponseSchema = z.strictObject({
+  id: z.uuid(),
+  number: z.number().int().positive(),
+  totalCents: z.number().int().nonnegative(),
+  status: z.enum(['open', 'paid']),
 });
 export const offlinePaymentReceiptSchema = z.strictObject({
   paymentId: z.uuid(),
@@ -195,7 +243,8 @@ function sendError(response: Response, error: unknown): void {
           error instanceof PayerMethodConflictError ||
           error instanceof ConnectConflictError ||
           error instanceof PaymentConflictError ||
-          error instanceof InstallmentTemplateConflictError
+          error instanceof InstallmentTemplateConflictError ||
+          error instanceof InvoiceConflictError
         ? 409
         : error instanceof FinanceDependencyError
           ? 503
@@ -262,6 +311,100 @@ export function createFinanceRouter(
       }),
     };
   };
+  router.post('/orgs/:orgId/invoices', async (request, response) => {
+    try {
+      if (
+        !writeOriginValid(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const input = staffInvoiceBodySchema.parse(request.body as unknown);
+      const creationKey = z.uuid().parse(request.get('Idempotency-Key'));
+      const context = { orgId, actor: { accountId: session.accountId } };
+      await requireFinanceStaff(dependencies.database, context);
+      const billable = await createWithOrg(dependencies.database)(
+        context,
+        async (trx) => {
+          if (input.householdId) {
+            const householdLink = await trx
+              .selectFrom('person_account_links as pal')
+              .innerJoin('household_members as hm', (join) =>
+                join
+                  .onRef('hm.org_id', '=', 'pal.org_id')
+                  .onRef('hm.person_id', '=', 'pal.person_id'),
+              )
+              .innerJoin('households as h', (join) =>
+                join
+                  .onRef('h.org_id', '=', 'hm.org_id')
+                  .onRef('h.id', '=', 'hm.household_id'),
+              )
+              .select('pal.id')
+              .where('pal.org_id', '=', orgId)
+              .where('pal.account_id', '=', input.accountId)
+              .where('pal.revoked_at', 'is', null)
+              .where('pal.verified_at', 'is not', null)
+              .where('hm.household_id', '=', input.householdId)
+              .where('hm.financially_responsible', '=', true)
+              .where('h.status', '=', 'active')
+              .executeTakeFirst();
+            return Boolean(householdLink);
+          }
+          const member = await trx
+            .selectFrom('org_memberships')
+            .select('id')
+            .where('org_id', '=', orgId)
+            .where('account_id', '=', input.accountId)
+            .where('status', '=', 'active')
+            .executeTakeFirst();
+          if (member) return true;
+          const participant = await trx
+            .selectFrom('person_account_links')
+            .select('id')
+            .where('org_id', '=', orgId)
+            .where('account_id', '=', input.accountId)
+            .where('revoked_at', 'is', null)
+            .where('verified_at', 'is not', null)
+            .executeTakeFirst();
+          return Boolean(participant);
+        },
+      );
+      if (!billable) throw new FinanceAccessError();
+      const invoice = await new PostgresInvoiceRepository(
+        dependencies.database,
+        context,
+      ).issue({
+        orgId,
+        accountId: input.accountId,
+        source: 'staff',
+        creationKey,
+        refundTerms: input.refundTerms,
+        lines: input.lines.map((line) => ({
+          kind: line.kind,
+          description: line.description,
+          amountCents: line.amountCents,
+          refundable: line.refundable,
+          ...(line.parentLineIndex === undefined
+            ? {}
+            : { parentLineIndex: line.parentLineIndex }),
+        })),
+        ...(input.householdId ? { householdId: input.householdId } : {}),
+        ...(input.dueOn ? { dueOn: input.dueOn } : {}),
+        ...(input.memo ? { memo: input.memo } : {}),
+      });
+      response.status(201).json(
+        staffInvoiceResponseSchema.parse({
+          id: invoice.id,
+          number: invoice.number,
+          totalCents: invoice.totalCents,
+          status: invoice.status,
+        }),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
   router.get(
     '/orgs/:orgId/installment-templates',
     async (request, response) => {
