@@ -311,6 +311,96 @@ describe('Phase 15 import transactions', () => {
     expect(after.status).toBe('revoked');
   });
 
+  it('records historical payments as external and preserves the ledger on rollback', async () => {
+    const email = `history-${crypto.randomUUID()}@example.test`;
+    await createPerson(email, 'Historical Payer');
+    const imports = createImportsService(database, null);
+    const batch = await imports.createBatch(staff.orgId, staff.accountId, {
+      kind: 'historical_payments',
+      fileName: 'historical-payments.csv',
+      bytes: csv(
+        `Payer email,Amount,Paid on,Method,Reference,Description\n${email},149.00,2025-08-15,card,old-system-1042,2025 registration`,
+      ),
+    });
+    expect(
+      await imports.validateBatch(staff.orgId, batch.id, staff.accountId),
+    ).toMatchObject({ rowCount: 1, errorCount: 0 });
+    expect(
+      await imports.commitBatch(staff.orgId, batch.id, staff.accountId),
+    ).toMatchObject({ created: 1, total_cents: 14_900 });
+
+    const saved = await factories.scoped(staff, async (trx) => {
+      const payment = await trx
+        .selectFrom('payments')
+        .select(['id', 'method', 'status', 'amount_cents', 'reference'])
+        .where('org_id', '=', staff.orgId)
+        .where('reference', '=', 'old-system-1042')
+        .executeTakeFirstOrThrow();
+      const allocation = await trx
+        .selectFrom('payment_allocations')
+        .select(['id', 'invoice_id'])
+        .where('org_id', '=', staff.orgId)
+        .where('payment_id', '=', payment.id)
+        .executeTakeFirstOrThrow();
+      const invoice = await trx
+        .selectFrom('invoices')
+        .select(['id', 'status', 'paid_cents'])
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', allocation.invoice_id)
+        .executeTakeFirstOrThrow();
+      const line = await trx
+        .selectFrom('invoice_lines')
+        .select('id')
+        .where('org_id', '=', staff.orgId)
+        .where('invoice_id', '=', invoice.id)
+        .executeTakeFirstOrThrow();
+      return { payment, invoice, allocation, line };
+    });
+    expect(saved.payment).toMatchObject({
+      method: 'external',
+      status: 'succeeded',
+      amount_cents: 14_900,
+    });
+    expect(saved.invoice).toMatchObject({ status: 'paid', paid_cents: 14_900 });
+
+    expect(
+      await imports.rollbackBatch(staff.orgId, batch.id, staff.accountId),
+    ).toMatchObject({
+      reversed: { payments: 1, invoices: 1 },
+      retained_records: { payment_allocations: 1, invoice_lines: 1 },
+    });
+    const after = await factories.scoped(staff, async (trx) => ({
+      payment: await trx
+        .selectFrom('payments')
+        .select('status')
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', saved.payment.id)
+        .executeTakeFirstOrThrow(),
+      invoice: await trx
+        .selectFrom('invoices')
+        .select(['status', 'paid_cents'])
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', saved.invoice.id)
+        .executeTakeFirstOrThrow(),
+      allocation: await trx
+        .selectFrom('payment_allocations')
+        .select('id')
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', saved.allocation.id)
+        .executeTakeFirst(),
+      line: await trx
+        .selectFrom('invoice_lines')
+        .select('id')
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', saved.line.id)
+        .executeTakeFirst(),
+    }));
+    expect(after.payment.status).toBe('canceled');
+    expect(after.invoice).toMatchObject({ status: 'void', paid_cents: 0 });
+    expect(after.allocation).not.toBeNull();
+    expect(after.line).not.toBeNull();
+  });
+
   it('requires an explicit create or skip decision for duplicate people rows', async () => {
     const email = `duplicate-${crypto.randomUUID()}@example.test`;
     await createPerson(email, 'Returning Player');
