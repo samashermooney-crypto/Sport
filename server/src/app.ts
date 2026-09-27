@@ -5,7 +5,7 @@ import { modulePermissions } from '@shared/generated/permissions';
 import { healthResponseSchema } from '@shared/schemas/health';
 import express from 'express';
 
-import { serverModules } from './generated/registry';
+import { apiRouteMetadata, serverModules } from './generated/registry';
 import { createStripeWebhookRouter } from './integrations/stripe/webhook-routes';
 import type { StripeWebhookDependencies } from './integrations/stripe/webhook-routes';
 import { createSecurityHeaders } from './lib/security/security-headers';
@@ -64,6 +64,16 @@ export function createApp(
       if (!knownPermissions.has(permission)) {
         throw new Error(`Unknown module permission: ${permission}`);
       }
+    }
+  }
+  for (const metadata of apiRouteMetadata as readonly unknown[]) {
+    if (!metadata || typeof metadata !== 'object')
+      throw new Error('Generated API route metadata is malformed');
+    const route = metadata as Record<string, unknown>;
+    if (!route.permission || !route.resource || !route.scope) {
+      throw new Error(
+        `API route is missing generated security metadata: ${String(route.method)} ${String(route.path)}`,
+      );
     }
   }
   app.get('/healthz', (_request, response) => {

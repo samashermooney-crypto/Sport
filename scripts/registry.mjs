@@ -274,11 +274,10 @@ const operations = Object.fromEntries(
     ];
   }),
 );
-const permissionMatrix = `${JSON.stringify(
-  { formatVersion: 1, roles: securityRoles, operations },
-  null,
-  2,
-)}\n`;
+const permissionMatrix = await prettier.format(
+  JSON.stringify({ formatVersion: 1, roles: securityRoles, operations }),
+  { parser: 'json', printWidth: 80 },
+);
 const matrixPath = resolve('server/test/security/permission-matrix.json');
 const currentMatrix = await readFile(matrixPath, 'utf8').catch(() => '');
 if (currentMatrix !== permissionMatrix)

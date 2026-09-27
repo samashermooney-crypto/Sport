@@ -905,6 +905,6 @@ await writeFile(
   'server/src/generated/api-route-metadata.ts',
   await prettier.format(
     `export const apiRouteMetadata = ${JSON.stringify(apiRouteMetadata)} as const;\n`,
-    { parser: 'typescript' },
+    { parser: 'typescript', singleQuote: true, trailingComma: 'all' },
   ),
 );
