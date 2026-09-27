@@ -57,7 +57,17 @@ test('family portal shell navigates between working pages in Spanish', async ({
     expect(await accessibilityViolations(page)).toEqual([]);
     await nav.getByRole('link', { name: 'Mensajes' }).click();
     await expect(page).toHaveURL(`/me/orgs/${actor.orgId}/messages`);
-    await expect(page.getByRole('heading', { name: 'Messages' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Mensajes', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Conversaciones' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', {
+        name: 'Consentimiento para mensajes de texto',
+      }),
+    ).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Mensajes' })).toHaveAttribute(
       'aria-current',
       'page',
