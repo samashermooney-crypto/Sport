@@ -409,11 +409,33 @@ export class StripeSdkGateway implements PaymentsGateway {
     return { items, hasMore: page.has_more };
   }
 
-  async listBalanceTransactions(accountId: string, payoutId: string) {
+  async retrievePayout(
+    accountId: string,
+    payoutId: string,
+  ): Promise<GatewayPayout> {
+    const payout = await this.stripe.payouts.retrieve(
+      payoutId,
+      {},
+      { stripeAccount: accountId },
+    );
+    return {
+      id: payout.id,
+      amountCents: payout.amount,
+      status: payout.status,
+      arrivalDate: payout.arrival_date,
+    };
+  }
+
+  async listBalanceTransactions(
+    accountId: string,
+    payoutId: string,
+    startingAfter?: string,
+  ) {
     const page = await this.stripe.balanceTransactions.list(
       {
         payout: payoutId,
         limit: 100,
+        ...(startingAfter ? { starting_after: startingAfter } : {}),
       },
       { stripeAccount: accountId },
     );

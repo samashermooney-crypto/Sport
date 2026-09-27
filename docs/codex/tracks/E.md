@@ -9,7 +9,7 @@ Additional ready for integration: local `4e97356..c7dd637` — spine-independent
 Requests to other tracks: A: mount `createStripeWebhookRouter` at `/api/v1/webhooks` before JSON parsing when Stripe repository/worker dependencies are wired; regenerate DB types after E migrations 1000–1003 merge (2026-09-26).
 Requests to other tracks: B: confirm whether `generateInstallments` must support `weekly` from `02 §L` (current `20 §3` algorithm and shared function cover fixed dates/monthly only) (2026-09-26).
 Blocked on: None; schema spine and test factories are on `rebuild/trunk`.
-Next: implement dispute and payout reconciliation, then register finance jobs/handlers once Track A mounts the worker.
+Next: implement dispute liability and reconciliation reports, then register finance jobs/handlers once Track A mounts the worker.
 Gateway: Stripe SDK 22.6.2 dependency-only commit `cf83f4c`; real SDK adapter covers Connect, Customers, payment methods, intents, refunds, reversals, disputes, payouts, Billing and domains.
 Gateway tests: 36 passed, including stripe-mock Express account and destination PaymentIntent; typecheck and targeted lint green.
 Gateway review: test-only keys and events enforced; raw webhook bytes verified; exact destination fee and idempotency key asserted.
@@ -50,3 +50,4 @@ Refund to credit: migration 1014 links a succeeded internal refund to one issued
 Invoice issuance: migration 1004 adds product-tax lines and creation keys; `finance/invoice-repo.ts` atomically numbers, dedupes and reconciles header/lines with the spine triggers; 2 real-Postgres tests pass.
 Invoice state: `finance/invoice-repo.ts` now recomputes Track B-derived status inside money transactions, audits issuance/voids and permits void only after net payments and credits reach zero; 2 further real-Postgres tests pass.
 Waitlist holds: `checkout/waitlist.ts` sets family-local send times and expiry from send, with one-transaction repository contract for capacity, offer and outbox; 2 targeted tests pass.
+Payout mirror: `finance/payouts.ts` fetches latest Connect payout and all transaction pages; `payout-repo.ts` atomically mirrors immutable cents and account ownership under `withOrg`; 3 targeted tests pass.

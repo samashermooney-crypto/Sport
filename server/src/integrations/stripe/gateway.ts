@@ -84,9 +84,11 @@ export interface PaymentsGateway {
     accountId: string,
     startingAfter?: string,
   ): Promise<GatewayPage<GatewayPayout>>;
+  retrievePayout(accountId: string, payoutId: string): Promise<GatewayPayout>;
   listBalanceTransactions(
     accountId: string,
     payoutId: string,
+    startingAfter?: string,
   ): Promise<GatewayPage<GatewayBalanceTransaction>>;
   createBillingCheckout(input: {
     customerId: string;
