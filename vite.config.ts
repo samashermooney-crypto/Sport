@@ -26,5 +26,9 @@ export default defineConfig({
       '/healthz': `http://127.0.0.1:${process.env.ATHLENTRY_API_PORT ?? '3001'}`,
     },
   },
-  build: { outDir: '../dist/web', emptyOutDir: true },
+  build: {
+    outDir: '../dist/web',
+    emptyOutDir: true,
+    rollupOptions: { output: { entryFileNames: 'assets/app-[hash].js' } },
+  },
 });

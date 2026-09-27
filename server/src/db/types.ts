@@ -326,6 +326,7 @@ export interface ChatMessages {
 export interface ChatReports {
   created_at: Generated<Timestamp>;
   id: string;
+  incident_report_id: string | null;
   message_id: string;
   org_id: string;
   reason: string;
@@ -383,6 +384,23 @@ export interface Closures {
   version: Generated<number>;
 }
 
+export interface CommunicationConsentEvents {
+  accepted_at: Generated<Timestamp>;
+  account_id: string;
+  action: string;
+  consent_text: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  ip: string | null;
+  org_id: string;
+  phone_e164: string;
+  provider_message_id: string | null;
+  source: string;
+  updated_at: Generated<Timestamp>;
+  user_agent: string | null;
+  version: string;
+}
+
 export interface CommunicationPreferences {
   account_id: string;
   category: string;
@@ -392,6 +410,20 @@ export interface CommunicationPreferences {
   id: string;
   org_id: string;
   updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface CommunicationSenderIdentities {
+  created_at: Generated<Timestamp>;
+  display_name: string | null;
+  org_id: string;
+  reply_to: string | null;
+  reply_to_verification_expires_at: Timestamp | null;
+  reply_to_verification_hash: Buffer | null;
+  reply_to_verified_at: Timestamp | null;
+  sms_compliance_text: string | null;
+  updated_at: Generated<Timestamp>;
+  updated_by: string;
   version: Generated<number>;
 }
 
@@ -450,10 +482,12 @@ export interface ConversationMembers {
   account_id: string;
   conversation_id: string;
   created_at: Generated<Timestamp>;
+  guardian_copied: Generated<boolean>;
   id: string;
   last_read_at: Timestamp | null;
   muted: Generated<boolean>;
   org_id: string;
+  revoked_at: Timestamp | null;
   role: string;
   updated_at: Generated<Timestamp>;
 }
@@ -1058,6 +1092,7 @@ export interface MessageCampaigns {
 
 export interface MessageDeliveries {
   address: string | null;
+  attempt_count: Generated<number>;
   campaign_id: string | null;
   channel: string;
   clicked_at: Timestamp | null;
@@ -1065,6 +1100,8 @@ export interface MessageDeliveries {
   delivered_at: Timestamp | null;
   error: string | null;
   id: string;
+  last_attempt_at: Timestamp | null;
+  next_attempt_at: Timestamp | null;
   notification_id: string | null;
   opened_at: Timestamp | null;
   org_id: string;
@@ -1624,6 +1661,15 @@ export interface Programs {
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
   visibility: Generated<string>;
+}
+
+export interface ProviderDeliveryKeys {
+  channel: string;
+  created_at: Generated<Timestamp>;
+  delivery_id: string;
+  provider_id: string;
+  tenant_org_id: string;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface RateLimitPoints {
@@ -2232,7 +2278,9 @@ export interface DB {
   checkout_capacity_refund_claims: CheckoutCapacityRefundClaims;
   checkouts: Checkouts;
   closures: Closures;
+  communication_consent_events: CommunicationConsentEvents;
   communication_preferences: CommunicationPreferences;
+  communication_sender_identities: CommunicationSenderIdentities;
   contest_participants: ContestParticipants;
   contest_results: ContestResults;
   contests: Contests;
@@ -2312,6 +2360,7 @@ export interface DB {
   pools: Pools;
   privacy_requests: PrivacyRequests;
   programs: Programs;
+  provider_delivery_keys: ProviderDeliveryKeys;
   rate_limit_points: RateLimitPoints;
   refund_allocations: RefundAllocations;
   refund_approvals: RefundApprovals;
