@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Kysely } from 'kysely';
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createDatabase } from '../../db/kysely';
 import type { DB } from '../../db/types';
@@ -42,6 +42,10 @@ import {
   withdrawTeamOffer,
 } from './service';
 import type { AcceptedOfferCheckout, OfferCheckoutAdapter } from './service';
+
+// This suite seeds the complete evaluation fixture after cloning the migrated
+// test database. Give that setup hook room for the expanded trunk schema.
+vi.setConfig({ hookTimeout: 60_000 });
 
 const orgA = randomUUID();
 const orgB = randomUUID();
@@ -173,6 +177,8 @@ class FakeCheckout implements OfferCheckoutAdapter {
 }
 
 let admin: pg.Client;
+let adminConnected = false;
+let databaseInitialized = false;
 let eventId: string;
 let sessionId: string;
 let criterionId: string;
@@ -196,6 +202,7 @@ function tryoutRegistrationFor(personId: string): string {
 beforeAll(async () => {
   admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
   await admin.connect();
+  adminConnected = true;
   const accounts = [
     ownerAccount,
     guardianAccount,
@@ -393,11 +400,12 @@ beforeAll(async () => {
     );
   }
   database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
+  databaseInitialized = true;
 });
 
 afterAll(async () => {
-  await database.destroy();
-  await admin.end();
+  if (databaseInitialized) await database.destroy();
+  if (adminConnected) await admin.end();
 });
 
 describe('Phase 6 evaluations integration', () => {
