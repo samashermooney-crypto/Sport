@@ -833,7 +833,9 @@ export interface Donations {
   amount_cents: number;
   anonymous: Generated<boolean>;
   campaign_id: string;
+  checkout_session_id: string | null;
   created_at: Generated<Timestamp>;
+  creation_key: string | null;
   dedication: string | null;
   donor_account_id: string | null;
   donor_email: string;
@@ -844,6 +846,7 @@ export interface Donations {
   org_id: string;
   paid_at: Timestamp | null;
   payment_id: string | null;
+  provider_payment_id: string | null;
   quid_pro_quo_value_cents: Generated<number>;
   receipt_number: string;
   receipt_sent_at: Timestamp | null;
@@ -946,103 +949,6 @@ export interface Facilities {
   parking_notes: string | null;
   public: Generated<boolean>;
   timezone: string | null;
-  updated_at: Generated<Timestamp>;
-  version: Generated<number>;
-}
-
-export interface FederationAccessAudits {
-  accessed_at: Generated<Timestamp>;
-  actor_account_id: string;
-  created_at: Generated<Timestamp>;
-  dataset: string;
-  fields: string[];
-  id: Generated<string>;
-  org_id: string;
-  relationship_id: string;
-  row_count: number;
-  subject_org_id: string;
-  viewer_org_id: string;
-}
-
-export interface FederationDisciplineSummaries {
-  created_at: Generated<Timestamp>;
-  description: string | null;
-  entrant_team_season_id: string;
-  federation_program_id: string;
-  id: Generated<string>;
-  member_org_id: string;
-  org_id: string;
-  person_name: string;
-  record_type: string;
-  reported_by: string;
-  source_record_id: string;
-  status: string;
-  suspension_games: Generated<number>;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface FederationFieldAvailability {
-  created_at: Generated<Timestamp>;
-  ends_at: Timestamp;
-  facility_id: string;
-  federation_program_id: string;
-  id: Generated<string>;
-  member_org_id: string;
-  org_id: string;
-  space_id: string | null;
-  starts_at: Timestamp;
-  submitted_by: string;
-  updated_at: Generated<Timestamp>;
-}
-
-export interface FederationFixtures {
-  availability_id: string;
-  away_entry_id: string;
-  away_score: Numeric | null;
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  event_id: string | null;
-  federation_program_id: string;
-  home_entry_id: string;
-  home_score: Numeric | null;
-  id: Generated<string>;
-  org_id: string;
-  result_entered_at: Timestamp | null;
-  result_entered_by: string | null;
-  starts_at: Timestamp;
-  status: Generated<string>;
-  updated_at: Generated<Timestamp>;
-  version: Generated<number>;
-}
-
-export interface FederationPrograms {
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  entry_fee_cents: Generated<number>;
-  fee_due_on: Timestamp | null;
-  id: Generated<string>;
-  org_id: string;
-  program_id: string;
-  roster_frozen_at: Timestamp | null;
-  roster_submission_deadline: Timestamp;
-  updated_at: Generated<Timestamp>;
-  version: Generated<number>;
-}
-
-export interface FederationTeamEntries {
-  approved_at: Timestamp | null;
-  approved_by: string | null;
-  created_at: Generated<Timestamp>;
-  created_by: string;
-  entrant_org_id: string;
-  entrant_team_season_id: string;
-  federation_program_id: string;
-  id: Generated<string>;
-  invoice_id: string | null;
-  org_id: string;
-  roster_snapshot: Generated<Json>;
-  status: Generated<string>;
-  submitted_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -2159,6 +2065,7 @@ export interface ProductVariants {
   product_id: string;
   size: string | null;
   sku: string;
+  tax_rate_id: string | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -3090,12 +2997,6 @@ export interface DB {
   events: Events;
   external_teams: ExternalTeams;
   facilities: Facilities;
-  federation_access_audits: FederationAccessAudits;
-  federation_discipline_summaries: FederationDisciplineSummaries;
-  federation_field_availability: FederationFieldAvailability;
-  federation_fixtures: FederationFixtures;
-  federation_programs: FederationPrograms;
-  federation_team_entries: FederationTeamEntries;
   files: Files;
   finance_notice_outbox: FinanceNoticeOutbox;
   financial_aid_programs: FinancialAidPrograms;
