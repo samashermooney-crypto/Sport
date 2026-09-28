@@ -95,8 +95,9 @@ export function apiPost<T extends z.ZodType>(
 export function apiDelete<T extends z.ZodType>(
   path: string,
   schema: T,
+  body?: unknown,
 ): Promise<z.output<T>> {
-  return request(path, schema, 'DELETE');
+  return request(path, schema, 'DELETE', body);
 }
 
 export function apiPatch<T extends z.ZodType>(

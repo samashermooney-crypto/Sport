@@ -146,6 +146,14 @@ export const notificationCatalog = {
     category: 'operational',
     title: 'Team placement',
   },
+  'team.fee_assessed': {
+    category: 'operational',
+    title: 'Team fee invoice',
+  },
+  'team.reimbursement_decided': {
+    category: 'operational',
+    title: 'Reimbursement update',
+  },
   'offer.sent': { category: 'operational', title: 'Team offer' },
   'offer.expiring': { category: 'operational', title: 'Team offer reminder' },
   'schedule.published': {
@@ -169,7 +177,15 @@ export const notificationCatalog = {
     category: 'operational',
     title: 'Volunteer shift reminder',
   },
+  'volunteer.shift_reminder': {
+    category: 'operational',
+    title: 'Volunteer shift reminder',
+  },
   'volunteer_requirement.behind': {
+    category: 'operational',
+    title: 'Volunteer requirement update',
+  },
+  'volunteer.requirement_behind': {
     category: 'operational',
     title: 'Volunteer requirement update',
   },
@@ -206,6 +222,27 @@ export const notificationCatalog = {
   'organization.marketing': {
     category: 'marketing',
     title: 'Organization news',
+  },
+  'evaluation.offer': { category: 'operational', title: 'Team offer' },
+  'fundraising.donation_receipt': {
+    category: 'operational',
+    title: 'Donation receipt',
+  },
+  'fundraising.campaign_update': {
+    category: 'announcement',
+    title: 'Fundraising campaign update',
+  },
+  'sponsor.renewal_reminder': {
+    category: 'operational',
+    title: 'Sponsorship renewal reminder',
+  },
+  'store.order_update': {
+    category: 'operational',
+    title: 'Store order update',
+  },
+  'store.low_stock': {
+    category: 'operational',
+    title: 'Low inventory alert',
   },
   'safety.emergency': { category: 'emergency', title: 'Emergency alert' },
 } as const;

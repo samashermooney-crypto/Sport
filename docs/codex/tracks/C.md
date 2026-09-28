@@ -2,6 +2,7 @@
 Status: working
 Branch: `track/c-adapters`
 Current: merged the locally available `rebuild/trunk` at `af353fc`; Track C is resuming the trunk gates and wiring queue. Phase 15 remains owned by Track K.
+TRUNK GREEN 9381acd1d7eddb5d286e882ccd8e1b7f6200c32c — combined local trunk repair passed the full gate; not pushed.
 Ready for integration: no; trunk merge and current wiring changes need the required gates.
 Requests to other tracks: Track A — reconcile DEC-023 with verified-guardian restricted uploads and owner/compliance-only restricted downloads. Track E — registration module/route and checkout contracts are prerequisites for registration UI wiring.
 ## Done by OPS
@@ -52,3 +53,9 @@ Blocked on: GitHub access is currently unavailable from this environment; local 
 - QA-ACC-033 — include the Federation destination in permission-gated console navigation; its nested route is registered, but the declared nav item is absent from the generated feature registry and Console Home, so the QA journey can reach it only by direct URL. Enable the `test.fixme` browser assertion in `e2e/federation.spec.ts` after wiring the destination. See `docs/codex/qa/DEFECTS.md` (2026-09-27).
 - QA-QUAL-001 — coordinate current Knip cleanup across A/C/G/I/J and the pending K demo-seed integration; after Phase 13, `npm run knip` exits 1 with 8 unused files, 44 exports, 28 exported types, and 1 duplicate. Federation findings include `demo.ts`, `federationConsoleNav`, `expandAvailabilityWindows`, and `withFederationAccess`. See `docs/codex/qa/DEFECTS.md` (2026-09-27).
 - QA-ACC-044 (coordinate H/E) — inject the test-mode guest fundraising checkout adapter into the registered module and wire signed donation settlement/failure callbacks; production requests currently return 503 `CHECKOUT_UNAVAILABLE` because `createApp` supplies only `AuthDependencies`. Keep checkout and webhook tests on fake providers with synthetic signatures. See `docs/codex/qa/DEFECTS.md` (2026-09-27).
+
+## Final launch gate — 2026-09-27
+
+- Gate code snapshot: `da7c13f40717352ff6b550b7b5026dd6d1e62f94` on local `rebuild/trunk`. Typecheck, lint, full Vitest (246 files; 879 passed, 1 skipped), Playwright Chromium/WebKit (74 passed, 16 skipped), build, size, Knip, audit, OpenAPI and registry freshness passed locally. See [`../LAUNCH-GATE.md`](../LAUNCH-GATE.md) for each Phase 16 §7 item and evidence.
+- Promotion: **not ready**. Coverage thresholds, load acceptance, current-head restore proof, security acceptance, Lighthouse and all-route crawler are still failing or absent; GitHub CI status could not be checked without network. Local `main` is unchanged at `d0f59a1c44e499dc69455ed3ad3e0a2dae9883de`; no `MAIN READY` marker is recorded.
+- Remaining work: close all failures in `LAUNCH-GATE.md`, update phase acceptance evidence, rerun the full gate, and only then consider promoting local `main`.
