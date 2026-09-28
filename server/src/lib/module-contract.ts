@@ -2,16 +2,22 @@ import type { Router } from 'express';
 import type { z } from 'zod';
 
 import type { AuthDependencies } from '../modules/auth/routes';
+import type { SeasonRolloverExtras } from '../modules/seasons/service';
 
 export interface ServerModule {
   name: string;
   path: `/api/v1/${string}`;
-  router?: (dependencies: AuthDependencies) => Router;
+  router?: (
+    dependencies: AuthDependencies & {
+      seasonRolloverExtras?: SeasonRolloverExtras[];
+    },
+  ) => Router;
   publicRouter?: (dependencies: AuthDependencies) => Router;
   extraRouters?: readonly {
-    path: `/api/v1/${string}`;
+    path: `/${string}`;
     router: (dependencies: AuthDependencies) => Router;
   }[];
+  seasonRolloverExtras?: readonly SeasonRolloverExtras[];
   jobs?: readonly {
     name: string;
     run?: (data: unknown) => Promise<unknown>;

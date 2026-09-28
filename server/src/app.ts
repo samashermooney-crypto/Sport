@@ -13,6 +13,7 @@ import { createWithOrg } from './db/withOrg';
 import { apiRouteMetadata, serverModules } from './generated/registry';
 import { createStripeWebhookRouter } from './integrations/stripe/webhook-routes';
 import type { StripeWebhookDependencies } from './integrations/stripe/webhook-routes';
+import type { ServerModule } from './lib/module-contract';
 import { publicStatus, readinessResponse } from './lib/observability/health';
 import { writeStructuredLog } from './lib/observability/logging';
 import { captureRedactedException } from './lib/observability/sentry';
@@ -25,6 +26,12 @@ const organizationPath =
   /(?:^|\/)orgs\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i;
 const invitationAcceptancePath =
   /(?:^|\/)(?:guardians\/)?(?:athlete-|claim-)?invitations\/accept$/;
+
+export function collectSeasonRolloverExtras(
+  modules: readonly ServerModule[],
+): NonNullable<ServerModule['seasonRolloverExtras']>[number][] {
+  return modules.flatMap((module) => module.seasonRolloverExtras ?? []);
+}
 
 function organizationRelationshipGuard(
   dependencies: AuthDependencies,
@@ -223,13 +230,18 @@ export function createApp(
     app.use('/api/v1/webhooks', createStripeWebhookRouter(stripeWebhooks));
   }
   if (auth) {
+    const seasonRolloverExtras = collectSeasonRolloverExtras(serverModules);
     for (const module of serverModules) {
       if (module.publicRouter) app.use(module.publicRouter(auth));
     }
     app.use('/api/v1', tenantGuard(auth));
     app.use('/api/v1', organizationRelationshipGuard(auth));
     for (const module of serverModules) {
-      if (module.router) app.use(module.path, module.router(auth));
+      if (module.router) {
+        const dependencies =
+          module.name === 'seasons' ? { ...auth, seasonRolloverExtras } : auth;
+        app.use(module.path, module.router(dependencies));
+      }
       for (const extra of module.extraRouters ?? []) {
         app.use(extra.path, extra.router(auth));
       }

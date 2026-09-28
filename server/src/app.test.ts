@@ -5,8 +5,9 @@ import type { Server } from 'node:http';
 import pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createApp } from './app';
+import { collectSeasonRolloverExtras, createApp } from './app';
 import type { StripeEventRepository } from './integrations/stripe/dispatch';
+import type { ServerModule } from './lib/module-contract';
 
 async function closeServer(server: Server): Promise<void> {
   if (!server.listening) return;
@@ -19,6 +20,26 @@ async function closeServer(server: Server): Promise<void> {
 }
 
 describe('Phase 0 server', () => {
+  it('collects season rollover contributions in registered-module order', () => {
+    const first = () => Promise.resolve();
+    const second = () => Promise.resolve();
+    const modules: ServerModule[] = [
+      {
+        name: 'first',
+        path: '/api/v1/first',
+        seasonRolloverExtras: [first],
+      },
+      { name: 'without-extras', path: '/api/v1/empty' },
+      {
+        name: 'second',
+        path: '/api/v1/second',
+        seasonRolloverExtras: [second],
+      },
+    ];
+
+    expect(collectSeasonRolloverExtras(modules)).toEqual([first, second]);
+  });
+
   it('reports database readiness and worker status without exposing metrics', async () => {
     const app = createApp(undefined, undefined, {
       databaseReady: () => Promise.resolve(false),
