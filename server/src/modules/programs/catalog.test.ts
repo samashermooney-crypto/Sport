@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 
 import { newId } from '@shared/ids';
@@ -26,6 +26,11 @@ let orgSlug: string;
 let suspendedSlug: string;
 let publicSlug: string;
 let privateSlug: string;
+let orgId: string;
+let ownerAccountId: string;
+let classProgramId: string;
+let ownerToken: string;
+let seasonId: string;
 
 const seedOrg = async (slug: string, status: string) => {
   const accountId = newId();
@@ -85,6 +90,8 @@ beforeAll(async () => {
   publicSlug = `public-${randomUUID().slice(0, 8)}`;
   privateSlug = `private-${randomUUID().slice(0, 8)}`;
   const context = await seedOrg(orgSlug, 'active');
+  orgId = context.orgId;
+  ownerAccountId = context.actor.accountId;
   await seedOrg(suspendedSlug, 'suspended');
   const seasons = new SeasonsService(database, context);
   const programs = new ProgramsService(database, context);
@@ -96,6 +103,7 @@ beforeAll(async () => {
     startsOn: '2027-01-01',
     endsOn: '2027-06-30',
   });
+  seasonId = season.id;
   const profileId = await createWithOrg(database)(context, async (trx) => {
     const row = await trx
       .insertInto('sport_profiles')
@@ -121,6 +129,17 @@ beforeAll(async () => {
     visibility: 'public',
   });
   await programs.setStatus(published.id, 'published', published.version);
+  const classProgram = await programs.create({
+    seasonId: season.id,
+    sportProfileId: profileId,
+    mode: 'class',
+    name: 'Academy Program',
+    slug: `academy-${randomUUID().slice(0, 8)}`,
+    startsOn: '2027-02-01',
+    endsOn: '2027-05-01',
+  });
+  classProgramId = classProgram.id;
+  await programs.setStatus(classProgram.id, 'published', classProgram.version);
   await programs.create({
     seasonId: season.id,
     sportProfileId: profileId,
@@ -172,12 +191,28 @@ beforeAll(async () => {
     createProgramsRouter({
       database,
       appUrl: origin,
+      clock: () => new Date(),
     } as AuthDependencies),
   );
   server = app.listen(0);
   baseUrl = `http://127.0.0.1:${String(
     (server.address() as AddressInfo).port,
   )}/api/v1/programs`;
+  ownerToken = randomBytes(32).toString('base64url');
+  const now = new Date();
+  await database
+    .insertInto('sessions')
+    .values({
+      id: newId(),
+      account_id: ownerAccountId,
+      token_hash: createHash('sha256').update(ownerToken).digest(),
+      kind: 'bearer',
+      client: 'web',
+      privileged: false,
+      idle_expires_at: new Date(now.getTime() + 60 * 60 * 1000),
+      absolute_expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+    })
+    .execute();
 });
 
 afterAll(async () => {
@@ -225,5 +260,27 @@ describe('public program catalog', () => {
       404,
     );
     expect((await fetch(`${baseUrl}/catalog/no-such-org`)).status).toBe(404);
+  });
+});
+
+describe('authenticated program picker', () => {
+  it('filters by season, class mode, and published status', async () => {
+    const response = await fetch(
+      `${baseUrl}/orgs/${orgId}?seasonId=${encodeURIComponent(seasonId)}&mode=class&status=published`,
+      { headers: { Authorization: `Bearer ${ownerToken}` } },
+    );
+    expect(response.status).toBe(200);
+    const programs = (await response.json()) as Array<{
+      id: string;
+      mode: string;
+      status: string;
+    }>;
+    expect(programs).toEqual([
+      expect.objectContaining({
+        id: classProgramId,
+        mode: 'class',
+        status: 'published',
+      }),
+    ]);
   });
 });

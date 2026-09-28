@@ -6,7 +6,9 @@ import { divisionGeneratorSchema } from './division-generator';
 import { createProgramsRouter } from './routes';
 import {
   programInputSchema,
+  programListQuerySchema,
   programUpdateSchema,
+  programStatusSchema,
   divisionInputSchema,
 } from './service';
 
@@ -28,6 +30,11 @@ export const moduleDefinition = {
       method: 'get',
       path: '/api/v1/programs/orgs/{orgId}',
       summary: 'List programs',
+      query: {
+        seasonId: programListQuerySchema.shape.seasonId,
+        mode: programListQuerySchema.shape.mode,
+        status: programListQuerySchema.shape.status,
+      },
       response: z.array(row),
     },
     {
@@ -59,7 +66,7 @@ export const moduleDefinition = {
       path: '/api/v1/programs/orgs/{orgId}/{programId}/status',
       summary: 'Change program lifecycle state',
       body: z.object({
-        status: z.string(),
+        status: programStatusSchema,
         expectedVersion: z.number().int().positive(),
       }),
       response: row,

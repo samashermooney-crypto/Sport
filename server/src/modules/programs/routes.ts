@@ -11,8 +11,10 @@ import {
   ProgramsService,
   ProgramError,
   programInputSchema,
+  programListQuerySchema,
   programUpdateSchema,
   divisionInputSchema,
+  programStatusSchema,
 } from './service';
 
 export function createProgramsRouter(
@@ -81,9 +83,7 @@ export function createProgramsRouter(
     '/orgs/:orgId',
     run(async (request) =>
       (await service(request)).list(
-        request.query.seasonId
-          ? z.uuid().parse(request.query.seasonId)
-          : undefined,
+        programListQuerySchema.parse(request.query),
       ),
     ),
   );
@@ -145,15 +145,7 @@ export function createProgramsRouter(
     run(async (request) => {
       const body = z
         .object({
-          status: z.enum([
-            'draft',
-            'published',
-            'registration_open',
-            'registration_closed',
-            'in_progress',
-            'completed',
-            'archived',
-          ]),
+          status: programStatusSchema,
           expectedVersion: z.number().int().positive(),
         })
         .parse(request.body);
