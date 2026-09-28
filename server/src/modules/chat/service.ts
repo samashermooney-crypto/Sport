@@ -1120,6 +1120,7 @@ async function ensureFileAttachments(
   trx: OrgTransaction,
   orgId: string,
   fileIds: readonly string[],
+  now: Date,
 ) {
   if (!fileIds.length) return [] as Array<{ fileId: string; mime: string }>;
   const uniqueIds = [...new Set(fileIds)];
@@ -1146,7 +1147,7 @@ async function ensureFileAttachments(
         !(file.mime.startsWith('image/') || file.mime === 'application/pdf') ||
         file.upload_state !== 'complete' ||
         file.deleted_at ||
-        file.expires_at <= new Date(),
+        file.expires_at <= now,
     )
   )
     throw new ChatAccessError('One or more chat attachments are unavailable');
@@ -1237,6 +1238,7 @@ export async function sendChatMessage(
       trx,
       context.orgId,
       input.attachments,
+      now,
     );
     const parsed = await trx
       .insertInto('chat_messages')
