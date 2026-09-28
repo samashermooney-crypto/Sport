@@ -326,11 +326,9 @@ export function createSchedulingRouter(
 
   router.get('/orgs/:orgId/facilities', async (request, response) => {
     try {
-      response.json({
-        items: await listFacilities(
-          await authenticatedContext(dependencies, request),
-        ),
-      });
+      response.json(
+        await listFacilities(await authenticatedContext(dependencies, request)),
+      );
     } catch (error) {
       handleError(response, error);
     }
