@@ -1,6 +1,6 @@
 # Track J — Phase 13 Federation
 
-Status: Phase 13 shipped on `rebuild/trunk` at `9381acd1`; Linux CI selector fix is in this follow-up and pending trunk integration.
+Status: Phase 13 shipped on `rebuild/trunk` at `9381acd1`; Linux federation CI follow-up is on this branch and pending trunk integration.
 Branch: `track/j-federation`
 Worktree: `/Users/sammooney/Sport-j-federation`
 Stack: `COMPOSE_PROJECT_NAME=athlentry_j`, `PORT_OFFSET=1000` (Postgres 6432; local Playwright override maps Mailpit API to 9825 because 9025 is occupied by Track A's Mailpit SMTP port).
@@ -26,7 +26,8 @@ Phase 13: org relationships + data-sharing agreements, member-club team entries 
 - Federation integration tests: 19/19 passed, including per-facility timezone selection and organization-timezone fallback.
 - Federation Playwright acceptance journey: passed in Chromium desktop and WebKit mobile with the browser set to UTC; axe checks passed.
 - Combined trunk gate at `9381acd1`: typecheck, lint, and Knip passed; 880/880 unit and integration tests passed; 74 Playwright cases passed across Chromium and WebKit with 16 existing conditional skips; production build passed; main bundle measured 143.71 KB gzip against the 200 KB budget.
-- After merging `rebuild/trunk` through `2c52eb47`, typecheck and lint passed, and `server/test/federation.test.ts` passed 19/19. The Linux CI trace showed `getByRole('group').first()` in `inviteClub` selecting the shell's earlier “Some panels are unavailable to your role” group instead of the “Proposed data-sharing agreement” fieldset; the test then waited for a checkbox in the wrong group. The locator now uses that fieldset's accessible name. On the merged branch, the Linux federation run passed in Chromium and WebKit after one transient WebKit target crash; a separate WebKit-only rerun passed cleanly (1/1, 48.4 seconds).
+- After syncing `rebuild/trunk` through `cfe4c7c9`, `server/test/federation.test.ts` passed 19/19; typecheck and lint passed. The Linux CI trace showed `getByRole('group').first()` in `inviteClub` selecting the shell's earlier “Some panels are unavailable to your role” group instead of the “Proposed data-sharing agreement” fieldset; the locator now targets the fieldset by accessible name. The trace also showed startup requests receiving plain-text 500 responses while Vite was available before the proxied API; the E2E journey now polls API `/readyz` before navigation and gives the initial heading assertion 15 seconds. The latest Linux Playwright 1.63.0 Noble run on `cfe4c7c9` passed Chromium and WebKit (2/2, 49.7 seconds, `CI=true TZ=UTC`, one worker); two earlier runs also passed (48.8 and 54.1 seconds). The local Docker host is ARM64, so this verifies Linux behavior on the pinned image but not the x86_64 runner architecture.
+- Full `npm test` on `cfe4c7c9` had 959 passed, 1 skipped, and 4 failing tests: `peopleFilters.test.ts` violates `roster_entries_check`; both classes promotion cases violate `class_enrollments_check`; the sponsors placement integration test returns no placement. Four additional DB suites timed out in `server/test/setup.ts` cleanup hooks while both heavy slots were occupied. Track A owns people filters, Track I owns classes, and Track H owns sponsors; the federation integration file remains green (19/19).
 - The Linux schedule-stats repro under the same UTC browser settings received “postpone 0 affected events” where the test expects one; the facility timezone root cause and precise fix request are recorded in Track G's “Requests from J”. This is outside Track J's owned code.
 - The initial all-project Playwright run on J's isolated stack had 56 passes, 14 failures, and 16 skips because email-dependent specs hit Track A's SMTP mapping on port 9025. The final combined trunk gate passed with an isolated stack and the Track J journey passed in both browsers.
 - Cross-timezone bug note recorded in Track G's request section: the hosted schedule journey's Chicago window was previously interpreted in UTC CI, causing no games to be generated.
@@ -43,6 +44,6 @@ Phase 13: org relationships + data-sharing agreements, member-club team entries 
 - E: league-fee invoices currently use `source='staff'` and line kind `team_fee`; if a `federation_fee` enum value is added to `invoices.source`/`invoice_lines.kind`, federation should adopt it (see DECISIONS).
 
 ## Blocked on
-No Phase 13 behavior is blocked. Cross-club contest/results, standings, and official-assignment service reuse remains a follow-up if Track G adds cross-organization hooks. The unrelated schedule-stats timezone defect is documented for Track G.
+No Phase 13 behavior is blocked. Integration is currently blocked by the full-suite failures recorded above; the Track A/I/H failures need their owners' fixes and the DB cleanup timeouts need a green full-suite rerun before the lock-protected merge gate. Cross-club contest/results, standings, and official-assignment service reuse remains a follow-up if Track G adds cross-organization hooks. The unrelated schedule-stats timezone defect is documented for Track G.
 
 Track J sprint complete

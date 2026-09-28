@@ -78,10 +78,25 @@ test('two member clubs complete a U12 inter-club season', async ({
       withOrg,
       league,
     );
+    await expect
+      .poll(
+        async () => {
+          try {
+            const response = await page
+              .context()
+              .request.get(`http://127.0.0.1:${String(3001 + offset)}/readyz`);
+            return response.status();
+          } catch {
+            return 0;
+          }
+        },
+        { timeout: 30_000 },
+      )
+      .toBe(200);
     await page.goto(`/console/federation/${league.orgId}`);
     await expect(
       page.getByRole('heading', { name: 'League and association' }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     expect(await accessibilityViolations(page)).toEqual([]);
 
     await page.getByRole('button', { name: 'Relationships' }).click();
