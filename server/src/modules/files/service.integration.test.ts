@@ -20,6 +20,7 @@ import { MemoryStorage } from '../../integrations/storage/storage';
 import {
   createFilesAuthorization,
   createPublicFacilityLayoutReader,
+  createPublicSponsorLogoReader,
 } from './module';
 import { createFilesRouter } from './routes';
 import type { FileAuthorization } from './service';
@@ -258,6 +259,7 @@ describe('files tenancy and lifecycle', () => {
         files: service,
         context: () => Promise.resolve(contextA),
         publicFacilityLayout: () => Promise.resolve(null),
+        publicSponsorLogo: () => Promise.resolve(null),
       }),
     );
     const server = createServer(app);
@@ -478,6 +480,7 @@ describe('files tenancy and lifecycle', () => {
         files: service,
         context: () => Promise.resolve(contextA),
         publicFacilityLayout: readLayout,
+        publicSponsorLogo: () => Promise.resolve(null),
       }),
     );
     const server = createServer(app);
@@ -537,6 +540,186 @@ describe('files tenancy and lifecycle', () => {
           .where('id', '=', publicFacilityId)
           .execute();
       });
+      expect((await fetch(url)).status).toBe(404);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+    }
+  });
+
+  it('serves sponsor logos only for active public placements and public image files', async () => {
+    const sponsorId = randomUUID();
+    const logoFileId = randomUUID();
+    const bytes = Buffer.from('RIFF0000WEBP');
+    const storageKey = `${orgA}/website_asset/${logoFileId}.webp`;
+    await storage.put(storageKey, bytes, 'image/webp');
+    await createWithOrg(database)(contextA, async (trx) => {
+      await trx
+        .updateTable('organizations')
+        .set({ status: 'active' })
+        .where('id', '=', orgA)
+        .execute();
+      await trx
+        .insertInto('files')
+        .values({
+          id: logoFileId,
+          org_id: orgA,
+          purpose: 'website_asset',
+          owner_type: null,
+          owner_id: null,
+          storage_key: storageKey,
+          mime: 'image/webp',
+          bytes: bytes.byteLength,
+          sha256: null,
+          width: 1,
+          height: 1,
+          sensitivity: 'public',
+          created_by: accountA,
+          upload_state: 'complete',
+          deleted_at: null,
+        })
+        .execute();
+      await trx
+        .insertInto('sponsors')
+        .values({
+          id: sponsorId,
+          org_id: orgA,
+          name: 'Public Sponsor',
+          contact: JSON.stringify({}),
+          logo_file_id: logoFileId,
+          website_url: 'https://sponsor.example.test',
+          tier: 'Gold',
+          amount_cents: 10_000,
+          contract_start: '2026-01-01',
+          contract_end: '2026-12-31',
+          placements: JSON.stringify([{ surface: 'website_home' }]),
+          status: 'active',
+          created_by: accountA,
+        })
+        .execute();
+    });
+
+    const publicLogo = createPublicSponsorLogoReader(
+      database,
+      service,
+      () => new Date('2026-04-01T18:00:00.000Z'),
+    );
+    const app = express();
+    app.use(
+      createFilesRouter({
+        files: service,
+        context: () => Promise.resolve(contextA),
+        publicFacilityLayout: () => Promise.resolve(null),
+        publicSponsorLogo: publicLogo,
+      }),
+    );
+    const server = createServer(app);
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const address = server.address();
+    if (!address || typeof address === 'string')
+      throw new Error('Sponsor logo test server did not bind to a TCP port');
+    const origin = `http://127.0.0.1:${String(address.port)}`;
+    const url = `${origin}/public/orgs/${orgASlug}/sponsors/${sponsorId}/logo?surface=website_home`;
+    try {
+      const visible = await fetch(url);
+      expect(visible.status).toBe(200);
+      expect(visible.headers.get('content-type')).toBe('image/webp');
+      expect(visible.headers.get('cache-control')).toBe('no-store');
+      expect(visible.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(Buffer.from(await visible.arrayBuffer())).toEqual(bytes);
+
+      expect((await fetch(url.replace(orgASlug, orgBSlug))).status).toBe(404);
+      expect(
+        (
+          await fetch(
+            `${origin}/public/orgs/${orgASlug}/sponsors/${randomUUID()}/logo?surface=website_home`,
+          )
+        ).status,
+      ).toBe(404);
+      expect((await fetch(`${url}&targetId=${randomUUID()}`)).status).toBe(404);
+      expect(
+        (
+          await fetch(
+            url.replace(
+              'surface=website_home',
+              `surface=team_page&targetId=${randomUUID()}`,
+            ),
+          )
+        ).status,
+      ).toBe(404);
+
+      await createWithOrg(database)(contextA, (trx) =>
+        trx
+          .updateTable('sponsors')
+          .set({ status: 'expired' })
+          .where('id', '=', sponsorId)
+          .execute(),
+      );
+      expect((await fetch(url)).status).toBe(404);
+      await createWithOrg(database)(contextA, (trx) =>
+        trx
+          .updateTable('sponsors')
+          .set({ status: 'active', contract_end: '2026-03-31' })
+          .where('id', '=', sponsorId)
+          .execute(),
+      );
+      expect((await fetch(url)).status).toBe(404);
+      await createWithOrg(database)(contextA, (trx) =>
+        trx
+          .updateTable('sponsors')
+          .set({ contract_end: '2026-12-31' })
+          .where('id', '=', sponsorId)
+          .execute(),
+      );
+
+      await createWithOrg(database)(contextA, (trx) =>
+        trx
+          .updateTable('files')
+          .set({ sensitivity: 'restricted' })
+          .where('id', '=', logoFileId)
+          .execute(),
+      );
+      expect((await fetch(url)).status).toBe(404);
+      const restrictedReads = await createWithOrg(database)(contextA, (trx) =>
+        trx
+          .selectFrom('audit_log')
+          .select('id')
+          .where('entity_id', '=', logoFileId)
+          .where('action', '=', 'file.restricted.read')
+          .execute(),
+      );
+      expect(restrictedReads).toEqual([]);
+
+      await createWithOrg(database)(contextA, (trx) =>
+        trx
+          .updateTable('files')
+          .set({ sensitivity: 'public', purpose: 'document' })
+          .where('id', '=', logoFileId)
+          .execute(),
+      );
+      expect((await fetch(url)).status).toBe(404);
+      await createWithOrg(database)(contextA, (trx) =>
+        trx
+          .updateTable('files')
+          .set({ purpose: 'website_asset', deleted_at: new Date() })
+          .where('id', '=', logoFileId)
+          .execute(),
+      );
+      expect((await fetch(url)).status).toBe(404);
+      await createWithOrg(database)(contextA, (trx) =>
+        trx
+          .updateTable('files')
+          .set({ deleted_at: null, mime: 'image/jpeg' })
+          .where('id', '=', logoFileId)
+          .execute(),
+      );
       expect((await fetch(url)).status).toBe(404);
     } finally {
       await new Promise<void>((resolve, reject) => {
@@ -697,6 +880,7 @@ describe('files tenancy and lifecycle', () => {
         files: chatService,
         context: () => Promise.resolve(requestContext),
         publicFacilityLayout: () => Promise.resolve(null),
+        publicSponsorLogo: () => Promise.resolve(null),
       }),
     );
     const server = createServer(app);
@@ -814,6 +998,7 @@ describe('files tenancy and lifecycle', () => {
         files: restrictedService,
         context: () => Promise.resolve(requestContext),
         publicFacilityLayout: () => Promise.resolve(null),
+        publicSponsorLogo: () => Promise.resolve(null),
       }),
     );
     const server = createServer(app);

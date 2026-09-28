@@ -25,6 +25,15 @@ export interface FilesRoutesDependencies {
     orgSlug: string,
     facilityId: string,
   ): Promise<{ bytes: Uint8Array; mime: 'image/webp' | 'image/jpeg' } | null>;
+  publicSponsorLogo(
+    orgSlug: string,
+    sponsorId: string,
+    surface: 'website_home' | 'program_page' | 'team_page' | 'email_footer',
+    targetId?: string,
+  ): Promise<{
+    bytes: Uint8Array;
+    mime: 'image/webp' | 'image/jpeg' | 'image/png';
+  } | null>;
 }
 
 export function createFilesRouter(dependencies: FilesRoutesDependencies) {
@@ -48,6 +57,63 @@ export function createFilesRouter(dependencies: FilesRoutesDependencies) {
         const content = await dependencies.publicFacilityLayout(
           orgSlug.data,
           facilityId.data,
+        );
+        if (!content) {
+          response.status(404).end();
+          return;
+        }
+        response
+          .type(content.mime)
+          .set({
+            'Cache-Control': 'no-store',
+            'Content-Disposition': 'inline',
+            'X-Content-Type-Options': 'nosniff',
+          })
+          .send(Buffer.from(content.bytes));
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+  router.get(
+    '/public/orgs/:orgSlug/sponsors/:sponsorId/logo',
+    async (request, response, next) => {
+      const orgSlug = z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .safeParse(request.params.orgSlug);
+      const sponsorId = z.uuid().safeParse(request.params.sponsorId);
+      const query = z
+        .strictObject({
+          surface: z.enum([
+            'website_home',
+            'program_page',
+            'team_page',
+            'email_footer',
+          ]),
+          targetId: z.uuid().optional(),
+        })
+        .safeParse(request.query);
+      if (
+        !orgSlug.success ||
+        !sponsorId.success ||
+        !query.success ||
+        (['website_home', 'email_footer'].includes(query.data.surface) &&
+          query.data.targetId) ||
+        (['program_page', 'team_page'].includes(query.data.surface) &&
+          !query.data.targetId)
+      ) {
+        response.status(404).end();
+        return;
+      }
+      try {
+        const content = await dependencies.publicSponsorLogo(
+          orgSlug.data,
+          sponsorId.data,
+          query.data.surface,
+          query.data.targetId,
         );
         if (!content) {
           response.status(404).end();

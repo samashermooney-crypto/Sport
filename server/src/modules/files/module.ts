@@ -13,6 +13,7 @@ import { LocalDiskStorage } from '../../integrations/storage/storage';
 import type { ServerModule } from '../../lib/module-contract';
 import { requireSession } from '../auth/routes';
 import type { AuthDependencies } from '../auth/routes';
+import { publicSponsorPlacements } from '../sponsors/service';
 
 import { createFilesRouter } from './routes';
 import { FilePermissionError, FilesService } from './service';
@@ -264,6 +265,41 @@ export function createPublicFacilityLayoutReader(
   };
 }
 
+export function createPublicSponsorLogoReader(
+  database: Kysely<DB>,
+  files: FilesService,
+  clock: () => Date = () => new Date(),
+) {
+  return async (
+    orgSlug: string,
+    sponsorId: string,
+    surface: 'website_home' | 'program_page' | 'team_page' | 'email_footer',
+    targetId?: string,
+  ) => {
+    const organization = await database
+      .selectFrom('organizations')
+      .select(['id', 'status'])
+      .where('slug', '=', orgSlug)
+      .where('status', '=', 'active')
+      .executeTakeFirst();
+    if (!organization) return null;
+    const placements = await publicSponsorPlacements(
+      database,
+      orgSlug,
+      surface,
+      targetId,
+      clock(),
+    );
+    const sponsor = placements.find((placement) => placement.id === sponsorId);
+    if (!sponsor?.logoFileId) return null;
+    return files.readPublicSponsorLogo(
+      { orgId: organization.id, actor: { accountId: randomUUID() } },
+      sponsor.id,
+      sponsor.logoFileId,
+    );
+  };
+}
+
 function createMountedFilesRouter(
   dependencies: AuthDependencies,
 ): express.Router {
@@ -305,6 +341,10 @@ function createMountedFilesRouter(
     createFilesRouter({
       files: service,
       publicFacilityLayout: createPublicFacilityLayoutReader(
+        dependencies.database,
+        service,
+      ),
+      publicSponsorLogo: createPublicSponsorLogoReader(
         dependencies.database,
         service,
       ),
