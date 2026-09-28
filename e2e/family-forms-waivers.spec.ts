@@ -617,7 +617,7 @@ test('guardian grants photo consent and crops a family profile photo on a phone'
   ).toBeVisible();
   await page.getByLabel('Media consent').selectOption('granted');
   await page.getByRole('button', { name: 'Save profile' }).click();
-  await expect(page.getByRole('status')).toContainText('Profile saved.');
+  await expect(page.getByText('Profile saved.', { exact: true })).toBeVisible();
   await page
     .getByLabel('Choose photo')
     .setInputFiles('server/test/fixtures/gps-photo.jpg');
