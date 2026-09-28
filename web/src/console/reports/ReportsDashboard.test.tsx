@@ -38,6 +38,12 @@ it('renders role-permitted organization visuals with accessible value tables', a
                   type: 'text',
                   tier: 'internal',
                 },
+                {
+                  key: 'created_at',
+                  label: 'Registered at',
+                  type: 'datetime',
+                  tier: 'internal',
+                },
               ],
             },
             {
@@ -92,6 +98,26 @@ it('renders role-permitted organization visuals with accessible value tables', a
                 tier: 'internal',
               })),
             },
+            {
+              key: 'credentials',
+              label: 'Credentials',
+              description: 'Credential status',
+              available: true,
+              columns: [
+                {
+                  key: 'id',
+                  label: 'Credential ID',
+                  type: 'text',
+                  tier: 'internal',
+                },
+                {
+                  key: 'status',
+                  label: 'Status',
+                  type: 'enum',
+                  tier: 'internal',
+                },
+              ],
+            },
           ],
         };
       } else {
@@ -99,9 +125,21 @@ it('renders role-permitted organization visuals with accessible value tables', a
           throw new Error('Expected a serialized report preview request');
         }
         const definition = JSON.parse(init.body) as {
-          definition: { dataset: string };
+          definition: { dataset: string; timeGrain?: string };
         };
-        if (definition.definition.dataset === 'registrations') {
+        if (
+          definition.definition.dataset === 'registrations' &&
+          definition.definition.timeGrain === 'month'
+        ) {
+          result = {
+            columns: [
+              { key: 'created_at', label: 'Registered at', type: 'datetime' },
+              { key: 'count_id', label: 'Registrations', type: 'number' },
+            ],
+            rows: [['2025-01-01T00:00:00.000Z', 3]],
+            truncated: false,
+          };
+        } else if (definition.definition.dataset === 'registrations') {
           result = {
             columns: [
               { key: 'program_name', label: 'Program', type: 'text' },
@@ -117,6 +155,18 @@ it('renders role-permitted organization visuals with accessible value tables', a
               { key: 'sum_balance_cents', label: 'Balance', type: 'money' },
             ],
             rows: [['1–30 days', 150000]],
+            truncated: false,
+          };
+        } else if (definition.definition.dataset === 'credentials') {
+          result = {
+            columns: [
+              { key: 'status', label: 'Status', type: 'enum' },
+              { key: 'count_id', label: 'Credentials', type: 'number' },
+            ],
+            rows: [
+              ['verified', 3],
+              ['pending_review', 1],
+            ],
             truncated: false,
           };
         } else {
@@ -156,6 +206,12 @@ it('renders role-permitted organization visuals with accessible value tables', a
   expect(
     await screen.findByRole('heading', { name: 'Organization overview' }),
   ).toBeTruthy();
+  const paceTable = await screen.findByRole('table', {
+    name: 'Registration pace (past 12 months) data',
+  });
+  expect(
+    within(paceTable).getByRole('rowheader', { name: 'Jan 2025' }),
+  ).toBeTruthy();
   const registrationTable = await screen.findByRole('table', {
     name: 'Registrations by program data',
   });
@@ -174,11 +230,20 @@ it('renders role-permitted organization visuals with accessible value tables', a
   expect(
     within(retentionTable).getByRole('cell', { name: '50.0%' }),
   ).toBeTruthy();
+  const complianceTable = await screen.findByRole('table', {
+    name: 'Credential compliance data',
+  });
+  expect(
+    within(complianceTable).getByRole('cell', { name: '75.0%' }),
+  ).toBeTruthy();
+  expect(
+    within(complianceTable).getByRole('cell', { name: '25.0%' }),
+  ).toBeTruthy();
   expect(
     screen.queryByRole('heading', { name: 'Revenue by program' }),
   ).toBeNull();
   const previews = fetcher.mock.calls.filter(([input]) =>
     requestUrl(input).endsWith('/reports/preview'),
   );
-  expect(previews).toHaveLength(3);
+  expect(previews).toHaveLength(5);
 });

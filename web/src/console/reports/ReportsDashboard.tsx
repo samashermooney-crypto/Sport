@@ -5,6 +5,7 @@ import {
 } from '@shared/schemas/reports';
 import type { ReportDefinition } from '@shared/schemas/reports';
 import { useQueries, useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 import { apiGet, apiPost } from '../../api/client';
 import { Chart } from '../../ui/extended';
@@ -20,6 +21,21 @@ type ReportSummary = {
 };
 
 const summaries: readonly ReportSummary[] = [
+  {
+    key: 'registration-pace',
+    title: 'Registration pace (past 12 months)',
+    valueKind: 'count',
+    definition: reportDefinitionSchema.parse({
+      dataset: 'registrations',
+      columns: ['created_at'],
+      filters: [],
+      groupBy: ['created_at'],
+      timeGrain: 'month',
+      aggregates: [{ fn: 'count', column: 'id' }],
+      sort: [{ column: 'created_at', direction: 'asc' }],
+      limit: 12,
+    }),
+  },
   {
     key: 'registrations-by-program',
     title: 'Registrations by program',
@@ -82,6 +98,20 @@ const summaries: readonly ReportSummary[] = [
       limit: 12,
     }),
   },
+  {
+    key: 'credential-compliance',
+    title: 'Credential compliance',
+    valueKind: 'percent',
+    definition: reportDefinitionSchema.parse({
+      dataset: 'credentials',
+      columns: ['status'],
+      filters: [{ column: 'status', op: 'ne', value: 'revoked' }],
+      groupBy: ['status'],
+      aggregates: [{ fn: 'count', column: 'id' }],
+      sort: [{ column: 'status', direction: 'asc' }],
+      limit: 12,
+    }),
+  },
 ];
 
 type ReportPreview = ReturnType<typeof reportPreviewResponseSchema.parse>;
@@ -100,6 +130,32 @@ function chartValues(
   summary: ReportSummary,
   preview: ReportPreview,
 ): { label: string; value: number }[] {
+  if (summary.key === 'credential-compliance') {
+    const statusIndex = preview.columns.findIndex(
+      (column) => column.key === 'status',
+    );
+    const countIndex = preview.columns.findIndex(
+      (column) => column.key === 'count_id',
+    );
+    if (statusIndex < 0 || countIndex < 0) return [];
+    const counts = preview.rows.flatMap((row) => {
+      const status = row[statusIndex];
+      const count = numberValue(row[countIndex]);
+      return typeof status === 'string' && count !== null
+        ? [{ status, count }]
+        : [];
+    });
+    const total = counts.reduce((sum, item) => sum + item.count, 0);
+    if (total === 0) return [];
+    const verified =
+      counts.find((item) => item.status === 'verified')?.count ?? 0;
+    const verifiedPercent = (verified / total) * 100;
+    return [
+      { label: 'Verified', value: verifiedPercent },
+      { label: 'Needs attention', value: 100 - verifiedPercent },
+    ];
+  }
+
   if (summary.definition.dataset === 'retention_cohorts') {
     const yearIndex = preview.columns.findIndex(
       (column) => column.key === 'current_year',
@@ -138,7 +194,16 @@ function chartValues(
       return [];
     return [
       {
-        label: typeof label === 'number' ? label.toString() : label,
+        label:
+          summary.key === 'registration-pace'
+            ? new Intl.DateTimeFormat('en-US', {
+                month: 'short',
+                year: 'numeric',
+                timeZone: 'UTC',
+              }).format(new Date(String(label)))
+            : typeof label === 'number'
+              ? label.toString()
+              : label,
         value: summary.valueKind === 'money' ? value / 100 : value,
       },
     ];
@@ -171,11 +236,29 @@ export function ReportsDashboard({
   orgId: string;
 }): React.JSX.Element {
   const base = `/reports/orgs/${encodeURIComponent(orgId)}`;
+  const dashboardSummaries = useMemo(() => {
+    const start = new Date();
+    start.setUTCDate(1);
+    start.setUTCHours(0, 0, 0, 0);
+    start.setUTCMonth(start.getUTCMonth() - 11);
+    const startAt = start.toISOString();
+    return summaries.map((summary) =>
+      summary.key === 'registration-pace'
+        ? {
+            ...summary,
+            definition: reportDefinitionSchema.parse({
+              ...summary.definition,
+              filters: [{ column: 'created_at', op: 'gte', value: startAt }],
+            }),
+          }
+        : summary,
+    );
+  }, []);
   const datasets = useQuery({
     queryKey: ['reports', orgId, 'datasets'],
     queryFn: () => apiGet(`${base}/datasets`, reportDatasetListSchema),
   });
-  const eligibleSummaries = summaries.filter((summary) => {
+  const eligibleSummaries = dashboardSummaries.filter((summary) => {
     const dataset = datasets.data?.items.find(
       (item) => item.key === summary.definition.dataset,
     );
@@ -205,7 +288,10 @@ export function ReportsDashboard({
     >
       <header>
         <h2 id="report-dashboard-title">Organization overview</h2>
-        <p>Current registrations, finances, and participant retention.</p>
+        <p>
+          Registration pace, finances, credential compliance, and participant
+          retention.
+        </p>
       </header>
       {datasets.isPending && <p role="status">Loading report access…</p>}
       {datasets.isError && (
