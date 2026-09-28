@@ -846,6 +846,13 @@
 - **Why:** This limits child-data exposure, prevents arbitrary person IDs from granting access, and keeps staff ratings intact when a family edits its own preferences.
 - **Consequences / follow-ups:** The team balancer consumes requests only when both athletes request one another. Staff preferences remain accessible through director-only routes.
 
+### DEC-123 — Approve split transfer refunds as one frozen finance operation
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 4 refunds and Phase 5 registration transfers
+- **Context:** A cheaper transfer can be funded by several Stripe payments; independently approving or executing each share would let the combined refund bypass the invoice's second-person threshold or leave the registration moved before finance review.
+- **Decision:** When the combined exact-line refund exceeds the strictest frozen per-payment threshold, persist one aggregate approval with the line, requested cents, ordered payment shares, per-share service-fee proposal, thresholds and request hashes. Enforce snapshot immutability in the database. Require an active finance approver other than the transfer requester; do not mutate the registration or call Stripe while pending. Finance reviews the sanitized queue, and the same transfer idempotency key must be retried against an unchanged source plan after approval.
+- **Why:** The approval binds one immutable economic proposal while existing per-payment attempt fences and refund allocations continue to protect each Stripe operation.
+- **Consequences / follow-ups:** Changed payment shares or policy fail closed and require a new operation key; ambiguous Stripe outcomes remain fenced for reconciliation. Multi-refund external execution remains sequential and individually idempotent.
 ### DEC-114 — Fail closed on incomplete route-security metadata
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 16 §1 security verification

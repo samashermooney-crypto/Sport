@@ -33,6 +33,15 @@ export class RefundConflictError extends Error {
   }
 }
 
+export class RefundApprovalRequiredError extends RefundConflictError {
+  constructor(readonly approvalId: string) {
+    super(
+      `A separate finance approver is required; request ${approvalId} is queued`,
+    );
+    this.name = 'RefundApprovalRequiredError';
+  }
+}
+
 export interface RefundSourceReader {
   /** Must load the payment and its invoice-line allocations inside withOrg. */
   load(orgId: string, paymentId: string): Promise<RefundSource | null>;
