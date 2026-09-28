@@ -67,6 +67,18 @@ describe('team balancer', () => {
     );
   });
 
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, 8.5])(
+    'rejects a non-whole-year player age (%s)',
+    (age) => {
+      expect(() =>
+        balanceTeams({
+          ...input,
+          players: [{ id: 'invalid-age', age, positions: [] }],
+        }),
+      ).toThrow('Invalid player age');
+    },
+  );
+
   it('rejects conflicting fixed assignments inside a linked group', () => {
     const players = [
       { id: 'x', positions: [], siblingGroupId: 's', fixedTeamId: 'red' },

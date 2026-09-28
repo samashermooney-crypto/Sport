@@ -252,7 +252,7 @@ export function balanceTeams(input: BalanceInput): BalanceOutput {
   if (
     input.players.some(
       (player) =>
-        player.age != null && (!Number.isFinite(player.age) || player.age < 0),
+        player.age != null && (!Number.isInteger(player.age) || player.age < 0),
     )
   )
     throw new RangeError('Invalid player age');
