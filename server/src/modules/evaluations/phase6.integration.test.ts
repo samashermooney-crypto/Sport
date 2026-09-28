@@ -1077,6 +1077,29 @@ describe('Phase 6 evaluations integration', () => {
     const outsider = await listFamilyOffers(dependencies(), outsiderContext);
     expect(outsider).toHaveLength(0);
 
+    await expect(
+      acceptTeamOffer(dependencies(), guardianContext, offerId, {
+        accept: () =>
+          Promise.reject(
+            new Error('Checkout provider is temporarily unavailable'),
+          ),
+      }),
+    ).rejects.toThrow('Checkout provider is temporarily unavailable');
+    const failedCheckoutOffer = await admin.query<{
+      status: string;
+      checkout_id: string | null;
+      registration_id: string | null;
+    }>(
+      `SELECT status, checkout_id, registration_id FROM team_offers
+       WHERE org_id=$1 AND id=$2`,
+      [orgA, offerId],
+    );
+    expect(failedCheckoutOffer.rows[0]).toEqual({
+      status: 'sent',
+      checkout_id: null,
+      registration_id: null,
+    });
+
     const checkout = new FakeCheckout(admin, 2);
     const [accepted, concurrentReplay] = await Promise.all([
       acceptTeamOffer(dependencies(), guardianContext, offerId, checkout),
