@@ -98,6 +98,48 @@
 .organization-privacy__request textarea {
   min-height: 76px;
 }
+.action-center__card-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+.action-center__card-heading h2 {
+  margin-bottom: var(--space-8);
+}
+.action-center__card-heading strong {
+  display: grid;
+  min-width: 44px;
+  min-height: 44px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-3);
+  color: var(--ink);
+  background: var(--surface);
+}
+.action-center__amount {
+  font-weight: 700;
+}
+.action-center__card ul {
+  display: grid;
+  gap: var(--space-8);
+  padding: 0;
+  margin: var(--space-12) 0;
+  list-style: none;
+}
+.action-center__card li a {
+  display: grid;
+  gap: var(--space-4);
+  min-height: 44px;
+  padding: var(--space-8) 0;
+}
+.action-center__detail {
+  color: var(--muted);
+  font-size: var(--font-size-14);
+}
+.action-center__empty {
+  max-width: 640px;
+}
 @media (max-width: 600px) {
   .console-home {
     padding: var(--space-16);
