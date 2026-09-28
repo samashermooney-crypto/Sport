@@ -162,7 +162,6 @@ describe('pricing pipeline', () => {
       existingConfirmed: [
         {
           id: 'prior-child',
-          participantId: 'older-child',
           householdId: 'house-a',
           seasonId: 'season-a',
           offeringId: 'offering-a',
@@ -174,9 +173,7 @@ describe('pricing pipeline', () => {
       scoped.lines.filter((line) => line.sourceId === 'sibling'),
     ).toMatchObject([{ parentLineId: 'eligible-child', amountCents: -1000 }]);
     expect(
-      scoped.lines.some(
-        (line) => line.parentLineId === 'out-of-scope-child',
-      ),
+      scoped.lines.some((line) => line.parentLineId === 'out-of-scope-child'),
     ).toBe(false);
 
     const byOffering = calculatePricing({
