@@ -336,6 +336,13 @@ describe('ai service', () => {
         ],
       });
     const service = createAiService(database, provider);
+    const formsBeforeDraft = await factories.scoped(actor, (trx) =>
+      trx
+        .selectFrom('form_definitions')
+        .selectAll()
+        .where('org_id', '=', actor.orgId)
+        .execute(),
+    );
     const { draftId, draft } = await service.draftForm(
       actor.orgId,
       actor.accountId,
@@ -343,26 +350,39 @@ describe('ai service', () => {
       new TextEncoder().encode('I agree to the terms for my child'),
     );
     expect((draft as { title: string }).title).toBe('Player Waiver');
-    const formsBefore = await factories.scoped(actor, (trx) =>
-      trx
-        .selectFrom('form_definitions')
-        .selectAll()
-        .where('org_id', '=', actor.orgId)
-        .execute(),
-    );
+    const [formsAfterDraft, savedDraft] = await Promise.all([
+      factories.scoped(actor, (trx) =>
+        trx
+          .selectFrom('form_definitions')
+          .selectAll()
+          .where('org_id', '=', actor.orgId)
+          .execute(),
+      ),
+      factories.scoped(actor, (trx) =>
+        trx
+          .selectFrom('ai_drafts')
+          .select(['id', 'status'])
+          .where('org_id', '=', actor.orgId)
+          .where('id', '=', draftId)
+          .executeTakeFirstOrThrow(),
+      ),
+    ]);
+    expect(formsAfterDraft).toHaveLength(formsBeforeDraft.length);
+    expect(savedDraft.status).toBe('pending');
+
     const applied = await service.applyDraft(
       actor.orgId,
       actor.accountId,
       draftId,
     );
-    const formsAfter = await factories.scoped(actor, (trx) =>
+    const formsAfterApply = await factories.scoped(actor, (trx) =>
       trx
         .selectFrom('form_definitions')
         .selectAll()
         .where('org_id', '=', actor.orgId)
         .execute(),
     );
-    expect(formsAfter.length).toBe(formsBefore.length + 1);
+    expect(formsAfterApply.length).toBe(formsBeforeDraft.length + 1);
     expect(applied.formDefinitionId).toBeTruthy();
   });
 
