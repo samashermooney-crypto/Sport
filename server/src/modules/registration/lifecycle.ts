@@ -79,7 +79,7 @@ export const myRegistrationListSchema = z.strictObject({
   ),
 });
 
-export const staffRegistrationSchema = z.strictObject({
+const staffRegistrationSchema = z.strictObject({
   id: z.uuid(),
   personId: z.uuid(),
   personName: z.string(),
@@ -164,16 +164,6 @@ export const registrationTransferResponseSchema = z.strictObject({
       amountCents: z.number().int().positive(),
     })
     .optional(),
-});
-
-export const staffRegisterBodySchema = z.strictObject({
-  personId: z.uuid(),
-  householdId: z.uuid(),
-  offeringId: z.uuid(),
-  skipEligibility: z.boolean().optional(),
-  priceOverrideCents: z.number().int().nonnegative().optional(),
-  overrideNote: z.string().trim().max(400).optional(),
-  collectMethod: z.enum(['payment_link', 'offline', 'waived']),
 });
 
 interface RegistrationRow {
@@ -2820,8 +2810,4 @@ export class PostgresRegistrationLifecycle {
       };
     });
   }
-}
-
-export function _internal(): never {
-  throw new Error('unused');
 }

@@ -22,8 +22,6 @@
     "db:migrate": "node --import tsx server/src/db/migrate.ts && npm run db:codegen",
     "db:codegen": "node scripts/db-codegen.mjs",
     "db:seed": "node --import tsx db/seeds/index.ts",
-    "keys:generate": "node --import tsx scripts/keys-generate.ts",
-    "keys:vapid": "node --import tsx scripts/keys-vapid.ts",
     "typecheck": "tsc -b --pretty false && tsc -p tsconfig.tools.json --pretty false",
     "lint": "eslint \"**/*.{ts,tsx}\"",
     "format": "prettier --write .",
