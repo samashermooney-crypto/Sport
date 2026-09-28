@@ -17,6 +17,13 @@ describe('load seed registration allocation', () => {
     expect(rowsByOrg.flat().reduce((total, count) => total + count, 0)).toBe(
       400_000,
     );
+    const secondaryOrgCounts = rowsByOrg.slice(1).flat();
+    expect(secondaryOrgCounts.filter((count) => count === 960)).toHaveLength(
+      236,
+    );
+    expect(secondaryOrgCounts.filter((count) => count === 959)).toHaveLength(
+      160,
+    );
   });
 
   it('rejects an organization or standard-program index outside the profile', () => {
