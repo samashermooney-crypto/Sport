@@ -2725,6 +2725,7 @@ export interface RefundAllocations {
 
 export interface RefundApprovals {
   amount_cents: number;
+  approval_scope: Generated<string>;
   approved_at: Timestamp | null;
   approved_by: string | null;
   cancellation_date: Timestamp;
@@ -2738,6 +2739,7 @@ export interface RefundApprovals {
   request_hash: string;
   requested_by: string;
   status: Generated<string>;
+  transfer_details: Json | null;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
