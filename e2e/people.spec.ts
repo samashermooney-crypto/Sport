@@ -118,8 +118,18 @@ test('owner creates, edits and archives a person from the console', async ({
     await page
       .getByLabel('Choose photo')
       .setInputFiles('server/test/fixtures/gps-photo.jpg');
+    const photoSaved = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response
+          .url()
+          .endsWith(`/api/v1/people/orgs/${actor.orgId}/${personId}/photo`),
+    );
     await page.getByRole('button', { name: 'Crop and upload photo' }).click();
-    await expect(page.getByRole('img', { name: 'Alex Rivera' })).toBeVisible();
+    expect((await photoSaved).ok()).toBe(true);
+    await expect(page.getByRole('img', { name: 'Alex Rivera' })).toBeVisible({
+      timeout: 15_000,
+    });
     await page
       .getByRole('combobox', { name: 'Media consent' })
       .selectOption('denied');
