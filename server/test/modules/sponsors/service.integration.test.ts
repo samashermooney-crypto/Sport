@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { Temporal } from '@js-temporal/polyfill';
+import { orgToday } from '@shared/dates';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDatabase } from '../../../src/db/kysely';
@@ -35,10 +37,18 @@ describe('sponsor contracts and public placements', () => {
         .execute(),
     );
     const now = new Date();
-    const start = now.toISOString().slice(0, 10);
-    const end = new Date(now.getTime() + 20 * 86_400_000)
-      .toISOString()
-      .slice(0, 10);
+    const organization = await createWithOrg(database)(owner, (trx) =>
+      trx
+        .selectFrom('organizations')
+        .select('timezone')
+        .where('id', '=', owner.orgId)
+        .executeTakeFirstOrThrow(),
+    );
+    const start = orgToday(
+      organization.timezone,
+      Temporal.Instant.fromEpochMilliseconds(now.getTime()),
+    );
+    const end = Temporal.PlainDate.from(start).add({ days: 20 }).toString();
     const sponsorId = await createSponsor(database, owner, {
       name: 'Community Sports Medicine',
       contact: {
