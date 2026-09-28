@@ -103,6 +103,7 @@ describe('accessible chart data', () => {
     render(
       <Chart
         title="Registrations"
+        valueFormatter={(value) => `${value.toString()} people`}
         values={[
           { label: 'August', value: 12 },
           { label: 'September', value: 18 },
@@ -114,7 +115,12 @@ describe('accessible chart data', () => {
     expect(
       within(table).getByRole('rowheader', { name: 'September' }),
     ).toBeTruthy();
-    expect(within(table).getByRole('cell', { name: '18' })).toBeTruthy();
+    expect(within(table).getByRole('cell', { name: '18 people' })).toBeTruthy();
+    expect(
+      screen.getByRole('img', {
+        name: 'Registrations: August 12 people, September 18 people',
+      }),
+    ).toBeTruthy();
   });
 });
 

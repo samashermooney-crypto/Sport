@@ -171,6 +171,31 @@
   max-width: 100%;
 }
 
+.report-dashboard {
+  display: grid;
+  gap: var(--space-12);
+  padding: var(--space-20) var(--space-20) 0;
+}
+
+.report-dashboard > header h2,
+.report-dashboard > header p {
+  margin-bottom: var(--space-6);
+}
+
+.report-dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-12);
+}
+
+.report-dashboard__card {
+  min-width: 0;
+}
+
+.report-dashboard__card h3 {
+  margin-top: 0;
+}
+
 .report-builder__chart {
   min-width: 0;
   margin: 0;
@@ -233,6 +258,10 @@
 @media (max-width: 760px) {
   .report-builder {
     padding: var(--space-12);
+  }
+
+  .report-dashboard {
+    padding: var(--space-12) var(--space-12) 0;
   }
 
   .report-builder__layout {

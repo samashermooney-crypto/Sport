@@ -7,6 +7,7 @@ import { apiGet } from '../../api/client';
 import { AppShell } from '../../ui/shell';
 
 import { ReportBuilder } from './ReportBuilder';
+import { ReportsDashboard } from './ReportsDashboard';
 
 function ReportsRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
@@ -48,6 +49,7 @@ function ReportsRoute(): React.JSX.Element {
         { label: 'Account', to: '/me' },
       ]}
     >
+      <ReportsDashboard orgId={orgId} />
       <ReportBuilder orgId={orgId} />
     </AppShell>
   );

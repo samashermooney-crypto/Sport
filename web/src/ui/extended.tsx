@@ -640,10 +640,12 @@ export function Chart({
   title,
   values,
   tone = 'accent',
+  valueFormatter = (value) => value.toString(),
 }: {
   title: string;
   values: { label: string; value: number }[];
   tone?: 'accent' | 'ok' | 'warn' | 'bad' | 'chrome';
+  valueFormatter?: (value: number) => string;
 }): React.JSX.Element {
   const colors = {
     accent: 'var(--accent)',
@@ -653,7 +655,7 @@ export function Chart({
     chrome: 'var(--chrome)',
   } as const;
   const label = `${title}: ${values
-    .map((item) => `${item.label} ${item.value.toString()}`)
+    .map((item) => `${item.label} ${valueFormatter(item.value)}`)
     .join(', ')}`;
   return (
     <figure className="ui-chart">
@@ -686,6 +688,11 @@ export function Chart({
               }}
             />
             <Tooltip
+              formatter={(value) =>
+                typeof value === 'number' || typeof value === 'string'
+                  ? valueFormatter(Number(value))
+                  : ''
+              }
               contentStyle={{
                 backgroundColor: 'var(--panel)',
                 border: '1px solid var(--line)',
@@ -714,7 +721,7 @@ export function Chart({
           {values.map((item) => (
             <tr key={item.label}>
               <th scope="row">{item.label}</th>
-              <td>{item.value}</td>
+              <td>{valueFormatter(item.value)}</td>
             </tr>
           ))}
         </tbody>
