@@ -19,6 +19,7 @@ import {
 } from './access';
 import { PostgresClassAttendance } from './attendance';
 import { PostgresClassBookings } from './bookings';
+import { PostgresAcademyDashboard } from './dashboard';
 import { PostgresClassEnrollments } from './enrollments';
 import {
   AgeIneligibleError,
@@ -58,6 +59,7 @@ const seasonB = randomUUID();
 const profileB = randomUUID();
 const programB = randomUUID();
 const organizationTimezone = 'America/Chicago';
+const weekdays = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] as const;
 
 const ownerContext: OrgContext = {
   orgId: orgA,
@@ -301,6 +303,12 @@ function thisMonthRange(now: Temporal.Instant = Temporal.Now.instant()): {
   return { start: start.toString(), end: end.toString(), today };
 }
 
+function weekdayFor(date: string): (typeof weekdays)[number] {
+  const weekday = weekdays[Temporal.PlainDate.from(date).dayOfWeek - 1];
+  if (!weekday) throw new Error('Could not resolve fixture weekday');
+  return weekday;
+}
+
 describe('academy classes integration', () => {
   let offeringId: string;
   let scheduleId: string;
@@ -430,6 +438,108 @@ describe('academy classes integration', () => {
       personId: instructorPersonA,
       name: 'Instructor Kim',
     });
+  });
+
+  it('warns when a scheduled class exceeds its instructor ratio', async () => {
+    const { offerings, schedules, sessions } = services(ownerContext);
+    const offering = await offerings.create({
+      ...offeringBody,
+      name: 'Ratio monitoring class',
+      billing: 'term',
+      priceCents: 0,
+      tuitionTiers: [],
+      siblingDiscountBps: [],
+      instructorRatio: 8,
+      trialAllowed: false,
+    });
+    const startsOn = Temporal.PlainDate.from(thisMonthRange().today).add({
+      days: 1,
+    });
+    const endsOn = startsOn.add({ days: 14 });
+    const schedule = await schedules.create(
+      offering.id,
+      {
+        recurrence: {
+          kind: 'weekly',
+          interval: 1,
+          byDay: [weekdayFor(startsOn.toString())],
+          startsOn: startsOn.toString(),
+          endsOn: endsOn.toString(),
+          exceptions: [],
+          additions: [],
+        },
+        startTime: '16:00',
+        durationMinutes: 60,
+        timezone: organizationTimezone,
+        spaceId: null,
+        locationText: 'Main gym',
+        termStart: startsOn.toString(),
+        termEnd: endsOn.toString(),
+      },
+      [],
+    );
+    await schedules.assignInstructor(schedule.id, {
+      personId: instructorPersonA,
+    });
+
+    const additionalPeople = Array.from({ length: 5 }, () => randomUUID());
+    const ratioPeople = [
+      childA1,
+      childA2,
+      childA3,
+      childA4,
+      ...additionalPeople,
+    ];
+    await withOrg()(ownerContext, async (trx) => {
+      await trx
+        .insertInto('people')
+        .values(
+          additionalPeople.map((id, index) => ({
+            id,
+            org_id: orgA,
+            first_name: `Ratio${String(index)}`,
+            last_name: 'Gymnast',
+            date_of_birth: '2012-01-01',
+          })),
+        )
+        .execute();
+      await trx
+        .insertInto('class_enrollments')
+        .values(
+          ratioPeople.map((personId) => ({
+            id: randomUUID(),
+            org_id: orgA,
+            class_offering_id: offering.id,
+            person_id: personId,
+            household_id: householdA,
+            account_id: ownerA,
+            status: 'active' as const,
+            starts_on: startsOn.toString(),
+            classes_per_week: 1,
+          })),
+        )
+        .execute();
+    });
+
+    const upcoming = await sessions.list({
+      scheduleId: schedule.id,
+      from: startsOn.toString(),
+      to: endsOn.toString(),
+      limit: 100,
+    });
+    const session = must(upcoming[0]);
+    const dashboard = await new PostgresAcademyDashboard(
+      database,
+      ownerContext,
+    ).get();
+    expect(dashboard.ratioWarnings).toContainEqual(
+      expect.objectContaining({
+        classSessionId: session.id,
+        attendees: 9,
+        instructors: 1,
+        requiredInstructors: 2,
+      }),
+    );
   });
 
   it('enrolls a child with a tuition subscription and prorated invoice', async () => {

@@ -15,6 +15,7 @@ Owns: `server/src/modules/classes/**`, `web/src/console/classes/**`, `web/src/po
 - The first no-commit merge gate on `cfe4c7c9` exposed two more UTC/date-only fixture bugs: `peopleFilters.test.ts` used the database's UTC `CURRENT_DATE` for `joined_on` but a Chicago-local `left_on`, and the sponsor placement test computed its contract start with UTC `toISOString()` while production correctly uses `orgToday()`. Both fixtures now use valid, organization-local dates; no roster or sponsor production behavior changed.
 - Trunk E2E checks (2026-09-27): federation passes 2/2 and classes passes 2/2 across Chromium desktop and WebKit mobile. On trunk baseline 2c52eb47, schedule-stats passes WebKit but Chromium reports `postpone 0 affected events`; on the I branch with `62234e54`, all three journeys pass 6/6 when run serially across both browsers.
 - Phase 12 promotion acceptance is asserted in PostgreSQL integration coverage: approval creates the guardian's in-app notification, and a subscribed promotion moves billing to the target offering's tuition tier on the next bill without adding a duplicate same-month invoice.
+- Phase 12 ratio monitoring is asserted in PostgreSQL integration coverage: a 9-athlete scheduled class at an 8:1 ratio with one active instructor appears in the dashboard warnings with two instructors required.
 
 ## Requests to other tracks
 
