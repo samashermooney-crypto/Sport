@@ -31,6 +31,9 @@ const createDestinationPayment = vi.fn().mockResolvedValue({
   status: 'requires_payment_method',
   amountCents: 1000,
 });
+const createPaymentElementCustomerSession = vi
+  .fn()
+  .mockResolvedValue({ clientSecret: 'cuss_checkout_route_secret_test' });
 
 beforeAll(async () => {
   database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
@@ -144,6 +147,7 @@ beforeAll(async () => {
             chargesEnabled: true,
           }),
           createDestinationPayment,
+          createPaymentElementCustomerSession,
         }) as unknown as PaymentsGateway,
     ),
   );
@@ -180,15 +184,21 @@ describe('checkout payment HTTP', () => {
       403,
     );
     expect(createDestinationPayment).not.toHaveBeenCalled();
+    expect(createPaymentElementCustomerSession).not.toHaveBeenCalled();
     const first = await paymentRequest(key);
     expect(first.status).toBe(201);
     expect(await first.json()).toMatchObject({
       id: 'pi_checkout_route',
+      customerSessionClientSecret: 'cuss_checkout_route_secret_test',
       quote: { amountCents: 1000, applicationFeeCents: 15 },
     });
     const replay = await paymentRequest(key);
     expect(replay.status).toBe(201);
     expect(createDestinationPayment).toHaveBeenCalledTimes(1);
+    expect(createPaymentElementCustomerSession).toHaveBeenCalledTimes(2);
+    expect(createPaymentElementCustomerSession).toHaveBeenLastCalledWith(
+      'cus_payment_route',
+    );
     expect(createDestinationPayment).toHaveBeenCalledWith(
       expect.objectContaining({
         connectedAccountId: 'acct_payment_route',

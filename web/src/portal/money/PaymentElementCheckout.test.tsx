@@ -13,7 +13,20 @@ vi.mock('@stripe/stripe-js', () => ({
   loadStripe: vi.fn().mockResolvedValue({}),
 }));
 vi.mock('@stripe/react-stripe-js', () => ({
-  Elements: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Elements: ({
+    children,
+    options,
+  }: {
+    children: React.ReactNode;
+    options?: { customerSessionClientSecret?: string };
+  }) => (
+    <div
+      data-testid="elements"
+      data-customer-session={options?.customerSessionClientSecret ?? ''}
+    >
+      {children}
+    </div>
+  ),
   PaymentElement: () => <div data-testid="payment-element" />,
   useStripe: () => ({ confirmPayment }),
   useElements: () => ({}),
@@ -50,6 +63,7 @@ describe('Payment Element checkout', () => {
       <PaymentElementCheckout
         publishableKey="pk_test_fixture"
         clientSecret="pi_test_secret"
+        customerSessionClientSecret="cuss_test_secret"
         quote={quote}
         returnUrl="/me/payments/return"
         onSubmitted={onSubmitted}
@@ -58,6 +72,9 @@ describe('Payment Element checkout', () => {
     expect(screen.getByText('Service fee')).toBeDefined();
     expect(screen.getByText('$1.80')).toBeDefined();
     expect(screen.getByTestId('payment-element')).toBeDefined();
+    expect(
+      screen.getByTestId('elements').getAttribute('data-customer-session'),
+    ).toBe('cuss_test_secret');
     fireEvent.click(screen.getByRole('button', { name: 'Pay $51.80' }));
     await waitFor(() => {
       expect(onSubmitted).toHaveBeenCalledWith('processing');

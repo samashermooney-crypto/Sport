@@ -20,7 +20,10 @@ import {
 } from '../../db/withOrg.js';
 import { appendAuditEvent } from '../audit/service.js';
 import { refundTermsSchema } from '../finance/refund-terms.js';
-import { RefundConflictError } from '../finance/refunds.js';
+import {
+  RefundApprovalRequiredError,
+  RefundConflictError,
+} from '../finance/refunds.js';
 
 import { RegistrationCheckoutError } from './checkout-start.js';
 import { enqueueRegistrationNotice } from './notices.js';
@@ -79,7 +82,7 @@ export const myRegistrationListSchema = z.strictObject({
   ),
 });
 
-export const staffRegistrationSchema = z.strictObject({
+const staffRegistrationSchema = z.strictObject({
   id: z.uuid(),
   personId: z.uuid(),
   personName: z.string(),
@@ -164,16 +167,6 @@ export const registrationTransferResponseSchema = z.strictObject({
       amountCents: z.number().int().positive(),
     })
     .optional(),
-});
-
-export const staffRegisterBodySchema = z.strictObject({
-  personId: z.uuid(),
-  householdId: z.uuid(),
-  offeringId: z.uuid(),
-  skipEligibility: z.boolean().optional(),
-  priceOverrideCents: z.number().int().nonnegative().optional(),
-  overrideNote: z.string().trim().max(400).optional(),
-  collectMethod: z.enum(['payment_link', 'offline', 'waived']),
 });
 
 interface RegistrationRow {
@@ -414,11 +407,21 @@ async function scopedRefundLines(
   paidCents: number;
   fullCart: boolean;
 }> {
+  if (!registration.invoice_line_id)
+    return {
+      invoiceId: '',
+      paymentId: null,
+      lines: [],
+      paidServiceFeeShareCents: 0,
+      terms: null,
+      paidCents: 0,
+      fullCart: true,
+    };
   const invoiceLine = await trx
     .selectFrom('invoice_lines')
     .select(['id', 'invoice_id', 'amount_cents', 'kind'])
     .where('org_id', '=', orgId)
-    .where('id', '=', registration.invoice_line_id ?? '')
+    .where('id', '=', registration.invoice_line_id)
     .executeTakeFirst();
   if (!invoiceLine)
     return {
@@ -2558,6 +2561,12 @@ export class PostgresRegistrationLifecycle {
             idempotencyKey: key,
           });
         } catch (error) {
+          if (error instanceof RefundApprovalRequiredError)
+            throw new RegistrationCheckoutError(
+              409,
+              'REFUND_APPROVAL_REQUIRED',
+              error.message,
+            );
           if (error instanceof RefundConflictError)
             throw new RegistrationCheckoutError(
               409,
@@ -2820,8 +2829,4 @@ export class PostgresRegistrationLifecycle {
       };
     });
   }
-}
-
-export function _internal(): never {
-  throw new Error('unused');
 }

@@ -1,6 +1,5 @@
 import { newId } from '@shared/ids';
 import { sql, type Kysely } from 'kysely';
-import { z } from 'zod';
 
 import type { DB, Json } from '../../db/types.js';
 import {
@@ -247,18 +246,3 @@ export class PostgresRegistrationNoticeDelivery {
     });
   }
 }
-
-export const registrationNoticeListSchema = z.strictObject({
-  notices: z.array(
-    z.strictObject({
-      id: z.uuid(),
-      kind: z.string(),
-      accountId: z.uuid(),
-      status: z.string(),
-      attempts: z.number().int().nonnegative(),
-      createdAt: z.string(),
-      sentAt: z.string().nullable(),
-      lastError: z.string().nullable(),
-    }),
-  ),
-});

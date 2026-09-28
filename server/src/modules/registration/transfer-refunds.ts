@@ -1,15 +1,20 @@
+import type { ProposedRefund } from '@shared/policies/refund-policy';
 import { sql, type Kysely } from 'kysely';
 import { z } from 'zod';
 
 import type { DB } from '../../db/types.js';
 import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
 import type { PaymentsGateway } from '../../integrations/stripe/gateway.js';
-import { PostgresRefundApprovalPolicy } from '../finance/refund-approval-repo.js';
+import {
+  PostgresRefundApprovalPolicy,
+  refundApprovalHash,
+} from '../finance/refund-approval-repo.js';
 import { PostgresRefundAttemptStore } from '../finance/refund-attempt-repo.js';
 import { PostgresRefundRecordStore } from '../finance/refund-record-repo.js';
 import { PostgresRefundSourceReader } from '../finance/refund-source-repo.js';
 import {
   exactLineRefundProposal,
+  RefundApprovalRequiredError,
   RefundConflictError,
   StripeRefundService,
 } from '../finance/refunds.js';
@@ -179,17 +184,13 @@ export class PostgresRegistrationTransferRefunds implements RegistrationTransfer
         'Successful payments do not fund the requested registration line cents',
       );
 
-    const approvedByAccountId = await this.approvals.approvedByKey(
-      input.orgId,
-      input.idempotencyKey,
-      input.requestedByAccountId,
-    );
     const prepared = [] as {
       paymentId: string;
       amountCents: number;
       prior: z.output<typeof attemptResultSchema> | null;
       approvalThresholdCents: number;
       totalCents: number;
+      proposal: ProposedRefund;
     }[];
     for (const item of plan) {
       const source = await this.reader.load(input.orgId, item.paymentId);
@@ -200,6 +201,7 @@ export class PostgresRegistrationTransferRefunds implements RegistrationTransfer
           ...item,
           approvalThresholdCents: source.approvalThresholdCents,
           totalCents: item.prior.proposal.totalCents,
+          proposal: item.prior.proposal,
         });
         continue;
       }
@@ -212,8 +214,10 @@ export class PostgresRegistrationTransferRefunds implements RegistrationTransfer
         ...item,
         approvalThresholdCents: source.approvalThresholdCents,
         totalCents: proposal.totalCents,
+        proposal,
       });
     }
+    let approvedByAccountId: string | null = null;
     if (prepared.length > 1) {
       const aggregateCents = prepared.reduce(
         (sum, item) => sum + BigInt(item.totalCents),
@@ -226,10 +230,58 @@ export class PostgresRegistrationTransferRefunds implements RegistrationTransfer
         throw new RefundConflictError(
           'Transfer refund approval threshold is invalid',
         );
-      if (aggregateCents > BigInt(threshold) || approvedByAccountId)
+      if (aggregateCents > BigInt(Number.MAX_SAFE_INTEGER))
         throw new RefundConflictError(
-          'A split transfer refund above the approval threshold requires finance review',
+          'Transfer refund total exceeds safe cents',
         );
+      const approval = await this.approvals.requestTransferAggregate(
+        {
+          orgId: input.orgId,
+          operationKey: input.idempotencyKey,
+          invoiceLineId: input.invoiceLineId,
+          requestedAmountCents: input.amountCents,
+          cancellationDate: input.cancellationDate,
+          requestedByAccountId: input.requestedByAccountId,
+          totalCents: Number(aggregateCents),
+          shares: prepared.map((item) => ({
+            paymentId: item.paymentId,
+            amountCents: item.amountCents,
+            approvalThresholdCents: item.approvalThresholdCents,
+            proposal: item.proposal,
+            requestHash: refundApprovalHash({
+              orgId: input.orgId,
+              paymentId: item.paymentId,
+              operationKey: input.idempotencyKey,
+              destination: 'original_method',
+              recipient: null,
+              cancellationDate: input.cancellationDate,
+              requestedByAccountId: input.requestedByAccountId,
+              proposal: item.proposal,
+            }),
+          })),
+        },
+        aggregateCents > BigInt(threshold),
+      );
+      if (approval?.status === 'pending')
+        throw new RefundApprovalRequiredError(approval.id);
+      if (approval?.status === 'rejected')
+        throw new RefundConflictError('Transfer refund approval was rejected');
+      approvedByAccountId = approval?.approvedByAccountId ?? null;
+    } else {
+      const scope = await this.approvals.approvalScopeByKey(
+        input.orgId,
+        input.idempotencyKey,
+        input.requestedByAccountId,
+      );
+      if (scope === 'transfer_aggregate')
+        throw new RefundConflictError(
+          'Transfer refund no longer matches its aggregate approval',
+        );
+      approvedByAccountId = await this.approvals.approvedByKey(
+        input.orgId,
+        input.idempotencyKey,
+        input.requestedByAccountId,
+      );
     }
 
     const refunds = new StripeRefundService(
@@ -249,9 +301,7 @@ export class PostgresRegistrationTransferRefunds implements RegistrationTransfer
           amountCents: item.amountCents,
           cancellationDate: input.cancellationDate,
           requestedByAccountId: input.requestedByAccountId,
-          ...(prepared.length === 1 && approvedByAccountId
-            ? { approvedByAccountId }
-            : {}),
+          ...(approvedByAccountId ? { approvedByAccountId } : {}),
           idempotencyKey: input.idempotencyKey,
         }),
       );
