@@ -9,6 +9,11 @@ if [ "$(uname -s)" != 'Linux' ] || [ "$(uname -m)" != 'x86_64' ]; then
   echo 'Linux parity baselines must be captured on the ubuntu-24.04 x86_64 CI runner.' >&2
   exit 1
 fi
+if [ "${GITHUB_ACTIONS:-}" != 'true' ] || [ -e /.dockerenv ] || \
+  ! grep -q '^VERSION_ID="24.04"$' /etc/os-release; then
+  echo 'Capture Linux parity baselines on the hosted ubuntu-24.04 runner, not in a container.' >&2
+  exit 1
+fi
 
 npx playwright install-deps chromium webkit
 

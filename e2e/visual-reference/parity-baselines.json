@@ -1,12 +1,13 @@
 {
   "legacyRevision": "9ef77bb",
   "linux": {
-    "runnerImage": "ubuntu-24.04 (ubuntu24/20260920.314)",
+    "runnerImage": "ubuntu-24.04 (ubuntu24/20260920.314.1)",
+    "sourceCommit": "2c52eb47",
     "architecture": "x86_64",
     "playwrightVersion": "1.63.0",
     "chromiumVersion": "153.0.8010.12 (Playwright revision 1243)",
     "webkitVersion": "26.6 (Playwright revision 2359)",
-    "lastValidatedActionsRun": "36357792018",
+    "lastValidatedActionsRun": "36364979347",
     "fontPackages": {
       "fonts-liberation": "1:2.1.5-3",
       "fonts-noto-color-emoji": "2.047-0ubuntu0.24.04.1",
