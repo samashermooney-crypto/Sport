@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Temporal } from '@js-temporal/polyfill';
 import { orgToday } from '@shared/dates';
 import { gymnastics } from '@shared/sport/templates/gymnastics';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -31,7 +31,11 @@ import { PostgresClassPromotions } from './promotions';
 import { PostgresClassSchedules } from './schedules';
 import { PostgresClassSessions } from './sessions';
 import { PostgresClassSkills } from './skills';
-import { PostgresTuitionSubscriptions, tuitionForOffering } from './tuition';
+import {
+  buildTuitionLines,
+  PostgresTuitionSubscriptions,
+  tuitionForOffering,
+} from './tuition';
 import { runTuitionBilling } from './tuition-job';
 
 const orgA = randomUUID();
@@ -756,6 +760,16 @@ describe('academy classes integration', () => {
       recommended.version,
     );
     expect(approved.status).toBe('approved');
+    const guardianNotification = await withOrg()(guardianContext, (trx) =>
+      trx
+        .selectFrom('notifications')
+        .select('id')
+        .where('account_id', '=', guardianA)
+        .where('type', '=', 'registration.offered')
+        .where(sql<boolean>`payload ->> 'resourceId' = ${recommended.id}`)
+        .executeTakeFirst(),
+    );
+    expect(guardianNotification).toBeTruthy();
     const confirmed = await promotions.confirm(
       approved.id,
       { expectedVersion: approved.version },
@@ -771,9 +785,19 @@ describe('academy classes integration', () => {
   });
 
   it('defers a subscribed level change to the next bill without double charging', async () => {
-    const { enrollments, promotions, skills } = services(guardianContext);
+    const { enrollments, promotions, skills, offerings } =
+      services(guardianContext);
     const levels = await skills.listLevels(profileA);
     const nextLevel = must(levels[1]);
+    const targetOffering = await offerings.get(secondOfferingId);
+    await offerings.update(secondOfferingId, {
+      tuitionTiers: [
+        { maxClassesPerWeek: 1, amountCents: 15_000 },
+        { maxClassesPerWeek: 2, amountCents: 28_000 },
+        { maxClassesPerWeek: null, amountCents: 39_000 },
+      ],
+      expectedVersion: targetOffering.version,
+    });
     const started = await enrollments.enroll(
       {
         classOfferingId: offeringId,
@@ -827,6 +851,45 @@ describe('academy classes integration', () => {
         await enrollments.list({ personId: childA4, limit: 20 })
       ).items.find((item) => item.classOfferingId === secondOfferingId);
       expect(moved?.status).toBe('active');
+
+      const subscriptionId = must(started.enrollment?.billingSubscriptionId);
+      const nextMonth = Temporal.PlainDate.from(thisMonthRange().today)
+        .with({ day: 1 })
+        .add({ months: 1 });
+      const nextBill = await withOrg()(guardianContext, async (trx) => {
+        const active = await trx
+          .selectFrom('class_enrollments')
+          .select(['classes_per_week', 'status'])
+          .where('org_id', '=', orgA)
+          .where('class_offering_id', '=', secondOfferingId)
+          .where('billing_subscription_id', '=', subscriptionId)
+          .where('status', 'in', ['active', 'paused'])
+          .execute();
+        const { lines } = await buildTuitionLines(
+          trx,
+          guardianContext,
+          subscriptionId,
+          nextMonth.toString(),
+          nextMonth.add({ months: 1 }).subtract({ days: 1 }).toString(),
+        );
+        return {
+          classesPerWeek: active
+            .filter((item) => item.status === 'active')
+            .reduce((total, item) => total + item.classes_per_week, 0),
+          tuitionCents: lines.find((line) =>
+            line.description.startsWith(
+              'Intermediate Gymnastics — monthly tuition',
+            ),
+          )?.amountCents,
+        };
+      });
+      const expectedTierCents =
+        nextBill.classesPerWeek <= 1
+          ? 15_000
+          : nextBill.classesPerWeek === 2
+            ? 28_000
+            : 39_000;
+      expect(nextBill.tuitionCents).toBe(expectedTierCents);
     } finally {
       await admin.end();
     }
