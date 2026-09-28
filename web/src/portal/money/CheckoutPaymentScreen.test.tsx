@@ -15,8 +15,19 @@ vi.mock('./PaymentElementCheckout', () => ({
   assertPaymentQuote: (quote: { totalCents: number }) => {
     if (quote.totalCents !== 1000) throw new Error('Invalid quote');
   },
-  PaymentElementCheckout: ({ clientSecret }: { clientSecret: string }) => (
-    <p data-testid="element">{clientSecret}</p>
+  PaymentElementCheckout: ({
+    clientSecret,
+    customerSessionClientSecret,
+  }: {
+    clientSecret: string;
+    customerSessionClientSecret: string;
+  }) => (
+    <p
+      data-testid="element"
+      data-customer-session={customerSessionClientSecret}
+    >
+      {clientSecret}
+    </p>
   ),
 }));
 
@@ -51,6 +62,7 @@ describe('checkout payment screen', () => {
       .mockResolvedValueOnce({
         id: 'pi_test',
         clientSecret: 'pi_test_secret',
+        customerSessionClientSecret: 'cuss_test_secret',
         status: 'requires_payment_method',
         quote: {
           baseCents: 1000,
@@ -68,6 +80,9 @@ describe('checkout payment screen', () => {
     await waitFor(() => {
       expect(screen.getByTestId('element').textContent).toBe('pi_test_secret');
     });
+    expect(
+      screen.getByTestId('element').getAttribute('data-customer-session'),
+    ).toBe('cuss_test_secret');
     expect(apiPost).toHaveBeenCalledTimes(2);
     expect(apiPost.mock.calls[0]?.[3]).toBe(apiPost.mock.calls[1]?.[3]);
   });
@@ -76,6 +91,7 @@ describe('checkout payment screen', () => {
     apiPost.mockResolvedValue({
       id: 'pi_test',
       clientSecret: 'pi_test_secret',
+      customerSessionClientSecret: 'cuss_test_secret',
       status: 'requires_payment_method',
       quote: {
         baseCents: 1001,

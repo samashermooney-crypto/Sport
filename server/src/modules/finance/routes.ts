@@ -138,7 +138,10 @@ import {
   payoutReconciliationSchema,
   PostgresPayoutReconciliation,
 } from './reconciliation.js';
-import { PostgresRefundApprovalPolicy } from './refund-approval-repo.js';
+import {
+  PostgresRefundApprovalPolicy,
+  refundApprovalQueueSchema,
+} from './refund-approval-repo.js';
 import { PostgresRefundAttemptStore } from './refund-attempt-repo.js';
 import { PostgresRefundRecordStore } from './refund-record-repo.js';
 import { PostgresRefundSourceReader } from './refund-source-repo.js';
@@ -489,6 +492,7 @@ export const checkoutPaymentBodySchema = z.strictObject({
 export const checkoutPaymentResponseSchema = z.strictObject({
   id: z.string().startsWith('pi_'),
   clientSecret: z.string().min(1),
+  customerSessionClientSecret: z.string().min(1),
   status: z.string().min(1),
   quote: z.strictObject({
     baseCents: z.number().int().nonnegative(),
@@ -1570,14 +1574,15 @@ export function createFinanceRouter(
           .select('email')
           .where('id', '=', session.accountId)
           .executeTakeFirstOrThrow();
-        await payerMethods().ensureCustomer(
+        const customerId = await payerMethods().ensureCustomer(
           session.accountId,
           payerAccount.email,
         );
+        const gateway = gatewayFactory();
         const result = await new CheckoutPaymentService(
           new PostgresFrozenChargeReader(dependencies.database, context),
           new PostgresPaymentAttemptStore(dependencies.database, context),
-          gatewayFactory(),
+          gateway,
           new PostgresPaymentRecordStore(dependencies.database, context),
         ).create({
           orgId,
@@ -1587,7 +1592,14 @@ export function createFinanceRouter(
           idempotencyKey,
           saveForAutopay: input.saveForAutopay,
         });
-        response.status(201).json(checkoutPaymentResponseSchema.parse(result));
+        const customerSession =
+          await gateway.createPaymentElementCustomerSession(customerId);
+        response.status(201).json(
+          checkoutPaymentResponseSchema.parse({
+            ...result,
+            customerSessionClientSecret: customerSession.clientSecret,
+          }),
+        );
       } catch (error) {
         sendError(response, error);
       }
@@ -2062,6 +2074,19 @@ export function createFinanceRouter(
           amountCents: result.proposal.totalCents,
         }),
       );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/orgs/:orgId/refund-approvals', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const approvals = await new PostgresRefundApprovalPolicy(
+        dependencies.database,
+      ).listPending(orgId, session.accountId);
+      response.json(refundApprovalQueueSchema.parse(approvals));
     } catch (error) {
       sendError(response, error);
     }

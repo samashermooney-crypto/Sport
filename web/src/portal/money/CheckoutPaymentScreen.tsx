@@ -13,6 +13,7 @@ import {
 const intentSchema = z.strictObject({
   id: z.string().startsWith('pi_'),
   clientSecret: z.string().min(1),
+  customerSessionClientSecret: z.string().min(1),
   status: z.string().min(1),
   quote: z.strictObject({
     baseCents: z.number().int().nonnegative(),
@@ -60,6 +61,8 @@ export function CheckoutPaymentScreen({
     [checkoutId, invoiceId],
   );
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [customerSessionClientSecret, setCustomerSessionClientSecret] =
+    useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -67,6 +70,7 @@ export function CheckoutPaymentScreen({
     setLoading(true);
     setError('');
     setClientSecret(null);
+    setCustomerSessionClientSecret(null);
     try {
       assertPaymentQuote(quote);
       const result = await apiPost(
@@ -84,6 +88,7 @@ export function CheckoutPaymentScreen({
           'The payment amount changed. Refresh your checkout quote.',
         );
       setClientSecret(result.clientSecret);
+      setCustomerSessionClientSecret(result.customerSessionClientSecret);
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : 'Payment is unavailable.',
@@ -97,7 +102,7 @@ export function CheckoutPaymentScreen({
     void load();
   }, [load]);
   if (loading) return <p role="status">Preparing secure payment…</p>;
-  if (error || !clientSecret)
+  if (error || !clientSecret || !customerSessionClientSecret)
     return (
       <section className="money-panel">
         <p role="alert" className="money-error">
@@ -112,6 +117,7 @@ export function CheckoutPaymentScreen({
     <PaymentElementCheckout
       publishableKey={publishableKey}
       clientSecret={clientSecret}
+      customerSessionClientSecret={customerSessionClientSecret}
       quote={quote}
       returnUrl={returnUrl}
       onSubmitted={onSubmitted}

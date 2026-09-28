@@ -288,7 +288,7 @@ test('family registers two siblings together, signs waivers, and chooses uniform
   }
 });
 
-test('family joins a full program waitlist from discovery', async ({
+test('waitlist cancellation offers a spot, acceptance confirms, and expiry advances the queue', async ({
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
@@ -300,23 +300,67 @@ test('family joins a full program waitlist from discovery', async ({
     const actor = await factories.actor();
     const program = await factories.program(actor);
     const householdId = await factories.household(actor);
-    const registeredPersonId = await factories.person(actor, {
-      firstName: 'Jordan',
-      lastName: 'Family',
-      dateOfBirth: '2014-05-20',
-    });
-    const waitlistedPersonId = await factories.person(actor, {
-      firstName: 'Taylor',
-      lastName: 'Family',
-      dateOfBirth: '2016-02-14',
-    });
+    const registeredPeople = [];
+    for (const person of [
+      { firstName: 'Jordan', lastName: 'Family' },
+      { firstName: 'Morgan', lastName: 'Family' },
+      { firstName: 'Riley', lastName: 'Family' },
+    ]) {
+      registeredPeople.push({
+        id: await factories.person(actor, {
+          ...person,
+          dateOfBirth: '2014-05-20',
+        }),
+      });
+    }
+    const waitlisted = [];
+    for (const person of [
+      { firstName: 'Taylor', lastName: 'Family' },
+      { firstName: 'Casey', lastName: 'Family' },
+      { firstName: 'Avery', lastName: 'Family' },
+    ]) {
+      waitlisted.push({
+        id: await factories.person(actor, {
+          ...person,
+          dateOfBirth: '2016-02-14',
+        }),
+      });
+    }
+    const registeredPersonIds = registeredPeople.map((person) => person.id);
+    const waitlistedPersonIds = waitlisted.map((person) => person.id);
+    const refundTerms = {
+      policy: {
+        rules: [],
+        afterLastBps: 10_000,
+        serviceFeeRefund: 'proportional' as const,
+      },
+      approvalThresholdCents: 10_000,
+      refundApplicationFee: true,
+    };
+    const utcOffset = 12 - new Date().getUTCHours();
+    const timezone =
+      'Etc/GMT' +
+      (utcOffset > 0 ? '-' : utcOffset < 0 ? '+' : '') +
+      (utcOffset === 0 ? '' : String(Math.abs(utcOffset)));
     await createWithOrg(database)(actor, async (trx) => {
+      await trx
+        .updateTable('organizations')
+        .set({ timezone, settings: { refundTerms } })
+        .where('id', '=', actor.orgId)
+        .execute();
+      await trx
+        .updateTable('role_assignments')
+        .set({ pending_mfa: false })
+        .where('org_id', '=', actor.orgId)
+        .where('account_id', '=', actor.accountId)
+        .where('role', '=', 'owner')
+        .execute();
       await trx
         .updateTable('programs')
         .set({
           status: 'registration_open',
           visibility: 'public',
-          settings: { waitlistMode: 'manual' },
+          settings: { waitlistMode: 'auto', offerExpiryHours: 4 },
         })
         .where('org_id', '=', actor.orgId)
         .where('id', '=', program.programId)
@@ -334,7 +378,7 @@ test('family joins a full program waitlist from discovery', async ({
       await trx
         .insertInto('household_members')
         .values(
-          [registeredPersonId, waitlistedPersonId].map((personId) => ({
+          [...registeredPersonIds, ...waitlistedPersonIds].map((personId) => ({
             id: crypto.randomUUID(),
             org_id: actor.orgId,
             household_id: householdId,
@@ -347,7 +391,7 @@ test('family joins a full program waitlist from discovery', async ({
       await trx
         .insertInto('person_account_links')
         .values(
-          [registeredPersonId, waitlistedPersonId].map((personId) => ({
+          [...registeredPersonIds, ...waitlistedPersonIds].map((personId) => ({
             id: crypto.randomUUID(),
             org_id: actor.orgId,
             person_id: personId,
@@ -369,18 +413,18 @@ test('family joins a full program waitlist from discovery', async ({
             org_id: actor.orgId,
             subject_type: subjectType as 'program' | 'division' | 'offering',
             subject_id: subjectId ?? '',
-            capacity: 1,
-            confirmed: 1,
+            capacity: registeredPersonIds.length,
+            confirmed: registeredPersonIds.length,
           })),
         )
         .execute();
     });
-    await factories.registration(
-      actor,
-      program,
-      registeredPersonId,
-      householdId,
-    );
+    const registrationIds = [];
+    for (const personId of registeredPersonIds) {
+      registrationIds.push(
+        await factories.registration(actor, program, personId, householdId),
+      );
+    }
     const session = await database.transaction().execute((trx) =>
       issueSession(
         trx,
@@ -408,21 +452,170 @@ test('family joins a full program waitlist from discovery', async ({
     const participant = page.getByLabel(
       'Participant for Fixture League · Player waitlist',
     );
-    await participant.selectOption(`${waitlistedPersonId}:${householdId}`);
-    await page.getByRole('button', { name: 'Join waitlist' }).click();
-    await expect(page.getByText('You are #1 on this waitlist.')).toBeVisible();
+    for (const [index, personId] of waitlistedPersonIds.entries()) {
+      await participant.selectOption(personId + ':' + householdId);
+      await page.getByRole('button', { name: 'Join waitlist' }).click();
+      await expect(
+        page.getByText('You are #' + String(index + 1) + ' on this waitlist.'),
+      ).toBeVisible();
+    }
 
     const entries = await createWithOrg(database)(actor, (trx) =>
       trx
         .selectFrom('waitlist_entries')
-        .select(['person_id', 'position', 'status'])
+        .select(['id', 'person_id', 'position', 'status'])
+        .where('org_id', '=', actor.orgId)
+        .where('offering_id', '=', program.offeringId)
+        .orderBy('position')
+        .execute(),
+    );
+    expect(entries).toHaveLength(waitlistedPersonIds.length);
+    expect(
+      entries.map(({ person_id, position, status }) => ({
+        person_id,
+        position,
+        status,
+      })),
+    ).toEqual(
+      waitlistedPersonIds.map((personId, index) => ({
+        person_id: personId,
+        position: index + 1,
+        status: 'waiting',
+      })),
+    );
+
+    const baseUrl = String(testInfo.project.use.baseURL);
+    const cancelAsStaff = async (registrationId: string): Promise<void> => {
+      const response = await page
+        .context()
+        .request.post(
+          new URL(
+            '/api/v1/registration/orgs/' +
+              actor.orgId +
+              '/registrations/' +
+              registrationId +
+              '/cancel',
+            baseUrl,
+          ).toString(),
+          {
+            data: { reason: 'Releasing the seat for the waitlist journey' },
+            headers: {
+              Origin: new URL(baseUrl).origin,
+              'X-Athlentry-Request': '1',
+              'Idempotency-Key': crypto.randomUUID(),
+            },
+          },
+        );
+      expect(response.status(), await response.text()).toBe(200);
+    };
+
+    const firstRegistrationId = registrationIds[0];
+    const secondRegistrationId = registrationIds[1];
+    const thirdRegistrationId = registrationIds[2];
+    const firstWaitlistedPersonId = waitlistedPersonIds[0];
+    const secondWaitlistedPersonId = waitlistedPersonIds[1];
+    const thirdWaitlistedPersonId = waitlistedPersonIds[2];
+    if (
+      !firstRegistrationId ||
+      !secondRegistrationId ||
+      !thirdRegistrationId ||
+      !firstWaitlistedPersonId ||
+      !secondWaitlistedPersonId ||
+      !thirdWaitlistedPersonId
+    )
+      throw new Error('Waitlist journey fixtures are incomplete');
+
+    await cancelAsStaff(firstRegistrationId);
+    const offeredToFirst = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('waitlist_entries')
+        .select(['id', 'status'])
+        .where('org_id', '=', actor.orgId)
+        .where('person_id', '=', firstWaitlistedPersonId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(offeredToFirst.status).toBe('offered');
+    await page.goto(`/portal/orgs/${actor.orgId}/registrations`);
+    await expect(
+      page.getByRole('heading', { name: 'My registrations' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Accept offer' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Participant details' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Continue to review' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Review your registration' }),
+    ).toBeVisible();
+    await page
+      .getByRole('checkbox', {
+        name: 'I have read and accept these refund terms.',
+      })
+      .check();
+    await page.getByRole('button', { name: 'Continue to payment' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Registration confirmed' }),
+    ).toBeVisible();
+
+    const acceptedRegistration = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('registrations')
+        .select(['id', 'status'])
+        .where('org_id', '=', actor.orgId)
+        .where('program_id', '=', program.programId)
+        .where('person_id', '=', firstWaitlistedPersonId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(acceptedRegistration.status).toBe('confirmed');
+    const acceptedWaitlistEntry = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('waitlist_entries')
+        .select(['status', 'registration_id'])
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', offeredToFirst.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(acceptedWaitlistEntry).toEqual({
+      status: 'accepted',
+      registration_id: acceptedRegistration.id,
+    });
+
+    await cancelAsStaff(secondRegistrationId);
+    const offeredToSecond = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('waitlist_entries')
+        .select(['id', 'status'])
+        .where('org_id', '=', actor.orgId)
+        .where('person_id', '=', secondWaitlistedPersonId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(offeredToSecond.status).toBe('offered');
+    await createWithOrg(database)(actor, async (trx) => {
+      await trx
+        .updateTable('waitlist_entries')
+        .set({ offer_expires_at: new Date(Date.now() - 60_000) })
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', offeredToSecond.id)
+        .execute();
+    });
+    await cancelAsStaff(thirdRegistrationId);
+    const advancedQueue = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('waitlist_entries')
+        .select(['person_id', 'status'])
         .where('org_id', '=', actor.orgId)
         .where('offering_id', '=', program.offeringId)
         .execute(),
     );
-    expect(entries).toEqual([
-      { person_id: waitlistedPersonId, position: 1, status: 'waiting' },
-    ]);
+    expect(
+      advancedQueue.find(
+        (entry) => entry.person_id === secondWaitlistedPersonId,
+      )?.status,
+    ).toBe('expired');
+    expect(
+      advancedQueue.find((entry) => entry.person_id === thirdWaitlistedPersonId)
+        ?.status,
+    ).toBe('offered');
   } finally {
     await database.destroy();
   }
