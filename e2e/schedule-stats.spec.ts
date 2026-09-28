@@ -498,9 +498,16 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
       closureDialog = dialog.message();
       await dialog.accept();
     });
+    const closureResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/closures'),
+      { timeout: 15_000 },
+    );
     await closureForm
       .getByRole('button', { name: 'Preview and close' })
       .click();
+    expect((await closureResponse).ok()).toBe(true);
     await expect(page.getByRole('status')).toHaveText(
       'Closure recorded and affected events updated.',
     );

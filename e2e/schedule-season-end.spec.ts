@@ -120,7 +120,10 @@ test('season end collects family feedback, ratings, awards, and archive', async 
       'section[aria-labelledby="family-surveys-heading"]',
     );
     await expect(
-      familySurvey.getByRole('heading', { name: 'Season feedback' }),
+      familySurvey.getByRole('heading', {
+        name: 'Season feedback',
+        level: 2,
+      }),
     ).toBeVisible();
     await familySurvey
       .getByLabel(

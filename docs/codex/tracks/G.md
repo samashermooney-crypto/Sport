@@ -53,12 +53,12 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Program statistic settings, leaderboard aggregation, enabled/public filters, private-stat staff access, and optimistic-concurrency integration regression pass against the isolated Postgres stack.
 - [x] Season-award listing query regression passes against isolated Postgres after qualifying joined table columns.
 - [x] Statistics configuration, contest creation, finalized score with persisted per-team stats, facility closure preview and postponement, public leaderboard, and public standings snapshot Playwright journey passes on Chromium desktop and WebKit mobile with axe and no schedule-page alerts.
-- [x] Linux CI reproduction uses Node 24 and the Playwright 1.63.0 Noble image on AMD64. Chromium passed the focused statistics journey (1/1, 30.1 seconds, one worker). `webServer` now waits for `/healthz` through Vite's API proxy, so Playwright does not begin before the API listener is ready. The emulated AMD64 WebKit process crashed under this ARM host; this is not a result from GitHub's native AMD64 runner.
-- [x] After syncing Track B's Phase 3 integration (`6e73bda8`), typecheck and lint pass; all 12 Chromium schedule journeys pass (12/12). The focused Linux AMD64 Chromium statistics journey passes again (1/1, 47.8 seconds).
+- [x] Linux CI reproduction uses Node 24 and the Playwright 1.63.0 Noble image on AMD64. The focused Chromium statistics journey passes (1/1); a final run with `--shm-size=1g` took 1.4 minutes. `webServer` waits for `/healthz` through Vite's API proxy, so Playwright does not begin before the API listener is ready. Chromium crashed at the final navigation in an earlier Docker run with the default shared-memory mount; the adequately sized rerun passed. The emulated AMD64 WebKit process also crashed under this ARM host, so neither container-specific crash is a result from GitHub's native AMD64 runner.
+- [x] After syncing Track B's Phase 3 integration (`6e73bda8`), typecheck, lint, and production build pass. The complete CI-mode G suite passes 24/24 across Chromium desktop and WebKit mobile with axe at two workers. The suite now waits for the final closure response, targets the season feedback h2 explicitly, and allows the ten-game official assignment journey up to 180 seconds.
 - [ ] Latest full Vitest run against G's isolated database: 252 files pass and 1 is skipped; 4 tests fail outside G in `server/src/modules/classes/classes.integration.test.ts` (2 check-constraint failures), `server/test/peopleFilters.test.ts` (roster check-constraint failure), and `server/test/modules/sponsors/service.integration.test.ts` (public placement missing). These prevent the full integration gate.
 - [x] North Park mass-closure journey closes 24 published games, resolves 24 event-linked volunteer signups to one recipient, persists one immediate 24-change emergency batch, emits its notification through Track B's notification service, and shows the rainout banner with all 24 postponed events on the public facility page; Chromium and WebKit mobile with axe pass. The notification service currently records the in-app channel only.
 - [x] Public live contest page consumes a versioned SSE route; the Phase 9 journey opens a scheduled contest, finalizes its format-specific result, and observes the public score/status update in Chromium and WebKit mobile with axe. The SSE endpoint is documented as `text/event-stream` in the OpenAPI output.
-- [x] Latest full Vitest suite on the G-isolated stack after live scores and UTC closure timezone resolution: 246 files passed, 1 skipped; 876 tests passed, 1 skipped.
+- [x] Earlier full Vitest suite on the G-isolated stack after live scores and UTC closure timezone resolution: 246 files passed, 1 skipped; 876 tests passed, 1 skipped.
 - [x] Latest standings table follow-up adds a keyboard-focusable named scroll region; focused schedule-stats journey passes Chromium desktop and WebKit mobile, and targeted ESLint plus `npm run typecheck` pass.
 - [x] After the Phase 9 additions and export cleanup, all six G-owned server-module suites pass (14 files / 22 tests); typecheck, full lint, and production build pass.
 - [x] Family guardian RSVP browser journey passes on Chromium desktop and WebKit mobile with axe; it caught and fixed the portal's missing same-origin request marker.
@@ -74,7 +74,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Lock-protected merge gate against `rebuild/trunk` through `2ac58d6`: typecheck and full lint passed; `heavy.sh npm test` passed 803 tests (1 skipped); full Chromium desktop Playwright passed 28 tests (4 skipped).
 - [x] Lock-protected merge gate on 2026-09-27 after syncing OPS trunk through `f091afc`: typecheck and full lint passed; `heavy.sh npm test` passed 819 tests (1 skipped); full Chromium desktop Playwright passed 30 tests (4 skipped).
 - [x] After the latest schedule fixes, the focused scheduling server suite passes (6 files / 12 tests), the focused event schema/error tests pass (5 tests), and `npm run typecheck` plus full `npm run lint` pass.
-- [ ] Prior lock-protected merge attempt stopped because `server/src/modules/officials/service.integration.test.ts` timed out at five seconds; the independent assignment/response operations are now concurrent and three focused default-timeout runs passed. Retry the full merge gate after syncing trunk.
+- [x] The officials assignment/response service regression now runs independent operations concurrently; three focused default-timeout runs and the latest six-module G backend suite pass.
 - [x] Twelve G-owned schedule journeys cover recurrence-series edits, schedule tools/manual changes/CSV/reschedules, public facility pages, statistics/results/24-game facility closure with volunteer notification, generator apply/discard and explanations, coach allocation requests, family RSVP, offline game-day sync, officials assignment/pay, swim meets, tournaments, and season end; Chromium desktop and WebKit mobile with axe pass 24/24. The console and portal routes mount via the generated nested-route registry.
 - [ ] Full acceptance remains blocked on emergency-notice email fan-out, discipline result/game-served integration, the facility image serving contract, unrelated baseline WebKit failures, and the full branch and trunk merge gates. Do not mark ready until the remaining cross-track contracts and full gates pass.
 
@@ -90,7 +90,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 
 ## Requests from SEC
 
-- SEC-KNIP-G: removed unreferenced G-owned wrappers/helpers, removed the duplicate schedule schema alias, and made file-local helpers private. The current global `npm run knip` still exits 1 on unused modules/exports from other tracks (2026-09-27); G's nested navigation aggregators are wired on trunk.
+- SEC-KNIP-G: removed unreferenced G-owned wrappers/helpers, removed the duplicate schedule schema alias, and made file-local helpers private. The current global `npm run knip` passes; G's nested navigation aggregators are wired on trunk.
 
 ## Requests from OPS
 
@@ -100,7 +100,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
 - G decisions are `DEC-082–096` and `DEC-100–108` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
-- Latest G integration: merged `rebuild/trunk` through `6e73bda8` into this branch. The branch includes the Linux API-readiness fix, and all G Chromium journeys pass; the full Vitest gate remains red on the cross-track failures listed above. Current G commits remain local and are not pushed.
+- Latest G integration: merged `rebuild/trunk` through `6e73bda8` into this branch. The Linux API-readiness fix and G browser journeys pass; the full Vitest gate remains red on the cross-track failures listed above. Current G commits remain local and are not pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.
 
 ## Requests from J

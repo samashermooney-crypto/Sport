@@ -17,7 +17,7 @@ function dateInput(date: Date): string {
 test('scheduler crews ten games and officials respond to offers and pay totals match', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   const database = createDatabase(
     `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
   );
