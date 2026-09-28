@@ -1,0 +1,785 @@
+import { randomUUID } from 'node:crypto';
+
+import { newId } from '@shared/ids';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+
+import { createDatabase } from '../../db/kysely.js';
+import { allocateOrgNumber } from '../../db/orgCounters.js';
+import { createWithOrg } from '../../db/withOrg.js';
+
+import {
+  PostgresRegistrationLifecycle,
+  registrationTransferResponseSchema,
+} from './lifecycle.js';
+import { PostgresRegistrationTransferRefunds } from './transfer-refunds.js';
+
+let database: ReturnType<typeof createDatabase>;
+
+beforeAll(() => {
+  database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
+});
+
+afterAll(async () => {
+  await database.destroy();
+});
+
+async function fixture(destinationPriceCents: number) {
+  const orgId = newId();
+  const staffAccountId = newId();
+  const payerAccountId = newId();
+  const personId = newId();
+  const householdId = newId();
+  const profileId = newId();
+  const seasonId = newId();
+  const sourceProgramId = newId();
+  const sourceDivisionId = newId();
+  const sourceOfferingId = newId();
+  const destinationProgramId = newId();
+  const destinationDivisionId = newId();
+  const destinationOfferingId = newId();
+  const registrationId = newId();
+  const invoiceId = newId();
+  const invoiceLineId = newId();
+  const context = { orgId, actor: { accountId: staffAccountId } };
+
+  await database
+    .insertInto('accounts')
+    .values([
+      {
+        id: staffAccountId,
+        email: `transfer-staff-${randomUUID()}@example.invalid`,
+        first_name: 'Registrar',
+        last_name: 'One',
+        date_of_birth: '1990-01-01',
+      },
+      {
+        id: payerAccountId,
+        email: `transfer-payer-${randomUUID()}@example.invalid`,
+        first_name: 'Family',
+        last_name: 'One',
+        date_of_birth: '1990-01-01',
+      },
+    ])
+    .execute();
+  await database
+    .insertInto('organizations')
+    .values({
+      id: orgId,
+      slug: `registration-transfer-${randomUUID().slice(0, 10)}`,
+      name: 'Registration transfer test',
+      kind: 'club',
+      timezone: 'America/Chicago',
+    })
+    .execute();
+
+  await createWithOrg(database)(context, async (trx) => {
+    await trx
+      .insertInto('org_memberships')
+      .values({
+        id: newId(),
+        org_id: orgId,
+        account_id: staffAccountId,
+        status: 'active',
+      })
+      .execute();
+    await trx
+      .insertInto('role_assignments')
+      .values({
+        id: newId(),
+        org_id: orgId,
+        account_id: staffAccountId,
+        role: 'registrar',
+        scope_type: 'org',
+        pending_mfa: false,
+      })
+      .execute();
+    await trx
+      .insertInto('sport_profiles')
+      .values({
+        id: profileId,
+        org_id: orgId,
+        name: 'Soccer',
+        profile: {
+          ageGroup: {
+            method: 'age_on_date',
+            monthDay: '09-01',
+            yearBasis: 'season_start',
+          },
+        },
+      })
+      .execute();
+    await trx
+      .insertInto('seasons')
+      .values({
+        id: seasonId,
+        org_id: orgId,
+        name: '2026 fall',
+        starts_on: '2026-09-01',
+        ends_on: '2026-12-01',
+        status: 'active',
+      })
+      .execute();
+    await trx
+      .insertInto('programs')
+      .values([
+        {
+          id: sourceProgramId,
+          org_id: orgId,
+          season_id: seasonId,
+          sport_profile_id: profileId,
+          mode: 'league',
+          name: 'Source program',
+          slug: `source-${randomUUID().slice(0, 8)}`,
+          status: 'registration_open',
+          visibility: 'public',
+          starts_on: '2026-09-01',
+          ends_on: '2026-12-01',
+        },
+        {
+          id: destinationProgramId,
+          org_id: orgId,
+          season_id: seasonId,
+          sport_profile_id: profileId,
+          mode: 'league',
+          name: 'Destination program',
+          slug: `destination-${randomUUID().slice(0, 8)}`,
+          status: 'registration_open',
+          visibility: 'public',
+          starts_on: '2026-09-01',
+          ends_on: '2026-12-01',
+        },
+      ])
+      .execute();
+    await trx
+      .insertInto('divisions')
+      .values([
+        {
+          id: sourceDivisionId,
+          org_id: orgId,
+          program_id: sourceProgramId,
+          name: 'Source division',
+        },
+        {
+          id: destinationDivisionId,
+          org_id: orgId,
+          program_id: destinationProgramId,
+          name: 'Destination division',
+        },
+      ])
+      .execute();
+    await trx
+      .insertInto('registration_offerings')
+      .values([
+        {
+          id: sourceOfferingId,
+          org_id: orgId,
+          program_id: sourceProgramId,
+          division_id: sourceDivisionId,
+          name: 'Source offering',
+          registrant_role: 'athlete',
+          price_cents: 2500,
+          visibility: 'public',
+          active: true,
+          capacity: 10,
+        },
+        {
+          id: destinationOfferingId,
+          org_id: orgId,
+          program_id: destinationProgramId,
+          division_id: destinationDivisionId,
+          name: 'Destination offering',
+          registrant_role: 'athlete',
+          price_cents: destinationPriceCents,
+          visibility: 'public',
+          active: true,
+          capacity: 10,
+        },
+      ])
+      .execute();
+    await trx
+      .insertInto('capacity_counters')
+      .values([
+        ...[
+          ['program', sourceProgramId],
+          ['division', sourceDivisionId],
+          ['offering', sourceOfferingId],
+          ['program', destinationProgramId],
+          ['division', destinationDivisionId],
+          ['offering', destinationOfferingId],
+        ].map(([subjectType, subjectId]) => ({
+          id: newId(),
+          org_id: orgId,
+          subject_type: subjectType as 'program' | 'division' | 'offering',
+          subject_id: subjectId ?? '',
+          capacity: 10,
+        })),
+      ])
+      .execute();
+    await trx
+      .insertInto('people')
+      .values({
+        id: personId,
+        org_id: orgId,
+        first_name: 'Maya',
+        last_name: 'One',
+        date_of_birth: '2012-05-01',
+      })
+      .execute();
+    await trx
+      .insertInto('households')
+      .values({ id: householdId, org_id: orgId, name: 'One household' })
+      .execute();
+    await trx
+      .insertInto('household_members')
+      .values({
+        id: newId(),
+        org_id: orgId,
+        household_id: householdId,
+        person_id: personId,
+        role: 'athlete',
+      })
+      .execute();
+    await trx
+      .insertInto('person_account_links')
+      .values({
+        id: newId(),
+        org_id: orgId,
+        person_id: personId,
+        account_id: payerAccountId,
+        relationship: 'guardian',
+        verified_at: new Date(),
+      })
+      .execute();
+    const sourceInvoiceNumber = await allocateOrgNumber(trx, orgId, 'invoice');
+    await trx
+      .insertInto('invoices')
+      .values({
+        id: invoiceId,
+        org_id: orgId,
+        number: sourceInvoiceNumber,
+        account_id: payerAccountId,
+        household_id: householdId,
+        status: 'open',
+        issued_at: new Date(),
+        subtotal_cents: 2500,
+        total_cents: 2500,
+        source: 'staff',
+      })
+      .execute();
+    await trx
+      .insertInto('registrations')
+      .values({
+        id: registrationId,
+        org_id: orgId,
+        program_id: sourceProgramId,
+        division_id: sourceDivisionId,
+        offering_id: sourceOfferingId,
+        person_id: personId,
+        household_id: householdId,
+        registered_by_account_id: staffAccountId,
+        source: 'staff',
+        status: 'pending_approval',
+      })
+      .execute();
+    await trx
+      .insertInto('invoice_lines')
+      .values({
+        id: invoiceLineId,
+        org_id: orgId,
+        invoice_id: invoiceId,
+        kind: 'registration',
+        description: 'Source registration',
+        quantity: 1,
+        unit_amount_cents: 2500,
+        amount_cents: 2500,
+        registration_id: registrationId,
+        person_id: personId,
+        program_id: sourceProgramId,
+        refundable: true,
+      })
+      .execute();
+    await trx
+      .updateTable('registrations')
+      .set({ invoice_line_id: invoiceLineId })
+      .where('org_id', '=', orgId)
+      .where('id', '=', registrationId)
+      .execute();
+  });
+
+  return {
+    orgId,
+    context,
+    registrationId,
+    sourceProgramId,
+    sourceDivisionId,
+    sourceOfferingId,
+    destinationOfferingId,
+    invoiceId,
+    invoiceLineId,
+    payerAccountId,
+  };
+}
+
+describe('registration transfer money handling', () => {
+  it('splits a transfer refund across the immutable shares of multiple payments', async () => {
+    const data = await fixture(500);
+    const paymentIds = [newId(), newId()];
+    await createWithOrg(database)(data.context, async (trx) => {
+      await trx
+        .updateTable('registrations')
+        .set({ status: 'confirmed' })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.registrationId)
+        .execute();
+      await trx
+        .updateTable('capacity_counters')
+        .set({ confirmed: 1 })
+        .where('org_id', '=', data.orgId)
+        .where('subject_id', 'in', [
+          data.sourceProgramId,
+          data.sourceDivisionId,
+          data.sourceOfferingId,
+        ])
+        .execute();
+      await trx
+        .updateTable('invoices')
+        .set({
+          status: 'paid',
+          paid_cents: 2500,
+          refund_terms: {
+            policy: {
+              rules: [],
+              afterLastBps: 10_000,
+              serviceFeeRefund: 'none',
+            },
+            approvalThresholdCents: 1500,
+            refundApplicationFee: true,
+          },
+        })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.invoiceId)
+        .execute();
+      await trx
+        .insertInto('payments')
+        .values(
+          paymentIds.map((id, index) => ({
+            id,
+            org_id: data.orgId,
+            account_id: data.payerAccountId,
+            amount_cents: 1250,
+            status: 'succeeded',
+            method: 'card',
+            stripe_payment_intent_id: `pi_transfer_split_${String(index)}`,
+            succeeded_at: new Date(),
+          })),
+        )
+        .execute();
+      await trx
+        .insertInto('payment_allocations')
+        .values(
+          paymentIds.map((paymentId) => ({
+            id: newId(),
+            org_id: data.orgId,
+            payment_id: paymentId,
+            invoice_id: data.invoiceId,
+            amount_cents: 1250,
+          })),
+        )
+        .execute();
+      await trx
+        .insertInto('payment_line_allocations')
+        .values(
+          paymentIds.map((paymentId) => ({
+            id: newId(),
+            org_id: data.orgId,
+            payment_id: paymentId,
+            invoice_id: data.invoiceId,
+            invoice_line_id: data.invoiceLineId,
+            amount_cents: 1250,
+          })),
+        )
+        .execute();
+    });
+    const createRefund = vi.fn(
+      (input: { paymentIntentId: string; amountCents: number }) =>
+        Promise.resolve({
+          id: `re_${input.paymentIntentId}`,
+          status: 'pending',
+          amountCents: input.amountCents,
+        }),
+    );
+    const refunds = new PostgresRegistrationTransferRefunds(
+      database,
+      data.context,
+      { createRefund },
+    );
+    const lifecycle = new PostgresRegistrationLifecycle(
+      database,
+      data.context,
+      () => new Date('2026-09-27T17:00:00.000Z'),
+      refunds,
+    );
+    const request = {
+      orgId: data.orgId,
+      registrationId: data.registrationId,
+      toOfferingId: data.destinationOfferingId,
+      financialTreatment: 'refund_difference' as const,
+      idempotencyKey: randomUUID(),
+    };
+
+    await expect(lifecycle.transfer(request)).rejects.toMatchObject({
+      code: 'NOT_TRANSFERABLE',
+    });
+    expect(createRefund).not.toHaveBeenCalled();
+    await createWithOrg(database)(data.context, (trx) =>
+      trx
+        .updateTable('invoices')
+        .set({
+          refund_terms: {
+            policy: {
+              rules: [],
+              afterLastBps: 10_000,
+              serviceFeeRefund: 'none',
+            },
+            approvalThresholdCents: 10_000,
+            refundApplicationFee: true,
+          },
+        })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.invoiceId)
+        .execute(),
+    );
+    const approvedRequest = { ...request, idempotencyKey: randomUUID() };
+
+    const result = registrationTransferResponseSchema.parse(
+      await lifecycle.transfer(approvedRequest),
+    );
+    expect(result.differenceCents).toBe(-2000);
+    expect(result.refund?.refundIds).toHaveLength(2);
+    expect(result.refund?.amountCents).toBe(2000);
+    expect(createRefund).toHaveBeenCalledTimes(2);
+    expect(
+      createRefund.mock.calls
+        .map(([call]) => call.amountCents)
+        .sort((left, right) => left - right),
+    ).toEqual([750, 1250]);
+    expect(await lifecycle.transfer(approvedRequest)).toEqual(result);
+    expect(createRefund).toHaveBeenCalledTimes(2);
+  });
+
+  it('records an exact-line refund before transferring and replays the result', async () => {
+    const data = await fixture(1500);
+    await createWithOrg(database)(data.context, async (trx) => {
+      await trx
+        .updateTable('registrations')
+        .set({ status: 'confirmed' })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.registrationId)
+        .execute();
+      await trx
+        .updateTable('capacity_counters')
+        .set({ confirmed: 1 })
+        .where('org_id', '=', data.orgId)
+        .where('subject_id', 'in', [
+          data.sourceProgramId,
+          data.sourceDivisionId,
+          data.sourceOfferingId,
+        ])
+        .execute();
+    });
+    const refundExactLine = vi.fn().mockResolvedValue({
+      refundId: 're_transfer_difference',
+      status: 'pending',
+      amountCents: 1030,
+    });
+    const lifecycle = new PostgresRegistrationLifecycle(
+      database,
+      data.context,
+      () => new Date('2026-09-27T17:00:00.000Z'),
+      { refundExactLine },
+    );
+    const request = {
+      orgId: data.orgId,
+      registrationId: data.registrationId,
+      toOfferingId: data.destinationOfferingId,
+      financialTreatment: 'refund_difference' as const,
+      idempotencyKey: randomUUID(),
+    };
+
+    const result = registrationTransferResponseSchema.parse(
+      await lifecycle.transfer(request),
+    );
+    expect(result).toMatchObject({
+      differenceCents: -1000,
+      refund: {
+        refundId: 're_transfer_difference',
+        status: 'pending',
+        amountCents: 1030,
+      },
+    });
+    expect(refundExactLine).toHaveBeenCalledWith({
+      orgId: data.orgId,
+      invoiceLineId: data.invoiceLineId,
+      amountCents: 1000,
+      cancellationDate: '2026-09-27',
+      requestedByAccountId: data.context.actor.accountId,
+      idempotencyKey: request.idempotencyKey,
+    });
+    expect(await lifecycle.transfer(request)).toEqual(result);
+    expect(refundExactLine).toHaveBeenCalledTimes(1);
+    const source = await createWithOrg(database)(data.context, (trx) =>
+      trx
+        .selectFrom('registrations')
+        .select('status')
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.registrationId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(source.status).toBe('transferred_out');
+  });
+
+  it('prices a transfer refund from the registration net of discounts and ignores other invoice lines', async () => {
+    const data = await fixture(1500);
+    await createWithOrg(database)(data.context, async (trx) => {
+      await trx
+        .updateTable('registrations')
+        .set({ status: 'confirmed' })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.registrationId)
+        .execute();
+      await trx
+        .updateTable('capacity_counters')
+        .set({ confirmed: 1 })
+        .where('org_id', '=', data.orgId)
+        .where('subject_id', 'in', [
+          data.sourceProgramId,
+          data.sourceDivisionId,
+          data.sourceOfferingId,
+        ])
+        .execute();
+      await trx
+        .insertInto('invoice_lines')
+        .values([
+          {
+            id: newId(),
+            org_id: data.orgId,
+            invoice_id: data.invoiceId,
+            kind: 'discount',
+            description: 'Registration discount',
+            quantity: 1,
+            unit_amount_cents: -500,
+            amount_cents: -500,
+            refundable: false,
+            parent_line_id: data.invoiceLineId,
+          },
+          {
+            id: newId(),
+            org_id: data.orgId,
+            invoice_id: data.invoiceId,
+            kind: 'add_on',
+            description: 'Uniform kit',
+            quantity: 1,
+            unit_amount_cents: 1000,
+            amount_cents: 1000,
+            refundable: true,
+            parent_line_id: data.invoiceLineId,
+          },
+        ])
+        .execute();
+      await trx
+        .updateTable('invoices')
+        .set({ subtotal_cents: 3500, discount_cents: 500, total_cents: 3000 })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.invoiceId)
+        .execute();
+    });
+    const refundExactLine = vi.fn().mockResolvedValue({
+      refundId: 're_transfer_discount_difference',
+      status: 'pending',
+      amountCents: 500,
+    });
+    const lifecycle = new PostgresRegistrationLifecycle(
+      database,
+      data.context,
+      () => new Date('2026-09-27T17:00:00.000Z'),
+      { refundExactLine },
+    );
+    const result = await lifecycle.transfer({
+      orgId: data.orgId,
+      registrationId: data.registrationId,
+      toOfferingId: data.destinationOfferingId,
+      financialTreatment: 'refund_difference',
+      idempotencyKey: randomUUID(),
+    });
+
+    expect(result.differenceCents).toBe(-500);
+    expect(result.refund).toMatchObject({ amountCents: 500 });
+    expect(refundExactLine).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoiceLineId: data.invoiceLineId,
+        amountCents: 500,
+      }),
+    );
+  });
+
+  it('fails closed when registration-specific discounts exceed the line price', async () => {
+    const data = await fixture(1500);
+    await createWithOrg(database)(data.context, async (trx) => {
+      await trx
+        .updateTable('registrations')
+        .set({ status: 'confirmed' })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.registrationId)
+        .execute();
+      await trx
+        .updateTable('capacity_counters')
+        .set({ confirmed: 1 })
+        .where('org_id', '=', data.orgId)
+        .where('subject_id', 'in', [
+          data.sourceProgramId,
+          data.sourceDivisionId,
+          data.sourceOfferingId,
+        ])
+        .execute();
+      await trx
+        .insertInto('invoice_lines')
+        .values([
+          {
+            id: newId(),
+            org_id: data.orgId,
+            invoice_id: data.invoiceId,
+            kind: 'discount',
+            description: 'Excess registration discount',
+            quantity: 1,
+            unit_amount_cents: -3000,
+            amount_cents: -3000,
+            refundable: false,
+            parent_line_id: data.invoiceLineId,
+          },
+          {
+            id: newId(),
+            org_id: data.orgId,
+            invoice_id: data.invoiceId,
+            kind: 'add_on',
+            description: 'Uniform kit',
+            quantity: 1,
+            unit_amount_cents: 1000,
+            amount_cents: 1000,
+            refundable: true,
+            parent_line_id: data.invoiceLineId,
+          },
+        ])
+        .execute();
+      await trx
+        .updateTable('invoices')
+        .set({ subtotal_cents: 3500, discount_cents: 3000, total_cents: 500 })
+        .where('org_id', '=', data.orgId)
+        .where('id', '=', data.invoiceId)
+        .execute();
+    });
+    const refundExactLine = vi.fn();
+    const lifecycle = new PostgresRegistrationLifecycle(
+      database,
+      data.context,
+      () => new Date('2026-09-27T17:00:00.000Z'),
+      { refundExactLine },
+    );
+
+    await expect(
+      lifecycle.transfer({
+        orgId: data.orgId,
+        registrationId: data.registrationId,
+        toOfferingId: data.destinationOfferingId,
+        financialTreatment: 'refund_difference',
+        idempotencyKey: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_TRANSFERABLE', status: 409 });
+    expect(refundExactLine).not.toHaveBeenCalled();
+  });
+
+  it('bills an additional charge to the original payer and replays exactly', async () => {
+    const data = await fixture(4000);
+    const lifecycle = new PostgresRegistrationLifecycle(database, data.context);
+    const request = {
+      orgId: data.orgId,
+      registrationId: data.registrationId,
+      toOfferingId: data.destinationOfferingId,
+      financialTreatment: 'charge_difference' as const,
+      idempotencyKey: randomUUID(),
+    };
+
+    const result = registrationTransferResponseSchema.parse(
+      await lifecycle.transfer(request),
+    );
+    expect(result.differenceCents).toBe(1500);
+    expect(await lifecycle.transfer(request)).toEqual(result);
+    const invoice = await createWithOrg(database)(data.context, (trx) =>
+      trx
+        .selectFrom('invoices')
+        .select(['account_id', 'household_id', 'total_cents', 'memo'])
+        .where('org_id', '=', data.orgId)
+        .where('memo', '=', 'Registration transfer difference')
+        .executeTakeFirstOrThrow(),
+    );
+    expect(invoice).toMatchObject({
+      account_id: data.payerAccountId,
+      total_cents: 1500,
+      memo: 'Registration transfer difference',
+    });
+  });
+
+  it('returns a signed no-change difference and blocks an unrecorded refund before mutation', async () => {
+    const noChange = await fixture(1500);
+    const noChangeLifecycle = new PostgresRegistrationLifecycle(
+      database,
+      noChange.context,
+    );
+    const noChangeRequest = {
+      orgId: noChange.orgId,
+      registrationId: noChange.registrationId,
+      toOfferingId: noChange.destinationOfferingId,
+      financialTreatment: 'no_change' as const,
+      idempotencyKey: randomUUID(),
+    };
+    const noChangeResult = registrationTransferResponseSchema.parse(
+      await noChangeLifecycle.transfer(noChangeRequest),
+    );
+    expect(noChangeResult.differenceCents).toBe(-1000);
+    expect(await noChangeLifecycle.transfer(noChangeRequest)).toEqual(
+      noChangeResult,
+    );
+
+    const refund = await fixture(1500);
+    const refundLifecycle = new PostgresRegistrationLifecycle(
+      database,
+      refund.context,
+    );
+    await expect(
+      refundLifecycle.transfer({
+        orgId: refund.orgId,
+        registrationId: refund.registrationId,
+        toOfferingId: refund.destinationOfferingId,
+        financialTreatment: 'refund_difference',
+        idempotencyKey: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_TRANSFERABLE', status: 409 });
+    const source = await createWithOrg(database)(refund.context, (trx) =>
+      trx
+        .selectFrom('registrations')
+        .select('status')
+        .where('org_id', '=', refund.orgId)
+        .where('id', '=', refund.registrationId)
+        .executeTakeFirstOrThrow(),
+    );
+    const transfers = await createWithOrg(database)(refund.context, (trx) =>
+      trx
+        .selectFrom('transfers')
+        .select('id')
+        .where('org_id', '=', refund.orgId)
+        .where('from_registration_id', '=', refund.registrationId)
+        .execute(),
+    );
+    expect(source.status).toBe('pending_approval');
+    expect(transfers).toHaveLength(0);
+  });
+});

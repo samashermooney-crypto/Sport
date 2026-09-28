@@ -27,6 +27,7 @@ import { moduleDefinition as orgsModule } from '../modules/orgs/module';
 import { moduleDefinition as peopleModule } from '../modules/people/module';
 import { moduleDefinition as platformModule } from '../modules/platform/module';
 import { moduleDefinition as programsModule } from '../modules/programs/module';
+import { moduleDefinition as registrationModule } from '../modules/registration/module';
 import { moduleDefinition as rostersModule } from '../modules/rosters/module';
 import { moduleDefinition as safetyModule } from '../modules/safety/module';
 import { moduleDefinition as schedulingModule } from '../modules/scheduling/module';
@@ -63,6 +64,7 @@ export const serverModules: readonly ServerModule[] = [
   peopleModule,
   platformModule,
   programsModule,
+  registrationModule,
   rostersModule,
   safetyModule,
   schedulingModule,
