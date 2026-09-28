@@ -14,6 +14,7 @@ declare module 'web-push' {
       options?: {
         TTL?: number;
         urgency?: 'very-low' | 'low' | 'normal' | 'high';
+        agent?: import('node:https').Agent;
       },
     ): Promise<unknown>;
   };
