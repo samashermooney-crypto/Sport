@@ -86,7 +86,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 
 ## Requests from J
 
-- CI run `36347047357` (`e2e/schedule-stats.spec.ts:269`) formats the closure form values in `America/Chicago`, but `ScheduleConsole` initializes `timezone` from the browser at line 264 and converts every closure scope with that timezone at lines 2210–2214; Ubuntu's UTC browser therefore sends the Chicago facility closure five hours early, so preview returns 0 affected events. Resolve the closure timezone from the selected facility/space (and org timezone for org scope) before `localInstant` conversion; keep the Linux UTC regression.
+- Linux reproduction (Playwright `1.63.0-noble`, `CI=true`, `TZ=UTC`, Chromium and WebKit) confirms CI run `36347047357` for `e2e/schedule-stats.spec.ts`: the test formats facility-closure inputs in `America/Chicago`, expects one affected event (original CI assertion `:269`; current assertion `:327`), but the browser dialog says `postpone 0 affected events`. `ScheduleConsole` initialized `timezone` from `Intl.DateTimeFormat().resolvedOptions().timeZone` at lines 264–266 and converted the closure fields with that value at lines 2210–2214. Ubuntu's UTC browser therefore turned the Chicago wall-time inputs into instants five hours early, outside the fixture event window. Resolve closure timezone from the selected facility/space (organization timezone for org scope) before `localInstant` conversion; keep the Linux UTC regression. Track I's `62234e54` now supplies resource timezones and uses the selected facility/space timezone; the same journey passes on I's synced branch.
 
 ## Requests from I
 

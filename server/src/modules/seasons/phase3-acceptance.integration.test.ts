@@ -320,7 +320,7 @@ describe('season rollover acceptance', () => {
         );
       }
     })();
-    const next = await programs.list(copy.season.id);
+    const next = await programs.list({ seasonId: copy.season.id });
     expect(next).toHaveLength(1);
     const copied = next.at(0);
     if (!copied) throw new Error('Copied program missing');
