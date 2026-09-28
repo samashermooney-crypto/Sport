@@ -1,3 +1,4 @@
+import { apiErrorSchema } from '@shared/schemas/errors';
 import {
   reportDatasetListSchema,
   reportDefinitionSchema,
@@ -437,6 +438,8 @@ export function ReportsDashboard({
   orgId: string;
 }): React.JSX.Element {
   const [activeView, setActiveView] = useState<DashboardView>('organization');
+  const [boardReportBusy, setBoardReportBusy] = useState(false);
+  const [boardReportError, setBoardReportError] = useState('');
   const base = `/reports/orgs/${encodeURIComponent(orgId)}`;
   const dashboardSummaries = useMemo(() => {
     const now = new Date();
@@ -511,6 +514,42 @@ export function ReportsDashboard({
   });
   const heading = dashboardViews.find((view) => view.key === activeView)?.label;
 
+  async function downloadBoardReport(): Promise<void> {
+    setBoardReportBusy(true);
+    setBoardReportError('');
+    try {
+      const response = await fetch(
+        `/api/v1/reports/orgs/${encodeURIComponent(orgId)}/board-report.pdf`,
+        { credentials: 'include' },
+      );
+      if (!response.ok) {
+        const body: unknown = await response.json().catch(() => null);
+        const parsed = apiErrorSchema.safeParse(body);
+        throw new Error(
+          parsed.success
+            ? parsed.data.error.message
+            : 'The board report could not be created.',
+        );
+      }
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = 'board-season-summary.pdf';
+      anchor.click();
+      window.setTimeout(() => {
+        URL.revokeObjectURL(objectUrl);
+      }, 0);
+    } catch (caught) {
+      setBoardReportError(
+        caught instanceof Error
+          ? caught.message
+          : 'The board report could not be created.',
+      );
+    } finally {
+      setBoardReportBusy(false);
+    }
+  }
+
   return (
     <section
       className="report-dashboard"
@@ -533,6 +572,19 @@ export function ReportsDashboard({
                   ? 'Class enrollment and attendance summaries without participant-level details.'
                   : 'Registration pace, finances, credential compliance, and participant retention.'}
         </p>
+        <div className="report-dashboard__actions">
+          <Button
+            secondary
+            disabled={boardReportBusy}
+            onClick={() => {
+              void downloadBoardReport();
+            }}
+          >
+            {boardReportBusy ? 'Preparing board report…' : 'Download board PDF'}
+          </Button>
+          <span>Financial totals require a recent sign-in.</span>
+        </div>
+        {boardReportError && <p role="alert">{boardReportError}</p>}
       </header>
       <div
         className="report-dashboard__tabs"

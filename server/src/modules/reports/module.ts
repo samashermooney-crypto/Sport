@@ -36,6 +36,14 @@ export const moduleDefinition = {
   openapiRoutes: [
     {
       method: 'get',
+      path: '/api/v1/reports/orgs/{orgId}/board-report.pdf',
+      summary: 'Download an aggregate one-page board season summary PDF',
+      response: z.string(),
+      contentType: 'application/pdf',
+      binary: true,
+    },
+    {
+      method: 'get',
       path: '/api/v1/reports/orgs/{orgId}/datasets',
       summary: 'List report datasets and columns available to the current role',
       response: reportDatasetListSchema,

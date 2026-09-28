@@ -28,7 +28,16 @@ it('renders role-permitted organization visuals with accessible value tables', a
     (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = requestUrl(input);
       let result: unknown;
-      if (url.endsWith('/datasets')) {
+      let status = 200;
+      if (url.endsWith('/board-report.pdf')) {
+        status = 401;
+        result = {
+          error: {
+            code: 'REAUTH_REQUIRED',
+            message: 'Recent sign-in is required for financial totals.',
+          },
+        };
+      } else if (url.endsWith('/datasets')) {
         result = {
           items: [
             {
@@ -192,7 +201,7 @@ it('renders role-permitted organization visuals with accessible value tables', a
       }
       return Promise.resolve(
         new Response(JSON.stringify(result), {
-          status: 200,
+          status,
           headers: { 'Content-Type': 'application/json' },
         }),
       );
@@ -266,4 +275,9 @@ it('renders role-permitted organization visuals with accessible value tables', a
     requestUrl(input).endsWith('/reports/preview'),
   );
   expect(previews).toHaveLength(6);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Download board PDF' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    'Recent sign-in is required for financial totals.',
+  );
 });

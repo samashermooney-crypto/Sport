@@ -29,6 +29,7 @@ import {
   sanitizeDownloadName,
 } from '../exports/report-serializers';
 
+import { buildBoardSeasonReportPdf } from './board-report';
 import { ReportError } from './query';
 import {
   createReportSchedule,
@@ -192,6 +193,23 @@ export function createReportsRouter(
       const result = await listReportDatasets(context, withOrg);
       response.setHeader('Cache-Control', 'no-store');
       response.json(reportDatasetListSchema.parse(result));
+    }),
+  );
+
+  router.get(
+    '/orgs/:orgId/board-report.pdf',
+    withErrorHandling(async (request, response) => {
+      const { session, context } = await sessionContext(dependencies, request);
+      const pdf = await buildBoardSeasonReportPdf(context, {
+        stepUpAuthenticated: hasStepUp(session, dependencies.clock()),
+      });
+      response.setHeader('Cache-Control', 'no-store');
+      response.setHeader('Content-Type', 'application/pdf');
+      response.setHeader(
+        'Content-Disposition',
+        'attachment; filename="board-season-summary.pdf"',
+      );
+      response.send(Buffer.from(pdf));
     }),
   );
 
