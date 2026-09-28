@@ -910,3 +910,11 @@
 - **Decision:** Require an explicit active facility mapping for each volunteer-hours row. Do not silently assign a missing location to the first active facility.
 - **Why:** Historical imports should not invent where work occurred, and the resulting record must satisfy the volunteer module's tenant-scoped facility contract.
 - **Consequences / follow-ups:** The generic template includes a sample facility; organizations must map their own source locations to active facilities before committing rows.
+
+### DEC-123 — Keep the Phase 15 Metro seed within its sharing contract
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 demo data and Phase 13 federation
+- **Context:** The Phase 15 `demo` seed already creates the required Metro association, two member clubs, inter-club entries, and eight officials with only `team_entries` sharing. The additional federation demo helper failed on a clean database when it queried an empty list of hosted clubs, and its relationship requested roster, compliance, and discipline sharing beyond DEC-120.
+- **Decision:** Keep the six-profile Phase 15 seed self-contained and do not invoke the optional federation demo helper from `db:seed --profile demo` until its empty-link query is fixed and its sharing scope matches DEC-120.
+- **Why:** The Phase 15 profile remains complete without broadening child data sharing or making the seed command fail after creating partial extra data.
+- **Consequences / follow-ups:** Track J owns the empty-link query fix; the base Metro seed continues to include both member clubs, accepted inter-club entries, and the referee pool.

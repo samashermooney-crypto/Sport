@@ -307,13 +307,6 @@ test('demo profiles render populated shared and sport-specific console areas', a
       specialtyTable: 'team_ledgers',
     },
     {
-      seed: 'northstar',
-      route: (orgId: string) => `/console/orgs/${orgId}/classes`,
-      heading: 'Classes and students',
-      content: 'Gymnastics Level 1 Class 01',
-      specialtyTable: 'class_offerings',
-    },
-    {
       seed: 'metro',
       route: (orgId: string) => `/console/federation/${orgId}`,
       heading: 'League and association',
@@ -335,54 +328,65 @@ test('demo profiles render populated shared and sport-specific console areas', a
       specialtyTable: 'people',
     },
   ] as const;
+  const northstarProfile = {
+    seed: 'northstar',
+    route: (orgId: string) => `/console/orgs/${orgId}/classes`,
+    heading: 'Classes and students',
+    content: 'Gymnastics Level 1 Class 01',
+    specialtyTable: 'class_offerings',
+  } as const;
   const withOrg = createWithOrg(database);
 
-  try {
-    for (const profile of profiles) {
-      const orgId = stableDemoId(`demo-org-${profile.seed}`);
-      const accountId = stableDemoId(`demo-admin-${profile.seed}`);
-      const result = await withOrg({ orgId, actor: { accountId } }, (trx) =>
-        sql<{
-          people: number;
-          programs: number;
-          events: number;
-          invoices: number;
-          fundraising: number;
-          sponsors: number;
-          products: number;
-          specialty: number;
-        }>`SELECT
-            (SELECT count(*)::int FROM people WHERE org_id = ${orgId}) AS people,
-            (SELECT count(*)::int FROM programs WHERE org_id = ${orgId}) AS programs,
-            (SELECT count(*)::int FROM events WHERE org_id = ${orgId}) AS events,
-            (SELECT count(*)::int FROM invoices WHERE org_id = ${orgId}) AS invoices,
-            (SELECT count(*)::int FROM fundraising_campaigns WHERE org_id = ${orgId}) AS fundraising,
-            (SELECT count(*)::int FROM sponsors WHERE org_id = ${orgId}) AS sponsors,
-            (SELECT count(*)::int FROM products WHERE org_id = ${orgId}) AS products,
-            (SELECT count(*)::int FROM ${sql.ref(profile.specialtyTable)} WHERE org_id = ${orgId}) AS specialty`.execute(
-          trx,
-        ),
-      );
-      const counts = result.rows[0];
-      if (!counts) throw new Error(`Missing ${profile.seed} demo data`);
-      for (const [area, count] of Object.entries(counts)) {
-        expect(count, `${profile.seed} ${area}`).toBeGreaterThan(0);
-      }
-
-      await signIn(page, testInfo, database, accountId);
-      await page.goto(profile.route(orgId));
-      await expect(
-        page.getByRole('heading', { name: profile.heading, exact: true }),
-      ).toBeVisible();
-      if (profile.seed === 'northstar')
-        await page.getByRole('tab', { name: 'Class offerings' }).click();
-      await expect(
-        page
-          .getByText(profile.content, { exact: false })
-          .filter({ visible: true })
-          .first(),
-      ).toBeVisible();
+  const renderProfile = async (
+    profile: (typeof profiles)[number] | typeof northstarProfile,
+  ): Promise<void> => {
+    const orgId = stableDemoId(`demo-org-${profile.seed}`);
+    const accountId = stableDemoId(`demo-admin-${profile.seed}`);
+    const result = await withOrg({ orgId, actor: { accountId } }, (trx) =>
+      sql<{
+        people: number;
+        programs: number;
+        events: number;
+        invoices: number;
+        fundraising: number;
+        sponsors: number;
+        products: number;
+        specialty: number;
+      }>`SELECT
+          (SELECT count(*)::int FROM people WHERE org_id = ${orgId}) AS people,
+          (SELECT count(*)::int FROM programs WHERE org_id = ${orgId}) AS programs,
+          (SELECT count(*)::int FROM events WHERE org_id = ${orgId}) AS events,
+          (SELECT count(*)::int FROM invoices WHERE org_id = ${orgId}) AS invoices,
+          (SELECT count(*)::int FROM fundraising_campaigns WHERE org_id = ${orgId}) AS fundraising,
+          (SELECT count(*)::int FROM sponsors WHERE org_id = ${orgId}) AS sponsors,
+          (SELECT count(*)::int FROM products WHERE org_id = ${orgId}) AS products,
+          (SELECT count(*)::int FROM ${sql.ref(profile.specialtyTable)} WHERE org_id = ${orgId}) AS specialty`.execute(
+        trx,
+      ),
+    );
+    const counts = result.rows[0];
+    if (!counts) throw new Error(`Missing ${profile.seed} demo data`);
+    for (const [area, count] of Object.entries(counts)) {
+      expect(count, `${profile.seed} ${area}`).toBeGreaterThan(0);
     }
+
+    await signIn(page, testInfo, database, accountId);
+    await page.goto(profile.route(orgId));
+    await expect(
+      page.getByRole('heading', { name: profile.heading, exact: true }),
+    ).toBeVisible();
+    if (profile.seed === 'northstar')
+      await page.getByRole('tab', { name: 'Class offerings' }).click();
+    await expect(
+      page
+        .getByText(profile.content, { exact: false })
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible();
+  };
+
+  try {
+    for (const profile of profiles) await renderProfile(profile);
 
     const riversideOrgId = stableDemoId('demo-org-riverside');
     const commonChecks = [
@@ -440,6 +444,10 @@ test('demo profiles render populated shared and sport-specific console areas', a
           .first(),
       ).toBeVisible();
     }
+    // This screen fans out one schedule request per class offering on mount.
+    // Visit Northstar last so those background requests cannot delay the other
+    // populated-console assertions in this browser journey.
+    await renderProfile(northstarProfile);
   } finally {
     await database.destroy();
   }
