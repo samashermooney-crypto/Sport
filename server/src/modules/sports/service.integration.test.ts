@@ -207,7 +207,10 @@ it('serves the authenticated sport-profile lifecycle over HTTP', async () => {
       expect.arrayContaining([expect.objectContaining({ key: 'soccer' })]),
     );
 
-    expect((await fetch(`${baseUrl}/orgs/not-a-uuid`, { headers: authHeaders })).status).toBe(400);
+    expect(
+      (await fetch(`${baseUrl}/orgs/not-a-uuid`, { headers: authHeaders }))
+        .status,
+    ).toBe(400);
     expect((await fetch(`${baseUrl}/orgs/${actor.orgId}`)).status).toBe(401);
     const deniedWrite = await fetch(`${baseUrl}/orgs/${actor.orgId}`, {
       method: 'POST',
@@ -235,11 +238,13 @@ it('serves the authenticated sport-profile lifecycle over HTTP', async () => {
     };
     expect(profile.version).toBe(1);
     expect(
-      (await fetch(`${baseUrl}/orgs/${actor.orgId}`, {
-        method: 'POST',
-        headers: writeHeaders,
-        body: JSON.stringify({ templateKey: 'soccer' }),
-      })).status,
+      (
+        await fetch(`${baseUrl}/orgs/${actor.orgId}`, {
+          method: 'POST',
+          headers: writeHeaders,
+          body: JSON.stringify({ templateKey: 'soccer' }),
+        })
+      ).status,
     ).toBe(409);
 
     const listed = await fetch(`${baseUrl}/orgs/${actor.orgId}`, {
@@ -247,7 +252,11 @@ it('serves the authenticated sport-profile lifecycle over HTTP', async () => {
     });
     expect(listed.status).toBe(200);
     expect(await listed.json()).toEqual([
-      expect.objectContaining({ id: profile.id, version: 1, hasResults: false }),
+      expect.objectContaining({
+        id: profile.id,
+        version: 1,
+        hasResults: false,
+      }),
     ]);
 
     const revisedProfile = {
@@ -277,9 +286,11 @@ it('serves the authenticated sport-profile lifecycle over HTTP', async () => {
     );
     expect(conflict.status).toBe(409);
     expect(
-      (await fetch(`${baseUrl}/orgs/${actor.orgId}/not-a-uuid/versions`, {
-        headers: authHeaders,
-      })).status,
+      (
+        await fetch(`${baseUrl}/orgs/${actor.orgId}/not-a-uuid/versions`, {
+          headers: authHeaders,
+        })
+      ).status,
     ).toBe(400);
 
     const versions = await fetch(

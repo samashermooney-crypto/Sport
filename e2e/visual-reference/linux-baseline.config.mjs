@@ -1,11 +1,9 @@
-// Playwright config for regenerating the Linux parity baselines inside the
-// mcr.microsoft.com/playwright container (see parity-baselines.json). It
-// mirrors playwright.config.ts but targets the dev server running on the host
-// via host.docker.internal instead of spawning its own webServer.
+// Playwright config for regenerating Linux parity baselines on the same
+// ubuntu-24.04 runner as CI (see parity-baselines.json). It mirrors
+// playwright.config.ts and targets the dev server started by linux-baseline.sh.
 import { defineConfig, devices } from '@playwright/test';
 
-const base =
-  process.env.LINUX_BASELINE_BASE_URL ?? 'https://host.docker.internal:9713';
+const base = process.env.LINUX_BASELINE_BASE_URL ?? 'http://127.0.0.1:5174';
 
 export default defineConfig({
   testDir: '../..',
