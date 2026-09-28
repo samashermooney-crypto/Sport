@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { Temporal } from '@js-temporal/polyfill';
+import { orgToday } from '@shared/dates';
 import { gymnastics } from '@shared/sport/templates/gymnastics';
 import type { Kysely } from 'kysely';
 import pg from 'pg';
@@ -51,6 +53,7 @@ const programA = randomUUID();
 const seasonB = randomUUID();
 const profileB = randomUUID();
 const programB = randomUUID();
+const organizationTimezone = 'America/Chicago';
 
 const ownerContext: OrgContext = {
   orgId: orgA,
@@ -130,13 +133,14 @@ async function insertFixtures(): Promise<void> {
   try {
     await admin.query(
       `INSERT INTO organizations (id, slug, name, kind, timezone, status)
-       VALUES ($1, $2, 'Academy Test A', 'club', 'America/Chicago', 'active'),
-              ($3, $4, 'Academy Test B', 'club', 'America/Chicago', 'active')`,
+       VALUES ($1, $2, 'Academy Test A', 'club', $5, 'active'),
+              ($3, $4, 'Academy Test B', 'club', $5, 'active')`,
       [
         orgA,
         `academy-a-${orgA.slice(0, 8)}`,
         orgB,
         `academy-b-${orgB.slice(0, 8)}`,
+        organizationTimezone,
       ],
     );
     await admin.query(
@@ -282,13 +286,15 @@ async function insertFixtures(): Promise<void> {
   }
 }
 
-function thisMonthRange(): { start: string; end: string; today: string } {
-  const now = new Date();
-  const start = `${String(now.getUTCFullYear())}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 4, 0))
-    .toISOString()
-    .slice(0, 10);
-  return { start, end, today: now.toISOString().slice(0, 10) };
+function thisMonthRange(now: Temporal.Instant = Temporal.Now.instant()): {
+  start: string;
+  end: string;
+  today: string;
+} {
+  const today = orgToday(organizationTimezone, now);
+  const start = Temporal.PlainDate.from(today).with({ day: 1 });
+  const end = start.add({ months: 4 }).subtract({ days: 1 });
+  return { start: start.toString(), end: end.toString(), today };
 }
 
 describe('academy classes integration', () => {
@@ -296,6 +302,19 @@ describe('academy classes integration', () => {
   let scheduleId: string;
   let firstSessionId: string;
   let secondOfferingId: string;
+
+  it('uses the organization date when UTC has advanced to the next day', () => {
+    const utcMidnightBoundary = Temporal.Instant.from('2026-09-28T01:14:00Z');
+
+    expect(orgToday(organizationTimezone, utcMidnightBoundary)).toBe(
+      '2026-09-27',
+    );
+    expect(thisMonthRange(utcMidnightBoundary)).toEqual({
+      start: '2026-09-01',
+      end: '2026-12-31',
+      today: '2026-09-27',
+    });
+  });
 
   beforeAll(async () => {
     database = createDatabase(
