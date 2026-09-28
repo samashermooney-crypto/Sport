@@ -53877,6 +53877,55 @@
             "in": "path",
             "required": true,
             "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "seasonId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "enum": [
+                "league",
+                "club",
+                "class",
+                "camp",
+                "clinic",
+                "tryout",
+                "tournament",
+                "event",
+                "membership"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "enum": [
+                "draft",
+                "published",
+                "registration_open",
+                "registration_closed",
+                "in_progress",
+                "completed",
+                "archived"
+              ]
+            }
           }
         ]
       },
@@ -54350,7 +54399,18 @@
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "properties": {
-                  "status": { "type": "string" },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "published",
+                      "registration_open",
+                      "registration_closed",
+                      "in_progress",
+                      "completed",
+                      "archived"
+                    ]
+                  },
                   "expectedVersion": {
                     "type": "integer",
                     "exclusiveMinimum": 0,
