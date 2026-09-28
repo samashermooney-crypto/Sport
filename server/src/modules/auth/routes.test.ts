@@ -427,4 +427,180 @@ describe('auth HTTP contract', () => {
       error: { code: 'RATE_LIMITED' },
     });
   });
+
+  it('routes recovery, credential changes, session revocation, and deletion requests', async () => {
+    const emailStart = email.messages.length;
+    const accountEmail = `recovery-${randomBytes(6).toString('hex')}@example.invalid`;
+    const input = {
+      email: accountEmail,
+      password,
+      firstName: 'Recovery',
+      lastName: 'Owner',
+      dateOfBirth: '1990-01-01',
+      termsAccepted: true,
+      privacyAccepted: true,
+      captchaToken: 'test-token',
+    };
+    expect((await post('/sign-up', input)).status).toBe(202);
+    expect(
+      (
+        await post('/verify-email', {
+          token: emailToken(emailStart, 'verify'),
+        })
+      ).status,
+    ).toBe(200);
+
+    expect((await post('/magic/request', { email: accountEmail })).status).toBe(
+      202,
+    );
+    const magicToken = emailToken(emailStart + 1, 'magic');
+    const magic = await post('/magic/redeem', { token: magicToken });
+    expect(magic.status).toBe(200);
+    const magicCookie = authCookie(magic);
+    expect(
+      (await fetch(`${baseUrl}/me`, { headers: { Cookie: magicCookie } }))
+        .status,
+    ).toBe(200);
+
+    expect(
+      (await post('/password/reset/request', { email: accountEmail })).status,
+    ).toBe(202);
+    const resetEmailIndex = email.messages.findIndex(
+      (message, index) =>
+        index >= emailStart && message.text.includes('/reset/'),
+    );
+    const nextPassword = 'Tall cedars and quiet rivers 82';
+    expect(
+      (
+        await post('/password/reset/confirm', {
+          token: emailToken(resetEmailIndex, 'reset'),
+          newPassword: nextPassword,
+        })
+      ).status,
+    ).toBe(200);
+
+    const signedIn = await post('/sign-in', {
+      email: accountEmail,
+      password: nextPassword,
+    });
+    expect(signedIn.status).toBe(200);
+    const signedInCookie = authCookie(signedIn);
+    const changedPassword = 'Red maple leaves and clear skies 83';
+    expect(
+      (
+        await post(
+          '/password/change',
+          { currentPassword: nextPassword, newPassword: changedPassword },
+          signedInCookie,
+        )
+      ).status,
+    ).toBe(200);
+    const elevated = await post(
+      '/step-up',
+      { method: 'password', password: changedPassword },
+      signedInCookie,
+    );
+    expect(elevated.status).toBe(200);
+    const elevatedCookie = authCookie(elevated);
+
+    const nextEmail = `updated-${randomBytes(6).toString('hex')}@example.invalid`;
+    expect(
+      (
+        await post(
+          '/email/change/request',
+          { email: nextEmail },
+          elevatedCookie,
+        )
+      ).status,
+    ).toBe(202);
+    const emailChangeIndex = email.messages.findIndex(
+      (message, index) =>
+        index >= emailStart && message.text.includes('/verify-email-change/'),
+    );
+    const emailChanged = await post('/email/change/confirm', {
+      token: emailToken(emailChangeIndex, 'verify-email-change'),
+    });
+    expect(emailChanged.status).toBe(200);
+    expect(emailChanged.headers.get('set-cookie')).toContain(
+      'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+    );
+
+    const restoredSession = await post('/sign-in', {
+      email: nextEmail,
+      password: changedPassword,
+    });
+    expect(restoredSession.status).toBe(200);
+    const restoredCookie = authCookie(restoredSession);
+    const restoredStepUp = await post(
+      '/step-up',
+      { method: 'password', password: changedPassword },
+      restoredCookie,
+    );
+    expect(restoredStepUp.status).toBe(200);
+    const deletionCookie = authCookie(restoredStepUp);
+
+    const deletion = await post(
+      '/account-deletion',
+      { reason: 'This account is no longer needed.' },
+      deletionCookie,
+    );
+    expect(deletion.status).toBe(202);
+    const deletionBody = (await deletion.json()) as { requestId: string };
+    expect(deletionBody.requestId).toEqual(expect.any(String));
+
+    const unknownDevice = await fetch(
+      `${baseUrl}/devices/00000000-0000-4000-8000-000000000001`,
+      {
+        method: 'DELETE',
+        headers: {
+          Cookie: deletionCookie,
+          Origin: origin,
+          'X-Athlentry-Request': '1',
+        },
+      },
+    );
+    expect(unknownDevice.status).toBe(404);
+
+    const sessions = await fetch(`${baseUrl}/sessions`, {
+      headers: { Cookie: deletionCookie },
+    });
+    const session = (
+      (await sessions.json()) as {
+        sessions: Array<{ id: string }>;
+      }
+    ).sessions[0];
+    const sessionId = session?.id;
+    if (!sessionId) throw new Error('Expected an active auth session');
+    const revoked = await fetch(`${baseUrl}/sessions/${sessionId}`, {
+      method: 'DELETE',
+      headers: {
+        Cookie: deletionCookie,
+        Origin: origin,
+        'X-Athlentry-Request': '1',
+      },
+    });
+    expect(revoked.status).toBe(200);
+    expect(revoked.headers.get('set-cookie')).toContain(
+      'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+    );
+
+    expect(
+      (
+        await post('/sign-in', {
+          email: accountEmail,
+          password: 'wrong password',
+        })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await post('/sign-up', {
+          ...input,
+          email: `underage-${randomBytes(6).toString('hex')}@example.invalid`,
+          dateOfBirth: '2015-01-01',
+        })
+      ).status,
+    ).toBe(422);
+    expect(magicCookie).not.toBe('');
+  });
 });
