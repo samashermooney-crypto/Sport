@@ -8,6 +8,8 @@ import {
   proposeRefund,
   type RefundableLine,
 } from '@shared/policies/refund-policy';
+import { checkEligibility } from '@shared/sport/eligibility';
+import { ageGroupSchema } from '@shared/sport/schema';
 import { sql, type Kysely } from 'kysely';
 import { z } from 'zod';
 
@@ -25,7 +27,10 @@ import {
   RefundConflictError,
 } from '../finance/refunds.js';
 
-import { RegistrationCheckoutError } from './checkout-start.js';
+import {
+  RegistrationCheckoutError,
+  registrationEligibilityRules,
+} from './checkout-start.js';
 import { enqueueRegistrationNotice } from './notices.js';
 import type {
   RegistrationTransferRefunds,
@@ -61,6 +66,20 @@ const programPolicySchema = z.looseObject({
     .optional(),
   collectWaitlistRequirements: z.boolean().optional(),
 });
+
+interface WaitlistEligibilityCandidate {
+  profile: Json;
+  program_eligibility: Json;
+  division_eligibility: Json | null;
+  season_starts_on: string;
+  season_ends_on: string;
+  date_of_birth: string;
+  graduation_year: number | null;
+  competition_gender: 'female' | 'male' | 'open' | null;
+  household_registrations: number;
+  returning: boolean;
+  memberships: string[];
+}
 
 export const myRegistrationListSchema = z.strictObject({
   registrations: z.array(
@@ -1460,6 +1479,84 @@ export class PostgresRegistrationLifecycle {
           403,
           'FORBIDDEN',
           'Participant is unavailable',
+        );
+      const eligibility = await sql<WaitlistEligibilityCandidate>`
+        SELECT sp.profile, p.eligibility AS program_eligibility,
+          d.eligibility AS division_eligibility,
+          s.starts_on::text AS season_starts_on,
+          s.ends_on::text AS season_ends_on,
+          person.date_of_birth::text, person.graduation_year,
+          person.competition_gender,
+          (SELECT count(*)::integer FROM registrations sibling
+            WHERE sibling.org_id = o.org_id AND sibling.program_id = o.program_id
+              AND sibling.household_id = ${input.householdId}::uuid
+              AND sibling.status NOT IN ('canceled', 'withdrawn', 'transferred_out'))
+            AS household_registrations,
+          EXISTS (SELECT 1 FROM registrations prior
+            WHERE prior.org_id = o.org_id AND prior.person_id = person.id
+              AND prior.status IN ('confirmed', 'transferred_out', 'withdrawn'))
+            AS returning,
+          ARRAY(SELECT DISTINCT membership.program_id::text
+            FROM registrations membership
+            WHERE membership.org_id = o.org_id AND membership.person_id = person.id
+              AND membership.status = 'confirmed') AS memberships
+        FROM registration_offerings o
+        JOIN programs p ON p.org_id = o.org_id AND p.id = o.program_id
+        JOIN divisions d ON d.org_id = o.org_id AND d.id = o.division_id
+        JOIN seasons s ON s.org_id = p.org_id AND s.id = p.season_id
+        JOIN sport_profiles sp ON sp.org_id = p.org_id AND sp.id = p.sport_profile_id
+        JOIN people person ON person.org_id = o.org_id AND person.id = ${input.personId}::uuid
+          AND person.status = 'active'
+        WHERE o.org_id = ${input.orgId}::uuid AND o.id = ${input.offeringId}::uuid
+        FOR UPDATE OF o, p, d, person
+      `.execute(trx);
+      const candidate = eligibility.rows[0];
+      if (!candidate)
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Participant is unavailable',
+        );
+      const ageGroup = z
+        .looseObject({ ageGroup: ageGroupSchema })
+        .parse(candidate.profile).ageGroup;
+      const facts = {
+        dateOfBirth: candidate.date_of_birth,
+        graduationYear: candidate.graduation_year,
+        seasonStartsOn: candidate.season_starts_on,
+        seasonEndsOn: candidate.season_ends_on,
+        competitionGender: candidate.competition_gender,
+        activeMembershipProgramIds: candidate.memberships,
+        returningParticipant: candidate.returning,
+        invited: false,
+        residencyVerified: false,
+        householdRegistrations: candidate.household_registrations,
+      };
+      const results = [
+        checkEligibility(
+          registrationEligibilityRules(candidate.program_eligibility, ageGroup),
+          facts,
+        ),
+        checkEligibility(
+          registrationEligibilityRules(
+            candidate.division_eligibility,
+            ageGroup,
+          ),
+          facts,
+        ),
+      ];
+      const reasons = [
+        ...new Set(
+          results.flatMap((result) =>
+            result.reasons.map((reason) => reason.code),
+          ),
+        ),
+      ];
+      if (reasons.length)
+        throw new RegistrationCheckoutError(
+          409,
+          'INELIGIBLE',
+          `Participant is ineligible: ${reasons.join(', ')}`,
         );
       const existing = await trx
         .selectFrom('waitlist_entries')

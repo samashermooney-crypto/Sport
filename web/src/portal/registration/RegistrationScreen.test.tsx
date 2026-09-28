@@ -22,6 +22,7 @@ const orgId = '0199a413-a221-7000-8000-000000000011';
 const offeringId = '0199a413-a221-7000-8000-000000000012';
 const personId = '0199a413-a221-7000-8000-000000000013';
 const householdId = '0199a413-a221-7000-8000-000000000014';
+const ineligiblePersonId = '0199a413-a221-7000-8000-000000000018';
 
 beforeEach(() => {
   vi.mocked(apiGet).mockReset();
@@ -42,6 +43,33 @@ beforeEach(() => {
                 priceCents: 7500,
                 status: 'full',
                 waitlistEnabled: true,
+                eligibleParticipants: [
+                  {
+                    personId,
+                    householdId,
+                    eligible: true,
+                    alreadyRegistered: false,
+                    age: 12,
+                    grade: null,
+                    ageGroupLabel: 'U12',
+                    reasons: [],
+                  },
+                  {
+                    personId: ineligiblePersonId,
+                    householdId,
+                    eligible: false,
+                    alreadyRegistered: false,
+                    age: 6,
+                    grade: null,
+                    ageGroupLabel: 'U6',
+                    reasons: [
+                      {
+                        code: 'AGE_BELOW_MIN',
+                        message: 'Athlete must be at least 8 years old.',
+                      },
+                    ],
+                  },
+                ],
               },
             ],
           }
@@ -51,6 +79,12 @@ beforeEach(() => {
                 personId,
                 householdId,
                 name: 'Maya Family',
+                householdName: 'Family',
+              },
+              {
+                personId: ineligiblePersonId,
+                householdId,
+                name: 'Jordan Family',
                 householdName: 'Family',
               },
             ],
@@ -111,5 +145,43 @@ describe('family registration discovery', () => {
         expect.anything(),
       );
     });
+  });
+
+  it('filters programs by age eligibility and prevents an ineligible waitlist join', async () => {
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter initialEntries={[`/portal/orgs/${orgId}/register`]}>
+          <RegistrationScreen orgId={orgId} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('Full');
+    const programFilter = await screen.findByLabelText('Show programs for');
+    fireEvent.change(programFilter, {
+      target: { value: `${ineligiblePersonId}:${householdId}` },
+    });
+    expect(
+      await screen.findByText('No programs are available for this filter.'),
+    ).toBeTruthy();
+    fireEvent.change(programFilter, { target: { value: '' } });
+
+    expect(
+      (
+        await screen.findByRole('option', {
+          name: 'Jordan Family · Family · Not eligible',
+        })
+      ).hasAttribute('disabled'),
+    ).toBe(true);
+    expect(
+      screen
+        .getByRole('button', { name: 'Join waitlist' })
+        .hasAttribute('disabled'),
+    ).toBe(true);
+    expect(apiPost).not.toHaveBeenCalled();
   });
 });
