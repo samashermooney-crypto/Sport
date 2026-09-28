@@ -551,7 +551,7 @@
 - **Decision:** The existing account `linked_org_ids` array remains an append-only candidate index. A trigger adds an org when a person-account link is inserted and a migration backfills existing links. The family reader starts from the authenticated global account, then checks active, verified links and active people separately inside `withOrg` for each candidate organization. Revocation does not remove the candidate ID.
 - **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
 - **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
-### DEC-109 — Keep guest donation checkout behind the finance adapter
+### DEC-121 — Keep guest donation checkout behind the finance adapter
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 11 fundraising
 - **Context:** E's current payment service requires an account-bound customer and invoice, while a guest donor must not receive a synthetic Athlentry account or have a donation misrepresented as another payer's invoice.
@@ -559,7 +559,7 @@
 - **Why:** This preserves payer identity and accounting integrity and keeps provider details in E's adapter.
 - **Consequences / follow-ups:** Guest donation checkout remains unavailable on trunk until E/C wire the adapter and webhook. Orders containing products with different tax rates need separate invoices.
 
-### DEC-110 — Keep store order terms recoverable and registration add-ons versioned
+### DEC-122 — Keep store order terms recoverable and registration add-ons versioned
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 11 store
 - **Context:** A store order reserves inventory in one tenant transaction, then issues an E-owned invoice in a separate transaction. A process interruption between those commits must not lose the invoice link or change what the purchaser agreed to buy. Registration add-on requirements must remain reviewable as products and sizes change, and shipped orders must retain the address used at purchase.
@@ -845,6 +845,7 @@
 - **Decision:** Family endpoints list and update only active league registrations linked to the signed-in guardian or athlete account. Friend requests must name another confirmed registrant in that program. Family responses never expose or overwrite staff notes or coach ratings; family endpoints do not collect free-text notes.
 - **Why:** This limits child-data exposure, prevents arbitrary person IDs from granting access, and keeps staff ratings intact when a family edits its own preferences.
 - **Consequences / follow-ups:** The team balancer consumes requests only when both athletes request one another. Staff preferences remain accessible through director-only routes.
+
 ### DEC-114 — Fail closed on incomplete route-security metadata
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 16 §1 security verification
@@ -853,7 +854,7 @@
 - **Why:** The checks must fail on real authorization gaps without inventing route policy or hiding a cross-tenant read behind an unrelated 404.
 - **Consequences / follow-ups:** Track C owns the generated contracts and CI wiring; the precise requests are recorded in `docs/codex/tracks/SEC.md` and `docs/codex/tracks/C.md`. Remove the `test.fixme` markers when those contracts are available and the checks can exercise real fixtures.
 
-### DEC-115 — Preserve signed waiver evidence across person merges
+### DEC-119 — Preserve signed waiver evidence across person merges
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 2 waivers and duplicate person merges
 - **Context:** Migration 0904 makes `waiver_signatures` append-only, while the person merge service previously rewrote participant and signer person IDs in those rows.
@@ -884,3 +885,11 @@
 - **Decision:** Keep the legacy secondary hover background and explicitly retain the normal dark text color while hovered.
 - **Why:** This is the smallest contrast-only correction permitted by `01 §11a`; it does not change the button's shape, spacing, or color palette.
 - **Consequences / follow-ups:** Axe checks on the cropped family-photo journey verify the hover state in Chromium and mobile WebKit.
+
+### DEC-120 — Balance Rec teams by age at season start
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 6 Rec placement boards
+- **Context:** Phase 6 requires age balancing, but the shared team balancer previously considered ratings, roster size, hard constraints, and preferences only.
+- **Decision:** Supply whole-year age at the target program's `starts_on` date to the existing shared balancer and include team mean-age variance with the same objective weight as mean-rating variance. When some athletes lack a date of birth, use the median known age for objective calculations; omit age balancing if none have a date of birth.
+- **Why:** Age fairness belongs in the same deterministic optimization that enforces team sizes, ratings, and linked-player constraints. Using the season start gives a consistent reference for every registration in the program.
+- **Consequences / follow-ups:** Existing callers without age retain their previous objective and metrics. The Rec dashboard shows mean age beside mean rating. The seeded 120-player balancer test verifies both fairness dimensions within the five-second budget.
