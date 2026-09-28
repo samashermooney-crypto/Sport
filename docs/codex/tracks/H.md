@@ -1,6 +1,7 @@
 # Track H — communications and chat
 
 Requests from OPS: Confirm the campaign enqueue/status API contract for a 20,000-recipient fan-out using only preview/fake delivery adapters, including a durable completed-recipient count for the k6 scenario (2026-09-27).
+Requests from OPS: Fix `server/test/modules/sponsors/service.integration.test.ts`: `keeps placements tenant scoped and issues sponsorship invoices through finance` expects the active “Community Sports Medicine” Gold placement, but `listPublicPlacements` returns `[]` (2026-09-27).
 
 Status: Phase 10 H-owned work is ready for integration; Phase 11 is complete and green on trunk; Phase 13 belongs to Track J
 Branch: `track/h-comms` (local only; no push)

@@ -78,3 +78,19 @@ encryption_authentication: passed
 ```
 
 This verifies the latest synced schema and authenticated encrypted restore path. It does not provide full-size recovery-time evidence.
+
+## Current-schema drill after K migrations — 2026-09-27 (local)
+
+After the K `load` seed attempt applied migrations 8500–8502, the encrypted drill was run against the isolated `athlentry_ops` database using the read-only backup role and the local PostgreSQL maintenance role. A new AES-256 key was generated in memory for this run and was not saved.
+
+```text
+restore_drill: passed
+scratch_database: athlentry_ops_restore_1790565156906_6456ae61
+scratch_database_cleanup: passed
+schema_migrations: 178
+latest_migration: 8502
+verified_row_counts: organizations=108, people=2288, registrations=1156, attendance=0, invoices=8, payments=0, audit_log=32
+encryption_authentication: passed
+```
+
+The drill verified restored row counts and scratch cleanup. The seed had not produced representative load data; see `2026-09-27-load-tests.md` and the query review for limitations.
