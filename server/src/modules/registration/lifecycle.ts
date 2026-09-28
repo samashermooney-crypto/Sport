@@ -407,11 +407,21 @@ async function scopedRefundLines(
   paidCents: number;
   fullCart: boolean;
 }> {
+  if (!registration.invoice_line_id)
+    return {
+      invoiceId: '',
+      paymentId: null,
+      lines: [],
+      paidServiceFeeShareCents: 0,
+      terms: null,
+      paidCents: 0,
+      fullCart: true,
+    };
   const invoiceLine = await trx
     .selectFrom('invoice_lines')
     .select(['id', 'invoice_id', 'amount_cents', 'kind'])
     .where('org_id', '=', orgId)
-    .where('id', '=', registration.invoice_line_id ?? '')
+    .where('id', '=', registration.invoice_line_id)
     .executeTakeFirst();
   if (!invoiceLine)
     return {
