@@ -26719,7 +26719,7 @@
       "get": {
         "operationId": "get_api_v1_evaluations_orgs_orgId_events_eventId_scoring_sheet",
         "summary": "Read an assigned evaluator scoring sheet",
-        "x-athlentry-permission": "evaluations.read",
+        "x-athlentry-permission": "evaluations.score",
         "x-athlentry-resource": "evaluations.events.scoring-sheet",
         "x-athlentry-scope": "organization",
         "tags": ["evaluations"],
@@ -26777,7 +26777,7 @@
       "post": {
         "operationId": "post_api_v1_evaluations_orgs_orgId_events_eventId_scores",
         "summary": "Idempotently save an evaluator score",
-        "x-athlentry-permission": "evaluations.manage",
+        "x-athlentry-permission": "evaluations.score",
         "x-athlentry-resource": "evaluations.events.scores",
         "x-athlentry-scope": "organization",
         "tags": ["evaluations"],
@@ -28178,9 +28178,9 @@
       "post": {
         "operationId": "post_api_v1_evaluations_orgs_orgId_offers_offerId_accept",
         "summary": "Accept an offer through registration checkout",
-        "x-athlentry-permission": "evaluations.manage",
+        "x-athlentry-permission": "account.self",
         "x-athlentry-resource": "evaluations.offers.accept",
-        "x-athlentry-scope": "organization",
+        "x-athlentry-scope": "account",
         "tags": ["evaluations"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -28235,9 +28235,9 @@
       "post": {
         "operationId": "post_api_v1_evaluations_orgs_orgId_offers_offerId_decline",
         "summary": "Decline an offer",
-        "x-athlentry-permission": "evaluations.manage",
+        "x-athlentry-permission": "account.self",
         "x-athlentry-resource": "evaluations.offers.decline",
-        "x-athlentry-scope": "organization",
+        "x-athlentry-scope": "account",
         "tags": ["evaluations"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -41191,9 +41191,9 @@
       "get": {
         "operationId": "get_api_v1_fundraising_public_orgs_orgSlug_campaigns_campaignSlug",
         "summary": "View an open public campaign",
-        "x-athlentry-permission": "fundraising.read",
+        "x-athlentry-permission": "public.access",
         "x-athlentry-resource": "fundraising.fundraising.public",
-        "x-athlentry-scope": "organization",
+        "x-athlentry-scope": "public",
         "tags": ["fundraising"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -41339,9 +41339,9 @@
       "post": {
         "operationId": "post_api_v1_fundraising_public_orgs_orgSlug_campaigns_campaignSlug_donations",
         "summary": "Start Turnstile-verified guest donation checkout",
-        "x-athlentry-permission": "fundraising.manage",
+        "x-athlentry-permission": "public.access",
         "x-athlentry-resource": "fundraising.fundraising.public",
-        "x-athlentry-scope": "organization",
+        "x-athlentry-scope": "public",
         "tags": ["fundraising"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -55142,9 +55142,9 @@
       "get": {
         "operationId": "get_api_v1_programs_catalog_orgSlug",
         "summary": "Public program catalog data",
-        "x-athlentry-permission": "programs.read",
+        "x-athlentry-permission": "public.access",
         "x-athlentry-resource": "programs.programs.catalog",
-        "x-athlentry-scope": "organization",
+        "x-athlentry-scope": "public",
         "tags": ["programs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -55196,9 +55196,9 @@
       "get": {
         "operationId": "get_api_v1_programs_catalog_orgSlug_programSlug",
         "summary": "Public program detail data",
-        "x-athlentry-permission": "programs.read",
+        "x-athlentry-permission": "public.access",
         "x-athlentry-resource": "programs.programs.catalog",
-        "x-athlentry-scope": "organization",
+        "x-athlentry-scope": "public",
         "tags": ["programs"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -62958,9 +62958,10 @@
                     "items": {
                       "type": "array",
                       "items": { "$ref": "#/$defs/__schema0" }
-                    }
+                    },
+                    "organizationTimezone": { "type": "string" }
                   },
-                  "required": ["items"],
+                  "required": ["items", "organizationTimezone"],
                   "additionalProperties": false,
                   "$defs": {
                     "__schema0": {
@@ -67110,9 +67111,9 @@
       "get": {
         "operationId": "get_api_v1_sponsors_public_orgs_orgSlug_sponsors",
         "summary": "List active sponsors for a public placement surface",
-        "x-athlentry-permission": "sponsors.read",
+        "x-athlentry-permission": "public.access",
         "x-athlentry-resource": "sponsors.sponsors.public",
-        "x-athlentry-scope": "organization",
+        "x-athlentry-scope": "public",
         "tags": ["sponsors"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {

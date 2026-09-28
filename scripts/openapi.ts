@@ -481,13 +481,19 @@ function moduleFor(route: OpenApiRoute) {
 }
 
 function routeScope(route: OpenApiRoute): ApiScope {
+  const module = moduleFor(route);
+  const publicSlugRoute =
+    /\/public\/orgs\/\{orgSlug\}(?:\/|$)/.test(route.path) ||
+    (module?.name === 'programs' &&
+      route.path.startsWith('/api/v1/programs/catalog/{orgSlug}'));
+  if (route.scope) return route.scope;
   if (
-    route.scope ||
     route.public ||
+    publicSlugRoute ||
     route.path === '/healthz' ||
     route.path.includes('/webhooks/')
   ) {
-    return route.scope ?? 'public';
+    return 'public';
   }
   if (route.path.startsWith('/api/v1/platform/')) return 'platform';
   if (
@@ -505,9 +511,13 @@ function routeScope(route: OpenApiRoute): ApiScope {
   ) {
     return 'account';
   }
+  if (
+    moduleFor(route)?.name === 'evaluations' &&
+    /\/offers\/\{offerId\}\/(?:accept|decline)$/.test(route.path)
+  )
+    return 'account';
   if (/\{(?:orgId|organizationId|tenantId)\}/i.test(route.path))
     return 'organization';
-  const module = moduleFor(route);
   if (module?.name === 'files') return 'organization';
   if (module?.name === 'orgs') return 'account';
   if (module?.name === 'platform') return 'platform';
@@ -543,6 +553,11 @@ function routePermission(route: OpenApiRoute, scope: ApiScope): string {
   if (scope === 'account') return 'account.self';
   if (scope === 'platform') return 'platform.staff';
   const module = moduleFor(route);
+  if (
+    module?.name === 'evaluations' &&
+    (route.path.endsWith('/scoring-sheet') || route.path.endsWith('/scores'))
+  )
+    return 'evaluations.score';
   if (module?.permissions?.length === 1)
     return module.permissions[0] ?? 'organization.member';
   if (module?.name === 'communications') {
