@@ -4,8 +4,11 @@ import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { sql } from 'kysely';
 import pg from 'pg';
 
+import { createDatabase } from '../server/src/db/kysely.js';
+import { createWithOrg } from '../server/src/db/withOrg.js';
 import {
   createEncryptedBackup,
   parsePgConnection,
@@ -21,6 +24,19 @@ const verifiedTables = [
   'payments',
   'audit_log',
 ] as const;
+type TenantVerifiedTable = Exclude<
+  (typeof verifiedTables)[number],
+  'organizations'
+>;
+const tenantVerifiedTables = [
+  'people',
+  'registrations',
+  'attendance',
+  'invoices',
+  'payments',
+  'audit_log',
+] as const satisfies readonly TenantVerifiedTable[];
+const systemActorId = '00000000-0000-0000-0000-000000000000';
 
 type RestoreReport = {
   scratchDatabase: string;
@@ -37,7 +53,10 @@ function quoteIdentifier(value: string): string {
   return `"${value}"`;
 }
 
-async function readSnapshot(client: pg.Client): Promise<RestoreSnapshot> {
+async function readSnapshot(
+  client: pg.Client,
+  connectionString: string,
+): Promise<RestoreSnapshot> {
   const migrations = await client.query<{
     count: string;
     latest: number | null;
@@ -49,14 +68,49 @@ async function readSnapshot(client: pg.Client): Promise<RestoreSnapshot> {
   if (migrationCount === 0 || latestMigration === 0)
     throw new Error('Migration ledger is empty');
 
-  const tableCounts = {} as RestoreReport['tableCounts'];
-  for (const table of verifiedTables) {
-    const result = await client.query<{ count: string }>(
-      `SELECT count(*)::text AS count FROM ${quoteIdentifier(table)}`,
-    );
-    tableCounts[table] = Number(result.rows[0]?.count ?? '0');
+  const database = createDatabase(connectionString);
+  try {
+    // organizations is a global tenant directory; all tenant-table counts
+    // below run inside withOrg transactions, even for privileged drill roles.
+    const organizations = await database
+      .selectFrom('organizations')
+      .select('id')
+      .execute();
+    const withOrg = createWithOrg(database);
+    const tableCounts: RestoreReport['tableCounts'] = {
+      organizations: organizations.length,
+      people: 0,
+      registrations: 0,
+      attendance: 0,
+      invoices: 0,
+      payments: 0,
+      audit_log: 0,
+    };
+    for (const organization of organizations) {
+      await withOrg(
+        {
+          orgId: organization.id,
+          actor: { accountId: systemActorId },
+        },
+        async (trx) => {
+          const counts = await Promise.all(
+            tenantVerifiedTables.map(async (table) => {
+              const result = await sql<{ count: string }>`
+                SELECT count(*)::text AS count
+                FROM ${sql.table(table)}
+                WHERE org_id = ${organization.id}::uuid
+              `.execute(trx);
+              return [table, Number(result.rows[0]?.count ?? '0')] as const;
+            }),
+          );
+          for (const [table, count] of counts) tableCounts[table] += count;
+        },
+      );
+    }
+    return { migrationCount, latestMigration, tableCounts };
+  } finally {
+    await database.destroy();
   }
-  return { migrationCount, latestMigration, tableCounts };
 }
 
 export async function runRestoreDrill(): Promise<RestoreReport> {
@@ -101,7 +155,7 @@ export async function runRestoreDrill(): Promise<RestoreReport> {
     let sourceSnapshot: RestoreSnapshot;
     try {
       await sourceClient.connect();
-      sourceSnapshot = await readSnapshot(sourceClient);
+      sourceSnapshot = await readSnapshot(sourceClient, sourceUrl);
     } finally {
       await sourceClient.end().catch(() => undefined);
     }
@@ -119,7 +173,10 @@ export async function runRestoreDrill(): Promise<RestoreReport> {
     });
     try {
       await scratchClient.connect();
-      const restoredSnapshot = await readSnapshot(scratchClient);
+      const restoredSnapshot = await readSnapshot(
+        scratchClient,
+        scratchUrl.toString(),
+      );
       if (JSON.stringify(restoredSnapshot) !== JSON.stringify(sourceSnapshot)) {
         throw new Error('Restored schema or row counts differ from the source');
       }

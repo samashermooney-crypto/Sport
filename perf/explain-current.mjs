@@ -40,7 +40,9 @@ async function main() {
     // inspected inside withOrg transactions using the application role.
     const organization = await database
       .selectFrom('organizations')
-      .select('id')
+      .select(['id', 'slug'])
+      .orderBy(sql`CASE WHEN slug = 'load-org' THEN 0 ELSE 1 END`)
+      .orderBy('slug')
       .limit(1)
       .executeTakeFirst();
     const context = {
@@ -227,7 +229,11 @@ async function main() {
     });
     process.stdout.write(
       `${JSON.stringify(
-        { tenant_directory_nonempty: Boolean(organization), reports },
+        {
+          tenant_directory_nonempty: Boolean(organization),
+          analyzed_tenant_slug: organization?.slug ?? null,
+          reports,
+        },
         null,
         2,
       )}\n`,
