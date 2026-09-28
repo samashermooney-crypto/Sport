@@ -62,3 +62,19 @@ synthetic_restore_fixture_cleanup: passed
 ```
 
 No family data or credentials were used or persisted.
+
+## OPS sync after registration and Phase 3 migrations — 2026-09-27
+
+After syncing trunk through `2c52eb47` and applying migrations through 1063 to the isolated `athlentry_ops` stack, the encrypted restore drill was rerun against `athlentry_test`. It verified all row-count checks against the source and restored scratch database. The ledger contained 168 migrations; the highest numeric version was 8010 (the merged migration streams include lower-numbered Phase 3 and registration versions).
+
+```text
+restore_drill: passed
+scratch_database: athlentry_ops_restore_1790558137549_abb4f000
+scratch_database_cleanup: passed (post-run query found 0 athlentry_ops_restore_% databases)
+schema_migrations: 168
+highest_migration_version: 8010
+verified_row_counts: organizations=0, people=0, registrations=0, attendance=0, invoices=0, payments=0, audit_log=0
+encryption_authentication: passed
+```
+
+This verifies the latest synced schema and authenticated encrypted restore path. It does not provide full-size recovery-time evidence.

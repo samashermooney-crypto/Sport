@@ -26,3 +26,18 @@ Once the profile is available:
 5. Re-run the affected scenario and query after the owner adds the index; report write-cost and storage trade-offs as well as read latency.
 
 Initial code-path candidates to capture after seeding are: `capacity_holds` and `capacity_counters` reservation/expiry paths (Track E); paginated roster, attendance and public schedule/standings reads (their module owners); and `message_deliveries` campaign recipient selection plus campaign counts (Track H). These are capture targets, not index findings.
+
+## Latest synced schema review — 2026-09-27
+
+Re-ran `perf/explain-current.mjs` with `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` against the isolated OPS app role after migrations through 1063 and 168 recorded migrations (highest numeric version 8010). The tenant directory was empty and all eight sample probes returned no rows. Each plan used the existing indexes below with zero actual rows; buffer reads were zero and shared hits were two or fewer. As before, these plans do not justify indexes. Track A's load profile and a representative preview are still required to collect the top 30 normalized statements and file evidence-backed requests.
+
+| Query shape               | Existing selected index                                    | Sample rows | Read buffers |
+| ------------------------- | ---------------------------------------------------------- | ----------: | -----------: |
+| Checkout capacity holds   | `capacity_holds_reservation_idx`                           |           0 |            0 |
+| Checkout capacity counter | `capacity_counters_subject_idx`                            |           0 |            0 |
+| Game-day attendance       | `attendance_event_status_idx`                              |           0 |            0 |
+| Game-day roster           | `roster_entries_active_person_idx`, `people_org_id_id_key` |           0 |            0 |
+| Public facility schedule  | `events_space_idx`                                         |           0 |            0 |
+| Public standings snapshot | `standings_snapshots_scope_idx`                            |           0 |            0 |
+| Email delivery window     | `message_deliveries_recipient_idx`                         |           0 |            0 |
+| Payment alert window      | `payments_status_idx`                                      |           0 |            0 |
