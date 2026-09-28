@@ -28,7 +28,9 @@ export type OpenApiRoute = {
   idempotencyKey?: boolean;
   contentType?: string;
   binary?: boolean;
+  binaryContentTypes?: string[];
   requestContentType?: string;
+  requestContentTypes?: string[];
   requestBinary?: boolean;
   permission?: string;
   resource?: string;
@@ -302,6 +304,28 @@ const fileRoutes: OpenApiRoute[] = [
     binary: true,
     contentType: 'image/webp',
     public: true,
+  },
+  {
+    method: 'get',
+    path: `${filesBase}/public/orgs/{orgSlug}/sponsors/{sponsorId}/logo`,
+    summary: 'Read an active public sponsor logo',
+    response: z.string(),
+    binary: true,
+    binaryContentTypes: ['image/webp', 'image/jpeg', 'image/png'],
+    public: true,
+    pathParameters: {
+      orgSlug: z.string().trim().min(1).max(100),
+      sponsorId: z.uuid(),
+    },
+    query: {
+      surface: z.enum([
+        'website_home',
+        'program_page',
+        'team_page',
+        'email_footer',
+      ]),
+      targetId: z.uuid().optional(),
+    },
   },
 ];
 const orgRoutes: OpenApiRoute[] = [
@@ -694,11 +718,14 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
           route.status === 204
             ? undefined
             : route.binary
-              ? {
-                  [binaryContentType]: {
-                    schema: { type: 'string', format: 'binary' },
-                  },
-                }
+              ? Object.fromEntries(
+                  (route.binaryContentTypes ?? [binaryContentType]).map(
+                    (contentType) => [
+                      contentType,
+                      { schema: { type: 'string', format: 'binary' } },
+                    ],
+                  ),
+                )
               : {
                   [route.contentType ?? 'application/json']: {
                     schema: jsonSchema(route.response),
@@ -721,11 +748,16 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
   if (route.requestBinary)
     result.requestBody = {
       required: true,
-      content: {
-        [route.requestContentType ?? 'application/octet-stream']: {
-          schema: { type: 'string', format: 'binary' },
-        },
-      },
+      content: Object.fromEntries(
+        (
+          route.requestContentTypes ?? [
+            route.requestContentType ?? 'application/octet-stream',
+          ]
+        ).map((contentType) => [
+          contentType,
+          { schema: { type: 'string', format: 'binary' } },
+        ]),
+      ),
     };
   else if (route.body)
     result.requestBody = {
@@ -816,6 +848,18 @@ function collectRouteCalls(
 }
 
 const routeContractOverrides = new Map<string, Partial<OpenApiRoute>>([
+  [
+    'post /api/v1/imports/orgs/{orgId}/phase15/batches',
+    {
+      requestBinary: true,
+      requestContentTypes: [
+        'application/octet-stream',
+        'text/csv',
+        'application/zip',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ],
+    },
+  ],
   [
     'patch /api/v1/attendance/orgs/{orgId}/events/{eventId}/people/{personId}/attendance',
     {

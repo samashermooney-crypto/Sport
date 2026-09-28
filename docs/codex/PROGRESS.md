@@ -3,6 +3,7 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
+- Track C hourly update (2026-09-27 23:02 CDT): the C branch has local commits for evaluator-photo access, season rollover contribution wiring, AI feature gating and OpenAPI MIME support. The latest Files real-Postgres suite passes 10/10; the app wiring and AI flag were included in a combined 22/22 targeted run. Typecheck, lint, OpenAPI generation and Knip pass (Knip reports three configuration hints). Latest shared `rebuild/trunk` observed is `b1a8420f`, not yet synced into C; the trunk lock is free. The owner-reported test/Knip CI result is green through `9b5b430`; current remote status and D's parity fix remain unverified here.
 - Final local launch gate ran against code snapshot `da7c13f40717352ff6b550b7b5026dd6d1e62f94` on `rebuild/trunk`; command results and all Phase 16 §7 criteria are recorded in [`LAUNCH-GATE.md`](LAUNCH-GATE.md).
 - Launch gate remains open: server/module coverage is below thresholds; load acceptance is unrun; restore proof stops at migration 6002 (trunk is at 8010); security findings and six skipped `fixme` e2e checks remain; Lighthouse evidence and a route crawler are absent; earlier phase acceptance is incomplete. See the gate record for evidence.
 - Local `main` remains `d0f59a1c44e499dc69455ed3ad3e0a2dae9883de`; do not advance it until every launch criterion passes. Phase 15 remains with Track K.

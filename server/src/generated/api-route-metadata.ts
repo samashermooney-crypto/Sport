@@ -490,6 +490,14 @@ export const apiRouteMetadata = [
     scope: 'public',
   },
   {
+    operationId: 'get_api_v1_files_public_orgs_orgSlug_sponsors_sponsorId_logo',
+    method: 'get',
+    path: '/api/v1/files/public/orgs/{orgSlug}/sponsors/{sponsorId}/logo',
+    permission: 'public.access',
+    resource: 'files.files.public',
+    scope: 'public',
+  },
+  {
     operationId: 'get_api_v1_attendance_orgs_orgId_events_eventId',
     method: 'get',
     path: '/api/v1/attendance/orgs/{orgId}/events/{eventId}',
