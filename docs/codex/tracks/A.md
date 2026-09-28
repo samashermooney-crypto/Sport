@@ -53,3 +53,5 @@ Progress 2026-09-28: Added HTTP authentication lifecycle coverage for recovery, 
 - Known failing tests: none in the latest executed checks. The compliance coverage target remains unmet. The latest full Chromium run before the UI polish passed 59 tests with three guarded skips; the targeted People browser journey after the confirmation changes passed 1/1. The trunk merge gate is not established for the current commit.
 - Open requests: Track C owns Forms/Waivers route registration in the generated app registry and OpenAPI refresh; it also owns app/router/worker wiring and `docs/codex/PROGRESS.md`. Track B should keep the DEC-120 citation current in its track file. Do not edit Track C's active `../Sport-trunk` changes.
 - Environment: `COMPOSE_PROJECT_NAME=athlentry_a`; `PORT_OFFSET=3200`.
+
+HANDED OFF 18:06
