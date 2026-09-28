@@ -1640,6 +1640,7 @@ export async function acceptTeamOffer(
       version: number;
       checkout_id: string | null;
       registration_id: string | null;
+      attemptVersion: number;
     }>`SELECT id,person_id,household_id,offering_id,team_season_id,amount_cents,deposit_cents,expires_at,status,version,checkout_id,registration_id
       FROM team_offers WHERE org_id=${context.orgId} AND id=${offerId} FOR UPDATE`.execute(
       trx,
@@ -1661,13 +1662,20 @@ export async function acceptTeamOffer(
     );
     if (!guardian.rows[0])
       throw new EvaluationError(404, 'NOT_FOUND', 'Offer not found or expired');
-    if (item.status === 'sent') {
-      await sql`UPDATE team_offers SET status='accepting',version=version+1,updated_at=now()
-        WHERE org_id=${context.orgId} AND id=${offerId} AND status='sent'`.execute(
-        trx,
+    if (item.status === 'accepted')
+      return { ...item, attemptVersion: item.version };
+    const claim = await sql<{ version: number }>`UPDATE team_offers
+      SET status='accepting',version=version+1,updated_at=now()
+      WHERE org_id=${context.orgId} AND id=${offerId} AND status IN ('sent','accepting')
+      RETURNING version`.execute(trx);
+    const attemptVersion = claim.rows[0]?.version;
+    if (attemptVersion === undefined)
+      throw new EvaluationError(
+        409,
+        'OFFER_RACE',
+        'Offer status changed before checkout could start',
       );
-    }
-    return item;
+    return { ...item, attemptVersion };
   });
   if (offer.status === 'accepted' && offer.checkout_id && offer.registration_id)
     return {
@@ -1676,18 +1684,28 @@ export async function acceptTeamOffer(
       registrationId: offer.registration_id,
       checkoutId: offer.checkout_id,
     };
-  const accepted = await checkout.accept({
-    orgId: context.orgId,
-    offerId,
-    accountId: context.actor.accountId,
-    householdId: offer.household_id,
-    personId: offer.person_id,
-    offeringId: offer.offering_id,
-    teamSeasonId: offer.team_season_id,
-    amountCents: offer.amount_cents,
-    depositCents: offer.deposit_cents,
-    idempotencyKey: offerId,
-  });
+  let accepted: AcceptedOfferCheckout;
+  try {
+    accepted = await checkout.accept({
+      orgId: context.orgId,
+      offerId,
+      accountId: context.actor.accountId,
+      householdId: offer.household_id,
+      personId: offer.person_id,
+      offeringId: offer.offering_id,
+      teamSeasonId: offer.team_season_id,
+      amountCents: offer.amount_cents,
+      depositCents: offer.deposit_cents,
+      idempotencyKey: offerId,
+    });
+  } catch (error) {
+    await withOrg(context, async (trx) => {
+      await sql`UPDATE team_offers SET status='sent',version=version+1,updated_at=now()
+        WHERE org_id=${context.orgId} AND id=${offerId} AND status='accepting'
+          AND version=${offer.attemptVersion}`.execute(trx);
+    });
+    throw error;
+  }
   await withOrg(context, async (trx) => {
     const result = await sql<{
       id: string;
