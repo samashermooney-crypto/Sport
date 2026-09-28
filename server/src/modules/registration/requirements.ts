@@ -22,7 +22,7 @@ import {
   RegistrationCheckoutError,
 } from './checkout-start.js';
 
-export const REQUIREMENTS_VERSION = 1;
+const REQUIREMENTS_VERSION = 1;
 
 export const checkoutRequirementsSchema = z.strictObject({
   version: z.literal(REQUIREMENTS_VERSION),
@@ -113,7 +113,7 @@ const formDefShape = z.looseObject({
   fields: z.array(formFieldSchema).optional(),
 });
 
-export const addOnDefinitionSchema = z.strictObject({
+const addOnDefinitionSchema = z.strictObject({
   key: z.string().min(1).max(80),
   name: z.string().min(1).max(200),
   priceCents: z.number().int().nonnegative(),
