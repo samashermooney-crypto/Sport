@@ -1,6 +1,6 @@
 # Track I — academy / class mode (Phase 12)
 
-Status: I sprint complete
+Status: Phase 12 complete; Phase 16 §1 security acceptance in progress
 Model: Codex (GPT-6 Luna XH)
 Branch: `track/i-academy`
 Worktree: `/Users/sammooney/Sport-i-academy`
@@ -25,6 +25,8 @@ Owns: `server/src/modules/classes/**`, `web/src/console/classes/**`, `web/src/po
 - **F (compliance):** `role_credential_requirements.role` still has no `instructor`; class instructor and substitute checks use existing `head_coach`/DEC-080 contract until F adds the instructor role.
 - **K (Phase 15 seed):** seed Northstar Gymnastics & Swim Academy with class-mode program, 40 classes, 300 students, tuition tiers, skills and schedules.
 - **G (scheduling):** ensure facility closure/blackout changes cancel or flag materialized `class_session` events; I's schedule generator skips registered holidays/blackouts at creation time.
+- **C (SEC-002 fixture fidelity, 2026-09-28):** the enabled tenancy fuzzer has 152 org-scoped GET/PATCH/DELETE operations with child path IDs but only file routes use an existing foreign resource ID; the other child IDs are random UUIDs. DEC-114 requires existing foreign-resource fixtures so a missing-ID 404 cannot count as tenant-isolation evidence. Add explicit path-resource fixture metadata and seed rows before marking all-route fuzz complete.
+- **E (full-suite UUID edge case, 2026-09-28):** `stableUuid()` in `server/src/modules/registration/team-entries.ts` treats a valid zero SHA-256 byte as an incomplete digest. `team-entries.test.ts` failed once in the UTC full suite and passed on a focused rerun; validate digest length rather than byte truthiness to remove the intermittent gate failure.
 
 ## Requests from OPS
 
@@ -38,7 +40,7 @@ Owns: `server/src/modules/classes/**`, `web/src/console/classes/**`, `web/src/po
 
 ## Blocked on
 
-None for Track I-owned Phase 12 acceptance. The portal shell link and other track-owned follow-ups remain requested above.
+Phase 12 acceptance is complete. Phase 16 §1 remains open pending the real-resource fixtures for the all-route tenancy fuzzer and the green shared Chromium/full-suite gates; both cross-track findings are recorded above. The portal shell link and other Phase 12 track-owned follow-ups remain requested above.
 
 ## Decisions taken
 
@@ -51,6 +53,7 @@ None for Track I-owned Phase 12 acceptance. The portal shell link and other trac
 
 ## Phase 16 §1 security work
 
+- SEC-002 class-resource coverage: the new Chromium journey reads an owned offering (200) and requires 404 for an existing offering from another organization under the actor's organization; 1/1 passed on the synced I branch.
 - SEC-005 (Auth / Track A): `/step-up` atomically replaces the cookie or bearer session after password/TOTP verification, and revokes the prior token. MFA enrollment confirmation and step-up now share the MFA request limiter. Auth security/routes integration tests and the Chromium fixation journey pass.
 - SEC-SSRF-C-001 (Push / Track C): Web Push endpoints are limited to supported provider hosts, all DNS answers are checked against non-public ranges, and an HTTPS agent pins delivery to the vetted address. Sender tests (11/11) and the Chromium SSRF journey pass.
 - SEC-CI-001 (CI / Track C): the Gitleaks workflow job and enabled source assertion are present; hosted CI status remains unobserved locally.

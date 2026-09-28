@@ -40,6 +40,7 @@ reads and writes are audited, with Restricted values redacted from audit diffs.
 | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Identity, CSRF, cookies, sessions, MFA, rate limits             | `server/src/modules/auth/routes.test.ts`, `auth/rate-limits.test.ts`, `auth/security.test.ts`, `auth/sessions.test.ts`, `server/test/security/session-fixation.test.ts`, `e2e/security/session-step-up-fixation.spec.ts`                                               |
 | RLS and tenant scoping                                          | `server/src/modules/orgs/tenancyAcceptance.test.ts`, `server/src/db/withOrg.ts`; route-level coverage is tracked below                                                                                                                                                 |
+| Class offering tenant-ID isolation                              | `e2e/security/class-offering-tenant-id.spec.ts` seeds a real offering in another organization, confirms own-resource access, and requires 404 for the foreign ID under the caller's organization                                                                       |
 | Guardian links and family portal                                | `server/src/modules/people/guardianLinks.ts`, `server/src/modules/people/family.ts`, `server/test/guardianLinks.test.ts`, `e2e/security/guardian-idor.spec.ts`                                                                                                         |
 | File type, size, content and ownership                          | `server/src/modules/files/service.test.ts`, `files/service.integration.test.ts`, `server/test/security/upload-bypass.test.ts`                                                                                                                                          |
 | Stripe signature verification                                   | `server/src/integrations/stripe/webhook-routes.test.ts`                                                                                                                                                                                                                |
@@ -56,7 +57,9 @@ reads and writes are audited, with Restricted values redacted from audit diffs.
   metadata for every API operation. The permission matrix is empty, so the
   route-authorization, permission-matrix, and route-tenancy completeness specs
   remain `test.fixme`. Track C owns generated route metadata and CI; the
-  current request is recorded in both track files.
+  current request is recorded in both track files. The class-specific route
+  journey now proves isolation for one existing foreign offering ID, but does
+  not replace the all-route SEC-002 contract.
 - Gitleaks is configured in CI, but the hosted scanner run has not been
   observed from this local environment. Organization-owned repositories must
   supply the `GITLEAKS_LICENSE` repository secret.
