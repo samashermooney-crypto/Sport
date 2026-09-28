@@ -1249,6 +1249,7 @@ export async function sendChatMessage(
         author_account_id: context.actor.accountId,
         body: input.body.trim(),
         attachments: JSON.stringify(attachments) as unknown as Json,
+        created_at: now,
       })
       .returningAll()
       .executeTakeFirstOrThrow();
