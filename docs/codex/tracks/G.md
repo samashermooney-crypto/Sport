@@ -38,6 +38,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] `npm run typecheck` and `npm run lint` passed after syncing trunk through `2ac58d6`; post-fix typecheck and targeted ESLint pass.
 - [x] Production `npm run build` passed after the final attendance audit-boundary edit.
 - [x] Current focused database regressions pass: officials crew/pay acceptance, timed-meet acceptance, ICS parser checks, scheduling integration (DST, closures, moved-game ICS) and access integration: 6 files / 11 tests green after the latest fixes.
+- [x] Scheduling operations integration regression exercises preview/recorded closures, weekly facility allocations, coach slot request/approval, practice-event creation, and reschedule request/approval; 1 file / 1 test passes, and focused v8 coverage for `operations.ts` is 77.33% statements / 50% branches.
 - [x] Reviewed and tested WIP commit `34ceaea`: contests/standings integration suites pass (4 files / 5 tests); all 50 seeded contest formats validate and finalize. The regression verifies configured templates persist program and division snapshots, while unconfigured sports finalize without snapshots and return a 409 for standings reads. Typecheck and full lint pass.
 - [x] Schedule export/calendar and public standings component tests: 3 files / 8 tests passed.
 - [x] Shared algorithm tests pass: 14/14; focused G generator/bracket acceptance tests pass: 2/2. The 48-team case is below the 60-second acceptance bound.
