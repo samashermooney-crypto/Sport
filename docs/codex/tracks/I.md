@@ -41,7 +41,7 @@ Owns: `server/src/modules/classes/**`, `web/src/console/classes/**`, `web/src/po
 
 ## Blocked on
 
-Phase 12 acceptance is complete. Phase 16 §1 remains open pending Track C's all-route SEC-002 metadata, real foreign-resource fixtures and reviewed role matrix, plus hosted Gitleaks CI evidence. On `d52e4c83`, the full suite passed 987 tests with 1 existing skip and Chromium passed 50 with 3 SEC-002 cases still skipped. A later I merge attempt was correctly aborted when the full suite reproduced E's `team-entries.test.ts` UUID digest failure; the I-owned class suite and focused Chromium security journey pass. The portal shell link and other Phase 12 track-owned follow-ups remain requested above.
+Phase 12 acceptance is complete. Phase 16 §1 remains open pending Track C's SEC-002 metadata, true foreign child-resource fixtures and reviewed role matrix landing on trunk, plus hosted Gitleaks CI evidence. On `d52e4c83`, the full suite passed 987 tests with 1 existing skip and Chromium passed 50 with 3 SEC-002 cases still skipped. A later I merge attempt was correctly aborted when the full suite reproduced E's `team-entries.test.ts` UUID digest failure; I's focused class PostgreSQL and Chromium security journeys pass. The portal shell link and other Phase 12 track-owned follow-ups remain requested above.
 
 ## Decisions taken
 
@@ -54,7 +54,7 @@ Phase 12 acceptance is complete. Phase 16 §1 remains open pending Track C's all
 
 ## Phase 16 §1 security work
 
-- SEC-002 class-resource and CSRF coverage: the Chromium journey reads owned offering/schedule/waitlist lists (200), requires 404 for direct GET and schema-valid PATCH plus nested schedule/waitlist GETs against an existing foreign offering under the actor's organization, verifies the foreign row is unchanged, and requires 403 for a missing request marker or hostile Origin. The expanded journey passes 1/1 and the class PostgreSQL suite passes 19/19 on the current I branch; the `d52e4c83` Chromium merge gate passed 50 with the 3 SEC-002 contract-dependent cases still skipped.
+- SEC-002 class-resource and CSRF coverage: the Chromium journey reads owned offering/schedule/waitlist lists (200), requires 404 for direct offering GET and schema-valid PATCH, nested schedule/waitlist GETs, schedule PATCH/instructor reads, and session/roster/pickup reads against existing foreign resources under the actor's organization, verifies the foreign offering is unchanged, and requires 403 for a missing request marker or hostile Origin. The expanded journey passes 1/1 and the class PostgreSQL suite passes 19/19 on the current I branch; the `d52e4c83` Chromium merge gate passed 50 with the 3 SEC-002 contract-dependent cases still skipped.
 - SEC-005 (Auth / Track A): `/step-up` atomically replaces the cookie or bearer session after password/TOTP verification, and revokes the prior token. MFA enrollment confirmation and step-up now share the MFA request limiter. Auth security/routes integration tests and the Chromium fixation journey pass.
 - SEC-SSRF-C-001 (Push / Track C): Web Push endpoints are limited to supported provider hosts, all DNS answers are checked against non-public ranges, and an HTTPS agent pins delivery to the vetted address. Sender tests (11/11) and the Chromium SSRF journey pass.
 - SEC-CI-001 (CI / Track C): the Gitleaks workflow job and enabled source assertion are present; hosted CI status remains unobserved locally.
