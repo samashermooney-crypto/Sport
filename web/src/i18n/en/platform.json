@@ -35,5 +35,30 @@
     "loading": "Loading website news…",
     "unavailable": "The organization news editor is unavailable.",
     "saveFailed": "The news post could not be saved."
+  },
+  "websiteContacts": {
+    "manage": "Manage",
+    "home": "Home",
+    "website": "Website",
+    "account": "Account",
+    "contactInbox": "Contact inbox",
+    "kicker": "PUBLIC WEBSITE",
+    "title": "Contact inbox",
+    "description": "Read messages submitted from your organization website.",
+    "loading": "Loading contact submissions…",
+    "unavailable": "The website inbox is unavailable.",
+    "unreadCount_one": "{{count}} unread message",
+    "unreadCount_other": "{{count}} unread messages",
+    "markAllRead": "Mark all read",
+    "markingRead": "Marking as read…",
+    "markReadFailed": "Contact submissions could not be marked as read.",
+    "markedRead_one": "{{count}} message marked as read.",
+    "markedRead_other": "{{count}} messages marked as read.",
+    "inboxEmpty": "Your inbox is empty",
+    "inboxEmptyDescription": "New website messages will appear here.",
+    "messageFallback": "Website contact message",
+    "unread": "Unread",
+    "read": "Read",
+    "archived": "Archived"
   }
 }
