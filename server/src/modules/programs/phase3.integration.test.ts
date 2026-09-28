@@ -9,6 +9,7 @@ import { createDatabase } from '../../db/kysely';
 import type { DB, Json } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
+import { PostgresInstallmentTemplates } from '../finance/installment-templates';
 import { OfferingsService } from '../offerings/service';
 import { SeasonsService } from '../seasons/service';
 import { TeamsService } from '../teams/service';
@@ -86,6 +87,102 @@ afterAll(async () => {
 });
 
 describe('Phase 3 structure and rollover', () => {
+  it('connects active finance plans to offerings and preserves capacity/version guards', async () => {
+    const seasons = new SeasonsService(database, context);
+    const programs = new ProgramsService(database, context);
+    const offerings = new OfferingsService(database, context);
+    const plans = new PostgresInstallmentTemplates(database, context);
+    const season = await seasons.create({
+      name: 'Picker season',
+      startsOn: '2027-01-01',
+      endsOn: '2027-06-30',
+    });
+    const program = await programs.create({
+      seasonId: season.id,
+      sportProfileId: profileId,
+      mode: 'league',
+      name: 'Picker league',
+      slug: `picker-${randomUUID().slice(0, 8)}`,
+      startsOn: '2027-02-01',
+      endsOn: '2027-05-01',
+    });
+    const templateInput = {
+      deposit: { kind: 'fixed' as const, amountCents: 0 },
+      schedule: { kind: 'weekly' as const, count: 4 },
+      minAmountCents: 100,
+      autopayRequired: false,
+      allowedMethods: ['card' as const],
+    };
+    const activePlan = await plans.create({
+      ...templateInput,
+      name: `Active weekly ${randomUUID().slice(0, 8)}`,
+    });
+    const archivedPlan = await plans.create({
+      ...templateInput,
+      name: `Archived weekly ${randomUUID().slice(0, 8)}`,
+    });
+    await plans.archive(archivedPlan.id, archivedPlan.version);
+
+    expect(await offerings.templates()).toEqual([activePlan]);
+    const offering = await offerings.create({
+      programId: program.id,
+      name: 'Volleyball registration',
+      registrantRole: 'athlete',
+      priceCents: 12000,
+      capacity: 2,
+      pricing: {
+        installmentTemplateIds: [activePlan.id],
+        siblingDiscountEligible: true,
+        glCode: null,
+      },
+      active: true,
+    });
+    expect(offering.pricing).toMatchObject({
+      installmentTemplateIds: [activePlan.id],
+    });
+    await expect(
+      offerings.create({
+        programId: program.id,
+        name: 'Archived plan registration',
+        registrantRole: 'athlete',
+        priceCents: 12000,
+        pricing: {
+          installmentTemplateIds: [archivedPlan.id],
+          siblingDiscountEligible: true,
+          glCode: null,
+        },
+      }),
+    ).rejects.toMatchObject({ status: 400, code: 'VALIDATION_ERROR' });
+
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('capacity_counters')
+        .set({ confirmed: 1, held: 1 })
+        .where('org_id', '=', context.orgId)
+        .where('subject_type', '=', 'offering')
+        .where('subject_id', '=', offering.id)
+        .execute(),
+    );
+    await expect(
+      offerings.update(offering.id, {
+        expectedVersion: offering.version,
+        capacity: 1,
+      }),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+    const updated = await offerings.update(offering.id, {
+      expectedVersion: offering.version,
+      capacity: 3,
+      name: 'Volleyball registration updated',
+    });
+    expect(updated).toMatchObject({ version: 2, capacity: 3 });
+    await expect(
+      offerings.update(offering.id, {
+        expectedVersion: offering.version,
+        name: 'Stale write',
+      }),
+    ).rejects.toMatchObject({ status: 409, code: 'VERSION_CONFLICT' });
+  });
+
   it('creates default division, 18 soccer divisions, offering, teams and one clean season copy', async () => {
     const seasons = new SeasonsService(database, context);
     const programs = new ProgramsService(database, context);
@@ -157,7 +254,7 @@ describe('Phase 3 structure and rollover', () => {
       seasons.rolloverInTransaction(trx, source.id, input),
     );
     expect(copy.copied).toMatchObject({ programs: 1, teams: 1, staff: 0 });
-    const next = await programs.list(copy.season.id);
+    const next = await programs.list({ seasonId: copy.season.id });
     expect(next).toHaveLength(1);
     expect((await programs.get(next[0]?.id ?? '')).offerings).toHaveLength(1);
     expect(await teams.list(next[0]?.id)).toMatchObject([
@@ -172,5 +269,29 @@ describe('Phase 3 structure and rollover', () => {
         .execute(),
     );
     expect(copiedRegistrations).toHaveLength(0);
+
+    const classProgram = await programs.create({
+      seasonId: source.id,
+      sportProfileId: profileId,
+      mode: 'class',
+      name: 'Gymnastics Academy',
+      slug: `academy-${randomUUID().slice(0, 8)}`,
+      startsOn: '2026-03-15',
+      endsOn: '2026-06-15',
+    });
+    await programs.setStatus(
+      classProgram.id,
+      'published',
+      classProgram.version,
+    );
+    expect(
+      await programs.list({
+        seasonId: source.id,
+        mode: 'class',
+        status: 'published',
+      }),
+    ).toMatchObject([
+      { id: classProgram.id, mode: 'class', status: 'published' },
+    ]);
   });
 });

@@ -33,6 +33,20 @@ export const programInputSchema = z.strictObject({
   descriptionHtml: z.string().max(100_000).nullable().default(null),
   settings: z.record(z.string(), z.unknown()).default({}),
 });
+export const programStatusSchema = z.enum([
+  'draft',
+  'published',
+  'registration_open',
+  'registration_closed',
+  'in_progress',
+  'completed',
+  'archived',
+]);
+export const programListQuerySchema = z.strictObject({
+  seasonId: z.uuid().optional(),
+  mode: programInputSchema.shape.mode.optional(),
+  status: programStatusSchema.optional(),
+});
 export const programUpdateSchema = programInputSchema
   .partial()
   .extend({ expectedVersion: z.number().int().positive() });
@@ -88,14 +102,17 @@ export class ProgramsService {
       false,
     );
   }
-  list(seasonId?: string) {
+  list(filters: z.output<typeof programListQuerySchema> = {}) {
     return this.withOrg(this.context, async (trx) => {
       await this.staff(trx);
       let query = trx
         .selectFrom('programs')
         .selectAll()
         .where('org_id', '=', this.context.orgId);
-      if (seasonId) query = query.where('season_id', '=', seasonId);
+      if (filters.seasonId)
+        query = query.where('season_id', '=', filters.seasonId);
+      if (filters.mode) query = query.where('mode', '=', filters.mode);
+      if (filters.status) query = query.where('status', '=', filters.status);
       return query.orderBy('starts_on', 'desc').execute();
     });
   }
