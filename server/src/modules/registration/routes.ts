@@ -1,3 +1,5 @@
+import { checkEligibility } from '@shared/sport/eligibility';
+import { ageGroupSchema } from '@shared/sport/schema';
 import express from 'express';
 import { sql } from 'kysely';
 import { z } from 'zod';
@@ -14,6 +16,7 @@ import {
 } from './checkout-quote.js';
 import {
   PostgresRegistrationCheckoutStart,
+  registrationEligibilityRules,
   registrationCartSchema,
   RegistrationCheckoutError,
   startedCheckoutSchema,
@@ -82,6 +85,35 @@ const catalogItemSchema = z.strictObject({
   priceCents: z.number().int().nonnegative(),
   status: z.enum(['opens_soon', 'open', 'full', 'closed']),
   waitlistEnabled: z.boolean(),
+  eligibleParticipants: z.array(
+    z.strictObject({
+      personId: z.uuid(),
+      householdId: z.uuid(),
+      eligible: z.boolean(),
+      alreadyRegistered: z.boolean(),
+      age: z.number().int().nullable(),
+      grade: z.number().int().nullable(),
+      ageGroupLabel: z.string().nullable(),
+      reasons: z.array(
+        z.strictObject({
+          code: z.enum([
+            'AGE_BELOW_MIN',
+            'AGE_ABOVE_MAX',
+            'GRADE_OUT_OF_RANGE',
+            'GENDER_MISMATCH',
+            'MEMBERSHIP_REQUIRED',
+            'RETURNING_ONLY',
+            'INVITE_ONLY',
+            'RESIDENCY',
+            'HOUSEHOLD_LIMIT',
+            'DATE_OF_BIRTH_REQUIRED',
+            'GRADUATION_YEAR_REQUIRED',
+          ]),
+          message: z.string(),
+        }),
+      ),
+    }),
+  ),
 });
 
 export const registrationCatalogSchema = z.strictObject({
@@ -152,6 +184,28 @@ interface CatalogRow {
   confirmed: number;
   held: number;
   waitlist_enabled: boolean;
+  sport_profile: unknown;
+  program_eligibility: unknown;
+  division_eligibility: unknown;
+  season_starts_on: string;
+  season_ends_on: string;
+}
+
+interface CatalogParticipantRow {
+  person_id: string;
+  household_id: string;
+  date_of_birth: string | null;
+  graduation_year: number | null;
+  competition_gender: 'female' | 'male' | 'open' | null;
+  memberships: string[];
+  returning: boolean;
+  registered_programs: string[];
+}
+
+interface CatalogHouseholdRegistrationCount {
+  program_id: string;
+  household_id: string;
+  registration_count: number;
 }
 
 function validWriteOrigin(request: express.Request, appUrl: string): boolean {
@@ -220,7 +274,7 @@ export function createRegistrationRouter(
       const orgId = z.uuid().parse(request.params.orgId);
       const sport = z.string().max(80).optional().parse(request.query.sport);
       const now = new Date();
-      const rows = await withOrg(
+      const catalog = await withOrg(
         { orgId, actor: { accountId: session.accountId } },
         async (trx) => {
           const result = await sql<CatalogRow>`
@@ -231,24 +285,77 @@ export function createRegistrationRouter(
             p.registration_closes_at AS closes_at,
             (counter.id IS NOT NULL) AS counter_present,
             counter.capacity, coalesce(counter.confirmed, 0)::integer AS confirmed,
-            coalesce(counter.held, 0)::integer AS held, o.waitlist_enabled
+            coalesce(counter.held, 0)::integer AS held, o.waitlist_enabled,
+            sp.profile AS sport_profile, p.eligibility AS program_eligibility,
+            d.eligibility AS division_eligibility,
+            s.starts_on::text AS season_starts_on, s.ends_on::text AS season_ends_on
           FROM registration_offerings o
           JOIN programs p ON p.org_id = o.org_id AND p.id = o.program_id
           JOIN sport_profiles sp ON sp.org_id = p.org_id AND sp.id = p.sport_profile_id
+          JOIN seasons s ON s.org_id = p.org_id AND s.id = p.season_id
+          JOIN divisions d ON d.org_id = o.org_id AND d.id = o.division_id
           LEFT JOIN capacity_counters counter ON counter.org_id = o.org_id
             AND counter.subject_type = 'offering' AND counter.subject_id = o.id
           WHERE o.org_id = ${orgId}::uuid AND o.active
+            AND o.registrant_role = 'athlete'
             AND o.visibility = 'public' AND p.visibility = 'public'
             AND p.status IN ('published', 'registration_open', 'registration_closed')
             AND (${sport ?? null}::text IS NULL OR lower(sp.name) = lower(${sport ?? null}::text))
           ORDER BY p.starts_on, p.name, o.sort_order, o.id LIMIT 100
         `.execute(trx);
-          return result.rows;
+          const participantResult = await sql<CatalogParticipantRow>`
+          SELECT DISTINCT person.id AS person_id, member.household_id,
+            person.date_of_birth::text AS date_of_birth,
+            person.graduation_year, person.competition_gender,
+            ARRAY(SELECT DISTINCT current.program_id::text FROM registrations current
+              WHERE current.org_id = person.org_id AND current.person_id = person.id
+                AND current.status = 'confirmed') AS memberships,
+            EXISTS (SELECT 1 FROM registrations history
+              WHERE history.org_id = person.org_id AND history.person_id = person.id
+                AND history.status IN ('confirmed', 'transferred_out', 'withdrawn')) AS returning,
+            ARRAY(SELECT DISTINCT enrolled.program_id::text FROM registrations enrolled
+              WHERE enrolled.org_id = person.org_id AND enrolled.person_id = person.id
+                AND enrolled.status NOT IN ('canceled', 'withdrawn', 'transferred_out'))
+              AS registered_programs
+          FROM person_account_links link
+          JOIN people person ON person.org_id = link.org_id AND person.id = link.person_id
+          JOIN household_members member ON member.org_id = link.org_id
+            AND member.person_id = link.person_id AND member.removed_at IS NULL
+          JOIN households h ON h.org_id = member.org_id AND h.id = member.household_id
+          WHERE link.org_id = ${orgId}::uuid
+            AND link.account_id = ${session.accountId}::uuid
+            AND link.relationship IN ('self', 'guardian')
+            AND link.revoked_at IS NULL AND link.verified_at IS NOT NULL
+            AND person.status = 'active' AND h.status = 'active'
+        `.execute(trx);
+          const rows = result.rows;
+          const participants = participantResult.rows;
+          if (!rows.length || !participants.length)
+            return { rows, participants, householdCounts: [] };
+          const programIds = [...new Set(rows.map((row) => row.program_id))];
+          const householdIds = [
+            ...new Set(participants.map((person) => person.household_id)),
+          ];
+          const householdCounts = await sql<CatalogHouseholdRegistrationCount>`
+          SELECT registration.program_id, registration.household_id,
+            count(*)::integer AS registration_count
+          FROM registrations registration
+          WHERE registration.org_id = ${orgId}::uuid
+            AND registration.program_id IN (${sql.join(
+              programIds.map((id) => sql`${id}::uuid`),
+            )})
+            AND registration.household_id IN (${sql.join(
+              householdIds.map((id) => sql`${id}::uuid`),
+            )})
+            AND registration.status NOT IN ('canceled', 'withdrawn', 'transferred_out')
+          GROUP BY registration.program_id, registration.household_id
+        `.execute(trx);
+          return { rows, participants, householdCounts: householdCounts.rows };
         },
       );
       response.json(
         registrationCatalogSchema.parse({
-          items: rows.map((row) => ({
+          items: catalog.rows.map((row) => ({
             programId: row.program_id,
             programSlug: row.slug,
             programName: row.program_name,
@@ -270,6 +377,59 @@ export function createRegistrationRouter(
                   ? 'opens_soon'
                   : 'closed',
             waitlistEnabled: row.waitlist_enabled,
+            eligibleParticipants: catalog.participants.map((participant) => {
+              const ageGroup = z
+                .looseObject({ ageGroup: ageGroupSchema })
+                .parse(row.sport_profile).ageGroup;
+              const householdRegistrations =
+                catalog.householdCounts.find(
+                  (count) =>
+                    count.program_id === row.program_id &&
+                    count.household_id === participant.household_id,
+                )?.registration_count ?? 0;
+              const facts = {
+                dateOfBirth: participant.date_of_birth,
+                graduationYear: participant.graduation_year,
+                seasonStartsOn: row.season_starts_on,
+                seasonEndsOn: row.season_ends_on,
+                competitionGender: participant.competition_gender,
+                activeMembershipProgramIds: participant.memberships,
+                returningParticipant: participant.returning,
+                invited: false,
+                residencyVerified: false,
+                householdRegistrations,
+              };
+              const programResult = checkEligibility(
+                registrationEligibilityRules(row.program_eligibility, ageGroup),
+                facts,
+              );
+              const divisionResult = checkEligibility(
+                registrationEligibilityRules(
+                  row.division_eligibility,
+                  ageGroup,
+                ),
+                facts,
+              );
+              const reasons = [
+                ...new Map(
+                  [...programResult.reasons, ...divisionResult.reasons].map(
+                    (reason) => [reason.code, reason],
+                  ),
+                ).values(),
+              ];
+              return {
+                personId: participant.person_id,
+                householdId: participant.household_id,
+                eligible: reasons.length === 0,
+                alreadyRegistered: participant.registered_programs.includes(
+                  row.program_id,
+                ),
+                age: programResult.age,
+                grade: programResult.grade,
+                ageGroupLabel: programResult.ageGroupLabel,
+                reasons,
+              };
+            }),
           })),
         }),
       );
