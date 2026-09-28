@@ -491,6 +491,7 @@ export const checkoutPaymentBodySchema = z.strictObject({
 export const checkoutPaymentResponseSchema = z.strictObject({
   id: z.string().startsWith('pi_'),
   clientSecret: z.string().min(1),
+  customerSessionClientSecret: z.string().min(1),
   status: z.string().min(1),
   quote: z.strictObject({
     baseCents: z.number().int().nonnegative(),
@@ -1571,14 +1572,15 @@ export function createFinanceRouter(
           .select('email')
           .where('id', '=', session.accountId)
           .executeTakeFirstOrThrow();
-        await payerMethods().ensureCustomer(
+        const customerId = await payerMethods().ensureCustomer(
           session.accountId,
           payerAccount.email,
         );
+        const gateway = gatewayFactory();
         const result = await new CheckoutPaymentService(
           new PostgresFrozenChargeReader(dependencies.database, context),
           new PostgresPaymentAttemptStore(dependencies.database, context),
-          gatewayFactory(),
+          gateway,
           new PostgresPaymentRecordStore(dependencies.database, context),
         ).create({
           orgId,
@@ -1588,7 +1590,14 @@ export function createFinanceRouter(
           idempotencyKey,
           saveForAutopay: input.saveForAutopay,
         });
-        response.status(201).json(checkoutPaymentResponseSchema.parse(result));
+        const customerSession =
+          await gateway.createPaymentElementCustomerSession(customerId);
+        response.status(201).json(
+          checkoutPaymentResponseSchema.parse({
+            ...result,
+            customerSessionClientSecret: customerSession.clientSecret,
+          }),
+        );
       } catch (error) {
         sendError(response, error);
       }
