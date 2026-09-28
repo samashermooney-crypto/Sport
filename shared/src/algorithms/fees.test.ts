@@ -58,4 +58,15 @@ describe('fees', () => {
     ).toThrow();
     expect(() => serviceFee(-1, { enabled: false })).toThrow();
   });
+
+  it('rejects grossed-up fees outside the safe integer range', () => {
+    expect(() =>
+      serviceFee(1, {
+        enabled: true,
+        mode: 'cover_costs',
+        application: { bps: 0, fixedCents: Number.MAX_SAFE_INTEGER },
+        processing: { bps: 0, fixedCents: Number.MAX_SAFE_INTEGER },
+      }),
+    ).toThrow('Fee exceeds the safe integer range');
+  });
 });

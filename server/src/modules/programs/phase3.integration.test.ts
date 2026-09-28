@@ -157,7 +157,7 @@ describe('Phase 3 structure and rollover', () => {
       seasons.rolloverInTransaction(trx, source.id, input),
     );
     expect(copy.copied).toMatchObject({ programs: 1, teams: 1, staff: 0 });
-    const next = await programs.list(copy.season.id);
+    const next = await programs.list({ seasonId: copy.season.id });
     expect(next).toHaveLength(1);
     expect((await programs.get(next[0]?.id ?? '')).offerings).toHaveLength(1);
     expect(await teams.list(next[0]?.id)).toMatchObject([
@@ -172,5 +172,29 @@ describe('Phase 3 structure and rollover', () => {
         .execute(),
     );
     expect(copiedRegistrations).toHaveLength(0);
+
+    const classProgram = await programs.create({
+      seasonId: source.id,
+      sportProfileId: profileId,
+      mode: 'class',
+      name: 'Gymnastics Academy',
+      slug: `academy-${randomUUID().slice(0, 8)}`,
+      startsOn: '2026-03-15',
+      endsOn: '2026-06-15',
+    });
+    await programs.setStatus(
+      classProgram.id,
+      'published',
+      classProgram.version,
+    );
+    expect(
+      await programs.list({
+        seasonId: source.id,
+        mode: 'class',
+        status: 'published',
+      }),
+    ).toMatchObject([
+      { id: classProgram.id, mode: 'class', status: 'published' },
+    ]);
   });
 });
