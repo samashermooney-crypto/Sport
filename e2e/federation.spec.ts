@@ -85,14 +85,21 @@ test('two member clubs complete a U12 inter-club season', async ({
             const response = await page
               .context()
               .request.get(`http://127.0.0.1:${String(3001 + offset)}/readyz`);
-            return response.status();
+            if (response.status() !== 200) return false;
+            const body: unknown = await response.json();
+            return (
+              typeof body === 'object' &&
+              body !== null &&
+              'ready' in body &&
+              body.ready === true
+            );
           } catch {
-            return 0;
+            return false;
           }
         },
         { timeout: 30_000 },
       )
-      .toBe(200);
+      .toBe(true);
     await page.goto(`/console/federation/${league.orgId}`);
     await expect(
       page.getByRole('heading', { name: 'League and association' }),
