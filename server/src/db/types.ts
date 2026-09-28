@@ -764,6 +764,20 @@ export interface ComplianceOverrides {
   version: Generated<number>;
 }
 
+export interface ContactSubmissions {
+  body: string;
+  created_at: Generated<Timestamp>;
+  email: string;
+  id: string;
+  ip: string | null;
+  name: string;
+  org_id: string;
+  status: Generated<string>;
+  subject: string | null;
+  turnstile_token: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface ContestParticipants {
   contest_id: string;
   created_at: Generated<Timestamp>;
@@ -1057,6 +1071,17 @@ export interface Donations {
   updated_at: Generated<Timestamp>;
 }
 
+export interface EmbedWidgets {
+  config: Generated<Json>;
+  created_at: Generated<Timestamp>;
+  id: string;
+  kind: string;
+  org_id: string;
+  public_key: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface EmergencyContacts {
   alt_phone_e164: string | null;
   created_at: Generated<Timestamp>;
@@ -1249,6 +1274,14 @@ export interface EventSeries {
   timezone: string;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
+}
+
+export interface ExportDownloadTokens {
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  export_id: string;
+  org_id: string;
+  token_hash: string;
 }
 
 export interface ExternalTeams {
@@ -1990,6 +2023,22 @@ export interface MfaRecoveryCodes {
   used_at: Timestamp | null;
 }
 
+export interface NewsPosts {
+  author_account_id: string | null;
+  body_html: Generated<string>;
+  cover_file_id: string | null;
+  created_at: Generated<Timestamp>;
+  excerpt: string | null;
+  id: string;
+  org_id: string;
+  published_at: Timestamp | null;
+  slug: string;
+  status: Generated<string>;
+  title: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Notifications {
   account_id: string;
   created_at: Generated<Timestamp>;
@@ -2144,6 +2193,21 @@ export interface OrgCounters {
   updated_at: Generated<Timestamp>;
 }
 
+export interface OrgDataExports {
+  bytes: number | null;
+  completed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  error: string | null;
+  expires_at: Timestamp | null;
+  file_id: string | null;
+  id: string;
+  manifest: Generated<Json>;
+  org_id: string;
+  requested_by: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface OrgMemberships {
   account_id: string;
   created_at: Generated<Timestamp>;
@@ -2153,6 +2217,24 @@ export interface OrgMemberships {
   org_id: string;
   status: string;
   title: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface OrgPrivacyRequests {
+  completed_at: Timestamp | null;
+  completed_by: string | null;
+  contact_email: string | null;
+  created_at: Generated<Timestamp>;
+  details: Generated<Json>;
+  id: string;
+  kind: string;
+  org_id: string;
+  requested_by: string;
+  resolution_note: string | null;
+  status: Generated<string>;
+  subject_id: string;
+  subject_type: string;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -2913,6 +2995,67 @@ export interface ReimbursementRequests {
   version: Generated<number>;
 }
 
+export interface ReportDeliveries {
+  created_at: Generated<Timestamp>;
+  delivery: string;
+  error: string | null;
+  id: string;
+  org_id: string;
+  recipients_count: Generated<number>;
+  schedule_id: string;
+  sent_at: Generated<Timestamp>;
+  status: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ReportDeliveryOutbox {
+  attempts: Generated<number>;
+  created_at: Generated<Timestamp>;
+  id: string;
+  last_error: string | null;
+  lease_token: string | null;
+  lease_until: Timestamp | null;
+  next_attempt_at: Generated<Timestamp>;
+  org_id: string;
+  schedule_id: string;
+  scheduled_for: Timestamp;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ReportDeliveryRecipients {
+  account_id: string;
+  attempts: Generated<number>;
+  created_at: Generated<Timestamp>;
+  id: string;
+  last_error: string | null;
+  org_id: string;
+  outbox_id: string;
+  provider_message_id: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ReportSchedules {
+  cadence: string;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  delivery: string;
+  format: Generated<string>;
+  id: string;
+  last_run_at: Timestamp | null;
+  next_run_at: Timestamp;
+  org_id: string;
+  recipients: Json;
+  run_at_minute: Generated<number>;
+  run_on_day: number | null;
+  run_on_weekday: number | null;
+  saved_report_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface RescheduleRequests {
   created_at: Generated<Timestamp>;
   decided_by: string | null;
@@ -2937,6 +3080,24 @@ export interface ResultAudit {
   id: string;
   org_id: string;
   reason: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface RetentionPolicies {
+  created_at: Generated<Timestamp>;
+  org_id: string;
+  rules: Generated<Json>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface RetentionSweepRuns {
+  created_at: Generated<Timestamp>;
+  finished_at: Timestamp | null;
+  id: string;
+  org_id: string;
+  started_at: Generated<Timestamp>;
+  summary: Generated<Json>;
   updated_at: Generated<Timestamp>;
 }
 
@@ -2999,6 +3160,20 @@ export interface RosterEntries {
   registration_id: string | null;
   status: Generated<string>;
   team_season_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface SavedReports {
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  dataset: string;
+  definition: Json;
+  id: string;
+  is_preset: Generated<boolean>;
+  name: string;
+  org_id: string;
+  shared_roles: Generated<string[]>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -3170,6 +3345,23 @@ export interface Sessions {
   token_hash: Buffer;
   updated_at: Generated<Timestamp>;
   user_agent: string | null;
+}
+
+export interface SiteDomains {
+  check_detail: string | null;
+  created_at: Generated<Timestamp>;
+  host: string;
+  id: string;
+  is_primary: Generated<boolean>;
+  kind: Generated<string>;
+  last_checked_at: Timestamp | null;
+  org_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  verification_method: Generated<string>;
+  verified_at: Timestamp | null;
+  verify_token: string;
+  version: Generated<number>;
 }
 
 export interface SkillLevels {
@@ -3852,6 +4044,114 @@ export interface WaiverSignatures {
   waiver_document_id: string;
 }
 
+export interface WebsiteLegacyDonations {
+  amount_cents: number;
+  anonymous: Generated<boolean>;
+  campaign_id: string;
+  created_at: Generated<Timestamp>;
+  dedication: string | null;
+  donor_account_id: string | null;
+  donor_email: string | null;
+  donor_name: string | null;
+  id: string;
+  org_id: string;
+  payment_id: string | null;
+  quid_pro_quo_value_cents: Generated<number>;
+  receipt_number: string | null;
+  receipt_sent_at: Timestamp | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface WebsiteLegacyFundraisingCampaigns {
+  created_at: Generated<Timestamp>;
+  description_html: Generated<string>;
+  ends_at: Timestamp | null;
+  goal_cents: number | null;
+  id: string;
+  image_file_id: string | null;
+  name: string;
+  org_id: string;
+  show_donor_names: Generated<boolean>;
+  slug: string;
+  starts_at: Timestamp | null;
+  status: Generated<string>;
+  team_season_id: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface WebsiteLegacySponsors {
+  amount_cents: number | null;
+  contact: Generated<Json>;
+  contract_end: Timestamp | null;
+  contract_start: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  id: string;
+  invoice_id: string | null;
+  logo_file_id: string | null;
+  name: string;
+  org_id: string;
+  placements: Generated<Json>;
+  status: Generated<string>;
+  tier: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+  website_url: string | null;
+}
+
+export interface WebsiteMenus {
+  created_at: Generated<Timestamp>;
+  id: string;
+  items: Generated<Json>;
+  location: string;
+  org_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface WebsitePages {
+  auto_key: string | null;
+  blocks: Generated<Json>;
+  created_at: Generated<Timestamp>;
+  id: string;
+  kind: Generated<string>;
+  org_id: string;
+  published_at: Timestamp | null;
+  seo: Generated<Json>;
+  slug: string;
+  status: Generated<string>;
+  title: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface WebsiteRevisions {
+  blocks: Json;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  id: string;
+  org_id: string;
+  page_id: string;
+  seo: Generated<Json>;
+  title: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface WebsiteSettings {
+  contact_inbox_email: string | null;
+  created_at: Generated<Timestamp>;
+  home_page_id: string | null;
+  org_id: string;
+  published: Generated<boolean>;
+  robots_policy: Generated<string>;
+  seo: Generated<Json>;
+  social: Generated<Json>;
+  theme: Generated<Json>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface WorkerHeartbeats {
   heartbeat_at: Generated<Timestamp>;
   started_at: Generated<Timestamp>;
@@ -3904,6 +4204,7 @@ export interface DB {
   communication_preferences: CommunicationPreferences;
   communication_sender_identities: CommunicationSenderIdentities;
   compliance_overrides: ComplianceOverrides;
+  contact_submissions: ContactSubmissions;
   contest_participants: ContestParticipants;
   contest_results: ContestResults;
   contests: Contests;
@@ -3921,6 +4222,7 @@ export interface DB {
   disputes: Disputes;
   divisions: Divisions;
   donations: Donations;
+  embed_widgets: EmbedWidgets;
   emergency_contacts: EmergencyContacts;
   evaluation_criteria: EvaluationCriteria;
   evaluation_events: EvaluationEvents;
@@ -3933,6 +4235,7 @@ export interface DB {
   event_participants: EventParticipants;
   event_series: EventSeries;
   events: Events;
+  export_download_tokens: ExportDownloadTokens;
   external_teams: ExternalTeams;
   facilities: Facilities;
   federation_discipline_records: FederationDisciplineRecords;
@@ -3978,6 +4281,7 @@ export interface DB {
   message_templates: MessageTemplates;
   mfa_factors: MfaFactors;
   mfa_recovery_codes: MfaRecoveryCodes;
+  news_posts: NewsPosts;
   notifications: Notifications;
   official_assignments: OfficialAssignments;
   official_availability: OfficialAvailability;
@@ -3987,7 +4291,9 @@ export interface DB {
   official_profiles: OfficialProfiles;
   org_billing_invoices: OrgBillingInvoices;
   org_counters: OrgCounters;
+  org_data_exports: OrgDataExports;
   org_memberships: OrgMemberships;
+  org_privacy_requests: OrgPrivacyRequests;
   org_relationships: OrgRelationships;
   org_subscriptions: OrgSubscriptions;
   organizations: Organizations;
@@ -4039,12 +4345,19 @@ export interface DB {
   registration_status_history: RegistrationStatusHistory;
   registrations: Registrations;
   reimbursement_requests: ReimbursementRequests;
+  report_deliveries: ReportDeliveries;
+  report_delivery_outbox: ReportDeliveryOutbox;
+  report_delivery_recipients: ReportDeliveryRecipients;
+  report_schedules: ReportSchedules;
   reschedule_requests: RescheduleRequests;
   result_audit: ResultAudit;
+  retention_policies: RetentionPolicies;
+  retention_sweep_runs: RetentionSweepRuns;
   return_to_play_clearances: ReturnToPlayClearances;
   role_assignments: RoleAssignments;
   role_credential_requirements: RoleCredentialRequirements;
   roster_entries: RosterEntries;
+  saved_reports: SavedReports;
   schedule_blackout_requests: ScheduleBlackoutRequests;
   schedule_change_batches: ScheduleChangeBatches;
   schedule_generation_runs: ScheduleGenerationRuns;
@@ -4057,6 +4370,7 @@ export interface DB {
   seasons: Seasons;
   security_events: SecurityEvents;
   sessions: Sessions;
+  site_domains: SiteDomains;
   skill_levels: SkillLevels;
   skills: Skills;
   space_availability: SpaceAvailability;
@@ -4101,5 +4415,12 @@ export interface DB {
   waitlist_entries: WaitlistEntries;
   waiver_documents: WaiverDocuments;
   waiver_signatures: WaiverSignatures;
+  website_legacy_donations: WebsiteLegacyDonations;
+  website_legacy_fundraising_campaigns: WebsiteLegacyFundraisingCampaigns;
+  website_legacy_sponsors: WebsiteLegacySponsors;
+  website_menus: WebsiteMenus;
+  website_pages: WebsitePages;
+  website_revisions: WebsiteRevisions;
+  website_settings: WebsiteSettings;
   worker_heartbeats: WorkerHeartbeats;
 }

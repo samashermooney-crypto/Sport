@@ -7,12 +7,14 @@ import platformEn from '../i18n/en/platform.json';
 import portalEn from '../i18n/en/portal.json';
 import publicEn from '../i18n/en/public.json';
 import shellEn from '../i18n/en/shell.json';
+import siteEn from '../i18n/en/site.json';
 import authEs from '../i18n/es/auth.json';
 import consoleEs from '../i18n/es/console.json';
 import platformEs from '../i18n/es/platform.json';
 import portalEs from '../i18n/es/portal.json';
 import publicEs from '../i18n/es/public.json';
 import shellEs from '../i18n/es/shell.json';
+import siteEs from '../i18n/es/site.json';
 
 function savedLanguage(): string | null {
   try {
@@ -42,6 +44,7 @@ void i18n.use(initReactI18next).init({
       portal: portalEn,
       public: publicEn,
       shell: shellEn,
+      site: siteEn,
     },
     es: {
       auth: authEs,
@@ -50,6 +53,7 @@ void i18n.use(initReactI18next).init({
       portal: portalEs,
       public: publicEs,
       shell: shellEs,
+      site: siteEs,
     },
   },
   lng: initialLanguage,

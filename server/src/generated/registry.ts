@@ -14,6 +14,7 @@ import { moduleDefinition as complianceModule } from '../modules/compliance/modu
 import { moduleDefinition as contestsModule } from '../modules/contests/module';
 import { moduleDefinition as disciplineModule } from '../modules/discipline/module';
 import { moduleDefinition as evaluationsModule } from '../modules/evaluations/module';
+import { moduleDefinition as exportsModule } from '../modules/exports/module';
 import { moduleDefinition as facilitiesModule } from '../modules/facilities/module';
 import { moduleDefinition as federationModule } from '../modules/federation/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
@@ -29,6 +30,7 @@ import { moduleDefinition as peopleModule } from '../modules/people/module';
 import { moduleDefinition as platformModule } from '../modules/platform/module';
 import { moduleDefinition as programsModule } from '../modules/programs/module';
 import { moduleDefinition as registrationModule } from '../modules/registration/module';
+import { moduleDefinition as reportsModule } from '../modules/reports/module';
 import { moduleDefinition as rostersModule } from '../modules/rosters/module';
 import { moduleDefinition as safetyModule } from '../modules/safety/module';
 import { moduleDefinition as schedulingModule } from '../modules/scheduling/module';
@@ -41,6 +43,7 @@ import { moduleDefinition as teamFinanceModule } from '../modules/team-finance/m
 import { moduleDefinition as teamsModule } from '../modules/teams/module';
 import { moduleDefinition as tournamentsModule } from '../modules/tournaments/module';
 import { moduleDefinition as volunteersModule } from '../modules/volunteers/module';
+import { moduleDefinition as websiteModule } from '../modules/website/module';
 
 export const serverModules: readonly ServerModule[] = [
   attendanceModule,
@@ -52,6 +55,7 @@ export const serverModules: readonly ServerModule[] = [
   contestsModule,
   disciplineModule,
   evaluationsModule,
+  exportsModule,
   facilitiesModule,
   federationModule,
   filesModule,
@@ -67,6 +71,7 @@ export const serverModules: readonly ServerModule[] = [
   platformModule,
   programsModule,
   registrationModule,
+  reportsModule,
   rostersModule,
   safetyModule,
   schedulingModule,
@@ -79,6 +84,7 @@ export const serverModules: readonly ServerModule[] = [
   teamsModule,
   tournamentsModule,
   volunteersModule,
+  websiteModule,
 ];
 export const integrationConfigs: readonly IntegrationConfig[] = [
   backgroundCheckConfig,

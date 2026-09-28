@@ -289,6 +289,8 @@ export function Calendar({
   ) => void;
   resources?: string[];
 }): React.JSX.Element {
+  const calendarId = useId();
+  const headingId = `${calendarId}-heading`;
   const [cursor, setCursor] = useState(
     () => new Date(`${initialDate ?? toDateKey(new Date())}T00:00:00`),
   );
@@ -382,7 +384,10 @@ export function Calendar({
     return firstDay && lastDay && date >= firstDay && date <= lastDay;
   });
   return (
-    <section className={`ui-calendar ui-calendar-${activeView}`}>
+    <section
+      className={`ui-calendar ui-calendar-${activeView}`}
+      aria-labelledby={headingId}
+    >
       <header>
         <div>
           <Button
@@ -411,7 +416,7 @@ export function Calendar({
           >
             ›
           </Button>
-          <h2>{heading}</h2>
+          <h2 id={headingId}>{heading}</h2>
         </div>
         <div role="group" aria-label="Calendar view">
           {views.map((item) => (
@@ -635,10 +640,12 @@ export function Chart({
   title,
   values,
   tone = 'accent',
+  valueFormatter = (value) => value.toString(),
 }: {
   title: string;
   values: { label: string; value: number }[];
   tone?: 'accent' | 'ok' | 'warn' | 'bad' | 'chrome';
+  valueFormatter?: (value: number) => string;
 }): React.JSX.Element {
   const colors = {
     accent: 'var(--accent)',
@@ -648,7 +655,7 @@ export function Chart({
     chrome: 'var(--chrome)',
   } as const;
   const label = `${title}: ${values
-    .map((item) => `${item.label} ${item.value.toString()}`)
+    .map((item) => `${item.label} ${valueFormatter(item.value)}`)
     .join(', ')}`;
   return (
     <figure className="ui-chart">
@@ -681,6 +688,11 @@ export function Chart({
               }}
             />
             <Tooltip
+              formatter={(value) =>
+                typeof value === 'number' || typeof value === 'string'
+                  ? valueFormatter(Number(value))
+                  : ''
+              }
               contentStyle={{
                 backgroundColor: 'var(--panel)',
                 border: '1px solid var(--line)',
@@ -697,6 +709,23 @@ export function Chart({
           </BarChart>
         </ResponsiveContainer>
       </div>
+      <table className="ui-visually-hidden">
+        <caption>{title} data</caption>
+        <thead>
+          <tr>
+            <th scope="col">Category</th>
+            <th scope="col">Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {values.map((item) => (
+            <tr key={item.label}>
+              <th scope="row">{item.label}</th>
+              <td>{valueFormatter(item.value)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </figure>
   );
 }
@@ -1102,68 +1131,77 @@ export type BoardItem = { id: string; label: string; detail?: ReactNode };
 export function Board({
   columns,
   onMove,
+  ariaLabel = 'Board',
 }: {
   columns: { id: string; title: string; items: BoardItem[] }[];
   onMove: (itemId: string, columnId: string) => void;
+  ariaLabel?: string;
 }): React.JSX.Element {
+  const boardId = useId();
   const [moving, setMoving] = useState<string | null>(null);
   return (
-    <div className="ui-board">
-      {columns.map((column) => (
-        <section
-          key={column.id}
-          onDragOver={(event) => {
-            event.preventDefault();
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            const id = event.dataTransfer.getData('text/plain');
-            if (id) onMove(id, column.id);
-            setMoving(null);
-          }}
-        >
-          <h2>
-            {column.title}
-            <span>{column.items.length}</span>
-          </h2>
-          {column.items.map((item) => (
-            <Card
-              key={item.id}
-              draggable
-              onDragStart={(event) => {
-                event.dataTransfer.setData('text/plain', item.id);
-                setMoving(item.id);
-              }}
-              onDragEnd={() => {
-                setMoving(null);
-              }}
-              className={moving === item.id ? 'is-moving' : ''}
-            >
-              <strong>{item.label}</strong>
-              {item.detail}
-              <label>
-                Move to{' '}
-                <Select
-                  aria-label={`Move ${item.label} to`}
-                  value=""
-                  onChange={(event) => {
-                    if (event.target.value) onMove(item.id, event.target.value);
-                  }}
-                >
-                  <option value="">Choose column</option>
-                  {columns
-                    .filter((candidate) => candidate.id !== column.id)
-                    .map((candidate) => (
-                      <option key={candidate.id} value={candidate.id}>
-                        {candidate.title}
-                      </option>
-                    ))}
-                </Select>
-              </label>
-            </Card>
-          ))}
-        </section>
-      ))}
+    <div className="ui-board" role="region" aria-label={ariaLabel}>
+      {columns.map((column, index) => {
+        const headingId = `${boardId}-column-${index.toString()}`;
+        return (
+          <section
+            key={column.id}
+            role="group"
+            aria-labelledby={headingId}
+            onDragOver={(event) => {
+              event.preventDefault();
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              const id = event.dataTransfer.getData('text/plain');
+              if (id) onMove(id, column.id);
+              setMoving(null);
+            }}
+          >
+            <h2 id={headingId}>
+              {column.title}
+              <span>{column.items.length}</span>
+            </h2>
+            {column.items.map((item) => (
+              <Card
+                key={item.id}
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.setData('text/plain', item.id);
+                  setMoving(item.id);
+                }}
+                onDragEnd={() => {
+                  setMoving(null);
+                }}
+                className={moving === item.id ? 'is-moving' : ''}
+              >
+                <strong>{item.label}</strong>
+                {item.detail}
+                <label>
+                  Move to{' '}
+                  <Select
+                    aria-label={`Move ${item.label} to`}
+                    value=""
+                    onChange={(event) => {
+                      if (event.target.value)
+                        onMove(item.id, event.target.value);
+                    }}
+                  >
+                    <option value="">Choose column</option>
+                    {columns
+                      .filter((candidate) => candidate.id !== column.id)
+                      .map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>
+                          {candidate.title}
+                        </option>
+                      ))}
+                  </Select>
+                </label>
+              </Card>
+            ))}
+          </section>
+        );
+      })}
     </div>
   );
 }
