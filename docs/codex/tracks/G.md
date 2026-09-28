@@ -115,12 +115,12 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
 - G decisions are `DEC-082–096`, `DEC-100–108`, and `DEC-116–117` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
-- Latest G sync: `rebuild/trunk` through `84c85f8` is merged into this worktree; migrations, DB types, registries, and OpenAPI were regenerated. After the sync, full typecheck, lint, Vitest, production build, and Chromium desktop e2e gates pass. The GitHub CI closure-preview failure is fixed by facility/space timezone conversion. G commits remain local and are not pushed.
+- Latest G sync: `rebuild/trunk` through `bc9b22b3` is merged into this worktree; migrations, DB types, registries, and OpenAPI were regenerated at the prior sync through `84c85f8`. Full typecheck, lint, Vitest, production build, and Chromium desktop e2e gates passed on that prior base; rerun the required gates after this sync before integration. G commits remain local and are not pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.
 
 ## Requests from J
 
-- Resolved: closure submissions now use the selected facility timezone, including space closures, and the organization timezone for org-scope closures. The UTC regression verifies the exact submitted instants and affected-event counts.
+- Resolved: GitHub CI runs `36357792018` and `36347047357` reproduced the closure preview returning zero affected events because Ubuntu uses UTC while the form inputs represented Chicago facility-local time. `ScheduleConsole` now resolves the selected facility or parent-facility timezone (and the organization timezone for org scope) before `localInstant` conversion. The UTC regression checks exact request instants and affected-event counts for org, facility, and space scopes; the focused stats journey passes both Chromium and WebKit in CI mode.
 
 ## Requests from I
 
