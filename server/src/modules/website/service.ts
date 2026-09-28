@@ -5,6 +5,11 @@ import {
   websiteMenuListSchema,
   websiteMenuSchema,
   websiteMenuItemSchema,
+  websiteNewsBodySchema,
+  websiteNewsListSchema,
+  websiteNewsPostSchema,
+  websiteNewsSaveResponseSchema,
+  websitePublicNewsSchema,
   websitePageBodySchema,
   websitePageListSchema,
   websitePageSchema,
@@ -111,6 +116,251 @@ export async function listWebsitePages(
       .orderBy('updated_at', 'desc')
       .execute();
     return websitePageListSchema.parse({ items: rows.map(pageSummary) });
+  });
+}
+
+function newsPostSummary(row: {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  body_html: string;
+  status: string;
+  published_at: Date | null;
+  version: number;
+  updated_at: Date;
+}) {
+  return websiteNewsPostSchema.parse({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    excerpt: row.excerpt,
+    bodyText: row.body_html,
+    status: row.status,
+    publishedAt: row.published_at?.toISOString() ?? null,
+    version: row.version,
+    updatedAt: row.updated_at.toISOString(),
+  });
+}
+
+export async function listWebsiteNews(
+  context: OrgContext,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const rows = await trx
+      .selectFrom('news_posts')
+      .select([
+        'id',
+        'slug',
+        'title',
+        'excerpt',
+        'body_html',
+        'status',
+        'published_at',
+        'version',
+        'updated_at',
+      ])
+      .orderBy('updated_at', 'desc')
+      .execute();
+    return websiteNewsListSchema.parse({ items: rows.map(newsPostSummary) });
+  });
+}
+
+export async function saveWebsiteNews(
+  context: OrgContext,
+  postId: string | undefined,
+  bodyInput: unknown,
+  now = new Date(),
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const body = websiteNewsBodySchema.parse(bodyInput);
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const current = postId
+      ? await trx
+          .selectFrom('news_posts')
+          .selectAll()
+          .where('id', '=', postId)
+          .executeTakeFirst()
+      : undefined;
+    if (postId && !current)
+      throw new WebsiteError(404, 'NOT_FOUND', 'News post not found');
+    if (current && body.expectedVersion !== current.version)
+      throw new WebsiteError(
+        409,
+        'CONFLICT',
+        'This news post changed in another session. Reload and try again.',
+      );
+    if (!current && body.expectedVersion !== undefined)
+      throw new WebsiteError(409, 'CONFLICT', 'The news post no longer exists');
+
+    const saved = current
+      ? await trx
+          .updateTable('news_posts')
+          .set({
+            slug: body.slug,
+            title: body.title,
+            excerpt: body.excerpt,
+            body_html: body.bodyText,
+            status: body.status,
+            published_at:
+              body.status === 'published'
+                ? (current.published_at ?? now)
+                : null,
+            version: current.version + 1,
+          })
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', current.id)
+          .where('version', '=', current.version)
+          .returning([
+            'id',
+            'slug',
+            'title',
+            'excerpt',
+            'body_html',
+            'status',
+            'published_at',
+            'version',
+            'updated_at',
+          ])
+          .executeTakeFirst()
+      : await trx
+          .insertInto('news_posts')
+          .values({
+            id: randomUUID(),
+            org_id: context.orgId,
+            slug: body.slug,
+            title: body.title,
+            excerpt: body.excerpt,
+            body_html: body.bodyText,
+            author_account_id: context.actor.accountId,
+            status: body.status,
+            published_at: body.status === 'published' ? now : null,
+          })
+          .returning([
+            'id',
+            'slug',
+            'title',
+            'excerpt',
+            'body_html',
+            'status',
+            'published_at',
+            'version',
+            'updated_at',
+          ])
+          .executeTakeFirst();
+    if (!saved)
+      throw new WebsiteError(409, 'CONFLICT', 'News post update conflicted');
+
+    const post = newsPostSummary(saved);
+    await appendAuditEvent(trx, context, {
+      action: current ? 'website.news.updated' : 'website.news.created',
+      entityType: 'website_news_post',
+      entityId: post.id,
+      changes: {
+        slug: {
+          tier: 'internal',
+          before: current?.slug ?? null,
+          after: post.slug,
+        },
+        title: {
+          tier: 'internal',
+          before: current?.title ?? null,
+          after: post.title,
+        },
+        status: {
+          tier: 'internal',
+          before: current?.status ?? null,
+          after: post.status,
+        },
+        version: {
+          tier: 'internal',
+          before: current?.version ?? null,
+          after: post.version,
+        },
+      },
+    });
+    return websiteNewsSaveResponseSchema.parse({ post });
+  });
+}
+
+export async function listPublicWebsiteNews(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const organization = await database
+    .selectFrom('organizations')
+    .select(['id', 'slug', 'name', 'default_locale', 'status'])
+    .where('slug', '=', orgSlug)
+    .where('status', '=', 'active')
+    .executeTakeFirst();
+  if (!organization) return null;
+  const context = { orgId: organization.id, actor: { accountId: publicActor } };
+  return runWithOrg(context, async (trx) => {
+    const settings = await trx
+      .selectFrom('website_settings')
+      .select(['published', 'robots_policy', 'theme'])
+      .where('org_id', '=', organization.id)
+      .executeTakeFirst();
+    if (!settings?.published) return null;
+    const [posts, menus] = await Promise.all([
+      trx
+        .selectFrom('news_posts')
+        .select(['slug', 'title', 'excerpt', 'body_html', 'published_at'])
+        .where('org_id', '=', organization.id)
+        .where('status', '=', 'published')
+        .orderBy('published_at', 'desc')
+        .limit(50)
+        .execute(),
+      trx
+        .selectFrom('website_menus')
+        .select(['location', 'items'])
+        .where('org_id', '=', organization.id)
+        .execute(),
+    ]);
+    const byLocation = new Map(
+      menus.map(
+        (menu) =>
+          [
+            menu.location,
+            websiteMenuItemSchema.array().parse(menu.items),
+          ] as const,
+      ),
+    );
+    const newsPath = `/site/${organization.slug}/news`;
+    const headerNavigation = byLocation.get('header') ?? [];
+    const navigation =
+      posts.length === 0 ||
+      headerNavigation.some((item) => item.href === newsPath)
+        ? headerNavigation
+        : [
+            {
+              label: organization.default_locale === 'es' ? 'Noticias' : 'News',
+              href: newsPath,
+            },
+            ...headerNavigation,
+          ];
+    return websitePublicNewsSchema.parse({
+      organization: {
+        slug: organization.slug,
+        name: organization.name,
+        locale: organization.default_locale,
+      },
+      theme: readTheme(settings.theme),
+      robotsPolicy: settings.robots_policy,
+      navigation,
+      footerNavigation: byLocation.get('footer') ?? [],
+      posts: posts.map((post) => ({
+        slug: post.slug,
+        title: post.title,
+        excerpt: post.excerpt,
+        bodyText: post.body_html,
+        publishedAt: post.published_at?.toISOString() ?? null,
+      })),
+    });
   });
 }
 

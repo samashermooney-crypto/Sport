@@ -4,9 +4,10 @@ import express from 'express';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import { createWithOrg } from '../../db/withOrg';
 import type { AuthDependencies } from '../auth/routes';
 
-import { getPublicWebsitePage } from './service';
+import { getPublicWebsitePage, listPublicWebsiteNews } from './service';
 
 function safeJsonLd(value: unknown): string {
   return JSON.stringify(value)
@@ -177,10 +178,210 @@ function renderDocument(
   return `<!doctype html>${renderToStaticMarkup(document)}`;
 }
 
+function renderNewsDocument(
+  site: NonNullable<Awaited<ReturnType<typeof listPublicWebsiteNews>>>,
+) {
+  const { organization } = site;
+  const copy =
+    organization.locale === 'es'
+      ? {
+          title: 'Noticias',
+          description: `Actualizaciones y anuncios de ${organization.name}.`,
+          navigation: 'Navegación del sitio web',
+          footerNavigation: 'Navegación del pie de página',
+          signIn: 'Iniciar sesión como administrador',
+          accessibility: 'Declaración de accesibilidad',
+          empty: 'Todavía no hay noticias publicadas.',
+        }
+      : {
+          title: 'News',
+          description: `Updates and announcements from ${organization.name}.`,
+          navigation: 'Website navigation',
+          footerNavigation: 'Website footer navigation',
+          signIn: 'Administrator sign in',
+          accessibility: 'Accessibility statement',
+          empty: 'There are no published news posts yet.',
+        };
+  const title = `${copy.title} · ${organization.name}`;
+  const jsonLd = safeJsonLd({
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: title,
+    url: `https://${organization.slug}.athlentry.com/site/${organization.slug}/news`,
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListElement: site.posts.map((post, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        item: {
+          '@type': 'NewsArticle',
+          headline: post.title,
+          datePublished: post.publishedAt,
+        },
+      })),
+    },
+  });
+  const articles = site.posts.map((post) =>
+    createElement(
+      'article',
+      { key: post.slug },
+      createElement('h2', null, post.title),
+      post.publishedAt
+        ? createElement(
+            'time',
+            { dateTime: post.publishedAt },
+            new Intl.DateTimeFormat(organization.locale, {
+              dateStyle: 'long',
+              timeZone: 'UTC',
+            }).format(new Date(post.publishedAt)),
+          )
+        : null,
+      post.excerpt ? createElement('p', null, post.excerpt) : null,
+      createElement('p', null, post.bodyText),
+    ),
+  );
+  const document = createElement(
+    'html',
+    { lang: organization.locale },
+    createElement(
+      'head',
+      null,
+      createElement('meta', { charSet: 'utf-8' }),
+      createElement('meta', {
+        name: 'viewport',
+        content: 'width=device-width, initial-scale=1',
+      }),
+      createElement('link', { rel: 'stylesheet', href: '/site.css' }),
+      createElement('title', null, title),
+      createElement('meta', { name: 'description', content: copy.description }),
+      site.robotsPolicy === 'noindex'
+        ? createElement('meta', { name: 'robots', content: 'noindex,nofollow' })
+        : null,
+      createElement('meta', { property: 'og:title', content: title }),
+      createElement('meta', {
+        property: 'og:description',
+        content: copy.description,
+      }),
+      createElement('link', {
+        rel: 'canonical',
+        href: `https://${organization.slug}.athlentry.com/site/${organization.slug}/news`,
+      }),
+      createElement('script', {
+        type: 'application/ld+json',
+        dangerouslySetInnerHTML: { __html: jsonLd },
+      }),
+    ),
+    createElement(
+      'body',
+      null,
+      createElement(
+        'div',
+        {
+          className: 'public-site',
+          style: {
+            '--site-primary': site.theme.primary,
+            '--site-secondary': site.theme.secondary,
+          },
+        },
+        createElement(
+          'header',
+          { className: 'public-site-header' },
+          createElement(
+            'a',
+            {
+              className: 'public-site-brand',
+              href: `/site/${organization.slug}`,
+            },
+            createElement(
+              'span',
+              { className: 'public-site-mark', 'aria-hidden': true },
+              'A',
+            ),
+            organization.name,
+          ),
+          createElement('a', { href: '/' }, copy.signIn),
+        ),
+        createElement(
+          'nav',
+          { className: 'public-site-nav', 'aria-label': copy.navigation },
+          createElement(
+            'ul',
+            null,
+            ...site.navigation.map((item) =>
+              createElement(
+                'li',
+                { key: `${item.href}:${item.label}` },
+                createElement('a', { href: item.href }, item.label),
+              ),
+            ),
+          ),
+        ),
+        createElement(
+          'main',
+          { id: 'main-content', className: 'public-site-main' },
+          createElement('h1', null, copy.title),
+          site.posts.length === 0
+            ? createElement('p', null, copy.empty)
+            : createElement(
+                'div',
+                { className: 'public-site-news-list' },
+                ...articles,
+              ),
+        ),
+        createElement(
+          'footer',
+          { className: 'public-site-footer' },
+          createElement('strong', null, organization.name),
+          createElement(
+            'nav',
+            { 'aria-label': copy.footerNavigation },
+            ...site.footerNavigation.map((item) =>
+              createElement(
+                'a',
+                { key: `${item.href}:${item.label}`, href: item.href },
+                item.label,
+              ),
+            ),
+          ),
+          createElement(
+            'a',
+            { href: '/legal/accessibility' },
+            copy.accessibility,
+          ),
+        ),
+      ),
+    ),
+  );
+  return `<!doctype html>${renderToStaticMarkup(document)}`;
+}
+
 export function createSiteSsrRouter(
   dependencies: Pick<AuthDependencies, 'database'>,
 ): express.Router {
   const router = express.Router();
+  const withOrg = createWithOrg(dependencies.database);
+  router.get('/:orgSlug/news', (request, response) => {
+    const orgSlug = orgSlugSchema.safeParse(request.params.orgSlug);
+    if (!orgSlug.success) {
+      response.sendStatus(404);
+      return;
+    }
+    void listPublicWebsiteNews(dependencies.database, orgSlug.data, withOrg)
+      .then((site) => {
+        if (!site) {
+          response.sendStatus(404);
+          return;
+        }
+        response
+          .setHeader(
+            'Cache-Control',
+            'public, max-age=60, stale-while-revalidate=300',
+          )
+          .type('html')
+          .send(renderNewsDocument(site));
+      })
+      .catch(() => response.sendStatus(500));
+  });
   const render =
     (pageSlug: (request: express.Request) => string) =>
     (request: express.Request, response: express.Response) => {
@@ -190,7 +391,12 @@ export function createSiteSsrRouter(
         response.sendStatus(404);
         return;
       }
-      void getPublicWebsitePage(dependencies.database, orgSlug.data, slug.data)
+      void getPublicWebsitePage(
+        dependencies.database,
+        orgSlug.data,
+        slug.data,
+        withOrg,
+      )
         .then((site) => {
           if (!site) {
             response.sendStatus(404);

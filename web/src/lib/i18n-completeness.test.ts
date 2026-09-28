@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import authEn from '../i18n/en/auth.json';
+import platformEn from '../i18n/en/platform.json';
 import portalEn from '../i18n/en/portal.json';
 import siteEn from '../i18n/en/site.json';
 import authEs from '../i18n/es/auth.json';
+import platformEs from '../i18n/es/platform.json';
 import portalEs from '../i18n/es/portal.json';
 import siteEs from '../i18n/es/site.json';
 
@@ -25,11 +27,12 @@ function missingTranslations(
 }
 
 describe('Spanish translation coverage', () => {
-  it('provides Spanish values for every English auth, portal, and site key', () => {
+  it('provides Spanish values for every English auth, portal, platform, and site key', () => {
     expect({
       auth: missingTranslations(authEn, authEs),
       portal: missingTranslations(portalEn, portalEs),
+      platform: missingTranslations(platformEn, platformEs),
       site: missingTranslations(siteEn, siteEs),
-    }).toEqual({ auth: [], portal: [], site: [] });
+    }).toEqual({ auth: [], portal: [], platform: [], site: [] });
   });
 });

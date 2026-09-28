@@ -29,7 +29,7 @@
   cursor: pointer;
 }
 
-.website-page-choice[aria-current='page'] {
+.website-page-choice[aria-pressed='true'] {
   border-color: var(--accent);
   background: var(--accent-050);
 }

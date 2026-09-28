@@ -4,6 +4,11 @@
   "loadingWebsite": "Loading website…",
   "websitePageUnavailable": "Website page unavailable",
   "websitePageUnavailableDescription": "This page is not published or could not be loaded.",
+  "websiteNavigation": "Website navigation",
+  "websiteFooterNavigation": "Website footer navigation",
+  "newsTitle": "News",
+  "newsDescription": "Updates and announcements from {{organizationName}}.",
+  "noNewsPosts": "There are no published news posts yet.",
   "administratorSignIn": "Administrator sign in",
   "accessibilityStatement": "Accessibility statement"
 }

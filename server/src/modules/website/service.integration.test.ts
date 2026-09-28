@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import express from 'express';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -7,14 +8,18 @@ import { createDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 
+import { createSiteSsrRouter } from './public';
 import {
   getWebsiteSettings,
   getPublicWebsitePage,
   listWebsiteMenus,
+  listPublicWebsiteNews,
+  listWebsiteNews,
   listPublicWebsitePlans,
   listWebsitePages,
   saveWebsiteMenu,
   saveWebsitePage,
+  saveWebsiteNews,
   saveWebsiteSettings,
 } from './service';
 
@@ -169,6 +174,111 @@ describe('website page service', () => {
       navigation: [{ label: 'About', href: `/site/${orgSlug}/about` }],
       footerNavigation: [{ label: 'Contact', href: '/contact' }],
     });
+  });
+
+  it('publishes plain-text news posts with tenant and version checks', async () => {
+    const draft = await saveWebsiteNews(
+      context,
+      undefined,
+      {
+        slug: 'season-opener',
+        title: 'Season opener announced',
+        excerpt: 'Registration starts next week.',
+        bodyText: 'Join us <captains> at the community field.',
+        status: 'draft',
+      },
+      new Date('2026-09-27T12:30:00.000Z'),
+      withOrg,
+    );
+    await expect(listWebsiteNews(context, withOrg)).resolves.toMatchObject({
+      items: [
+        {
+          id: draft.post.id,
+          status: 'draft',
+          bodyText: 'Join us <captains> at the community field.',
+        },
+      ],
+    });
+    await expect(
+      listPublicWebsiteNews(database, orgSlug, withOrg),
+    ).resolves.toMatchObject({ posts: [] });
+
+    const published = await saveWebsiteNews(
+      context,
+      draft.post.id,
+      {
+        slug: 'season-opener',
+        title: 'Season opener announced',
+        excerpt: 'Registration starts next week.',
+        bodyText: 'Join us <captains> at the community field.',
+        status: 'published',
+        expectedVersion: draft.post.version,
+      },
+      new Date('2026-09-27T12:31:00.000Z'),
+      withOrg,
+    );
+    expect(published.post.version).toBe(draft.post.version + 1);
+    const publicNews = await listPublicWebsiteNews(database, orgSlug, withOrg);
+    expect(publicNews).toMatchObject({
+      organization: { slug: orgSlug, name: 'Website Test Club' },
+      theme: { primary: '#3a67b2', secondary: '#252b2e' },
+      posts: [
+        {
+          slug: 'season-opener',
+          title: 'Season opener announced',
+          bodyText: 'Join us <captains> at the community field.',
+          publishedAt: '2026-09-27T12:31:00.000Z',
+        },
+      ],
+    });
+    expect(publicNews?.navigation).toContainEqual({
+      label: 'News',
+      href: `/site/${orgSlug}/news`,
+    });
+
+    const app = express();
+    app.use(createSiteSsrRouter({ database }));
+    const server = app.listen(0);
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string')
+        throw new Error('The test server did not open a TCP port');
+      const response = await fetch(
+        `http://127.0.0.1:${String(address.port)}/${orgSlug}/news`,
+      );
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(html).toContain('<title>News · Website Test Club</title>');
+      expect(html).toContain('<article>');
+      expect(html).toContain(
+        'Join us &lt;captains&gt; at the community field.',
+      );
+      expect(html).not.toContain('<captains>');
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        }),
+      );
+    }
+    await expect(
+      saveWebsiteNews(
+        context,
+        draft.post.id,
+        {
+          slug: 'season-opener',
+          title: 'Stale edit',
+          excerpt: null,
+          bodyText: 'Old content',
+          status: 'published',
+          expectedVersion: draft.post.version,
+        },
+        new Date(),
+        withOrg,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
   });
 
   it('saves tenant website settings and menus with optimistic versions', async () => {

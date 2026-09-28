@@ -111,6 +111,66 @@ export const websitePublicPageSchema = z.strictObject({
   footerNavigation: z.array(websiteMenuItemSchema),
 });
 
+export const websiteNewsSlugSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+
+export const websiteNewsBodySchema = z.strictObject({
+  slug: websiteNewsSlugSchema,
+  title: z.string().trim().min(1).max(180),
+  excerpt: z.string().trim().max(320).nullable(),
+  bodyText: z.string().trim().min(1).max(12000),
+  status: z.enum(['draft', 'published', 'archived']).default('draft'),
+  expectedVersion: z.number().int().positive().optional(),
+});
+
+export const websiteNewsPostSchema = z.strictObject({
+  id: z.uuid(),
+  slug: z.string(),
+  title: z.string(),
+  excerpt: z.string().nullable(),
+  bodyText: z.string(),
+  status: z.enum(['draft', 'published', 'archived']),
+  publishedAt: z.iso.datetime({ offset: true }).nullable(),
+  version: z.number().int().positive(),
+  updatedAt: z.iso.datetime({ offset: true }),
+});
+
+export const websiteNewsListSchema = z.strictObject({
+  items: z.array(websiteNewsPostSchema),
+});
+
+export const websiteNewsSaveResponseSchema = z.strictObject({
+  post: websiteNewsPostSchema,
+});
+
+export const websitePublicNewsSchema = z.strictObject({
+  organization: z.strictObject({
+    name: z.string(),
+    slug: z.string(),
+    locale: z.enum(['en', 'es']),
+  }),
+  theme: z.strictObject({
+    primary: z.string().regex(/^#[0-9a-f]{6}$/i),
+    secondary: z.string().regex(/^#[0-9a-f]{6}$/i),
+  }),
+  robotsPolicy: z.enum(['index', 'noindex']),
+  navigation: z.array(websiteMenuItemSchema),
+  footerNavigation: z.array(websiteMenuItemSchema),
+  posts: z.array(
+    websiteNewsPostSchema.pick({
+      slug: true,
+      title: true,
+      excerpt: true,
+      bodyText: true,
+      publishedAt: true,
+    }),
+  ),
+});
+
 export const websiteSettingsBodySchema = z.strictObject({
   expectedVersion: z.number().int().nonnegative(),
   published: z.boolean(),
@@ -169,3 +229,4 @@ export const websiteSaveResponseSchema = z.strictObject({
 
 export type WebsiteBlock = z.infer<typeof websiteBlockSchema>;
 export type WebsitePageBody = z.infer<typeof websitePageBodySchema>;
+export type WebsiteNewsPost = z.infer<typeof websiteNewsPostSchema>;

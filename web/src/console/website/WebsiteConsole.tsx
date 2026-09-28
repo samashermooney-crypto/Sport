@@ -10,6 +10,7 @@ import type {
 } from '@shared/schemas/website';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { apiGet } from '../../api/client';
 import {
@@ -69,6 +70,7 @@ export function WebsiteConsole({
 }: {
   orgId: string;
 }): React.JSX.Element {
+  const { t } = useTranslation('platform');
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<WebsiteEditorDraft>(emptyPage);
@@ -170,6 +172,7 @@ export function WebsiteConsole({
             New page
           </Button>
           <Link to={`${navTo}/settings`}>Website settings</Link>
+          <Link to={`${navTo}/news`}>{t('websiteNews.manageNews')}</Link>
         </header>
         <div className="website-editor-layout">
           <Card>

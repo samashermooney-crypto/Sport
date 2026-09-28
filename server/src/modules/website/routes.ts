@@ -4,6 +4,9 @@ import {
   websiteMenuBodySchema,
   websiteMenuListSchema,
   websiteMenuResponseSchema,
+  websiteNewsBodySchema,
+  websiteNewsListSchema,
+  websiteNewsSaveResponseSchema,
   websitePageBodySchema,
   websitePageListSchema,
   websitePageSlugSchema,
@@ -26,11 +29,14 @@ import {
   getPublicWebsitePage,
   getWebsiteSettings,
   listPublicWebsitePlans,
+  listPublicWebsiteNews,
   listPublicWebsitePages,
   listWebsiteMenus,
   listWebsitePages,
+  listWebsiteNews,
   saveWebsiteMenu,
   saveWebsitePage,
+  saveWebsiteNews,
   saveWebsiteSettings,
 } from './service';
 
@@ -119,6 +125,28 @@ export function createWebsiteRouter(
   );
 
   router.get(
+    '/public/:orgSlug/news',
+    route(async (request, response) => {
+      const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
+      const result = await listPublicWebsiteNews(
+        dependencies.database,
+        orgSlug,
+        withOrg,
+      );
+      if (!result) {
+        response.sendStatus(404);
+        return;
+      }
+      response
+        .setHeader(
+          'Cache-Control',
+          'public, max-age=60, stale-while-revalidate=300',
+        )
+        .json(result);
+    }),
+  );
+
+  router.get(
     '/public/:orgSlug/pages/:pageSlug',
     route(async (request, response) => {
       const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
@@ -145,28 +173,96 @@ export function createWebsiteRouter(
     '/public/:orgSlug/sitemap.xml',
     route(async (request, response) => {
       const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
-      const pages = await listPublicWebsitePages(
-        dependencies.database,
-        orgSlug,
-        withOrg,
-      );
-      if (!pages) {
+      const [pages, news] = await Promise.all([
+        listPublicWebsitePages(dependencies.database, orgSlug, withOrg),
+        listPublicWebsiteNews(dependencies.database, orgSlug, withOrg),
+      ]);
+      if (!pages || !news) {
         response.sendStatus(404);
         return;
       }
       const host = `https://${orgSlug}.athlentry.com`;
-      const entries = pages
+      const pageEntries = pages
         .map(
           ({ slug, updated_at }) =>
             `<url><loc>${host}/site/${slug.split('/').map(encodeURIComponent).join('/')}</loc><lastmod>${updated_at.toISOString()}</lastmod></url>`,
         )
         .join('');
+      const newsEntry = news.posts.length
+        ? `<url><loc>${host}/site/${encodeURIComponent(orgSlug)}/news</loc></url>`
+        : '';
       response
         .setHeader('Cache-Control', 'public, max-age=300')
         .type('application/xml')
         .send(
-          `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries}</urlset>`,
+          `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pageEntries}${newsEntry}</urlset>`,
         );
+    }),
+  );
+
+  router.get(
+    '/orgs/:orgId/news',
+    route(async (request, response) => {
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await listWebsiteNews(
+        requestContext(orgId, session.accountId),
+        withOrg,
+      );
+      response.setHeader('Cache-Control', 'no-store');
+      response.json(websiteNewsListSchema.parse(result));
+    }),
+  );
+
+  router.post(
+    '/orgs/:orgId/news',
+    route(async (request, response) => {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new WebsiteError(
+          403,
+          'FORBIDDEN',
+          'Request origin is not allowed',
+        );
+      }
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await saveWebsiteNews(
+        requestContext(orgId, session.accountId),
+        undefined,
+        websiteNewsBodySchema.parse(request.body),
+        dependencies.clock(),
+        withOrg,
+      );
+      response
+        .status(201)
+        .setHeader('Cache-Control', 'no-store')
+        .json(websiteNewsSaveResponseSchema.parse(result));
+    }),
+  );
+
+  router.put(
+    '/orgs/:orgId/news/:postId',
+    route(async (request, response) => {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new WebsiteError(
+          403,
+          'FORBIDDEN',
+          'Request origin is not allowed',
+        );
+      }
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const postId = z.uuid().parse(request.params.postId);
+      const result = await saveWebsiteNews(
+        requestContext(orgId, session.accountId),
+        postId,
+        websiteNewsBodySchema.parse(request.body),
+        dependencies.clock(),
+        withOrg,
+      );
+      response
+        .setHeader('Cache-Control', 'no-store')
+        .json(websiteNewsSaveResponseSchema.parse(result));
     }),
   );
 
