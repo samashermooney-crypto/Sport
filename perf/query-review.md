@@ -42,7 +42,7 @@ Re-ran `perf/explain-current.mjs` with `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`
 | Email delivery window     | `message_deliveries_recipient_idx`                         |           0 |            0 |
 | Payment alert window      | `payments_status_idx`                                      |           0 |            0 |
 
-## Current low-volume probe after K seed attempt — 2026-09-27 (local)
+## Unpinned low-volume probe after K seed attempt — 2026-09-27 (local)
 
 Re-ran the eight `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` probes on the isolated schema after migrations 8500–8502. The K load seed failed before inserting its first org's load rows; the source currently has only 2,288 people and 1,156 registrations, with no attendance. Two probes found small demo samples. These plans validate query/index wiring only and are not representative of the documented 100-org profile.
 
@@ -58,3 +58,7 @@ Re-ran the eight `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` probes on the isolate
 | Payment alert window      | No           | `payments_status_idx`, 0 rows                                                                     |    0.004 ms |               2 / 0 |
 
 The event sequential scan touches one row in the small demo fixture and does not justify an index request. The query-statistics review for the top 30 normalized statements and hot-path checks on tables above 10,000 rows remain pending a successful load profile and representative deployment. No index request is justified from this low-volume run.
+
+## Deterministic load-org probe — 2026-09-27 (local)
+
+`perf/explain-current.mjs` now prefers the stable `load-org` slug and reports `analyzed_tenant_slug` so a future plan is tied to the high-cardinality fixture. This rerun selected `load-org`, but all eight probes found zero rows because the failed seed rolled back the first organization's tenant inserts. The existing plans used the same indexes as above, with a sequential scan on the empty `events` table; every probe had zero shared reads and 0.002–0.018 ms total execution time. These are empty-table wiring checks only, not index or load findings.
