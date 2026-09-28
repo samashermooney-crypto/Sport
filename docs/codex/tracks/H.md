@@ -66,6 +66,7 @@ Track B's catalog/preferences and Track C's provider-ID interface are on the mer
 - **J:** Owns Phase 13 federation; H does not merge `track/j-federation`.
 - **Phase 10 external work:** A still owns profile message-history links, verified-phone consent, `athleteChatEnabled`, and conversation synchronization; C owns chat attachment authorization; G owns schedule-change coalescing.
 
-Requests from K (2026-09-27):
+Requests from K (2026-09-27; rechecked 2026-09-28):
 
-- `server/test/modules/team-finance/service.integration.test.ts`, “team finance acceptance flow assesses team fees in installments, posts payment to the ledger, and approves a receipt-backed reimbursement,” fails because the test's direct update to `payment_allocations` is denied through the app role. Keep production allocation history immutable; seed/prepare this fixture through an authorized test setup or the domain service. This is the only H-owned failure in K's latest full Vitest run.
+- Resolved in the post-repair full run: the team-finance fixture no longer fails on its direct `payment_allocations` update; keep production allocation history immutable.
+- Current K finding: `server/test/modules/sponsors/service.integration.test.ts:82` uses UTC-derived contract dates while `publicSponsorPlacements` evaluates the org-local day. At 19:19 CDT the org-local date was 2026-09-27 but the fixture's contract start was 2026-09-28, so the active sponsor was omitted. Build contract dates using `orgToday` for the organization's timezone and retain the placement assertion.

@@ -12,6 +12,10 @@ Owns: `server/src/modules/classes/**`, `web/src/console/classes/**`, `web/src/po
 - Gate: typecheck, lint and build pass; full Vitest 837 passed / 1 skipped; Chromium 31 passed / 4 skipped; focused academy DB 17/17, family screen 1/1 and schema spine 4/4 pass.
 - `e2e/classes.spec.ts` cross-browser regression (2026-09-27): WebKit mobile renders roster fields in DataTable's mobile-card row, where the label and value are visible inside a spanning cell but the cell has no computed accessible name. The assertion now checks the visible `Enrollment type` label and exact `makeup` value in Taylor's row; Chromium desktop and WebKit mobile both pass after syncing through `0ca39573`.
 
+## Request from K (2026-09-28)
+
+- On K's full-suite run, `server/src/modules/classes/classes.integration.test.ts` fails “recommends, approves and confirms a promotion” and “defers a subscribed level change to the next bill without double charging” at `server/src/modules/classes/promotions.ts:347`. The code sets the source enrollment's `ends_on=today` even when `starts_on` is in the future, violating migration 5001's `starts_on <= ends_on` check. Preserve a valid enrollment interval while avoiding duplicate billing, and add regression coverage for future-start enrollment promotion.
+
 ## Requests to other tracks
 
 - **C (navigation, 2026-09-27):** add a family-portal Classes link in `PortalShell`. The current nested-route generator now registers `/console/orgs/:orgId/classes` and `/me/orgs/:orgId/classes` without changes to central aggregators.

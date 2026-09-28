@@ -1050,6 +1050,7 @@ export interface Divisions {
   created_at: Generated<Timestamp>;
   eligibility: Generated<Json>;
   id: string;
+  is_default: Generated<boolean>;
   level: Generated<string>;
   name: string;
   org_id: string;

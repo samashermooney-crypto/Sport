@@ -40,6 +40,9 @@ Blocked on: GitHub access is currently unavailable from this environment; local 
 ## Requests from K
 
 - Shared `.button.secondary:hover` in `web/src/ui/components.css` sets the hover background to `#f0f4f6` while `.button:hover` keeps white foreground, producing a 1.1:1 contrast ratio on K's committed import rollback button in Chromium axe. Set the secondary hover foreground back to `var(--ink-2)` without changing the palette; K added a scoped imports fallback pending this shared fix (2026-09-27).
+- The K AI UI reads `VITE_AI_ENABLED`, but `vite.config.ts` does not currently derive it. Expose the flag only when `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` are both configured; keep it false otherwise so the configured AI feature can appear without making disabled-provider UI/network calls.
+- The Phase 15 raw upload `POST /api/v1/imports/orgs/{orgId}/phase15/batches` accepts `application/octet-stream`, `text/csv`, `application/zip`, and XLSX via `express.raw`, but generated OpenAPI omits its request body. Extend route metadata/generation to describe a binary request body with those media types; keep the response and upload limits unchanged.
+- The K help feature registers its console and portal routes, but needs C's global Help entry/contextual-link wiring from console areas to the in-repo en/es articles and support form. Preserve the current shell and design tokens.
 
 ## Verification and environment
 

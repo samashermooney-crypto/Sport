@@ -863,13 +863,13 @@
 - **Why:** This keeps rollback inside the existing withOrg/update permissions while preserving evidence needed for child safety and financial reconciliation.
 - **Consequences / follow-ups:** Verify every importer kind has a supported reversal state before committing; retained records must be visible in the rollback summary for staff review.
 
-### DEC-117 — Use the organization website URL for onboarding publication state
+### DEC-117 — Use the published website state for onboarding completion
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 onboarding
-- **Context:** The current schema has `organizations.website_url`, but the website tables and publish state are being added by another track. The checklist must still detect persisted website setup without editing another track's migration range.
-- **Decision:** Treat a non-empty organization website URL as completed website setup. When the website module adds an authoritative publication state, switch checklist detection to that state after reconciling the generated schema and routes from trunk.
-- **Why:** This gives organizations a durable automatic completion signal using the field already exposed in the organization profile API.
-- **Consequences / follow-ups:** Track D should confirm the canonical published-site state before final Phase 15 integration.
+- **Context:** Track D owns the website schema and publishes pages through org-level settings plus per-page status. An organization URL can exist before a site is publicly available.
+- **Decision:** When `website_settings` and `website_pages` are installed, complete onboarding only if `website_settings.published=true` and at least one org page has `status='published'`. On older schema snapshots without those tables, retain `organizations.website_url` as a compatibility fallback.
+- **Why:** The checklist reflects persisted publication state while still working against pre-Phase-14 snapshots used during rollout.
+- **Consequences / follow-ups:** Track D should confirm the final console destination and keep the settings/page contract stable; queries remain inside `withOrg`.
 
 ### DEC-118 — Run the local load seed in the initialized development database
 - **Date:** 2026-09-27

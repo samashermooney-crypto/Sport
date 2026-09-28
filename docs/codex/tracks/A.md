@@ -24,5 +24,5 @@ Self-review: People reads and writes run inside `withOrg`, require an active sta
 
 Requests from K (2026-09-27):
 
-- `server/test/merges.test.ts` fails in “moves registrations, memberships, credentials, responses, invoice lines and attendance to the survivor” because the app role cannot update `form_responses`. Preserve response evidence and fix the person-merge path with an authorized, tenant-scoped mechanism; do not make append-only responses generally mutable.
-- `server/src/modules/compliance/phase7.integration.test.ts` fails when the app role updates `return_to_play_clearances` and `background_check_disputes`. Add the narrow mutation path/grants those audited workflows require while retaining tenant and staff authorization. Both failures reproduce in the full Vitest run on K's branch.
+- Resolved in the full run after the trunk repair: the person-merge response update and audited clearance/dispute writes no longer fail; retain append-only response behavior and narrow tenant/staff authorization.
+- Current K finding (2026-09-28): `server/test/peopleFilters.test.ts:92` sets `roster_entries.left_on='2026-09-27'` while the factory's `joined_on` defaults to the database date `2026-09-28`, violating the table's `left_on >= joined_on` check. Make the fixture use the inserted row's `joined_on` or another on/after date; coordinate with B if that invariant needs a contract change.
