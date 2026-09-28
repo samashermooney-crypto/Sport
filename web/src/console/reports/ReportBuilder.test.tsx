@@ -1,10 +1,19 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import { ReportBuilder } from './ReportBuilder';
 
 const orgId = '11111111-1111-4111-8111-111111111111';
 const accountId = '22222222-2222-4222-8222-222222222222';
+
+function requestedDataset(body: BodyInit | null | undefined): string | null {
+  if (typeof body !== 'string') return null;
+  const parsed = z
+    .object({ definition: z.object({ dataset: z.string() }) })
+    .safeParse(JSON.parse(body));
+  return parsed.success ? parsed.data.definition.dataset : null;
+}
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -117,6 +126,23 @@ it('limits reports to available role columns and previews the selected definitio
           sessionId: '33333333-3333-4333-8333-333333333333',
           client: 'web',
         };
+      } else if (
+        url.endsWith('/reports/preview') &&
+        requestedDataset(init?.body) === 'registrations'
+      ) {
+        result = {
+          columns: [
+            { key: 'created_at', label: 'Registered at', type: 'date' },
+            {
+              key: 'count_id',
+              label: 'Count of Registration ID',
+              type: 'number',
+            },
+            { key: 'status', label: 'Status', type: 'enum' },
+          ],
+          rows: [['2026-08-01', 3, 'open']],
+          truncated: false,
+        };
       } else {
         result = {
           columns: [{ key: 'status', label: 'Status', type: 'enum' }],
@@ -150,6 +176,10 @@ it('limits reports to available role columns and previews the selected definitio
   );
   expect(previewRequestBody).toContain('"dataset":"registrations"');
   expect(previewRequestBody).toContain('"timeGrain":"week"');
+  const chartTable = await screen.findByRole('table', {
+    name: 'Count of Registration ID by Registered at data',
+  });
+  expect(within(chartTable).getByRole('cell', { name: '3' })).toBeTruthy();
 
   fireEvent.click(
     screen.getByRole('button', { name: 'Payouts by settlement status' }),

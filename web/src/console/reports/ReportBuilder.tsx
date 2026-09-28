@@ -1369,25 +1369,46 @@ export function ReportBuilder({ orgId }: { orgId: string }): React.JSX.Element {
                   </span>
                 )}
               </header>
-              {chart && chart.data.length > 0 && (
-                <figure
-                  className="report-builder__chart"
-                  role="img"
-                  aria-label={`${chart.aggregate} by ${chart.label}`}
-                >
-                  <figcaption>
-                    {chart.aggregate} by {chart.label}
-                  </figcaption>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={chart.data} accessibilityLayer>
-                      <XAxis dataKey="label" tickFormatter={chartLabel} />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="var(--accent)" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </figure>
-              )}
+              {chart && chart.data.length > 0 ? (
+                <>
+                  <figure
+                    className="report-builder__chart"
+                    role="img"
+                    aria-label={`${chart.aggregate} by ${chart.label}`}
+                  >
+                    <figcaption>
+                      {chart.aggregate} by {chart.label}
+                    </figcaption>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={chart.data} accessibilityLayer>
+                        <XAxis dataKey="label" tickFormatter={chartLabel} />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="var(--accent)" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </figure>
+                  <table className="ui-visually-hidden">
+                    <caption>
+                      {chart.aggregate} by {chart.label} data
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">{chart.label}</th>
+                        <th scope="col">{chart.aggregate}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chart.data.map((item, index) => (
+                        <tr key={`${item.label}-${index.toString()}`}>
+                          <th scope="row">{item.label}</th>
+                          <td>{item.value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              ) : null}
               <div className="report-builder__table-wrap">
                 <table className="report-builder__table">
                   <thead>
