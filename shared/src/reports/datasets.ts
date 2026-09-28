@@ -327,6 +327,7 @@ export const REPORT_DATASETS: readonly Dataset[] = [
       col('total_cents', 'Total', 'money', 'sensitive'),
       col('paid_cents', 'Paid', 'money', 'sensitive'),
       col('balance_cents', 'Balance', 'money', 'sensitive'),
+      col('disputed_cents', 'In dispute', 'money', 'sensitive'),
       col('discount_cents', 'Discounts', 'money', 'sensitive'),
       col('refunded_cents', 'Refunded', 'money', 'sensitive'),
       col('due_on', 'Due date', 'date', 'internal'),
@@ -848,6 +849,79 @@ export const REPORT_DATASETS: readonly Dataset[] = [
     joins: [],
     roles: MONEY_ROLES,
     columns: [col('id', 'Order ID', 'text', 'internal')],
+  },
+  {
+    key: 'academy_enrollments',
+    label: 'Academy enrollments',
+    description: 'Class enrollment status without participant details',
+    table: 'class_enrollments',
+    requiredTables: ['class_enrollments', 'class_offerings'],
+    joins: [
+      {
+        alias: 'o',
+        table: 'class_offerings',
+        on: 'o.id = t.class_offering_id AND o.org_id = t.org_id',
+      },
+    ],
+    roles: STAFF,
+    columns: [
+      col('id', 'Enrollment ID', 'text', 'internal'),
+      col('status', 'Enrollment status', 'enum', 'internal'),
+      col('starts_on', 'Start date', 'date', 'internal'),
+      col('ends_on', 'End date', 'date', 'internal'),
+      col('offering_name', 'Class', 'text', 'internal', 'o.name'),
+      col('billing', 'Billing cadence', 'enum', 'internal', 'o.billing'),
+      col(
+        'price_cents',
+        'Tuition price',
+        'money',
+        'sensitive',
+        'o.price_cents',
+      ),
+    ],
+  },
+  {
+    key: 'academy_bookings',
+    label: 'Academy session bookings',
+    description: 'Class attendance status without participant details',
+    table: 'class_session_bookings',
+    requiredTables: [
+      'class_session_bookings',
+      'class_sessions',
+      'class_offerings',
+      'events',
+    ],
+    joins: [
+      {
+        alias: 's',
+        table: 'class_sessions',
+        on: 's.id = t.class_session_id AND s.org_id = t.org_id',
+      },
+      {
+        alias: 'o',
+        table: 'class_offerings',
+        on: 'o.id = s.class_offering_id AND o.org_id = s.org_id',
+      },
+      {
+        alias: 'e',
+        table: 'events',
+        on: 'e.id = s.event_id AND e.org_id = s.org_id',
+      },
+    ],
+    roles: STAFF,
+    columns: [
+      col('id', 'Booking ID', 'text', 'internal'),
+      col('status', 'Attendance status', 'enum', 'internal'),
+      col('kind', 'Booking type', 'enum', 'internal'),
+      col(
+        'event_starts_at',
+        'Session starts',
+        'datetime',
+        'internal',
+        'e.starts_at',
+      ),
+      col('offering_name', 'Class', 'text', 'internal', 'o.name'),
+    ],
   },
 ];
 

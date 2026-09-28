@@ -122,6 +122,61 @@ describe('report dataset catalog', () => {
     ]);
   });
 
+  it('keeps academy reports aggregate-only and free of participant fields', () => {
+    const enrollments = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'academy_enrollments',
+    );
+    expect(enrollments?.requiredTables).toEqual([
+      'class_enrollments',
+      'class_offerings',
+    ]);
+    expect(enrollments?.columns.map((column) => column.key)).toEqual([
+      'id',
+      'status',
+      'starts_on',
+      'ends_on',
+      'offering_name',
+      'billing',
+      'price_cents',
+    ]);
+    expect(enrollments?.columns.map((column) => column.key)).not.toContain(
+      'person_id',
+    );
+
+    const bookings = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'academy_bookings',
+    );
+    expect(bookings?.requiredTables).toEqual([
+      'class_session_bookings',
+      'class_sessions',
+      'class_offerings',
+      'events',
+    ]);
+    expect(bookings?.columns.map((column) => column.key)).toEqual([
+      'id',
+      'status',
+      'kind',
+      'event_starts_at',
+      'offering_name',
+    ]);
+    expect(bookings?.columns.map((column) => column.key)).not.toContain(
+      'person_id',
+    );
+  });
+
+  it('exposes invoice dispute amounts only as sensitive money data', () => {
+    const invoices = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'invoices',
+    );
+    expect(
+      invoices?.columns.find((column) => column.key === 'disputed_cents'),
+    ).toMatchObject({
+      type: 'money',
+      tier: 'sensitive',
+      source: 't.disputed_cents',
+    });
+  });
+
   it('requires step-up for sensitive exports and blocks reporter exports', () => {
     expect(canExportTier(['finance'], 'sensitive', false)).toBe(false);
     expect(canExportTier(['finance'], 'sensitive', true)).toBe(true);

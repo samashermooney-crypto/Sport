@@ -5,7 +5,7 @@ import {
 } from '@shared/schemas/reports';
 import type { ReportDefinition } from '@shared/schemas/reports';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import { apiGet, apiPost } from '../../api/client';
 import { Chart } from '../../ui/extended';
@@ -18,13 +18,26 @@ type ReportSummary = {
   title: string;
   definition: ReportDefinition;
   valueKind: 'count' | 'money' | 'percent';
+  views: readonly DashboardView[];
 };
+
+type DashboardView =
+  'organization' | 'money' | 'registration' | 'compliance' | 'academy';
+
+const dashboardViews: readonly { key: DashboardView; label: string }[] = [
+  { key: 'organization', label: 'Organization' },
+  { key: 'money', label: 'Money' },
+  { key: 'registration', label: 'Registration' },
+  { key: 'compliance', label: 'Compliance' },
+  { key: 'academy', label: 'Academy' },
+];
 
 const summaries: readonly ReportSummary[] = [
   {
     key: 'registration-pace',
     title: 'Registration pace (past 12 months)',
     valueKind: 'count',
+    views: ['organization', 'registration'],
     definition: reportDefinitionSchema.parse({
       dataset: 'registrations',
       columns: ['created_at'],
@@ -40,6 +53,7 @@ const summaries: readonly ReportSummary[] = [
     key: 'registrations-by-program',
     title: 'Registrations by program',
     valueKind: 'count',
+    views: ['organization', 'registration'],
     definition: reportDefinitionSchema.parse({
       dataset: 'registrations',
       columns: ['program_name'],
@@ -54,6 +68,7 @@ const summaries: readonly ReportSummary[] = [
     key: 'revenue-by-program',
     title: 'Revenue by program',
     valueKind: 'money',
+    views: ['organization', 'money'],
     definition: reportDefinitionSchema.parse({
       dataset: 'invoice_lines',
       columns: ['program_name'],
@@ -68,6 +83,7 @@ const summaries: readonly ReportSummary[] = [
     key: 'aging-receivables',
     title: 'Aging receivables',
     valueKind: 'money',
+    views: ['organization', 'money'],
     definition: reportDefinitionSchema.parse({
       dataset: 'invoices',
       columns: ['aging_bucket'],
@@ -82,6 +98,7 @@ const summaries: readonly ReportSummary[] = [
     key: 'retention-year-over-year',
     title: 'Participant retention year over year',
     valueKind: 'percent',
+    views: ['organization', 'registration'],
     definition: reportDefinitionSchema.parse({
       dataset: 'retention_cohorts',
       columns: [
@@ -102,10 +119,143 @@ const summaries: readonly ReportSummary[] = [
     key: 'credential-compliance',
     title: 'Credential compliance',
     valueKind: 'percent',
+    views: ['organization', 'compliance'],
     definition: reportDefinitionSchema.parse({
       dataset: 'credentials',
       columns: ['status'],
       filters: [{ column: 'status', op: 'ne', value: 'revoked' }],
+      groupBy: ['status'],
+      aggregates: [{ fn: 'count', column: 'id' }],
+      sort: [{ column: 'status', direction: 'asc' }],
+      limit: 12,
+    }),
+  },
+  {
+    key: 'gross-invoiced',
+    title: 'Gross invoiced',
+    valueKind: 'money',
+    views: ['money'],
+    definition: reportDefinitionSchema.parse({
+      dataset: 'invoices',
+      columns: ['total_cents'],
+      filters: [],
+      groupBy: [],
+      aggregates: [{ fn: 'sum', column: 'total_cents' }],
+      sort: [],
+    }),
+  },
+  {
+    key: 'net-receipts',
+    title: 'Net payments after processing fees',
+    valueKind: 'money',
+    views: ['money'],
+    definition: reportDefinitionSchema.parse({
+      dataset: 'payments',
+      columns: ['net_cents'],
+      filters: [{ column: 'status', op: 'eq', value: 'succeeded' }],
+      groupBy: [],
+      aggregates: [{ fn: 'sum', column: 'net_cents' }],
+      sort: [],
+    }),
+  },
+  {
+    key: 'processing-fees',
+    title: 'Processing fees',
+    valueKind: 'money',
+    views: ['money'],
+    definition: reportDefinitionSchema.parse({
+      dataset: 'payments',
+      columns: ['processing_fee_cents'],
+      filters: [{ column: 'status', op: 'eq', value: 'succeeded' }],
+      groupBy: [],
+      aggregates: [{ fn: 'sum', column: 'processing_fee_cents' }],
+      sort: [],
+    }),
+  },
+  {
+    key: 'refunds-total',
+    title: 'Refunds',
+    valueKind: 'money',
+    views: ['money'],
+    definition: reportDefinitionSchema.parse({
+      dataset: 'refunds',
+      columns: ['amount_cents'],
+      filters: [{ column: 'status', op: 'eq', value: 'succeeded' }],
+      groupBy: [],
+      aggregates: [{ fn: 'sum', column: 'amount_cents' }],
+      sort: [],
+    }),
+  },
+  {
+    key: 'disputed-amount',
+    title: 'Disputes',
+    valueKind: 'money',
+    views: ['money'],
+    definition: reportDefinitionSchema.parse({
+      dataset: 'invoices',
+      columns: ['disputed_cents'],
+      filters: [],
+      groupBy: [],
+      aggregates: [{ fn: 'sum', column: 'disputed_cents' }],
+      sort: [],
+    }),
+  },
+  {
+    key: 'outstanding-balance',
+    title: 'Outstanding balances',
+    valueKind: 'money',
+    views: ['money'],
+    definition: reportDefinitionSchema.parse({
+      dataset: 'invoices',
+      columns: ['balance_cents'],
+      filters: [{ column: 'balance_cents', op: 'gt', value: 0 }],
+      groupBy: [],
+      aggregates: [{ fn: 'sum', column: 'balance_cents' }],
+      sort: [],
+    }),
+  },
+  {
+    key: 'installment-forecast',
+    title: 'Installments due in the next 90 days',
+    valueKind: 'money',
+    views: ['money'],
+    definition: reportDefinitionSchema.parse({
+      dataset: 'installments',
+      columns: ['due_on', 'amount_cents', 'paid_cents'],
+      filters: [],
+      groupBy: ['due_on'],
+      aggregates: [
+        { fn: 'sum', column: 'amount_cents' },
+        { fn: 'sum', column: 'paid_cents' },
+      ],
+      sort: [{ column: 'due_on', direction: 'asc' }],
+      limit: 90,
+    }),
+  },
+  {
+    key: 'academy-enrollments',
+    title: 'Academy enrollments by class',
+    valueKind: 'count',
+    views: ['academy'],
+    definition: reportDefinitionSchema.parse({
+      dataset: 'academy_enrollments',
+      columns: ['offering_name'],
+      filters: [{ column: 'status', op: 'in', value: ['trial', 'active'] }],
+      groupBy: ['offering_name'],
+      aggregates: [{ fn: 'count', column: 'id' }],
+      sort: [{ column: 'count_id', direction: 'desc' }],
+      limit: 12,
+    }),
+  },
+  {
+    key: 'academy-attendance',
+    title: 'Academy session booking status',
+    valueKind: 'count',
+    views: ['academy'],
+    definition: reportDefinitionSchema.parse({
+      dataset: 'academy_bookings',
+      columns: ['status'],
+      filters: [],
       groupBy: ['status'],
       aggregates: [{ fn: 'count', column: 'id' }],
       sort: [{ column: 'status', direction: 'asc' }],
@@ -174,6 +324,57 @@ function chartValues(
     });
   }
 
+  if (summary.key === 'installment-forecast') {
+    const dueIndex = preview.columns.findIndex(
+      (column) => column.key === 'due_on',
+    );
+    const amountIndex = preview.columns.findIndex(
+      (column) => column.key === 'sum_amount_cents',
+    );
+    const paidIndex = preview.columns.findIndex(
+      (column) => column.key === 'sum_paid_cents',
+    );
+    if (dueIndex < 0 || amountIndex < 0 || paidIndex < 0) return [];
+    return preview.rows.flatMap((row) => {
+      const due = row[dueIndex];
+      const amount = numberValue(row[amountIndex]);
+      const paid = numberValue(row[paidIndex]);
+      if (
+        (typeof due !== 'string' && typeof due !== 'number') ||
+        amount === null ||
+        paid === null
+      )
+        return [];
+      return [
+        {
+          label: new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: 'numeric',
+            timeZone: 'UTC',
+          }).format(new Date(String(due))),
+          value: Math.max(0, amount - paid) / 100,
+        },
+      ];
+    });
+  }
+
+  if (summary.definition.groupBy.length === 0) {
+    const aggregate = summary.definition.aggregates[0];
+    if (!aggregate) return [];
+    const valueIndex = preview.columns.findIndex(
+      (column) => column.key === `${aggregate.fn}_${aggregate.column}`,
+    );
+    if (valueIndex < 0) return [];
+    const value = numberValue(preview.rows[0]?.[valueIndex]);
+    if (value === null) return [];
+    return [
+      {
+        label: 'Total',
+        value: summary.valueKind === 'money' ? value / 100 : value,
+      },
+    ];
+  }
+
   const groupKey = summary.definition.groupBy[0];
   const aggregate = summary.definition.aggregates[0];
   if (!groupKey || !aggregate) return [];
@@ -235,30 +436,58 @@ export function ReportsDashboard({
 }: {
   orgId: string;
 }): React.JSX.Element {
+  const [activeView, setActiveView] = useState<DashboardView>('organization');
   const base = `/reports/orgs/${encodeURIComponent(orgId)}`;
   const dashboardSummaries = useMemo(() => {
-    const start = new Date();
+    const now = new Date();
+    const start = new Date(now);
     start.setUTCDate(1);
     start.setUTCHours(0, 0, 0, 0);
     start.setUTCMonth(start.getUTCMonth() - 11);
     const startAt = start.toISOString();
-    return summaries.map((summary) =>
-      summary.key === 'registration-pace'
-        ? {
-            ...summary,
-            definition: reportDefinitionSchema.parse({
-              ...summary.definition,
-              filters: [{ column: 'created_at', op: 'gte', value: startAt }],
-            }),
-          }
-        : summary,
-    );
+    const forecastEnd = new Date(now);
+    forecastEnd.setUTCDate(forecastEnd.getUTCDate() + 90);
+    return summaries.map((summary) => {
+      if (summary.key === 'registration-pace')
+        return {
+          ...summary,
+          definition: reportDefinitionSchema.parse({
+            ...summary.definition,
+            filters: [{ column: 'created_at', op: 'gte', value: startAt }],
+          }),
+        };
+      if (summary.key === 'installment-forecast')
+        return {
+          ...summary,
+          definition: reportDefinitionSchema.parse({
+            ...summary.definition,
+            filters: [
+              {
+                column: 'due_on',
+                op: 'gte',
+                value: now.toISOString().slice(0, 10),
+              },
+              {
+                column: 'due_on',
+                op: 'lte',
+                value: forecastEnd.toISOString().slice(0, 10),
+              },
+              { column: 'status', op: 'ne', value: 'canceled' },
+              { column: 'status', op: 'ne', value: 'paid' },
+            ],
+          }),
+        };
+      return summary;
+    });
   }, []);
   const datasets = useQuery({
     queryKey: ['reports', orgId, 'datasets'],
     queryFn: () => apiGet(`${base}/datasets`, reportDatasetListSchema),
   });
-  const eligibleSummaries = dashboardSummaries.filter((summary) => {
+  const visibleSummaries = dashboardSummaries.filter((summary) =>
+    summary.views.includes(activeView),
+  );
+  const eligibleSummaries = visibleSummaries.filter((summary) => {
     const dataset = datasets.data?.items.find(
       (item) => item.key === summary.definition.dataset,
     );
@@ -280,6 +509,7 @@ export function ReportsDashboard({
       staleTime: 30_000,
     })),
   });
+  const heading = dashboardViews.find((view) => view.key === activeView)?.label;
 
   return (
     <section
@@ -287,12 +517,41 @@ export function ReportsDashboard({
       aria-labelledby="report-dashboard-title"
     >
       <header>
-        <h2 id="report-dashboard-title">Organization overview</h2>
+        <h2 id="report-dashboard-title">
+          {activeView === 'academy'
+            ? 'Academy dashboard'
+            : `${heading ?? 'Organization'} overview`}
+        </h2>
         <p>
-          Registration pace, finances, credential compliance, and participant
-          retention.
+          {activeView === 'money'
+            ? 'Gross and net receipts, fees, refunds, disputes, outstanding balances, and the next 90 days of installments.'
+            : activeView === 'registration'
+              ? 'Registration pace, enrollment by program, and year-over-year participant retention.'
+              : activeView === 'compliance'
+                ? 'Credential status and the portion of active credentials that are verified.'
+                : activeView === 'academy'
+                  ? 'Class enrollment and attendance summaries without participant-level details.'
+                  : 'Registration pace, finances, credential compliance, and participant retention.'}
         </p>
       </header>
+      <div
+        className="report-dashboard__tabs"
+        role="group"
+        aria-label="Report dashboards"
+      >
+        {dashboardViews.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={activeView === key}
+            onClick={() => {
+              setActiveView(key);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       {datasets.isPending && <p role="status">Loading report access…</p>}
       {datasets.isError && (
         <p role="alert">The organization overview is unavailable.</p>

@@ -188,6 +188,32 @@
   gap: var(--space-12);
 }
 
+.report-dashboard__tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+}
+
+.report-dashboard__tabs button {
+  flex: 0 0 auto;
+  min-height: var(--control-height-40);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0 var(--space-12);
+  color: var(--ink-2);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.report-dashboard__tabs button[aria-pressed='true'] {
+  border-bottom-color: var(--accent-700);
+  color: var(--ink);
+  font-weight: 700;
+}
+
 .report-dashboard__card {
   min-width: 0;
 }

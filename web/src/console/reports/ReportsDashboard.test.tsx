@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { ReportsDashboard } from './ReportsDashboard';
@@ -242,8 +248,22 @@ it('renders role-permitted organization visuals with accessible value tables', a
   expect(
     screen.queryByRole('heading', { name: 'Revenue by program' }),
   ).toBeNull();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Money' }));
+  expect(
+    await screen.findByRole('heading', { name: 'Money overview' }),
+  ).toBeTruthy();
+  expect(
+    screen.queryByRole('heading', {
+      name: 'Registration pace (past 12 months)',
+    }),
+  ).toBeNull();
+  expect(
+    await screen.findByRole('heading', { name: 'Aging receivables' }),
+  ).toBeTruthy();
+
   const previews = fetcher.mock.calls.filter(([input]) =>
     requestUrl(input).endsWith('/reports/preview'),
   );
-  expect(previews).toHaveLength(5);
+  expect(previews).toHaveLength(6);
 });
