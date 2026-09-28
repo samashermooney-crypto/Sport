@@ -11,6 +11,9 @@ import type { OrgContext } from '../../db/withOrg';
 import { createSiteSsrRouter } from './public';
 import {
   getWebsiteSettings,
+  getPublicWebsiteProgram,
+  getPublicWebsitePrograms,
+  getPublicWebsiteSchedule,
   getPublicWebsitePage,
   listWebsiteMenus,
   listWebsiteDomains,
@@ -519,6 +522,187 @@ describe('website page service', () => {
           blocks: [],
           seo: { title: '', description: '', canonicalPath: '' },
           expectedVersion: 1,
+        },
+        new Date(),
+        withOrg,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('renders public program and schedule pages without leaking private activity', async () => {
+    const seasonId = randomUUID();
+    const sportProfileId = randomUUID();
+    const publicProgramId = randomUUID();
+    const privateProgramId = randomUUID();
+    const publicOfferingId = randomUUID();
+    const publicEventId = randomUUID();
+    const privateEventId = randomUUID();
+    const publicProgramSlug = `open-soccer-${publicProgramId.slice(0, 8)}`;
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    try {
+      await admin.query(
+        "UPDATE website_settings SET published = true, robots_policy = 'index' WHERE org_id = $1",
+        [orgId],
+      );
+      await admin.query(
+        `INSERT INTO sport_profiles (id, org_id, name, profile)
+         VALUES ($1, $2, 'Soccer', '{}'::jsonb)`,
+        [sportProfileId, orgId],
+      );
+      await admin.query(
+        `INSERT INTO seasons (id, org_id, name, starts_on, ends_on, status)
+         VALUES ($1, $2, 'Fall 2026', '2026-09-01', '2026-12-31', 'active')`,
+        [seasonId, orgId],
+      );
+      await admin.query(
+        `INSERT INTO programs (id, org_id, season_id, sport_profile_id, mode, name, slug, status, visibility, starts_on, ends_on)
+         VALUES ($1, $2, $3, $4, 'league', 'Open Soccer', $5, 'registration_open', 'public', '2026-10-01', '2026-11-01'),
+                ($6, $2, $3, $4, 'club', 'Private Coaching', $7, 'published', 'private', '2026-10-01', '2026-11-01')`,
+        [
+          publicProgramId,
+          orgId,
+          seasonId,
+          sportProfileId,
+          publicProgramSlug,
+          privateProgramId,
+          `private-coaching-${privateProgramId.slice(0, 8)}`,
+        ],
+      );
+      await admin.query(
+        `INSERT INTO registration_offerings (id, org_id, program_id, name, registrant_role, visibility, active)
+         VALUES ($1, $2, $3, 'Player registration', 'athlete', 'public', true)`,
+        [publicOfferingId, orgId, publicProgramId],
+      );
+      await admin.query(
+        `INSERT INTO events (id, org_id, program_id, kind, title, starts_at, ends_at, timezone, location_text, published)
+         VALUES ($1, $2, $3, 'game', 'Open Soccer season opener', '2026-10-14T15:00:00Z', '2026-10-14T16:00:00Z', 'America/Chicago', 'North Park Field 1', true),
+                ($4, $2, $5, 'meeting', 'Private coaching assessment', '2026-10-15T15:00:00Z', '2026-10-15T16:00:00Z', 'America/Chicago', 'Staff room', true)`,
+        [
+          publicEventId,
+          orgId,
+          publicProgramId,
+          privateEventId,
+          privateProgramId,
+        ],
+      );
+
+      const programs = await getPublicWebsitePrograms(
+        database,
+        orgSlug,
+        withOrg,
+      );
+      expect(programs?.programs).toEqual([
+        expect.objectContaining({
+          slug: publicProgramSlug,
+          name: 'Open Soccer',
+          seasonName: 'Fall 2026',
+        }),
+      ]);
+      await expect(
+        getPublicWebsiteProgram(database, orgSlug, publicProgramSlug, withOrg),
+      ).resolves.toMatchObject({
+        program: { registrationAvailable: true, name: 'Open Soccer' },
+      });
+      await expect(
+        getPublicWebsiteProgram(
+          database,
+          orgSlug,
+          `private-coaching-${privateProgramId.slice(0, 8)}`,
+          withOrg,
+        ),
+      ).resolves.toBeNull();
+      const schedule = await getPublicWebsiteSchedule(
+        database,
+        orgSlug,
+        withOrg,
+        new Date('2026-09-28T00:00:00.000Z'),
+      );
+      expect(schedule?.events).toEqual([
+        expect.objectContaining({
+          id: publicEventId,
+          title: 'Open Soccer season opener',
+          programName: 'Open Soccer',
+        }),
+      ]);
+
+      const app = express();
+      app.use(createSiteSsrRouter({ database }));
+      const server = app.listen(0);
+      await new Promise<void>((resolve) => server.once('listening', resolve));
+      try {
+        const address = server.address();
+        if (!address || typeof address === 'string')
+          throw new Error('The test server did not open a TCP port');
+        const origin = `http://127.0.0.1:${String(address.port)}`;
+        const programsResponse = await fetch(`${origin}/${orgSlug}/programs`);
+        const programsHtml = await programsResponse.text();
+        expect(programsResponse.status).toBe(200);
+        expect(programsHtml).toContain(
+          '<title>Programs · Website Test Club</title>',
+        );
+        expect(programsHtml).toContain('Open Soccer');
+        expect(programsHtml).not.toContain('Private Coaching');
+        expect(programsHtml).not.toContain('private-coaching-');
+        expect(programsHtml).toContain('/schedule');
+
+        const detailResponse = await fetch(
+          `${origin}/${orgSlug}/programs/${publicProgramSlug}`,
+        );
+        const detailHtml = await detailResponse.text();
+        expect(detailResponse.status).toBe(200);
+        expect(detailHtml).toContain('View registration options');
+
+        const scheduleResponse = await fetch(`${origin}/${orgSlug}/schedule`);
+        const scheduleHtml = await scheduleResponse.text();
+        expect(scheduleResponse.status).toBe(200);
+        expect(scheduleHtml).toContain('SportsEvent');
+        expect(scheduleHtml).toContain('Open Soccer season opener');
+        expect(scheduleHtml).toContain('North Park Field 1');
+        expect(scheduleHtml).not.toContain('Private coaching assessment');
+        expect(scheduleHtml).not.toContain('Staff room');
+      } finally {
+        await new Promise<void>((resolve, reject) =>
+          server.close((error) => {
+            if (error) reject(error);
+            else resolve();
+          }),
+        );
+      }
+    } finally {
+      await admin.query('DELETE FROM events WHERE id IN ($1, $2)', [
+        publicEventId,
+        privateEventId,
+      ]);
+      await admin.query('DELETE FROM registration_offerings WHERE id = $1', [
+        publicOfferingId,
+      ]);
+      await admin.query('DELETE FROM divisions WHERE program_id IN ($1, $2)', [
+        publicProgramId,
+        privateProgramId,
+      ]);
+      await admin.query('DELETE FROM programs WHERE id IN ($1, $2)', [
+        publicProgramId,
+        privateProgramId,
+      ]);
+      await admin.query('DELETE FROM seasons WHERE id = $1', [seasonId]);
+      // Sport profile snapshots are append-only; the isolated test database is dropped after this file.
+      await admin.end();
+    }
+  });
+
+  it('reserves generated website paths for the public renderer', async () => {
+    await expect(
+      saveWebsitePage(
+        context,
+        undefined,
+        {
+          slug: 'programs',
+          title: 'My custom programs page',
+          blocks: [],
+          seo: { title: '', description: '', canonicalPath: '' },
         },
         new Date(),
         withOrg,

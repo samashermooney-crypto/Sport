@@ -46,6 +46,13 @@ import { isPublicWebsiteDomainAddress } from './domain-security';
 import { WebsiteError, requireWebsiteEditor } from './policy';
 
 const publicActor = '00000000-0000-0000-0000-000000000000';
+const publicProgramStatuses = [
+  'published',
+  'registration_open',
+  'registration_closed',
+  'in_progress',
+  'completed',
+] as const;
 type WebsiteDatabase = Kysely<DB>;
 
 export async function listPublicWebsitePlans(database: WebsiteDatabase) {
@@ -590,6 +597,17 @@ export async function saveWebsitePage(
   runWithOrg: typeof withOrg = withOrg,
 ) {
   const body = websitePageBodySchema.parse(bodyInput);
+  if (
+    ['news', 'programs', 'schedule'].some(
+      (reserved) =>
+        body.slug === reserved || body.slug.startsWith(`${reserved}/`),
+    )
+  )
+    throw new WebsiteError(
+      409,
+      'CONFLICT',
+      'This path is reserved for an automatically generated public page.',
+    );
   return runWithOrg(context, async (trx) => {
     await authorizeEditor(trx, context);
     const current = pageId
@@ -794,6 +812,269 @@ function readTheme(value: Json): { primary: string; secondary: string } {
       typeof secondary === 'string' && /^#[0-9a-f]{6}$/i.test(secondary)
         ? secondary
         : '#252b2e',
+  };
+}
+
+async function getPublicWebsiteChrome(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  runWithOrg: typeof withOrg,
+) {
+  const organization = await database
+    .selectFrom('organizations')
+    .select(['id', 'slug', 'name', 'default_locale', 'status'])
+    .where('slug', '=', orgSlug)
+    .where('status', '=', 'active')
+    .executeTakeFirst();
+  if (!organization) return null;
+
+  const context = {
+    orgId: organization.id,
+    actor: { accountId: publicActor },
+  };
+  const website = await runWithOrg(context, async (trx) => {
+    const settings = await trx
+      .selectFrom('website_settings')
+      .select(['published', 'robots_policy', 'theme'])
+      .executeTakeFirst();
+    if (!settings?.published) return null;
+
+    const menuRows = await trx
+      .selectFrom('website_menus')
+      .select(['location', 'items'])
+      .where('location', 'in', ['header', 'footer'])
+      .execute();
+    const menus = new Map(menuRows.map((row) => [row.location, row] as const));
+    const headerMenu = menus.get('header');
+    const footerMenu = menus.get('footer');
+    const locale = organization.default_locale;
+    const generatedNavigation = [
+      {
+        label: locale === 'es' ? 'Programas' : 'Programs',
+        href: `/site/${organization.slug}/programs`,
+      },
+      {
+        label: locale === 'es' ? 'Calendario' : 'Schedule',
+        href: `/site/${organization.slug}/schedule`,
+      },
+      {
+        label: locale === 'es' ? 'Noticias' : 'News',
+        href: `/site/${organization.slug}/news`,
+      },
+    ];
+    const configuredNavigation = headerMenu
+      ? websiteMenuItemSchema.array().parse(headerMenu.items)
+      : await trx
+          .selectFrom('website_pages')
+          .select(['slug', 'title'])
+          .where('status', '=', 'published')
+          .orderBy('slug')
+          .execute()
+          .then((pages) =>
+            pages.map(({ slug, title }) => ({
+              label: title,
+              href:
+                slug === 'home'
+                  ? `/site/${organization.slug}`
+                  : `/site/${organization.slug}/${slug}`,
+            })),
+          );
+    const navigation = [...configuredNavigation];
+    for (const item of generatedNavigation) {
+      if (!navigation.some((configured) => configured.href === item.href))
+        navigation.push(item);
+    }
+
+    return {
+      theme: readTheme(settings.theme),
+      robotsPolicy: settings.robots_policy,
+      navigation,
+      footerNavigation: footerMenu
+        ? websiteMenuItemSchema.array().parse(footerMenu.items)
+        : generatedNavigation,
+    };
+  });
+  if (!website) return null;
+  return {
+    organization: {
+      id: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      locale: organization.default_locale,
+    },
+    ...website,
+  };
+}
+
+function publicProgramDate(value: Date | string): string {
+  return value instanceof Date
+    ? value.toISOString().slice(0, 10)
+    : value.slice(0, 10);
+}
+
+export async function getPublicWebsitePrograms(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const site = await getPublicWebsiteChrome(database, orgSlug, runWithOrg);
+  if (!site) return null;
+  const programs = await runWithOrg(
+    { orgId: site.organization.id, actor: { accountId: publicActor } },
+    (trx) =>
+      trx
+        .selectFrom('programs as program')
+        .innerJoin('seasons as season', (join) =>
+          join
+            .onRef('season.org_id', '=', 'program.org_id')
+            .onRef('season.id', '=', 'program.season_id'),
+        )
+        .select([
+          'program.id',
+          'program.slug',
+          'program.name',
+          'program.mode',
+          'program.status',
+          'program.starts_on',
+          'program.ends_on',
+          'season.name as seasonName',
+        ])
+        .where('program.org_id', '=', site.organization.id)
+        .where('program.visibility', '=', 'public')
+        .where('program.status', 'in', publicProgramStatuses)
+        .orderBy('program.starts_on', 'asc')
+        .orderBy('program.name', 'asc')
+        .limit(200)
+        .execute(),
+  );
+  return {
+    ...site,
+    programs: programs.map((program) => ({
+      slug: program.slug,
+      name: program.name,
+      mode: program.mode,
+      status: program.status,
+      startsOn: publicProgramDate(program.starts_on),
+      endsOn: publicProgramDate(program.ends_on),
+      seasonName: program.seasonName,
+    })),
+  };
+}
+
+export async function getPublicWebsiteProgram(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  programSlug: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const site = await getPublicWebsiteChrome(database, orgSlug, runWithOrg);
+  if (!site) return null;
+  const program = await runWithOrg(
+    { orgId: site.organization.id, actor: { accountId: publicActor } },
+    (trx) =>
+      trx
+        .selectFrom('programs as program')
+        .innerJoin('seasons as season', (join) =>
+          join
+            .onRef('season.org_id', '=', 'program.org_id')
+            .onRef('season.id', '=', 'program.season_id'),
+        )
+        .select([
+          'program.id',
+          'program.slug',
+          'program.name',
+          'program.mode',
+          'program.status',
+          'program.starts_on',
+          'program.ends_on',
+          'season.name as seasonName',
+        ])
+        .where('program.org_id', '=', site.organization.id)
+        .where('program.slug', '=', programSlug)
+        .where('program.visibility', '=', 'public')
+        .where('program.status', 'in', publicProgramStatuses)
+        .executeTakeFirst(),
+  );
+  if (!program) return null;
+  const publicOfferings = await runWithOrg(
+    { orgId: site.organization.id, actor: { accountId: publicActor } },
+    (trx) =>
+      trx
+        .selectFrom('registration_offerings')
+        .select('id')
+        .where('program_id', '=', program.id)
+        .where('visibility', '=', 'public')
+        .where('active', '=', true)
+        .limit(1)
+        .executeTakeFirst(),
+  );
+  return {
+    ...site,
+    program: {
+      slug: program.slug,
+      name: program.name,
+      mode: program.mode,
+      status: program.status,
+      startsOn: publicProgramDate(program.starts_on),
+      endsOn: publicProgramDate(program.ends_on),
+      seasonName: program.seasonName,
+      registrationAvailable:
+        program.status === 'registration_open' && Boolean(publicOfferings),
+    },
+  };
+}
+
+export async function getPublicWebsiteSchedule(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  runWithOrg: typeof withOrg = withOrg,
+  now = new Date(),
+) {
+  const site = await getPublicWebsiteChrome(database, orgSlug, runWithOrg);
+  if (!site) return null;
+  const events = await runWithOrg(
+    { orgId: site.organization.id, actor: { accountId: publicActor } },
+    (trx) =>
+      trx
+        .selectFrom('events as event')
+        .innerJoin('programs as program', (join) =>
+          join
+            .onRef('program.org_id', '=', 'event.org_id')
+            .onRef('program.id', '=', 'event.program_id'),
+        )
+        .select([
+          'event.id',
+          'event.title',
+          'event.starts_at',
+          'event.ends_at',
+          'event.timezone',
+          'event.location_text',
+          'event.status',
+          'program.name as programName',
+        ])
+        .where('event.org_id', '=', site.organization.id)
+        .where('event.published', '=', true)
+        .where('event.status', 'in', ['scheduled', 'postponed'])
+        .where('event.starts_at', '>=', now)
+        .where('program.org_id', '=', site.organization.id)
+        .where('program.visibility', '=', 'public')
+        .where('program.status', 'in', publicProgramStatuses)
+        .orderBy('event.starts_at', 'asc')
+        .limit(200)
+        .execute(),
+  );
+  return {
+    ...site,
+    events: events.map((event) => ({
+      id: event.id,
+      title: event.title,
+      startsAt: event.starts_at.toISOString(),
+      endsAt: event.ends_at.toISOString(),
+      timezone: event.timezone,
+      location: event.location_text,
+      status: event.status,
+      programName: event.programName,
+    })),
   };
 }
 
@@ -1362,14 +1643,6 @@ export async function saveWebsiteEmbed(
     return { embed };
   });
 }
-
-const publicProgramStatuses = [
-  'published',
-  'registration_open',
-  'registration_closed',
-  'in_progress',
-  'completed',
-] as const;
 
 const publicEmbedStandingsSchema = z.object({
   rows: z.array(
