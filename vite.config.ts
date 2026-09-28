@@ -7,11 +7,6 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
-  define: {
-    'import.meta.env.LEGAL_DOCS_APPROVED': JSON.stringify(
-      process.env.LEGAL_DOCS_APPROVED === 'true',
-    ),
-  },
   root: 'web',
   publicDir: '../public',
   server: {

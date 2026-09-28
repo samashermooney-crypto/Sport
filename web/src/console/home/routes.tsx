@@ -49,7 +49,7 @@ function OrganizationDataRoute(): React.JSX.Element {
   );
 }
 
-export const consoleHomeDataRoutes: readonly RouteObject[] = [
+export const consoleHomeRoutes: readonly RouteObject[] = [
   {
     path: '/console/orgs/:orgId/data',
     element: <OrganizationDataRoute />,

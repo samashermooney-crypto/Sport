@@ -1,28 +1,73 @@
+import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router';
 
-import { AccountHome } from './AccountHome';
-import { MagicRequest } from './MagicRequest';
-import { MfaChallenge } from './MfaChallenge';
-import { ResetConfirm } from './ResetConfirm';
-import { ResetRequest } from './ResetRequest';
-import { SecuritySettings } from './SecuritySettings';
-import { SignIn } from './SignIn';
-import { SignUp } from './SignUp';
-import { TokenAction } from './TokenAction';
+import { RouteLoading } from '../ui/RouteLoading';
+
+const AccountHome = lazy(() =>
+  import('./AccountHome').then(({ AccountHome: Component }) => ({
+    default: Component,
+  })),
+);
+const MagicRequest = lazy(() =>
+  import('./MagicRequest').then(({ MagicRequest: Component }) => ({
+    default: Component,
+  })),
+);
+const MfaChallenge = lazy(() =>
+  import('./MfaChallenge').then(({ MfaChallenge: Component }) => ({
+    default: Component,
+  })),
+);
+const ResetConfirm = lazy(() =>
+  import('./ResetConfirm').then(({ ResetConfirm: Component }) => ({
+    default: Component,
+  })),
+);
+const ResetRequest = lazy(() =>
+  import('./ResetRequest').then(({ ResetRequest: Component }) => ({
+    default: Component,
+  })),
+);
+const SecuritySettings = lazy(() =>
+  import('./SecuritySettings').then(({ SecuritySettings: Component }) => ({
+    default: Component,
+  })),
+);
+const SignIn = lazy(() =>
+  import('./SignIn').then(({ SignIn: Component }) => ({ default: Component })),
+);
+const SignUp = lazy(() =>
+  import('./SignUp').then(({ SignUp: Component }) => ({ default: Component })),
+);
+const TokenAction = lazy(() =>
+  import('./TokenAction').then(({ TokenAction: Component }) => ({
+    default: Component,
+  })),
+);
+
+function loading(element: React.ReactNode): React.JSX.Element {
+  return <Suspense fallback={<RouteLoading />}>{element}</Suspense>;
+}
 
 export const authRoutes: readonly RouteObject[] = [
-  { path: '/', element: <SignIn /> },
-  { path: '/sign-up', element: <SignUp /> },
-  { path: '/forgot-password', element: <ResetRequest /> },
-  { path: '/reset/:token', element: <ResetConfirm /> },
-  { path: '/email-link', element: <MagicRequest /> },
-  { path: '/magic/:token', element: <TokenAction purpose="magic" /> },
-  { path: '/verify/:token', element: <TokenAction purpose="verify" /> },
+  { path: '/', element: loading(<SignIn />) },
+  { path: '/sign-up', element: loading(<SignUp />) },
+  { path: '/forgot-password', element: loading(<ResetRequest />) },
+  { path: '/reset/:token', element: loading(<ResetConfirm />) },
+  { path: '/email-link', element: loading(<MagicRequest />) },
+  {
+    path: '/magic/:token',
+    element: loading(<TokenAction purpose="magic" />),
+  },
+  {
+    path: '/verify/:token',
+    element: loading(<TokenAction purpose="verify" />),
+  },
   {
     path: '/verify-email-change/:token',
-    element: <TokenAction purpose="email-change" />,
+    element: loading(<TokenAction purpose="email-change" />),
   },
-  { path: '/mfa', element: <MfaChallenge /> },
-  { path: '/me', element: <AccountHome /> },
-  { path: '/me/security', element: <SecuritySettings /> },
+  { path: '/mfa', element: loading(<MfaChallenge />) },
+  { path: '/me', element: loading(<AccountHome />) },
+  { path: '/me/security', element: loading(<SecuritySettings />) },
 ];

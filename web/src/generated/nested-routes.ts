@@ -4,6 +4,7 @@ import { consoleAuditRoutes } from '../console/audit/routes';
 import { consoleClassesRoutes } from '../console/classes/routes';
 import { consoleFederationRoutes } from '../console/federation/routes';
 import { consoleFundraisingRoutes } from '../console/fundraising/routes';
+import { consoleHomeRoutes } from '../console/home/routes';
 import { consoleMessagesRoutes } from '../console/messages/routes';
 import { consoleMoneyRoutes } from '../console/money/routes';
 import { consoleReportsRoutes } from '../console/reports/routes';
@@ -24,12 +25,14 @@ import { portalStoreRoutes } from '../portal/store/routes';
 import { portalTeamFinanceRoutes } from '../portal/teamFinance/routes';
 import { portalVolunteersRoutes } from '../portal/volunteers/routes';
 import { siteFundraisingRoutes } from '../site/fundraising/routes';
+import { siteSponsorsRoutes } from '../site/sponsors/routes';
 
 export const webNestedRoutes: readonly RouteObject[] = [
   consoleAuditRoutes,
   consoleClassesRoutes,
   consoleFederationRoutes,
   consoleFundraisingRoutes,
+  consoleHomeRoutes,
   consoleMessagesRoutes,
   consoleMoneyRoutes,
   consoleReportsRoutes,
@@ -50,4 +53,5 @@ export const webNestedRoutes: readonly RouteObject[] = [
   portalTeamFinanceRoutes,
   portalVolunteersRoutes,
   siteFundraisingRoutes,
+  siteSponsorsRoutes,
 ].flat();
