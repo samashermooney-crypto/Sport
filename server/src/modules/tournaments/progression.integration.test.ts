@@ -7,7 +7,12 @@ import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 import { createContest, submitContestResult } from '../contests/service';
 
-import { createBracket, generateBracket, setBracketContest } from './service';
+import {
+  advanceBracketMatch,
+  createBracket,
+  generateBracket,
+  setBracketContest,
+} from './service';
 
 let database: ReturnType<typeof createDatabase>;
 
@@ -237,6 +242,23 @@ describe('tournament contest progression', () => {
       !firstSemifinal.winner_to_slot
     )
       throw new Error('Generated semifinals must advance into one final.');
+    const firstSemifinalSlot = firstSemifinal.participant_a as unknown as {
+      entrantId: string | null;
+    };
+    const firstSemifinalEntrantId = firstSemifinalSlot.entrantId;
+    if (!firstSemifinalEntrantId)
+      throw new Error('Generated semifinal must contain its first team.');
+    await expect(
+      withOrg(actor, (trx) =>
+        advanceBracketMatch(
+          trx,
+          actor.orgId,
+          bracket.id,
+          firstSemifinal.id,
+          firstSemifinalEntrantId,
+        ),
+      ),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
 
     async function finalizeMatch(
       match: (typeof matches)[number],
