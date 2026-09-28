@@ -1,0 +1,159 @@
+.evaluation-portal {
+  display: grid;
+  gap: var(--space-16);
+  max-width: 900px;
+  margin-inline: auto;
+}
+
+.evaluation-sync-status,
+.evaluation-score-athlete,
+.evaluation-score-row,
+.evaluation-offer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.evaluation-sync-status,
+.evaluation-score-athlete {
+  justify-content: space-between;
+}
+
+.evaluation-sync-status {
+  position: sticky;
+  top: var(--space-8);
+  z-index: 1;
+  padding: var(--space-10) var(--space-12);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-6);
+  background: var(--panel);
+}
+
+.evaluation-progress,
+.evaluation-sync-notice {
+  padding: var(--space-12);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-6);
+  background: var(--panel);
+}
+
+.evaluation-score-list,
+.evaluation-offer-list {
+  display: grid;
+  gap: var(--space-12);
+}
+
+.evaluation-athlete-navigation,
+.evaluation-athlete-navigation > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.evaluation-athlete-navigation > div {
+  flex-wrap: wrap;
+}
+
+.evaluation-score-athlete {
+  touch-action: pan-y;
+}
+
+.evaluation-score-card h2,
+.evaluation-offer-list h2 {
+  margin: 0;
+}
+
+.evaluation-score-athlete > div {
+  flex: 1;
+}
+
+.evaluation-bib {
+  margin: 0 0 var(--space-4);
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.evaluation-athlete-photo {
+  width: var(--control-height-68);
+  height: var(--control-height-68);
+  border-radius: var(--radius-6);
+  object-fit: cover;
+}
+
+.evaluation-score-row {
+  margin-top: var(--space-16);
+}
+
+.evaluation-score-entry {
+  margin-top: var(--space-12);
+}
+
+.evaluation-score-entry .evaluation-score-row {
+  margin-top: 0;
+}
+
+.evaluation-score-entry .field {
+  margin-top: var(--space-8);
+}
+
+.evaluation-family-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+}
+
+.evaluation-score-row label {
+  min-width: 7rem;
+  font-weight: 600;
+}
+
+.evaluation-score-row input[type='range'] {
+  min-width: 0;
+  min-height: var(--control-height-44);
+  flex: 1;
+  accent-color: var(--accent);
+  touch-action: pan-y;
+}
+
+.evaluation-score-row output {
+  width: 2.5rem;
+  min-height: var(--control-height-40);
+  align-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-4);
+  text-align: center;
+  font-weight: 700;
+}
+
+.evaluation-offer-actions {
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-top: var(--space-16);
+}
+
+.evaluation-offer-actions .field {
+  min-width: min(100%, 260px);
+  flex: 1;
+}
+
+@media (max-width: 540px) {
+  .evaluation-score-athlete {
+    align-items: flex-start;
+  }
+
+  .evaluation-score-row {
+    gap: var(--space-8);
+  }
+
+  .evaluation-score-row label {
+    min-width: 5.5rem;
+  }
+
+  .evaluation-offer-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
