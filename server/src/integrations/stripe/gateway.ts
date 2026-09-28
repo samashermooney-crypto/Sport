@@ -53,6 +53,9 @@ export interface PaymentsGateway {
     customerId: string,
     paymentMethodId: string,
   ): Promise<void>;
+  createPaymentElementCustomerSession(customerId: string): Promise<{
+    clientSecret: string;
+  }>;
   createDestinationPayment(
     input: DestinationPaymentInput,
   ): Promise<GatewayPaymentIntent>;

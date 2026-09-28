@@ -253,6 +253,28 @@ export class StripeSdkGateway implements PaymentsGateway {
     });
   }
 
+  async createPaymentElementCustomerSession(customerId: string) {
+    const session = await this.stripe.customerSessions.create({
+      customer: customerId,
+      components: {
+        payment_element: {
+          enabled: true,
+          features: {
+            payment_method_redisplay: 'enabled',
+            // Older SetupIntents created through the explicit "Save a payment
+            // method" flow have Stripe's default `unspecified` value.
+            payment_method_allow_redisplay_filters: ['always', 'unspecified'],
+            payment_method_remove: 'disabled',
+            payment_method_save: 'disabled',
+          },
+        },
+      },
+    });
+    if (!session.client_secret)
+      throw new Error('Stripe Customer Session has no client secret');
+    return { clientSecret: session.client_secret };
+  }
+
   async createDestinationPayment(
     input: DestinationPaymentInput,
   ): Promise<GatewayPaymentIntent> {

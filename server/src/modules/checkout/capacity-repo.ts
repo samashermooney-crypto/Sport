@@ -316,6 +316,20 @@ export class PostgresCheckoutHoldRepository implements CheckoutCapacityRepositor
       .where('checkout_id', '=', input.checkoutId)
       .where('status', '=', 'pending_payment')
       .execute();
+    await sql`
+      UPDATE waitlist_entries AS entry
+      SET status = 'accepted', registration_id = registration.id,
+        version = entry.version + 1
+      FROM registrations AS registration
+      WHERE entry.org_id = ${input.orgId}::uuid
+        AND entry.checkout_id = ${input.checkoutId}::uuid
+        AND entry.status = 'offered'
+        AND entry.accepted_at IS NOT NULL
+        AND registration.org_id = entry.org_id
+        AND registration.checkout_id = entry.checkout_id
+        AND registration.person_id = entry.person_id
+        AND registration.status = 'confirmed'
+    `.execute(trx);
     await appendAuditEvent(trx, this.context, {
       action: 'checkout.confirmed',
       entityType: 'checkout',
