@@ -18,7 +18,7 @@ Owner: work through these after Codex finishes, in order.
 9. **Apple Pay** — register and verify the production domains (and each verified custom domain; the product triggers registration via API once the platform is verified).
 10. **Stripe Billing** — create products/prices for Pro/Enterprise plans; paste price ids in the platform console plans screen.
 11. **Pricing decision** — confirm application fee and plan prices in the platform console (seed defaults are placeholders from D7). Confirm the processing-cost estimate used by the service-fee gross-up.
-12. **Live-mode smoke** — with a real card and a real test org you control, run one $1 registration and refund it; verify reconciliation report.
+12. **Stripe test-mode smoke** — using only Stripe’s documented test card and a test organization, run a $1 test-mode registration and refund it; verify the reconciliation report. Never enable live charges for this smoke.
 
 ## Messaging
 13. **Resend** — verify the sending domain (SPF, DKIM, DMARC `p=quarantine` after monitoring), set `RESEND_API_KEY`, `MAIL_FROM`, webhook secret; send test emails to Gmail/Outlook/Yahoo and check spam placement.
