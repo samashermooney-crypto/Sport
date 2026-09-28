@@ -9,6 +9,7 @@ import { consoleHomeRoutes } from '../console/home/routes';
 import { consoleMessagesRoutes } from '../console/messages/routes';
 import { consoleMoneyRoutes } from '../console/money/routes';
 import { consoleProgramsRoutes } from '../console/programs/routes';
+import { consoleRegistrationRoutes } from '../console/registration/routes';
 import { consoleReportsRoutes } from '../console/reports/routes';
 import { consoleSafetyRoutes } from '../console/safety/routes';
 import { consoleScheduleRoutes } from '../console/schedule/routes';
@@ -22,6 +23,7 @@ import { portalClassesRoutes } from '../portal/classes/routes';
 import { portalMessagesRoutes } from '../portal/messages/routes';
 import { portalMoneyRoutes } from '../portal/money/routes';
 import { portalNotificationsRoutes } from '../portal/notifications/routes';
+import { portalRegistrationRoutes } from '../portal/registration/routes';
 import { portalSafetyRoutes } from '../portal/safety/routes';
 import { portalScheduleRoutes } from '../portal/schedule/routes';
 import { portalStoreRoutes } from '../portal/store/routes';
@@ -40,6 +42,7 @@ export const webNestedRoutes: readonly RouteObject[] = [
   consoleMessagesRoutes,
   consoleMoneyRoutes,
   consoleProgramsRoutes,
+  consoleRegistrationRoutes,
   consoleReportsRoutes,
   consoleSafetyRoutes,
   consoleScheduleRoutes,
@@ -53,6 +56,7 @@ export const webNestedRoutes: readonly RouteObject[] = [
   portalMessagesRoutes,
   portalMoneyRoutes,
   portalNotificationsRoutes,
+  portalRegistrationRoutes,
   portalSafetyRoutes,
   portalScheduleRoutes,
   portalStoreRoutes,
