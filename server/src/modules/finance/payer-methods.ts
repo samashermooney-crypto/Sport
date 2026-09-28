@@ -104,7 +104,7 @@ export class PayerMethodsService {
     return customerId;
   }
 
-  private async ensureCustomer(accountId: string, email: string) {
+  async ensureCustomer(accountId: string, email: string): Promise<string> {
     const reservation = await this.profiles.reserve(accountId);
     if (reservation.kind === 'existing') return reservation.customerId;
     if (reservation.kind === 'busy') {
