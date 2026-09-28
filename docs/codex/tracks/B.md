@@ -1,9 +1,13 @@
 # Track B — sport logic and policies
 
-Status: ready-for-integration
+Status: Phase 3 in progress
 Model: GPT-6 Sol
 Branch: `track/b-logic`
-Current: Track B complete; E/F/H cross-track requests are committed locally and the integration branch passes the full gate.
+Current: Track B candidate `15cc7e05` synced with trunk at `1e91bd6`; typecheck and lint pass. Full merge gate passed: `npm test` (912 passed, 1 skipped) and Chromium desktop (39 passed, 6 skipped). Date-sensitive fixtures ran at a fixed Chicago instant with Chicago Postgres sessions to keep local date-only values stable across UTC midnight.
+Requests to Track E: Phase 5 checkout must consume B offering pricing `{ earlyPriceCents, earlyEndsAt, latePriceCents, lateStartsAt, installmentTemplateIds, siblingDiscountEligible }` and add-ons `{ key, name, priceCents, required, options: [{ key, label }] }`; windows are paired, use org-local wall times converted to instants, and early pricing ends before late pricing begins. The current checkout pricing source fails closed on these configured values.
+Requests to Track QA: add and run the Phase 3 Chromium and WebKit-mobile wizard journey at 390 px with axe: volleyball season/program setup, three divisions, two offerings and an installment template, then team generation. The generated nested router now mounts the program route.
+Requests to Track H: provide the rollover extras contract for copying volunteer requirements into the target season with their dates shifted and staff requirements pending revalidation; wire it through `SeasonRolloverExtras`.
+Requests to Track C: compose optional `seasonRolloverExtras` contributions from registered modules and pass them to the seasons router; B's route now accepts the typed `SeasonRolloverExtras[]` contract. H should implement its volunteer requirement copier as one contribution.
 Ready: Age/eligibility — `shared/src/sport/{age,eligibility}.ts`; 11 targeted tests, typecheck and lint green.
 Ready: Recurrence — `shared/src/recurrence.ts`; 11 targeted tests across four timezones, typecheck and lint green.
 Ready: Sport schema/results/stats/standings — 19 targeted tests, typecheck and lint green; template goldens still pending.
@@ -27,7 +31,7 @@ Ready: Phase 1 task 9 — global platform staff/flags/impersonation/audit schema
 Ready: Track E finance request `c537133` — weekly installments from `02 §L`, separate lost-dispute cents in invoice state, targeted shared tests and DEC-042.
 Ready: Track F safety request `7f08458` — `credentials.expiry` registry runner with locked system actor, account-scoped notification trigger and F payload-safe inbox contract; targeted job/Postgres tests.
 Ready: Track H communications request `5751eb2` — all 47 Phase 10 template types in the inbox catalog, SMS/push preferences, and a preferences-center link target for tokenized unsubscribe; targeted Postgres and Chromium/WebKit tests.
-Ready for integration: 58ce328..HEAD — E/F/H requests, 109-operation regenerated OpenAPI document and latest trunk sync; second-queue tasks 10/15/14/13/9 and logic queue `30a775f..5c01024` are on trunk.
+Integrated to `rebuild/trunk` in this self-merge: `1e91bd61..15cc7e05` (43 Track B commits). Contents: Phase 3 sport profiles, seasons/rollover, programs/divisions, offerings, teams/rosters/staff, facilities/spaces/availability, migrations 0210–0212, generated registry/nested-route/OpenAPI files, tests and shared sport updates.
 Requests to other tracks: E — pass `disputedLostCents` separately from `refundedToMethodCents` to `deriveInvoiceState` and accept `{ kind: 'weekly', count }` in installment-template validation (2026-09-27).
 Requests to other tracks: F — merge the compliance module declaration; `credentials.expiry` resolves to the B runner and direct notification inserts publish SSE through migration 0606 (2026-09-27).
 Requests to other tracks: H — use `preferencesCenterPath(orgId)` after applying a tokenized unsubscribe; H-owned English/Spanish template bodies remain in the communications module (2026-09-27).
@@ -49,3 +53,6 @@ Self-review: Notification SSE revalidates its session on every 20-second heartbe
 Self-review: B-owned audit/notification tenant reads carry the impersonation header; notification writes are hidden or disabled while impersonating, and banner end/expiry synchronizes the read-only state.
 Self-review: Task 9 checked against Phase 1 task 9; platform writes use admin role where app grants are revoked, plan and org changes carry versions, last active super admin is protected, and impersonation requests log IDs without record payloads.
 Self-review: Full unit/integration suite passes (550 tests, 1 existing skip) after E/F/H changes; typecheck, lint, build, registry and 109-operation OpenAPI generation pass; full Chromium/WebKit gate passes (26 pass, 4 existing skips) including platform, SMS/push preferences, mounted stream and axe.
+
+Phase 3 progress: date-based registration instants and offering price windows preserve org-local wall time over DST; rollover preview lists copied divisions/offers/prices/add-ons/forms/waivers, while copy remains idempotent and excludes registrations, invoices, payments and results. Team creation supports manual and generated teams; roster capacity serializes on the team-season row, concurrent jersey uniqueness is database-enforced, and staff assignment calls F's eligibility gate. Facilities retain split-field exclusion, versioned availability, blackouts, suitability, public visibility and map URL validation. Generated nested routes include all three B screens and the OpenAPI freshness script passes after adding descriptors for all B-owned operations. Focused server/shared Phase 3 suites pass (132 tests); sport engine line coverage is 100%; typecheck and lint pass.
+Pending Phase 3 acceptance: E checkout support for configured price windows/add-ons and the installment picker, H volunteer rollover extras, C registry composition of `seasonRolloverExtras`, and QA's Chromium/WebKit-mobile 390px axe journey. Phase 3 remains in progress until these cross-track items and the end-to-end acceptance journey are complete. Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_b`, `PORT_OFFSET=2500`, Postgres `127.0.0.1:7932`.

@@ -22,6 +22,22 @@ describe('notification catalog and stream envelope', () => {
     expect(isNotificationType('__proto__')).toBe(false);
   });
 
+  it('registers all Phase 11 module notification types', () => {
+    expect(notificationTypes).toEqual(
+      expect.arrayContaining([
+        'fundraising.donation_receipt',
+        'fundraising.campaign_update',
+        'sponsor.renewal_reminder',
+        'store.order_update',
+        'store.low_stock',
+        'volunteer.shift_reminder',
+        'volunteer.requirement_behind',
+        'team.fee_assessed',
+        'team.reimbursement_decided',
+      ]),
+    );
+  });
+
   it('emits only a matching account envelope without payload content', () => {
     const accountId = 'f004ab0e-0c56-4e3d-a412-6c383487208c';
     const payload = JSON.stringify({
