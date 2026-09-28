@@ -13,8 +13,7 @@ import { verifyAndConsumeTotp } from './mfa';
 import { verifyPassword } from './password';
 import { generateRecoveryCodes } from './recovery';
 import { hasStepUp, revokeSessions, rotateSessionForStepUp } from './sessions';
-import type { ActiveSession } from './sessions';
-import type { IssuedSession } from './sessions';
+import type { ActiveSession, IssuedSession, SessionOptions } from './sessions';
 import { newTotpSecret } from './totp';
 
 export interface SecurityDependencies {
@@ -234,6 +233,8 @@ export async function stepUpWithPassword(
   dependencies: SecurityDependencies,
   session: ActiveSession,
   password: string,
+  metadata: Pick<SessionOptions, 'ip' | 'userAgent'> = {},
+  now = dependencies.clock(),
 ): Promise<IssuedSession | null> {
   const account = await dependencies.database
     .selectFrom('accounts')
@@ -248,28 +249,40 @@ export async function stepUpWithPassword(
     return null;
   return dependencies.database
     .transaction()
-    .execute((trx) =>
-      rotateSessionForStepUp(trx, session, dependencies.clock()),
-    );
+    .execute((trx) => rotateSessionForStepUp(trx, session, now, metadata));
 }
 
 export async function stepUpWithTotp(
   dependencies: SecurityDependencies,
   session: ActiveSession,
   code: string,
+  metadata: Pick<SessionOptions, 'ip' | 'userAgent'> = {},
+  now = dependencies.clock(),
 ): Promise<IssuedSession | null> {
-  const now = dependencies.clock();
-  return dependencies.database
-    .transaction()
-    .execute((trx) =>
-      rotateSessionForStepUp(trx, session, now, () =>
-        verifyAndConsumeTotp(
-          trx,
-          session.accountId,
-          code,
-          now.getTime(),
-          dependencies.encryption,
-        ),
-      ),
-    );
+  return dependencies.database.transaction().execute(async (trx) => {
+    const current = await trx
+      .selectFrom('sessions')
+      .select('id')
+      .where('id', '=', session.id)
+      .where('account_id', '=', session.accountId)
+      .where('token_hash', '=', session.tokenHash)
+      .where('revoked_at', 'is', null)
+      .where('idle_expires_at', '>', now)
+      .where('absolute_expires_at', '>', now)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!current) return null;
+    if (
+      !(await verifyAndConsumeTotp(
+        trx,
+        session.accountId,
+        code,
+        now.getTime(),
+        dependencies.encryption,
+      ))
+    ) {
+      return null;
+    }
+    return rotateSessionForStepUp(trx, session, now, metadata, now);
+  });
 }

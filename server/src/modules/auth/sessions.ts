@@ -173,66 +173,6 @@ export async function resolveSession(
   };
 }
 
-export async function rotateSessionForStepUp(
-  trx: Transaction<DB>,
-  session: Pick<ActiveSession, 'id' | 'accountId' | 'tokenHash'>,
-  now: Date,
-  verify?: () => Promise<boolean>,
-): Promise<IssuedSession | null> {
-  const current = await trx
-    .selectFrom('sessions')
-    .select(['privileged', 'absolute_expires_at'])
-    .where('id', '=', session.id)
-    .where('account_id', '=', session.accountId)
-    .where('token_hash', '=', session.tokenHash)
-    .where('revoked_at', 'is', null)
-    .where('idle_expires_at', '>', now)
-    .where('absolute_expires_at', '>', now)
-    .forUpdate()
-    .executeTakeFirst();
-  if (!current) return null;
-  if (verify && !(await verify())) return null;
-
-  const token = randomBytes(32).toString('base64url');
-  const absoluteExpiresAt = current.absolute_expires_at;
-  const idleExpiresAt = new Date(
-    Math.min(
-      now.getTime() + (current.privileged ? privilegedIdle : 14 * day),
-      absoluteExpiresAt.getTime(),
-    ),
-  );
-  const replacement = await trx
-    .updateTable('sessions')
-    .set({
-      token_hash: digest(token),
-      elevated_until: new Date(now.getTime() + stepUpLifetime),
-      idle_expires_at: idleExpiresAt,
-    })
-    .where('id', '=', session.id)
-    .where('account_id', '=', session.accountId)
-    .where('token_hash', '=', session.tokenHash)
-    .where('revoked_at', 'is', null)
-    .returning('id')
-    .executeTakeFirst();
-  if (!replacement) return null;
-
-  await trx
-    .insertInto('security_events')
-    .values({
-      id: newId(),
-      account_id: session.accountId,
-      action: 'session.step_up',
-      details: { sessionId: session.id, tokenRotated: true },
-    })
-    .execute();
-  return {
-    id: replacement.id,
-    token,
-    idleExpiresAt,
-    absoluteExpiresAt,
-  };
-}
-
 export function hasStepUp(session: ActiveSession, now: Date): boolean {
   return session.elevatedUntil !== null && session.elevatedUntil > now;
 }
@@ -344,4 +284,102 @@ export async function revokeSession(
     })
     .execute();
   return true;
+}
+
+export async function rotateSessionForStepUp(
+  trx: Transaction<DB>,
+  session: ActiveSession,
+  now: Date,
+  metadata: Pick<SessionOptions, 'ip' | 'userAgent'> = {},
+  verifiedMfaAt?: Date,
+): Promise<IssuedSession | null> {
+  const current = await trx
+    .selectFrom('sessions')
+    .select([
+      'kind',
+      'client',
+      'privileged',
+      'mfa_verified_at',
+      'idle_expires_at',
+      'absolute_expires_at',
+    ])
+    .where('id', '=', session.id)
+    .where('account_id', '=', session.accountId)
+    .where('token_hash', '=', session.tokenHash)
+    .where('revoked_at', 'is', null)
+    .where('idle_expires_at', '>', now)
+    .where('absolute_expires_at', '>', now)
+    .forUpdate()
+    .executeTakeFirst();
+  if (!current) return null;
+
+  const inheritedMfaAt = current.mfa_verified_at;
+  const recentInheritedMfaAt =
+    inheritedMfaAt &&
+    inheritedMfaAt <= now &&
+    now.getTime() - inheritedMfaAt.getTime() <= stepUpLifetime
+      ? inheritedMfaAt
+      : undefined;
+  const mfaVerifiedAt = verifiedMfaAt ?? recentInheritedMfaAt;
+  if (current.privileged && !mfaVerifiedAt) return null;
+
+  if (!(await revokeSession(trx, session.accountId, session.id, now)))
+    return null;
+
+  const issued = await issueSession(
+    trx,
+    {
+      accountId: session.accountId,
+      kind: current.kind as SessionOptions['kind'],
+      client: current.client as SessionOptions['client'],
+      privileged: current.privileged,
+      ...(mfaVerifiedAt ? { mfaVerifiedAt } : {}),
+      ...metadata,
+    },
+    now,
+  );
+  const idleExpiresAt = new Date(
+    Math.min(
+      issued.idleExpiresAt.getTime(),
+      current.absolute_expires_at.getTime(),
+    ),
+  );
+  const boundedExpiry = await trx
+    .updateTable('sessions')
+    .set({
+      idle_expires_at: idleExpiresAt,
+      absolute_expires_at: current.absolute_expires_at,
+    })
+    .where('id', '=', issued.id)
+    .where('account_id', '=', session.accountId)
+    .where('revoked_at', 'is', null)
+    .returning('id')
+    .executeTakeFirst();
+  if (!boundedExpiry) throw new Error('Could not retain session expiry');
+  const elevatedUntil = new Date(now.getTime() + stepUpLifetime);
+  const elevated = await trx
+    .updateTable('sessions')
+    .set({ elevated_until: elevatedUntil })
+    .where('id', '=', issued.id)
+    .where('account_id', '=', session.accountId)
+    .where('revoked_at', 'is', null)
+    .returning('id')
+    .executeTakeFirst();
+  if (!elevated) throw new Error('Could not elevate the rotated session');
+  await trx
+    .insertInto('security_events')
+    .values({
+      id: newId(),
+      account_id: session.accountId,
+      action: 'session.step_up',
+      details: { sessionId: issued.id, tokenRotated: true },
+      ip: metadata.ip ?? null,
+      user_agent: metadata.userAgent ?? null,
+    })
+    .execute();
+  return {
+    ...issued,
+    idleExpiresAt,
+    absoluteExpiresAt: current.absolute_expires_at,
+  };
 }

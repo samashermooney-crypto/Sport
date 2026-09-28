@@ -151,8 +151,14 @@ test('owner creates, edits and archives a person from the console', async ({
           .url()
           .endsWith(`/people/orgs/${actor.orgId}/${personId}/archive`),
     );
-    page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Archive person' }).click();
+    const archiveConfirmation = page.getByRole('dialog', {
+      name: 'Archive this person?',
+    });
+    await expect(archiveConfirmation).toBeVisible();
+    await archiveConfirmation
+      .getByRole('button', { name: 'Archive person' })
+      .click();
     expect((await archivedPerson).ok()).toBe(true);
     await expect(page).toHaveURL(`/console/orgs/${actor.orgId}/people`);
     await expect(
@@ -310,8 +316,14 @@ test('owner creates, edits and archives a person from the console', async ({
     await expect(
       memberEditor.getByRole('checkbox', { name: 'Can pick up' }),
     ).toBeChecked();
-    page.once('dialog', (dialog) => dialog.accept());
     await memberEditor.getByRole('button', { name: 'Remove member' }).click();
+    const removeConfirmation = page.getByRole('dialog', {
+      name: 'Remove this household member?',
+    });
+    await expect(removeConfirmation).toBeVisible();
+    await removeConfirmation
+      .getByRole('button', { name: 'Remove member' })
+      .click();
     await expect(page.getByText('No members yet.')).toBeVisible();
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {

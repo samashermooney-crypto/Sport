@@ -38053,6 +38053,10 @@
                   "properties": {
                     "id": { "type": "string", "pattern": "^pi_.*" },
                     "clientSecret": { "type": "string", "minLength": 1 },
+                    "customerSessionClientSecret": {
+                      "type": "string",
+                      "minLength": 1
+                    },
                     "status": { "type": "string", "minLength": 1 },
                     "quote": {
                       "type": "object",
@@ -38093,7 +38097,13 @@
                       "additionalProperties": false
                     }
                   },
-                  "required": ["id", "clientSecret", "status", "quote"],
+                  "required": [
+                    "id",
+                    "clientSecret",
+                    "customerSessionClientSecret",
+                    "status",
+                    "quote"
+                  ],
                   "additionalProperties": false
                 }
               }

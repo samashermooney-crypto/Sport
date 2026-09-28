@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 
 import type { Kysely } from 'kysely';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from '../../app';
 import { createDatabase } from '../../db/kysely';
@@ -43,6 +43,10 @@ beforeAll(() => {
     clock: () => now,
   }).listen(0);
   baseUrl = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/api/v1/auth`;
+});
+
+beforeEach(async () => {
+  await database.deleteFrom('rate_limit_points').execute();
 });
 
 afterAll(async () => {
@@ -244,6 +248,7 @@ describe('auth HTTP contract', () => {
       status: 'elevated',
     });
     const steppedCookie = authCookie(stepUp);
+    expect(steppedCookie).not.toBe(cookie);
     expect(
       (await fetch(`${baseUrl}/me`, { headers: { Cookie: cookie } })).status,
     ).toBe(401);
@@ -307,6 +312,7 @@ describe('auth HTTP contract', () => {
         Authorization: `Bearer ${bearer}`,
         'Content-Type': 'application/json',
         'X-Athlentry-Request': '1',
+        Origin: origin,
       },
       body: JSON.stringify({ method: 'password', password }),
     });
@@ -321,10 +327,12 @@ describe('auth HTTP contract', () => {
       client: 'ios',
       status: 'elevated',
     });
+    expect(nativeStepUp.headers.get('set-cookie')).toBeNull();
+    expect(nativeStepUp.headers.get('cache-control')).toBe('no-store');
     expect(nativeStepUpBody.token).not.toBe(bearer);
     expect(
       (
-        await fetch(`${baseUrl}/me`, {
+        await fetch(`${baseUrl}/sessions`, {
           headers: { Authorization: `Bearer ${bearer}` },
         })
       ).status,
@@ -337,7 +345,6 @@ describe('auth HTTP contract', () => {
     expect(
       (await fetch(`${baseUrl}/sessions`, { headers: bearerHeaders })).status,
     ).toBe(200);
-
     const wrongOrigin = await fetch(`${baseUrl}/devices`, {
       method: 'POST',
       headers: {
@@ -629,6 +636,17 @@ describe('auth HTTP contract', () => {
     ).sessions[0];
     const sessionId = session?.id;
     if (!sessionId) throw new Error('Expected an active auth session');
+    let stepUpWasLimited = false;
+    for (let attempt = 0; attempt < 9 && !stepUpWasLimited; attempt += 1) {
+      const rejectedStepUp = await post(
+        '/step-up',
+        { method: 'password', password: 'wrong password' },
+        deletionCookie,
+      );
+      if (rejectedStepUp.status === 429) stepUpWasLimited = true;
+      else expect(rejectedStepUp.status).toBe(401);
+    }
+    expect(stepUpWasLimited).toBe(true);
     const revoked = await fetch(`${baseUrl}/sessions/${sessionId}`, {
       method: 'DELETE',
       headers: {

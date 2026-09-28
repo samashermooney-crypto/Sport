@@ -447,6 +447,7 @@ export function createAuthRouter(
   });
   router.post('/mfa/enroll/confirm', async (request, response) => {
     const session = await requireSession(dependencies, request);
+    await dependencies.rateLimits.mfa(requestIp(request));
     const body: unknown = request.body;
     const codes = await confirmMfaEnrollment(
       dependencies,
@@ -464,13 +465,28 @@ export function createAuthRouter(
   });
   router.post('/step-up', async (request, response) => {
     const session = await requireSession(dependencies, request);
+    await dependencies.rateLimits.mfa(requestIp(request));
     const body: unknown = request.body;
     const parsed = stepUpBodySchema.parse(body);
-    const accepted =
+    const now = dependencies.clock();
+    const metadata = authMeta(request);
+    const rotated =
       parsed.method === 'password'
-        ? await stepUpWithPassword(dependencies, session, parsed.password)
-        : await stepUpWithTotp(dependencies, session, parsed.code);
-    if (!accepted)
+        ? await stepUpWithPassword(
+            dependencies,
+            session,
+            parsed.password,
+            metadata,
+            now,
+          )
+        : await stepUpWithTotp(
+            dependencies,
+            session,
+            parsed.code,
+            metadata,
+            now,
+          );
+    if (!rotated)
       throw new AuthHttpError(
         401,
         'INVALID_CREDENTIALS',
@@ -478,7 +494,7 @@ export function createAuthRouter(
       );
     response.setHeader('Cache-Control', 'no-store');
     if (session.kind === 'cookie') {
-      setSessionCookie(response, accepted, dependencies.clock());
+      setSessionCookie(response, rotated, now);
       response.json(
         stepUpResponseSchema.parse({ client: 'web', status: 'elevated' }),
       );
@@ -488,8 +504,8 @@ export function createAuthRouter(
       stepUpResponseSchema.parse({
         client: session.client,
         status: 'elevated',
-        token: accepted.token,
-        absoluteExpiresAt: accepted.absoluteExpiresAt.toISOString(),
+        token: rotated.token,
+        absoluteExpiresAt: rotated.absoluteExpiresAt.toISOString(),
       }),
     );
   });

@@ -13,7 +13,9 @@ import type { z } from 'zod';
 import { apiGet, apiPatch, apiPost } from '../api/client';
 import { useImpersonationId } from '../platform/impersonation';
 import { ConsoleShell } from '../ui/ConsoleShell';
+import { useToast } from '../ui/app-feedback';
 import { AuthFrame, AuthLink, ErrorBox } from '../ui/auth';
+import { ConfirmDialog } from '../ui/overlays';
 import {
   Button,
   Card,
@@ -73,6 +75,7 @@ export function PersonForm({
   submitLabel: string;
   onSubmit: (values: FormValues) => Promise<void>;
 }): React.JSX.Element {
+  const notify = useToast();
   const [values, setValues] = useState<FormValues>(
     initial
       ? {
@@ -103,6 +106,9 @@ export function PersonForm({
         setBusy(true);
         setError('');
         void onSubmit(values)
+          .then(() => {
+            notify(initial ? 'Person saved.' : 'Person created.', 'success');
+          })
           .catch((cause: unknown) => {
             setError(
               cause instanceof Error
@@ -663,6 +669,8 @@ export function PersonDetail(): React.JSX.Element {
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [archiveConfirmationOpen, setArchiveConfirmationOpen] = useState(false);
+  const notify = useToast();
   const person = useQuery({
     queryKey: ['people', orgId, personId],
     queryFn: () =>
@@ -692,6 +700,29 @@ export function PersonDetail(): React.JSX.Element {
       </AuthFrame>
     );
   const current = person.data;
+  const personName =
+    [current.firstName, current.lastName].filter(Boolean).join(' ') ||
+    'This person';
+  async function archivePerson(): Promise<void> {
+    setBusy(true);
+    setError('');
+    try {
+      await apiPost(
+        `/people/orgs/${String(orgId)}/${String(personId)}/archive`,
+        { expectedVersion: current.version },
+        personResponseSchema,
+      );
+      setArchiveConfirmationOpen(false);
+      await client.invalidateQueries({ queryKey: ['people', orgId] });
+      notify('Person archived. Their history remains available.', 'success');
+      void navigate(`/console/orgs/${String(orgId)}/people`);
+    } catch (cause) {
+      setArchiveConfirmationOpen(false);
+      setError(cause instanceof Error ? cause.message : 'Archive failed.');
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <PeopleShell orgId={orgId}>
       <main className="console-home">
@@ -752,37 +783,7 @@ export function PersonDetail(): React.JSX.Element {
               secondary
               disabled={busy}
               onClick={() => {
-                if (
-                  !window.confirm(
-                    `Archive ${current.firstName} ${current.lastName}?`,
-                  )
-                )
-                  return;
-                setBusy(true);
-                setError('');
-                void apiPost(
-                  `/people/orgs/${orgId}/${personId}/archive`,
-                  {
-                    expectedVersion: current.version,
-                  },
-                  personResponseSchema,
-                )
-                  .then(() => {
-                    void client.invalidateQueries({
-                      queryKey: ['people', orgId],
-                    });
-                    void navigate(`/console/orgs/${orgId}/people`);
-                  })
-                  .catch((cause: unknown) => {
-                    setError(
-                      cause instanceof Error
-                        ? cause.message
-                        : 'Archive failed.',
-                    );
-                  })
-                  .finally(() => {
-                    setBusy(false);
-                  });
+                setArchiveConfirmationOpen(true);
               }}
             >
               Archive person
@@ -812,6 +813,7 @@ export function PersonDetail(): React.JSX.Element {
                     await client.invalidateQueries({
                       queryKey: ['people', orgId],
                     });
+                    notify('Person restored.', 'success');
                   })
                   .catch((cause: unknown) => {
                     setError(
@@ -846,6 +848,21 @@ export function PersonDetail(): React.JSX.Element {
               profileEmail={current.email}
             />
           )}
+        <ConfirmDialog
+          title="Archive this person?"
+          open={archiveConfirmationOpen}
+          confirmLabel="Archive person"
+          busy={busy}
+          onCancel={() => {
+            setArchiveConfirmationOpen(false);
+          }}
+          onConfirm={() => {
+            void archivePerson();
+          }}
+        >
+          {personName} will no longer appear in active lists. Their
+          registrations, signatures, and audit history are retained.
+        </ConfirmDialog>
       </main>
     </PeopleShell>
   );

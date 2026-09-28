@@ -8,11 +8,15 @@ import { useState } from 'react';
 import { useParams } from 'react-router';
 
 import { apiGet, apiPatch, apiPost } from '../api/client';
+import { useToast } from '../ui/app-feedback';
 import { ErrorBox } from '../ui/auth';
+import { ConfirmDialog } from '../ui/overlays';
 import {
   Button,
   Card,
   Checkbox,
+  EmptyState,
+  ErrorState,
   Field,
   Input,
   PageHeader,
@@ -63,6 +67,7 @@ function initialField(index: number): FormSchema['fields'][number] {
 export function FormsConsole(): React.JSX.Element {
   const { orgId = '' } = useParams();
   const client = useQueryClient();
+  const notify = useToast();
   const definitions = useQuery({
     queryKey: ['forms', orgId, 'console'],
     queryFn: () => apiGet(`/forms/orgs/${orgId}`, formDefinitionListSchema),
@@ -77,6 +82,7 @@ export function FormsConsole(): React.JSX.Element {
   const [editVersion, setEditVersion] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [publishConfirmationOpen, setPublishConfirmationOpen] = useState(false);
 
   function edit(id: string): void {
     const item = definitions.data?.items.find((row) => row.id === id);
@@ -85,6 +91,7 @@ export function FormsConsole(): React.JSX.Element {
     setEditVersion(item.version);
     setDefinition({ name: item.name, scope: item.scope, schema: item.schema });
     setError('');
+    setPublishConfirmationOpen(false);
   }
 
   function newDefinition(): void {
@@ -92,6 +99,7 @@ export function FormsConsole(): React.JSX.Element {
     setEditVersion(null);
     setDefinition(blankDefinition());
     setError('');
+    setPublishConfirmationOpen(false);
   }
 
   function setField<K extends keyof FormSchema['fields'][number]>(
@@ -111,6 +119,7 @@ export function FormsConsole(): React.JSX.Element {
 
   async function save(): Promise<void> {
     if (!orgId) return;
+    const wasEditing = selectedId !== null;
     setBusy(true);
     setError('');
     try {
@@ -133,6 +142,10 @@ export function FormsConsole(): React.JSX.Element {
         schema: saved.schema,
       });
       await client.invalidateQueries({ queryKey: ['forms', orgId, 'console'] });
+      notify(
+        wasEditing ? 'Form draft saved.' : 'Form created as a draft.',
+        'success',
+      );
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : 'Form could not be saved.',
@@ -155,6 +168,8 @@ export function FormsConsole(): React.JSX.Element {
       setSelectedId(saved.id);
       setEditVersion(saved.version);
       await client.invalidateQueries({ queryKey: ['forms', orgId, 'console'] });
+      setPublishConfirmationOpen(false);
+      notify('Form version published.', 'success');
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : 'Form could not be published.',
@@ -182,7 +197,16 @@ export function FormsConsole(): React.JSX.Element {
               </Button>
             </div>
             {definitions.isPending && <p role="status">Loading forms…</p>}
-            {definitions.isError && <p>Forms could not be loaded.</p>}
+            {definitions.isError && (
+              <ErrorState
+                title="Forms could not be loaded"
+                onRetry={() => {
+                  void definitions.refetch();
+                }}
+              >
+                Your saved forms are unchanged.
+              </ErrorState>
+            )}
             <ul>
               {definitions.data?.items.map((item) => (
                 <li key={item.id}>
@@ -199,6 +223,12 @@ export function FormsConsole(): React.JSX.Element {
                 </li>
               ))}
             </ul>
+            {definitions.data?.items.length === 0 && (
+              <EmptyState title="No forms yet">
+                Create a form for profiles, registrations, or another program
+                workflow.
+              </EmptyState>
+            )}
           </Card>
           <Card>
             <form
@@ -426,7 +456,9 @@ export function FormsConsole(): React.JSX.Element {
                   <Button
                     type="button"
                     disabled={busy}
-                    onClick={() => void publish()}
+                    onClick={() => {
+                      setPublishConfirmationOpen(true);
+                    }}
                   >
                     Publish version
                   </Button>
@@ -435,6 +467,21 @@ export function FormsConsole(): React.JSX.Element {
             </form>
           </Card>
         </div>
+        <ConfirmDialog
+          title="Publish this form version?"
+          open={publishConfirmationOpen}
+          confirmLabel="Publish version"
+          busy={busy}
+          onCancel={() => {
+            setPublishConfirmationOpen(false);
+          }}
+          onConfirm={() => {
+            void publish();
+          }}
+        >
+          New form responses will use this version. Existing responses keep the
+          version they were submitted against.
+        </ConfirmDialog>
       </main>
     </PeopleShell>
   );

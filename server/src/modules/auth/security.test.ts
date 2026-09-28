@@ -148,13 +148,26 @@ describe('MFA enrollment and re-authentication', () => {
       ),
     ).toBe(true);
 
-    const passwordRotation = await stepUpWithPassword(
+    const passwordStepUp = await stepUpWithPassword(
       dependencies,
       active,
       'large cedar forest bridge 14',
     );
-    expect(passwordRotation).not.toBeNull();
-    if (!passwordRotation) throw new Error('Password step-up did not rotate');
+    expect(passwordStepUp).not.toBeNull();
+    if (!passwordStepUp) throw new Error('Password step-up failed');
+    const originalAbsoluteExpiry = await database
+      .selectFrom('sessions')
+      .select('absolute_expires_at')
+      .where('id', '=', issued.id)
+      .executeTakeFirstOrThrow();
+    const rotatedAbsoluteExpiry = await database
+      .selectFrom('sessions')
+      .select('absolute_expires_at')
+      .where('id', '=', passwordStepUp.id)
+      .executeTakeFirstOrThrow();
+    expect(rotatedAbsoluteExpiry.absolute_expires_at).toEqual(
+      originalAbsoluteExpiry.absolute_expires_at,
+    );
     expect(
       await database
         .transaction()
@@ -162,7 +175,7 @@ describe('MFA enrollment and re-authentication', () => {
     ).toBeNull();
     const stepped = await database
       .transaction()
-      .execute((trx) => resolveSession(trx, passwordRotation.token, now));
+      .execute((trx) => resolveSession(trx, passwordStepUp.token, now));
     if (!stepped) throw new Error('Session missing');
     expect(await regenerateRecoveryCodes(dependencies, stepped)).toHaveLength(
       10,
@@ -186,7 +199,7 @@ describe('MFA enrollment and re-authentication', () => {
     expect(
       await database
         .transaction()
-        .execute((trx) => resolveSession(trx, passwordRotation.token, now)),
+        .execute((trx) => resolveSession(trx, passwordStepUp.token, now)),
     ).toBeNull();
     expect(
       await database

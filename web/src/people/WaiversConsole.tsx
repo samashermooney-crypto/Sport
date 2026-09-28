@@ -8,10 +8,14 @@ import { useState } from 'react';
 import { useParams } from 'react-router';
 
 import { apiGet, apiPatch, apiPost } from '../api/client';
+import { useToast } from '../ui/app-feedback';
 import { ErrorBox } from '../ui/auth';
+import { ConfirmDialog } from '../ui/overlays';
 import {
   Button,
   Card,
+  EmptyState,
+  ErrorState,
   Field,
   Input,
   PageHeader,
@@ -31,6 +35,7 @@ const blankWaiver = (): WaiverDocumentCreate => ({
 export function WaiversConsole(): React.JSX.Element {
   const { orgId = '' } = useParams();
   const client = useQueryClient();
+  const notify = useToast();
   const documents = useQuery({
     queryKey: ['waivers', orgId, 'console'],
     queryFn: () => apiGet(`/waivers/orgs/${orgId}`, waiverDocumentListSchema),
@@ -42,6 +47,7 @@ export function WaiversConsole(): React.JSX.Element {
   const [editVersion, setEditVersion] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [publishConfirmationOpen, setPublishConfirmationOpen] = useState(false);
 
   function edit(id: string): void {
     const item = documents.data?.items.find((row) => row.id === id);
@@ -55,6 +61,7 @@ export function WaiversConsole(): React.JSX.Element {
       renewal: item.renewal,
     });
     setError('');
+    setPublishConfirmationOpen(false);
   }
 
   function create(): void {
@@ -62,10 +69,12 @@ export function WaiversConsole(): React.JSX.Element {
     setEditVersion(null);
     setDocument(blankWaiver());
     setError('');
+    setPublishConfirmationOpen(false);
   }
 
   async function save(): Promise<void> {
     if (!orgId) return;
+    const wasEditing = selectedId !== null;
     setBusy(true);
     setError('');
     try {
@@ -91,6 +100,10 @@ export function WaiversConsole(): React.JSX.Element {
       await client.invalidateQueries({
         queryKey: ['waivers', orgId, 'console'],
       });
+      notify(
+        wasEditing ? 'Waiver draft saved.' : 'Waiver created as a draft.',
+        'success',
+      );
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : 'Waiver could not be saved.',
@@ -114,6 +127,8 @@ export function WaiversConsole(): React.JSX.Element {
       await client.invalidateQueries({
         queryKey: ['waivers', orgId, 'console'],
       });
+      setPublishConfirmationOpen(false);
+      notify('Waiver version published.', 'success');
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -142,7 +157,16 @@ export function WaiversConsole(): React.JSX.Element {
             </Button>
           </div>
           {documents.isPending && <p role="status">Loading waivers…</p>}
-          {documents.isError && <p>Waivers could not be loaded.</p>}
+          {documents.isError && (
+            <ErrorState
+              title="Waivers could not be loaded"
+              onRetry={() => {
+                void documents.refetch();
+              }}
+            >
+              Your saved waivers are unchanged.
+            </ErrorState>
+          )}
           <ul>
             {documents.data?.items.map((item) => (
               <li key={item.id}>
@@ -154,15 +178,23 @@ export function WaiversConsole(): React.JSX.Element {
                   }}
                 >
                   {item.name} · v{item.version} ·{' '}
-                  {item.publishedAt
-                    ? 'Published'
-                    : item.templateUnreviewed
-                      ? 'Review required'
-                      : 'Draft'}
+                  {item.retiredAt
+                    ? 'Retired'
+                    : item.publishedAt
+                      ? 'Published'
+                      : item.templateUnreviewed
+                        ? 'Review required'
+                        : 'Draft'}
                 </button>
               </li>
             ))}
           </ul>
+          {documents.data?.items.length === 0 && (
+            <EmptyState title="No waivers yet">
+              Add organization-reviewed text before publishing a waiver for
+              families to sign.
+            </EmptyState>
+          )}
         </Card>
         <Card>
           <form
@@ -264,7 +296,9 @@ export function WaiversConsole(): React.JSX.Element {
                   <Button
                     type="button"
                     disabled={busy}
-                    onClick={() => void publish()}
+                    onClick={() => {
+                      setPublishConfirmationOpen(true);
+                    }}
                   >
                     Publish version
                   </Button>
@@ -272,6 +306,22 @@ export function WaiversConsole(): React.JSX.Element {
             </div>
           </form>
         </Card>
+        <ConfirmDialog
+          title="Publish this waiver version?"
+          open={publishConfirmationOpen}
+          confirmLabel="Publish version"
+          busy={busy}
+          onCancel={() => {
+            setPublishConfirmationOpen(false);
+          }}
+          onConfirm={() => {
+            void publish();
+          }}
+        >
+          Families can sign this version after publishing. The previous
+          published version will be retired, and its signature records stay
+          available.
+        </ConfirmDialog>
       </main>
     </PeopleShell>
   );
