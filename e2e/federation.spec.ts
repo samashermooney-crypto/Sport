@@ -78,10 +78,32 @@ test('two member clubs complete a U12 inter-club season', async ({
       withOrg,
       league,
     );
+    await expect
+      .poll(
+        async () => {
+          try {
+            const response = await page
+              .context()
+              .request.get(`http://127.0.0.1:${String(3001 + offset)}/readyz`);
+            if (response.status() !== 200) return false;
+            const body: unknown = await response.json();
+            return (
+              typeof body === 'object' &&
+              body !== null &&
+              'ready' in body &&
+              body.ready === true
+            );
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 30_000 },
+      )
+      .toBe(true);
     await page.goto(`/console/federation/${league.orgId}`);
     await expect(
       page.getByRole('heading', { name: 'League and association' }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     expect(await accessibilityViolations(page)).toEqual([]);
 
     await page.getByRole('button', { name: 'Relationships' }).click();
@@ -172,6 +194,19 @@ test('two member clubs complete a U12 inter-club season', async ({
       await expect(
         page.getByText('Availability offered to the league.'),
       ).toBeVisible();
+      const offeredWindow = await withOrg(club, (trx) =>
+        trx
+          .selectFrom('federation_space_contributions')
+          .select(['starts_at', 'ends_at'])
+          .where('status', '=', 'offered')
+          .executeTakeFirstOrThrow(),
+      );
+      expect(new Date(String(offeredWindow.starts_at)).toISOString()).toBe(
+        '2026-10-10T14:00:00.000Z',
+      );
+      expect(new Date(String(offeredWindow.ends_at)).toISOString()).toBe(
+        '2026-10-10T15:30:00.000Z',
+      );
     }
 
     await loginAs(

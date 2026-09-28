@@ -1,6 +1,6 @@
 # Track J — Phase 13 Federation
 
-Status: ready for integration; final trunk integration pending
+Status: Phase 13 shipped on `rebuild/trunk` at `9381acd1`; the Linux federation CI follow-up is included in the locally validated `rebuild/trunk` merge candidate.
 Branch: `track/j-federation`
 Worktree: `/Users/sammooney/Sport-j-federation`
 Stack: `COMPOSE_PROJECT_NAME=athlentry_j`, `PORT_OFFSET=1000` (Postgres 6432; local Playwright override maps Mailpit API to 9825 because 9025 is occupied by Track A's Mailpit SMTP port).
@@ -24,21 +24,32 @@ Phase 13: org relationships + data-sharing agreements, member-club team entries 
 
 ## Validation
 - Federation integration tests: 19/19 passed, including per-facility timezone selection and organization-timezone fallback.
-- Federation Playwright acceptance journey: passed in Chromium desktop and WebKit mobile with the browser set to UTC; axe checks passed.
-- Full unit/integration suite: 874 passed, 1 pre-existing skipped; production build passed.
-- All-project Playwright attempt: 56 passed, 14 failed, 16 skipped. The Phase 13 journey passed in both projects. Email-dependent specs hit `127.0.0.1:9025`, which is Track A's SMTP mapping; J's Mailpit API is mapped to 9825 to avoid the collision. Other failures were in unrelated WebKit journeys.
+- Federation Playwright acceptance journey in `mcr.microsoft.com/playwright:v1.63.0-noble` (`linux/amd64`, `CI=true`, `TZ=UTC`, one worker): Chromium and WebKit both exited 0 after one retry each. The x86 image ran under ARM-host emulation, so native x86 GitHub Actions remains authoritative.
+- Locked merge candidate based on `84c85f8d`: typecheck and lint passed; full unit/integration suite passed with 969 passed and 1 skipped (970 total, 272 files passed and 1 skipped) against the isolated J Postgres at port 6432; full Chromium project in Linux ARM64 exited 0 with 37 passed, 9 flaky retries, and 6 skipped; production build passed. The local E2E worker starts with the lock-pinned `pg-boss` 12.1.1 dependency and reported `worker ready`.
+- Combined trunk gate at `9381acd1`: typecheck, lint, and Knip passed; 880/880 unit and integration tests passed; 74 Playwright cases passed across Chromium and WebKit with 16 existing conditional skips; production build passed; main bundle measured 143.71 KB gzip against the 200 KB budget.
+- After syncing `rebuild/trunk` through `cfe4c7c9`, `server/test/federation.test.ts` passed 19/19; typecheck and lint passed. The Linux CI trace showed `getByRole('group').first()` in `inviteClub` selecting the shell's earlier “Some panels are unavailable to your role” group instead of the “Proposed data-sharing agreement” fieldset; the locator now targets the fieldset by accessible name. The trace also showed startup requests receiving plain-text 500 responses while Vite was available before the proxied API; the E2E journey now waits for API `/readyz` to return `{ ready: true }` before navigation and gives the initial heading assertion 15 seconds. The latest Linux Playwright 1.63.0 Noble run on `cfe4c7c9` passed Chromium and WebKit (2/2, 49.7 seconds, `CI=true TZ=UTC`, one worker). An additional `linux/amd64` run under ARM-host emulation passed Chromium; WebKit passed on retry after a target crash during the final axe scan at the standings screen. Two earlier ARM64 runs also passed cleanly (48.8 and 54.1 seconds). Native x86_64 GitHub CI remains the authoritative runner check.
+- Full `npm test` on `cfe4c7c9` had 959 passed, 1 skipped, and 4 failing tests: `peopleFilters.test.ts` violates `roster_entries_check`; both classes promotion cases violate `class_enrollments_check`; the sponsors placement integration test returns no placement. Four additional DB suites timed out in `server/test/setup.ts` cleanup hooks while both heavy slots were occupied. Track A owns people filters, Track I owns classes, and Track H owns sponsors; the federation integration file remains green (19/19).
+- The Linux schedule-stats repro under the same UTC browser settings received “postpone 0 affected events” where the test expects one; the facility timezone root cause and precise fix request are recorded in Track G's “Requests from J”. This is outside Track J's owned code.
+- The initial all-project Playwright run on J's isolated stack had 56 passes, 14 failures, and 16 skips because email-dependent specs hit Track A's SMTP mapping on port 9025. The final combined trunk gate passed with an isolated stack and the Track J journey passed in both browsers.
 - Cross-timezone bug note recorded in Track G's request section: the hosted schedule journey's Chicago window was previously interpreted in UTC CI, causing no games to be generated.
 
 ## Requests from OPS
 
-- **Track J (Knip, 2026-09-27):** resolve or wire unused `server/src/modules/federation/demo.ts` and `web/src/console/federation/nav.ts`, and remove or consume `expandAvailabilityWindows` and `withFederationAccess`; `npm run knip` reports them on updated `rebuild/trunk`. If console navigation belongs in the central shell, coordinate that link with Track C. OPS did not modify J-owned files.
+- **Track J (Knip, 2026-09-27):** resolved in `9381acd1`: the federation demo seed is wired to the demo profile, the federation navigation is consumed by the console, and the combined Knip gate passes.
 
 ## Requests to other tracks
-- C (wiring): nested route discovery now registers `consoleFederationRoutes` in `web/src/generated/nested-routes.ts`, and `web/src/app.tsx` mounts those routes. The federation `nav.ts` is not part of that nested route registry, and `web/src/console/Home.tsx` has no federation entry point; include the nav item or a link to `/console/federation/:orgId` for organizations with federation access. Track J does not own the console home, app router, or generated registries.
+- C (wiring): resolved in `9381acd1`; nested route discovery registers and mounts `consoleFederationRoutes`, and the console navigation includes a Federation entry for organizations with access.
 - C/notifications catalog owner: add federation notification types (`federation.relationship_invited`, `federation.entry_decided`, `federation.fee_invoiced`, `federation.discipline_issued`) if federation notifications are included in the platform catalog. They are not part of the Phase 13 acceptance criteria, so the module currently emits none.
 - G: federation adapts accepted external-team entries and contributed windows into G's `runScheduleGeneration` service, and uses G's `insertSpaceBooking` helper when applying hosted games. Cross-club contest results, standings, and official assignments still use federation-owned adapters because G's current services expect organization-local team membership; expose cross-org hooks if those services are extended for league ownership.
-- K: federation demo seed helper is `server/src/modules/federation/demo.ts` (association + 2 member clubs scenario); call it from the Phase 15 `demo` profile seed for Metro Youth Sports Association.
+- K: resolved in `9381acd1`; `seedFederationDemo` runs from the Phase 15 `demo` profile seed for Metro Youth Sports Association.
 - E: league-fee invoices currently use `source='staff'` and line kind `team_fee`; if a `federation_fee` enum value is added to `invoices.source`/`invoice_lines.kind`, federation should adopt it (see DECISIONS).
 
 ## Blocked on
-No Phase 13 behavior is blocked. The lock-protected trunk merge gate remains pending because the full browser suite currently has environment failures at the occupied Mailpit port described above; the required Track J journeys pass in both browsers. Track C owns Console Home, which has no federation shortcut; that wiring request remains outside the paths owned by J and does not block the Phase 13 acceptance criteria. Cross-club contest/results, standings, and official-assignment service reuse remains a follow-up if Track G adds cross-organization hooks.
+No Phase 13 behavior is blocked. The earlier red full suite on `cfe4c7c9` is cleared by trunk follow-up changes through `84c85f8d`; the locked merge candidate passed typecheck, lint, the full unit/integration suite, full Chromium project, and production build. The x86 Linux federation journey passed both projects after one retry each under local ARM emulation; native x86 GitHub Actions remains authoritative. Cross-club contest/results, standings, and official-assignment service reuse remains a follow-up if Track G adds cross-organization hooks. The schedule-stats timezone root cause and Track I's implementation are recorded in Track G.
+
+Track J sprint complete
+
+## Requests from I
+
+- **Trunk verification (2026-09-27, `2c52eb47`):** `e2e/federation.spec.ts` passes 2/2 in Chromium desktop and WebKit mobile, and the class-family journey also passes 2/2, so federation routing/shell changes did not cause the reported academy failures. The earlier WebKit roster failure at `e2e/classes.spec.ts:267` was an inaccessible-name assertion against a mobile DataTable spanning cell: its visible `Enrollment type` label and `makeup` value were present, but the cell had no computed name. The assertion now checks the visible label and exact value; both browsers pass.
+- Track C owns Console Home, which has no federation shortcut; that wiring request is outside J-owned paths and does not block Phase 13 acceptance.
