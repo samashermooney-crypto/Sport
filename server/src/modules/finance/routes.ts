@@ -138,7 +138,10 @@ import {
   payoutReconciliationSchema,
   PostgresPayoutReconciliation,
 } from './reconciliation.js';
-import { PostgresRefundApprovalPolicy } from './refund-approval-repo.js';
+import {
+  PostgresRefundApprovalPolicy,
+  refundApprovalQueueSchema,
+} from './refund-approval-repo.js';
 import { PostgresRefundAttemptStore } from './refund-attempt-repo.js';
 import { PostgresRefundRecordStore } from './refund-record-repo.js';
 import { PostgresRefundSourceReader } from './refund-source-repo.js';
@@ -2060,6 +2063,19 @@ export function createFinanceRouter(
           amountCents: result.proposal.totalCents,
         }),
       );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+  router.get('/orgs/:orgId/refund-approvals', async (request, response) => {
+    try {
+      if (requestImpersonation(request)) throw new FinanceAccessError();
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const approvals = await new PostgresRefundApprovalPolicy(
+        dependencies.database,
+      ).listPending(orgId, session.accountId);
+      response.json(refundApprovalQueueSchema.parse(approvals));
     } catch (error) {
       sendError(response, error);
     }
