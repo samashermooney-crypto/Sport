@@ -408,6 +408,64 @@ describe('auth HTTP contract', () => {
       ((await webPushList.json()) as { devices: { id: string }[] }).devices,
     ).toEqual([expect.objectContaining({ id: webPushId })]);
 
+    const androidChallengeResponse = await fetch(`${baseUrl}/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Athlentry-Request': '1',
+      },
+      body: JSON.stringify({
+        email: input.email,
+        password,
+        client: 'android',
+      }),
+    });
+    expect(androidChallengeResponse.status).toBe(200);
+    const androidChallenge = (await androidChallengeResponse.json()) as {
+      status: string;
+      challengeToken: string;
+    };
+    expect(androidChallenge.status).toBe('mfa_required');
+    const androidMfa = await fetch(`${baseUrl}/token/mfa`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Athlentry-Request': '1',
+      },
+      body: JSON.stringify({
+        challengeToken: androidChallenge.challengeToken,
+        code: recoveryCodes[2],
+        method: 'recovery',
+        client: 'android',
+      }),
+    });
+    expect(androidMfa.status).toBe(200);
+    const androidBearer = ((await androidMfa.json()) as { token: string })
+      .token;
+    const fcm = await fetch(`${baseUrl}/devices`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${androidBearer}`,
+        'Content-Type': 'application/json',
+        'X-Athlentry-Request': '1',
+      },
+      body: JSON.stringify({ platform: 'fcm', token: 'f'.repeat(64) }),
+    });
+    expect(fcm.status).toBe(200);
+    const fcmDevice = (await fcm.json()) as { id: string; platform: string };
+    expect(fcmDevice.platform).toBe('fcm');
+    expect(fcmDevice).not.toHaveProperty('token');
+    const androidDevices = await fetch(`${baseUrl}/devices`, {
+      headers: { Authorization: `Bearer ${androidBearer}` },
+    });
+    expect(
+      ((await androidDevices.json()) as { devices: { id: string }[] }).devices,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: fcmDevice.id, platform: 'fcm' }),
+      ]),
+    );
+
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const requested = await post('/magic/request', {
         email: 'unknown@example.invalid',
