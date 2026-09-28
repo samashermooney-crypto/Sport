@@ -1143,7 +1143,7 @@ export async function createPlacementBoard(
       seed: input.seed,
       timeBudgetSeconds: 5,
     });
-    for (const row of participants) {
+    const placementRows = participants.map((row) => {
       const teamSeasonId = balanced.assignments[row.person_id];
       if (!teamSeasonId)
         throw new EvaluationError(
@@ -1151,11 +1151,17 @@ export async function createPlacementBoard(
           'BALANCING_FAILED',
           'A participant could not be assigned',
         );
-      await sql`INSERT INTO team_placements(id,org_id,placement_board_id,person_id,team_season_id,source,seed_rating)
-        VALUES (${randomUUID()},${context.orgId},${id},${row.person_id},${teamSeasonId},${eventId ? 'evaluation' : 'rec_league'},${row.composite})`.execute(
-        trx,
-      );
-    }
+      return {
+        id: randomUUID(),
+        org_id: context.orgId,
+        placement_board_id: id,
+        person_id: row.person_id,
+        team_season_id: teamSeasonId,
+        source: eventId ? ('evaluation' as const) : ('rec_league' as const),
+        seed_rating: row.composite,
+      };
+    });
+    await trx.insertInto('team_placements').values(placementRows).execute();
     await sql`UPDATE placement_boards SET fairness_metrics=${JSON.stringify(balanced.metrics)}::jsonb,version=version+1,updated_at=now()
       WHERE org_id=${context.orgId} AND id=${id}`.execute(trx);
     await appendAuditEvent(trx, context, {
