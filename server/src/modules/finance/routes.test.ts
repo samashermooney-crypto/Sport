@@ -1088,17 +1088,23 @@ describe('staff refund HTTP', () => {
       paymentId: secondPaymentId,
       cancellationDate: '2026-09-27',
     });
-    const post = (path: string, sessionToken: string, withBody = true) =>
+    const post = (
+      path: string,
+      sessionToken: string,
+      withBody = true,
+      operationKey = key,
+      requestBody = body,
+    ) =>
       fetch(`${baseUrl}/orgs/${context.orgId}/${path}`, {
         method: 'POST',
         headers: {
           Cookie: `__Host-athlentry_session=${sessionToken}`,
           Origin: origin,
           'X-Athlentry-Request': '1',
-          'Idempotency-Key': key,
+          'Idempotency-Key': operationKey,
           'Content-Type': 'application/json',
         },
-        ...(withBody ? { body } : {}),
+        ...(withBody ? { body: requestBody } : {}),
       });
     expect((await post('refunds', token)).status).toBe(409);
     const requested = await post('refund-approvals', token);
@@ -1128,7 +1134,71 @@ describe('staff refund HTTP', () => {
       refundId: 're_route_second',
     });
     expect((await post('refunds', token)).status).toBe(201);
-    expect(createRefund).toHaveBeenCalledTimes(2);
+    const invoiceLineId = (
+      await createWithOrg(database)(context, (trx) =>
+        trx
+          .selectFrom('invoice_lines')
+          .select('id')
+          .where('org_id', '=', context.orgId)
+          .where('invoice_id', '=', invoice.id)
+          .where('kind', '=', 'registration')
+          .executeTakeFirstOrThrow(),
+      )
+    ).id;
+    const exactKey = randomUUID();
+    const exactBody = JSON.stringify({
+      destination: 'original_method',
+      paymentId: secondPaymentId,
+      cancellationDate: '2026-09-27',
+      exactLine: { invoiceLineId, amountCents: 500 },
+    });
+    createRefund.mockResolvedValueOnce({
+      id: 're_route_exact',
+      status: 'pending',
+      amountCents: 500,
+    });
+    const exactApproval = await post(
+      'refund-approvals',
+      token,
+      true,
+      exactKey,
+      exactBody,
+    );
+    expect(exactApproval.status).toBe(201);
+    const exactApprovalRecord = (await exactApproval.json()) as {
+      id: string;
+      amountCents: number;
+    };
+    expect(exactApprovalRecord.amountCents).toBe(500);
+    await database
+      .updateTable('sessions')
+      .set({ elevated_until: new Date(now.getTime() + 15 * 60 * 1000) })
+      .where('id', '=', approverSessionId)
+      .execute();
+    expect(
+      (
+        await post(
+          `refund-approvals/${exactApprovalRecord.id}/approve`,
+          approverToken,
+          false,
+          exactKey,
+        )
+      ).status,
+    ).toBe(200);
+    const exactExecution = await post(
+      'refunds',
+      token,
+      true,
+      exactKey,
+      exactBody,
+    );
+    expect(exactExecution.status).toBe(201);
+    expect(await exactExecution.json()).toMatchObject({
+      destination: 'original_method',
+      refundId: 're_route_exact',
+      amountCents: 500,
+    });
+    expect(createRefund).toHaveBeenCalledTimes(3);
   });
 });
 
@@ -1443,7 +1513,9 @@ describe('Connect Express finance HTTP', () => {
       refreshUrl: string;
     };
     expect(linkArgs.accountId).toBe('acct_route');
+    expect(linkArgs.returnUrl).toContain('/console/orgs/');
     expect(linkArgs.returnUrl).toContain('/money/connect/return');
+    expect(linkArgs.refreshUrl).toContain('/console/orgs/');
     expect(linkArgs.refreshUrl).toContain('/money/connect/refresh');
     const status = await fetch(`${path}/status`, {
       headers: { Cookie: headers.Cookie },

@@ -1,15 +1,24 @@
 import type { ServiceFeeConfig } from '@shared/algorithms/fees';
-import type { PricingInput } from '@shared/algorithms/pricing';
+import type {
+  AidAward,
+  DiscountRule,
+  PricingInput,
+} from '@shared/algorithms/pricing';
 import { sql } from 'kysely';
 import { z } from 'zod';
 
 import type { Json } from '../../db/types.js';
 import type { OrgTransaction } from '../../db/withOrg.js';
+import { reserveDiscountCode } from '../checkout/discount-codes.js';
+import type { CheckoutPricingSourceLoader } from '../checkout/pricing-repo.js';
 import { frozenPaymentTermsSchema } from '../finance/frozen-charge-repo.js';
 import { refundTermsSchema } from '../finance/refund-terms.js';
 
-import { reserveDiscountCode } from './discount-codes.js';
-import type { CheckoutPricingSourceLoader } from './pricing-repo.js';
+import {
+  addOnListSchema,
+  parseCheckoutRequirements,
+  volunteerRequirementSchema,
+} from './requirements.js';
 
 const cartSchema = z
   .object({
@@ -25,19 +34,11 @@ const cartSchema = z
           .strict(),
       )
       .min(1),
-    discountCodes: z.array(z.string()).optional(),
-    applyCreditCents: z.literal(0).optional(),
   })
   .strict();
 
-const emptyObject = (value: Json): boolean =>
-  !!value &&
-  typeof value === 'object' &&
-  !Array.isArray(value) &&
-  Object.keys(value).length === 0;
-
 const orgSettingsSchema = z
-  .object({
+  .looseObject({
     confirmOnAchProcessing: z.boolean().optional(),
     lateFeeCents: z.number().int().nonnegative().max(10_000).optional(),
     refundTerms: refundTermsSchema.optional(),
@@ -63,14 +64,31 @@ const orgSettingsSchema = z
       ])
       .optional(),
   })
-  .strict();
+  .strip();
 
-const siblingRuleSchema = z
-  .object({
-    second_bps: z.number().int().min(0).max(10_000),
-    third_plus_bps: z.number().int().min(0).max(10_000),
+const priceWindowSchema = z.strictObject({
+  startsAt: z.string(),
+  endsAt: z.string(),
+  priceCents: z.number().int().nonnegative(),
+});
+const offeringPricingSchema = z
+  .looseObject({
+    early: priceWindowSchema.optional(),
+    late: priceWindowSchema.optional(),
+    planTemplateIds: z.array(z.uuid()).max(10).optional(),
   })
-  .strict();
+  .strip();
+
+const autoRuleConfigSchema = z.strictObject({
+  kind: z.enum(['percent', 'fixed']),
+  value: z.number().int().positive(),
+  offeringIds: z.array(z.uuid()).optional(),
+  requiresReturning: z.boolean().optional(),
+});
+const siblingRuleSchema = z.strictObject({
+  second_bps: z.number().int().min(0).max(10_000),
+  third_plus_bps: z.number().int().min(0).max(10_000),
+});
 
 interface OfferingRow {
   id: string;
@@ -82,19 +100,22 @@ interface OfferingRow {
   price_cents: number;
   season_id: string;
   program_status: string;
+  program_settings: Json;
   registration_opens_at: Date | null;
   registration_closes_at: Date | null;
   active: boolean;
   pricing: Json;
   add_ons: Json;
-  eligibility: Json;
-  settings: Json;
   access_ok: boolean;
   registration_ok: boolean;
 }
 
-/** A fail-closed source loader for unmodified, base-price registration carts. */
-export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSourceLoader {
+/**
+ * Full source loader for family carts: price windows, selected add-ons,
+ * volunteer buyout, sibling and automatic rules, codes, aid awards, credits
+ * and product tax, all locked inside the freeze transaction.
+ */
+export class PostgresRegistrationPricingSource implements CheckoutPricingSourceLoader {
   async load(
     trx: OrgTransaction,
     checkout: {
@@ -102,12 +123,14 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
       checkoutId: string;
       accountId: string;
       items: Json;
+      requirements?: Json;
     },
   ): Promise<{
     pricing: PricingInput;
     paymentTerms: z.output<typeof frozenPaymentTermsSchema>;
   }> {
     const cart = cartSchema.parse(checkout.items);
+    const requirements = parseCheckoutRequirements(checkout.requirements);
     if (
       new Set(cart.offerings.map((item) => item.lineId)).size !==
         cart.offerings.length ||
@@ -116,6 +139,18 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
       ).size !== cart.offerings.length
     )
       throw new Error('Duplicate registration cart line');
+    const defaultLines = cart.offerings.map((item) => ({
+      lineId: item.lineId,
+      addOns: [],
+      volunteer: 'none' as const,
+    }));
+    const lineById = new Map(
+      (requirements?.lines ?? defaultLines).map((line) => [line.lineId, line]),
+    );
+    for (const item of cart.offerings) {
+      if (!lineById.has(item.lineId))
+        throw new Error('Checkout requirements are missing for a cart line');
+    }
     const organization = await trx
       .selectFrom('organizations')
       .select([
@@ -127,11 +162,7 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
       .where('id', '=', checkout.orgId)
       .forUpdate()
       .executeTakeFirstOrThrow();
-    const settings = orgSettingsSchema.safeParse(organization.settings);
-    if (!settings.success)
-      throw new Error(
-        'Configured organization pricing needs a supported source loader',
-      );
+    const settings = orgSettingsSchema.parse(organization.settings ?? {});
     const now = new Date();
     const rows: OfferingRow[] = [];
     for (const item of cart.offerings) {
@@ -139,9 +170,9 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
         SELECT o.id, o.program_id, o.division_id, o.visibility,
           ${item.personId}::uuid AS person_id,
           ${item.householdId}::uuid AS household_id, o.price_cents,
-          p.season_id, p.status AS program_status, p.registration_opens_at,
-          p.registration_closes_at, o.active, o.pricing, o.add_ons,
-          p.eligibility, p.settings,
+          p.season_id, p.status AS program_status, p.settings AS program_settings,
+          p.registration_opens_at, p.registration_closes_at, o.active,
+          o.pricing, o.add_ons,
           EXISTS (
             SELECT 1 FROM household_members athlete
             JOIN households h ON h.org_id = athlete.org_id AND h.id = athlete.household_id
@@ -182,16 +213,6 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
         (row.registration_closes_at && row.registration_closes_at <= now)
       )
         throw new Error('Registration pricing source is unavailable');
-      if (
-        !emptyObject(row.pricing) ||
-        !emptyObject(row.eligibility) ||
-        !emptyObject(row.settings) ||
-        !Array.isArray(row.add_ons) ||
-        row.add_ons.length !== 0
-      )
-        throw new Error(
-          'Configured offering pricing needs a supported source loader',
-        );
       rows.push(row);
     }
     if (
@@ -232,12 +253,12 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
         throw new Error('Registration capacity hold is unavailable');
     }
     const seasonIds = [...new Set(rows.map((row) => row.season_id))];
-    await sql`LOCK TABLE automatic_discount_rules, aid_applications, tax_rates IN SHARE MODE`.execute(
+    await sql`LOCK TABLE automatic_discount_rules, aid_applications, tax_rates, credits IN SHARE MODE`.execute(
       trx,
     );
     const rules = await trx
       .selectFrom('automatic_discount_rules')
-      .select(['id', 'kind', 'config', 'season_id'])
+      .select(['id', 'kind', 'config', 'season_id', 'priority', 'stackable'])
       .where('org_id', '=', checkout.orgId)
       .where('active', '=', true)
       .where((eb) =>
@@ -246,26 +267,81 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
       .forUpdate()
       .execute();
     let siblingRule: PricingInput['siblingRule'];
+    const automaticRules: DiscountRule[] = [];
     let existingConfirmed: PricingInput['existingConfirmed'] = [];
-    if (rules.length) {
-      if (
-        rules.length !== 1 ||
-        rules[0]?.kind !== 'sibling' ||
-        (rules[0].season_id &&
-          seasonIds.some((id) => id !== rules[0]?.season_id)) ||
-        new Set(rows.map((row) => row.household_id)).size !== 1
-      )
-        throw new Error('Active discounts need a supported source loader');
-      const config = siblingRuleSchema.safeParse(rules[0].config);
+    for (const rule of rules) {
+      if (rule.kind === 'sibling') {
+        if (siblingRule)
+          throw new Error('Only one sibling discount rule is supported');
+        const config = siblingRuleSchema.safeParse(rule.config);
+        if (!config.success)
+          throw new Error('Sibling discount configuration is unsupported');
+        siblingRule = {
+          secondBps: config.data.second_bps,
+          thirdPlusBps: config.data.third_plus_bps,
+        };
+        continue;
+      }
+      const config = autoRuleConfigSchema.safeParse(rule.config);
       if (!config.success)
-        throw new Error('Sibling discount configuration is unsupported');
-      siblingRule = {
-        secondBps: config.data.second_bps,
-        thirdPlusBps: config.data.third_plus_bps,
-      };
-      const householdId = rows[0]?.household_id;
-      if (!householdId)
-        throw new Error('Sibling discount household is missing');
+        throw new Error(
+          `Automatic discount "${rule.kind}" needs a supported configuration`,
+        );
+      if (config.data.requiresReturning) {
+        const personIds = [...new Set(rows.map((row) => row.person_id))];
+        const returning = await sql<{ person_id: string }>`
+          SELECT DISTINCT r.person_id
+          FROM registrations r
+          WHERE r.org_id = ${checkout.orgId}::uuid
+            AND r.person_id = ANY(${sql`ARRAY[${sql.join(personIds.map((id) => sql`${id}::uuid`))}]`})
+            AND r.status IN ('confirmed', 'transferred_out')
+        `.execute(trx);
+        const returningSet = new Set(
+          returning.rows.map((entry) => entry.person_id),
+        );
+        const eligibleOfferings = rows
+          .filter((row) => returningSet.has(row.person_id))
+          .map((row) => row.id)
+          .filter(
+            (id) =>
+              !config.data.offeringIds || config.data.offeringIds.includes(id),
+          );
+        if (!eligibleOfferings.length) continue;
+        const ineligibleShares = rows.some(
+          (row) =>
+            !returningSet.has(row.person_id) &&
+            eligibleOfferings.includes(row.id),
+        );
+        if (ineligibleShares)
+          throw new Error(
+            'Returning-participant discount cannot split a shared offering',
+          );
+        automaticRules.push({
+          id: rule.id,
+          priority: rule.priority,
+          stackable: rule.stackable,
+          kind: config.data.kind,
+          value: config.data.value,
+          eligibleOfferingIds: eligibleOfferings,
+        });
+        continue;
+      }
+      automaticRules.push({
+        id: rule.id,
+        priority: rule.priority,
+        stackable: rule.stackable,
+        kind: config.data.kind,
+        value: config.data.value,
+        ...(config.data.offeringIds
+          ? { eligibleOfferingIds: config.data.offeringIds }
+          : {}),
+      });
+    }
+    if (siblingRule) {
+      const households = new Set(rows.map((row) => row.household_id));
+      if (households.size !== 1)
+        throw new Error('Sibling discount requires a single household cart');
+      const householdId = [...households][0];
       const currentPeople = [...new Set(rows.map((row) => row.person_id))];
       await sql`LOCK TABLE registrations IN SHARE MODE`.execute(trx);
       const prior = await sql<{
@@ -307,14 +383,21 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
         basePriceCents: item.base_price_cents ?? 0,
       }));
     }
-    const aid = await trx
+    const aid: AidAward[] = [];
+    const aidRows = await trx
       .selectFrom('aid_applications as a')
       .innerJoin('financial_aid_programs as p', (join) =>
         join
           .onRef('p.org_id', '=', 'a.org_id')
           .onRef('p.id', '=', 'a.financial_aid_program_id'),
       )
-      .select('a.id')
+      .select([
+        'a.id',
+        'a.award_cents',
+        'a.award_kind',
+        'a.award_bps',
+        'a.program_ids',
+      ])
       .where('a.org_id', '=', checkout.orgId)
       .where('a.household_id', 'in', [
         ...new Set(rows.map((row) => row.household_id)),
@@ -323,25 +406,101 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
       .where('p.season_id', 'in', seasonIds)
       .forUpdate()
       .execute();
-    if (aid.length)
-      throw new Error('Financial aid needs a supported source loader');
-    const tax = await trx
+    const offeringIds = new Set(rows.map((row) => row.id));
+    for (const award of aidRows) {
+      if (award.award_kind === 'fixed') {
+        if (
+          !Number.isSafeInteger(award.award_cents) ||
+          award.award_cents <= 0 ||
+          award.award_bps !== null
+        )
+          throw new Error('Fixed aid award is malformed');
+        aid.push({
+          id: award.id,
+          kind: 'fixed',
+          value: award.award_cents,
+          ...(award.program_ids.length
+            ? {
+                eligibleOfferingIds: rows
+                  .filter((row) => award.program_ids.includes(row.program_id))
+                  .map((row) => row.id),
+              }
+            : {}),
+        });
+      } else if (award.award_kind === 'percent') {
+        if (
+          award.award_bps === null ||
+          !Number.isSafeInteger(award.award_bps) ||
+          award.award_bps < 1 ||
+          award.award_bps > 10_000 ||
+          !Number.isSafeInteger(award.award_cents) ||
+          award.award_cents < 0
+        )
+          throw new Error('Percent aid award is malformed');
+        const eligible = award.program_ids.length
+          ? rows
+              .filter((row) => award.program_ids.includes(row.program_id))
+              .map((row) => row.id)
+          : [...offeringIds];
+        if (!eligible.length) continue;
+        aid.push({
+          id: `${award.id}:percent`,
+          kind: 'percent',
+          value: award.award_bps,
+          eligibleOfferingIds: eligible,
+        });
+        if (award.award_cents > 0)
+          aid.push({
+            id: award.id,
+            kind: 'fixed',
+            value: award.award_cents,
+            eligibleOfferingIds: eligible,
+          });
+      }
+    }
+    const taxRows = await trx
       .selectFrom('tax_rates')
-      .select('id')
+      .select(['rate_bps'])
       .where('org_id', '=', checkout.orgId)
       .where('active', '=', true)
       .forUpdate()
       .execute();
-    if (tax.length)
-      throw new Error('Active tax needs a supported source loader');
+    if (taxRows.length > 1)
+      throw new Error('Multiple active tax rates need a supported loader');
+    const productTaxBps = taxRows[0]?.rate_bps ?? 0;
+    if (!Number.isSafeInteger(productTaxBps) || productTaxBps < 0)
+      throw new Error('Tax rate is malformed');
+    const credit = await sql<{ balance: number }>`
+      SELECT coalesce(sum(CASE WHEN kind = 'issued' THEN amount_cents
+        WHEN kind IN ('applied', 'expired', 'reversed')
+          THEN -abs(amount_cents) ELSE 0 END), 0)::bigint AS balance
+      FROM credits
+      WHERE org_id = ${checkout.orgId}::uuid
+        AND (account_id = ${checkout.accountId}::uuid
+          OR household_id IN (
+            SELECT household_id FROM household_members
+            WHERE org_id = ${checkout.orgId}::uuid AND removed_at IS NULL
+              AND person_id IN (
+                SELECT person_id FROM person_account_links
+                WHERE org_id = ${checkout.orgId}::uuid
+                  AND account_id = ${checkout.accountId}::uuid
+                  AND revoked_at IS NULL AND verified_at IS NOT NULL)))
+        AND (expires_on IS NULL OR expires_on >= current_date)
+    `.execute(trx);
+    const creditBalance = Math.max(0, credit.rows[0]?.balance ?? 0);
+    const applyCreditCents = Math.min(
+      requirements?.applyCreditCents ?? 0,
+      creditBalance,
+    );
     if (
-      rows.some(
-        (row) => !Number.isSafeInteger(row.price_cents) || row.price_cents < 0,
-      ) ||
-      !Number.isSafeInteger(organization.application_fee_fixed_cents)
+      !Number.isSafeInteger(applyCreditCents) ||
+      applyCreditCents < 0 ||
+      (requirements?.applyCreditCents ?? 0) < 0
     )
-      throw new Error('Pricing source cents exceed the safe integer range');
-    const codeTexts = (cart.discountCodes ?? []).map((code) => code.trim());
+      throw new Error('Credit application is malformed');
+    const codeTexts = (requirements?.discountCodes ?? []).map((code) =>
+      code.trim(),
+    );
     if (
       new Set(codeTexts.map((code) => code.toLocaleLowerCase('en-US'))).size !==
       codeTexts.length
@@ -365,6 +524,52 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
         }),
       );
     }
+    const addOns: NonNullable<PricingInput['addOns']>[number][] = [];
+    for (const item of cart.offerings) {
+      const row = rows.find((entry) => entry.id === item.offeringId);
+      const line = lineById.get(item.lineId);
+      if (!row || !line) throw new Error('Cart line is missing its offering');
+      const definitions = addOnListSchema.parse(
+        Array.isArray(row.add_ons) ? row.add_ons : [],
+      );
+      const byKey = new Map(definitions.map((entry) => [entry.key, entry]));
+      line.addOns.forEach((selection, index) => {
+        const definition = byKey.get(selection.key);
+        if (!definition) throw new Error('Selected add-on is not offered');
+        if (
+          definition.maxQuantity !== undefined &&
+          selection.quantity > definition.maxQuantity
+        )
+          throw new Error('Selected add-on exceeds its quantity limit');
+        if (
+          definition.sizes?.length &&
+          !definition.sizes.includes(selection.size ?? '')
+        )
+          throw new Error('Selected add-on size is not offered');
+        addOns.push({
+          id: `add:${item.lineId}:${selection.key}:${String(index)}`,
+          parentLineId: item.lineId,
+          priceCents: definition.priceCents * selection.quantity,
+          taxable: definition.taxable ?? false,
+        });
+      });
+      const programSettings = z
+        .looseObject({
+          volunteerRequirement: volunteerRequirementSchema.optional(),
+        })
+        .parse(row.program_settings ?? {});
+      if (line.volunteer === 'buyout') {
+        const requirement = programSettings.volunteerRequirement;
+        if (!requirement?.required || requirement.buyoutCents <= 0)
+          throw new Error('Volunteer buyout is unavailable');
+        addOns.push({
+          id: `volunteer:${item.lineId}`,
+          parentLineId: item.lineId,
+          priceCents: requirement.buyoutCents,
+          taxable: false,
+        });
+      }
+    }
     const nowLocal = new Intl.DateTimeFormat('sv-SE', {
       timeZone: organization.timezone,
       year: 'numeric',
@@ -381,9 +586,7 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
       bps: organization.application_fee_bps,
       fixedCents: organization.application_fee_fixed_cents,
     };
-    const configuredFee = settings.data.serviceFee ?? {
-      enabled: false as const,
-    };
+    const configuredFee = settings.serviceFee ?? { enabled: false as const };
     const frozenFee =
       configuredFee.enabled && configuredFee.mode === 'custom'
         ? {
@@ -412,22 +615,27 @@ export class PostgresBasicCheckoutPricingSource implements CheckoutPricingSource
     return {
       pricing: {
         nowLocal,
-        participants: rows.map((row, index) => ({
-          id: cart.offerings[index]?.lineId ?? '',
-          participantId: row.person_id,
-          seasonId: row.season_id,
-          offeringId: row.id,
-          priceCents: row.price_cents,
-        })),
-        addOns: [],
+        participants: rows.map((row, index) => {
+          const pricing = offeringPricingSchema.parse(row.pricing ?? {});
+          return {
+            id: cart.offerings[index]?.lineId ?? '',
+            participantId: row.person_id,
+            seasonId: row.season_id,
+            offeringId: row.id,
+            priceCents: row.price_cents,
+            ...(pricing.early ? { early: pricing.early } : {}),
+            ...(pricing.late ? { late: pricing.late } : {}),
+          };
+        }),
+        addOns,
         existingConfirmed,
-        siblingRule,
-        automaticRules: [],
+        ...(siblingRule ? { siblingRule } : {}),
+        automaticRules,
         codes,
-        aid: [],
-        applyCreditCents: 0,
+        aid,
+        applyCreditCents,
         serviceFee,
-        productTaxBps: 0,
+        productTaxBps,
       },
       paymentTerms,
     };

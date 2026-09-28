@@ -217,4 +217,68 @@ describe('refund policy application', () => {
       'already in progress',
     );
   });
+
+  it('refunds an exact invoice-line amount through the same ledger and replays', async () => {
+    const test = fixture();
+    test.createRefund.mockResolvedValueOnce({
+      id: 're_transfer',
+      status: 'pending',
+      amountCents: 6_180,
+    });
+    const input = {
+      orgId: 'org_1',
+      paymentId: 'payment_1',
+      invoiceLineId: 'line_1',
+      amountCents: 6_000,
+      cancellationDate: '2026-09-30',
+      requestedByAccountId: 'staff_1',
+      approvedByAccountId: 'staff_2',
+      idempotencyKey: randomUUID(),
+    };
+
+    const result = await test.service.refundExactLine(input);
+    expect(result).toEqual({
+      id: 're_transfer',
+      status: 'pending',
+      proposal: {
+        lines: [{ lineId: 'line_1', amountCents: 6_000 }],
+        serviceFeeCents: 180,
+        totalCents: 6_180,
+        refundBps: 10_000,
+      },
+    });
+    expect(test.createRefund).toHaveBeenCalledWith({
+      orgId: 'org_1',
+      paymentIntentId: 'pi_1',
+      amountCents: 6_180,
+      reverseTransfer: true,
+      refundApplicationFee: true,
+      idempotencyKey: `refund:payment_1:${input.idempotencyKey}`,
+    });
+    expect(test.records.recordPending).toHaveBeenCalledWith(
+      expect.objectContaining({
+        proposal: result.proposal,
+        reason: 'other',
+        note: 'Registration transfer price difference',
+      }),
+    );
+    expect(await test.service.refundExactLine(input)).toEqual(result);
+    expect(test.createRefund).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects exact-line refunds above the remaining funded cents', async () => {
+    const test = fixture();
+    await expect(
+      test.service.refundExactLine({
+        orgId: 'org_1',
+        paymentId: 'payment_1',
+        invoiceLineId: 'line_1',
+        amountCents: 10_001,
+        cancellationDate: '2026-09-30',
+        requestedByAccountId: 'staff_1',
+        idempotencyKey: randomUUID(),
+      }),
+    ).rejects.toThrow("line's remaining paid amount");
+    expect(test.createRefund).not.toHaveBeenCalled();
+  });
 });
