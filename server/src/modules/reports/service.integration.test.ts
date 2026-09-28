@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { PDFDocument } from 'pdf-lib';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -7,6 +8,7 @@ import { createDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 
+import { buildBoardSeasonReportPdf } from './board-report';
 import { ReportError } from './query';
 import {
   createSavedReport,
@@ -191,6 +193,35 @@ const definition = {
 } as const;
 
 describe('report service', () => {
+  it('assembles a one-page board PDF and preserves the financial step-up gate', async () => {
+    const now = new Date('2026-09-28T12:00:00.000Z');
+    const registrarPdf = await buildBoardSeasonReportPdf(
+      context(orgA, registrarId),
+      { stepUpAuthenticated: false, now },
+      withOrg,
+    );
+    const registrarDocument = await PDFDocument.load(registrarPdf);
+
+    expect(registrarDocument.getTitle()).toBe('Board season summary');
+    expect(registrarDocument.getPageCount()).toBe(1);
+
+    await expect(
+      buildBoardSeasonReportPdf(
+        context(orgA, financeId),
+        { stepUpAuthenticated: false, now },
+        withOrg,
+      ),
+    ).rejects.toMatchObject({ status: 401, code: 'REAUTH_REQUIRED' });
+
+    const financePdf = await buildBoardSeasonReportPdf(
+      context(orgA, financeId),
+      { stepUpAuthenticated: true, now },
+      withOrg,
+    );
+    const financeDocument = await PDFDocument.load(financePdf);
+    expect(financeDocument.getPageCount()).toBe(1);
+  });
+
   it('hides restricted medical columns from registrars and audits compliance previews', async () => {
     await expect(
       previewReport(

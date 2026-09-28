@@ -260,8 +260,9 @@ async function loadMetrics(
   context: OrgContext,
   now: Date,
   stepUpAuthenticated: boolean,
+  withOrgExecutor: typeof withOrg,
 ): Promise<BoardMetric[]> {
-  const datasets = await listReportDatasets(context);
+  const datasets = await listReportDatasets(context, withOrgExecutor);
   const metrics: BoardMetric[] = [];
   for (const spec of metricSpecs(now)) {
     const dataset = datasets.items.find((item) => item.key === spec.dataset);
@@ -278,6 +279,7 @@ async function loadMetrics(
       context,
       spec.definition,
       stepUpAuthenticated,
+      withOrgExecutor,
     );
     const value = metricValue(spec, result);
     if (value === null) continue;
@@ -407,17 +409,18 @@ function createPdf(
 export async function buildBoardSeasonReportPdf(
   context: OrgContext,
   options: { stepUpAuthenticated: boolean; now?: Date },
+  withOrgExecutor: typeof withOrg = withOrg,
 ): Promise<Uint8Array> {
   const now = options.now ?? new Date();
   const [organization, metrics] = await Promise.all([
-    withOrg(context, (trx) =>
+    withOrgExecutor(context, (trx) =>
       trx
         .selectFrom('organizations')
         .select('name')
         .where('id', '=', context.orgId)
         .executeTakeFirstOrThrow(),
     ),
-    loadMetrics(context, now, options.stepUpAuthenticated),
+    loadMetrics(context, now, options.stepUpAuthenticated, withOrgExecutor),
   ]);
   return createPdf(organization.name, metrics, now);
 }
