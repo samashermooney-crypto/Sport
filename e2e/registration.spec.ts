@@ -7,7 +7,7 @@ import { createTestFactories } from '../server/test/factories';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test('family registers two siblings together, signs waivers, and chooses uniform sizes', async ({
+test('family re-registers two returning siblings, signs waivers, and chooses uniform sizes', async ({
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
@@ -37,6 +37,14 @@ test('family registers two siblings together, signs waivers, and chooses uniform
         }),
         name: 'Noah Sibling',
       },
+      {
+        id: await factories.person(actor, {
+          firstName: 'Ava',
+          lastName: 'Sibling',
+          dateOfBirth: '2020-01-01',
+        }),
+        name: 'Ava Sibling',
+      },
     ];
     const waiverDocumentId = crypto.randomUUID();
     const terms = {
@@ -59,6 +67,7 @@ test('family registers two siblings together, signs waivers, and chooses uniform
         .set({
           status: 'registration_open',
           visibility: 'public',
+          eligibility: { minAge: 8, maxAge: 16 },
           settings: {
             volunteerRequirement: {
               required: true,
@@ -146,15 +155,30 @@ test('family registers two siblings together, signs waivers, and chooses uniform
         )
         .execute();
     });
-    const returningParticipant = participants[0];
-    if (!returningParticipant)
-      throw new Error('Returning participant fixture is missing');
-    await factories.registration(
-      actor,
-      previousProgram,
-      returningParticipant.id,
-      householdId,
+    for (const participant of participants.slice(0, 2))
+      await factories.registration(
+        actor,
+        previousProgram,
+        participant.id,
+        householdId,
+      );
+    const priorRegistrations = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('registrations')
+        .select(['person_id', 'status'])
+        .where('org_id', '=', actor.orgId)
+        .where('program_id', '=', previousProgram.programId)
+        .where(
+          'person_id',
+          'in',
+          participants.slice(0, 2).map((participant) => participant.id),
+        )
+        .execute(),
     );
+    expect(priorRegistrations).toHaveLength(2);
+    expect(
+      priorRegistrations.every(({ status }) => status === 'confirmed'),
+    ).toBe(true);
 
     const session = await database.transaction().execute((trx) =>
       issueSession(
@@ -184,6 +208,14 @@ test('family registers two siblings together, signs waivers, and chooses uniform
       .getByRole('link', { name: 'Register Maya Sibling again' })
       .click();
     const journeyStartedAt = Date.now();
+    const programFilter = page.getByLabel('Show programs for');
+    await programFilter.selectOption(
+      `${participants[2]?.id ?? ''}:${householdId}`,
+    );
+    await expect(
+      page.getByText('No programs are available for this filter.'),
+    ).toBeVisible();
+    await programFilter.selectOption('');
     const visitedScreens = new Set<string>();
     const expectJourneyScreen = async (name: string, timeout = 5000) => {
       await expect(page.getByRole('heading', { name })).toBeVisible({
@@ -223,7 +255,7 @@ test('family registers two siblings together, signs waivers, and chooses uniform
         .executeTakeFirstOrThrow(),
     );
     const guardianName = `${parent.first_name} ${parent.last_name}`;
-    for (const participant of participants) {
+    for (const participant of participants.slice(0, 2)) {
       const section = page.locator('section.money-panel').filter({
         has: page.getByRole('heading', {
           name: `${participant.name} · Player`,
