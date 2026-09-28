@@ -189,20 +189,18 @@ async function createTeam(
 }
 
 describe('tournament contest progression', () => {
-  it('advances a bracket and completes it when its contest result is finalized', async () => {
+  it('advances semifinal winners into the final and completes the bracket', async () => {
     const actor = await createActor();
     const program = await createProgram(actor);
-    const firstTeamSeasonId = await createTeam(
-      actor,
-      program.programId,
-      program.divisionId,
-      'Bracket Home',
-    );
-    const secondTeamSeasonId = await createTeam(
-      actor,
-      program.programId,
-      program.divisionId,
-      'Bracket Away',
+    const teamSeasonIds = await Promise.all(
+      [
+        'Bracket Team 1',
+        'Bracket Team 2',
+        'Bracket Team 3',
+        'Bracket Team 4',
+      ].map((name) =>
+        createTeam(actor, program.programId, program.divisionId, name),
+      ),
     );
     const bracket = await createBracket(actor, {
       programId: program.programId,
@@ -210,87 +208,145 @@ describe('tournament contest progression', () => {
       name: 'Finals bracket',
       type: 'single_elim',
       seedingSource: 'manual',
-      entries: [
-        { teamSeasonId: firstTeamSeasonId, seed: 1 },
-        { teamSeasonId: secondTeamSeasonId, seed: 2 },
-      ],
+      entries: teamSeasonIds.map((teamSeasonId, index) => ({
+        teamSeasonId,
+        seed: index + 1,
+      })),
     });
     await generateBracket(actor, bracket.id, bracket.version);
 
     const withOrg = createWithOrg(database);
-    const match = await withOrg(actor, (trx) =>
+    const matches = await withOrg(actor, (trx) =>
       trx
         .selectFrom('bracket_matches')
         .selectAll()
         .where('org_id', '=', actor.orgId)
         .where('bracket_id', '=', bracket.id)
+        .orderBy('round')
+        .orderBy('position')
+        .execute(),
+    );
+    const semifinalMatches = matches.filter((match) => match.round === 1);
+    const firstSemifinal = semifinalMatches[0];
+    const secondSemifinal = semifinalMatches[1];
+    if (!firstSemifinal || !secondSemifinal)
+      throw new Error('Generated bracket must contain both semifinals.');
+    if (
+      matches.length !== 3 ||
+      !firstSemifinal.winner_to_match_id ||
+      !firstSemifinal.winner_to_slot
+    )
+      throw new Error('Generated semifinals must advance into one final.');
+
+    async function finalizeMatch(
+      match: (typeof matches)[number],
+    ): Promise<string> {
+      const firstSlot = match.participant_a as unknown as {
+        entrantId: string | null;
+      };
+      const secondSlot = match.participant_b as unknown as {
+        entrantId: string | null;
+      };
+      if (!firstSlot.entrantId || !secondSlot.entrantId)
+        throw new Error('A finalized bracket match must contain both teams.');
+      const eventId = newId();
+      const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await withOrg(actor, async (trx) => {
+        await trx
+          .insertInto('events')
+          .values({
+            id: eventId,
+            org_id: actor.orgId,
+            program_id: program.programId,
+            division_id: program.divisionId,
+            kind: 'game',
+            title: `Bracket match ${match.id}`,
+            starts_at: startsAt,
+            ends_at: new Date(startsAt.getTime() + 60 * 60 * 1000),
+            timezone: 'UTC',
+          })
+          .execute();
+        await trx
+          .insertInto('event_participants')
+          .values([
+            {
+              id: newId(),
+              org_id: actor.orgId,
+              event_id: eventId,
+              team_season_id: firstSlot.entrantId,
+              side: 'home',
+            },
+            {
+              id: newId(),
+              org_id: actor.orgId,
+              event_id: eventId,
+              team_season_id: secondSlot.entrantId,
+              side: 'away',
+            },
+          ])
+          .execute();
+      });
+      const contest = await createContest(actor, eventId, {
+        formatIndex: 0,
+        stage: 'playoff',
+        countsForStandings: false,
+      });
+      await setBracketContest(
+        actor,
+        bracket.id,
+        match.id,
+        contest.id,
+        match.version,
+      );
+      const result = await submitContestResult(actor, contest.id, {
+        expectedVersion: contest.version,
+        result: { home: 2, away: 1 },
+        finalize: true,
+      });
+      expect(result.status).toBe('final');
+      return firstSlot.entrantId;
+    }
+
+    const firstWinner = await finalizeMatch(firstSemifinal);
+    const firstProgress = await withOrg(actor, async (trx) => ({
+      bracket: await trx
+        .selectFrom('brackets')
+        .select('status')
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', bracket.id)
+        .executeTakeFirstOrThrow(),
+      final: await trx
+        .selectFrom('bracket_matches')
+        .select(['participant_a', 'participant_b'])
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', firstSemifinal.winner_to_match_id)
+        .executeTakeFirstOrThrow(),
+    }));
+    expect(firstProgress.bracket.status).toBe('in_progress');
+    const advancedSlot =
+      firstSemifinal.winner_to_slot === 'a'
+        ? firstProgress.final.participant_a
+        : firstProgress.final.participant_b;
+    expect(advancedSlot).toMatchObject({ entrantId: firstWinner });
+
+    await finalizeMatch(secondSemifinal);
+    const finalMatch = await withOrg(actor, (trx) =>
+      trx
+        .selectFrom('bracket_matches')
+        .selectAll()
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', firstSemifinal.winner_to_match_id)
         .executeTakeFirstOrThrow(),
     );
-    const firstSlot = match.participant_a as unknown as {
+    const finalHome = finalMatch.participant_a as unknown as {
       entrantId: string | null;
     };
-    const secondSlot = match.participant_b as unknown as {
+    const finalAway = finalMatch.participant_b as unknown as {
       entrantId: string | null;
     };
-    if (!firstSlot.entrantId || !secondSlot.entrantId)
-      throw new Error('Generated final must contain both seeded teams.');
-
-    const eventId = newId();
-    const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await withOrg(actor, async (trx) => {
-      await trx
-        .insertInto('events')
-        .values({
-          id: eventId,
-          org_id: actor.orgId,
-          program_id: program.programId,
-          division_id: program.divisionId,
-          kind: 'game',
-          title: 'Bracket final',
-          starts_at: startsAt,
-          ends_at: new Date(startsAt.getTime() + 60 * 60 * 1000),
-          timezone: 'UTC',
-        })
-        .execute();
-      await trx
-        .insertInto('event_participants')
-        .values([
-          {
-            id: newId(),
-            org_id: actor.orgId,
-            event_id: eventId,
-            team_season_id: firstSlot.entrantId,
-            side: 'home',
-          },
-          {
-            id: newId(),
-            org_id: actor.orgId,
-            event_id: eventId,
-            team_season_id: secondSlot.entrantId,
-            side: 'away',
-          },
-        ])
-        .execute();
-    });
-    const contest = await createContest(actor, eventId, {
-      formatIndex: 0,
-      stage: 'playoff',
-      countsForStandings: false,
-    });
-    await setBracketContest(
-      actor,
-      bracket.id,
-      match.id,
-      contest.id,
-      match.version,
-    );
-
-    const result = await submitContestResult(actor, contest.id, {
-      expectedVersion: contest.version,
-      result: { home: 2, away: 1 },
-      finalize: true,
-    });
-    expect(result.status).toBe('final');
+    if (!finalHome.entrantId || !finalAway.entrantId)
+      throw new Error('Both semifinal winners must advance into the final.');
+    await finalizeMatch(finalMatch);
 
     const state = await withOrg(actor, async (trx) => ({
       bracket: await trx
@@ -303,18 +359,18 @@ describe('tournament contest progression', () => {
         .selectFrom('bracket_matches')
         .select(['participant_a', 'participant_b'])
         .where('org_id', '=', actor.orgId)
-        .where('id', '=', match.id)
+        .where('id', '=', finalMatch.id)
         .executeTakeFirstOrThrow(),
     }));
     expect(state.bracket.status).toBe('completed');
     expect(state.match.participant_a).toMatchObject({
-      entrantId: firstSlot.entrantId,
-      winnerId: firstSlot.entrantId,
+      entrantId: finalHome.entrantId,
+      winnerId: finalHome.entrantId,
       finalized: true,
     });
     expect(state.match.participant_b).toMatchObject({
-      entrantId: secondSlot.entrantId,
-      winnerId: firstSlot.entrantId,
+      entrantId: finalAway.entrantId,
+      winnerId: finalHome.entrantId,
       finalized: true,
     });
   });
