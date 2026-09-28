@@ -90,7 +90,7 @@ try {
           playwrightVersion: '1.63.0',
           chromiumVersion: `${browser.version()} (Playwright revision 1243)`,
           webkitVersion: '26.6 (Playwright revision 2359)',
-          lastValidatedActionsRun: process.env.GITHUB_RUN_ID ?? 'manual',
+          lastCapturedActionsRun: process.env.GITHUB_RUN_ID ?? 'manual',
           fontPackages,
           viewportHeight: 900,
           shellFiles: ['dashboard-1440-linux.png', 'dashboard-390-linux.png'],
