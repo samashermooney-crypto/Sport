@@ -162,7 +162,7 @@ const legalDocuments: Record<string, LegalDocument> = {
 export function LegalPage(): React.JSX.Element {
   const { slug = '' } = useParams();
   const document = legalDocuments[slug];
-  const approved = import.meta.env.LEGAL_DOCS_APPROVED;
+  const approved = import.meta.env.LEGAL_DOCS_APPROVED === 'true';
   if (!document)
     return (
       <main className="al legal-page" role="alert">
