@@ -39,6 +39,7 @@ it('filters people by active program registration and current team roster', asyn
     personId,
     householdId,
   );
+  const rosterDate = '2026-09-27';
   const rosterId = newId();
   await factories.row(actor, 'roster_entries', {
     id: rosterId,
@@ -46,6 +47,7 @@ it('filters people by active program registration and current team roster', asyn
     team_season_id: team.teamSeasonId,
     person_id: personId,
     registration_id: registrationId,
+    joined_on: rosterDate,
   });
   const people = createPeopleRepository(database);
   expect(
@@ -91,7 +93,7 @@ it('filters people by active program registration and current team roster', asyn
       .execute();
     await trx
       .updateTable('roster_entries')
-      .set({ status: 'released' })
+      .set({ status: 'released', left_on: rosterDate })
       .where('id', '=', rosterId)
       .execute();
   });
