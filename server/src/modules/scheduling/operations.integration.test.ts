@@ -22,6 +22,16 @@ import {
   requestAllocationSlot,
   requestReschedule,
 } from './operations';
+import {
+  createSpaceAvailability,
+  createSpaceBlackout,
+  createTeamBlackoutRequest,
+  decideTeamBlackoutRequest,
+  exportScheduleCsv,
+  listSpaceAvailability,
+  shiftGamesOnDate,
+  updateScheduleSettings,
+} from './tools';
 
 let database: ReturnType<typeof createDatabase>;
 
@@ -38,7 +48,7 @@ afterAll(async () => {
 });
 
 describe('schedule operations', () => {
-  it('closes events, manages allocated practice slots, and approves reschedules', async () => {
+  it('manages closures, allocations, resource tools, and reschedules', async () => {
     const accountId = newId();
     const orgId = newId();
     const actor: OrgContext & { accountId: string } = {
@@ -190,6 +200,7 @@ describe('schedule operations', () => {
           program_id: programId,
           coach_slot_picker_enabled: true,
           slot_approval_required: true,
+          version: 1,
         })
         .execute();
     });
@@ -243,6 +254,52 @@ describe('schedule operations', () => {
     });
     expect(practice.status).toBe('approved');
     expect(practice.eventId).toBeTruthy();
+
+    const availability = await createSpaceAvailability(actor, {
+      spaceId,
+      recurrence,
+      startsOn,
+      endsOn,
+      startTime: '18:00',
+      endTime: '19:00',
+      timezone: 'America/Chicago',
+      source: 'owned',
+    });
+    expect(availability.space_id).toBe(spaceId);
+    expect(await listSpaceAvailability(actor, spaceId)).toHaveLength(1);
+    const blackout = await createSpaceBlackout(actor, {
+      scopeType: 'space',
+      scopeId: spaceId,
+      startsAt: '2026-10-06T16:00:00.000Z',
+      endsAt: '2026-10-06T17:00:00.000Z',
+      reason: 'Field maintenance',
+    });
+    expect(blackout.space_id).toBe(spaceId);
+
+    const teamBlackout = await createTeamBlackoutRequest(actor, teamSeasonId, {
+      startsOn: '2026-10-06',
+      endsOn: '2026-10-07',
+      reason: 'School trip',
+    });
+    expect(teamBlackout.status).toBe('pending');
+    await expect(
+      decideTeamBlackoutRequest(actor, teamBlackout.id, {
+        approve: true,
+        expectedVersion: 1,
+      }),
+    ).resolves.toMatchObject({ status: 'approved', version: 2 });
+    await expect(
+      updateScheduleSettings(actor, {
+        programId,
+        coachSlotPickerEnabled: false,
+        slotApprovalRequired: false,
+        expectedVersion: 1,
+      }),
+    ).resolves.toMatchObject({
+      coach_slot_picker_enabled: false,
+      slot_approval_required: false,
+      version: 2,
+    });
 
     const closureEventId = newId();
     await scoped(actor, (trx) =>
@@ -303,7 +360,7 @@ describe('schedule operations', () => {
           program_id: programId,
           division_id: divisionId,
           kind: 'game',
-          title: 'Operations Reschedule Game',
+          title: '=Operations Game',
           starts_at: new Date('2026-10-10T16:00:00.000Z'),
           ends_at: new Date('2026-10-10T17:00:00.000Z'),
           timezone: 'America/Chicago',
@@ -344,5 +401,32 @@ describe('schedule operations', () => {
         .executeTakeFirstOrThrow(),
     );
     expect(moved.starts_at.toISOString()).toBe('2026-10-11T16:00:00.000Z');
+
+    await expect(
+      shiftGamesOnDate(actor, {
+        fromDate: '2026-10-11',
+        toDate: '2026-10-12',
+        timezone: 'America/Chicago',
+      }),
+    ).resolves.toMatchObject({ eventIds: [rescheduleEventId] });
+    const shifted = await scoped(actor, (trx) =>
+      trx
+        .selectFrom('events')
+        .select('starts_at')
+        .where('org_id', '=', orgId)
+        .where('id', '=', rescheduleEventId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(shifted.starts_at.toISOString()).toBe('2026-10-12T16:00:00.000Z');
+
+    const csv = await exportScheduleCsv(
+      actor,
+      { type: 'program', id: programId },
+      {
+        from: new Date('2026-10-01T00:00:00.000Z'),
+        to: new Date('2026-11-01T00:00:00.000Z'),
+      },
+    );
+    expect(csv).toContain(`${rescheduleEventId},'=Operations Game,game,`);
   });
 });
