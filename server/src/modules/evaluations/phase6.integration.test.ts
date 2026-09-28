@@ -1095,7 +1095,7 @@ describe('Phase 6 evaluations integration', () => {
       [orgA, offerId],
     );
     expect(failedCheckoutOffer.rows[0]).toEqual({
-      status: 'accepting',
+      status: 'sent',
       checkout_id: null,
       registration_id: null,
     });
