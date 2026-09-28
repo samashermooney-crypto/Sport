@@ -15,12 +15,17 @@ import {
   platformEntryRoutes,
   platformRoles,
 } from './catalog';
-import { collectPaths, visitPath } from './visit';
+import {
+  clickNavigationButtons,
+  clickNavigationDestination,
+  collectPaths,
+  visitPath,
+} from './visit';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 const appUrl = `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`;
 const adminUrl = `postgres://athlentry_admin@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`;
-const maxRoutesPerRole = 200;
+const publicSiteOrgId = '33333333-3333-4333-8333-333333333333';
 
 type RouteActor = { accountId: string; orgId: string };
 type FamilyRelationship = 'guardian' | 'self';
@@ -215,22 +220,33 @@ async function crawlNavigation(
   });
 
   const visited = new Set<string>();
+  const clickedDestinations = new Set<string>();
   const discovered = new Set(seeds);
   const queue = [...seeds];
+  let globalSearchExercised = false;
   while (queue.length > 0) {
     const path = queue.shift();
     if (!path || visited.has(path)) continue;
-    expect(
-      visited.size,
-      `navigation exceeded ${String(maxRoutesPerRole)} routes before completing`,
-    ).toBeLessThan(maxRoutesPerRole);
-
     visited.add(path);
     await visitPath(page, baseURL, path);
-    for (const nextPath of await collectPaths(page, baseURL)) {
-      discovered.add(nextPath);
-      if (!visited.has(nextPath) && !queue.includes(nextPath))
-        queue.push(nextPath);
+    if (!globalSearchExercised)
+      globalSearchExercised = await exerciseGlobalSearch(page);
+    const links = await collectPaths(page, baseURL);
+    await clickNavigationButtons(page, baseURL, path);
+    for (const link of links) {
+      discovered.add(link.path);
+      const identity = [
+        link.navigationIndex,
+        link.groupLabel ?? '',
+        link.href,
+        link.label,
+      ].join('\u0000');
+      if (!clickedDestinations.has(identity)) {
+        await clickNavigationDestination(page, baseURL, path, link);
+        clickedDestinations.add(identity);
+      }
+      if (!visited.has(link.path) && !queue.includes(link.path))
+        queue.push(link.path);
     }
   }
 
@@ -243,6 +259,60 @@ async function crawlNavigation(
     consoleErrors,
     'console errors and unhandled promise rejections',
   ).toEqual([]);
+}
+
+async function exerciseGlobalSearch(page: Page): Promise<boolean> {
+  const button = page.locator('.ui-global-search:visible');
+  if (!(await button.count())) return false;
+  await expect(button).toHaveAccessibleName(/\S+/);
+  await button.click();
+  const dialog = page.getByRole('dialog', { name: 'Command palette' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(dialog).not.toBeVisible();
+  return true;
+}
+
+async function mockPublicSiteData(page: Page): Promise<void> {
+  await page.route(
+    /\/api\/v1\/sponsors\/public\/orgs\/qa-crawler\/sponsors(?:\?|$)/,
+    (route) =>
+      route.fulfill({
+        json: {
+          sponsors: [
+            {
+              id: '11111111-1111-4111-8111-111111111111',
+              name: 'QA Crawler Sponsor',
+              tier: 'Community',
+              websiteUrl: null,
+              logoFileId: null,
+            },
+          ],
+        },
+      }),
+  );
+  await page.route(
+    /\/api\/v1\/fundraising\/public\/orgs\/qa-crawler\/campaigns\/qa-campaign(?:\?|$)/,
+    (route) =>
+      route.fulfill({
+        json: {
+          id: '22222222-2222-4222-8222-222222222222',
+          name: 'QA Crawler Fundraiser',
+          slug: 'qa-campaign',
+          goalCents: 100_000,
+          startsAt: '2026-09-01T00:00:00.000Z',
+          endsAt: null,
+          teamSeasonId: null,
+          descriptionHtml: '<p>Supporting local youth athletes.</p>',
+          status: 'published',
+          totalRaisedCents: 25_000,
+          donorCount: 2,
+          version: 1,
+          orgId: publicSiteOrgId,
+          donorWall: [],
+        },
+      }),
+  );
 }
 
 test.beforeEach(async ({ request }) => {
@@ -261,6 +331,7 @@ test('anonymous navigation routes render without errors', async ({
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
+  await mockPublicSiteData(page);
   await crawlNavigation(
     page,
     String(testInfo.project.use.baseURL),

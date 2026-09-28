@@ -36,7 +36,7 @@ function operationPath(path: string, foreignOrgId: string): string {
   });
 }
 
-test.fixme('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, and DELETE with a foreign org ID and require 404', async ({
+test('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, and DELETE with a foreign org ID and require 404', async ({
   request,
 }) => {
   const document = JSON.parse(

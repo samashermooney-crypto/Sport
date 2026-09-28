@@ -9,6 +9,8 @@ export const anonymousEntryRoutes = [
   '/forgot-password',
   '/email-link',
   '/mfa',
+  '/site/qa-crawler/sponsors',
+  '/site/qa-crawler/fundraisers/qa-campaign',
 ] as const;
 
 export const organizationRoles = [

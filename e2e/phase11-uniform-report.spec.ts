@@ -54,7 +54,7 @@ async function signInBrowser(
   });
 }
 
-test.fixme('QA-ACC-038 / Track H: family uniform orders appear under their registration team and program', async ({
+test('QA-ACC-038 / Track H: family uniform orders appear under their registration team and program', async ({
   page,
 }, testInfo) => {
   const database = createDatabase(

@@ -9,7 +9,7 @@ import { createTestFactories } from '../server/test/factories';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test.fixme('QA-ACC-046 / Track J: a rejected fee-invoice void leaves its assessment invoiced', async ({
+test('QA-ACC-046 / Track J: a rejected fee-invoice void leaves its assessment invoiced', async ({
   request,
 }) => {
   const database = createDatabase(

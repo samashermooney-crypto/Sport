@@ -44,7 +44,7 @@ async function readJson<T>(url: URL): Promise<T> {
   return JSON.parse(await readFile(url, 'utf8')) as T;
 }
 
-test.fixme('SEC-002 / Track C: permission matrix covers every generated API operation and role', async () => {
+test('SEC-002 / Track C: permission matrix covers every generated API operation and role', async () => {
   const [document, matrix] = await Promise.all([
     readJson<OpenApiDocument>(
       new URL('../../docs/api/openapi.json', import.meta.url),

@@ -6,7 +6,7 @@
 
 - **Owner:** Track C (wiring; coordinate with Track J)
 - **Phase:** 13, required journey 25
-- **Evidence:** `/console/federation/:orgId` is registered and `web/src/console/federation/nav.ts` declares a Federation item, but the generated feature registry does not include that nav module, `web/src/console/nav.ts` is empty, and `ConsoleHome` does not render a Federation link. The main browser journey opens the feature by URL; a separate navigation regression is now marked `test.fixme` in `e2e/federation.spec.ts`.
+- **Evidence:** `/console/federation/:orgId` is registered and `web/src/console/federation/nav.ts` declares a Federation item, but the generated feature registry does not include that nav module, `web/src/console/nav.ts` is empty, and `ConsoleHome` does not render a Federation link. The main browser journey opens the feature by URL; an active navigation regression in `e2e/federation.spec.ts` now asserts the missing link.
 - **Reproduce:** sign in as an organization with federation access, open its console home and navigation, and search for a Federation destination; it is absent. The component can only be reached by manually opening `/console/federation/<orgId>`.
 - **Expected:** eligible league/association and member-club users can reach Federation through the normal console navigation, with visibility scoped to the `federation.read` permission.
 - **Request:** register the federation navigation item through the feature registry or add an equivalent permission-gated Console Home link; add a browser assertion that reaches the feature from navigation.
@@ -77,7 +77,7 @@
 - **Owner:** Track H
 - **Phase:** 11; privacy/permission model in `docs/codex/04-PERMISSIONS-AND-PRIVACY.md`
 - **Evidence:** `householdVolunteerLedger()` authorizes any active `org_memberships` row or verified guardian link. The route has no role/scope check. Organization invitations can create active memberships with program-scoped roles; `orgActor()` reports no org-wide role for those users, but the ledger service still grants access to every household ID in the organization.
-- **Reproduce:** an active program-scoped `director` requests `/api/v1/volunteers/orgs/:orgId/households/:householdId/ledger` for a household outside their volunteer relationship. `e2e/security/volunteer-household-ledger.spec.ts` records the expected 404 as `test.fixme`; current code returns the household ledger.
+- **Reproduce:** an active program-scoped `director` requests `/api/v1/volunteers/orgs/:orgId/households/:householdId/ledger` for a household outside their volunteer relationship. `e2e/security/volunteer-household-ledger.spec.ts` now actively asserts the expected 404; current code returns the household ledger.
 - **Expected:** only a verified guardian of that household or a role with organization-wide volunteer oversight can read the ledger; unrelated and out-of-scope members receive 404 with no household data.
 - **Request:** replace the broad active-membership check with explicit owner/admin/volunteer-coordinator authorization (including the applicable scope policy) or verified guardian access, and add an integration regression for a program-scoped director.
 - **Status:** high-confidence static access-control defect; database-backed HTTP execution awaits the isolated QA stack.
@@ -97,7 +97,7 @@
 - **Owner:** Track H
 - **Phase:** 11 volunteer buyout and financial correctness
 - **Evidence:** `buyOutVolunteerRequirement()` issues the invoice before acquiring the requirement row lock and recomputing the household ledger. If concurrent requests with different idempotency keys compete for the final remaining units, the first records its buyout; the second detects the reduced balance and returns a conflict only after its invoice has already been issued. The late failure path does not cancel or void that invoice.
-- **Reproduce:** with one buyout unit remaining, concurrently call the service twice for one unit using distinct creation keys. One call succeeds; the other rejects after issuing an invoice. `e2e/phase11-buyout-race.spec.ts` records the invariant that only one buyout invoice line may persist as `test.fixme`.
+- **Reproduce:** with one buyout unit remaining, concurrently call the service twice for one unit using distinct creation keys. One call succeeds; the other rejects after issuing an invoice. `e2e/phase11-buyout-race.spec.ts` now actively asserts that only one buyout invoice line may persist.
 - **Expected:** the losing request leaves no payable invoice or invoice line; buyout reservation and invoice creation must remain consistent under concurrency.
 - **Request:** reserve/decrement remaining units before issuing the invoice, or compensate by voiding the invoice if the locked recheck fails; add a Postgres concurrency regression that asserts the losing request creates no invoice.
 - **Status:** high-confidence financial correctness race from static transaction ordering; execution awaits the isolated QA Postgres stack.
@@ -157,7 +157,7 @@
 - **Owner:** Tracks H and B
 - **Phase:** 11 task 4 (sponsor renewal reminders)
 - **Evidence:** `server/src/modules/sponsors/module.ts` registers a daily renewal job and `runSponsorRenewalJob()` finds expiring active contracts, but it returns `{ notified: 0 }` immediately unless `isNotificationType('sponsor.renewal_reminder')` is true. The string is absent from `server/src/modules/notifications/catalog.ts`, so the job cannot create any notification. No test asserts a renewal notification.
-- **Reproduce:** create an active sponsor whose contract ends within the 30-day renewal window, run `runSponsorRenewalJob()`, and inspect the owner's notifications; the guard returns before querying organizations and no reminder is inserted. `e2e/phase11-sponsor-renewal.spec.ts` records the expected notification as `test.fixme`.
+- **Reproduce:** create an active sponsor whose contract ends within the 30-day renewal window, run `runSponsorRenewalJob()`, and inspect the owner's notifications; the guard returns before querying organizations and no reminder is inserted. `e2e/phase11-sponsor-renewal.spec.ts` now actively asserts the expected notification.
 - **Expected:** a single idempotent renewal reminder is inserted for each applicable owner/admin/finance recipient, and repeat daily job runs do not duplicate it.
 - **Request:** B should register the operational catalog entry and localized templates; H should retain the job and add duplicate-run coverage that proves the reminder is persisted once for an expiring contract.
 - **Status:** high-confidence Phase 11 behavior gap; the daily job is registered but its catalog gate makes it inert until the notification type is added.
@@ -166,7 +166,7 @@
 
 - **Owner:** Track I
 - **Phase:** 12; guardian access revocation and household privacy
-- **Evidence:** `/me/waitlist` calls `waitlistForAccount()` with only the signed-in account ID, which returns waitlist entries without checking whether the linked guardian/self relationship is still verified and active. The accept/decline routes also rely on the stored `entry.account_id`; waitlist creation can outlive a later link revocation. `e2e/security/class-waitlist-revoked-guardian.spec.ts` records the expected no-data response as `test.fixme`.
+- **Evidence:** `/me/waitlist` calls `waitlistForAccount()` with only the signed-in account ID, which returns waitlist entries without checking whether the linked guardian/self relationship is still verified and active. The accept/decline routes also rely on the stored `entry.account_id`; waitlist creation can outlive a later link revocation. `e2e/security/class-waitlist-revoked-guardian.spec.ts` now actively asserts the expected no-data response.
 - **Reproduce:** create an offered class waitlist entry for a verified guardian account, revoke its `person_account_links` row, then GET `/api/v1/classes/orgs/:orgId/me/waitlist`; the current query still returns the child's name and entry identifiers.
 - **Expected:** revoking the link immediately removes access to that child's waitlist data and blocks accepting or declining its offer; the response must contain no child or waitlist identifiers.
 - **Request:** revalidate active verified self/guardian access for every child-specific waitlist list/read/mutation, including `waitlistForAccount()`, accept and decline; add a real-Postgres regression for link revocation after offer creation.
@@ -180,13 +180,13 @@
 - **Reproduce:** revoke the purchaser's guardian link after a child receives a punch card and booked class session. The former guardian still sees the card; any other active organization member who knows the booking or card UUID can cancel the booking or consume a punch.
 - **Expected:** private class cards are hidden and member portal actions are denied unless the caller is the current verified guardian/self for the person and is authorized for the purchaser-owned record; denied calls leave bookings and remaining punches unchanged.
 - **Request:** enforce current person-link and account ownership in the portal list, booking-cancel and punch-redemption paths (retaining separate authorized staff actions); add a real-Postgres regression asserting 404/no data and no mutation for a revoked guardian and unrelated active member.
-- **Status:** high-confidence authorization/privacy defect from endpoint and service predicates; regression is marked `test.fixme` in `e2e/security/class-booking-guardian-idor.spec.ts`, with execution pending the isolated QA stack.
+- **Status:** high-confidence authorization/privacy defect from endpoint and service predicates; the active regression is in `e2e/security/class-booking-guardian-idor.spec.ts`, with execution pending the isolated QA stack.
 
 ### QA-SEC-012 — League entry reads ignore revoked roster-sharing permission
 
 - **Owner:** Track J
 - **Phase:** 13; federation roster privacy and immediate sharing revocation
-- **Evidence:** `GET /organizations/:orgId/entries` calls `listLeagueEntries()`, which loads stored roster snapshots without checking the current relationship or `rosters` key; `GET /organizations/:orgId/entries/:entryId` calls `getLeagueEntry()` and returns all snapshot player fields without either check. `GET /organizations/:orgId/members/:memberOrgId/teams` calls `readMemberTeams()`, which requires only `team_entries` sharing but returns `rosterSize` from the snapshot even when `rosters` is not shared. The child side can immediately revoke `rosters` while retaining `team_entries`, but all three reads continue exposing roster-derived data. `e2e/security/federation-sharing-revocation.spec.ts` records the expected redaction as `test.fixme`.
+- **Evidence:** `GET /organizations/:orgId/entries` calls `listLeagueEntries()`, which loads stored roster snapshots without checking the current relationship or `rosters` key; `GET /organizations/:orgId/entries/:entryId` calls `getLeagueEntry()` and returns all snapshot player fields without either check. `GET /organizations/:orgId/members/:memberOrgId/teams` calls `readMemberTeams()`, which requires only `team_entries` sharing but returns `rosterSize` from the snapshot even when `rosters` is not shared. The child side can immediately revoke `rosters` while retaining `team_entries`, but all three reads continue exposing roster-derived data. `e2e/security/federation-sharing-revocation.spec.ts` now actively asserts redaction.
 - **Reproduce:** accept a relationship with `{ rosters: true, team_entries: true }`, submit and accept a team entry, then have the member club revoke `rosters` while leaving `team_entries` enabled. As a league user, GET `/api/v1/federation/organizations/:leagueOrgId/entries`, `/entries/:entryId`, and `/members/:memberOrgId/teams`; the current implementation returns `snapshot.playerCount`, the full roster (including player names and person references), and per-team `rosterSize`.
 - **Expected:** each response re-evaluates the current active relationship and sharing keys. Keep team-entry metadata when `team_entries` remains enabled, but omit roster-derived counts and player fields after `rosters` is revoked. Suspension or ending the relationship must stop the league from reading the stored roster immediately.
 - **Request:** update `listLeagueEntries()`, `getLeagueEntry()`, and `readMemberTeams()` to gate cached snapshot fields on the current relationship status and `rosters` grant; add real-Postgres/API coverage for child-side immediate revocation and relationship suspension/end.
@@ -196,7 +196,7 @@
 
 - **Owner:** Track I
 - **Phase:** 12; academy portal privacy
-- **Evidence:** `GET /orgs/:orgId/me/browse` accepts an optional `personId`, requires only active organization membership, and passes the ID to `PostgresClassEnrollments.browse()`. The service reads that person's date of birth and returns only class offerings whose age bounds match, without verifying a current verified self/guardian link. Because `BrowseClass` exposes the age bounds, an unrelated member can infer which age band the child falls into. `e2e/security/class-browse-person-link.spec.ts` records the expected authorization denial as `test.fixme`.
+- **Evidence:** `GET /orgs/:orgId/me/browse` accepts an optional `personId`, requires only active organization membership, and passes the ID to `PostgresClassEnrollments.browse()`. The service reads that person's date of birth and returns only class offerings whose age bounds match, without verifying a current verified self/guardian link. Because `BrowseClass` exposes the age bounds, an unrelated member can infer which age band the child falls into. `e2e/security/class-browse-person-link.spec.ts` now actively asserts the expected authorization denial.
 - **Reproduce:** create several published age-banded classes and a child with a known ID but no active `person_account_links` row for the caller. As a different active organization member, request `/api/v1/classes/orgs/:orgId/me/browse?personId=:childId`; the current route returns offerings filtered using the child's DOB.
 - **Expected:** a supplied `personId` is accepted only when the signed-in account has a current verified self/guardian link; otherwise return the standard authorization denial without age-filtered results.
 - **Request:** call `requireLinkedPerson()` before passing `personId` from `/me/browse` into the service and add the real-Postgres/API regression in the new security spec.
@@ -206,7 +206,7 @@
 
 - **Owner:** Track I
 - **Phase:** 12; academy roster privacy
-- **Evidence:** `GET /orgs/:orgId/sessions/:sessionId/roster` authorizes through `requireSessionStaffOrInstructor()`. Its instructor branch joins an active `class_instructors` row to any `person_account_links` row for that person/account pair, checking only `revoked_at IS NULL`; it does not require a verified `self` link. The route does not require organization membership before this branch. A guardian with a still-active link to an assigned adult instructor therefore passes authorization without being the instructor or class staff. `sessions.roster()` then returns attendee names and person IDs. The regression in `e2e/security/class-instructor-guardian-roster.spec.ts` records the expected 403 and no student name as `test.fixme`.
+- **Evidence:** `GET /orgs/:orgId/sessions/:sessionId/roster` authorizes through `requireSessionStaffOrInstructor()`. Its instructor branch joins an active `class_instructors` row to any `person_account_links` row for that person/account pair, checking only `revoked_at IS NULL`; it does not require a verified `self` link. The route does not require organization membership before this branch. A guardian with a still-active link to an assigned adult instructor therefore passes authorization without being the instructor or class staff. `sessions.roster()` then returns attendee names and person IDs. The active regression in `e2e/security/class-instructor-guardian-roster.spec.ts` asserts the expected 403 and absence of student names.
 - **Reproduce:** assign an adult instructor person to an active class schedule; retain a verified guardian link from a separate, non-member account to that person; create a booked student session; GET `/api/v1/classes/orgs/:orgId/sessions/:sessionId/roster` with the guardian's session. The current instructor predicate treats the guardian link as the instructor's own link and returns the roster.
 - **Expected:** only the assigned instructor account itself, authenticated through its current verified self link, or authorized class staff can read the session roster. A guardian link to the instructor person alone must not grant access; return 403/404 with no roster or attendee details.
 - **Request:** require a verified active self relationship (or an equally explicit account-to-instructor authorization) when authorizing session instructors; do not let guardian relationships inherit the instructor's roster permission. Add a real-Postgres/API regression for an adult instructor with a separate linked guardian account.
@@ -216,7 +216,7 @@
 
 - **Owner:** Track J
 - **Phase:** 13; federation fee cancellation and financial correctness
-- **Evidence:** `voidFeeAssessment()` commits `federation_fee_assessments.status = 'void'` in one transaction, then calls `PostgresInvoiceRepository.void()` in another. The finance service rejects voids when an invoice has an active installment, net payment, credit, or dispute; on that rejection, the assessment remains void while its invoice remains payable. `e2e/phase13-fee-void-atomicity.spec.ts` records the active-installment case as `test.fixme`.
+- **Evidence:** `voidFeeAssessment()` commits `federation_fee_assessments.status = 'void'` in one transaction, then calls `PostgresInvoiceRepository.void()` in another. The finance service rejects voids when an invoice has an active installment, net payment, credit, or dispute; on that rejection, the assessment remains void while its invoice remains payable. `e2e/phase13-fee-void-atomicity.spec.ts` now actively asserts the active-installment case.
 - **Reproduce:** issue a league fee invoice to a member-club payer, add a scheduled installment to that invoice, and POST the fee assessment void action. The request correctly receives 409 from invoice validation, but a subsequent read shows the assessment is `void` and the invoice is still open with its full balance.
 - **Expected:** a rejected invoice void leaves the fee assessment in `invoiced` state and preserves the payable invoice state; successful voids update both records consistently.
 - **Request:** reorder or transact the assessment and invoice state changes so failed invoice validation cannot commit an assessment void; add real-Postgres regression coverage for active installments and net paid balances.
@@ -266,20 +266,20 @@
 
 - **Owner:** Track C
 - **Phase:** 16 §1.2
-- **Evidence:** `e2e/security/route-authorization.spec.ts:24`, `e2e/security/tenancy-fuzz.spec.ts:39`, and `e2e/security/permission-matrix.spec.ts:47` still declare `test.fixme`. `server/test/security/permission-matrix.json` has an empty `operations` object.
-- **Reproduce:** inspect those three checks and the matrix; Playwright marks the checks as skipped before running their assertions.
+- **Evidence:** `e2e/security/route-authorization.spec.ts`, `e2e/security/tenancy-fuzz.spec.ts`, and `e2e/security/permission-matrix.spec.ts` now run their assertions. `server/test/security/permission-matrix.json` has an empty `operations` object, so the generated metadata and matrix contract remain incomplete.
+- **Reproduce:** inspect those three active checks and the matrix; route metadata and expected permission rows are still missing.
 - **Expected:** every generated API operation has permission/resource/scope metadata; every ID-bearing organization GET/PATCH/DELETE has a foreign-tenant fixture; every operation has a permission row whose allow/deny sets cover the role list exactly. The three checks run as tests and pass.
-- **Request:** finish the generated route metadata and fixture contract, populate the matrix, and remove `test.fixme` only after the executable tests pass.
+- **Request:** finish the generated route metadata and fixture contract and populate the matrix so the active executable tests pass.
 - **Status:** open; browser verification is also waiting on the required QA Postgres port.
 
 ### QA-SEC-002 — Security-header acceptance check is disabled
 
 - **Owner:** Track C
 - **Phase:** 16 §1.4
-- **Evidence:** `e2e/security/security-headers.spec.ts:3` still declares `test.fixme`, while Track C reports the middleware is mounted in `server/src/app.ts`.
-- **Reproduce:** inspect the test; Playwright skips its response-header assertions.
+- **Evidence:** `e2e/security/security-headers.spec.ts` now runs its response-header assertions; Track C reports the middleware is mounted in `server/src/app.ts`.
+- **Reproduce:** run the active browser test against the QA stack and inspect its response-header assertions.
 - **Expected:** the Chromium test checks CSP, HSTS production behavior, frame options, content-type, referrer, and permissions headers on the relevant response types and passes against the mounted middleware.
-- **Request:** align the assertions with the mounted middleware and enable the test after it passes.
+- **Request:** align the assertions with the mounted middleware until the active test passes.
 - **Status:** open; browser verification is also waiting on the required QA Postgres port.
 
 ### QA-SEC-003 — CI has no Gitleaks secret scan
@@ -296,20 +296,20 @@
 
 - **Owner:** Track C
 - **Phase:** 16 §1, SSRF protection
-- **Evidence:** `server/src/integrations/push/sender.ts:78` forwards `subscription.endpoint` to the transport without destination validation; `e2e/security/ssrf.spec.ts:6` is `test.fixme` and uses a loopback metadata URL.
+- **Evidence:** `server/src/integrations/push/sender.ts:78` forwards `subscription.endpoint` to the transport without destination validation; `e2e/security/ssrf.spec.ts` now actively tests a synthetic loopback metadata URL.
 - **Reproduce:** instantiate `WebPushSender` with a fake transport and call `send` with `https://127.0.0.1:443/latest/meta-data`; the current code passes that endpoint to `sendNotification`.
 - **Expected:** loopback, private, link-local, and non-provider destinations are rejected before transport, with DNS resolution protected from rebinding.
-- **Request:** validate/pin permitted Web Push destinations and enable the regression test; keep the test synthetic and assert the transport is never called.
+- **Request:** validate/pin permitted Web Push destinations so the active synthetic regression passes; assert the transport is never called.
 - **Status:** open security defect; no live request was made.
 
 ### QA-SEC-005 — Step-up reauthentication does not rotate the session
 
 - **Owner:** Track A
 - **Phase:** 16 §1.5
-- **Evidence:** `e2e/security/session-step-up-fixation.spec.ts:10` is `test.fixme`; `stepUpWithPassword`/`stepUpWithTotp` elevate the existing session and the route does not issue a replacement cookie.
-- **Reproduce:** inspect the step-up route and its regression; the required assertions for a new cookie token and revocation of the prior token are skipped.
+- **Evidence:** `e2e/security/session-step-up-fixation.spec.ts` now actively checks session rotation; `stepUpWithPassword`/`stepUpWithTotp` elevate the existing session and the route does not issue a replacement cookie.
+- **Reproduce:** inspect the step-up route and run its active regression for a new cookie token and revocation of the prior token.
 - **Expected:** successful step-up rotates the session token, sends the replacement cookie with the required flags, and revokes the prior session token.
-- **Request:** implement step-up session rotation and enable the regression after it passes.
+- **Request:** implement step-up session rotation so the active regression passes.
 - **Status:** open security defect; implementation is owned by Track A.
 
 ### QA-SEC-006 — CI has no SQL raw-interpolation guard
@@ -346,11 +346,11 @@
 
 - **Owner:** Track G
 - **Phase:** 8, required journey 15
-- **Evidence:** schedule modules and console routes are on the current trunk, but no `e2e/` spec exercises generation review, apply, publication, and family notification as one flow.
-- **Reproduce:** search `e2e/` for a schedule generator journey; `schedule-stats`, `schedule-rsvp`, and `schedule-offline` cover other paths only.
+- **Evidence:** `e2e/schedule-generator.spec.ts` now exercises generation, explanation review, discard and apply, but it stops before publication and family notification. Track G reports that its change batches emit through Track B's notification service, which currently marks only `in_app`; the required preview/Mailpit family notice is not evidenced.
+- **Reproduce:** run `e2e/schedule-generator.spec.ts`; the flow ends after apply and reads the generated events directly from the database. It does not publish them or assert any family delivery.
 - **Expected:** a desktop and iPhone-width browser flow generates a schedule, reviews and applies it, publishes it, and verifies family notification delivery through the preview/Mailpit adapter, with axe checks.
-- **Request:** add the missing Phase 8 browser journey and run it against the isolated QA stack.
-- **Status:** open coverage gap; no product defect established.
+- **Request:** extend the existing browser journey through event publication and family notification. Coordinate the notification channel work with B/C and verify delivery through the preview/Mailpit adapter, including axe checks.
+- **Status:** partial coverage added on the latest trunk; publication and family notification remain open. Browser execution is pending the isolated QA stack.
 
 ### QA-ACC-016 — Rainout journey omits notification and reschedule approval
 
@@ -376,11 +376,11 @@
 
 - **Owner:** Track G
 - **Phase:** 9, required journey 18
-- **Evidence:** `server/src/modules/tournaments/bracket-acceptance.test.ts` tests bracket logic, but no Playwright spec covers external-team entry and tournament progression.
-- **Reproduce:** search `e2e/` for a tournament journey; none is present.
+- **Evidence:** `e2e/schedule-tournament.spec.ts` now creates and publicly renders a 13-team double-elimination bracket from internal team-season entries, checking the initial winners round and bye propagation. It does not enter external teams, record match outcomes, or follow advancement through the final.
+- **Reproduce:** run `e2e/schedule-tournament.spec.ts`; it stops after verifying the generated bracket and public opening round.
 - **Expected:** a desktop browser flow enters external teams, runs the double-elimination bracket through the final, and verifies the winner, with axe checks.
-- **Request:** add the missing desktop Playwright acceptance journey.
-- **Status:** open coverage gap; no product defect established.
+- **Request:** extend the desktop Playwright acceptance journey to register external teams, enter results across winners and losers brackets, and verify the champion after the final; retain axe checks.
+- **Status:** partial browser coverage added on the latest trunk; external-team progression through the final remains open. Browser execution is pending the isolated QA stack.
 
 ### QA-ACC-019 — Swim-meet results and team-scoring browser journey is missing
 
@@ -472,3 +472,73 @@
 - **Expected:** a public accessibility statement is linked from the marketing site and each organization-site footer when those surfaces land.
 - **Request:** include the statement page and footer links in the public-site integration, then add browser coverage.
 - **Status:** open launch acceptance dependency; no current public-site route is available to test.
+
+### QA-ACC-047 — Family registration journey does not cover sibling discount, ACH or bilingual confirmation
+
+- **Owner:** Track E
+- **Phase:** 5, required journey 8
+- **Evidence:** `e2e/registration.spec.ts` registers two children, signs waivers and selects uniform sizes, but the fixture uses a free offering and does not configure a sibling rule, submit an ACH payment, or inspect confirmation email delivery in English and Spanish.
+- **Reproduce:** run the family registration journey and inspect its fixture and assertions; no positive price, sibling discount, ACH method, settlement, or Mailpit locale assertion is present.
+- **Expected:** the browser flow registers two children with the household sibling discount, submits ACH through the fake/test payment boundary, proves confirmation only after the expected settlement state, and asserts English and Spanish confirmation messages without sending real email or moving live money.
+- **Request:** extend the E-owned acceptance journey with a positive-priced household discount fixture, test-mode/fake ACH settlement, and preview/Mailpit assertions for both locales; assert the recorded discount and payment totals.
+- **Status:** open required journey coverage gap; the current flow exercises only free registration.
+
+### QA-ACC-048 — Waitlist browser journey stops before the offer is accepted
+
+- **Owner:** Track E
+- **Phase:** 5, required journey 10
+- **Evidence:** `e2e/registration.spec.ts` verifies a family can join a full program's queue and receives position 1. It does not create an offer, notify the family, accept the offer, or complete its registration checkout.
+- **Reproduce:** run the waitlist journey and inspect its final assertion; it ends after checking the persisted `waiting` entry.
+- **Expected:** staff offers the released place, the family receives the offer, accepts it before expiry, completes the linked registration checkout, and the waitlist/registration/capacity state is consistent.
+- **Request:** extend the Phase 5 browser journey through staff offer creation, family acceptance, test-mode checkout, and database verification, with axe checks on the staff and family screens.
+- **Status:** open required journey coverage gap; queue join behavior is covered.
+
+### QA-ACC-049 — External captain team-entry acceptance lacks a browser journey
+
+- **Owner:** Track E
+- **Phase:** 5, required journey 11
+- **Evidence:** Track E's service acceptance tests cover external team entry, verified player invites, household checkout and staff decisions, but no Playwright spec in `e2e/` exercises those UI steps.
+- **Reproduce:** search `e2e/` for a captain/team-entry browser flow; no match is present.
+- **Expected:** an external adult captain verifies their identity, creates a team entry, invites players through one-use links, each invited household completes its own registration and waiver requirements, and scoped staff approval moves capacity holds exactly once.
+- **Request:** add the missing desktop and iPhone 13 browser journey using synthetic accounts, test-mode/fake checkout and axe checks; assert invite replay and final approval state.
+- **Status:** open required journey coverage gap; the existing service-level tests do not establish browser acceptance.
+
+### QA-ACC-050 — Launch-gate snapshot does not match the current trunk head
+
+- **Owner:** Track C
+- **Phase:** 16 final gate
+- **Evidence:** `docs/codex/LAUNCH-GATE.md` records snapshot `da7c13f4`, while `rebuild/trunk` has advanced to `b1a8420f` with Phase 6 and Phase 12 integration merges after that snapshot.
+- **Reproduce:** compare the current `rebuild/trunk` head (`b1a8420f`) and integrated Track F/I commits with the launch-gate snapshot and its phase status/evidence.
+- **Expected:** the gate records the current committed trunk hash, test/CI evidence and phase integration state before final promotion decisions.
+- **Request:** refresh the launch-gate snapshot against the latest committed trunk before promotion; audit the later Phase 6/12 merges and preserve explicit CI/test/security failures. Do not promote `main` unless all required criteria pass.
+- **Status:** open gate-evidence freshness gap; QA has not yet merged its crawler or new journeys into trunk.
+
+### QA-ACC-051 — Valid team-entry invite UUID digest bytes can abort invite checkout
+
+- **Owner:** Track E
+- **Phase:** 5 team-entry invite checkout
+- **Evidence:** `server/src/modules/registration/team-entries.ts:156` hashes a namespace with SHA-256, takes the first 16 bytes, then treats a zero byte at position 6 or 8 as an incomplete UUID. A complete 16-byte SHA-256 digest is allowed to contain zero bytes; those positions are subsequently masked to set UUID version and variant bits.
+- **Reproduce:** call `stableUuid()` with any deterministic namespace whose digest has byte 6 or 8 equal to zero. The guard throws before producing the UUID. `createTeamEntryInvite()` uses this helper to derive checkout and invoice-line IDs from valid invite IDs.
+- **Expected:** every complete 16-byte digest yields a deterministic UUID; only a missing/short digest should be rejected.
+- **Request:** replace the truthiness guard with a digest-length check and add deterministic fixtures for zero bytes at digest positions 6 and 8, including the invite checkout-key derivation path.
+- **Status:** high-confidence static runtime defect; invite creation may fail for valid inputs based on digest contents.
+
+### QA-ACC-052 — Evaluation offer journey stops before deposit checkout is exercised
+
+- **Owner:** Track E (checkout; coordinate Track C wiring and Track F acceptance)
+- **Phase:** 6, required journey 12
+- **Evidence:** `e2e/evaluations.spec.ts` mocks the offer acceptance response, then asserts only that the browser navigates to `/register/checkouts/:checkoutId/requirements`. It does not load checkout requirements, pay the advertised deposit, verify any remainder/autopay plan, or verify registration/team-roster persistence. Track F reports the production `OfferCheckoutAdapter` is still unwired and its acceptance operation remains an open E/C dependency.
+- **Reproduce:** inspect the family offer test at `e2e/evaluations.spec.ts`; after `Accept and continue to deposit checkout`, the test only asserts the requirements URL and one mocked request.
+- **Expected:** a real seeded offer acceptance creates an offer-bound registration and checkout; the family completes the test-mode deposit flow, any agreed remainder plan is recorded, and the resulting roster/registration state is persisted exactly once.
+- **Request:** implement and wire the offer checkout path across E/C, then extend the desktop and iPhone 13 journey through deposit settlement and persisted registration/roster assertions, with axe checks and idempotent replay coverage.
+- **Status:** open Phase 6 acceptance and integration gap; current browser assertion proves only the mocked navigation contract.
+
+### QA-SEC-015 — Class booking accepts a household unrelated to the linked person
+
+- **Owner:** Track I
+- **Phase:** 12 class bookings and household privacy
+- **Evidence:** `server/src/modules/classes/routes.ts` verifies the caller's active link to the requested `personId`, but `personHousehold()` returns any supplied `householdId` without checking the person/household membership. The portal drop-in and punch-card booking services then persist or invoice that supplied household without validating the pair; the schema only checks that both IDs belong to the organization.
+- **Reproduce:** as a guardian with a valid link to child A, POST `/api/v1/classes/orgs/:orgId/me/drop-in` with child A's `personId` and a valid same-org household ID containing child B. The route currently accepts the drop-in and stores it under child B's household.
+- **Expected:** reject a supplied household unless an active `household_members` row links that household and person in the same organization; return 404 without creating a booking or invoice.
+- **Request:** validate the active household/person pair in the shared route helper and in the service transaction paths for drop-ins and punch-card purchases, then keep the active regression in `e2e/security/class-booking-guardian-idor.spec.ts` green.
+- **Status:** high-confidence static privacy and financial-attribution defect; active synthetic API regression added, runtime execution blocked by QA's port collision.

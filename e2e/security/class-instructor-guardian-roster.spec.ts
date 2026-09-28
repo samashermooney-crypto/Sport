@@ -8,7 +8,7 @@ import { createTestFactories } from '../../server/test/factories';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test.fixme('QA-SEC-014 / Track I: only the assigned instructor account may read its session roster', async ({
+test('QA-SEC-014 / Track I: only the assigned instructor account may read its session roster', async ({
   request,
 }) => {
   const database = createDatabase(

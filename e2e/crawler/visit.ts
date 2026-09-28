@@ -1,5 +1,6 @@
 import {
   expect,
+  type Locator,
   type Page,
   type Request,
   type Response,
@@ -33,51 +34,185 @@ function sameOriginPath(href: string, baseURL: string): string | null {
   return url.pathname;
 }
 
-async function hrefsFrom(page: Page, selector: string): Promise<string[]> {
-  return page
-    .locator(selector)
-    .evaluateAll((anchors) =>
-      anchors.map((anchor) => anchor.getAttribute('href') ?? ''),
-    );
+/** Open every shell menu in turn and read links from all rendered nav groups. */
+export type NavigationDestination = {
+  href: string;
+  label: string;
+  navigationIndex: number;
+  navigationLabel: string;
+  groupLabel: string | null;
+  path: string;
+};
+
+type RawNavigationLink = {
+  href: string;
+  label: string;
+};
+
+function destination(
+  link: RawNavigationLink,
+  baseURL: string,
+  navigationIndex: number,
+  navigationLabel: string,
+  groupLabel: string | null,
+): NavigationDestination | null {
+  const path = sameOriginPath(link.href, baseURL);
+  return path
+    ? {
+        ...link,
+        path,
+        navigationIndex,
+        navigationLabel,
+        groupLabel,
+      }
+    : null;
 }
 
-/** Open every shell menu in turn and read links from all rendered nav groups. */
+async function linksIn(
+  nav: Locator,
+  baseURL: string,
+  navigationIndex: number,
+  navigationLabel: string,
+  groupLabel: string | null,
+): Promise<NavigationDestination[]> {
+  const links = await nav
+    .locator('.mega-menu:visible a[href]:visible')
+    .evaluateAll((anchors) =>
+      anchors.map((anchor) => ({
+        href: anchor.getAttribute('href') ?? '',
+        label:
+          anchor.getAttribute('aria-label')?.trim() ||
+          anchor.textContent.replace(/\s+/g, ' ').trim() ||
+          '',
+      })),
+    );
+  return links
+    .map((link) =>
+      destination(link, baseURL, navigationIndex, navigationLabel, groupLabel),
+    )
+    .filter((link): link is NavigationDestination => link !== null);
+}
+
+/** Reveal rendered navigation groups and return every same-origin destination. */
 export async function collectPaths(
   page: Page,
   baseURL: string,
-): Promise<string[]> {
-  const hrefs: string[] = [];
-  const triggers = page.locator(
-    'nav[aria-label="Main navigation"] .nav-trigger',
-  );
-  const count = await triggers.count();
-  for (let index = 0; index < count; index += 1) {
-    const trigger = triggers.nth(index);
-    if ((await trigger.getAttribute('aria-expanded')) !== 'true') {
-      // The desktop menu can be visually collapsed by mobile CSS. Dispatching
-      // the same button click still reveals the configured links for crawling.
-      await trigger.evaluate((element) => {
-        (element as HTMLButtonElement).click();
-      });
+): Promise<NavigationDestination[]> {
+  const destinations: NavigationDestination[] = [];
+  const navs = page.locator('nav:visible');
+  const navCount = await navs.count();
+  for (let navIndex = 0; navIndex < navCount; navIndex += 1) {
+    const nav = navs.nth(navIndex);
+    const navigationLabel = (await nav.getAttribute('aria-label')) ?? '';
+    const triggers = nav.locator('button[aria-expanded]:visible');
+    const triggerCount = await triggers.count();
+    for (let triggerIndex = 0; triggerIndex < triggerCount; triggerIndex += 1) {
+      const trigger = triggers.nth(triggerIndex);
+      await expect(
+        trigger,
+        'navigation disclosure has an accessible name',
+      ).toHaveAccessibleName(/\S+/);
+      const groupLabel = (await trigger.innerText())
+        .replace(/\s+/g, ' ')
+        .trim();
+      const wasExpanded =
+        (await trigger.getAttribute('aria-expanded')) === 'true';
+      if (wasExpanded) {
+        await trigger.click();
+        await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+      }
+      await trigger.click();
+      await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+      destinations.push(
+        ...(await linksIn(nav, baseURL, navIndex, navigationLabel, groupLabel)),
+      );
     }
-    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    hrefs.push(
-      ...(await hrefsFrom(
-        page,
-        'nav[aria-label="Main navigation"] .mega-menu a[href]',
-      )),
+    const directLinks = await nav
+      .locator('a[href]:visible')
+      .evaluateAll((anchors) =>
+        anchors
+          .filter((anchor) => !anchor.closest('.mega-menu'))
+          .map((anchor) => ({
+            href: anchor.getAttribute('href') ?? '',
+            label:
+              anchor.getAttribute('aria-label')?.trim() ||
+              anchor.textContent.replace(/\s+/g, ' ').trim() ||
+              '',
+          })),
+      );
+    destinations.push(
+      ...directLinks
+        .map((link) =>
+          destination(link, baseURL, navIndex, navigationLabel, null),
+        )
+        .filter((link): link is NavigationDestination => link !== null),
     );
   }
-  hrefs.push(
-    ...(await hrefsFrom(
-      page,
-      'nav:not([aria-label="Main navigation"]) a[href]',
-    )),
-  );
 
-  return [...new Set(hrefs.map((href) => sameOriginPath(href, baseURL)))]
-    .filter((path): path is string => path !== null)
-    .sort();
+  const unique = new Map<string, NavigationDestination>();
+  for (const link of destinations) {
+    const key = [
+      link.navigationIndex,
+      link.groupLabel ?? '',
+      link.href,
+      link.label,
+    ].join('\u0000');
+    unique.set(key, link);
+  }
+  return [...unique.values()];
+}
+
+/** Exercise rendered navigation buttons that are not disclosure triggers. */
+export async function clickNavigationButtons(
+  page: Page,
+  baseURL: string,
+  sourcePath: string,
+): Promise<void> {
+  const exercised = new Set<string>();
+  let discoveredEnabledButton = true;
+  while (discoveredEnabledButton) {
+    discoveredEnabledButton = false;
+    const navs = page.locator('nav:visible');
+    for (let navIndex = 0; navIndex < (await navs.count()); navIndex += 1) {
+      const nav = navs.nth(navIndex);
+      const buttons = nav.locator('button:visible:not([aria-expanded])');
+      for (
+        let buttonIndex = 0;
+        buttonIndex < (await buttons.count());
+        buttonIndex += 1
+      ) {
+        const button = buttons.nth(buttonIndex);
+        await expect(
+          button,
+          'navigation button has an accessible name',
+        ).toHaveAccessibleName(/\S+/);
+        const name = (await button.innerText()).replace(/\s+/g, ' ').trim();
+        const identity = `${String(navIndex)}\u0000${String(buttonIndex)}\u0000${name}`;
+        if (exercised.has(identity)) continue;
+        if (await button.isDisabled()) {
+          await expect(button).toBeDisabled();
+          continue;
+        }
+
+        exercised.add(identity);
+        discoveredEnabledButton = true;
+        const hadActiveButton =
+          (await nav.locator('button[aria-current="page"]').count()) > 0;
+        const role = await button.getAttribute('role');
+        await visitPath(page, baseURL, sourcePath, async () => {
+          await button.click();
+          await expect
+            .poll(() => new URL(page.url()).pathname)
+            .toBe(new URL(sourcePath, baseURL).pathname);
+          if (role === 'tab')
+            await expect(button).toHaveAttribute('aria-selected', 'true');
+          else if (hadActiveButton)
+            await expect(button).toHaveAttribute('aria-current', 'page');
+          return null;
+        });
+      }
+    }
+  }
 }
 
 function isSameOrigin(url: string, baseURL: string): boolean {
@@ -97,6 +232,7 @@ export async function visitPath(
   page: Page,
   baseURL: string,
   path: string,
+  activate?: () => Promise<Response | null>,
 ): Promise<void> {
   const failures: string[] = [];
   const pendingApi = new Set<Request>();
@@ -128,8 +264,16 @@ export async function visitPath(
   page.on('response', onResponse);
   page.on('requestfailed', onRequestFailed);
   try {
-    const response = await page.goto(path, { waitUntil: 'domcontentloaded' });
-    expect(response?.status() ?? 0, `${path} document status`).toBe(200);
+    if (activate) {
+      const response = await activate();
+      if (response)
+        expect(response.status(), `${path} document status`).toBe(200);
+    } else {
+      const response = await page.goto(path, {
+        waitUntil: 'domcontentloaded',
+      });
+      expect(response?.status() ?? 0, `${path} document status`).toBe(200);
+    }
     expect(
       new URL(page.url()).pathname,
       `${path} should not redirect to a different route`,
@@ -165,5 +309,57 @@ export async function visitPath(
     page.off('request', onRequest);
     page.off('response', onResponse);
     page.off('requestfailed', onRequestFailed);
+  }
+}
+
+/** Click a real navigation link, verify its destination, then return to its source. */
+export async function clickNavigationDestination(
+  page: Page,
+  baseURL: string,
+  sourcePath: string,
+  destination: NavigationDestination,
+): Promise<void> {
+  const nav = page.locator('nav:visible').nth(destination.navigationIndex);
+  if (destination.groupLabel) {
+    const trigger = nav.getByRole('button', {
+      name: destination.groupLabel,
+      exact: true,
+    });
+    if ((await trigger.getAttribute('aria-expanded')) !== 'true')
+      await trigger.click();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  }
+
+  const links = nav.getByRole('link', { name: destination.label, exact: true });
+  let targetIndex = -1;
+  for (let index = 0; index < (await links.count()); index += 1) {
+    if ((await links.nth(index).getAttribute('href')) === destination.href) {
+      targetIndex = index;
+      break;
+    }
+  }
+  expect(
+    targetIndex,
+    `navigation link ${destination.label}`,
+  ).toBeGreaterThanOrEqual(0);
+  const target = links.nth(targetIndex);
+  await expect(target).toBeVisible();
+  await expect(
+    target,
+    `navigation link ${destination.label} is named`,
+  ).toHaveAccessibleName(/\S+/);
+  await visitPath(page, baseURL, destination.path, async () => {
+    await target.click();
+    await expect
+      .poll(() => new URL(page.url()).pathname)
+      .toBe(new URL(destination.path, baseURL).pathname);
+    return null;
+  });
+
+  if (destination.path !== sourcePath) {
+    await page.goBack({ waitUntil: 'domcontentloaded' });
+    await expect
+      .poll(() => new URL(page.url()).pathname)
+      .toBe(new URL(sourcePath, baseURL).pathname);
   }
 }

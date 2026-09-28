@@ -10,7 +10,7 @@ import { createTestFactories } from '../../server/test/factories';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test.fixme('QA-SEC-009 / Track H: scoped director cannot read another household volunteer ledger', async ({
+test('QA-SEC-009 / Track H: scoped director cannot read another household volunteer ledger', async ({
   request,
 }) => {
   const database = createDatabase(

@@ -12,7 +12,7 @@ import { createTestFactories } from '../server/test/factories';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test.fixme('QA-ACC-039 / Track H: concurrent volunteer buyouts leave no payable orphan invoice', async () => {
+test('QA-ACC-039 / Track H: concurrent volunteer buyouts leave no payable orphan invoice', async () => {
   const database = createDatabase(
     `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
   );

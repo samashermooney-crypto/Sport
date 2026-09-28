@@ -846,6 +846,14 @@
 - **Decision:** Family endpoints list and update only active league registrations linked to the signed-in guardian or athlete account. Friend requests must name another confirmed registrant in that program. Family responses never expose or overwrite staff notes or coach ratings; family endpoints do not collect free-text notes.
 - **Why:** This limits child-data exposure, prevents arbitrary person IDs from granting access, and keeps staff ratings intact when a family edits its own preferences.
 - **Consequences / follow-ups:** The team balancer consumes requests only when both athletes request one another. Staff preferences remain accessible through director-only routes.
+
+### DEC-116 — Keep QA authorization regressions active while contracts are incomplete
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 §1 security acceptance
+- **Context:** The all-route permission/resource/scope metadata and reviewed permission matrix are incomplete, but leaving security acceptance cases quarantined would hide a launch-gate gap.
+- **Decision:** Keep route-authorization, permission-matrix and tenancy-fuzz assertions active. When an assertion cannot establish a policy because its contract is missing, report that concrete contract gap as a failing acceptance item; do not infer policy from path names or count random nonexistent IDs as tenant-isolation evidence.
+- **Why:** Security coverage must remain visible in CI while preventing unsupported assumptions from becoming false authorization guarantees.
+- **Consequences / follow-ups:** This supersedes DEC-114's `test.fixme` consequence. Track C owns route metadata, real foreign-tenant fixtures and the complete allow/deny matrix; the QA regressions remain active and must pass after those contracts land.
 ### DEC-114 — Fail closed on incomplete route-security metadata
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 16 §1 security verification

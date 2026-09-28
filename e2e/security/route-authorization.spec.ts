@@ -21,7 +21,7 @@ async function readOpenApi(): Promise<OpenApiDocument> {
   return JSON.parse(source) as OpenApiDocument;
 }
 
-test.fixme('SEC-002 / Track C: every API operation declares permission, resource, and scope metadata', async () => {
+test('SEC-002 / Track C: every API operation declares permission, resource, and scope metadata', async () => {
   const document = await readOpenApi();
   const missing: string[] = [];
   for (const [path, methods] of Object.entries(document.paths)) {

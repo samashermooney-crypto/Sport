@@ -68,6 +68,15 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 
 - **Track G (API contract, 2026-09-27):** keep `runScheduleGeneration` exported from `server/src/modules/scheduling/generator.ts`; Track J's federation schedule workflow imports and calls this shared service. OPS restored the export during the current trunk sync after typecheck caught the missing API.
 
+## Requests from QA
+
+- QA-ACC-015: extend `e2e/schedule-generator.spec.ts` through event publication and family notification. Coordinate the delivery channel with Tracks B/C and assert the preview/Mailpit notification; current coverage stops after apply.
+- QA-ACC-016: extend the rainout flow through preview/Mailpit family notice and staff approval of a reschedule request; `schedule-stats.spec.ts` currently checks only that the affected event is postponed.
+- QA-ACC-017: extend offline game day through a lineup minimum-play warning and successful score synchronization; keep any conflict case separate from the successful sync assertion.
+- QA-ACC-018: extend `e2e/schedule-tournament.spec.ts` from its current internal-team opening bracket to external-team entry, match results and championship final verification.
+- QA-ACC-019: add a desktop Playwright flow for swim meet timed-result entry and team scoring; current evidence is service integration only.
+- QA-ACC-020: add a browser flow for officials assignment, decline, reassignment and pay-batch creation; current evidence is service integration only.
+
 ## Decisions and review
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.

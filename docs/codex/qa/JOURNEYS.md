@@ -1,27 +1,27 @@
 # Required Playwright journey audit
 
-Audit snapshot: `track/qa` synced through `rebuild/trunk` at `cd5b638`. This is a coverage inventory, not a claim that local Playwright runs passed. Browser verification is blocked by the required QA stack's port collision with Track I; see `docs/codex/tracks/QA.md`.
+Audit snapshot: `track/qa` is syncing with `rebuild/trunk` at `b1a8420f`. This is a coverage inventory, not a claim that local Playwright runs passed. Browser verification is blocked by the required QA stack's port collision with Track I; see `docs/codex/tracks/QA.md`.
 
 | # | Journey | Status on the audit snapshot | Browser evidence / remaining acceptance |
 |---:|---|---|---|
 | 1 | Org sign-up → MFA → invite admin → role change revokes session | Covered | `e2e/sign-in.spec.ts` exercises signup, verification, MFA, org creation, admin invite/acceptance, MFA completion, role change and revoked-session redirect. Local run pending. |
 | 2 | Guardian accepts invitation and edits child medical info | Added; execution pending | `e2e/guardian-invitation.spec.ts` now verifies saved allergy/medication values after reload; `e2e/security/guardian-idor.spec.ts` asserts a different guardian receives 404 for the child's medical profile. |
 | 3 | Import 2,000 people with preview and rollback | Added; execution pending | `e2e/journeys/import-scale.spec.ts` previews, commits and rolls back a 2,000-person batch, then verifies all imported records are archived. |
-| 4 | Volleyball season wizard and team generation | Not covered | No Playwright acceptance flow for the season wizard and team generation is present in `e2e/`. |
-| 5 | Season rollover preview and commit | Not covered | No Playwright acceptance flow for rollover preview and commit is present in `e2e/`. |
+| 4 | Volleyball season wizard and team generation | Added; execution pending | `e2e/phase3-programs.spec.ts` creates a season and volleyball profile, publishes a program with nine generated divisions, then generates three persistent teams through the console and verifies the database records. It runs in the desktop and iPhone 13 projects with axe checks. |
+| 5 | Season rollover preview and commit | Added; execution pending | `e2e/phase3-programs.spec.ts` previews copied programs, divisions, offerings, returning teams and carried staff, commits the rollover, then verifies the new team season and staff records in Postgres. It runs in the desktop and iPhone 13 projects with axe checks. |
 | 6 | Stripe onboarding → first payment → approved partial refund | Partial | `e2e/finance-portal.spec.ts` only checks portal navigation and intercepts payment-method APIs. It does not exercise onboarding, payment, or refund. |
 | 7 | Installment autopay, failed retry, card update, success | Not available | Phase 4 acceptance is open; no clock-controlled Playwright journey exists. |
-| 8 | Two-child registration, sibling discount, waiver, ACH, bilingual email | Not available | Registration acceptance is open; no end-to-end checkout journey exists. |
-| 9 | Returning family re-registers in at most four screens | Not available | Registration acceptance is open; no journey exists. |
-| 10 | Waitlist offer and acceptance | Not available | Registration acceptance is open; no journey exists. |
-| 11 | External adult captain enters team and invites players | Not available | Registration acceptance is open; no journey exists. |
-| 12 | Tryout check-in, offline scoring, team balancing, offers and deposit | Not available | Phase 6 is not started; no journey exists. |
+| 8 | Two-child registration, sibling discount, waiver, ACH, bilingual email | Partial; execution pending | `e2e/registration.spec.ts` registers two siblings, signs both waivers, accepts refund terms, selects required uniform add-ons and confirms both registrations; it does not exercise sibling discount pricing, ACH settlement, or English/Spanish confirmation email delivery. |
+| 9 | Returning family re-registers in at most four screens | Added; execution pending | `e2e/registration.spec.ts` starts from a confirmed prior registration, preselects the returning participant, completes a two-child cart, and asserts four named screens and a two-minute bound. Desktop/mobile execution remains pending. |
+| 10 | Waitlist offer and acceptance | Partial; execution pending | `e2e/registration.spec.ts` joins a full program waitlist and checks its queue position, but does not test an offer, acceptance, or resulting checkout. |
+| 11 | External adult captain enters team and invites players | Not covered | Track E has service-level team-entry acceptance tests, but no browser journey exercises adult captain verification, player invitations, household checkout, and staff approval. |
+| 12 | Tryout check-in, offline scoring, team balancing, offers and deposit | Partial; execution pending | `e2e/evaluations.spec.ts` covers offline score sync, scanned-registration check-in, placement-board generation and a mocked offer acceptance that only navigates to checkout requirements; deposit settlement, remainder plan and persisted roster/registration assertions are absent (QA-ACC-052). |
 | 13 | Coach compliance gate and activation after approval | Partial | `e2e/safety-integration.spec.ts` covers safety-center routes, not coach gating or credential approval. Phase 7 acceptance remains open. |
 | 14 | Concussion report and return-to-play clearance | Not available | Phase 7 acceptance remains open; no browser journey exists. |
-| 15 | Schedule generation through publication and family notification | Not covered | No Playwright flow exercises generator review/apply, publication and family notification. |
+| 15 | Schedule generation through publication and family notification | Partial; execution pending | `e2e/schedule-generator.spec.ts` now covers draft generation, explanation review, discard and apply. It stops before publication and family notification; verify the complete flow through the preview/Mailpit adapter and axe. |
 | 16 | Rainout, notifications and approved reschedule request | Partial | `e2e/schedule-stats.spec.ts` closes a facility and asserts an affected event is postponed; it does not verify notification delivery or an approved reschedule request. |
 | 17 | Offline game day: attendance, lineup warning, score and sync | Partial | `e2e/schedule-offline.spec.ts` syncs attendance and surfaces a concurrent score conflict; it does not cover a lineup warning or successful score sync. |
-| 18 | Double-elimination tournament with external teams | Not covered | `server/src/modules/tournaments/bracket-acceptance.test.ts` covers bracket logic; no browser journey exercises external team entry through the final. |
+| 18 | Double-elimination tournament with external teams | Partial; execution pending | `e2e/schedule-tournament.spec.ts` creates a 13-team internal bracket, checks bye propagation and the initial public bracket. It does not enter external teams or progress reported results through the final. |
 | 19 | Swim meet results and team scoring | Not covered | `server/src/modules/contests/meet.integration.test.ts` covers meet results; no browser journey exercises result entry and team scoring. |
 | 20 | Officials assignment, decline, reassign and pay batch | Not covered | The service integration tests cover assignments and pay batches; no browser journey exercises the required staff/official workflow. |
 | 21 | Bilingual campaign with quiet hours and unsubscribe | Partial | `e2e/communications.spec.ts` covers a bilingual draft, preview, test send and schedule cancellation. It does not cover quiet-hour deferral or tokenized unsubscribe in the browser. H integration tests cover those services. |
@@ -34,6 +34,6 @@ Audit snapshot: `track/qa` synced through `rebuild/trunk` at `cd5b638`. This is 
 
 ## Execution status
 
-- `e2e/crawler/routes.spec.ts` discovers destinations from rendered navigation for anonymous, organization, family and platform roles. It checks route responses, settled same-origin API responses, page/console errors and axe, and fails rather than silently truncating the crawl.
-- Crawler and journey specs type-check and lint. Required browser verification remains pending until the QA stack can bind Postgres port `6932` without stopping another track's services. The new Phase 13 journey has not been executed on this QA stack.
+- `e2e/crawler/routes.spec.ts` discovers destinations from rendered navigation for anonymous, organization, family and platform roles. It clicks discovered links and non-disclosure navigation buttons, then checks route stability, responses, settled same-origin API requests, page/console errors and axe; it fails rather than silently truncating the crawl.
+- The crawler and journey specs type-check; full lint passes. A targeted Phase 3 Chromium run was attempted through `heavy.sh` but Playwright's configured web server exited with code 1 before collection because the QA stack ports are occupied by Track I (Postgres `6932`, Mailpit `2525/9525`, Stripe mock `13611`). Do not stop its services or point QA tests at its database.
 - “Not covered” means no browser flow for that required acceptance path was found; service or integration tests do not count as the required Playwright journey. Browser tests are still unverified on this snapshot.

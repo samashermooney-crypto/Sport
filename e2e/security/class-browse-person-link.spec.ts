@@ -8,7 +8,7 @@ import { createTestFactories } from '../../server/test/factories';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test.fixme('QA-SEC-013 / Track I: class browse cannot infer age bands for an unlinked person', async ({
+test('QA-SEC-013 / Track I: class browse cannot infer age bands for an unlinked person', async ({
   request,
 }) => {
   const database = createDatabase(

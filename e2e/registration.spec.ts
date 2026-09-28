@@ -5,6 +5,8 @@ import { createWithOrg } from '../server/src/db/withOrg';
 import { issueSession } from '../server/src/modules/auth/sessions';
 import { createTestFactories } from '../server/test/factories';
 
+import { accessibilityViolations } from './axe';
+
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
 test('family registers two siblings together, signs waivers, and chooses uniform sizes', async ({
@@ -178,7 +180,6 @@ test('family registers two siblings together, signs waivers, and chooses uniform
         sameSite: 'Lax',
       },
     ]);
-    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/portal/orgs/${actor.orgId}/registrations`);
     await page
       .getByRole('link', { name: 'Register Maya Sibling again' })
@@ -193,6 +194,7 @@ test('family registers two siblings together, signs waivers, and chooses uniform
       expect(visitedScreens.size).toBeLessThanOrEqual(4);
     };
     await expectJourneyScreen('Find a program');
+    expect(await accessibilityViolations(page)).toEqual([]);
     const firstParticipant = participants[0];
     const secondParticipant = participants[1];
     if (!firstParticipant || !secondParticipant)
@@ -212,9 +214,11 @@ test('family registers two siblings together, signs waivers, and chooses uniform
     const cart = page.locator('[aria-labelledby="cart-title"]');
     await expect(cart.getByText('Maya Sibling')).toBeVisible();
     await expect(cart.getByText('Noah Sibling')).toBeVisible();
+    expect(await accessibilityViolations(page)).toEqual([]);
     await page.getByRole('button', { name: 'Continue to review' }).click();
 
     await expectJourneyScreen('Participant details');
+    expect(await accessibilityViolations(page)).toEqual([]);
     const parent = await createWithOrg(database)(actor, (trx) =>
       trx
         .selectFrom('accounts')
@@ -238,6 +242,12 @@ test('family registers two siblings together, signs waivers, and chooses uniform
         .getByLabel('Guardian or adult participant signer full name')
         .fill(guardianName);
       await expect(section.getByLabel('Uniform kit')).toBeChecked();
+      const uniformSize = section.getByLabel('Size');
+      const selectedSize = participant.name.startsWith('Maya')
+        ? 'Youth M'
+        : 'Youth S';
+      await uniformSize.selectOption(selectedSize);
+      await expect(uniformSize).toHaveValue(selectedSize);
       await expect(
         section.getByRole('radio', { name: 'I will volunteer' }),
       ).toBeChecked();
@@ -245,6 +255,7 @@ test('family registers two siblings together, signs waivers, and chooses uniform
     await page.getByRole('button', { name: 'Continue to review' }).click();
 
     await expectJourneyScreen('Review your registration');
+    expect(await accessibilityViolations(page)).toEqual([]);
     await page
       .getByRole('checkbox', {
         name: 'I have read and accept these refund terms.',
@@ -252,6 +263,7 @@ test('family registers two siblings together, signs waivers, and chooses uniform
       .check();
     await page.getByRole('button', { name: 'Continue to payment' }).click();
     await expectJourneyScreen('Registration confirmed', 30_000);
+    expect(await accessibilityViolations(page)).toEqual([]);
     expect(visitedScreens.size).toBe(4);
 
     expect(Date.now() - journeyStartedAt).toBeLessThan(120_000);
@@ -403,14 +415,15 @@ test('family joins a full program waitlist from discovery', async ({
         sameSite: 'Lax',
       },
     ]);
-    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/portal/orgs/${actor.orgId}/register`);
+    expect(await accessibilityViolations(page)).toEqual([]);
     const participant = page.getByLabel(
       'Participant for Fixture League · Player waitlist',
     );
     await participant.selectOption(`${waitlistedPersonId}:${householdId}`);
     await page.getByRole('button', { name: 'Join waitlist' }).click();
     await expect(page.getByText('You are #1 on this waitlist.')).toBeVisible();
+    expect(await accessibilityViolations(page)).toEqual([]);
 
     const entries = await createWithOrg(database)(actor, (trx) =>
       trx

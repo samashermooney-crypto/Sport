@@ -9,7 +9,7 @@ import { createTestFactories } from '../../server/test/factories';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test.fixme('QA-SEC-012 / Track J: revoked roster sharing hides the league entry snapshot immediately', async ({
+test('QA-SEC-012 / Track J: revoked roster sharing hides the league entry snapshot immediately', async ({
   request,
 }) => {
   const database = createDatabase(

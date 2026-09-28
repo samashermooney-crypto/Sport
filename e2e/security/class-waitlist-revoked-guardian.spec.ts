@@ -10,7 +10,7 @@ import { createTestFactories } from '../../server/test/factories';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test.fixme('QA-SEC-010 / Track I: a revoked guardian cannot read or act on class waitlist offers', async ({
+test('QA-SEC-010 / Track I: a revoked guardian cannot read or act on class waitlist offers', async ({
   request,
 }) => {
   const database = createDatabase(

@@ -300,7 +300,7 @@ test('two member clubs complete a U12 inter-club season', async ({
   }
 });
 
-test.fixme('QA-ACC-033 / Track C: federation is reachable from console navigation', async ({
+test('QA-ACC-033 / Track C: federation is reachable from console navigation', async ({
   page,
 }, testInfo) => {
   const offset = Number(process.env.PORT_OFFSET ?? '0');
