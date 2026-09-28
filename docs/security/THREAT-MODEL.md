@@ -36,19 +36,20 @@ reads and writes are audited, with Restricted values redacted from audit diffs.
 
 ## Security controls and verification
 
-| Control                                             | Evidence in this checkout                                                                                                                                                       |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Identity, CSRF, cookies, sessions, MFA, rate limits | `server/src/modules/auth/routes.test.ts`, `auth/rate-limits.test.ts`, `auth/security.test.ts`, `auth/sessions.test.ts`, `server/test/security/session-fixation.test.ts`         |
-| RLS and tenant scoping                              | `server/src/modules/orgs/tenancyAcceptance.test.ts`, `server/src/db/withOrg.ts`; route-level coverage is tracked below                                                          |
-| Guardian links and family portal                    | `server/src/modules/people/guardianLinks.ts`, `server/src/modules/people/family.ts`, `server/test/guardianLinks.test.ts`, `e2e/security/guardian-idor.spec.ts`                  |
-| File type, size, content and ownership              | `server/src/modules/files/service.test.ts`, `files/service.integration.test.ts`, `server/test/security/upload-bypass.test.ts`                                                   |
-| Stripe signature verification                       | `server/src/integrations/stripe/webhook-routes.test.ts`                                                                                                                         |
-| Geocoder and background-check host allowlists       | `server/src/integrations/geocoder/geocoder.ts`, `server/src/integrations/background-check/provider.ts`, `server/test/security/ssrf.test.ts`; push endpoint gap is tracked below |
-| Sanitized campaign HTML                             | `server/src/modules/communications/content.test.ts`, `server/test/security/stored-xss.test.ts`                                                                                  |
-| Platform MFA and impersonation                      | `server/src/modules/platform/routes.test.ts`, `platform/impersonation.ts`, `server/test/security/impersonation.test.ts`                                                         |
-| Response headers and security.txt                   | `server/src/lib/security/security-headers.test.ts`, `e2e/security/security-headers.spec.ts`, `server/test/security/security-txt.test.ts`                                        |
-| Encryption primitives and key rotation              | `server/src/lib/crypto.test.ts`, `server/test/security/rotate-encryption-key.test.ts`                                                                                           |
-| CI secret scanning                                  | Gitleaks is not configured in `.github/workflows/ci.yml`; `e2e/security/gitleaks-ci.spec.ts` tracks the missing PR/push control as `test.fixme`                                 |
+| Control                                                         | Evidence in this checkout                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity, CSRF, cookies, sessions, MFA, rate limits             | `server/src/modules/auth/routes.test.ts`, `auth/rate-limits.test.ts`, `auth/security.test.ts`, `auth/sessions.test.ts`, `server/test/security/session-fixation.test.ts`, `e2e/security/session-step-up-fixation.spec.ts`                                               |
+| RLS and tenant scoping                                          | `server/src/modules/orgs/tenancyAcceptance.test.ts`, `server/src/db/withOrg.ts`; route-level coverage is tracked below                                                                                                                                                 |
+| Class offering tenant-ID and CSRF isolation                     | `e2e/security/class-offering-tenant-id.spec.ts` seeds a real foreign offering, confirms own-resource access, requires 404 for the foreign ID, and requires 403 for a missing request marker or hostile write origin                                                    |
+| Guardian links and family portal                                | `server/src/modules/people/guardianLinks.ts`, `server/src/modules/people/family.ts`, `server/test/guardianLinks.test.ts`, `e2e/security/guardian-idor.spec.ts`                                                                                                         |
+| File type, size, content and ownership                          | `server/src/modules/files/service.test.ts`, `files/service.integration.test.ts`, `server/test/security/upload-bypass.test.ts`                                                                                                                                          |
+| Stripe signature verification                                   | `server/src/integrations/stripe/webhook-routes.test.ts`                                                                                                                                                                                                                |
+| Geocoder, background-check, and Web Push destination allowlists | `server/src/integrations/geocoder/geocoder.ts`, `server/src/integrations/background-check/provider.ts`, `server/src/integrations/push/destination.ts`, `server/test/security/ssrf.test.ts`, `server/src/integrations/push/sender.test.ts`, `e2e/security/ssrf.spec.ts` |
+| Sanitized campaign HTML                                         | `server/src/modules/communications/content.test.ts`, `server/test/security/stored-xss.test.ts`                                                                                                                                                                         |
+| Platform MFA and impersonation                                  | `server/src/modules/platform/routes.test.ts`, `platform/impersonation.ts`, `server/test/security/impersonation.test.ts`                                                                                                                                                |
+| Response headers and security.txt                               | `server/src/lib/security/security-headers.test.ts`, `e2e/security/security-headers.spec.ts`, `server/test/security/security-txt.test.ts`                                                                                                                               |
+| Encryption primitives and key rotation                          | `server/src/lib/crypto.test.ts`, `server/test/security/rotate-encryption-key.test.ts`                                                                                                                                                                                  |
+| CI secret scanning                                              | `.github/workflows/ci.yml` runs the pinned Gitleaks v3 action for pull requests and configured pushes; `e2e/security/gitleaks-ci.spec.ts` checks the workflow contract                                                                                                 |
 
 ## Current residual launch work
 
@@ -56,17 +57,19 @@ reads and writes are audited, with Restricted values redacted from audit diffs.
   metadata for every API operation. The permission matrix is empty, so the
   route-authorization, permission-matrix, and route-tenancy completeness specs
   remain `test.fixme`. Track C owns generated route metadata and CI; the
-  current request is recorded in both track files.
-- CI still has no Gitleaks secret-scanning job. Track C owns the CI workflow;
-  `e2e/security/gitleaks-ci.spec.ts` is `test.fixme`, and the request is recorded
-  in both track files.
-- Step-up reauthentication currently elevates the existing session without
-  rotating its token. Track A owns the auth route; the skipped regression test
-  and precise request are recorded in both track files.
-- `WebPushSender` forwards the account-supplied HTTPS endpoint to the web-push
-  client without destination checks. This enables server-side requests to
-  loopback or other internal hosts. Track C owns the push adapter; the
-  regression and exact request are recorded in both track files.
+  current request is recorded in both track files. The class-specific route
+  journey now proves isolation for one existing foreign offering ID, but does
+  not replace the all-route SEC-002 contract.
+- Gitleaks is configured in CI, but the hosted scanner run has not been
+  observed from this local environment. Organization-owned repositories must
+  supply the `GITLEAKS_LICENSE` repository secret.
+- Step-up reauthentication rotates and revokes the old cookie/bearer session;
+  `/step-up` and MFA enrollment confirmation consume the shared MFA rate limit.
+  Auth tests and the Chromium fixation journey provide local evidence.
+- `WebPushSender` accepts only supported provider hosts, verifies every DNS
+  answer is globally routable, and pins the transport to the validated IP.
+  Sender tests cover private and transition ranges, mixed DNS answers, and
+  rebinding; the Chromium SSRF regression covers the loopback endpoint.
 - `npm audit --omit=dev --audit-level=high` found no high or critical
   advisories; it reports two moderate transitive `uuid` advisories under
   `exceljs`. `npm run knip` reports 6 unused files, 43 unused exports, 28 unused
