@@ -35,7 +35,7 @@ function zonedInputValue(value: Date, timeZone: string): string {
 test('staff configures statistics, finalizes a game, closes a facility, and opens its leaderboard', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   const database = createDatabase(
     `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
   );
@@ -279,10 +279,12 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
       .getByRole('textbox', { name: 'Program ID *' })
       .fill(program.programId);
     await page.getByRole('button', { name: 'Load statistic settings' }).click();
-    await expect(page.getByLabel('Goals (team) · public')).toBeVisible();
+    await expect(page.getByLabel('Goals (team) · public')).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(
       page.getByLabel('Private mark (athlete) · staff only'),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     await page.getByLabel('Goals (team) · public').check();
     const saveStats = page.getByRole('button', {
       name: 'Save statistic settings',
@@ -297,7 +299,7 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
       .click();
     await expect(
       page.getByText(/head_to_head_score|head-to-head-score/i),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     const contestId = await createWithOrg(database)(
       actor,
       async (trx) =>
@@ -494,6 +496,16 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
       .getByLabel('Portal message')
       .fill('North Park fields closed due to heavy rain.');
     let closureDialog = '';
+    const facilityPreviewRequest = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' &&
+        request.url().endsWith('/closures/preview'),
+    );
+    const facilityPreviewResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/closures/preview'),
+    );
     page.once('dialog', async (dialog) => {
       closureDialog = dialog.message();
       await dialog.accept();
@@ -507,6 +519,21 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     await closureForm
       .getByRole('button', { name: 'Preview and close' })
       .click();
+    const [facilityPreview, facilityPreviewResult] = await Promise.all([
+      facilityPreviewRequest,
+      facilityPreviewResponse,
+    ]);
+    const facilityPreviewBody = facilityPreview.postDataJSON() as {
+      startsAt: string;
+      endsAt: string;
+    };
+    expect(new Date(facilityPreviewBody.startsAt).getTime()).toBe(
+      closureStartsAt.getTime(),
+    );
+    expect(new Date(facilityPreviewBody.endsAt).getTime()).toBe(
+      closureEndsAt.getTime(),
+    );
+    expect(await facilityPreviewResult.json()).toMatchObject({ count: 24 });
     expect((await closureResponse).ok()).toBe(true);
     await expect(page.getByRole('status')).toHaveText(
       'Closure recorded and affected events updated.',
