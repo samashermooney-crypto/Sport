@@ -1,4 +1,4 @@
-import { PageHeader } from '../../ui/primitives';
+import { Link, PageHeader } from '../../ui/primitives';
 
 import { OnboardingChecklist } from './OnboardingChecklist';
 
@@ -15,9 +15,14 @@ export function OnboardingScreen({
       <PageHeader
         title="Organization setup"
         kicker="GETTING STARTED"
-        description="Complete or dismiss each setup step. Progress is saved for your organization."
+        description="Follow the steps to get your organization ready. Progress saves automatically, and you can restore any step you dismiss."
       />
       <OnboardingChecklist orgId={orgId} />
+      <p className="onboarding-help">
+        Need a hand?{' '}
+        <Link to={`/console/orgs/${orgId}/help`}>Browse the help center</Link>{' '}
+        for setup guides or to contact support.
+      </p>
     </main>
   );
 }

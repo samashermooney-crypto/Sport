@@ -68,7 +68,7 @@ export function HelpCenter({
       />
     );
   }
-  const results = query.trim().length >= 2 ? search.data?.results : undefined;
+  const searching = query.trim().length >= 2;
   return (
     <main className="help-center">
       <PageHeader
@@ -107,39 +107,89 @@ export function HelpCenter({
           </Field>
         </div>
       </Card>
-      {results ? (
+      {searching ? (
         <Card>
           <h2>{locale === 'es' ? 'Resultados' : 'Results'}</h2>
-          <ul>
-            {results.map((article) => (
-              <li key={article.slug}>
-                <button
-                  type="button"
-                  className="link-button"
-                  onClick={() => {
-                    setSlug(article.slug);
-                  }}
-                >
-                  {article.title}
-                </button>{' '}
-                — {article.summary}
-              </li>
-            ))}
-            {results.length === 0 && (
-              <li>
+          {search.isPending ? (
+            <p role="status">{locale === 'es' ? 'Buscando…' : 'Searching…'}</p>
+          ) : search.isError ? (
+            <>
+              <p role="alert" className="help-error">
                 {locale === 'es'
-                  ? 'Sin resultados. Contacte soporte abajo.'
-                  : 'No results. Contact support below.'}
-              </li>
-            )}
-          </ul>
+                  ? 'No se pudo buscar en la ayuda.'
+                  : 'Help search is unavailable right now.'}
+              </p>
+              <Button
+                secondary
+                onClick={() => {
+                  void search.refetch();
+                }}
+              >
+                {locale === 'es' ? 'Reintentar búsqueda' : 'Retry search'}
+              </Button>
+            </>
+          ) : (
+            <ul>
+              {search.data.results.map((article) => (
+                <li key={article.slug}>
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => {
+                      setSlug(article.slug);
+                    }}
+                  >
+                    {article.title}
+                  </button>{' '}
+                  — {article.summary}
+                </li>
+              ))}
+              {search.data.results.length === 0 && (
+                <li>
+                  {locale === 'es'
+                    ? 'Sin resultados. Contacte soporte abajo.'
+                    : 'No results. Contact support below.'}
+                </li>
+              )}
+            </ul>
+          )}
+        </Card>
+      ) : catalog.isPending ? (
+        <Card>
+          <p role="status">
+            {locale === 'es' ? 'Cargando artículos…' : 'Loading help articles…'}
+          </p>
+        </Card>
+      ) : catalog.isError ? (
+        <Card>
+          <p role="alert" className="help-error">
+            {locale === 'es'
+              ? 'No se pudieron cargar los artículos.'
+              : 'Help articles are unavailable right now.'}
+          </p>
+          <Button
+            secondary
+            onClick={() => {
+              void catalog.refetch();
+            }}
+          >
+            {locale === 'es' ? 'Reintentar' : 'Retry'}
+          </Button>
+        </Card>
+      ) : catalog.data.categories.length === 0 ? (
+        <Card>
+          <p role="status">
+            {locale === 'es'
+              ? 'Todavía no hay artículos de ayuda.'
+              : 'No help articles are available yet.'}
+          </p>
         </Card>
       ) : (
-        (catalog.data?.categories ?? []).map((category) => (
+        catalog.data.categories.map((category) => (
           <Card key={category}>
             <h2>{category}</h2>
             <ul>
-              {(catalog.data?.articles ?? [])
+              {catalog.data.articles
                 .filter((article) => article.category === category)
                 .map((article) => (
                   <li key={article.slug}>
@@ -224,7 +274,9 @@ function HelpArticleView({
         </Card>
       ) : (
         <Card>
-          <p role="status">Loading article…</p>
+          <p role="status">
+            {locale === 'es' ? 'Cargando artículo…' : 'Loading article…'}
+          </p>
         </Card>
       )}
     </main>

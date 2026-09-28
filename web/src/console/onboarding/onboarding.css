@@ -55,3 +55,25 @@
   align-items: center;
   gap: var(--space-16);
 }
+
+.onboarding-dismissed {
+  margin-block-start: var(--space-16);
+  border-block-start: 1px solid var(--line);
+  padding-block-start: var(--space-12);
+}
+
+.onboarding-dismissed summary {
+  min-height: var(--control-height-44);
+  padding-block: var(--space-8);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.onboarding-error {
+  color: var(--bad);
+}
+
+.onboarding-help {
+  margin-block-start: var(--space-16);
+  color: var(--muted);
+}

@@ -269,6 +269,15 @@ test('a new organization persists and auto-completes its nine setup items using 
     expect(persisted).toHaveLength(9);
     expect(persisted.every((item) => item.completed_at !== null)).toBe(true);
 
+    const helpLink = page.getByRole('link', {
+      name: /Browse the help center/,
+    });
+    await expect(helpLink).toBeVisible();
+    await helpLink.click();
+    await expect(
+      page.getByRole('heading', { name: 'Help center', exact: true }),
+    ).toBeVisible();
+
     let aiRequests = 0;
     await page.route('**/api/v1/ai/**', async (route) => {
       aiRequests += 1;
