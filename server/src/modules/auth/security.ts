@@ -12,8 +12,9 @@ import { AuthDomainError } from './domain-error';
 import { verifyAndConsumeTotp } from './mfa';
 import { verifyPassword } from './password';
 import { generateRecoveryCodes } from './recovery';
-import { hasStepUp, revokeSessions, stepUpSession } from './sessions';
+import { hasStepUp, revokeSessions, rotateSessionForStepUp } from './sessions';
 import type { ActiveSession } from './sessions';
+import type { IssuedSession } from './sessions';
 import { newTotpSecret } from './totp';
 
 export interface SecurityDependencies {
@@ -233,7 +234,7 @@ export async function stepUpWithPassword(
   dependencies: SecurityDependencies,
   session: ActiveSession,
   password: string,
-): Promise<boolean> {
+): Promise<IssuedSession | null> {
   const account = await dependencies.database
     .selectFrom('accounts')
     .select('password_hash')
@@ -244,11 +245,11 @@ export async function stepUpWithPassword(
     !account?.password_hash ||
     !(await verifyPassword(account.password_hash, password))
   )
-    return false;
+    return null;
   return dependencies.database
     .transaction()
     .execute((trx) =>
-      stepUpSession(trx, session.id, session.accountId, dependencies.clock()),
+      rotateSessionForStepUp(trx, session, dependencies.clock()),
     );
 }
 
@@ -256,20 +257,19 @@ export async function stepUpWithTotp(
   dependencies: SecurityDependencies,
   session: ActiveSession,
   code: string,
-): Promise<boolean> {
+): Promise<IssuedSession | null> {
   const now = dependencies.clock();
-  return dependencies.database.transaction().execute(async (trx) => {
-    if (
-      !(await verifyAndConsumeTotp(
-        trx,
-        session.accountId,
-        code,
-        now.getTime(),
-        dependencies.encryption,
-      ))
-    ) {
-      return false;
-    }
-    return stepUpSession(trx, session.id, session.accountId, now);
-  });
+  return dependencies.database
+    .transaction()
+    .execute((trx) =>
+      rotateSessionForStepUp(trx, session, now, () =>
+        verifyAndConsumeTotp(
+          trx,
+          session.accountId,
+          code,
+          now.getTime(),
+          dependencies.encryption,
+        ),
+      ),
+    );
 }

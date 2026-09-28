@@ -239,18 +239,29 @@ describe('auth HTTP contract', () => {
       cookie,
     );
     expect(stepUp.status).toBe(200);
+    expect(await stepUp.json()).toEqual({
+      client: 'web',
+      status: 'elevated',
+    });
+    const steppedCookie = authCookie(stepUp);
+    expect(
+      (await fetch(`${baseUrl}/me`, { headers: { Cookie: cookie } })).status,
+    ).toBe(401);
     const sessions = await fetch(`${baseUrl}/sessions`, {
-      headers: { Cookie: cookie },
+      headers: { Cookie: steppedCookie },
     });
     expect(sessions.status).toBe(200);
     expect(
       ((await sessions.json()) as { sessions: unknown[] }).sessions,
     ).toHaveLength(2);
-    const signedOut = await post('/sign-out', {}, cookie);
+    const signedOut = await post('/sign-out', {}, steppedCookie);
     expect(signedOut.status).toBe(200);
     expect(
-      (await fetch(`${baseUrl}/sessions`, { headers: { Cookie: cookie } }))
-        .status,
+      (
+        await fetch(`${baseUrl}/sessions`, {
+          headers: { Cookie: steppedCookie },
+        })
+      ).status,
     ).toBe(401);
     expect(
       (
@@ -290,8 +301,37 @@ describe('auth HTTP contract', () => {
     expect(nativeMfa.status).toBe(200);
     const bearer = ((await nativeMfa.json()) as { token: string }).token;
     expect(bearer).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    const nativeStepUp = await fetch(`${baseUrl}/step-up`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        'Content-Type': 'application/json',
+        'X-Athlentry-Request': '1',
+      },
+      body: JSON.stringify({ method: 'password', password }),
+    });
+    expect(nativeStepUp.status).toBe(200);
+    const nativeStepUpBody = (await nativeStepUp.json()) as {
+      client: string;
+      status: string;
+      token: string;
+      absoluteExpiresAt: string;
+    };
+    expect(nativeStepUpBody).toMatchObject({
+      client: 'ios',
+      status: 'elevated',
+    });
+    expect(nativeStepUpBody.token).not.toBe(bearer);
+    expect(
+      (
+        await fetch(`${baseUrl}/me`, {
+          headers: { Authorization: `Bearer ${bearer}` },
+        })
+      ).status,
+    ).toBe(401);
+    const replacementBearer = nativeStepUpBody.token;
     const bearerHeaders = {
-      Authorization: `Bearer ${bearer}`,
+      Authorization: `Bearer ${replacementBearer}`,
       'X-Athlentry-Request': '1',
     };
     expect(

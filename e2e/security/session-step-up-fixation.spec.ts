@@ -7,7 +7,7 @@ import { createTestFactories } from '../../server/test/factories';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test.fixme('SEC-005 / Track A: step-up reauthentication rotates the session token', async ({
+test('SEC-005 / Track A: step-up reauthentication rotates the session token', async ({
   request,
 }) => {
   const database = createDatabase(

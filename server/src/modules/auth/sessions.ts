@@ -105,6 +105,7 @@ export async function issueSession(
 export interface ActiveSession {
   id: string;
   accountId: string;
+  tokenHash: Buffer;
   kind: 'cookie' | 'bearer';
   client: 'web' | 'ios' | 'android';
   privileged: boolean;
@@ -163,6 +164,7 @@ export async function resolveSession(
   return {
     id: row.id,
     accountId: row.account_id,
+    tokenHash: digest(raw),
     kind: row.kind as ActiveSession['kind'],
     client: row.client as ActiveSession['client'],
     privileged: row.privileged,
@@ -171,33 +173,64 @@ export async function resolveSession(
   };
 }
 
-export async function stepUpSession(
+export async function rotateSessionForStepUp(
   trx: Transaction<DB>,
-  sessionId: string,
-  accountId: string,
+  session: Pick<ActiveSession, 'id' | 'accountId' | 'tokenHash'>,
   now: Date,
-): Promise<boolean> {
-  const updated = await trx
-    .updateTable('sessions')
-    .set({ elevated_until: new Date(now.getTime() + stepUpLifetime) })
-    .where('id', '=', sessionId)
-    .where('account_id', '=', accountId)
+  verify?: () => Promise<boolean>,
+): Promise<IssuedSession | null> {
+  const current = await trx
+    .selectFrom('sessions')
+    .select(['privileged', 'absolute_expires_at'])
+    .where('id', '=', session.id)
+    .where('account_id', '=', session.accountId)
+    .where('token_hash', '=', session.tokenHash)
     .where('revoked_at', 'is', null)
     .where('idle_expires_at', '>', now)
     .where('absolute_expires_at', '>', now)
+    .forUpdate()
+    .executeTakeFirst();
+  if (!current) return null;
+  if (verify && !(await verify())) return null;
+
+  const token = randomBytes(32).toString('base64url');
+  const absoluteExpiresAt = current.absolute_expires_at;
+  const idleExpiresAt = new Date(
+    Math.min(
+      now.getTime() + (current.privileged ? privilegedIdle : 14 * day),
+      absoluteExpiresAt.getTime(),
+    ),
+  );
+  const replacement = await trx
+    .updateTable('sessions')
+    .set({
+      token_hash: digest(token),
+      elevated_until: new Date(now.getTime() + stepUpLifetime),
+      idle_expires_at: idleExpiresAt,
+    })
+    .where('id', '=', session.id)
+    .where('account_id', '=', session.accountId)
+    .where('token_hash', '=', session.tokenHash)
+    .where('revoked_at', 'is', null)
     .returning('id')
     .executeTakeFirst();
-  if (!updated) return false;
+  if (!replacement) return null;
+
   await trx
     .insertInto('security_events')
     .values({
       id: newId(),
-      account_id: accountId,
+      account_id: session.accountId,
       action: 'session.step_up',
-      details: { sessionId },
+      details: { sessionId: session.id, tokenRotated: true },
     })
     .execute();
-  return true;
+  return {
+    id: replacement.id,
+    token,
+    idleExpiresAt,
+    absoluteExpiresAt,
+  };
 }
 
 export function hasStepUp(session: ActiveSession, now: Date): boolean {

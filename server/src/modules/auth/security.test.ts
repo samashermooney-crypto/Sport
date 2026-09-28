@@ -148,16 +148,21 @@ describe('MFA enrollment and re-authentication', () => {
       ),
     ).toBe(true);
 
+    const passwordRotation = await stepUpWithPassword(
+      dependencies,
+      active,
+      'large cedar forest bridge 14',
+    );
+    expect(passwordRotation).not.toBeNull();
+    if (!passwordRotation) throw new Error('Password step-up did not rotate');
     expect(
-      await stepUpWithPassword(
-        dependencies,
-        active,
-        'large cedar forest bridge 14',
-      ),
-    ).toBe(true);
+      await database
+        .transaction()
+        .execute((trx) => resolveSession(trx, issued.token, now)),
+    ).toBeNull();
     const stepped = await database
       .transaction()
-      .execute((trx) => resolveSession(trx, issued.token, now));
+      .execute((trx) => resolveSession(trx, passwordRotation.token, now));
     if (!stepped) throw new Error('Session missing');
     expect(await regenerateRecoveryCodes(dependencies, stepped)).toHaveLength(
       10,
@@ -167,7 +172,26 @@ describe('MFA enrollment and re-authentication', () => {
       decodeBase32(enrollment.manualKey),
       Math.floor(now.getTime() / 30_000),
     );
-    expect(await stepUpWithTotp(dependencies, stepped, nextCode)).toBe(true);
-    expect(await stepUpWithTotp(dependencies, stepped, nextCode)).toBe(false);
+    expect(
+      await stepUpWithTotp(
+        dependencies,
+        { ...stepped, tokenHash: Buffer.alloc(32) },
+        nextCode,
+      ),
+    ).toBeNull();
+    const totpRotation = await stepUpWithTotp(dependencies, stepped, nextCode);
+    expect(totpRotation).not.toBeNull();
+    expect(await stepUpWithTotp(dependencies, stepped, nextCode)).toBeNull();
+    if (!totpRotation) throw new Error('TOTP step-up did not rotate');
+    expect(
+      await database
+        .transaction()
+        .execute((trx) => resolveSession(trx, passwordRotation.token, now)),
+    ).toBeNull();
+    expect(
+      await database
+        .transaction()
+        .execute((trx) => resolveSession(trx, totpRotation.token, now)),
+    ).not.toBeNull();
   });
 });

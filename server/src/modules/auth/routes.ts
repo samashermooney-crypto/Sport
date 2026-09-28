@@ -28,6 +28,7 @@ import {
   signInBodySchema,
   signUpSchema,
   stepUpBodySchema,
+  stepUpResponseSchema,
   tokenBodySchema,
 } from '@shared/schemas/auth';
 import { apiErrorSchema } from '@shared/schemas/errors';
@@ -475,7 +476,22 @@ export function createAuthRouter(
         'INVALID_CREDENTIALS',
         'Re-authentication failed',
       );
-    response.json(authStatusResponseSchema.parse({ status: 'elevated' }));
+    response.setHeader('Cache-Control', 'no-store');
+    if (session.kind === 'cookie') {
+      setSessionCookie(response, accepted, dependencies.clock());
+      response.json(
+        stepUpResponseSchema.parse({ client: 'web', status: 'elevated' }),
+      );
+      return;
+    }
+    response.json(
+      stepUpResponseSchema.parse({
+        client: session.client,
+        status: 'elevated',
+        token: accepted.token,
+        absoluteExpiresAt: accepted.absoluteExpiresAt.toISOString(),
+      }),
+    );
   });
   router.get('/sessions', async (request, response) => {
     const session = await requireSession(dependencies, request);
