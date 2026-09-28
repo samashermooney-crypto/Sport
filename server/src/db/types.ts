@@ -1072,6 +1072,134 @@ export interface EmergencyContacts {
   version: Generated<number>;
 }
 
+export interface EvaluationCriteria {
+  created_at: Generated<Timestamp>;
+  criterion_key: string;
+  evaluation_event_id: string;
+  id: string;
+  label: string;
+  org_id: string;
+  position_keys: Generated<string[]>;
+  position_specific: Generated<boolean>;
+  scale_max: Numeric;
+  scale_min: Numeric;
+  sort_order: Generated<number>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+  weight: Numeric;
+}
+
+export interface EvaluationEvents {
+  created_at: Generated<Timestamp>;
+  id: string;
+  name: string;
+  normalization: Generated<string>;
+  org_id: string;
+  share_results_with_families: Generated<boolean>;
+  status: Generated<string>;
+  target_program_id: string;
+  tryout_program_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationGroups {
+  age_max_months: number | null;
+  age_min_months: number | null;
+  created_at: Generated<Timestamp>;
+  evaluation_event_id: string;
+  gender: string | null;
+  id: string;
+  name: string;
+  org_id: string;
+  position_keys: Generated<string[]>;
+  sort_order: Generated<number>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationParticipants {
+  bib_number: number;
+  check_in_status: Generated<string>;
+  checked_in_at: Timestamp | null;
+  checked_in_by: string | null;
+  created_at: Generated<Timestamp>;
+  evaluation_event_id: string;
+  evaluation_group_id: string;
+  evaluation_session_id: string | null;
+  id: string;
+  media_consent: Generated<boolean>;
+  notes: string | null;
+  org_id: string;
+  person_id: string;
+  photo_file_id: string | null;
+  position_keys: Generated<string[]>;
+  registration_id: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationResults {
+  composite: Numeric | null;
+  computed_at: Generated<Timestamp>;
+  created_at: Generated<Timestamp>;
+  evaluation_event_id: string;
+  evaluation_participant_id: string;
+  evaluator_count: Generated<number>;
+  id: string;
+  missing_criteria: Generated<string[]>;
+  normalized_scores: Generated<Json>;
+  org_id: string;
+  rank_in_group: number | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationScores {
+  client_mutation_id: string;
+  created_at: Generated<Timestamp>;
+  evaluation_criterion_id: string;
+  evaluation_event_id: string;
+  evaluation_participant_id: string;
+  evaluator_account_id: string;
+  id: string;
+  notes: string | null;
+  org_id: string;
+  score: Numeric;
+  scored_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationSessionEvaluators {
+  account_id: string;
+  assigned_by: string;
+  created_at: Generated<Timestamp>;
+  evaluation_session_id: string;
+  id: string;
+  org_id: string;
+  revoked_at: Timestamp | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationSessions {
+  calendar_event_id: string;
+  capacity: number | null;
+  created_at: Generated<Timestamp>;
+  ends_at: Timestamp;
+  evaluation_event_id: string;
+  evaluation_group_id: string | null;
+  facility_id: string | null;
+  id: string;
+  name: string;
+  org_id: string;
+  starts_at: Timestamp;
+  timezone: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface EventParticipants {
   created_at: Generated<Timestamp>;
   division_id: string | null;
@@ -2340,6 +2468,50 @@ export interface PgbossVersion {
   version: number;
 }
 
+export interface PlacementBoards {
+  created_at: Generated<Timestamp>;
+  division_id: string | null;
+  evaluation_event_id: string | null;
+  fairness_metrics: Generated<Json>;
+  id: string;
+  options: Generated<Json>;
+  org_id: string;
+  published_at: Timestamp | null;
+  seed: number;
+  status: Generated<string>;
+  target_program_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface PlacementLocks {
+  created_at: Generated<Timestamp>;
+  id: string;
+  locked_by: string;
+  org_id: string;
+  person_id: string;
+  placement_board_id: string;
+  reason: string;
+  released_at: Timestamp | null;
+  team_season_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface PlacementPreferences {
+  coach_rating: Numeric | null;
+  created_at: Generated<Timestamp>;
+  friend_request_person_id: string | null;
+  id: string;
+  note: string | null;
+  org_id: string;
+  person_id: string;
+  practice_location: string | null;
+  program_id: string;
+  source: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Plans {
   active: Generated<boolean>;
   application_fee_bps: number;
@@ -3372,6 +3544,45 @@ export interface TeamLedgers {
   version: Generated<number>;
 }
 
+export interface TeamOffers {
+  amount_cents: number;
+  checkout_id: string | null;
+  created_at: Generated<Timestamp>;
+  decline_reason: string | null;
+  declined_by_account_id: string | null;
+  deposit_cents: number;
+  expires_at: Timestamp;
+  household_id: string;
+  id: string;
+  message: string | null;
+  offering_id: string;
+  org_id: string;
+  person_id: string;
+  placement_id: string;
+  registration_id: string | null;
+  reminder_sent_at: Timestamp | null;
+  responded_at: Timestamp | null;
+  status: Generated<string>;
+  team_season_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface TeamPlacements {
+  created_at: Generated<Timestamp>;
+  id: string;
+  locked: Generated<boolean>;
+  org_id: string;
+  person_id: string;
+  placement_board_id: string;
+  seed_rating: Numeric | null;
+  source: string;
+  status: Generated<string>;
+  team_season_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Teams {
   age_label: string | null;
   birth_year: number | null;
@@ -3709,6 +3920,14 @@ export interface DB {
   divisions: Divisions;
   donations: Donations;
   emergency_contacts: EmergencyContacts;
+  evaluation_criteria: EvaluationCriteria;
+  evaluation_events: EvaluationEvents;
+  evaluation_groups: EvaluationGroups;
+  evaluation_participants: EvaluationParticipants;
+  evaluation_results: EvaluationResults;
+  evaluation_scores: EvaluationScores;
+  evaluation_session_evaluators: EvaluationSessionEvaluators;
+  evaluation_sessions: EvaluationSessions;
   event_participants: EventParticipants;
   event_series: EventSeries;
   events: Events;
@@ -3788,6 +4007,9 @@ export interface DB {
   'pgboss.schedule': PgbossSchedule;
   'pgboss.subscription': PgbossSubscription;
   'pgboss.version': PgbossVersion;
+  placement_boards: PlacementBoards;
+  placement_locks: PlacementLocks;
+  placement_preferences: PlacementPreferences;
   plans: Plans;
   platform_audit_log: PlatformAuditLog;
   platform_feature_flags: PlatformFeatureFlags;
@@ -3859,6 +4081,8 @@ export interface DB {
   team_fee_obligations: TeamFeeObligations;
   team_ledger_entries: TeamLedgerEntries;
   team_ledgers: TeamLedgers;
+  team_offers: TeamOffers;
+  team_placements: TeamPlacements;
   team_seasons: TeamSeasons;
   team_staff: TeamStaff;
   teams: Teams;
