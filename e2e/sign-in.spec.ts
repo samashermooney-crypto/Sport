@@ -156,6 +156,8 @@ test('new account verifies its preview email and signs in', async ({
   test.setTimeout(60_000);
   const email = `e2e-${testInfo.project.name}-${Date.now().toString()}@example.test`;
   const password = 'Pinecones!7348Ridge';
+  // This exercises the settings UI and device API with deterministic browser
+  // doubles; it does not verify that native PushManager can reach a push service.
   await page.addInitScript(() => {
     let subscription: {
       endpoint: string;
