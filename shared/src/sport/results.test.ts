@@ -88,6 +88,24 @@ describe('sport results', () => {
         { home: 15, away: 10 },
       ]),
     ).toThrow();
+    expect(() =>
+      computeSets(sets, [
+        { home: 24, away: 22 },
+        { home: 25, away: 20 },
+      ]),
+    ).toThrow('Set did not reach target');
+    expect(
+      computeSets({ ...sets, tiebreakAt: 25 }, [
+        { home: 26, away: 25, tiebreakWinner: 'home' },
+        { home: 25, away: 20 },
+      ]).winner,
+    ).toBe('home');
+    expect(() =>
+      computeSets({ ...sets, bestOf: 4 }, [
+        { home: 25, away: 20 },
+        { home: 20, away: 25 },
+      ]),
+    ).toThrow('Match is incomplete');
   });
 
   it('scores bout methods for team duals', () => {
@@ -149,6 +167,9 @@ describe('sport results', () => {
       ]).map((entry) => entry.place),
     ).toEqual([1, 2, null]);
     expect(() => rankMeasured(format, [{ id: 'a', attempts: [] }])).toThrow();
+    expect(() =>
+      rankMeasured(format, [{ id: 'a', attempts: [Number.NaN] }]),
+    ).toThrow('Result value must be non-negative and finite');
   });
 
   it('drops high and low judge scores per component', () => {
@@ -170,6 +191,14 @@ describe('sport results', () => {
     expect(judgedTotal(format, sheets)).toBe(8.5);
     expect(rankJudged(format, [{ id: 'a', sheets }])[0]?.place).toBe(1);
     expect(() => judgedTotal(format, sheets.slice(1))).toThrow();
+    expect(() =>
+      judgedTotal(
+        format,
+        sheets.map((sheet, index) =>
+          index === 0 ? { ...sheet, components: { execution: -1 } } : sheet,
+        ),
+      ),
+    ).toThrow('Invalid score for execution');
   });
 
   it('preserves externally recorded placements', () => {
@@ -320,5 +349,23 @@ describe('sport results', () => {
     expect(scoreCrossCountryTeams(rows, 2).has('b')).toBe(false);
     expect(scoreGolfTeams(rows, 2).get('a')).toBe(165);
     expect(() => scoreGolfTeams(rows, 0)).toThrow();
+    expect(
+      scoreGolfTeams(
+        [
+          { ...placement('disqualified', 'a', 1, 80), status: 'dq' },
+          {
+            id: 'unassigned',
+            place: 1,
+            value: 75,
+            points: 0,
+            status: 'ok',
+          },
+        ],
+        1,
+      ),
+    ).toEqual(new Map());
+    expect(() =>
+      scoreGolfTeams([{ ...placement('invalid', 'a', 1, 80), value: null }], 1),
+    ).toThrow('Team result must be non-negative and finite');
   });
 });

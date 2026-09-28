@@ -1,0 +1,176 @@
+import { randomUUID } from 'node:crypto';
+
+import { newId } from '@shared/ids';
+import { builtInSportTemplatesByKey } from '@shared/sport/templates';
+import type { Kysely } from 'kysely';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { createDatabase } from '../../db/kysely';
+import type { DB, Json } from '../../db/types';
+import { createWithOrg } from '../../db/withOrg';
+import type { OrgContext } from '../../db/withOrg';
+import { OfferingsService } from '../offerings/service';
+import { SeasonsService } from '../seasons/service';
+import { TeamsService } from '../teams/service';
+
+import { ProgramsService } from './service';
+
+let database: Kysely<DB>;
+let context: OrgContext;
+let profileId: string;
+
+beforeAll(async () => {
+  database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
+  const accountId = newId();
+  const orgId = newId();
+  await database
+    .insertInto('accounts')
+    .values({
+      id: accountId,
+      email: `phase3-${randomUUID()}@example.invalid`,
+      first_name: 'Phase',
+      last_name: 'Three',
+      date_of_birth: '1980-01-01',
+    })
+    .execute();
+  await database
+    .insertInto('organizations')
+    .values({
+      id: orgId,
+      slug: `phase3-${randomUUID().slice(0, 12)}`,
+      name: 'Phase 3 Test',
+      kind: 'club',
+      timezone: 'UTC',
+    })
+    .execute();
+  context = { orgId, actor: { accountId } };
+  profileId = newId();
+  await createWithOrg(database)(context, async (trx) => {
+    await trx
+      .insertInto('org_memberships')
+      .values({
+        id: newId(),
+        org_id: orgId,
+        account_id: accountId,
+        status: 'active',
+        joined_at: new Date(),
+      })
+      .execute();
+    await trx
+      .insertInto('role_assignments')
+      .values({
+        id: newId(),
+        org_id: orgId,
+        account_id: accountId,
+        role: 'owner',
+        scope_type: 'org',
+        pending_mfa: false,
+      })
+      .execute();
+    const profile = builtInSportTemplatesByKey.get('soccer');
+    if (!profile) throw new Error('Soccer template unavailable');
+    await trx
+      .insertInto('sport_profiles')
+      .values({
+        id: profileId,
+        org_id: orgId,
+        template_key: null,
+        name: profile.name.en,
+        profile: profile as Json,
+      })
+      .execute();
+  });
+});
+afterAll(async () => {
+  await database.destroy();
+});
+
+describe('Phase 3 structure and rollover', () => {
+  it('creates default division, 18 soccer divisions, offering, teams and one clean season copy', async () => {
+    const seasons = new SeasonsService(database, context);
+    const programs = new ProgramsService(database, context);
+    const offerings = new OfferingsService(database, context);
+    const teams = new TeamsService(database, context);
+    const source = await seasons.create({
+      name: 'Spring 2026',
+      startsOn: '2026-03-01',
+      endsOn: '2026-06-30',
+    });
+    const program = await programs.create({
+      seasonId: source.id,
+      sportProfileId: profileId,
+      mode: 'league',
+      name: 'Soccer',
+      slug: `soccer-${randomUUID().slice(0, 8)}`,
+      startsOn: '2026-03-15',
+      endsOn: '2026-06-15',
+    });
+    expect((await programs.get(program.id)).divisions).toMatchObject([
+      { is_default: true, name: 'All participants' },
+    ]);
+    const divisions = await programs.generate(program.id, {
+      method: 'birth_year',
+      from: 6,
+      to: 14,
+      genders: ['boys', 'girls'],
+    });
+    expect(divisions).toHaveLength(18);
+    const current = await programs.get(program.id);
+    expect(
+      current.divisions.filter((division) => division.is_default),
+    ).toHaveLength(1);
+    expect(current.divisions).toHaveLength(18);
+    const division = divisions[0];
+    if (!division) throw new Error('Division unavailable');
+    await offerings.create({
+      programId: program.id,
+      divisionId: division.id,
+      name: 'Player',
+      registrantRole: 'athlete',
+      priceCents: 7500,
+      pricing: {
+        installmentTemplateIds: [],
+        siblingDiscountEligible: true,
+        glCode: null,
+      },
+    });
+    const generated = await teams.generate({
+      programId: program.id,
+      divisionId: division.id,
+      count: 2,
+      pattern: 'Soccer {n}',
+    });
+    expect(generated).toHaveLength(2);
+    const roster = generated[0];
+    if (!roster) throw new Error('Team unavailable');
+    const input = {
+      name: 'Spring 2027',
+      startsOn: '2027-03-01',
+      endsOn: '2027-06-30',
+      offsetDays: 365,
+      returningTeamSeasonIds: [roster.season.id],
+      carryStaffIds: [],
+    };
+    const preview = await seasons.preview(source.id, input);
+    expect(preview.teams.filter((team) => team.returning)).toHaveLength(1);
+    const copy = await createWithOrg(database)(context, (trx) =>
+      seasons.rolloverInTransaction(trx, source.id, input),
+    );
+    expect(copy.copied).toMatchObject({ programs: 1, teams: 1, staff: 0 });
+    const next = await programs.list(copy.season.id);
+    expect(next).toHaveLength(1);
+    expect((await programs.get(next[0]?.id ?? '')).offerings).toHaveLength(1);
+    expect(await teams.list(next[0]?.id)).toMatchObject([
+      { status: 'forming' },
+    ]);
+    const copiedRegistrations = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('registrations')
+        .select('id')
+        .where('org_id', '=', context.orgId)
+        .where('program_id', '=', next[0]?.id ?? '')
+        .execute(),
+    );
+    expect(copiedRegistrations).toHaveLength(0);
+  });
+});
