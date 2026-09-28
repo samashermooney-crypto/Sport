@@ -3,15 +3,18 @@ import type { RouteObject } from 'react-router';
 import { consoleAuditRoutes } from '../console/audit/routes';
 import { consoleClassesRoutes } from '../console/classes/routes';
 import { consoleEvaluationsRoutes } from '../console/evaluations/routes';
+import { consoleFacilitiesRoutes } from '../console/facilities/routes';
 import { consoleFederationRoutes } from '../console/federation/routes';
 import { consoleFundraisingRoutes } from '../console/fundraising/routes';
 import { consoleMessagesRoutes } from '../console/messages/routes';
 import { consoleMoneyRoutes } from '../console/money/routes';
+import { consoleProgramsRoutes } from '../console/programs/routes';
 import { consoleSafetyRoutes } from '../console/safety/routes';
 import { consoleScheduleRoutes } from '../console/schedule/routes';
 import { consoleSponsorsRoutes } from '../console/sponsors/routes';
 import { consoleStoreRoutes } from '../console/store/routes';
 import { consoleTeamFinanceRoutes } from '../console/teamFinance/routes';
+import { consoleTeamsRoutes } from '../console/teams/routes';
 import { consoleVolunteersRoutes } from '../console/volunteers/routes';
 import { portalClassesRoutes } from '../portal/classes/routes';
 import { portalEvaluationsRoutes } from '../portal/evaluations/routes';
@@ -30,15 +33,18 @@ export const webNestedRoutes: readonly RouteObject[] = [
   consoleAuditRoutes,
   consoleClassesRoutes,
   consoleEvaluationsRoutes,
+  consoleFacilitiesRoutes,
   consoleFederationRoutes,
   consoleFundraisingRoutes,
   consoleMessagesRoutes,
   consoleMoneyRoutes,
+  consoleProgramsRoutes,
   consoleSafetyRoutes,
   consoleScheduleRoutes,
   consoleSponsorsRoutes,
   consoleStoreRoutes,
   consoleTeamFinanceRoutes,
+  consoleTeamsRoutes,
   consoleVolunteersRoutes,
   portalClassesRoutes,
   portalEvaluationsRoutes,
