@@ -142,6 +142,23 @@ test('SEC-002: class offering routes hide an existing foreign-tenant offering ID
       { headers },
     );
     expect(foreignResponse.status()).toBe(404);
+
+    const foreignPatch = await request.patch(
+      `${apiBase}/${own.orgId}/offerings/${foreignOffering.id}`,
+      {
+        headers: { ...headers, 'X-Athlentry-Request': '1' },
+        data: {
+          expectedVersion: foreignOffering.version,
+          name: 'Cross-tenant tampering attempt',
+        },
+      },
+    );
+    expect(foreignPatch.status()).toBe(404);
+    const foreignAfterPatch = await new PostgresClassOfferings(
+      database,
+      foreign,
+    ).get(foreignOffering.id);
+    expect(foreignAfterPatch.name).toBe(foreignOffering.name);
   } finally {
     await database.destroy();
   }
