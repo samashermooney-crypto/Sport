@@ -6,6 +6,7 @@ import { issueSession } from '../../server/src/modules/auth/sessions';
 import { PostgresClassOfferings } from '../../server/src/modules/classes/offerings';
 import { PostgresClassSchedules } from '../../server/src/modules/classes/schedules';
 import { PostgresClassSessions } from '../../server/src/modules/classes/sessions';
+import { PostgresClassSkills } from '../../server/src/modules/classes/skills';
 import { createTestFactories } from '../../server/test/factories';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
@@ -55,6 +56,17 @@ test('SEC-002: class offering routes hide existing foreign IDs on direct and nes
     const foreignPersonId = await factories.person(foreign);
     const ownProgram = await factories.program(own);
     const foreignProgram = await factories.program(foreign);
+    const foreignSkills = new PostgresClassSkills(database, foreign);
+    const foreignLevel = await foreignSkills.createLevel({
+      sportProfileId: foreignProgram.sportProfileId,
+      name: 'Foreign class level',
+      description: null,
+    });
+    const foreignSkill = await foreignSkills.addSkill(foreignLevel.id, {
+      name: 'Foreign class skill',
+      description: null,
+      videoUrl: null,
+    });
     const withOrg = createWithOrg(database);
 
     for (const [actor, programId] of [
@@ -229,6 +241,36 @@ test('SEC-002: class offering routes hide existing foreign IDs on direct and nes
       { headers },
     );
     expect(foreignPickups.status()).toBe(404);
+
+    const foreignLevelPath = `${apiBase}/${own.orgId}/levels/${foreignLevel.id}`;
+    const foreignLevelResponse = await request.get(foreignLevelPath, {
+      headers,
+    });
+    expect(foreignLevelResponse.status()).toBe(404);
+    const foreignLevelPatch = await request.patch(foreignLevelPath, {
+      headers: { ...headers, 'X-Athlentry-Request': '1' },
+      data: {
+        expectedVersion: foreignLevel.version,
+        name: 'Cross-tenant edit',
+      },
+    });
+    expect(foreignLevelPatch.status()).toBe(404);
+    const foreignSkillPatch = await request.patch(
+      `${apiBase}/${own.orgId}/skills/${foreignSkill.id}`,
+      {
+        headers: { ...headers, 'X-Athlentry-Request': '1' },
+        data: {
+          expectedVersion: foreignSkill.version,
+          name: 'Cross-tenant edit',
+        },
+      },
+    );
+    expect(foreignSkillPatch.status()).toBe(404);
+    const foreignProgress = await request.get(
+      `${apiBase}/${own.orgId}/people/${foreignPersonId}/progress`,
+      { headers },
+    );
+    expect(foreignProgress.status()).toBe(404);
 
     const foreignPatch = await request.patch(
       `${apiBase}/${own.orgId}/offerings/${foreignOffering.id}`,
