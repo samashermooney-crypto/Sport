@@ -68,6 +68,9 @@ Track B's catalog/preferences and Track C's provider-ID interface are on the mer
 - **Phase 10 external work:** A still owns profile message-history links, verified-phone consent, `athleteChatEnabled`, and conversation synchronization; C owns chat attachment authorization; G owns schedule-change coalescing.
 ## Requests from QA
 
+- QA-ACC-062 — `ensureTeamConversation()` returns a team conversation without the required `muted` boolean. The communications POST handler then fails strict `conversationSchema` parsing with 400 after creating/synchronizing the conversation, so the SafeSport journey cannot open the staff team chat or let the guardian reply. Return the persisted mute state (false for the created/active member) and add route-level coverage for both first creation and idempotent reopen; see `docs/codex/qa/DEFECTS.md`.
+- QA-ACC-059 — fix the “team finances issue three installments” acceptance fixture: it directly UPDATEs `payment_allocations`, which migration `0103_spine_finance_core.sql` deliberately keeps append-only (SELECT/INSERT only). Create allocations through a supported service/repository or seed the desired row on insert; do not loosen the append-only policy. B observed permission denied in its Chromium run on trunk `5651da37`; see `docs/codex/qa/DEFECTS.md`.
+
 - **QA-ACC-021:** extend the communications browser journey through quiet-hour deferral and tokenized unsubscribe; current browser coverage stops after schedule cancellation.
 - **QA-ACC-037:** run the Phase 11 $300 donation acceptance path anonymously. The current scenario keeps its authenticated setup session while completing the public fundraiser checkout.
 - **QA-SEC-009:** limit household volunteer ledger reads to the verified guardian of that household or an authorized volunteer-oversight role; active program-scoped memberships currently pass the service access check.

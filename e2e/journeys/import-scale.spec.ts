@@ -7,17 +7,15 @@ import { createWithOrg } from '../../server/src/db/withOrg';
 import { issueSession } from '../../server/src/modules/auth/sessions';
 import { createTestFactories } from '../../server/test/factories';
 import { accessibilityViolations } from '../axe';
+import { e2eDatabaseUrl } from '../database';
 
-const offset = Number(process.env.PORT_OFFSET ?? '0');
 const importSize = 2_000;
 
 test('staff previews, imports, and rolls back a 2,000-person batch on desktop', async ({
   page,
 }, testInfo) => {
   test.setTimeout(240_000);
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   const importPrefix = `import-${randomUUID()}`;
   try {
     const factories = createTestFactories(database);

@@ -70,6 +70,8 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 
 ## Requests from QA
 
+- QA-ACC-061 — inspect the valid finalized `head_to_head_score` result submission that returns HTTP 500 in B’s Chromium run on trunk `5651da37`; add a regression proving both the result and stat lines persist and the UI reports success. See `docs/codex/qa/DEFECTS.md`.
+
 - QA-ACC-015: extend `e2e/schedule-generator.spec.ts` through event publication and family notification. Coordinate the delivery channel with Tracks B/C and assert the preview/Mailpit notification; current coverage stops after apply.
 - QA-ACC-016: extend the rainout flow through preview/Mailpit family notice and staff approval of a reschedule request; `schedule-stats.spec.ts` currently checks only that the affected event is postponed.
 - QA-ACC-017: extend offline game day through a lineup minimum-play warning and successful score synchronization; keep any conflict case separate from the successful sync assertion.

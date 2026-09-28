@@ -272,6 +272,8 @@ Installment charge worker: `installments.charge` runs every minute with a test-k
 Stripe replay worker: `stripe.replay` scans up to 100 stored unprocessed events each minute after enqueue loss or lease expiry, dispatches through the same 27 typed handlers, continues past poison events and reports failures; 9 focused repository/worker tests pass.
 ## Requests from QA
 
+- QA-ACC-060 — investigate the valid free two-sibling checkout whose quote endpoint returns HTTP 500 in B’s Chromium run on trunk `5651da37`; keep a positive regression proving quote generation and registration confirmation succeed. This is distinct from QA-ACC-047’s missing discount/ACH/localization assertions. See `docs/codex/qa/DEFECTS.md`.
+
 - QA-ACC-044 (coordinate H/C) — implement the production guest-donation adapter using only Stripe test mode, bind checkout to the organization's connected account, and settle paid/failed donations from signed synthetic webhook events. The fundraising route currently returns 503 in production because the only adapter is the non-production preview provider and module wiring supplies none. See `docs/codex/qa/DEFECTS.md` (2026-09-27).
 - QA-ACC-047 — complete required journey 8: the current free two-child browser flow does not prove household sibling discount pricing, ACH settlement or English/Spanish confirmation delivery. Add a positive-priced fixture, synthetic test-mode/fake ACH settlement and preview/Mailpit assertions for both locales; see `docs/codex/qa/DEFECTS.md`.
 - QA-ACC-048 — complete required journey 10 through staff waitlist offer creation, family acceptance and test-mode checkout; the current browser test stops at queue position 1. Verify capacity/registration state and axe on staff/family screens; see `docs/codex/qa/DEFECTS.md`.

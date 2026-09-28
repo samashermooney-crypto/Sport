@@ -9,15 +9,12 @@ import { parseEncryptionKeys } from '../../server/src/lib/crypto';
 import { issueSession } from '../../server/src/modules/auth/sessions';
 import { createMedicalRepository } from '../../server/src/modules/people/medical';
 import { createTestFactories } from '../../server/test/factories';
-
-const offset = Number(process.env.PORT_OFFSET ?? '0');
+import { e2eApiBaseUrl, e2eDatabaseUrl } from '../database';
 
 test('guardian A family view and medical ID lookup exclude guardian B child', async ({
   request,
 }) => {
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   try {
     const factories = createTestFactories(database);
     const org = await factories.actor();
@@ -101,7 +98,7 @@ test('guardian A family view and medical ID lookup exclude guardian B child', as
         new Date(),
       ),
     );
-    const api = `http://127.0.0.1:${String(3001 + offset)}/api/v1/people/me/family`;
+    const api = `${e2eApiBaseUrl()}/api/v1/people/me/family`;
     const headers = {
       Cookie: `__Host-athlentry_session=${session.token}`,
     };
@@ -118,7 +115,7 @@ test('guardian A family view and medical ID lookup exclude guardian B child', as
     expect(personIds).not.toContain(childB);
 
     const foreignMedicalProfile = await request.get(
-      `http://127.0.0.1:${String(3001 + offset)}/api/v1/people/orgs/${org.orgId}/${childB}/medical`,
+      `${e2eApiBaseUrl()}/api/v1/people/orgs/${org.orgId}/${childB}/medical`,
       { headers },
     );
     expect(foreignMedicalProfile.status()).toBe(404);

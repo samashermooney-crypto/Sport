@@ -11,8 +11,7 @@ import {
 } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
-
-const offset = Number(process.env.PORT_OFFSET ?? '0');
+import { e2eDatabaseUrl } from './database';
 
 async function signInAsOwner(
   page: Page,
@@ -57,9 +56,7 @@ test('staff creates a volleyball season program, divisions, and generated teams'
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   try {
     const actor = await createTestFactories(database).actor();
     await signInAsOwner(page, testInfo, database, actor);
@@ -85,11 +82,13 @@ test('staff creates a volleyball season program, divisions, and generated teams'
 
     await page.getByLabel('Division method').selectOption('birth_year');
     await page.getByLabel('From').fill('10');
-    await page.getByLabel('To').fill('12');
+    await page.getByRole('spinbutton', { name: 'To' }).fill('12');
     await page.getByRole('checkbox', { name: 'Coed' }).check();
     await page.getByRole('button', { name: 'Continue' }).click();
 
-    await page.getByLabel('Price ($)').fill('125');
+    await page
+      .getByRole('spinbutton', { name: 'Price ($)', exact: true })
+      .fill('125');
     await page.getByLabel('Capacity').fill('24');
     await page.getByRole('button', { name: 'Continue' }).click();
     await page.getByRole('button', { name: 'Continue' }).click();
@@ -160,9 +159,7 @@ test('staff previews and commits a season rollover with selected teams and staff
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   try {
     const factories = createTestFactories(database);
     const actor = await factories.actor();
@@ -235,17 +232,22 @@ test('staff previews and commits a season rollover with selected teams and staff
       page.getByRole('heading', { name: 'Copy season' }),
     ).toBeVisible();
     expect(await accessibilityViolations(page)).toEqual([]);
-    await page.getByLabel('Source season').selectOption(source.seasonId);
-    await page.getByLabel('New season name').fill('Fall 2027');
-    await page.getByLabel('Starts').last().fill('2027-01-01');
-    await page.getByLabel('Ends').last().fill('2027-12-31');
+    const rollover = page
+      .getByRole('heading', { name: 'Copy season' })
+      .locator('..');
+    await rollover.getByLabel('Source season').selectOption(source.seasonId);
+    await rollover.getByLabel('New season name').fill('Fall 2027');
+    await rollover.getByLabel('Starts').fill('2027-01-01');
+    await rollover.getByLabel('Ends').fill('2027-12-31');
     await page.getByRole('button', { name: 'Preview copy' }).click();
 
     await expect(
       page.getByRole('heading', { name: 'Preview changes' }),
     ).toBeVisible();
     await expect(page.getByText('Fall 2026 → Fall 2027')).toBeVisible();
-    await expect(page.getByText(/Copies 1 divisions: U12 Girls/)).toBeVisible();
+    await expect(
+      page.getByText(/Copies 2 divisions: All participants, U12 Girls/),
+    ).toBeVisible();
     await expect(
       page.getByText(/Copies 1 offerings: Player registration/),
     ).toBeVisible();

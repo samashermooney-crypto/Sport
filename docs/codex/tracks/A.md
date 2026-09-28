@@ -10,10 +10,14 @@ Requests from OPS: Record these OPS choices in `docs/codex/DECISIONS.md` under t
 Requests from OPS: Fix `server/test/peopleFilters.test.ts`: updating `roster_entries` to `status='released', left_on='2026-09-27'` violates `roster_entries_check` on the current Chicago test date because the fixture's default `joined_on` is later; set a valid joined/left interval (2026-09-27).
 Blocked on: none
 
+## Requests from QA
+
+- QA-SEC-005 — step-up session rotation is implemented in commit a72152a3, included in current Track A head 9e960af0. Integrate through the branch gate and verify the active cookie/bearer session-fixation regressions on trunk; the current trunk still elevates the same session. Details are in docs/codex/qa/DEFECTS.md.
+
+
 ## Requests from SEC
 
 - Regenerate `server/src/db/types.ts` after migration `1054_late_fee_fk_index.sql`; applying current migrations added `invoice_lines.late_fee_installment_id`, which is absent from the checked-in generated types (2026-09-27).
-- SEC-005: rotate and revoke the current cookie session after successful `/api/v1/auth/step-up`; Phase 16 §1 requires session rotation after step-up, while the route currently updates `elevated_until` in place and returns no replacement cookie. The active regression is `e2e/security/session-step-up-fixation.spec.ts` (2026-09-27).
 - SEC-KNIP-A: triage the Knip findings in A-owned shared schemas: `importRowPreviewSchema` and types `ImportRowPreview`, `ImportBatchList`, `ImportMappingPreset` in `shared/src/schemas/imports.ts`; `duplicatePersonSchema`, `duplicatePairSchema`, and `personMergeSummarySchema` in `shared/src/schemas/people.ts` (2026-09-27).
 Self-review: Server app, worker and configuration consume the generated module/integration registry; web routing consumes generated feature routes.
 Self-review: Existing auth routes keep `/api/v1/auth`; full browser sign-up, Mailpit verification, MFA and device journey passes on Chromium and WebKit.

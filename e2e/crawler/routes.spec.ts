@@ -6,6 +6,7 @@ import { createDatabase } from '../../server/src/db/kysely';
 import { createWithOrg } from '../../server/src/db/withOrg';
 import { issueSession } from '../../server/src/modules/auth/sessions';
 import { createTestFactories } from '../../server/test/factories';
+import { e2eDatabaseUrl } from '../database';
 
 import {
   anonymousEntryRoutes,
@@ -23,9 +24,8 @@ import {
   visitPath,
 } from './visit';
 
-const offset = Number(process.env.PORT_OFFSET ?? '0');
-const appUrl = `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`;
-const adminUrl = `postgres://athlentry_admin@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`;
+const appUrl = e2eDatabaseUrl('app');
+const adminUrl = e2eDatabaseUrl('admin');
 const publicSiteOrgId = '33333333-3333-4333-8333-333333333333';
 
 type RouteActor = { accountId: string; orgId: string };
@@ -168,6 +168,18 @@ async function createFamilyActor(
         })
         .execute(),
     );
+    await createWithOrg(database)(owner, (trx) =>
+      trx
+        .insertInto('org_memberships')
+        .values({
+          id: randomUUID(),
+          org_id: owner.orgId,
+          account_id: accountId,
+          status: 'active',
+          joined_at: new Date(),
+        })
+        .execute(),
+    );
     return { accountId, orgId: owner.orgId };
   } finally {
     await database.destroy();
@@ -249,6 +261,7 @@ async function crawlNavigation(
       if (!clickedDestinations.has(identity)) {
         await clickNavigationDestination(page, baseURL, path, link);
         clickedDestinations.add(identity);
+        visited.add(link.path);
       }
       if (!visited.has(link.path) && !queue.includes(link.path))
         queue.push(link.path);

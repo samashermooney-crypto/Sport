@@ -6,11 +6,11 @@
 
 - **Owner:** Track C (wiring; coordinate with Track J)
 - **Phase:** 13, required journey 25
-- **Evidence:** `/console/federation/:orgId` is registered and `web/src/console/federation/nav.ts` declares a Federation item, but the generated feature registry does not include that nav module, `web/src/console/nav.ts` is empty, and `ConsoleHome` does not render a Federation link. The main browser journey opens the feature by URL; an active navigation regression in `e2e/federation.spec.ts` now asserts the missing link.
+- **Evidence:** On trunk `bc9b22b3`, `/console/federation/:orgId` is registered and `web/src/console/federation/nav.ts` declares a Federation item. `web/src/generated/registry.ts` imports the aggregate `consoleNav`, but `web/src/app.tsx` uses that registry to mount routes only; the rendered shell navigation is passed explicitly by each page. `web/src/console/Home.tsx` builds its navigation without Federation, and `e2e/federation.spec.ts` still reaches the feature through a direct URL in its main journey. Track J's status says the link was resolved, but the metadata has not been propagated into the visible shell.
 - **Reproduce:** sign in as an organization with federation access, open its console home and navigation, and search for a Federation destination; it is absent. The component can only be reached by manually opening `/console/federation/<orgId>`.
 - **Expected:** eligible league/association and member-club users can reach Federation through the normal console navigation, with visibility scoped to the `federation.read` permission.
 - **Request:** register the federation navigation item through the feature registry or add an equivalent permission-gated Console Home link; add a browser assertion that reaches the feature from navigation.
-- **Status:** open discoverability and route-crawler coverage gap; the direct-link journey does not establish a service authorization defect.
+- **Status:** open discoverability and route-crawler coverage gap on trunk `bc9b22b3`; the direct-link journey does not establish a service authorization defect.
 
 ### QA-ACC-034 — Ending a relationship has no read-revocation regression
 
@@ -272,55 +272,55 @@
 - **Request:** structure cleanup with nested `try/finally` (or an equivalent all-actions cleanup helper), preserve the primary/cleanup errors, and add a failure-injection test that asserts temp-file removal and connection closure still run when the scratch drop fails.
 - **Status:** high-confidence static reliability finding; failure-path behavior not executed on QA's isolated Postgres stack.
 
-### QA-SEC-001 — Route permission and tenancy checks are not executable
+### QA-SEC-001 — Route permission and tenancy metadata is not integrated on trunk
 
 - **Owner:** Track C
 - **Phase:** 16 §1.2
-- **Evidence:** `e2e/security/route-authorization.spec.ts`, `e2e/security/tenancy-fuzz.spec.ts`, and `e2e/security/permission-matrix.spec.ts` now run their assertions. `server/test/security/permission-matrix.json` has an empty `operations` object, so the generated metadata and matrix contract remain incomplete.
-- **Reproduce:** inspect those three active checks and the matrix; route metadata and expected permission rows are still missing.
-- **Expected:** every generated API operation has permission/resource/scope metadata; every ID-bearing organization GET/PATCH/DELETE has a foreign-tenant fixture; every operation has a permission row whose allow/deny sets cover the role list exactly. The three checks run as tests and pass.
-- **Request:** finish the generated route metadata and fixture contract and populate the matrix so the active executable tests pass.
-- **Status:** open; browser verification is also waiting on the required QA Postgres port.
+- **Evidence:** current `rebuild/trunk` `bc9b22b3` still has an empty `operations` object and lacks the generated operation metadata. Latest off-trunk Track C head `29f025c3` has metadata for 702/702 OpenAPI operations and 702 permission rows across 23 roles; C reports the route metadata/matrix checks pass on that branch. The tenancy-fuzz quality gap is tracked separately in QA-SEC-016.
+- **Reproduce:** compare `git show rebuild/trunk:server/test/security/permission-matrix.json` with `git show track/c-adapters:server/test/security/permission-matrix.json`, and inspect generated OpenAPI metadata at both refs.
+- **Expected:** integrate the generated metadata and complete role matrix, then run the route-authorization, permission-matrix, and tenant-fuzz checks on the integrated trunk.
+- **Request:** after C's current branch gate is green, integrate the implementation in a small slice and re-run the metadata/matrix suites on trunk. Keep QA-SEC-016 open until its resource-ID controls and method coverage are complete.
+- **Status:** implementation appears complete on off-trunk C head; open for trunk integration and verification. QA's browser run remains blocked because its configured web server cannot start while the QA stack ports are occupied.
 
-### QA-SEC-002 — Security-header acceptance check is disabled
+### QA-SEC-002 — Security-header browser check omits production HSTS coverage
 
 - **Owner:** Track C
 - **Phase:** 16 §1.4
-- **Evidence:** `e2e/security/security-headers.spec.ts` now runs its response-header assertions; Track C reports the middleware is mounted in `server/src/app.ts`.
-- **Reproduce:** run the active browser test against the QA stack and inspect its response-header assertions.
-- **Expected:** the Chromium test checks CSP, HSTS production behavior, frame options, content-type, referrer, and permissions headers on the relevant response types and passes against the mounted middleware.
-- **Request:** align the assertions with the mounted middleware until the active test passes.
-- **Status:** open; browser verification is also waiting on the required QA Postgres port.
+- **Evidence:** `e2e/security/security-headers.spec.ts` checks CSP, framing, content-type, referrer and permissions headers only on `/healthz`. It does not assert production-only HSTS or check an API/static response; `server/src/lib/security/security-headers.test.ts` covers production HSTS only at middleware-unit level.
+- **Reproduce:** inspect the browser spec's sole `/healthz` request and compare its assertions with the Phase 16 §1.4 requirement for production HSTS and relevant response types.
+- **Expected:** browser acceptance asserts HSTS in a production-configured response and checks the shared header policy on representative API and static responses, while preserving the explicit embed framing exception.
+- **Request:** add a production-configured browser assertion for HSTS and verify the common headers across representative mounted response types.
+- **Status:** open browser-coverage gap; current browser execution is blocked by the occupied QA Postgres port.
 
 ### QA-SEC-003 — CI has no Gitleaks secret scan
 
 - **Owner:** Track C
 - **Phase:** 16 §1.3
-- **Evidence:** no Gitleaks step or action is present in `.github/workflows/ci.yml` or `.github/`; Track C's wiring queue lists Gitleaks as unfinished.
-- **Reproduce:** inspect `.github/workflows/ci.yml` and search `.github/` for `gitleaks`; no match is present.
+- **Evidence:** current trunk `.github/workflows/ci.yml` has no Gitleaks step. Latest off-trunk Track C head `29f025c3` adds a `secret-scan` job using the Gitleaks action on pull requests and pushes to `main`/`rebuild/**`.
+- **Reproduce:** compare the CI workflow on `rebuild/trunk` and `track/c-adapters`; the scan is present only on the C branch.
 - **Expected:** CI scans the repository with Gitleaks and fails on detected secrets without printing secret values.
 - **Request:** add the scan to CI and verify the workflow on a clean repository state.
-- **Status:** open.
+- **Status:** implementation appears complete on off-trunk C head; open for integration and protected-branch CI verification.
 
 ### QA-SEC-004 — Web Push accepts internal network endpoints
 
 - **Owner:** Track C
 - **Phase:** 16 §1, SSRF protection
-- **Evidence:** `server/src/integrations/push/sender.ts:78` forwards `subscription.endpoint` to the transport without destination validation; `e2e/security/ssrf.spec.ts` now actively tests a synthetic loopback metadata URL.
-- **Reproduce:** instantiate `WebPushSender` with a fake transport and call `send` with `https://127.0.0.1:443/latest/meta-data`; the current code passes that endpoint to `sendNotification`.
+- **Evidence:** current trunk `server/src/integrations/push/sender.ts` forwards `subscription.endpoint` to the transport without destination validation. Latest off-trunk Track C head `29f025c3` adds provider-host/public-address validation and a pinned HTTPS agent; its unit and synthetic loopback browser regressions are reported green.
+- **Reproduce:** on current trunk, instantiate `WebPushSender` with a fake transport and call `send` with `https://127.0.0.1:443/latest/meta-data`; the endpoint is passed to `sendNotification`. Compare with the C branch implementation.
 - **Expected:** loopback, private, link-local, and non-provider destinations are rejected before transport, with DNS resolution protected from rebinding.
 - **Request:** validate/pin permitted Web Push destinations so the active synthetic regression passes; assert the transport is never called.
-- **Status:** open security defect; no live request was made.
+- **Status:** current-trunk SSRF defect; a fix appears complete on off-trunk C head. Merge and re-verify before closing; no live request was made.
 
 ### QA-SEC-005 — Step-up reauthentication does not rotate the session
 
 - **Owner:** Track A
 - **Phase:** 16 §1.5
-- **Evidence:** `e2e/security/session-step-up-fixation.spec.ts` now actively checks session rotation; `stepUpWithPassword`/`stepUpWithTotp` elevate the existing session and the route does not issue a replacement cookie.
-- **Reproduce:** inspect the step-up route and run its active regression for a new cookie token and revocation of the prior token.
+- **Evidence:** current trunk `bc9b22b3` elevates the existing session without replacing its token. Off-trunk Track A commit `a72152a3` changes password/TOTP step-up to rotate the session and sends a replacement cookie or bearer token; its route test checks the old credentials fail and the replacements work.
+- **Reproduce:** compare the step-up route at `rebuild/trunk` and `track/a-core`, then run `e2e/security/session-step-up-fixation.spec.ts` against the isolated stack.
 - **Expected:** successful step-up rotates the session token, sends the replacement cookie with the required flags, and revokes the prior session token.
-- **Request:** implement step-up session rotation so the active regression passes.
-- **Status:** open security defect; implementation is owned by Track A.
+- **Request:** integrate Track A's rotation fix through its gate and run the active cookie and bearer regressions on trunk.
+- **Status:** current-trunk session fixation defect; fix appears implemented off-trunk in `a72152a3`, pending integration and end-to-end verification.
 
 ### QA-SEC-006 — CI has no SQL raw-interpolation guard
 
@@ -517,11 +517,11 @@
 
 - **Owner:** Track C
 - **Phase:** 16 final gate
-- **Evidence:** `docs/codex/LAUNCH-GATE.md` records snapshot `da7c13f4`, while `rebuild/trunk` has advanced to `b1a8420f` with Phase 6 and Phase 12 integration merges after that snapshot.
-- **Reproduce:** compare the current `rebuild/trunk` head (`b1a8420f`) and integrated Track F/I commits with the launch-gate snapshot and its phase status/evidence.
+- **Evidence:** current `rebuild/trunk` is `bc9b22b3`. The committed `docs/codex/LAUNCH-GATE.md` records `da7c13f4`; the dirty integrator working-copy draft records `2c52eb47`, both behind the latest trunk head. Neither includes the Phase 6 integration at `84c85f8d`, the later federation Linux journey follow-up, the new Track B Phase 3 logic slice, or QA's crawler/journey branch.
+- **Reproduce:** compare `git rev-parse rebuild/trunk` with the gate's recorded hash and CI/test evidence. The current hashes are `bc9b22b3` versus `da7c13f4` (committed gate) / `2c52eb47` (integrator draft).
 - **Expected:** the gate records the current committed trunk hash, test/CI evidence and phase integration state before final promotion decisions.
-- **Request:** refresh the launch-gate snapshot against the latest committed trunk before promotion; audit the later Phase 6/12 merges and preserve explicit CI/test/security failures. Do not promote `main` unless all required criteria pass.
-- **Status:** open gate-evidence freshness gap; QA has not yet merged its crawler or new journeys into trunk.
+- **Request:** refresh the launch-gate snapshot against the actual latest committed trunk before promotion; audit later Phase 6/12 merges and preserve explicit CI/test/security failures. Re-run CI/evidence checks for the recorded hash. Do not promote `main` unless all required criteria pass.
+- **Status:** open gate-evidence freshness gap; QA has not yet merged its crawler or new journeys into trunk, and the dirty integrator draft also predates current trunk.
 
 ### QA-ACC-051 — Valid team-entry invite UUID digest bytes can abort invite checkout
 
@@ -557,21 +557,21 @@
 
 - **Owner:** Track C
 - **Phase:** 16 §1.2
-- **Evidence:** `e2e/security/tenancy-fuzz.spec.ts` replaces `{orgId}` with a foreign organization, but `operationPath()` replaces every other `*Id` path parameter with a fresh random UUID. The test asserts only that the foreign request returns 404 and never proves the same route/resource succeeds for its owning organization.
-- **Reproduce:** on a metadata-backed route such as `/api/v1/orgs/{orgId}/people/{personId}`, observe that the generated `personId` does not refer to a fixture row. A route returning 404 for every missing person passes the foreign-tenant assertion without exercising tenant isolation.
+- **Evidence:** latest off-trunk Track C head `29f025c3` seeds a valid foreign file ID for file routes, but `operationPath()` still generates random UUIDs for other resource IDs. It asserts only that the foreign request returns 404, with no same-tenant control, and enumerates only GET/PATCH/DELETE. The 702-operation OpenAPI snapshot has 178 tenant-scoped POST/PUT operations with non-tenant resource IDs that this method list omits.
+- **Reproduce:** on a metadata-backed route such as `/api/v1/orgs/{orgId}/people/{personId}`, observe that the generated `personId` is not a fixture row. A route returning 404 for every missing person passes the foreign assertion without exercising isolation. Compare the method allow-list with ID-bearing OpenAPI operations.
 - **Expected:** every ID-bearing tenant route has fixture metadata or a deterministic seeding helper for its referenced resource IDs and valid mutation payloads. The same-tenant control must reach the expected authorized outcome before the test changes only the tenant path ID and requires 404. Cover tenant-scoped create/update methods as well as reads and deletes.
 - **Request:** supply real synthetic path resource IDs and run a same-tenant control for each descriptor, then issue the foreign-tenant request with the identical resource ID/body and assert 404. Extend enumeration to every applicable ID-bearing HTTP operation; do not count a missing-resource 404 as isolation evidence.
-- **Status:** open test-quality gap; the current metadata and Postgres fixture blockers also prevent runtime verification.
+- **Status:** open test-quality gap on latest C head `29f025c3`; it has a seeded file case and complete metadata/matrix coverage but still lacks same-tenant controls and the 178 applicable POST/PUT operation cases. Runtime verification remains blocked by the occupied QA offset.
 
 ### QA-ACC-053 — Route crawler omits registered detail routes outside navigation
 
 - **Owner:** Track C (generated route inventory; coordinate QA crawler fixtures)
 - **Phase:** 16 §3, launch-gate item 10
-- **Evidence:** `e2e/crawler/routes.spec.ts` previously followed only rendered `<nav>` destinations. The crawler now also queues visible same-origin content links and organization-role fixtures seed a program, so the program detail link is reachable; it still does not enumerate `webFeatures` / `webNestedRoutes`. Registered routes without a visible link in the current synthetic role data (including some person, household, message, event and invoice details) remain outside the route queue.
-- **Reproduce:** compare the path patterns in `web/src/generated/nested-routes.ts` with routes discovered by `crawlNavigation`; the route registry includes dynamic detail paths whose resources are not created by current fixtures or linked from the rendered surfaces.
-- **Expected:** launch-gate item 10's route coverage includes registered routes, with valid synthetic resources and authorized role contexts for dynamic IDs; visible content links are traversed in addition to shell navigation.
-- **Request:** expose a lightweight route inventory with role/fixture expectations for routes that remain unreachable from visible same-origin content links, and coordinate valid fixture seeding for their dynamic IDs. QA's crawler now traverses reachable page-content links.
-- **Status:** open route-crawler completeness gap; runtime verification remains blocked by the occupied QA database/browser ports.
+- **Evidence:** `e2e/crawler/routes.spec.ts` follows rendered nav links, visible same-origin content links, and navigation buttons; it also checks same-origin HTTP/API failures, rendered error states, page/console errors and axe. It still does not enumerate `webFeatures` / `webNestedRoutes`, so registered detail routes without a visible link and seeded resource (person, household, message, event, invoice) remain outside the route queue. Its actor fixtures cover 11 org roles, guardian/self and three platform roles, but not the documented record-derived `head_coach`, `assistant_coach`, `team_manager`, `treasurer`, official or volunteer contexts; no `team_staff`, `official_assignments` or volunteer signup records are seeded.
+- **Reproduce:** compare route patterns in `web/src/generated/nested-routes.ts` and derived-role access in `docs/codex/04-PERMISSIONS-AND-PRIVACY.md` with `crawlNavigation()` and the actors created in `e2e/crawler/catalog.ts` / `routes.spec.ts`; dynamic detail routes without linked fixtures and the derived role contexts are absent from the crawl inputs.
+- **Expected:** launch-gate item 10 coverage includes registered routes with valid synthetic resource IDs and authorized role contexts, including documented team-staff, official and volunteer identities; rendered navigation/content traversal remains part of the crawl.
+- **Request:** expose a lightweight route inventory with role/fixture expectations for unreachable dynamic routes, and seed crawler actors with valid record-derived coach/team-staff, assigned-official and volunteer relationships. QA already traverses reachable page-content links and nav buttons.
+- **Status:** open route-crawler completeness and role-context gap; runtime verification remains blocked by the occupied QA database/browser ports.
 
 ### QA-ACC-054 — Phase 6 integration test does not verify age at program start
 
@@ -582,3 +582,133 @@
 - **Expected:** the database path supplies each player's whole-year age on the target program start date, including a birth date whose birthday falls just after that date; team metrics reflect those exact values.
 - **Request:** use deterministic DOB/program-start fixtures that distinguish target-date age from wall-clock age and assert expected ages or team means at the service boundary.
 - **Status:** test-quality gap; static SQL review confirms the current implementation uses `target.starts_on`, and QA's real-Postgres stack remains unavailable for runtime verification.
+
+### QA-ACC-055 — Credential compliance chart counts stale verified credentials
+
+- **Owner:** Track D
+- **Phase:** 14 reports and Phase 16 acceptance evidence
+- **Branch evidence:** off-trunk Track D head `36feadcc` (`feat(reports): chart registration pace and compliance`); this change is not present on the current `rebuild/trunk` snapshot `bc9b22b3`.
+- **Evidence:** `ReportsDashboard.tsx` builds the credential compliance percentage from counts grouped only by `status`, and treats every `status === 'verified'` row as compliant. The credentials report definition excludes revoked rows but does not include `expires_on` in the chart input or constrain the verified count by expiry. The shared compliance policy considers a verified credential invalid when `expiresOn < onDate`; expiry status is updated asynchronously by the credentials-expiry job, so a stale row can remain `verified` after its expiry date.
+- **Reproduce:** seed a non-revoked credential with `status = 'verified'` and `expires_on` before the report's as-of date, then render the credential compliance chart before the expiry job changes its status. The chart includes it in the “Verified” numerator, while the compliance policy rejects it.
+- **Expected:** the compliance percentage counts only credentials valid on the report's as-of date as compliant, using the policy's inclusive `expires_on` boundary; expired verified rows remain in the denominator as needing attention. Add a deterministic report/query or dashboard regression covering an overdue-but-not-yet-swept verified credential and a still-valid credential.
+- **Request:** include expiry validity in the compliance aggregation (with a documented as-of date and `expires_on` null/valid handling) or derive a policy-backed compliant value, and assert the percentage before the expiry sweep runs. Keep the existing revoked exclusion and role access rules.
+- **Status:** high-confidence static metric correctness and safety-reporting defect in off-trunk Track D work; no runtime test was run because the QA PostgreSQL/browser stack remains blocked by the occupied offset.
+
+### QA-ACC-056 — Expired organization export archives remain in storage
+
+- **Owner:** Track D
+- **Phase:** 14 organization data export and retention
+- **Branch evidence:** off-trunk Track D head `36feadcc`; this change is not present on the current `rebuild/trunk` snapshot `bc9b22b3`.
+- **Evidence:** `buildOrganizationExport()` stores the ZIP in `Storage` and sets the `files.expires_at` and `org_data_exports.expires_at` fields to seven days after creation. `downloadOrganizationExport()` denies a download after that timestamp, but the `retention.sweep` job never selects expired exports or deletes their storage objects. The only `storage.delete()` in the export service is in the build-failure cleanup path; no general file-expiry janitor exists in the D branch.
+- **Reproduce:** create a completed export, advance the clock beyond its `expires_at`, and run the registered `retention.sweep`; verify the link is denied but the ZIP remains in storage and the file record remains active.
+- **Expected:** the seven-day export expiry ends both link access and retention of the sensitive archive bytes. The sweep removes the expired object and safely retires its file/export metadata while preserving required audit evidence.
+- **Request:** add storage-aware expiry cleanup for export ZIPs, make deletion and metadata updates safe across partial failures, and add a fake-storage regression proving an expired archive is deleted while a live one and its link remain usable.
+- **Status:** high-confidence static sensitive-data retention gap in off-trunk Track D work; cleanup was not runtime-tested because the QA PostgreSQL/browser stack remains blocked by the occupied offset.
+
+### QA-ACC-057 — Person photo bytes persist after deletion anonymization
+
+- **Owner:** Track D
+- **Phase:** 14 privacy-request deletion/anonymization
+- **Branch evidence:** off-trunk Track D head `36feadcc`; this change is not present on the current `rebuild/trunk` snapshot `bc9b22b3`.
+- **Evidence:** the approved-person deletion path collects the person's photo and credential file IDs, clears the references, and sets `files.deleted_at`, but it does not receive or call a `Storage` implementation. The photo bytes therefore remain in local or object storage after anonymization. Credential attachments may have a separate compliance-record retention obligation and should follow that documented schedule.
+- **Reproduce:** create a person photo in fake storage, complete an approved deletion/anonymization request, and inspect the storage object; the database row is tombstoned but the photo bytes remain.
+- **Expected:** approved anonymization erases or cryptographically destroys the person's photo bytes while retaining the required file/audit tombstones. Credential evidence follows its explicit legal/compliance retention rule rather than being blindly deleted or retained forever.
+- **Request:** make the privacy deletion path storage-aware for photos, with retryable cleanup for database/storage partial failure, and add fake-storage coverage proving the photo is removed and unrelated files remain. Explicitly define the credential-attachment retention treatment.
+- **Status:** high-confidence static photo-retention gap in off-trunk Track D work; storage behavior was not runtime-tested because the QA PostgreSQL/browser stack remains blocked by the occupied offset.
+
+### QA-SEC-017 — Public website SSR lacks a stored-XSS regression
+
+- **Owner:** Track D
+- **Phase:** 14 website SSR and Phase 16 §1 stored-XSS acceptance
+- **Branch evidence:** off-trunk Track D head `36feadcc`; this change is not present on the current `rebuild/trunk` snapshot `bc9b22b3`.
+- **Evidence:** organization names, news titles, and news body text reach `server/src/modules/website/public.ts`; the renderer currently uses React text nodes and `safeJsonLd()` escapes `<`, `>`, and `&`, which appear safe by static inspection. Existing `server/test/security/stored-xss.test.ts` covers campaign HTML only, and D's website SSR integration tests do not persist script/event-handler payloads or assert they remain inert in the served document.
+- **Reproduce:** persist a synthetic payload such as `</script><script>window.__xss=1</script><img src=x onerror=...>` in a published news title/body and an organization name, request the SSR document, and inspect parsed DOM/execution. Current positive fixtures cover ordinary text but not hostile stored values.
+- **Expected:** no attacker-controlled script, event handler, or executable URL is created; text remains escaped and JSON-LD remains a single inert script node.
+- **Request:** add a deterministic stored-XSS SSR regression for organization identity and published news/page content, asserting parsed DOM has no injected active elements or handler attributes. The current implementation appears defensive; this is a test-quality gap, not a confirmed exploit.
+- **Status:** off-trunk security regression gap; runtime execution remains blocked by the occupied QA stack.
+
+### QA-SEC-018 — Key rotation omits three encrypted data fields
+
+- **Owner:** Track SEC
+- **Phase:** 16 §1 key management
+- **Branch evidence:** current trunk snapshot `bc9b22b3`; the same rotation list remains in latest Track SEC head `d0385562`.
+- **Evidence:** `rotateEncryptedData()` enumerates encrypted columns in `server/src/lib/security/encryption-rotation.ts`, but omits `athlete_cards.qr_secret_enc` and `checkouts.requirements_enc`, both written with `encryptRestricted()`. It also omits `fundraising_settings.ein_ciphertext`, which is produced by `encryptRestricted()` but stores ciphertext, nonce, and key ID separately in `ein_ciphertext`, `ein_nonce`, and `ein_key_version`. Rotation therefore leaves all three values on the old key while reporting its scan complete.
+- **Reproduce:** insert all three values encrypted under `previous`, run `scripts/rotate-encryption-key.ts --apply` with `next` active and both keys configured, then decrypt using a keyring containing only `next`; card and checkout values still carry the old embedded key ID, and the fundraiser EIN still records `previous` in `ein_key_version`.
+- **Expected:** every `encryptRestricted()` data field is included in rotation, including split-envelope formats, and the integration test proves old-key ciphertext in each field is re-encrypted, remains readable under the new key, and is counted in dry-run/apply summaries.
+- **Request:** add the card and checkout columns to the bounded tenant-scoped rotation list; add a dedicated split-envelope handler for `fundraising_settings.ein_ciphertext` that updates its stored key ID and ciphertext. Exercise all three through the operator CLI and add a schema/list completeness guard so new encrypted fields cannot silently be omitted.
+- **Status:** high-confidence key-rotation defect on current trunk and latest Track SEC snapshot; its CLI test covers only medical-profile and MFA ciphertext, so the omitted fields are untested. QA's DB-backed regression execution remains blocked by the occupied offset.
+
+### QA-SEC-019 — Permission matrix completeness test does not exercise route authorization
+
+- **Owner:** Track C
+- **Phase:** 16 §1.2; `04-PERMISSIONS-AND-PRIVACY.md` §1
+- **Branch evidence:** current trunk and latest Track C head `29f025c3`.
+- **Evidence:** `e2e/security/permission-matrix.spec.ts` verifies that every OpenAPI operation has a matrix row whose allow/deny arrays partition the known roles, and that row permission/scope strings match metadata. It sends no requests and does not compare any allow/deny expectation with runtime route behavior. `route-authorization.spec.ts` likewise verifies metadata presence only.
+- **Reproduce:** change one operation's matrix row to allow a role the route rejects, or deny a role the route accepts; the current matrix and route-authorization checks still pass because they never invoke the endpoint as that role.
+- **Expected:** an executable route-authorization matrix exercises declared allow/deny outcomes against each route using valid synthetic fixtures, with scoped-role cases proving access boundaries. If a method cannot be safely invoked in both modes, its descriptor should provide a safe request fixture or an explicit documented policy test.
+- **Request:** extend the generated test contract so the matrix is checked against actual authorization decisions, not just metadata shape. Use isolated synthetic data and safe GET/denial requests or a route-level authorization harness; never send real messages or move real money.
+- **Status:** high-confidence test-coverage gap; C's 702-row matrix is structurally complete, but runtime allow/deny semantics remain unverified across the route set. Database-backed execution is blocked by the occupied QA offset.
+
+### QA-ACC-058 — Organization exports bypass shared object storage
+
+- **Owner:** Track D (export module), coordinate Track C (app/worker storage wiring)
+- **Phase:** 14 organization data export; Phase 16 production acceptance
+- **Branch evidence:** off-trunk Track D head `36feadcc`; this change is not present on the current `rebuild/trunk` snapshot `bc9b22b3`.
+- **Evidence:** `createExportsRouter()` constructs `LocalDiskStorage('data/uploads')`; `buildOrganizationExport()` and `downloadOrganizationExport()` also default to that local adapter, and `runOrganizationExportJob()` does not receive a configured storage dependency. The production architecture requires a private S3-compatible bucket and the production plan runs two web instances plus a separate worker.
+- **Reproduce:** run the export job on the worker's local filesystem, then issue its signed download URL through a web instance with a different filesystem; the export row and token exist, but that instance cannot read the ZIP object.
+- **Expected:** export creation and download use the same configured durable, private `Storage` adapter across worker and web processes; tests prove a ZIP written by the job can be downloaded through the shared adapter.
+- **Request:** inject configured storage through the generated module/app and worker dependencies instead of constructing `LocalDiskStorage` in the export module, and add a fake/shared-storage integration test covering build-to-download across separate service instances.
+- **Status:** high-confidence static production integration defect in off-trunk Track D work; multi-instance behavior was not runtime-tested in the isolated QA environment.
+
+### QA-QUAL-002 — Program status mutation silently strips unknown request fields
+
+- **Owner:** Track B
+- **Phase:** 3 API contract and request validation
+- **Branch evidence:** newly merged Track B slice `bc9b22b3` centralizes the program status schema and regenerates OpenAPI.
+- **Evidence:** `POST /api/v1/programs/orgs/:orgId/:programId/status` parses the body with `z.object({ status, expectedVersion })`, and the corresponding `moduleDefinition.openapiRoutes` body also uses `z.object`. Zod strips unknown properties by default, while the repository request-schema rule requires strict objects and OpenAPI describes this body with `additionalProperties: false`.
+- **Reproduce:** submit a valid status and `expectedVersion` plus an extra property (for example `unexpected: true`) to the status route. The current parser ignores the extra key and proceeds with the transition instead of returning 400.
+- **Expected:** reject unknown request fields with 400 before changing the program state; runtime validation and the generated OpenAPI contract must agree.
+- **Request:** use `z.strictObject` for the status request body in both the route parser and module descriptor, and add a regression asserting that an unknown field returns 400 and leaves the status/version unchanged.
+- **Status:** static contract defect on trunk `bc9b22b3`; a database-backed mutation regression has not run on the isolated QA stack.
+
+
+### QA-ACC-059 — Team-finance journey mutates append-only allocations
+
+- **Owner:** Track H
+- **Phase:** 11 team finance / Phase 16 acceptance
+- **Evidence:** Track B's Chromium run on trunk `5651da37` failed in `e2e/phase11.spec.ts:437–441` when the test updated `payment_allocations.installment_id` through the app role. Migration `0103_spine_finance_core.sql` configures `payment_allocations` as append-only and grants the application role SELECT/INSERT, not UPDATE; the database correctly returned `permission denied for table payment_allocations`. This was observed in B's run; QA's own browser suite has not run on its isolated stack.
+- **Reproduce:** execute the “team finances issue three installments” Playwright scenario. Its fixture directly updates an existing allocation row under `withOrg`.
+- **Expected:** the journey sets up installment allocations through the supported service/repository or inserts the final fixture state, without adding UPDATE permission to an append-only finance table.
+- **Request:** replace the direct UPDATE fixture with a supported setup path or seed the installment allocation on insert, and keep the regression proving the team-finance flow creates the intended installments. Do not loosen the table's append-only policy.
+- **Status:** acceptance-test failure reported from B's Chromium run on trunk `5651da37`; QA has not independently reproduced it.
+
+### QA-ACC-060 — Valid sibling registration quote returns 500
+
+- **Owner:** Track E
+- **Phase:** 5 registration / required journey 8
+- **Evidence:** Track B's Chromium run on trunk `5651da37` failed the existing free two-sibling registration journey. The quote request `POST /api/v1/registration/orgs/:orgId/checkouts/:checkoutId/quote` returned HTTP 500 with the generic `INTERNAL_ERROR`; the browser stayed on “Review your registration” and never reached “Registration confirmed.” QA's own browser suite has not run on its isolated stack.
+- **Reproduce:** run `e2e/registration.spec.ts` for the valid free two-sibling checkout and inspect the quote response in the trace.
+- **Expected:** a valid quote completes and the family reaches a confirmed registration state.
+- **Request:** diagnose and fix the quote-generation error; retain a positive browser or integration regression asserting a valid quote and completed registration. Keep the separate sibling-discount/ACH/localization coverage request in QA-ACC-047.
+- **Status:** acceptance failure reported from B's Chromium run on trunk `5651da37`; QA has not independently reproduced it.
+
+### QA-ACC-061 — Valid finalized contest result returns 500
+
+- **Owner:** Track G
+- **Phase:** 8–9 schedule and result reporting
+- **Evidence:** Track B's Chromium run on trunk `5651da37` failed `e2e/schedule-stats.spec.ts:241`. A valid `head_to_head_score` submission with result stats sent to `POST /api/v1/contests/orgs/:orgId/contests/:contestId/results` returned HTTP 500 with `INTERNAL_ERROR`; the UI never showed “Result submitted.” QA's own browser suite has not run on its isolated stack.
+- **Reproduce:** run the schedule-stats journey and submit the finalized head-to-head score plus its result stats.
+- **Expected:** the valid finalized result is accepted, its result and stat lines persist, and the UI reports success.
+- **Request:** inspect the server error path and add a regression proving valid finalized score and stat-line persistence end to end.
+- **Status:** acceptance failure reported from B's Chromium run on trunk `5651da37`; QA has not independently reproduced it.
+
+### QA-ACC-062 — Opening a team chat returns 400 after persisting the conversation
+
+- **Owner:** Track H
+- **Phase:** 10 team chat / SafeSport guardian inclusion
+- **Branch evidence:** current `track/qa` Chromium run on trunk snapshot `5651da37`.
+- **Evidence:** the owner-role team chat journey loads the active team and posts a valid request to `POST /api/v1/communications/orgs/:orgId/chat/conversations`. The service creates/synchronizes the team conversation, but `ensureTeamConversation()` omits `muted` from its returned object while the route parses the response with strict `conversationSchema`, which requires `muted: boolean`. The endpoint responds `400 VALIDATION_ERROR` with `path: ["muted"]`; the browser cannot select the newly created conversation, so the minor athlete's guardian inclusion/reply journey stops before messaging.
+- **Reproduce:** run `e2e/journeys/chat-safesport.spec.ts` with the staff owner assigned an active team and completed MFA. The first team-chat click returns 400; retry also fails because the existing-conversation return omits `muted` too.
+- **Expected:** both create and reopen return a schema-valid conversation including the persisted caller mute state, then the staff member can send and the linked guardian can read/reply.
+- **Request:** include `muted` in both `ensureTeamConversation()` return paths (and check `ensureTeamStaffConversation()` for the same contract), then add route-level tests for first creation and idempotent reopen plus the browser guardian-reply assertion. Preserve strict response validation.
+- **Status:** independently reproduced by QA in the isolated QA Chromium stack; the active journey remains red until the H-owned contract defect is fixed.

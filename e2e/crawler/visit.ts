@@ -226,6 +226,11 @@ export async function clickNavigationButtons(
 
         exercised.add(identity);
         discoveredEnabledButton = true;
+        const menuDismiss = page.locator('button.ui-menu-dismiss:visible');
+        if (await menuDismiss.count()) {
+          await menuDismiss.click();
+          await expect(menuDismiss).toHaveCount(0);
+        }
         const hadActiveButton =
           (await nav.locator('button[aria-current="page"]').count()) > 0;
         const role = await button.getAttribute('role');
@@ -269,28 +274,40 @@ export async function visitPath(
 ): Promise<void> {
   const failures: string[] = [];
   const pendingApi = new Set<Request>();
+  const trackedRequests = new Set<Request>();
+  const successfulRequests = new Set<string>();
+  const abortedRequests = new Set<string>();
+  const requestKey = (request: Request): string =>
+    `${request.method()} ${request.url()}`;
   const onRequest = (request: Request): void => {
-    if (
-      isSameOrigin(request.url(), baseURL) &&
-      request.url().includes('/api/') &&
-      !isLongLivedStream(request)
-    ) {
-      pendingApi.add(request);
-    }
+    if (!isSameOrigin(request.url(), baseURL) || isLongLivedStream(request))
+      return;
+    if (request.url().includes('/api/')) pendingApi.add(request);
+    trackedRequests.add(request);
   };
   const onResponse = (response: Response): void => {
     const request = response.request();
+    trackedRequests.delete(request);
     pendingApi.delete(request);
     if (!isSameOrigin(response.url(), baseURL)) return;
+    if (response.status() < 400) successfulRequests.add(requestKey(request));
     if (response.status() < 400) return;
     failures.push(`${String(response.status())} ${response.url()}`);
   };
   const onRequestFailed = (request: Request): void => {
+    const trackedDuringVisit = trackedRequests.delete(request);
     pendingApi.delete(request);
-    if (isSameOrigin(request.url(), baseURL))
+    if (!trackedDuringVisit || isLongLivedStream(request)) return;
+    if (
+      isSameOrigin(request.url(), baseURL) &&
+      request.failure()?.errorText === 'net::ERR_ABORTED'
+    ) {
+      abortedRequests.add(requestKey(request));
+    } else if (isSameOrigin(request.url(), baseURL)) {
       failures.push(
         `request failed ${request.url()}: ${request.failure()?.errorText ?? 'unknown error'}`,
       );
+    }
   };
 
   page.on('request', onRequest);
@@ -329,11 +346,18 @@ export async function visitPath(
     ).toHaveCount(0);
 
     await expect
-      .poll(() => pendingApi.size, {
-        timeout: 10_000,
-        message: `${path} API requests should settle`,
-      })
-      .toBe(0);
+      .poll(
+        () => [...pendingApi].map((request) => new URL(request.url()).pathname),
+        {
+          timeout: 10_000,
+          message: `${path} API requests should settle`,
+        },
+      )
+      .toEqual([]);
+    for (const key of abortedRequests) {
+      if (!successfulRequests.has(key))
+        failures.push(`request aborted without a successful retry ${key}`);
+    }
     expect(failures, `${path} same-origin HTTP and request failures`).toEqual(
       [],
     );
@@ -390,9 +414,12 @@ export async function clickNavigationDestination(
   });
 
   if (destination.path !== sourcePath) {
-    await page.goBack({ waitUntil: 'domcontentloaded' });
-    await expect
-      .poll(() => new URL(page.url()).pathname)
-      .toBe(new URL(sourcePath, baseURL).pathname);
+    await visitPath(page, baseURL, sourcePath, async () => {
+      await page.goBack({ waitUntil: 'domcontentloaded' });
+      await expect
+        .poll(() => new URL(page.url()).pathname)
+        .toBe(new URL(sourcePath, baseURL).pathname);
+      return null;
+    });
   }
 }

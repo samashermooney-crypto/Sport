@@ -7,14 +7,14 @@ import { createWithOrg } from '../../server/src/db/withOrg';
 import { issueSession } from '../../server/src/modules/auth/sessions';
 import { createTestFactories } from '../../server/test/factories';
 import { accessibilityViolations } from '../axe';
-
-const offset = Number(process.env.PORT_OFFSET ?? '0');
+import { e2eDatabaseUrl } from '../database';
 
 async function signInBrowser(
   page: import('@playwright/test').Page,
   testInfo: import('@playwright/test').TestInfo,
   database: ReturnType<typeof createDatabase>,
   accountId: string,
+  privileged = false,
 ) {
   const session = await database.transaction().execute((trx) =>
     issueSession(
@@ -23,7 +23,8 @@ async function signInBrowser(
         accountId,
         kind: 'cookie',
         client: 'web',
-        privileged: false,
+        privileged,
+        ...(privileged ? { mfaVerifiedAt: new Date() } : {}),
       },
       new Date(),
     ),
@@ -43,9 +44,7 @@ async function signInBrowser(
 test('team chat includes the minor athlete’s guardian and lets the guardian reply', async ({
   page,
 }, testInfo) => {
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   try {
     const factories = createTestFactories(database);
     const staff = await factories.actor();
@@ -120,7 +119,23 @@ test('team chat includes the minor athlete’s guardian and lets the guardian re
         .execute();
     });
 
-    await signInBrowser(page, testInfo, database, staff.accountId);
+    await withOrg(staff, (trx) =>
+      trx
+        .updateTable('team_seasons')
+        .set({ status: 'active' })
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', team.teamSeasonId)
+        .execute(),
+    );
+    await withOrg(staff, (trx) =>
+      trx
+        .updateTable('role_assignments')
+        .set({ pending_mfa: false })
+        .where('org_id', '=', staff.orgId)
+        .where('account_id', '=', staff.accountId)
+        .execute(),
+    );
+    await signInBrowser(page, testInfo, database, staff.accountId, true);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/me/orgs/${staff.orgId}/messages`);
     await expect(

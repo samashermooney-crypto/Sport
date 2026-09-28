@@ -60,6 +60,8 @@ Self-review: Full unit/integration suite passes (550 tests, 1 existing skip) aft
 
 ## Requests from QA
 
+- QA-QUAL-002: use `z.strictObject` for the program status mutation request in both `routes.ts` and `module.ts`. The current `z.object` parser strips unknown fields even though the generated OpenAPI body sets `additionalProperties: false`; add a regression that expects 400 and verifies no status/version change. See `docs/codex/qa/DEFECTS.md`.
+
 - QA-ACC-045 (coordinate H) — add the `sponsor.renewal_reminder` operational notification catalog entry and English/Spanish templates. H registers a daily job, but its `isNotificationType()` guard currently exits before scanning sponsors, so no renewal notice can be created. See `docs/codex/qa/DEFECTS.md` (2026-09-27).
 
 Phase 3 progress: date-based registration instants and offering price windows preserve org-local wall time over DST; rollover preview lists copied divisions/offers/prices/add-ons/forms/waivers, while copy remains idempotent and excludes registrations, invoices, payments and results. Team creation supports manual and generated teams; roster capacity serializes on the team-season row, concurrent jersey uniqueness is database-enforced, and staff assignment calls F's eligibility gate. Facilities retain split-field exclusion, versioned availability, blackouts, suitability, public visibility and map URL validation. Generated nested routes include all three B screens and the OpenAPI freshness script passes after adding descriptors for all B-owned operations. Focused server/shared Phase 3 suites pass (132 tests); sport engine line coverage is 100%; typecheck and lint pass.

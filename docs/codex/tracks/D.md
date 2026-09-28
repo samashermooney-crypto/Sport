@@ -1,5 +1,13 @@
 # Track D — design system
 
+## Requests from QA
+
+- QA-ACC-055: the new `credential-compliance` chart counts every `status = verified` record without accounting for `expires_on`; the shared compliance policy rejects a verified credential after its expiry date, while the expiry status job can lag. Include expiry validity in the as-of aggregation and test an overdue verified credential before the sweep. Finding is against off-trunk commit `36feadcc`; see `docs/codex/qa/DEFECTS.md`.
+- QA-ACC-056: export ZIPs and their `files` rows are marked to expire after seven days, but the retention job never deletes them from storage; only download access expires. Remove expired export bytes and safely retire their file metadata while preserving audit evidence; add a fake-storage expiry regression. Finding is against off-trunk commit `36feadcc`; see `docs/codex/qa/DEFECTS.md`.
+- QA-ACC-057: approved person anonymization clears references and tombstones the photo file row but does not remove the stored photo bytes. Erase those bytes through retryable storage cleanup while preserving audit/legal records; define a separate retention rule for credential evidence. Add fake-storage assertions. Finding is against off-trunk commit `36feadcc`; see `docs/codex/qa/DEFECTS.md`.
+- QA-SEC-017: add an adversarial stored-XSS regression for public website SSR using persisted organization/news/page values. Static review found React text nodes and safe JSON-LD escaping, so this is a coverage gap rather than a confirmed exploit. Finding is against off-trunk commit `36feadcc`; see `docs/codex/qa/DEFECTS.md`.
+- QA-ACC-058 (coordinate Track C): export job and download router construct `LocalDiskStorage` instead of using the configured shared S3-compatible adapter; separate worker/web filesystems can make completed exports unavailable. Inject shared storage across both paths and test build-to-download. Finding is against off-trunk commit `36feadcc`; see `docs/codex/qa/DEFECTS.md`.
+
 Status: ready-for-integration
 Model: GPT-6 Luna
 Branch: `track/d-design`
