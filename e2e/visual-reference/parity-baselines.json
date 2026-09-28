@@ -1,8 +1,18 @@
 {
   "legacyRevision": "9ef77bb",
   "linux": {
-    "container": "mcr.microsoft.com/playwright:v1.63.0-noble",
-    "platform": "linux/amd64",
+    "runnerImage": "ubuntu-24.04 (ubuntu24/20260920.314)",
+    "architecture": "x86_64",
+    "playwrightVersion": "1.63.0",
+    "chromiumVersion": "153.0.8010.12 (Playwright revision 1243)",
+    "webkitVersion": "26.6 (Playwright revision 2359)",
+    "lastValidatedActionsRun": "36357792018",
+    "fontPackages": {
+      "fonts-liberation": "1:2.1.5-3",
+      "fonts-noto-color-emoji": "2.047-0ubuntu0.24.04.1",
+      "libfontconfig1": "2.15.0-1.1ubuntu2",
+      "libfreetype6": "2.13.2+dfsg-1ubuntu0.1"
+    },
     "viewportHeight": 900,
     "shellFiles": ["dashboard-1440-linux.png", "dashboard-390-linux.png"]
   }
