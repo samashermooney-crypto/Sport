@@ -223,6 +223,7 @@ export const notificationCatalog = {
     category: 'marketing',
     title: 'Organization news',
   },
+  'evaluation.offer': { category: 'operational', title: 'Team offer' },
   'fundraising.donation_receipt': {
     category: 'operational',
     title: 'Donation receipt',
