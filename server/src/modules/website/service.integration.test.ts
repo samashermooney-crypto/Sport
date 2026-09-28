@@ -13,6 +13,8 @@ import {
   getWebsiteSettings,
   getPublicWebsitePage,
   listWebsiteMenus,
+  listWebsiteDomains,
+  listWebsiteEmbeds,
   listPublicWebsiteNews,
   listWebsiteNews,
   listPublicWebsitePlans,
@@ -21,6 +23,11 @@ import {
   saveWebsitePage,
   saveWebsiteNews,
   saveWebsiteSettings,
+  addWebsiteDomain,
+  verifyWebsiteDomain,
+  setPrimaryWebsiteDomain,
+  disableWebsiteDomain,
+  saveWebsiteEmbed,
 } from './service';
 
 const orgId = randomUUID();
@@ -70,6 +77,128 @@ beforeAll(async () => {
 afterAll(async () => database.destroy());
 
 describe('website page service', () => {
+  it('requires a matching DNS record and trusted TLS before a domain is primary', async () => {
+    const added = await addWebsiteDomain(
+      context,
+      { host: `club-${orgId.slice(0, 8)}.example.test` },
+      'athlentry.com',
+      withOrg,
+    );
+    expect(added.domain).toMatchObject({
+      status: 'pending',
+      isPrimary: false,
+    });
+    expect(added.domain.verificationToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(added.domain.verificationRecordName).toBe(
+      `_athlentry-verification.${added.domain.host}`,
+    );
+    await expect(
+      addWebsiteDomain(
+        context,
+        { host: added.domain.host },
+        'athlentry.com',
+        withOrg,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      addWebsiteDomain(
+        context,
+        { host: 'northstar.athlentry.com' },
+        'athlentry.com',
+        withOrg,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+
+    const verify = (tlsReady: boolean) =>
+      verifyWebsiteDomain(
+        context,
+        added.domain.id,
+        new Date('2026-09-28T12:00:00.000Z'),
+        withOrg,
+        (recordName) => {
+          expect(recordName).toBe(added.domain.verificationRecordName);
+          return Promise.resolve([[added.domain.verificationToken ?? '']]);
+        },
+        () => Promise.resolve(tlsReady),
+      );
+    const ownershipVerified = await verify(false);
+    expect(ownershipVerified.domain).toMatchObject({
+      status: 'verifying',
+      isPrimary: false,
+      statusNote: 'Ownership verified; waiting for a trusted TLS certificate.',
+    });
+    await expect(
+      setPrimaryWebsiteDomain(context, added.domain.id, withOrg),
+    ).rejects.toMatchObject({ status: 409 });
+
+    const active = await verify(true);
+    expect(active.domain).toMatchObject({ status: 'active', isPrimary: false });
+    expect(active.domain.verificationToken).toBeNull();
+    expect(
+      (await setPrimaryWebsiteDomain(context, added.domain.id, withOrg)).domain,
+    ).toMatchObject({ status: 'active', isPrimary: true });
+    const disabled = await disableWebsiteDomain(
+      context,
+      added.domain.id,
+      withOrg,
+    );
+    expect(disabled.domain).toMatchObject({
+      status: 'disabled',
+      isPrimary: false,
+    });
+    expect((await listWebsiteDomains(context, withOrg)).items).toContainEqual(
+      expect.objectContaining({ id: added.domain.id, status: 'disabled' }),
+    );
+  });
+
+  it('saves typed public widgets with optimistic versions', async () => {
+    const created = await saveWebsiteEmbed(
+      context,
+      undefined,
+      {
+        config: { kind: 'program_list', title: 'Upcoming programs', limit: 8 },
+      },
+      withOrg,
+    );
+    expect(created.embed.publicKey).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(created.embed.config).toEqual({
+      kind: 'program_list',
+      title: 'Upcoming programs',
+      limit: 8,
+    });
+    const updated = await saveWebsiteEmbed(
+      context,
+      created.embed.id,
+      {
+        expectedVersion: created.embed.version,
+        config: { kind: 'registration_button', programSlug: 'summer-soccer' },
+      },
+      withOrg,
+    );
+    expect(updated.embed.version).toBe(created.embed.version + 1);
+    expect(updated.embed.config.kind).toBe('registration_button');
+    await expect(
+      saveWebsiteEmbed(
+        context,
+        created.embed.id,
+        {
+          expectedVersion: created.embed.version,
+          config: { kind: 'program_list' },
+        },
+        withOrg,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(listWebsiteEmbeds(context, withOrg)).resolves.toMatchObject({
+      items: [
+        {
+          id: created.embed.id,
+          version: updated.embed.version,
+          config: { kind: 'registration_button', programSlug: 'summer-soccer' },
+        },
+      ],
+    });
+  });
+
   it('returns only public active plan fields for the pricing page', async () => {
     const inactiveId = randomUUID();
     const inactiveKey = `inactive-${inactiveId.slice(0, 8)}`;

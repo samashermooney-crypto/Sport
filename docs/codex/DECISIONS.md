@@ -853,3 +853,11 @@
 - **Decision:** Keep the all-route authorization, permission-matrix, and tenancy-fuzz Playwright checks marked `test.fixme` until Track C publishes operation metadata, real synthetic out-of-tenant resource fixtures, and a reviewed allow/deny row for every route. Do not count a random nonexistent ID as proof that an existing foreign resource is isolated.
 - **Why:** The checks must fail on real authorization gaps without inventing route policy or hiding a cross-tenant read behind an unrelated 404.
 - **Consequences / follow-ups:** Track C owns the generated contracts and CI wiring; the precise requests are recorded in `docs/codex/tracks/SEC.md` and `docs/codex/tracks/C.md`. Remove the `test.fixme` markers when those contracts are available and the checks can exercise real fixtures.
+
+### DEC-116 — Pin custom-domain certificate probes to public addresses
+- **Date:** 2026-09-28
+- **Phase / area:** Phase 14 custom website domains
+- **Context:** Domain ownership verification also checks for a trusted TLS certificate. A tenant-controlled hostname can resolve to loopback or a private service if the TLS probe lets the socket resolve it again.
+- **Decision:** Resolve the verified hostname, reject non-public IPv4 and IPv6 targets, and pin the TLS handshake to a vetted address while validating the certificate against the requested hostname.
+- **Why:** Domain verification must not become a server-side request forgery path into private network services.
+- **Consequences / follow-ups:** If DNS has no publicly routable address, the domain remains pending verification. Public IPv4/IPv6 range classification has focused tests.

@@ -2,6 +2,12 @@ import { apiErrorSchema } from '@shared/schemas/errors';
 import { orgSlugSchema } from '@shared/schemas/orgs';
 import {
   websiteMenuBodySchema,
+  websiteDomainCreateSchema,
+  websiteDomainListSchema,
+  websiteDomainResponseSchema,
+  websiteEmbedBodySchema,
+  websiteEmbedListSchema,
+  websiteEmbedResponseSchema,
   websiteMenuListSchema,
   websiteMenuResponseSchema,
   websiteNewsBodySchema,
@@ -10,6 +16,7 @@ import {
   websitePageBodySchema,
   websitePageListSchema,
   websitePageSlugSchema,
+  websitePublicEmbedSchema,
   websitePublicPageSchema,
   websiteSaveResponseSchema,
   websiteSettingsBodySchema,
@@ -26,6 +33,9 @@ import { requireSession } from '../auth/routes';
 import { WebsiteError } from './policy';
 import { publicPlansSchema } from './schema';
 import {
+  addWebsiteDomain,
+  disableWebsiteDomain,
+  getPublicWebsiteEmbed,
   getPublicWebsitePage,
   getWebsiteSettings,
   listPublicWebsitePlans,
@@ -34,13 +44,20 @@ import {
   listWebsiteMenus,
   listWebsitePages,
   listWebsiteNews,
+  listWebsiteDomains,
+  listWebsiteEmbeds,
   saveWebsiteMenu,
   saveWebsitePage,
   saveWebsiteNews,
   saveWebsiteSettings,
+  saveWebsiteEmbed,
+  setPrimaryWebsiteDomain,
+  verifyWebsiteDomain,
 } from './service';
 
 const pageIdSchema = z.uuid();
+const domainIdSchema = z.uuid();
+const emptyBodySchema = z.strictObject({});
 
 function requestContext(orgId: string, accountId: string): OrgContext {
   return { orgId, actor: { accountId } };
@@ -170,6 +187,34 @@ export function createWebsiteRouter(
   );
 
   router.get(
+    '/public/:orgSlug/embeds/:publicKey',
+    route(async (request, response) => {
+      const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
+      const publicKey = z
+        .string()
+        .regex(/^[A-Za-z0-9_-]{43}$/)
+        .parse(request.params.publicKey);
+      const result = await getPublicWebsiteEmbed(
+        dependencies.database,
+        orgSlug,
+        publicKey,
+        withOrg,
+        dependencies.clock(),
+      );
+      if (!result) {
+        response.sendStatus(404);
+        return;
+      }
+      response
+        .setHeader(
+          'Cache-Control',
+          'public, max-age=60, stale-while-revalidate=300',
+        )
+        .json(websitePublicEmbedSchema.parse(result));
+    }),
+  );
+
+  router.get(
     '/public/:orgSlug/sitemap.xml',
     route(async (request, response) => {
       const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
@@ -277,6 +322,186 @@ export function createWebsiteRouter(
       );
       response.setHeader('Cache-Control', 'no-store');
       response.json(websiteSettingsResponseSchema.parse(result));
+    }),
+  );
+
+  router.get(
+    '/orgs/:orgId/domains',
+    route(async (request, response) => {
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await listWebsiteDomains(
+        requestContext(orgId, session.accountId),
+        withOrg,
+      );
+      response.setHeader('Cache-Control', 'no-store');
+      response.json(websiteDomainListSchema.parse(result));
+    }),
+  );
+
+  router.post(
+    '/orgs/:orgId/domains',
+    route(async (request, response) => {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new WebsiteError(
+          403,
+          'FORBIDDEN',
+          'Request origin is not allowed',
+        );
+      }
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const host = new URL(dependencies.appUrl).hostname;
+      const result = await addWebsiteDomain(
+        requestContext(orgId, session.accountId),
+        websiteDomainCreateSchema.parse(request.body),
+        host,
+        withOrg,
+      );
+      response
+        .status(201)
+        .setHeader('Cache-Control', 'no-store')
+        .json(websiteDomainResponseSchema.parse(result));
+    }),
+  );
+
+  router.post(
+    '/orgs/:orgId/domains/:domainId/verify',
+    route(async (request, response) => {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new WebsiteError(
+          403,
+          'FORBIDDEN',
+          'Request origin is not allowed',
+        );
+      }
+      emptyBodySchema.parse(request.body);
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const domainId = domainIdSchema.parse(request.params.domainId);
+      const result = await verifyWebsiteDomain(
+        requestContext(orgId, session.accountId),
+        domainId,
+        dependencies.clock(),
+        withOrg,
+      );
+      response
+        .setHeader('Cache-Control', 'no-store')
+        .json(websiteDomainResponseSchema.parse(result));
+    }),
+  );
+
+  router.post(
+    '/orgs/:orgId/domains/:domainId/primary',
+    route(async (request, response) => {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new WebsiteError(
+          403,
+          'FORBIDDEN',
+          'Request origin is not allowed',
+        );
+      }
+      emptyBodySchema.parse(request.body);
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const domainId = domainIdSchema.parse(request.params.domainId);
+      const result = await setPrimaryWebsiteDomain(
+        requestContext(orgId, session.accountId),
+        domainId,
+        withOrg,
+      );
+      response
+        .setHeader('Cache-Control', 'no-store')
+        .json(websiteDomainResponseSchema.parse(result));
+    }),
+  );
+
+  router.post(
+    '/orgs/:orgId/domains/:domainId/disable',
+    route(async (request, response) => {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new WebsiteError(
+          403,
+          'FORBIDDEN',
+          'Request origin is not allowed',
+        );
+      }
+      emptyBodySchema.parse(request.body);
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const domainId = domainIdSchema.parse(request.params.domainId);
+      const result = await disableWebsiteDomain(
+        requestContext(orgId, session.accountId),
+        domainId,
+        withOrg,
+      );
+      response
+        .setHeader('Cache-Control', 'no-store')
+        .json(websiteDomainResponseSchema.parse(result));
+    }),
+  );
+
+  router.get(
+    '/orgs/:orgId/embeds',
+    route(async (request, response) => {
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await listWebsiteEmbeds(
+        requestContext(orgId, session.accountId),
+        withOrg,
+      );
+      response.setHeader('Cache-Control', 'no-store');
+      response.json(websiteEmbedListSchema.parse(result));
+    }),
+  );
+
+  router.post(
+    '/orgs/:orgId/embeds',
+    route(async (request, response) => {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new WebsiteError(
+          403,
+          'FORBIDDEN',
+          'Request origin is not allowed',
+        );
+      }
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await saveWebsiteEmbed(
+        requestContext(orgId, session.accountId),
+        undefined,
+        websiteEmbedBodySchema.parse(request.body),
+        withOrg,
+      );
+      response
+        .status(201)
+        .setHeader('Cache-Control', 'no-store')
+        .json(websiteEmbedResponseSchema.parse(result));
+    }),
+  );
+
+  router.put(
+    '/orgs/:orgId/embeds/:embedId',
+    route(async (request, response) => {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new WebsiteError(
+          403,
+          'FORBIDDEN',
+          'Request origin is not allowed',
+        );
+      }
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const embedId = z.uuid().parse(request.params.embedId);
+      const result = await saveWebsiteEmbed(
+        requestContext(orgId, session.accountId),
+        embedId,
+        websiteEmbedBodySchema.parse(request.body),
+        withOrg,
+      );
+      response
+        .setHeader('Cache-Control', 'no-store')
+        .json(websiteEmbedResponseSchema.parse(result));
     }),
   );
 

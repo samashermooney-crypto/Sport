@@ -1,10 +1,25 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { lookup as lookupHost, resolveTxt } from 'node:dns/promises';
+import { isIP } from 'node:net';
+import {
+  checkServerIdentity as checkTlsServerIdentity,
+  connect as tlsConnect,
+} from 'node:tls';
+import { domainToASCII } from 'node:url';
 
 import {
   websiteMenuBodySchema,
   websiteMenuListSchema,
   websiteMenuSchema,
   websiteMenuItemSchema,
+  websiteDomainCreateSchema,
+  websiteDomainListSchema,
+  websiteDomainSchema,
+  websiteEmbedBodySchema,
+  websiteEmbedConfigSchema,
+  websiteEmbedListSchema,
+  websiteEmbedSchema,
+  websitePublicEmbedSchema,
   websiteNewsBodySchema,
   websiteNewsListSchema,
   websiteNewsPostSchema,
@@ -17,13 +32,17 @@ import {
   websiteSettingsBodySchema,
   websiteSettingsSchema,
 } from '@shared/schemas/website';
+import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
+import { z } from 'zod';
 
 import type { DB, Json } from '../../db/types';
 import { withOrg } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 import { appendAuditEvent } from '../audit/service';
+import { getStandings } from '../standings/service';
 
+import { isPublicWebsiteDomainAddress } from './domain-security';
 import { WebsiteError, requireWebsiteEditor } from './policy';
 
 const publicActor = '00000000-0000-0000-0000-000000000000';
@@ -808,4 +827,689 @@ export async function listPublicWebsitePages(
         .execute();
     },
   );
+}
+
+type WebsiteDomainRow = {
+  id: string;
+  host: string;
+  status: string;
+  verify_token: string;
+  is_primary: boolean;
+  verified_at: Date | null;
+  last_checked_at: Date | null;
+  check_detail: string | null;
+  version: number;
+  updated_at: Date;
+};
+
+function domainSummary(row: WebsiteDomainRow) {
+  return websiteDomainSchema.parse({
+    id: row.id,
+    host: row.host,
+    status: row.status,
+    isPrimary: row.is_primary,
+    verificationRecordName: `_athlentry-verification.${row.host}`,
+    verificationToken:
+      row.status === 'active' || row.status === 'disabled'
+        ? null
+        : row.verify_token,
+    verifiedAt: row.verified_at?.toISOString() ?? null,
+    lastCheckedAt: row.last_checked_at?.toISOString() ?? null,
+    statusNote: row.check_detail,
+    version: row.version,
+    updatedAt: row.updated_at.toISOString(),
+  });
+}
+
+export async function listWebsiteDomains(
+  context: OrgContext,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const rows = await trx
+      .selectFrom('site_domains')
+      .select([
+        'id',
+        'host',
+        'status',
+        'verify_token',
+        'is_primary',
+        'verified_at',
+        'last_checked_at',
+        'check_detail',
+        'version',
+        'updated_at',
+      ])
+      .orderBy('created_at', 'asc')
+      .execute();
+    return websiteDomainListSchema.parse({ items: rows.map(domainSummary) });
+  });
+}
+
+export async function addWebsiteDomain(
+  context: OrgContext,
+  bodyInput: unknown,
+  reservedHost: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const { host } = websiteDomainCreateSchema.parse(bodyInput);
+  const asciiHost = domainToASCII(host);
+  const normalizedReservedHost = domainToASCII(reservedHost.toLowerCase());
+  if (
+    !asciiHost ||
+    isIP(asciiHost) !== 0 ||
+    asciiHost === normalizedReservedHost ||
+    asciiHost.endsWith(`.${normalizedReservedHost}`)
+  )
+    throw new WebsiteError(
+      409,
+      'CONFLICT',
+      'Use a custom hostname outside the Athlentry app domain',
+    );
+
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const id = randomUUID();
+    const verifyToken = randomBytes(32).toString('base64url');
+    let row: WebsiteDomainRow | undefined;
+    try {
+      row = await trx
+        .insertInto('site_domains')
+        .values({
+          id,
+          org_id: context.orgId,
+          host: asciiHost,
+          kind: 'custom',
+          status: 'pending',
+          verify_token: verifyToken,
+          verification_method: 'txt',
+        })
+        .returning([
+          'id',
+          'host',
+          'status',
+          'verify_token',
+          'is_primary',
+          'verified_at',
+          'last_checked_at',
+          'check_detail',
+          'version',
+          'updated_at',
+        ])
+        .executeTakeFirst();
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === '23505'
+      )
+        throw new WebsiteError(
+          409,
+          'CONFLICT',
+          'This custom domain is already assigned to an organization',
+        );
+      throw error;
+    }
+    if (!row)
+      throw new WebsiteError(409, 'CONFLICT', 'Domain creation conflicted');
+    const domain = domainSummary(row);
+    await appendAuditEvent(trx, context, {
+      action: 'website.domain.created',
+      entityType: 'website_domain',
+      entityId: domain.id,
+      changes: {
+        host: { tier: 'internal', before: null, after: domain.host },
+        status: { tier: 'internal', before: null, after: domain.status },
+      },
+    });
+    return { domain };
+  });
+}
+
+type TxtLookup = (name: string) => Promise<string[][]>;
+type CertificateProbe = (host: string) => Promise<boolean>;
+
+async function trustedCertificateIsReady(host: string): Promise<boolean> {
+  const addresses = await lookupHost(host, { all: true, verbatim: true }).catch(
+    () => [],
+  );
+  const target = addresses.find(({ address }) =>
+    isPublicWebsiteDomainAddress(address),
+  );
+  if (!target) return false;
+
+  return new Promise((resolve) => {
+    const socket = tlsConnect({
+      host: target.address,
+      port: 443,
+      servername: host,
+      checkServerIdentity: (_servername, certificate) =>
+        checkTlsServerIdentity(host, certificate),
+      rejectUnauthorized: true,
+      timeout: 5000,
+    });
+    let settled = false;
+    const finish = (ready: boolean) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(ready);
+    };
+    socket.once('secureConnect', () => {
+      finish(socket.authorized);
+    });
+    socket.once('timeout', () => {
+      finish(false);
+    });
+    socket.once('error', () => {
+      finish(false);
+    });
+  });
+}
+
+export async function verifyWebsiteDomain(
+  context: OrgContext,
+  domainId: string,
+  now = new Date(),
+  runWithOrg: typeof withOrg = withOrg,
+  lookupTxt: TxtLookup = resolveTxt,
+  certificateProbe: CertificateProbe = trustedCertificateIsReady,
+) {
+  const current = await runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    return trx
+      .selectFrom('site_domains')
+      .select([
+        'id',
+        'host',
+        'status',
+        'verify_token',
+        'is_primary',
+        'verified_at',
+        'last_checked_at',
+        'check_detail',
+        'version',
+        'updated_at',
+      ])
+      .where('id', '=', domainId)
+      .executeTakeFirst();
+  });
+  if (!current)
+    throw new WebsiteError(404, 'NOT_FOUND', 'Website domain not found');
+  if (current.status === 'disabled')
+    throw new WebsiteError(
+      409,
+      'CONFLICT',
+      'Disabled domains cannot be checked',
+    );
+
+  const recordName = `_athlentry-verification.${current.host}`;
+  let txtMatches = false;
+  try {
+    const records = await lookupTxt(recordName);
+    txtMatches = records.some(
+      (parts) => parts.join('') === current.verify_token,
+    );
+  } catch {
+    txtMatches = false;
+  }
+  const tlsReady = txtMatches ? await certificateProbe(current.host) : false;
+  const nextStatus = tlsReady ? 'active' : txtMatches ? 'verifying' : 'failed';
+  const statusNote = tlsReady
+    ? 'Ownership and TLS certificate verified.'
+    : txtMatches
+      ? 'Ownership verified; waiting for a trusted TLS certificate.'
+      : 'The ownership TXT record was not found or did not match.';
+
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const row = await trx
+      .updateTable('site_domains')
+      .set({
+        status: nextStatus,
+        verified_at: txtMatches ? (current.verified_at ?? now) : null,
+        last_checked_at: now,
+        check_detail: statusNote,
+        version: current.version + 1,
+      })
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', domainId)
+      .where('version', '=', current.version)
+      .where('status', '!=', 'disabled')
+      .returning([
+        'id',
+        'host',
+        'status',
+        'verify_token',
+        'is_primary',
+        'verified_at',
+        'last_checked_at',
+        'check_detail',
+        'version',
+        'updated_at',
+      ])
+      .executeTakeFirst();
+    if (!row)
+      throw new WebsiteError(
+        409,
+        'CONFLICT',
+        'The domain changed while DNS verification was running. Reload and retry.',
+      );
+    await appendAuditEvent(trx, context, {
+      action: 'website.domain.verified',
+      entityType: 'website_domain',
+      entityId: domainId,
+      changes: {
+        status: {
+          tier: 'internal',
+          before: current.status,
+          after: nextStatus,
+        },
+      },
+    });
+    return { domain: domainSummary(row) };
+  });
+}
+
+export async function setPrimaryWebsiteDomain(
+  context: OrgContext,
+  domainId: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const row = await trx
+      .selectFrom('site_domains')
+      .select([
+        'id',
+        'host',
+        'status',
+        'verify_token',
+        'is_primary',
+        'verified_at',
+        'last_checked_at',
+        'check_detail',
+        'version',
+        'updated_at',
+      ])
+      .where('id', '=', domainId)
+      .executeTakeFirst();
+    if (!row)
+      throw new WebsiteError(404, 'NOT_FOUND', 'Website domain not found');
+    if (row.status !== 'active')
+      throw new WebsiteError(
+        409,
+        'CONFLICT',
+        'A domain must have verified ownership and TLS before it can be primary',
+      );
+    await trx
+      .updateTable('site_domains')
+      .set({ is_primary: false, version: sql`version + 1` })
+      .where('org_id', '=', context.orgId)
+      .where('is_primary', '=', true)
+      .execute();
+    const updated = await trx
+      .updateTable('site_domains')
+      .set({ is_primary: true, version: sql`version + 1` })
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', domainId)
+      .where('status', '=', 'active')
+      .returning([
+        'id',
+        'host',
+        'status',
+        'verify_token',
+        'is_primary',
+        'verified_at',
+        'last_checked_at',
+        'check_detail',
+        'version',
+        'updated_at',
+      ])
+      .executeTakeFirst();
+    if (!updated)
+      throw new WebsiteError(409, 'CONFLICT', 'Domain activation changed');
+    await appendAuditEvent(trx, context, {
+      action: 'website.domain.primary_changed',
+      entityType: 'website_domain',
+      entityId: domainId,
+      changes: {
+        isPrimary: { tier: 'internal', before: false, after: true },
+      },
+    });
+    return { domain: domainSummary(updated) };
+  });
+}
+
+export async function disableWebsiteDomain(
+  context: OrgContext,
+  domainId: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const current = await trx
+      .selectFrom('site_domains')
+      .select(['id', 'status', 'is_primary', 'version'])
+      .where('id', '=', domainId)
+      .executeTakeFirst();
+    if (!current || current.status === 'disabled')
+      throw new WebsiteError(404, 'NOT_FOUND', 'Website domain not found');
+    const row = await trx
+      .updateTable('site_domains')
+      .set({
+        status: 'disabled',
+        is_primary: false,
+        check_detail: 'Disabled by an organization website editor.',
+        version: sql`version + 1`,
+      })
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', domainId)
+      .where('version', '=', current.version)
+      .where('status', '!=', 'disabled')
+      .returning([
+        'id',
+        'host',
+        'status',
+        'verify_token',
+        'is_primary',
+        'verified_at',
+        'last_checked_at',
+        'check_detail',
+        'version',
+        'updated_at',
+      ])
+      .executeTakeFirst();
+    if (!row)
+      throw new WebsiteError(
+        409,
+        'CONFLICT',
+        'The domain changed. Reload and retry.',
+      );
+    await appendAuditEvent(trx, context, {
+      action: 'website.domain.disabled',
+      entityType: 'website_domain',
+      entityId: domainId,
+      changes: {
+        status: {
+          tier: 'internal',
+          before: current.status,
+          after: 'disabled',
+        },
+        isPrimary: {
+          tier: 'internal',
+          before: current.is_primary,
+          after: false,
+        },
+      },
+    });
+    return { domain: domainSummary(row) };
+  });
+}
+
+function embedSummary(row: {
+  id: string;
+  public_key: string;
+  config: Json;
+  version: number;
+  updated_at: Date;
+}) {
+  return websiteEmbedSchema.parse({
+    id: row.id,
+    publicKey: row.public_key,
+    config: row.config,
+    version: row.version,
+    updatedAt: row.updated_at.toISOString(),
+  });
+}
+
+export async function listWebsiteEmbeds(
+  context: OrgContext,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const rows = await trx
+      .selectFrom('embed_widgets')
+      .select(['id', 'public_key', 'config', 'version', 'updated_at'])
+      .orderBy('created_at', 'asc')
+      .execute();
+    return websiteEmbedListSchema.parse({ items: rows.map(embedSummary) });
+  });
+}
+
+export async function saveWebsiteEmbed(
+  context: OrgContext,
+  embedId: string | undefined,
+  bodyInput: unknown,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const body = websiteEmbedBodySchema.parse(bodyInput);
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const current = embedId
+      ? await trx
+          .selectFrom('embed_widgets')
+          .select(['id', 'public_key', 'config', 'version', 'updated_at'])
+          .where('id', '=', embedId)
+          .executeTakeFirst()
+      : undefined;
+    if (embedId && !current)
+      throw new WebsiteError(404, 'NOT_FOUND', 'Website widget not found');
+    if (current && body.expectedVersion !== current.version)
+      throw new WebsiteError(
+        409,
+        'CONFLICT',
+        'This widget changed in another session. Reload and try again.',
+      );
+    if (!current && body.expectedVersion !== undefined)
+      throw new WebsiteError(409, 'CONFLICT', 'The widget no longer exists');
+
+    const saved = current
+      ? await trx
+          .updateTable('embed_widgets')
+          .set({
+            kind: body.config.kind,
+            config: body.config,
+            version: current.version + 1,
+          })
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', current.id)
+          .where('version', '=', current.version)
+          .returning(['id', 'public_key', 'config', 'version', 'updated_at'])
+          .executeTakeFirst()
+      : await trx
+          .insertInto('embed_widgets')
+          .values({
+            id: randomUUID(),
+            org_id: context.orgId,
+            kind: body.config.kind,
+            public_key: randomBytes(32).toString('base64url'),
+            config: body.config,
+          })
+          .returning(['id', 'public_key', 'config', 'version', 'updated_at'])
+          .executeTakeFirst();
+    if (!saved)
+      throw new WebsiteError(409, 'CONFLICT', 'Widget update conflicted');
+    const embed = embedSummary(saved);
+    await appendAuditEvent(trx, context, {
+      action: current ? 'website.embed.updated' : 'website.embed.created',
+      entityType: 'website_embed',
+      entityId: embed.id,
+      changes: {
+        kind: {
+          tier: 'internal',
+          before: current
+            ? websiteEmbedSchema.parse({
+                id: current.id,
+                publicKey: current.public_key,
+                config: current.config,
+                version: current.version,
+                updatedAt: current.updated_at.toISOString(),
+              }).config.kind
+            : null,
+          after: embed.config.kind,
+        },
+        version: {
+          tier: 'internal',
+          before: current?.version ?? null,
+          after: embed.version,
+        },
+      },
+    });
+    return { embed };
+  });
+}
+
+const publicProgramStatuses = [
+  'published',
+  'registration_open',
+  'registration_closed',
+  'in_progress',
+  'completed',
+] as const;
+
+const publicEmbedStandingsSchema = z.object({
+  rows: z.array(
+    z.object({
+      rank: z.number(),
+      teamId: z.string().min(1),
+      wins: z.number(),
+      losses: z.number(),
+      ties: z.number(),
+      points: z.number(),
+    }),
+  ),
+  teamNames: z.record(z.string(), z.string()),
+});
+
+export async function getPublicWebsiteEmbed(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  publicKey: string,
+  runWithOrg: typeof withOrg = withOrg,
+  now = new Date(),
+) {
+  const organization = await database
+    .selectFrom('organizations')
+    .select(['id', 'slug', 'name', 'status'])
+    .where('slug', '=', orgSlug)
+    .where('status', '=', 'active')
+    .executeTakeFirst();
+  if (!organization) return null;
+  const context = {
+    orgId: organization.id,
+    actor: { accountId: publicActor },
+  };
+  const widget = await runWithOrg(context, async (trx) => {
+    const settings = await trx
+      .selectFrom('website_settings')
+      .select('published')
+      .executeTakeFirst();
+    if (!settings?.published) return null;
+    const row = await trx
+      .selectFrom('embed_widgets')
+      .select(['kind', 'config'])
+      .where('org_id', '=', organization.id)
+      .where('public_key', '=', publicKey)
+      .executeTakeFirst();
+    if (!row) return null;
+    const config = websiteEmbedConfigSchema.parse(row.config);
+    return config.kind === row.kind ? config : null;
+  });
+  if (!widget) return null;
+
+  let program: { slug: string; name: string } | null = null;
+  let items: {
+    label: string;
+    href: string;
+    detail: string | null;
+  }[] = [];
+  if (widget.kind === 'program_list') {
+    const programs = await runWithOrg(context, (trx) =>
+      trx
+        .selectFrom('programs')
+        .select(['slug', 'name', 'starts_on', 'ends_on'])
+        .where('visibility', '=', 'public')
+        .where('status', 'in', publicProgramStatuses)
+        .orderBy('starts_on', 'asc')
+        .limit(widget.limit)
+        .execute(),
+    );
+    items = programs.map((item) => ({
+      label: item.name,
+      href: `/site/${organization.slug}/programs/${item.slug}`,
+      detail: `${String(item.starts_on)} – ${String(item.ends_on)}`,
+    }));
+  } else if (widget.kind === 'schedule') {
+    const events = await runWithOrg(context, (trx) => {
+      let query = trx
+        .selectFrom('events')
+        .select(['id', 'title', 'starts_at', 'location_text'])
+        .where('published', '=', true)
+        .where('status', '!=', 'canceled')
+        .where('starts_at', '>=', now)
+        .orderBy('starts_at', 'asc')
+        .limit(widget.limit);
+      if (widget.programId)
+        query = query.where('program_id', '=', widget.programId);
+      return query.execute();
+    });
+    items = events.map((event) => ({
+      label: event.title,
+      href: `/site/${organization.slug}/schedule#${event.id}`,
+      detail: [event.starts_at.toISOString(), event.location_text]
+        .filter((value): value is string => Boolean(value))
+        .join(' · '),
+    }));
+  } else if (widget.kind === 'standings') {
+    const publicProgram = await runWithOrg(context, (trx) =>
+      trx
+        .selectFrom('programs')
+        .select(['id', 'slug', 'name'])
+        .where('id', '=', widget.programId)
+        .where('visibility', '=', 'public')
+        .where('status', 'in', publicProgramStatuses)
+        .executeTakeFirst(),
+    );
+    if (!publicProgram) return null;
+    program = { slug: publicProgram.slug, name: publicProgram.name };
+    const standings = publicEmbedStandingsSchema.parse(
+      await getStandings(context, { programId: publicProgram.id }, true),
+    );
+    items = standings.rows.map((row) => ({
+      label: `${String(row.rank)}. ${standings.teamNames[row.teamId] ?? 'Team'}`,
+      href: `/site/${organization.slug}/standings/${publicProgram.slug}`,
+      detail: `${String(row.wins)}–${String(row.losses)}–${String(row.ties)} · ${String(row.points)} points`,
+    }));
+  } else {
+    const publicProgram = await runWithOrg(context, (trx) =>
+      trx
+        .selectFrom('programs')
+        .select(['id', 'slug', 'name'])
+        .where('slug', '=', widget.programSlug)
+        .where('visibility', '=', 'public')
+        .where('status', 'in', publicProgramStatuses)
+        .executeTakeFirst(),
+    );
+    if (publicProgram) {
+      program = { slug: publicProgram.slug, name: publicProgram.name };
+      items = [
+        {
+          label: widget.label,
+          href: `/portal/orgs/${organization.id}/register`,
+          detail: publicProgram.name,
+        },
+      ];
+    }
+  }
+
+  return websitePublicEmbedSchema.parse({
+    organization: { slug: organization.slug, name: organization.name },
+    config: widget,
+    program,
+    items,
+  });
 }

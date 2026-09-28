@@ -223,6 +223,104 @@ export type WebsiteSettings = z.infer<typeof websiteSettingsSchema>;
 export type WebsiteMenu = z.infer<typeof websiteMenuSchema>;
 export type WebsiteMenuItem = z.infer<typeof websiteMenuItemSchema>;
 
+export const websiteDomainHostSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(4)
+  .max(253)
+  .regex(
+    /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/,
+    'Enter a fully qualified domain name',
+  );
+
+export const websiteDomainSchema = z.strictObject({
+  id: z.uuid(),
+  host: websiteDomainHostSchema,
+  status: z.enum(['pending', 'verifying', 'active', 'failed', 'disabled']),
+  isPrimary: z.boolean(),
+  verificationRecordName: z.string().min(1),
+  verificationToken: z.string().nullable(),
+  verifiedAt: z.iso.datetime({ offset: true }).nullable(),
+  lastCheckedAt: z.iso.datetime({ offset: true }).nullable(),
+  statusNote: z.string().nullable(),
+  version: z.number().int().positive(),
+  updatedAt: z.iso.datetime({ offset: true }),
+});
+export type WebsiteDomain = z.infer<typeof websiteDomainSchema>;
+
+export const websiteDomainListSchema = z.strictObject({
+  items: z.array(websiteDomainSchema),
+});
+
+export const websiteDomainCreateSchema = z.strictObject({
+  host: websiteDomainHostSchema,
+});
+
+export const websiteDomainResponseSchema = z.strictObject({
+  domain: websiteDomainSchema,
+});
+
+export const websiteEmbedConfigSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('program_list'),
+    title: z.string().trim().min(1).max(80).default('Programs'),
+    limit: z.number().int().min(1).max(20).default(10),
+  }),
+  z.strictObject({
+    kind: z.literal('schedule'),
+    title: z.string().trim().min(1).max(80).default('Schedule'),
+    limit: z.number().int().min(1).max(50).default(20),
+    programId: z.uuid().nullable().default(null),
+  }),
+  z.strictObject({
+    kind: z.literal('standings'),
+    title: z.string().trim().min(1).max(80).default('Standings'),
+    programId: z.uuid(),
+  }),
+  z.strictObject({
+    kind: z.literal('registration_button'),
+    label: z.string().trim().min(1).max(80).default('Register'),
+    programSlug: websiteNewsSlugSchema,
+  }),
+]);
+export type WebsiteEmbedConfig = z.infer<typeof websiteEmbedConfigSchema>;
+
+export const websiteEmbedSchema = z.strictObject({
+  id: z.uuid(),
+  publicKey: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  config: websiteEmbedConfigSchema,
+  version: z.number().int().positive(),
+  updatedAt: z.iso.datetime({ offset: true }),
+});
+export type WebsiteEmbed = z.infer<typeof websiteEmbedSchema>;
+
+export const websiteEmbedBodySchema = z.strictObject({
+  config: websiteEmbedConfigSchema,
+  expectedVersion: z.number().int().positive().optional(),
+});
+
+export const websiteEmbedListSchema = z.strictObject({
+  items: z.array(websiteEmbedSchema),
+});
+
+export const websiteEmbedResponseSchema = z.strictObject({
+  embed: websiteEmbedSchema,
+});
+
+export const websitePublicEmbedSchema = z.strictObject({
+  organization: z.strictObject({ slug: z.string(), name: z.string() }),
+  config: websiteEmbedConfigSchema,
+  program: z.strictObject({ slug: z.string(), name: z.string() }).nullable(),
+  items: z.array(
+    z.strictObject({
+      label: z.string(),
+      href: safeHrefSchema,
+      detail: z.string().nullable(),
+    }),
+  ),
+});
+
 export const websiteSaveResponseSchema = z.strictObject({
   page: websitePageSchema,
 });
