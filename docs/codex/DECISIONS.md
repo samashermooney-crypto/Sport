@@ -854,7 +854,15 @@
 - **Why:** The checks must fail on real authorization gaps without inventing route policy or hiding a cross-tenant read behind an unrelated 404.
 - **Consequences / follow-ups:** Track C owns the generated contracts and CI wiring; the precise requests are recorded in `docs/codex/tracks/SEC.md` and `docs/codex/tracks/C.md`. Remove the `test.fixme` markers when those contracts are available and the checks can exercise real fixtures.
 
-### DEC-115 — Include active event volunteers in closure notices
+### DEC-115 — Balance Rec teams by age at season start
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 6 Rec placement boards
+- **Context:** Phase 6 requires age balancing, but the shared team balancer previously considered ratings, roster size, hard constraints, and preferences only.
+- **Decision:** Supply whole-year age at the target program's `starts_on` date to the existing shared balancer and include team mean-age variance with the same objective weight as mean-rating variance. When some athletes lack a date of birth, use the median known age for objective calculations; omit age balancing if none have a date of birth.
+- **Why:** Age fairness belongs in the same deterministic optimization that enforces team sizes, ratings, and linked-player constraints. Using the season start gives a consistent reference for every registration in the program.
+- **Consequences / follow-ups:** Existing callers without age retain their previous objective and metrics. The Rec dashboard shows mean age beside mean rating. The seeded 120-player balancer test verifies both fairness dimensions within the five-second budget.
+
+### DEC-116 — Include active event volunteers in closure notices
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 8 closures and schedule-change notifications
 - **Context:** Track H's volunteer shifts can be linked to schedule events, but closure recipient lookup previously covered only event participants and assigned officials.
@@ -862,7 +870,7 @@
 - **Why:** A facility closure must reach volunteers already assigned to the affected event while respecting revoked or unverified family links and avoiding notices to canceled assignments.
 - **Consequences / follow-ups:** One recipient receives one emergency batch containing all affected event changes. Track B's notification service emits the in-app notice; email fan-out remains a Track B integration request.
 
-### DEC-116 — Stream public contest snapshots by contest version
+### DEC-117 — Stream public contest snapshots by contest version
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 9 public live results
 - **Context:** The public live-results JSON endpoint exposed finalized snapshots but public pages did not receive score changes while a contest was in progress.

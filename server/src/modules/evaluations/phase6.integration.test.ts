@@ -1077,6 +1077,29 @@ describe('Phase 6 evaluations integration', () => {
     const outsider = await listFamilyOffers(dependencies(), outsiderContext);
     expect(outsider).toHaveLength(0);
 
+    await expect(
+      acceptTeamOffer(dependencies(), guardianContext, offerId, {
+        accept: () =>
+          Promise.reject(
+            new Error('Checkout provider is temporarily unavailable'),
+          ),
+      }),
+    ).rejects.toThrow('Checkout provider is temporarily unavailable');
+    const failedCheckoutOffer = await admin.query<{
+      status: string;
+      checkout_id: string | null;
+      registration_id: string | null;
+    }>(
+      `SELECT status, checkout_id, registration_id FROM team_offers
+       WHERE org_id=$1 AND id=$2`,
+      [orgA, offerId],
+    );
+    expect(failedCheckoutOffer.rows[0]).toEqual({
+      status: 'sent',
+      checkout_id: null,
+      registration_id: null,
+    });
+
     const checkout = new FakeCheckout(admin, 2);
     const [accepted, concurrentReplay] = await Promise.all([
       acceptTeamOffer(dependencies(), guardianContext, offerId, checkout),
@@ -1343,8 +1366,20 @@ describe('Phase 6 evaluations integration', () => {
     ].entries()) {
       if (index >= 3)
         await admin.query(
-          `INSERT INTO people (id, org_id, first_name, last_name, date_of_birth) VALUES ($1, $2, $3, 'Rec', '2017-01-01')`,
-          [personId, orgA, `Kid${String(index)}`],
+          `INSERT INTO people (id, org_id, first_name, last_name, date_of_birth) VALUES ($1, $2, $3, 'Rec', $4)`,
+          [
+            personId,
+            orgA,
+            `Kid${String(index)}`,
+            [
+              '2015-09-02',
+              '2015-08-31',
+              '2016-09-02',
+              '2016-08-31',
+              '2017-09-02',
+              '2017-08-31',
+            ][index - 3] ?? '2017-01-01',
+          ],
         );
       await admin.query(
         `INSERT INTO registrations (id, org_id, program_id, division_id, offering_id, person_id, household_id, registered_by_account_id, source, status)
@@ -1471,6 +1506,11 @@ describe('Phase 6 evaluations integration', () => {
     expect(board.assignments[childA]).toBe(board.assignments[childB]);
     expect(board.assignments[childC]).toBe(returningTeamSeason);
     expect(Object.keys(board.assignments)).toHaveLength(9);
+    expect(
+      board.metrics.every(
+        (metric) => typeof metric.meanAge === 'number' && metric.meanAge > 0,
+      ),
+    ).toBe(true);
     const detail = await getPlacementBoard(
       dependencies(),
       ownerContext,

@@ -171,6 +171,7 @@ const boardSchema = z.object({
       teamId: z.string(),
       size: z.number(),
       meanRating: z.number(),
+      meanAge: z.number().optional(),
       positionCoverageViolations: z.number(),
       preferenceMisses: z.number(),
     }),
@@ -185,6 +186,7 @@ const boardDetailSchema = z.object({
       teamId: z.uuid(),
       size: z.number(),
       meanRating: z.number(),
+      meanAge: z.number().optional(),
       positionCoverageViolations: z.number(),
       preferenceMisses: z.number(),
     }),
@@ -1199,6 +1201,7 @@ export function EvaluationList(): React.JSX.Element {
                     <th>Team</th>
                     <th>Players</th>
                     <th>Mean rating</th>
+                    <th>Mean age</th>
                     <th>Position gaps</th>
                     <th>Preference misses</th>
                   </tr>
@@ -1213,6 +1216,7 @@ export function EvaluationList(): React.JSX.Element {
                       </td>
                       <td>{metric.size}</td>
                       <td>{metric.meanRating.toFixed(2)}</td>
+                      <td>{metric.meanAge?.toFixed(1) ?? '—'}</td>
                       <td>{metric.positionCoverageViolations}</td>
                       <td>{metric.preferenceMisses}</td>
                     </tr>
