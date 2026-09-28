@@ -1,9 +1,9 @@
 # Track J — Phase 13 Federation
 
-Status: done
+Status: ready for integration; final trunk integration pending
 Branch: `track/j-federation`
 Worktree: `/Users/sammooney/Sport-j-federation`
-Stack: `COMPOSE_PROJECT_NAME=athlentry_j`, `PORT_OFFSET=1000` (Postgres 6432; local Playwright override maps Mailpit API to 9825 because 9025 is occupied).
+Stack: `COMPOSE_PROJECT_NAME=athlentry_j`, `PORT_OFFSET=1000` (Postgres 6432; local Playwright override maps Mailpit API to 9825 because 9025 is occupied by Track A's Mailpit SMTP port).
 
 ## Scope
 Phase 13: org relationships + data-sharing agreements, member-club team entries with roster snapshots, privileged allow-listed cross-org reads audited in both orgs, league-wide scheduling over member-club availability (shared `schedule-generator`), cross-club results/standings/discipline, league referee pool, association dashboard, league fees to member clubs via finance.
@@ -20,7 +20,18 @@ Phase 13: org relationships + data-sharing agreements, member-club team entries 
 - Read responses and status transitions never expose another organization's private teams or raw member compliance documents. Photo reads require the roster sharing key, an active relationship, a private retained file id, and live media consent.
 
 ## Ready for integration ranges
-Integrated to `rebuild/trunk` by this merge: `server/src/modules/federation/**`, `web/src/console/federation/**`, federation-owned tests, and migrations `6000–6999`.
+`server/src/modules/federation/**`, `web/src/console/federation/**`, federation-owned tests, and migrations `6000–6999`.
+
+## Validation
+- Federation integration tests: 19/19 passed, including per-facility timezone selection and organization-timezone fallback.
+- Federation Playwright acceptance journey: passed in Chromium desktop and WebKit mobile with the browser set to UTC; axe checks passed.
+- Full unit/integration suite: 874 passed, 1 pre-existing skipped; production build passed.
+- All-project Playwright attempt: 56 passed, 14 failed, 16 skipped. The Phase 13 journey passed in both projects. Email-dependent specs hit `127.0.0.1:9025`, which is Track A's SMTP mapping; J's Mailpit API is mapped to 9825 to avoid the collision. Other failures were in unrelated WebKit journeys.
+- Cross-timezone bug note recorded in Track G's request section: the hosted schedule journey's Chicago window was previously interpreted in UTC CI, causing no games to be generated.
+
+## Requests from OPS
+
+- **Track J (Knip, 2026-09-27):** resolve or wire unused `server/src/modules/federation/demo.ts` and `web/src/console/federation/nav.ts`, and remove or consume `expandAvailabilityWindows` and `withFederationAccess`; `npm run knip` reports them on updated `rebuild/trunk`. If console navigation belongs in the central shell, coordinate that link with Track C. OPS did not modify J-owned files.
 
 ## Requests to other tracks
 - C (wiring): nested route discovery now registers `consoleFederationRoutes` in `web/src/generated/nested-routes.ts`, and `web/src/app.tsx` mounts those routes. The federation `nav.ts` is not part of that nested route registry, and `web/src/console/Home.tsx` has no federation entry point; include the nav item or a link to `/console/federation/:orgId` for organizations with federation access. Track J does not own the console home, app router, or generated registries.
@@ -41,6 +52,6 @@ Integrated to `rebuild/trunk` by this merge: `server/src/modules/federation/**`,
 - QA-ACC-046: prevent `voidFeeAssessment()` from committing `status='void'` before `PostgresInvoiceRepository.void()` succeeds. An active installment or net payment causes invoice validation to reject the void in its separate transaction, leaving a void assessment attached to a payable invoice. Regression is marked `test.fixme` in `e2e/phase13-fee-void-atomicity.spec.ts`. See `docs/codex/qa/DEFECTS.md` (2026-09-27).
 
 ## Blocked on
-Track J reports the nested route is mounted and its federation journey passed in Chromium and mobile WebKit with axe checks. QA's post-merge review has recorded QA-ACC-034, QA-ACC-046, QA-SEC-007–008, QA-SEC-012, and QA-ACC-035–036: ended-relationship revocation and third-party RLS denial need direct coverage, compliance status-only privacy needs a direct regression, cached league entry reads ignore revoked roster sharing, rejected fee-invoice voids leave inconsistent state, the sharing-trigger key fix needs real-Postgres verification, and the one-game journey cannot prove both clubs' availability affects output. QA browser and DB checks remain blocked by the port-1500 collision with Track I. Track C owns the missing Console Home Federation shortcut (QA-ACC-033). Cross-club contest/results, standings, and official-assignment service reuse remains a follow-up if Track G adds cross-organization hooks.
+Track J reports no Phase 13 behavior is blocked: the nested route is mounted and its federation journey passed in Chromium and mobile WebKit with axe checks. Its lock-protected trunk merge gate remains pending because other browser specs hit the occupied Mailpit port described above. QA's post-merge review has recorded QA-ACC-034, QA-ACC-046, QA-SEC-007–008, QA-SEC-012, and QA-ACC-035–036: ended-relationship revocation and third-party RLS denial need direct coverage, compliance status-only privacy needs a direct regression, cached league entry reads ignore revoked roster sharing, rejected fee-invoice voids leave inconsistent state, the sharing-trigger key fix needs real-Postgres verification, and the one-game journey cannot prove both clubs' availability affects output. QA browser and DB checks remain blocked by the port-1500 collision with Track I. Track C owns the missing Console Home Federation shortcut (QA-ACC-033). Cross-club contest/results, standings, and official-assignment service reuse remains a follow-up if Track G adds cross-organization hooks.
 
 Track J sprint complete

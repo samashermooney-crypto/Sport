@@ -1431,13 +1431,3 @@ export async function exportOfficialsCsv(
     ].join('\r\n') + '\r\n'
   );
 }
-
-export async function testComplianceForOfficial(
-  trx: OrgTransaction,
-  context: OrgContext,
-  personId: string,
-  programId: string | null,
-  date: string,
-) {
-  return complianceFor(trx, context.orgId, personId, programId, date);
-}

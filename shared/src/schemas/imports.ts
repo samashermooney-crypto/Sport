@@ -34,13 +34,12 @@ export const importRowIssueSchema = z.strictObject({
 });
 export type ImportRowIssue = z.infer<typeof importRowIssueSchema>;
 
-export const importRowPreviewSchema = z.strictObject({
+const importRowPreviewSchema = z.strictObject({
   rowNumber: z.number().int().positive(),
   action: z.enum(['create', 'update', 'merge', 'skip', 'invalid']),
   issues: z.array(importRowIssueSchema),
   normalized: z.record(z.string(), z.unknown()).nullable(),
 });
-export type ImportRowPreview = z.infer<typeof importRowPreviewSchema>;
 
 export const importBatchSchema = z.strictObject({
   id: z.uuid(),
@@ -71,7 +70,6 @@ export type ImportBatchPreview = z.infer<typeof importBatchPreviewSchema>;
 export const importBatchListSchema = z.strictObject({
   items: z.array(importBatchSchema),
 });
-export type ImportBatchList = z.infer<typeof importBatchListSchema>;
 
 export const importMappingPresetSchema = z.strictObject({
   id: z.uuid(),
@@ -80,7 +78,6 @@ export const importMappingPresetSchema = z.strictObject({
   mapping: z.record(z.string(), z.string()),
   createdAt: z.iso.datetime(),
 });
-export type ImportMappingPreset = z.infer<typeof importMappingPresetSchema>;
 
 export const importMappingPresetSaveSchema = z.strictObject({
   kind: importKindSchema,

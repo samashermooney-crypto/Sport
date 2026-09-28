@@ -11,6 +11,9 @@ import { accessibilityViolations } from './axe';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
+// League and club spaces can be outside the viewer's timezone.
+test.use({ timezoneId: 'UTC' });
+
 test('two member clubs complete a U12 inter-club season', async ({
   page,
 }, testInfo) => {
@@ -160,6 +163,9 @@ test('two member clubs complete a U12 inter-club season', async ({
       await page
         .getByLabel('Field or court')
         .selectOption({ label: `${fieldName} · ${fieldName} Facility` });
+      await expect(
+        page.getByText('Availability times use America/Chicago.'),
+      ).toBeVisible();
       await page.getByLabel('Available from').fill('2026-10-10T09:00');
       await page.getByLabel('Available until').fill('2026-10-10T10:30');
       await page.getByRole('button', { name: 'Offer availability' }).click();
