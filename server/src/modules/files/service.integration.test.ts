@@ -43,6 +43,8 @@ const unverifiedGuardianAccount = randomUUID();
 const chatMemberAccount = randomUUID();
 const otherChatMemberAccount = randomUUID();
 const revokedChatMemberAccount = randomUUID();
+const evaluatorAccount = randomUUID();
+const unassignedEvaluatorAccount = randomUUID();
 const personA = randomUUID();
 const personB = randomUUID();
 const injuryReportId = randomUUID();
@@ -82,6 +84,14 @@ const revokedChatMemberContext: OrgContext = {
   orgId: orgA,
   actor: { accountId: revokedChatMemberAccount },
 };
+const evaluatorContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: evaluatorAccount },
+};
+const unassignedEvaluatorContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: unassignedEvaluatorAccount },
+};
 const storage = new MemoryStorage();
 const authorization: FileAuthorization = {
   canUpload: () => Promise.resolve(true),
@@ -112,7 +122,9 @@ beforeAll(async () => {
               ($11, $12, 'File', 'Unverified', '1980-01-01'),
               ($13, $14, 'Chat', 'Member', '1980-01-01'),
               ($15, $16, 'Chat', 'Other Member', '1980-01-01'),
-              ($17, $18, 'Chat', 'Revoked Member', '1980-01-01')`,
+              ($17, $18, 'Chat', 'Revoked Member', '1980-01-01'),
+              ($19, $20, 'Evaluation', 'Evaluator', '1980-01-01'),
+              ($21, $22, 'Evaluation', 'Unassigned', '1980-01-01')`,
       [
         accountA,
         `${accountA}@example.test`,
@@ -132,6 +144,10 @@ beforeAll(async () => {
         `${otherChatMemberAccount}@example.test`,
         revokedChatMemberAccount,
         `${revokedChatMemberAccount}@example.test`,
+        evaluatorAccount,
+        `${evaluatorAccount}@example.test`,
+        unassignedEvaluatorAccount,
+        `${unassignedEvaluatorAccount}@example.test`,
       ],
     );
     await admin.query(
@@ -152,7 +168,9 @@ beforeAll(async () => {
               ($6, $2, $7, 'active', now()),
               ($8, $2, $9, 'active', now()),
               ($10, $2, $11, 'active', now()),
-              ($12, $13, $14, 'active', now())`,
+              ($12, $13, $14, 'active', now()),
+              ($15, $2, $16, 'active', now()),
+              ($17, $2, $18, 'active', now())`,
       [
         randomUUID(),
         orgA,
@@ -168,13 +186,19 @@ beforeAll(async () => {
         randomUUID(),
         orgB,
         accountB,
+        randomUUID(),
+        evaluatorAccount,
+        randomUUID(),
+        unassignedEvaluatorAccount,
       ],
     );
     await admin.query(
       `INSERT INTO role_assignments (id, org_id, account_id, role, scope_type, granted_by, pending_mfa)
        VALUES ($1, $2, $3, 'owner', 'org', $3, false),
               ($4, $2, $5, 'compliance', 'org', $3, false),
-              ($6, $2, $7, 'admin', 'org', $3, false)`,
+              ($6, $2, $7, 'admin', 'org', $3, false),
+              ($8, $2, $9, 'evaluator', 'org', $3, false),
+              ($10, $2, $11, 'evaluator', 'org', $3, false)`,
       [
         randomUUID(),
         orgA,
@@ -183,6 +207,10 @@ beforeAll(async () => {
         complianceAccount,
         randomUUID(),
         adminAccount,
+        randomUUID(),
+        evaluatorAccount,
+        randomUUID(),
+        unassignedEvaluatorAccount,
       ],
     );
     await admin.query(
@@ -909,6 +937,161 @@ describe('files tenancy and lifecycle', () => {
         });
       });
     }
+  });
+
+  it('audits evaluator photo reads and rechecks both assignment and current consent', async () => {
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    const sportProfileId = randomUUID();
+    const seasonId = randomUUID();
+    const tryoutProgramId = randomUUID();
+    const targetProgramId = randomUUID();
+    const eventId = randomUUID();
+    const groupId = randomUUID();
+    const calendarEventId = randomUUID();
+    const sessionId = randomUUID();
+    const participantId = randomUUID();
+    const fileId = randomUUID();
+    const storageKey = `${orgA}/image/${fileId}.jpg`;
+    const bytes = Buffer.from('consented evaluator photo');
+    try {
+      await storage.put(storageKey, bytes, 'image/jpeg');
+      await admin.query(
+        `INSERT INTO sport_profiles (id, org_id, name, profile)
+         VALUES ($1, $2, 'Evaluator photo sport', '{}'::jsonb)`,
+        [sportProfileId, orgA],
+      );
+      await admin.query(
+        `INSERT INTO seasons (id, org_id, name, starts_on, ends_on)
+         VALUES ($1, $2, 'Evaluator photo season', '2026-01-01', '2026-12-31')`,
+        [seasonId, orgA],
+      );
+      await admin.query(
+        `INSERT INTO programs (id, org_id, season_id, sport_profile_id, mode, name, slug, starts_on, ends_on)
+         VALUES ($1, $2, $3, $4, 'tryout', 'Evaluator tryout', $5, '2026-01-01', '2026-03-31'),
+                ($6, $2, $3, $4, 'club', 'Evaluator team', $7, '2026-04-01', '2026-12-31')`,
+        [
+          tryoutProgramId,
+          orgA,
+          seasonId,
+          sportProfileId,
+          `eval-tryout-${eventId.slice(0, 8)}`,
+          targetProgramId,
+          `eval-team-${eventId.slice(0, 8)}`,
+        ],
+      );
+      await admin.query(
+        `INSERT INTO evaluation_events (id, org_id, tryout_program_id, target_program_id, name, status)
+         VALUES ($1, $2, $3, $4, 'Evaluator photo event', 'scoring')`,
+        [eventId, orgA, tryoutProgramId, targetProgramId],
+      );
+      await admin.query(
+        `INSERT INTO evaluation_groups (id, org_id, evaluation_event_id, name)
+         VALUES ($1, $2, $3, 'Photo group')`,
+        [groupId, orgA, eventId],
+      );
+      await admin.query(
+        `INSERT INTO events (id, org_id, program_id, kind, title, starts_at, ends_at, timezone)
+         VALUES ($1, $2, $3, 'evaluation_session', 'Photo calendar event', '2026-10-01T15:00:00Z', '2026-10-01T16:00:00Z', 'America/Chicago')`,
+        [calendarEventId, orgA, tryoutProgramId],
+      );
+      await admin.query(
+        `INSERT INTO evaluation_sessions (id, org_id, evaluation_event_id, evaluation_group_id, calendar_event_id, name, starts_at, ends_at, timezone)
+         VALUES ($1, $2, $3, $4, $5, 'Photo session', '2026-10-01T15:00:00Z', '2026-10-01T16:00:00Z', 'America/Chicago')`,
+        [sessionId, orgA, eventId, groupId, calendarEventId],
+      );
+      await admin.query(
+        `INSERT INTO files (id, org_id, purpose, owner_type, owner_id, storage_key, mime, bytes, sensitivity, created_by, upload_state)
+         VALUES ($1, $2, 'image', 'person', $3, $4, 'image/jpeg', $5, 'sensitive', $6, 'complete')`,
+        [fileId, orgA, personA, storageKey, bytes.byteLength, accountA],
+      );
+      await admin.query(
+        `UPDATE people SET photo_file_id=$1, media_consent='granted' WHERE org_id=$2 AND id=$3`,
+        [fileId, orgA, personA],
+      );
+      await admin.query(
+        `INSERT INTO evaluation_participants (id, org_id, evaluation_event_id, person_id, evaluation_group_id, evaluation_session_id, bib_number, media_consent, photo_file_id)
+         VALUES ($1, $2, $3, $4, $5, $6, 1, true, $7)`,
+        [participantId, orgA, eventId, personA, groupId, sessionId, fileId],
+      );
+      await admin.query(
+        `INSERT INTO evaluation_session_evaluators (id, org_id, evaluation_session_id, account_id, assigned_by)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [randomUUID(), orgA, sessionId, evaluatorAccount, accountA],
+      );
+    } finally {
+      await admin.end();
+    }
+
+    const photoService = new FilesService(
+      storage,
+      createFilesAuthorization(database),
+      undefined,
+      createWithOrg(database),
+    );
+    const assignedRead = await photoService.readLocalContent(
+      evaluatorContext,
+      fileId,
+    );
+    expect(assignedRead.mime).toBe('image/jpeg');
+    expect(Buffer.from(assignedRead.bytes)).toEqual(bytes);
+    await expect(
+      photoService.readLocalContent(unassignedEvaluatorContext, fileId),
+    ).rejects.toMatchObject({ message: 'File not found' });
+
+    const readAudit = await createWithOrg(database)(evaluatorContext, (trx) =>
+      trx
+        .selectFrom('audit_log')
+        .select('id')
+        .where('entity_id', '=', fileId)
+        .where('action', '=', 'file.downloaded')
+        .execute(),
+    );
+    expect(readAudit).toHaveLength(1);
+
+    await createWithOrg(database)(contextA, (trx) =>
+      trx
+        .updateTable('people')
+        .set({ media_consent: 'denied', photo_file_id: null })
+        .where('id', '=', personA)
+        .execute(),
+    );
+    await expect(
+      photoService.readLocalContent(evaluatorContext, fileId),
+    ).rejects.toMatchObject({ message: 'File not found' });
+    await createWithOrg(database)(contextA, async (trx) => {
+      await trx
+        .updateTable('people')
+        .set({ media_consent: 'granted', photo_file_id: fileId })
+        .where('id', '=', personA)
+        .execute();
+      await trx
+        .updateTable('evaluation_participants')
+        .set({ media_consent: false, photo_file_id: null })
+        .where('id', '=', participantId)
+        .execute();
+    });
+    await expect(
+      photoService.readLocalContent(evaluatorContext, fileId),
+    ).rejects.toMatchObject({ message: 'File not found' });
+    await createWithOrg(database)(contextA, async (trx) => {
+      await trx
+        .updateTable('evaluation_participants')
+        .set({ media_consent: true, photo_file_id: fileId })
+        .where('id', '=', participantId)
+        .execute();
+      await trx
+        .updateTable('evaluation_session_evaluators')
+        .set({ revoked_at: new Date() })
+        .where('evaluation_session_id', '=', sessionId)
+        .where('account_id', '=', evaluatorAccount)
+        .execute();
+    });
+    await expect(
+      photoService.readLocalContent(evaluatorContext, fileId),
+    ).rejects.toMatchObject({ message: 'File not found' });
   });
 
   it('allows verified guardians to upload person-owned restricted evidence and audits every authorized read', async () => {

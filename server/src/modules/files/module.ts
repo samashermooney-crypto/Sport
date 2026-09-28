@@ -134,6 +134,44 @@ export function createFilesAuthorization(
       return Boolean(await query.executeTakeFirst());
     });
 
+  const isAssignedEvaluatorForConsentedPhoto = async (
+    context: { orgId: string; actor: { accountId: string } },
+    file: FileRecord,
+  ): Promise<boolean> => {
+    if (
+      file.purpose !== 'image' ||
+      file.ownerType !== 'person' ||
+      !file.ownerId
+    )
+      return false;
+    return scoped(context, async (trx) => {
+      const assignment = await sql<{ id: string }>`
+        SELECT 1 AS id
+        FROM evaluation_participants AS participant
+        JOIN evaluation_sessions AS session
+          ON session.org_id = participant.org_id
+          AND session.id = participant.evaluation_session_id
+          AND session.evaluation_event_id = participant.evaluation_event_id
+        JOIN evaluation_session_evaluators AS evaluator
+          ON evaluator.org_id = session.org_id
+          AND evaluator.evaluation_session_id = session.id
+        JOIN people AS person
+          ON person.org_id = participant.org_id
+          AND person.id = participant.person_id
+        WHERE participant.org_id = ${context.orgId}
+          AND participant.person_id = ${file.ownerId}
+          AND participant.photo_file_id = ${file.id}
+          AND participant.media_consent IS TRUE
+          AND evaluator.account_id = ${context.actor.accountId}
+          AND evaluator.revoked_at IS NULL
+          AND person.media_consent = 'granted'
+          AND person.photo_file_id = ${file.id}
+        LIMIT 1
+      `.execute(trx);
+      return Boolean(assignment.rows[0]);
+    });
+  };
+
   // The chat portal uploads before it creates the message. For those unscoped
   // uploads, bind download permission to the live message reference instead.
   const isApprovedChatFile = (file: FileRecord): boolean =>
@@ -234,10 +272,15 @@ export function createFilesAuthorization(
         isApprovedChatFile(file) &&
         (await isChatAttachment(context, file.id, false));
       if (referencedByChat) return isChatAttachment(context, file.id, true);
-      if (file.sensitivity === 'sensitive')
-        return roles.some((role) =>
-          ['owner', 'admin', 'registrar'].includes(role),
-        );
+      if (file.sensitivity === 'sensitive') {
+        if (
+          roles.some((role) => ['owner', 'admin', 'registrar'].includes(role))
+        )
+          return true;
+        if (roles.includes('evaluator'))
+          return isAssignedEvaluatorForConsentedPhoto(context, file);
+        return false;
+      }
       return roles.length > 0;
     },
   };
