@@ -7,7 +7,7 @@ Current: Track A owns Phase 1 remaining tasks 3–8 and 16–17, then Phase 2 to
 Integrated into `rebuild/trunk` under the self-merge gate. Merged trunk passed typecheck, full lint, 768 tests (one skip), and all 27 desktop Chromium journeys (four guarded security skips). Migration `0903_import_fk_indexes.sql` fixed the schema-spine failure found by the first merge attempt. Phase 1 task 4's native PushManager subscription proof, shell parity/localization in task 16, and remaining Phase 2 acceptance stay open. Track C owns app/worker/router/registry wiring and hourly full gates.
 Requests to other tracks: none. Track C continues app/worker/router/registry wiring, hourly full gates, and `PROGRESS.md`.
 Requests from OPS: Record these OPS choices in `docs/codex/DECISIONS.md` under the next available decision number (`DEC-082` already covers legacy recurrence): encrypted AES-256-GCM logical backups and scratch-only restore verification; a public status response limited to non-sensitive service state; and Sentry event scrubbing for child/family PII (2026-09-27).
-Requests from OPS: Implement the documented `load` seed profile (100 organizations, 150k people, 400k registrations, 2M attendance rows) so Phase 16 EXPLAIN/load acceptance can run (2026-09-27).
+Requests from OPS: Fix `server/test/peopleFilters.test.ts`: updating `roster_entries` to `status='released', left_on='2026-09-27'` violates `roster_entries_check` on the current Chicago test date because the fixture's default `joined_on` is later; set a valid joined/left interval (2026-09-27).
 Blocked on: none
 
 ## Requests from SEC
