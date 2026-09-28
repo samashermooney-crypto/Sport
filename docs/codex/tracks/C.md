@@ -2,6 +2,7 @@
 Status: working
 Branch: `track/c-adapters`
 Current: merged the locally available `rebuild/trunk` at `af353fc`; Track C is resuming the trunk gates and wiring queue. Phase 15 remains owned by Track K.
+TRUNK GREEN 9381acd1d7eddb5d286e882ccd8e1b7f6200c32c — combined local trunk repair passed the full gate; not pushed.
 Ready for integration: no; trunk merge and current wiring changes need the required gates.
 Requests to other tracks: Track A — reconcile DEC-023 with verified-guardian restricted uploads and owner/compliance-only restricted downloads. Track E — registration module/route and checkout contracts are prerequisites for registration UI wiring.
 ## Done by OPS
@@ -43,3 +44,9 @@ Blocked on: GitHub access is currently unavailable from this environment; local 
 - Focused verification: app wiring, Files/RLS, chat attachment and security-header suites passed (4 files, 24 tests) against real PostgreSQL. Full Vitest passes (203 files, 1 skipped; 745 tests, 1 skipped); Chromium desktop passes (24 passed, 4 pre-existing SEC-002 fixmes skipped); typecheck, lint, build, Knip, registry and OpenAPI generation pass.
 - At the last check, local trunk was `af353fc`, seven commits ahead of its remote; GitHub DNS/network access failed. The lock `/tmp/athlentry-trunk.lock` was absent.
 - The corrected full C run with K's migration present had only two schema failures: missing FK indexes in migration `8500_phase15_growth.sql` and `mapping_presets.org_id` nullability. C reverted that merge and left Phase 15 with K; the post-revert full Vitest suite passed.
+
+## Final launch gate — 2026-09-27
+
+- Gate code snapshot: `da7c13f40717352ff6b550b7b5026dd6d1e62f94` on local `rebuild/trunk`. Typecheck, lint, full Vitest (246 files; 879 passed, 1 skipped), Playwright Chromium/WebKit (74 passed, 16 skipped), build, size, Knip, audit, OpenAPI and registry freshness passed locally. See [`../LAUNCH-GATE.md`](../LAUNCH-GATE.md) for each Phase 16 §7 item and evidence.
+- Promotion: **not ready**. Coverage thresholds, load acceptance, current-head restore proof, security acceptance, Lighthouse and all-route crawler are still failing or absent; GitHub CI status could not be checked without network. Local `main` is unchanged at `d0f59a1c44e499dc69455ed3ad3e0a2dae9883de`; no `MAIN READY` marker is recorded.
+- Remaining work: close all failures in `LAUNCH-GATE.md`, update phase acceptance evidence, rerun the full gate, and only then consider promoting local `main`.

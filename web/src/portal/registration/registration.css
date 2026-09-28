@@ -1,0 +1,34 @@
+.registration-team-form {
+  display: grid;
+  gap: var(--space-12);
+  max-width: 42rem;
+  margin: var(--space-12) 0 var(--space-20);
+}
+
+.registration-team-form label {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.registration-team-form input,
+.registration-team-form select,
+.registration-team-form textarea {
+  width: 100%;
+  min-height: 44px;
+}
+
+.registration-team-entry-list {
+  display: grid;
+  gap: var(--space-20);
+}
+
+.registration-team-entry-list > article {
+  padding: var(--space-20);
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+}
+
+.registration-team-note {
+  margin-top: var(--space-20);
+  color: var(--ink-2);
+}

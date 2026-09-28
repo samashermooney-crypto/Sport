@@ -3,7 +3,11 @@ import { newId } from '@shared/ids';
 import { sql, type Kysely } from 'kysely';
 
 import type { DB } from '../../db/types.js';
-import { createWithOrg, type OrgContext } from '../../db/withOrg.js';
+import {
+  createWithOrg,
+  type OrgContext,
+  type OrgTransaction,
+} from '../../db/withOrg.js';
 import { appendAuditEvent } from '../audit/service.js';
 
 import type { CheckoutCapacityRepository, SubjectQuantity } from './service.js';
@@ -206,112 +210,125 @@ export class PostgresCheckoutHoldRepository implements CheckoutCapacityRepositor
     honorProcessingHold: boolean;
   }): Promise<'confirmed' | 'already_confirmed' | 'expired'> {
     this.assertOrg(input.orgId);
-    return this.withOrg(this.context, async (trx) => {
-      const checkout = await trx
-        .selectFrom('checkouts')
-        .select('status')
+    return this.withOrg(this.context, (trx) =>
+      this.confirmInTransaction(trx, input),
+    );
+  }
+
+  /** Confirm capacity inside the caller's existing org transaction. */
+  async confirmInTransaction(
+    trx: OrgTransaction,
+    input: {
+      orgId: string;
+      checkoutId: string;
+      honorProcessingHold: boolean;
+    },
+  ): Promise<'confirmed' | 'already_confirmed' | 'expired'> {
+    this.assertOrg(input.orgId);
+    const checkout = await trx
+      .selectFrom('checkouts')
+      .select('status')
+      .where('org_id', '=', input.orgId)
+      .where('id', '=', input.checkoutId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!checkout) throw new Error('Checkout not found');
+    if (checkout.status === 'completed') return 'already_confirmed';
+    if (checkout.status !== 'awaiting_payment') return 'expired';
+    const holds = await trx
+      .selectFrom('capacity_holds')
+      .select([
+        'id',
+        'subject_type',
+        'subject_id',
+        'quantity',
+        'expires_at',
+        'released_at',
+        'converted_at',
+      ])
+      .where('org_id', '=', input.orgId)
+      .where('checkout_id', '=', input.checkoutId)
+      .execute();
+    if (
+      !holds.length ||
+      holds.some((hold) => hold.released_at || hold.converted_at)
+    )
+      return 'expired';
+    const ordered = [...holds].sort(
+      (a, b) =>
+        subjectOrder[a.subject_type as keyof typeof subjectOrder] -
+          subjectOrder[b.subject_type as keyof typeof subjectOrder] ||
+        a.subject_id.localeCompare(b.subject_id),
+    );
+    const counters = [];
+    for (const hold of ordered) {
+      const counter = await trx
+        .selectFrom('capacity_counters')
+        .select(['id', 'held'])
         .where('org_id', '=', input.orgId)
-        .where('id', '=', input.checkoutId)
+        .where('subject_type', '=', hold.subject_type)
+        .where('subject_id', '=', hold.subject_id)
         .forUpdate()
         .executeTakeFirst();
-      if (!checkout) throw new Error('Checkout not found');
-      if (checkout.status === 'completed') return 'already_confirmed';
-      if (checkout.status !== 'awaiting_payment') return 'expired';
-      const holds = await trx
-        .selectFrom('capacity_holds')
-        .select([
-          'id',
-          'subject_type',
-          'subject_id',
-          'quantity',
-          'expires_at',
-          'released_at',
-          'converted_at',
-        ])
-        .where('org_id', '=', input.orgId)
-        .where('checkout_id', '=', input.checkoutId)
-        .execute();
-      if (
-        !holds.length ||
-        holds.some((hold) => hold.released_at || hold.converted_at)
+      if (!counter || counter.held < hold.quantity)
+        throw new Error('Capacity hold does not reconcile');
+      counters.push({ hold, counter });
+    }
+    if (
+      !input.honorProcessingHold &&
+      holds.some(
+        (hold) => hold.expires_at.getTime() <= this.now().epochMilliseconds,
       )
-        return 'expired';
-      const ordered = [...holds].sort(
-        (a, b) =>
-          subjectOrder[a.subject_type as keyof typeof subjectOrder] -
-            subjectOrder[b.subject_type as keyof typeof subjectOrder] ||
-          a.subject_id.localeCompare(b.subject_id),
-      );
-      const counters = [];
-      for (const hold of ordered) {
-        const counter = await trx
-          .selectFrom('capacity_counters')
-          .select(['id', 'held'])
-          .where('org_id', '=', input.orgId)
-          .where('subject_type', '=', hold.subject_type)
-          .where('subject_id', '=', hold.subject_id)
-          .forUpdate()
-          .executeTakeFirst();
-        if (!counter || counter.held < hold.quantity)
-          throw new Error('Capacity hold does not reconcile');
-        counters.push({ hold, counter });
-      }
-      if (
-        !input.honorProcessingHold &&
-        holds.some(
-          (hold) => hold.expires_at.getTime() <= this.now().epochMilliseconds,
-        )
-      )
-        return 'expired';
-      for (const { hold, counter } of counters) {
-        await trx
-          .updateTable('capacity_counters')
-          .set({
-            held: sql`held - ${hold.quantity}`,
-            confirmed: sql`confirmed + ${hold.quantity}`,
-            version: sql`version + 1`,
-          })
-          .where('org_id', '=', input.orgId)
-          .where('id', '=', counter.id)
-          .execute();
-      }
+    )
+      return 'expired';
+    for (const { hold, counter } of counters) {
       await trx
-        .updateTable('capacity_holds')
-        .set({ converted_at: new Date(this.now().epochMilliseconds) })
-        .where('org_id', '=', input.orgId)
-        .where('checkout_id', '=', input.checkoutId)
-        .execute();
-      await trx
-        .updateTable('checkouts')
+        .updateTable('capacity_counters')
         .set({
-          status: 'completed',
-          completed_at: new Date(this.now().epochMilliseconds),
+          held: sql`held - ${hold.quantity}`,
+          confirmed: sql`confirmed + ${hold.quantity}`,
           version: sql`version + 1`,
         })
         .where('org_id', '=', input.orgId)
-        .where('id', '=', input.checkoutId)
+        .where('id', '=', counter.id)
         .execute();
-      await trx
-        .updateTable('registrations')
-        .set({ status: 'confirmed', version: sql`version + 1` })
-        .where('org_id', '=', input.orgId)
-        .where('checkout_id', '=', input.checkoutId)
-        .where('status', '=', 'pending_payment')
-        .execute();
-      await appendAuditEvent(trx, this.context, {
-        action: 'checkout.confirmed',
-        entityType: 'checkout',
-        entityId: input.checkoutId,
-        changes: {
-          status: {
-            tier: 'internal',
-            before: checkout.status,
-            after: 'completed',
-          },
+    }
+    await trx
+      .updateTable('capacity_holds')
+      .set({ converted_at: new Date(this.now().epochMilliseconds) })
+      .where('org_id', '=', input.orgId)
+      .where('checkout_id', '=', input.checkoutId)
+      .execute();
+    await trx
+      .updateTable('checkouts')
+      .set({
+        status: 'completed',
+        completed_at: new Date(this.now().epochMilliseconds),
+        version: sql`version + 1`,
+      })
+      .where('org_id', '=', input.orgId)
+      .where('id', '=', input.checkoutId)
+      .execute();
+    await trx
+      .updateTable('registrations')
+      .set({ status: 'confirmed', version: sql`version + 1` })
+      .where('org_id', '=', input.orgId)
+      .where('checkout_id', '=', input.checkoutId)
+      .where('status', '=', 'pending_payment')
+      .execute();
+    await appendAuditEvent(trx, this.context, {
+      action: 'checkout.confirmed',
+      entityType: 'checkout',
+      entityId: input.checkoutId,
+      changes: {
+        status: {
+          tier: 'internal',
+          before: checkout.status,
+          after: 'completed',
         },
-      });
-      return 'confirmed';
+      },
     });
+    return 'confirmed';
   }
 
   async keepForFailedPayment(input: {

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Json } from '../../db/types.js';
 import type { OrgTransaction } from '../../db/withOrg.js';
 import { frozenPaymentTermsSchema } from '../finance/frozen-charge-repo.js';
+import { refundTermsSchema } from '../finance/refund-terms.js';
 
 import { reserveDiscountCode } from './discount-codes.js';
 import type { CheckoutPricingSourceLoader } from './pricing-repo.js';
@@ -39,6 +40,7 @@ const orgSettingsSchema = z
   .object({
     confirmOnAchProcessing: z.boolean().optional(),
     lateFeeCents: z.number().int().nonnegative().max(10_000).optional(),
+    refundTerms: refundTermsSchema.optional(),
     serviceFee: z
       .discriminatedUnion('enabled', [
         z.object({ enabled: z.literal(false) }).strict(),
