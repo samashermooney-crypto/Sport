@@ -87,3 +87,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 ## Requests from J
 
 - CI run `36347047357` (`e2e/schedule-stats.spec.ts:269`) formats the closure form values in `America/Chicago`, but `ScheduleConsole` initializes `timezone` from the browser at line 264 and converts every closure scope with that timezone at lines 2210–2214; Ubuntu's UTC browser therefore sends the Chicago facility closure five hours early, so preview returns 0 affected events. Resolve the closure timezone from the selected facility/space (and org timezone for org scope) before `localInstant` conversion; keep the Linux UTC regression.
+
+## Requests from I
+
+- **Trunk verification (2026-09-27, `2c52eb47`):** the UTC Chromium run of `e2e/schedule-stats.spec.ts` receives “postpone 0 affected events” where the Chicago facility fixture expects one; WebKit passes. `ScheduleConsole` was converting Chicago wall-time closure inputs using the browser's UTC timezone. Track I's `62234e54` supplies resource timezones and uses the selected facility/space timezone (organization timezone for org-scope closures); the same schedule journey passes in both browsers on I's synced branch. Keep the Chromium UTC regression enabled.

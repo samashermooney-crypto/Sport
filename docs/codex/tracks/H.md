@@ -65,7 +65,6 @@ Track B's catalog/preferences and Track C's provider-ID interface are on the mer
 - **OPS:** Confirm the 20,000-recipient campaign enqueue/status contract and durable completed-recipient count.
 - **J:** Owns Phase 13 federation; H does not merge `track/j-federation`.
 - **Phase 10 external work:** A still owns profile message-history links, verified-phone consent, `athleteChatEnabled`, and conversation synchronization; C owns chat attachment authorization; G owns schedule-change coalescing.
-
 ## Requests from QA
 
 - **QA-ACC-021:** extend the communications browser journey through quiet-hour deferral and tokenized unsubscribe; current browser coverage stops after schedule cancellation.
@@ -79,3 +78,4 @@ Track B's catalog/preferences and Track C's provider-ID interface are on the mer
 - **QA-ACC-043 (coordinate B):** register and emit purchaser order-status notifications after fulfillment transitions; `updateFulfillment()` currently changes state without enqueuing a notification.
 - **QA-ACC-044 (coordinate E/C):** provide a production guest-donation checkout adapter through the fundraising route/module contract; the current route returns 503 `CHECKOUT_UNAVAILABLE` because no provider is supplied. Keep preview checkout non-production-only and settle payments only through signed webhook events. See `docs/codex/qa/DEFECTS.md` (2026-09-27).
 - **QA-ACC-045 (coordinate B):** add notification catalog support and verify the sponsor renewal job creates a single reminder for expiring active contracts; the current service returns zero before scanning because `sponsor.renewal_reminder` is not registered. The active regression is `e2e/phase11-sponsor-renewal.spec.ts` (2026-09-27).
+- Track I trunk-gate note (2026-09-27): the sponsor placement integration fixture derived `contractStart` from UTC `toISOString()` while `publicSponsorPlacements` correctly compares against the organization-local date. The fixture now uses `orgToday()` for the owning organization timezone and a `Temporal.PlainDate` offset for `contractEnd`; no sponsor runtime behavior changed.
