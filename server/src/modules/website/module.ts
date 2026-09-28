@@ -1,4 +1,8 @@
 import {
+  websiteContactReadResponseSchema,
+  websiteContactSubmissionBodySchema,
+  websiteContactSubmissionListSchema,
+  websiteContactSubmissionResponseSchema,
   websiteDomainCreateSchema,
   websiteDomainListSchema,
   websiteDomainResponseSchema,
@@ -43,6 +47,15 @@ const routes = [
     public: true,
   },
   {
+    method: 'post',
+    path: '/api/v1/website/public/{orgSlug}/contact',
+    summary: 'Submit a Turnstile-verified organization website contact message',
+    body: websiteContactSubmissionBodySchema,
+    response: websiteContactSubmissionResponseSchema,
+    status: 202,
+    public: true,
+  },
+  {
     method: 'get',
     path: '/api/v1/website/public/{orgSlug}/pages/{pageSlug}',
     summary: 'Get a published public organization website page',
@@ -70,6 +83,19 @@ const routes = [
     path: '/api/v1/website/orgs/{orgId}/news',
     summary: 'List organization website news posts',
     response: websiteNewsListSchema,
+  },
+  {
+    method: 'get',
+    path: '/api/v1/website/orgs/{orgId}/contact-submissions',
+    summary: 'List organization website contact submissions',
+    response: websiteContactSubmissionListSchema,
+  },
+  {
+    method: 'post',
+    path: '/api/v1/website/orgs/{orgId}/contact-submissions/mark-read',
+    summary: 'Mark all new website contact submissions as read',
+    body: z.strictObject({}),
+    response: websiteContactReadResponseSchema,
   },
   {
     method: 'post',
