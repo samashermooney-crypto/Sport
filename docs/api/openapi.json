@@ -62958,10 +62958,9 @@
                     "items": {
                       "type": "array",
                       "items": { "$ref": "#/$defs/__schema0" }
-                    },
-                    "organizationTimezone": { "type": "string" }
+                    }
                   },
-                  "required": ["items", "organizationTimezone"],
+                  "required": ["items"],
                   "additionalProperties": false,
                   "$defs": {
                     "__schema0": {
