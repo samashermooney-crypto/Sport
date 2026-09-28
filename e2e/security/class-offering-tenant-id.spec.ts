@@ -120,6 +120,23 @@ test('SEC-002: class offering routes hide an existing foreign-tenant offering ID
     );
     expect(ownResponse.status()).toBe(200);
 
+    const offeringPath = `${apiBase}/${own.orgId}/offerings/${ownOffering.id}`;
+    const missingRequestMarker = await request.patch(offeringPath, {
+      headers,
+      data: {},
+    });
+    expect(missingRequestMarker.status()).toBe(403);
+
+    const hostileOrigin = await request.patch(offeringPath, {
+      headers: {
+        ...headers,
+        Origin: 'https://attacker.invalid',
+        'X-Athlentry-Request': '1',
+      },
+      data: {},
+    });
+    expect(hostileOrigin.status()).toBe(403);
+
     const foreignResponse = await request.get(
       `${apiBase}/${own.orgId}/offerings/${foreignOffering.id}`,
       { headers },
