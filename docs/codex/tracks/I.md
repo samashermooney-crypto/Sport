@@ -31,6 +31,8 @@ Owns: `server/src/modules/classes/**`, `web/src/console/classes/**`, `web/src/po
 ## Requests from OPS
 
 - **Track I (Knip, 2026-09-27):** resolve or wire the two unused academy nav files and 37 unused exports/types reported by `npm run knip` on updated `rebuild/trunk`, so the CI Knip gate is green. Findings are also listed under SEC-KNIP-I; OPS did not modify I-owned files.
+- **Track I (promotion integration, 2026-09-27):** both promotion tests fail reproducibly because the update at `server/src/modules/classes/promotions.ts:347` violates `class_enrollments_check`; correct the promotion state transition so enrollment status/date invariants hold.
+- **Track I (Knip, 2026-09-27):** the latest OPS run additionally reports unused `web/src/console/evaluations/nav.ts` and `web/src/portal/evaluations/nav.ts`; wire these routes or remove the unused files so the Knip gate is green. OPS did not modify I-owned files.
 
 ## Requests from SEC
 

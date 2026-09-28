@@ -854,7 +854,7 @@
 - **Why:** The checks must fail on real authorization gaps without inventing route policy or hiding a cross-tenant read behind an unrelated 404.
 - **Consequences / follow-ups:** Track C owns the generated contracts and CI wiring; the precise requests are recorded in `docs/codex/tracks/SEC.md` and `docs/codex/tracks/C.md`. Remove the `test.fixme` markers when those contracts are available and the checks can exercise real fixtures.
 
-### DEC-115 — Keep Phase 15 imports additive and tenant-scoped
+### DEC-124 — Keep Phase 15 imports additive and tenant-scoped
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 imports and onboarding
 - **Context:** Track A owns the Phase 2 import tables and routes while Phase 15 adds additional import kinds and reversible processing. Preset privacy and financial rollback behavior were not specified for the extension.
@@ -925,3 +925,11 @@
 - **Decision:** Keep the six-profile Phase 15 seed self-contained and do not invoke the optional federation demo helper from `db:seed --profile demo` until its empty-link query is fixed and its sharing scope matches DEC-120.
 - **Why:** The Phase 15 profile remains complete without broadening child data sharing or making the seed command fail after creating partial extra data.
 - **Consequences / follow-ups:** Track J owns the empty-link query fix; the base Metro seed continues to include both member clubs, accepted inter-club entries, and the referee pool.
+
+### DEC-125 — Balance Rec teams by age at season start
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 6 Rec placement boards
+- **Context:** Phase 6 requires age balancing, but the shared team balancer previously considered ratings, roster size, hard constraints, and preferences only.
+- **Decision:** Supply whole-year age at the target program's `starts_on` date to the existing shared balancer and include team mean-age variance with the same objective weight as mean-rating variance. When some athletes lack a date of birth, use the median known age for objective calculations; omit age balancing if none have a date of birth.
+- **Why:** Age fairness belongs in the same deterministic optimization that enforces team sizes, ratings, and linked-player constraints. Using the season start gives a consistent reference for every registration in the program.
+- **Consequences / follow-ups:** Existing callers without age retain their previous objective and metrics. The Rec dashboard shows mean age beside mean rating. The seeded 120-player balancer test verifies both fairness dimensions within the five-second budget.
