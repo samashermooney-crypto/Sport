@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { type StandingsConfig } from './schema.js';
+import { type StandingsConfig, type Tiebreaker } from './schema.js';
 import { computeStandings, type StandingContest } from './standings.js';
 
 const config: StandingsConfig = {
@@ -166,6 +166,61 @@ describe('standings', () => {
         (row) => row.teamId,
       ),
     ).toEqual(['b', 'a']);
+  });
+
+  it('marks unresolved ties when no criteria are configured and rejects sparse criteria', () => {
+    const noCriteria = { ...config, tiebreakers: [] };
+    const unresolved = computeStandings(['b', 'a'], [], noCriteria);
+    expect(unresolved.map((row) => row.teamId)).toEqual(['a', 'b']);
+    expect(unresolved.every((row) => row.manualTiebreakRequired)).toBe(true);
+
+    const sparseCriteria = {
+      ...config,
+      tiebreakers: [undefined as unknown as Tiebreaker],
+    };
+    expect(() => computeStandings(['a', 'b'], [], sparseCriteria)).toThrow(
+      'Missing standings tiebreaker',
+    );
+  });
+
+  it('splits primary ties recursively on numeric criteria', () => {
+    const noPointStandings: StandingsConfig = {
+      ...config,
+      points: {
+        win: 0,
+        overtimeWin: 0,
+        tie: 0,
+        overtimeLoss: 0,
+        loss: 0,
+        forfeitWin: 0,
+        forfeitLoss: 0,
+        forfeitDeduction: 0,
+      },
+      tiebreakers: ['wins'],
+    };
+    const rows = computeStandings(
+      ['a', 'b', 'c'],
+      [match('a', 'b', 2, 1)],
+      noPointStandings,
+    );
+
+    expect(rows.map((row) => row.teamId)).toEqual(['a', 'b', 'c']);
+    expect(rows[0]).toMatchObject({
+      decidedBy: 'wins',
+      manualTiebreakRequired: false,
+    });
+    expect(rows.slice(1).every((row) => row.manualTiebreakRequired)).toBe(true);
+  });
+
+  it('ignores contests for teams outside the standings and rejects bad scores', () => {
+    expect(
+      computeStandings(['a', 'b'], [match('a', 'outside', 2, 1)], config).every(
+        (row) => row.played === 0,
+      ),
+    ).toBe(true);
+    expect(() =>
+      computeStandings(['a', 'b'], [match('a', 'b', Number.NaN, 1)], config),
+    ).toThrow('Invalid contest score');
   });
 
   it('applies forfeit score, penalty and overtime points', () => {
