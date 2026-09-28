@@ -46,3 +46,10 @@ None for Track I-owned Phase 12 acceptance. The portal shell link and other trac
 - DEC-112: enrollment locks the offering; session bookings lock the `class_session` capacity counter.
 - DEC-113: level promotions defer tuition changes by default and settle only the household's remaining-session delta when immediate.
 - I temporarily used `PORT_OFFSET=1500` because the required 900 was occupied; no other track's containers were stopped or changed.
+
+## Phase 16 §1 security work
+
+- SEC-005 (Auth / Track A): `/step-up` atomically replaces the cookie or bearer session after password/TOTP verification, and revokes the prior token. MFA enrollment confirmation and step-up now share the MFA request limiter. Auth security/routes integration tests and the Chromium fixation journey pass.
+- SEC-SSRF-C-001 (Push / Track C): Web Push endpoints are limited to supported provider hosts, all DNS answers are checked against non-public ranges, and an HTTPS agent pins delivery to the vetted address. Sender tests (11/11) and the Chromium SSRF journey pass.
+- SEC-CI-001 (CI / Track C): the Gitleaks workflow job and enabled source assertion are present; hosted CI status remains unobserved locally.
+- SEC-002 route metadata, role matrix, and true foreign-resource fixtures remain open on Track C. DEC-114 prohibits synthetic default metadata or random missing IDs being counted as authorization evidence; the security completeness journeys remain `test.fixme` until reviewed contracts exist.

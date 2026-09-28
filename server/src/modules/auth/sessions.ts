@@ -312,3 +312,81 @@ export async function revokeSession(
     .execute();
   return true;
 }
+
+export async function rotateSessionForStepUp(
+  trx: Transaction<DB>,
+  session: ActiveSession,
+  now: Date,
+  metadata: Pick<SessionOptions, 'ip' | 'userAgent'> = {},
+  verifiedMfaAt?: Date,
+): Promise<IssuedSession | null> {
+  const current = await trx
+    .selectFrom('sessions')
+    .select([
+      'kind',
+      'client',
+      'privileged',
+      'mfa_verified_at',
+      'idle_expires_at',
+      'absolute_expires_at',
+    ])
+    .where('id', '=', session.id)
+    .where('account_id', '=', session.accountId)
+    .where('revoked_at', 'is', null)
+    .where('idle_expires_at', '>', now)
+    .where('absolute_expires_at', '>', now)
+    .forUpdate()
+    .executeTakeFirst();
+  if (!current) return null;
+
+  const inheritedMfaAt = current.mfa_verified_at;
+  const recentInheritedMfaAt =
+    inheritedMfaAt &&
+    inheritedMfaAt <= now &&
+    now.getTime() - inheritedMfaAt.getTime() <= stepUpLifetime
+      ? inheritedMfaAt
+      : undefined;
+  const mfaVerifiedAt = verifiedMfaAt ?? recentInheritedMfaAt;
+  if (current.privileged && !mfaVerifiedAt) return null;
+
+  if (!(await revokeSession(trx, session.accountId, session.id, now)))
+    return null;
+
+  const issued = await issueSession(
+    trx,
+    {
+      accountId: session.accountId,
+      kind: current.kind as SessionOptions['kind'],
+      client: current.client as SessionOptions['client'],
+      privileged: current.privileged,
+      ...(mfaVerifiedAt ? { mfaVerifiedAt } : {}),
+      ...metadata,
+    },
+    now,
+  );
+  const idleExpiresAt = new Date(
+    Math.min(
+      issued.idleExpiresAt.getTime(),
+      current.absolute_expires_at.getTime(),
+    ),
+  );
+  const boundedExpiry = await trx
+    .updateTable('sessions')
+    .set({
+      idle_expires_at: idleExpiresAt,
+      absolute_expires_at: current.absolute_expires_at,
+    })
+    .where('id', '=', issued.id)
+    .where('account_id', '=', session.accountId)
+    .where('revoked_at', 'is', null)
+    .returning('id')
+    .executeTakeFirst();
+  if (!boundedExpiry) throw new Error('Could not retain session expiry');
+  if (!(await stepUpSession(trx, issued.id, session.accountId, now)))
+    throw new Error('Could not elevate the rotated session');
+  return {
+    ...issued,
+    idleExpiresAt,
+    absoluteExpiresAt: current.absolute_expires_at,
+  };
+}

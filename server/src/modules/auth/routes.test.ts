@@ -239,18 +239,28 @@ describe('auth HTTP contract', () => {
       cookie,
     );
     expect(stepUp.status).toBe(200);
+    expect(await stepUp.json()).toEqual({ status: 'elevated' });
+    const rotatedCookie = authCookie(stepUp);
+    expect(rotatedCookie).not.toBe(cookie);
+    expect(
+      (await fetch(`${baseUrl}/sessions`, { headers: { Cookie: cookie } }))
+        .status,
+    ).toBe(401);
     const sessions = await fetch(`${baseUrl}/sessions`, {
-      headers: { Cookie: cookie },
+      headers: { Cookie: rotatedCookie },
     });
     expect(sessions.status).toBe(200);
     expect(
       ((await sessions.json()) as { sessions: unknown[] }).sessions,
     ).toHaveLength(2);
-    const signedOut = await post('/sign-out', {}, cookie);
+    const signedOut = await post('/sign-out', {}, rotatedCookie);
     expect(signedOut.status).toBe(200);
     expect(
-      (await fetch(`${baseUrl}/sessions`, { headers: { Cookie: cookie } }))
-        .status,
+      (
+        await fetch(`${baseUrl}/sessions`, {
+          headers: { Cookie: rotatedCookie },
+        })
+      ).status,
     ).toBe(401);
     expect(
       (
@@ -290,13 +300,58 @@ describe('auth HTTP contract', () => {
     expect(nativeMfa.status).toBe(200);
     const bearer = ((await nativeMfa.json()) as { token: string }).token;
     expect(bearer).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    const nativeStepUp = await fetch(`${baseUrl}/step-up`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        'Content-Type': 'application/json',
+        'X-Athlentry-Request': '1',
+        Origin: origin,
+      },
+      body: JSON.stringify({ method: 'password', password }),
+    });
+    expect(nativeStepUp.status).toBe(200);
+    expect(nativeStepUp.headers.get('set-cookie')).toBeNull();
+    expect(nativeStepUp.headers.get('cache-control')).toBe('no-store');
+    const nativeStepUpBody = (await nativeStepUp.json()) as {
+      status: string;
+      token: string;
+    };
+    expect(nativeStepUpBody.status).toBe('elevated');
+    expect(nativeStepUpBody.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(nativeStepUpBody.token).not.toBe(bearer);
+    expect(
+      (
+        await fetch(`${baseUrl}/sessions`, {
+          headers: { Authorization: `Bearer ${bearer}` },
+        })
+      ).status,
+    ).toBe(401);
     const bearerHeaders = {
-      Authorization: `Bearer ${bearer}`,
+      Authorization: `Bearer ${nativeStepUpBody.token}`,
       'X-Athlentry-Request': '1',
     };
     expect(
       (await fetch(`${baseUrl}/sessions`, { headers: bearerHeaders })).status,
     ).toBe(200);
+    let stepUpWasLimited = false;
+    for (let attempt = 0; attempt < 9 && !stepUpWasLimited; attempt += 1) {
+      const rejectedStepUp = await fetch(`${baseUrl}/step-up`, {
+        method: 'POST',
+        headers: {
+          ...bearerHeaders,
+          'Content-Type': 'application/json',
+          Origin: origin,
+        },
+        body: JSON.stringify({
+          method: 'password',
+          password: 'wrong password',
+        }),
+      });
+      if (rejectedStepUp.status === 429) stepUpWasLimited = true;
+      else expect(rejectedStepUp.status).toBe(401);
+    }
+    expect(stepUpWasLimited).toBe(true);
 
     const wrongOrigin = await fetch(`${baseUrl}/devices`, {
       method: 'POST',
