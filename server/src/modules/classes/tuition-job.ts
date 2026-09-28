@@ -21,7 +21,7 @@ import { issueInvoiceInTransaction } from './invoice-writer.js';
 import { advanceAnnualFees, buildTuitionLines } from './tuition.js';
 
 /** Deterministic UUID (v8-style) from a seed — used for billing idempotency. */
-export function deterministicUuid(seed: string): string {
+function deterministicUuid(seed: string): string {
   const digest = createHash('sha256').update(seed).digest();
   const byte6 = digest[6] ?? 0;
   const byte8 = digest[8] ?? 0;
@@ -31,7 +31,7 @@ export function deterministicUuid(seed: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }
 
-export function mandateHashFor(text: string): string {
+function mandateHashFor(text: string): string {
   return createHash('sha256').update(text).digest('hex');
 }
 
@@ -50,7 +50,7 @@ async function orgToday(trx: OrgTransaction, orgId: string): Promise<string> {
  * Bill one subscription for the month containing next_bill_on.
  * Returns the created invoice id, or null when nothing was due.
  */
-export async function billSubscription(
+async function billSubscription(
   trx: OrgTransaction,
   context: OrgContext,
   subscriptionId: string,

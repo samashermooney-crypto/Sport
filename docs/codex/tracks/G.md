@@ -53,6 +53,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Program statistic settings, leaderboard aggregation, enabled/public filters, private-stat staff access, and optimistic-concurrency integration regression pass against the isolated Postgres stack.
 - [x] Season-award listing query regression passes against isolated Postgres after qualifying joined table columns.
 - [x] Statistics configuration, contest creation, finalized score with persisted per-team stats, facility closure preview and postponement, public leaderboard, and public standings snapshot Playwright journey passes on Chromium desktop and WebKit mobile with axe and no schedule-page alerts.
+- [x] Linux CI reproduction uses Node 24 and the Playwright 1.63.0 Noble image on AMD64. Chromium passed the focused statistics journey (1/1, 30.1 seconds, one worker). `webServer` now waits for `/healthz` through Vite's API proxy, so Playwright does not begin before the API listener is ready. The emulated AMD64 WebKit process crashed under this ARM host; this is not a result from GitHub's native AMD64 runner.
 - [x] North Park mass-closure journey closes 24 published games, resolves 24 event-linked volunteer signups to one recipient, persists one immediate 24-change emergency batch, emits its notification through Track B's notification service, and shows the rainout banner with all 24 postponed events on the public facility page; Chromium and WebKit mobile with axe pass. The notification service currently records the in-app channel only.
 - [x] Public live contest page consumes a versioned SSE route; the Phase 9 journey opens a scheduled contest, finalizes its format-specific result, and observes the public score/status update in Chromium and WebKit mobile with axe. The SSE endpoint is documented as `text/event-stream` in the OpenAPI output.
 - [x] Latest full Vitest suite on the G-isolated stack after live scores and UTC closure timezone resolution: 246 files passed, 1 skipped; 876 tests passed, 1 skipped.
@@ -73,12 +74,11 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] After the latest schedule fixes, the focused scheduling server suite passes (6 files / 12 tests), the focused event schema/error tests pass (5 tests), and `npm run typecheck` plus full `npm run lint` pass.
 - [ ] Prior lock-protected merge attempt stopped because `server/src/modules/officials/service.integration.test.ts` timed out at five seconds; the independent assignment/response operations are now concurrent and three focused default-timeout runs passed. Retry the full merge gate after syncing trunk.
 - [x] Twelve G-owned schedule journeys cover recurrence-series edits, schedule tools/manual changes/CSV/reschedules, public facility pages, statistics/results/24-game facility closure with volunteer notification, generator apply/discard and explanations, coach allocation requests, family RSVP, offline game-day sync, officials assignment/pay, swim meets, tournaments, and season end; Chromium desktop and WebKit mobile with axe pass 24/24. The console and portal routes mount via the generated nested-route registry.
-- [ ] Full acceptance remains blocked on email fan-out for emergency notices, discipline result/game-served integration, the facility image serving contract, schedule navigation wiring, and the unrelated baseline WebKit failures documented below. Do not mark ready until the remaining cross-track contracts and full gates pass.
-- [ ] The shared `Sport-trunk` checkout currently contains staged and unstaged work across other tracks, including G-owned files. I released the trunk lock without merging; retry integration when the shared checkout is clean.
+- [ ] Full acceptance remains blocked on email fan-out for emergency notices, discipline result/game-served integration, the facility image serving contract, unrelated baseline WebKit failures, and the full branch and trunk merge gates. Do not mark ready until the remaining cross-track contracts and full gates pass.
 
 ## Cross-track requests and blockers
 
-- **Track C (sprint wiring owner):** aggregate `web/src/console/schedule/nav.ts` and `web/src/portal/schedule/nav.ts` into the top-level navigation modules; the generated nested-route registry mounts the pages, but Knip flags both navigation files as unused until C wires the aggregators. The public facility API currently returns a layout file ID and the page renders facility details, directions, parking and spaces, but cannot safely render the image without a public serving contract for approved facility layout files.
+- **Track C (sprint wiring owner):** the schedule navigation aggregators and generated nested routes are now wired on trunk. The public facility API currently returns a layout file ID and the page renders facility details, directions, parking and spaces, but cannot safely render the image without a public serving contract for approved facility layout files.
 - **Track A:** investigate the four baseline Playwright failures in sign-in, ownership transfer and the people flow before the full browser gate.
 - **Track B:** align shared `contestStageSchema` with `02-DATA-MODEL.md`: it accepts `tournament` (rejected by `contests_stage_check`) and omits `championship`/`consolation`/`exhibition`; G's service/routes now follow the data-model enum. Generator fairness and double-elimination bye progression fixes are in G's current branch and need review with the shared-algorithm owner before integration.
 - **Track H:** resolved by the Phase 11 merge (`0ca39573`): event-linked volunteer shifts and signups are now included in closure recipients and covered by the North Park mass-closure journey.
@@ -87,11 +87,19 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 
 ## Requests from SEC
 
-- SEC-KNIP-G: removed unreferenced G-owned wrappers/helpers, removed the duplicate schedule schema alias, and made file-local helpers private. The current global `npm run knip` still exits 1 on other tracks' unused modules/exports and G's two nested navigation files pending Track C aggregation (2026-09-27).
+- SEC-KNIP-G: removed unreferenced G-owned wrappers/helpers, removed the duplicate schedule schema alias, and made file-local helpers private. The current global `npm run knip` still exits 1 on unused modules/exports from other tracks (2026-09-27); G's nested navigation aggregators are wired on trunk.
+
+## Requests from OPS
+
+- **Track G (API contract, 2026-09-27):** keep `runScheduleGeneration` exported from `server/src/modules/scheduling/generator.ts`; Track J's federation schedule workflow imports and calls this shared service. OPS restored the export during the current trunk sync after typecheck caught the missing API.
 
 ## Decisions and review
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
 - G decisions are `DEC-082–096` and `DEC-100–108` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
-- Latest G integration: the earlier G slice passed the lock-protected merge gate and was merged into `rebuild/trunk` on 2026-09-27; trunk subsequently integrated Track H as `0ca39573`, which is an ancestor of this branch. Current G commits remain local and are not pushed. The latest self-merge attempt found a dirty shared checkout and made no trunk changes.
+- Latest G integration: merged `rebuild/trunk` through `da7c13f4` into this branch; its remaining conflicts were resolved. The branch now includes the Linux API-readiness fix. Current G commits remain local and are not pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.
+
+## Requests from J
+
+- Resolved: closure submissions now use the selected facility timezone, including space closures, and the organization timezone for org-scope closures. The UTC regression verifies the exact submitted instants and affected-event counts.

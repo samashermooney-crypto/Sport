@@ -1,13 +1,54 @@
+import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
-import { FamilySchedule } from './FamilySchedule';
-import { LiveContestPage } from './LiveContestPage';
-import { OfficialAssignmentsPortal } from './OfficialAssignmentsPortal';
-import { PracticeSlotPicker } from './PracticeSlotPicker';
-import { PublicFacilityPage } from './PublicFacilityPage';
-import { PublicStandingsPage } from './PublicStandingsPage';
-import { PublicTournamentPage } from './PublicTournamentPage';
+import { RouteLoading } from '../../ui/RouteLoading';
+
+const FamilySchedule = lazy(() =>
+  import('./FamilySchedule').then(({ FamilySchedule: Component }) => ({
+    default: Component,
+  })),
+);
+const LiveContestPage = lazy(() =>
+  import('./LiveContestPage').then(({ LiveContestPage: Component }) => ({
+    default: Component,
+  })),
+);
+const OfficialAssignmentsPortal = lazy(() =>
+  import('./OfficialAssignmentsPortal').then(
+    ({ OfficialAssignmentsPortal: Component }) => ({ default: Component }),
+  ),
+);
+const PracticeSlotPicker = lazy(() =>
+  import('./PracticeSlotPicker').then(({ PracticeSlotPicker: Component }) => ({
+    default: Component,
+  })),
+);
+const PublicFacilityPage = lazy(() =>
+  import('./PublicFacilityPage').then(({ PublicFacilityPage: Component }) => ({
+    default: Component,
+  })),
+);
+const PublicStandingsPage = lazy(() =>
+  import('./PublicStandingsPage').then(
+    ({ PublicStandingsPage: Component }) => ({
+      default: Component,
+    }),
+  ),
+);
+const PublicTournamentPage = lazy(() =>
+  import('./PublicTournamentPage').then(
+    ({ PublicTournamentPage: Component }) => ({ default: Component }),
+  ),
+);
+
+function loading(element: React.ReactNode): React.JSX.Element {
+  return (
+    <Suspense fallback={<RouteLoading label="Loading schedule…" />}>
+      {element}
+    </Suspense>
+  );
+}
 
 function FamilyScheduleRoute(): React.JSX.Element {
   const { orgId, teamSeasonId, personId } = useParams<{
@@ -16,11 +57,13 @@ function FamilyScheduleRoute(): React.JSX.Element {
     personId: string;
   }>();
   return orgId && teamSeasonId && personId ? (
-    <FamilySchedule
-      orgId={orgId}
-      teamSeasonId={teamSeasonId}
-      personId={personId}
-    />
+    loading(
+      <FamilySchedule
+        orgId={orgId}
+        teamSeasonId={teamSeasonId}
+        personId={personId}
+      />,
+    )
   ) : (
     <main className="schedule-page">
       Choose a team and athlete to view this schedule.
@@ -34,7 +77,7 @@ function PracticeSlotPickerRoute(): React.JSX.Element {
     teamSeasonId: string;
   }>();
   return orgId && teamSeasonId ? (
-    <PracticeSlotPicker orgId={orgId} teamSeasonId={teamSeasonId} />
+    loading(<PracticeSlotPicker orgId={orgId} teamSeasonId={teamSeasonId} />)
   ) : (
     <main className="schedule-page">
       Choose a team to request practice time.
@@ -45,7 +88,7 @@ function PracticeSlotPickerRoute(): React.JSX.Element {
 function OfficialAssignmentsRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
   return orgId ? (
-    <OfficialAssignmentsPortal orgId={orgId} />
+    loading(<OfficialAssignmentsPortal orgId={orgId} />)
   ) : (
     <main className="schedule-page">Organization not found.</main>
   );
@@ -57,7 +100,7 @@ function PublicFacilityRoute(): React.JSX.Element {
     facilityId: string;
   }>();
   return slug && facilityId ? (
-    <PublicFacilityPage slug={slug} facilityId={facilityId} />
+    loading(<PublicFacilityPage slug={slug} facilityId={facilityId} />)
   ) : (
     <main className="schedule-page">Facility not found.</main>
   );
@@ -66,7 +109,7 @@ function PublicFacilityRoute(): React.JSX.Element {
 function PublicTournamentRoute(): React.JSX.Element {
   const { slug, bracketId } = useParams<{ slug: string; bracketId: string }>();
   return slug && bracketId ? (
-    <PublicTournamentPage slug={slug} bracketId={bracketId} />
+    loading(<PublicTournamentPage slug={slug} bracketId={bracketId} />)
   ) : (
     <main className="schedule-page">Tournament not found.</main>
   );
@@ -75,7 +118,7 @@ function PublicTournamentRoute(): React.JSX.Element {
 function LiveContestRoute(): React.JSX.Element {
   const { slug, contestId } = useParams<{ slug: string; contestId: string }>();
   return slug && contestId ? (
-    <LiveContestPage slug={slug} contestId={contestId} />
+    loading(<LiveContestPage slug={slug} contestId={contestId} />)
   ) : (
     <main className="schedule-page">Contest not found.</main>
   );
@@ -84,7 +127,13 @@ function LiveContestRoute(): React.JSX.Element {
 function PublicProgramStandingsRoute(): React.JSX.Element {
   const { slug, programId } = useParams<{ slug: string; programId: string }>();
   return slug && programId ? (
-    <PublicStandingsPage slug={slug} scopeType="program" scopeId={programId} />
+    loading(
+      <PublicStandingsPage
+        slug={slug}
+        scopeType="program"
+        scopeId={programId}
+      />,
+    )
   ) : (
     <main className="schedule-page">Standings not found.</main>
   );
@@ -96,11 +145,13 @@ function PublicDivisionStandingsRoute(): React.JSX.Element {
     divisionId: string;
   }>();
   return slug && divisionId ? (
-    <PublicStandingsPage
-      slug={slug}
-      scopeType="division"
-      scopeId={divisionId}
-    />
+    loading(
+      <PublicStandingsPage
+        slug={slug}
+        scopeType="division"
+        scopeId={divisionId}
+      />,
+    )
   ) : (
     <main className="schedule-page">Standings not found.</main>
   );

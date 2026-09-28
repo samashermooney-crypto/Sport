@@ -12,6 +12,7 @@ import {
 import { associationDashboard } from '../src/modules/federation/dashboard';
 import {
   listMembers,
+  listOwnSpaces,
   readMemberPhoto,
   readMemberRoster,
   readMemberTeams,
@@ -663,6 +664,43 @@ describe('team entries and roster snapshots', () => {
 });
 
 describe('league scheduling on member-club availability', () => {
+  it('uses each space facility timezone, falling back to its organization timezone', async () => {
+    const club = await factory.actor();
+    const chicago = await clubSpace(club);
+    const phoenix = await clubSpace(club);
+    await factory.scoped(club, (trx) =>
+      trx
+        .updateTable('organizations')
+        .set({ timezone: 'America/Denver' })
+        .where('id', '=', club.orgId)
+        .execute(),
+    );
+    await factory.scoped(club, (trx) =>
+      trx
+        .updateTable('facilities')
+        .set({ timezone: null })
+        .where('org_id', '=', club.orgId)
+        .where('id', '=', chicago.facilityId)
+        .execute(),
+    );
+    await factory.scoped(club, (trx) =>
+      trx
+        .updateTable('facilities')
+        .set({ timezone: 'America/Phoenix' })
+        .where('org_id', '=', club.orgId)
+        .where('id', '=', phoenix.facilityId)
+        .execute(),
+    );
+
+    const spaces = await listOwnSpaces(database, ctx(club));
+    expect(
+      spaces.find((space) => space.spaceId === chicago.spaceId)?.timezone,
+    ).toBe('America/Denver');
+    expect(
+      spaces.find((space) => space.spaceId === phoenix.spaceId)?.timezone,
+    ).toBe('America/Phoenix');
+  });
+
   it('generates, applies and publishes a hosted schedule', async () => {
     const { league, program } = await leagueWithProgram();
     const clubA = await factory.actor();

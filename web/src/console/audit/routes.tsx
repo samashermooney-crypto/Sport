@@ -1,12 +1,21 @@
+import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
-import { AuditViewer } from './AuditViewer';
+import { RouteLoading } from '../../ui/RouteLoading';
+
+const AuditViewer = lazy(() =>
+  import('./AuditViewer').then(({ AuditViewer: Component }) => ({
+    default: Component,
+  })),
+);
 
 function AuditRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
   return orgId ? (
-    <AuditViewer orgId={orgId} />
+    <Suspense fallback={<RouteLoading label="Loading audit records…" />}>
+      <AuditViewer orgId={orgId} />
+    </Suspense>
   ) : (
     <main>Organization not found.</main>
   );

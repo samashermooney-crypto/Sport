@@ -22,6 +22,7 @@ import { portalStoreRoutes } from '../portal/store/routes';
 import { portalTeamFinanceRoutes } from '../portal/teamFinance/routes';
 import { portalVolunteersRoutes } from '../portal/volunteers/routes';
 import { siteFundraisingRoutes } from '../site/fundraising/routes';
+import { siteSponsorsRoutes } from '../site/sponsors/routes';
 
 export const webNestedRoutes: readonly RouteObject[] = [
   consoleAuditRoutes,
@@ -46,4 +47,5 @@ export const webNestedRoutes: readonly RouteObject[] = [
   portalTeamFinanceRoutes,
   portalVolunteersRoutes,
   siteFundraisingRoutes,
+  siteSponsorsRoutes,
 ].flat();

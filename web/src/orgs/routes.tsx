@@ -1,20 +1,54 @@
+import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router';
 
-import { AcceptInvitation } from './AcceptInvitation';
-import { AcceptOwnershipTransfer } from './AcceptOwnershipTransfer';
-import { Credentials } from './Credentials';
-import { Profile } from './Profile';
-import { Staff } from './Staff';
-import { Start } from './Start';
+import { RouteLoading } from '../ui/RouteLoading';
+
+const AcceptInvitation = lazy(() =>
+  import('./AcceptInvitation').then(({ AcceptInvitation: Component }) => ({
+    default: Component,
+  })),
+);
+const AcceptOwnershipTransfer = lazy(() =>
+  import('./AcceptOwnershipTransfer').then(
+    ({ AcceptOwnershipTransfer: Component }) => ({ default: Component }),
+  ),
+);
+const Credentials = lazy(() =>
+  import('./Credentials').then(({ Credentials: Component }) => ({
+    default: Component,
+  })),
+);
+const Profile = lazy(() =>
+  import('./Profile').then(({ Profile: Component }) => ({
+    default: Component,
+  })),
+);
+const Staff = lazy(() =>
+  import('./Staff').then(({ Staff: Component }) => ({ default: Component })),
+);
+const Start = lazy(() =>
+  import('./Start').then(({ Start: Component }) => ({ default: Component })),
+);
+
+function loading(element: React.ReactNode): React.JSX.Element {
+  return (
+    <Suspense fallback={<RouteLoading label="Loading organization…" />}>
+      {element}
+    </Suspense>
+  );
+}
 
 export const orgsRoutes: readonly RouteObject[] = [
-  { path: '/start', element: <Start /> },
-  { path: '/orgs/:orgId/credentials', element: <Credentials /> },
-  { path: '/orgs/:orgId/profile', element: <Profile /> },
-  { path: '/orgs/:orgId/staff', element: <Staff /> },
-  { path: '/invitations/:orgId/:token', element: <AcceptInvitation /> },
+  { path: '/start', element: loading(<Start />) },
+  { path: '/orgs/:orgId/credentials', element: loading(<Credentials />) },
+  { path: '/orgs/:orgId/profile', element: loading(<Profile />) },
+  { path: '/orgs/:orgId/staff', element: loading(<Staff />) },
+  {
+    path: '/invitations/:orgId/:token',
+    element: loading(<AcceptInvitation />),
+  },
   {
     path: '/ownership-transfer/:orgId/:token',
-    element: <AcceptOwnershipTransfer />,
+    element: loading(<AcceptOwnershipTransfer />),
   },
 ];

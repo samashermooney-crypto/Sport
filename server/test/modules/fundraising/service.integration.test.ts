@@ -13,6 +13,7 @@ import type { GuestDonationCheckoutPort } from '../../../src/modules/fundraising
 import {
   createCampaign,
   createGuestDonation,
+  markDonationFailed,
   markDonationPaid,
   publicCampaign,
   saveFundraisingSettings,
@@ -127,6 +128,69 @@ describe('guest fundraising donations', () => {
         cancelUrl: `https://app.example.test/site/${organizationSlug}/fundraisers/${slug}?status=cancel`,
       }),
     );
+  });
+
+  it('audits a provider-declared checkout failure and keeps its terminal state on replay', async () => {
+    const { actor, campaignId, now } = await publishedCampaign();
+    const checkout = checkoutPort();
+    const donation = await createGuestDonation(
+      database,
+      checkout.createSession,
+      {
+        orgId: actor.orgId,
+        campaignId,
+        donorName: 'Casey Donor',
+        donorEmail: 'casey@example.test',
+        amountCents: 2_500,
+        anonymous: true,
+        idempotencyKey: randomUUID(),
+        appUrl: 'https://app.example.test',
+      },
+      now,
+    );
+    const webhookContext: OrgContext = {
+      orgId: actor.orgId,
+      actor: { accountId: systemWorkerActorId },
+    };
+    const failure = {
+      donationId: donation.donationId,
+      checkoutSessionId: donation.checkoutSessionId,
+      reason: 'provider reported payment failure',
+    };
+
+    await expect(
+      markDonationFailed(database, webhookContext, failure, now),
+    ).resolves.toMatchObject({
+      donationId: donation.donationId,
+      status: 'failed',
+    });
+    await expect(
+      markDonationFailed(database, webhookContext, failure, now),
+    ).resolves.toMatchObject({
+      donationId: donation.donationId,
+      status: 'failed',
+    });
+
+    const factories = createTestFactories(database);
+    const persisted = await factories.scoped(actor, (trx) =>
+      trx
+        .selectFrom('donations')
+        .select('status')
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', donation.donationId)
+        .executeTakeFirstOrThrow(),
+    );
+    const auditEvents = await factories.scoped(actor, (trx) =>
+      trx
+        .selectFrom('audit_log')
+        .select('action')
+        .where('org_id', '=', actor.orgId)
+        .where('entity_id', '=', donation.donationId)
+        .where('action', '=', 'fundraising.donation_failed')
+        .execute(),
+    );
+    expect(persisted.status).toBe('failed');
+    expect(auditEvents).toHaveLength(1);
   });
 
   it('retries an unsent tax acknowledgment and updates the public campaign total', async () => {

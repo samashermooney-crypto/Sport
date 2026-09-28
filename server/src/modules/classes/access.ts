@@ -67,7 +67,7 @@ export async function requireClassManager(
  * sessions. The signed-in account must be linked to a person listed as an
  * instructor on the schedule that produced the session.
  */
-export async function requireSessionInstructor(
+async function requireSessionInstructor(
   database: Kysely<DB>,
   context: OrgContext,
   classSessionId: string,
