@@ -26,6 +26,7 @@ const profileId = '00000000-0000-4000-8000-000000000003';
 const programId = '00000000-0000-4000-8000-000000000004';
 const offeringId = '00000000-0000-4000-8000-000000000005';
 const installmentId = '00000000-0000-4000-8000-000000000006';
+const secondOfferingId = '00000000-0000-4000-8000-000000000008';
 
 const program = (status = 'draft') => ({
   id: programId,
@@ -39,7 +40,7 @@ const program = (status = 'draft') => ({
 function configureApi(
   templates: { id: string; name: string; active: boolean }[],
 ) {
-  let offeringCreated = false;
+  const createdOfferings: { id: string; name: string; version: number }[] = [];
   apiGetMock.mockImplementation((path) => {
     if (path === `/seasons/orgs/${orgId}`)
       return Promise.resolve([
@@ -74,21 +75,21 @@ function configureApi(
             is_default: true,
           },
         ],
-        offerings: offeringCreated
-          ? [{ id: offeringId, name: 'Player registration', version: 1 }]
-          : [],
+        offerings: createdOfferings,
       });
     throw new Error(`Unexpected GET ${path}`);
   });
-  apiPostMock.mockImplementation((path) => {
+  apiPostMock.mockImplementation((path, body) => {
     if (path === `/programs/orgs/${orgId}`) return Promise.resolve(program());
     if (path === `/offerings/orgs/${orgId}`) {
-      offeringCreated = true;
-      return Promise.resolve({
-        id: offeringId,
-        name: 'Player registration',
+      const request = body as { name: string };
+      const created = {
+        id: createdOfferings.length === 0 ? offeringId : secondOfferingId,
+        name: request.name,
         version: 1,
-      });
+      };
+      createdOfferings.push(created);
+      return Promise.resolve(created);
     }
     if (path === `/programs/orgs/${orgId}/${programId}/status`)
       return Promise.resolve(program('published'));
@@ -173,6 +174,63 @@ describe('ProgramConsole installment picker', () => {
     expect(offeringRequest?.[1]).toMatchObject({
       programId,
       pricing: { installmentTemplateIds: [installmentId] },
+    });
+  });
+
+  it('creates two offerings with their selected installment templates', async () => {
+    configureApi([
+      { id: installmentId, name: 'Three payments', active: true },
+      {
+        id: '00000000-0000-4000-8000-000000000009',
+        name: 'Five payments',
+        active: true,
+      },
+    ]);
+    const wizard = await openOfferingsStep();
+    fireEvent.change(within(wizard).getByLabelText('Offering 1 name'), {
+      target: { value: 'Player registration' },
+    });
+    const firstInstallmentPicker = within(wizard).getAllByRole('combobox')[0];
+    if (!firstInstallmentPicker)
+      throw new Error('First installment plan picker was not rendered');
+    fireEvent.change(firstInstallmentPicker, {
+      target: { value: installmentId },
+    });
+    fireEvent.click(
+      within(wizard).getByRole('button', { name: 'Add offering' }),
+    );
+    fireEvent.change(within(wizard).getByLabelText('Offering 2 name'), {
+      target: { value: 'Goalkeeper registration' },
+    });
+    const installmentPickers = within(wizard).getAllByRole('combobox');
+    const secondInstallmentPicker = installmentPickers[1];
+    if (!secondInstallmentPicker)
+      throw new Error('Second installment plan picker was not rendered');
+    fireEvent.change(secondInstallmentPicker, {
+      target: { value: '00000000-0000-4000-8000-000000000009' },
+    });
+    fireEvent.click(within(wizard).getByRole('button', { name: 'Continue' }));
+    fireEvent.click(within(wizard).getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create and publish' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status').textContent).toContain(
+        'Volleyball Club is published with 1 divisions and 2 offerings',
+      );
+    });
+    const offeringRequests = apiPostMock.mock.calls.filter(
+      ([path]) => path === `/offerings/orgs/${orgId}`,
+    );
+    expect(offeringRequests).toHaveLength(2);
+    expect(offeringRequests[0]?.[1]).toMatchObject({
+      name: 'Player registration',
+      pricing: { installmentTemplateIds: [installmentId] },
+    });
+    expect(offeringRequests[1]?.[1]).toMatchObject({
+      name: 'Goalkeeper registration',
+      pricing: {
+        installmentTemplateIds: ['00000000-0000-4000-8000-000000000009'],
+      },
     });
   });
 });

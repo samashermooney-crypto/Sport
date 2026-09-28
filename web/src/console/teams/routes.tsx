@@ -1,6 +1,6 @@
 import { orgWorkspaceSchema } from '@shared/schemas/orgs';
 import { useQuery } from '@tanstack/react-query';
-import { useParams } from 'react-router';
+import { useLocation, useParams } from 'react-router';
 
 import { apiGet } from '../../api/client';
 import { PageHeader } from '../../ui/primitives';
@@ -10,6 +10,7 @@ import { TeamConsole } from './TeamConsole';
 
 function TeamsRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
+  const location = useLocation();
   const workspace = useQuery({
     queryKey: ['orgs', orgId, 'workspace'],
     queryFn: () =>
@@ -34,7 +35,11 @@ function TeamsRoute(): React.JSX.Element {
       mobileTabs={[
         { label: 'Home', to: `/console/orgs/${orgId}` },
         { label: 'Programs', to: `/console/orgs/${orgId}/programs` },
-        { label: 'Teams', to: `/console/orgs/${orgId}/teams` },
+        {
+          label: 'Teams',
+          to: `/console/orgs/${orgId}/teams`,
+          current: location.pathname === `/console/orgs/${orgId}/teams`,
+        },
       ]}
     >
       <main className="console-home">
