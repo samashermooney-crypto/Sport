@@ -839,6 +839,13 @@
 - **Why:** Families are charged only for the agreed change in service, preserving the financial balance through a mid-cycle level move.
 - **Consequences / follow-ups:** Promotion pricing uses the shared proration algorithm and the household's tiered total; non-monthly registration fees remain invoiced normally.
 
+### DEC-115 — Scope family placement preferences to active registrations
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 6 team formation
+- **Context:** Families need to submit rec-league practice-location and mutual-friend preferences, while staff-only coach ratings and placement notes share the same backing record.
+- **Decision:** Family endpoints list and update only active league registrations linked to the signed-in guardian or athlete account. Friend requests must name another confirmed registrant in that program. Family responses never expose or overwrite staff notes or coach ratings; family endpoints do not collect free-text notes.
+- **Why:** This limits child-data exposure, prevents arbitrary person IDs from granting access, and keeps staff ratings intact when a family edits its own preferences.
+- **Consequences / follow-ups:** The team balancer consumes requests only when both athletes request one another. Staff preferences remain accessible through director-only routes.
 ### DEC-114 — Fail closed on incomplete route-security metadata
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 16 §1 security verification
