@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { orgToday } from '@shared/dates';
 import { gymnastics } from '@shared/sport/templates/gymnastics';
 import type { Kysely } from 'kysely';
 import pg from 'pg';
@@ -283,12 +284,13 @@ async function insertFixtures(): Promise<void> {
 }
 
 function thisMonthRange(): { start: string; end: string; today: string } {
-  const now = new Date();
-  const start = `${String(now.getUTCFullYear())}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 4, 0))
+  const today = orgToday('America/Chicago');
+  const [year, month] = today.split('-');
+  const start = `${today.slice(0, 7)}-01`;
+  const end = new Date(Date.UTC(Number(year), Number(month) + 3, 0))
     .toISOString()
     .slice(0, 10);
-  return { start, end, today: now.toISOString().slice(0, 10) };
+  return { start, end, today };
 }
 
 describe('academy classes integration', () => {

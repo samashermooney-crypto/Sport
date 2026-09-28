@@ -1,5 +1,5 @@
 import { newId } from '@shared/ids';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { createDatabase } from '../src/db/kysely';
@@ -91,7 +91,7 @@ it('filters people by active program registration and current team roster', asyn
       .execute();
     await trx
       .updateTable('roster_entries')
-      .set({ status: 'released', left_on: '2026-09-27' })
+      .set({ status: 'released', left_on: sql`joined_on` })
       .where('id', '=', rosterId)
       .execute();
   });
