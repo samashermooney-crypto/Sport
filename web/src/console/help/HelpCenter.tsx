@@ -200,8 +200,27 @@ function HelpArticleView({
           <Badge>{article.data.category}</Badge>
           <h1>{article.data.title}</h1>
           <div className="help-article-body">
-            {renderMarkdown(article.data.body, orgId)}
+            {renderMarkdown(
+              stripArticleTitleHeading(article.data.body, article.data.title),
+              orgId,
+            )}
           </div>
+        </Card>
+      ) : article.isError ? (
+        <Card>
+          <p role="alert">
+            {locale === 'es'
+              ? 'No se pudo cargar el artículo. Inténtelo de nuevo.'
+              : 'The article could not be loaded. Please try again.'}
+          </p>
+          <Button
+            secondary
+            onClick={() => {
+              void article.refetch();
+            }}
+          >
+            {locale === 'es' ? 'Reintentar' : 'Retry'}
+          </Button>
         </Card>
       ) : (
         <Card>
@@ -534,6 +553,12 @@ function renderMarkdown(body: string, orgId: string): React.ReactNode[] {
     );
   }
   return blocks;
+}
+
+function stripArticleTitleHeading(body: string, title: string): string {
+  const lines = body.split(/\r?\n/);
+  const heading = lines[0]?.match(/^#\s+(.+?)\s*$/)?.[1];
+  return heading === title ? lines.slice(1).join('\n').trimStart() : body;
 }
 
 export function AiHelpChat({

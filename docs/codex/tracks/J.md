@@ -42,3 +42,7 @@ Phase 13: org relationships + data-sharing agreements, member-club team entries 
 
 ## Blocked on
 No Phase 13 behavior is blocked. The lock-protected trunk merge gate remains pending because the full browser suite currently has environment failures at the occupied Mailpit port described above; the required Track J journeys pass in both browsers. Track C owns Console Home, which has no federation shortcut; that wiring request remains outside the paths owned by J and does not block the Phase 13 acceptance criteria. Cross-club contest/results, standings, and official-assignment service reuse remains a follow-up if Track G adds cross-organization hooks.
+
+## Requests from I
+
+- **Trunk verification (2026-09-27, `2c52eb47`):** `e2e/federation.spec.ts` passes 2/2 in Chromium desktop and WebKit mobile, and the class-family journey also passes 2/2, so federation routing/shell changes did not cause the reported academy failures. The earlier WebKit roster failure at `e2e/classes.spec.ts:267` was an inaccessible-name assertion against a mobile DataTable spanning cell: its visible `Enrollment type` label and `makeup` value were present, but the cell had no computed name. The assertion now checks the visible label and exact value; both browsers pass.

@@ -69,13 +69,9 @@ const LOAD_FAMILY_ACCOUNTS = 20_000;
 const LOAD_COACH_ACCOUNTS = 500;
 
 function loadUuid(seed: RawBuilder<unknown>): RawBuilder<string> {
-  const digest = sql`md5(${seed})`;
-  return sql<string>`(
-    substr(${digest}, 1, 8) || '-' ||
-    substr(${digest}, 9, 4) || '-7' ||
-    substr(${digest}, 14, 3) || '-8' ||
-    substr(${digest}, 18, 3) || '-' ||
-    substr(${digest}, 21, 12)
+  return sql<string>`overlay(
+    overlay(md5(${seed}) placing '7' from 13 for 1)
+    placing '8' from 17 for 1
   )::uuid`;
 }
 
@@ -2358,31 +2354,37 @@ export async function seedLoad(database: Kysely<DB>): Promise<void> {
       const attendanceId = loadUuid(
         sql`'load-attendance:' || ${orgId} || ':' || event_index::text || ':' || attendee_index::text`,
       );
-      const attendanceEventId = loadUuid(
-        sql`'load-event:' || ${orgId} || ':' || event_index::text`,
-      );
-      const attendancePersonId = loadUuid(
-        sql`'load-person:' || ${orgId} || ':' || person_index::text`,
-      );
       await sql`
-        WITH generated AS (
+        WITH event_map AS MATERIALIZED (
+          SELECT
+            n AS event_index,
+            ${loadUuid(sql`'load-event:' || ${orgId} || ':' || n::text`)} AS id
+          FROM generate_series(0, ${LOAD_ATTENDANCE_EVENTS_PER_ORG - 1}) AS events(n)
+        ), person_map AS MATERIALIZED (
+          SELECT
+            n AS person_index,
+            ${loadUuid(sql`'load-person:' || ${orgId} || ':' || n::text`)} AS id
+          FROM generate_series(0, ${org.peopleCount - 1}) AS people(n)
+        ), generated AS (
           SELECT
             events.event_index,
-            people.attendee_index,
-            ((people.attendee_index + events.event_index * ${LOAD_ATTENDANCE_PEOPLE_PER_EVENT}) % ${org.peopleCount})::int AS person_index
+            attendees.attendee_index,
+            ((attendees.attendee_index + events.event_index * ${LOAD_ATTENDANCE_PEOPLE_PER_EVENT}) % ${org.peopleCount})::int AS person_index
           FROM generate_series(0, ${LOAD_ATTENDANCE_EVENTS_PER_ORG - 1}) AS events(event_index)
-          CROSS JOIN generate_series(0, ${LOAD_ATTENDANCE_PEOPLE_PER_EVENT - 1}) AS people(attendee_index)
+          CROSS JOIN generate_series(0, ${LOAD_ATTENDANCE_PEOPLE_PER_EVENT - 1}) AS attendees(attendee_index)
         )
         INSERT INTO attendance (
           id, org_id, event_id, person_id, rsvp, status,
           checked_in_at, created_at, updated_at
         )
         SELECT
-          ${attendanceId}, ${orgId}, ${attendanceEventId}, ${attendancePersonId},
+          ${attendanceId}, ${orgId}, event_map.id, person_map.id,
           'yes', CASE WHEN attendee_index % 10 = 0 THEN 'late' ELSE 'present' END,
           '2027-03-01T15:05:00Z'::timestamptz + event_index * interval '7 days',
           ${SEED_TIME}, ${SEED_TIME}
         FROM generated
+        JOIN event_map USING (event_index)
+        JOIN person_map USING (person_index)
         ON CONFLICT (id) DO NOTHING
       `.execute(trx);
     });

@@ -65,8 +65,9 @@ Track B's catalog/preferences and Track C's provider-ID interface are on the mer
 - **OPS:** Confirm the 20,000-recipient campaign enqueue/status contract and durable completed-recipient count.
 - **J:** Owns Phase 13 federation; H does not merge `track/j-federation`.
 - **Phase 10 external work:** A still owns profile message-history links, verified-phone consent, `athleteChatEnabled`, and conversation synchronization; C owns chat attachment authorization; G owns schedule-change coalescing.
-
 Requests from K (2026-09-27; rechecked 2026-09-28):
 
 - Resolved in the post-repair full run: the team-finance fixture no longer fails on its direct `payment_allocations` update; keep production allocation history immutable.
-- Current K finding: `server/test/modules/sponsors/service.integration.test.ts:82` uses UTC-derived contract dates while `publicSponsorPlacements` evaluates the org-local day. At 19:19 CDT the org-local date was 2026-09-27 but the fixture's contract start was 2026-09-28, so the active sponsor was omitted. Build contract dates using `orgToday` for the organization's timezone and retain the placement assertion.
+- Resolved in `b1a8420f`: the sponsor placement fixture now uses `orgToday` for the org timezone and an org-local offset for `contractEnd`, preserving the placement assertion.
+
+- Track I trunk-gate note (2026-09-27): the sponsor placement integration fixture derived `contractStart` from UTC `toISOString()` while `publicSponsorPlacements` correctly compares against the organization-local date. The fixture now uses `orgToday()` for the owning organization timezone and a `Temporal.PlainDate` offset for `contractEnd`; no sponsor runtime behavior changed.

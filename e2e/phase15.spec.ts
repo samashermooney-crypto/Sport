@@ -609,3 +609,100 @@ test('staff previews, commits, and reverses team, roster, and credential imports
     await database.destroy();
   }
 });
+
+test('console and family help render localized articles without disabled AI calls', async ({
+  page,
+}, testInfo) => {
+  const database = createDatabase(
+    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+  );
+  let aiRequests = 0;
+  try {
+    const factories = createTestFactories(database);
+    const actor = await factories.actor();
+    const personId = await factories.person(actor, {
+      firstName: 'Portal',
+      lastName: 'Guardian',
+    });
+    await createWithOrg(database)(actor, async (trx) => {
+      await trx
+        .updateTable('role_assignments')
+        .set({ pending_mfa: false })
+        .where('org_id', '=', actor.orgId)
+        .where('account_id', '=', actor.accountId)
+        .execute();
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: newId(),
+          org_id: actor.orgId,
+          account_id: actor.accountId,
+          person_id: personId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute();
+    });
+    await signIn(page, testInfo, database, actor.accountId);
+    await page.route('**/api/v1/ai/**', async (route) => {
+      aiRequests += 1;
+      await route.continue();
+    });
+
+    await page.goto(`/console/orgs/${actor.orgId}/help`);
+    await expect(
+      page.getByRole('heading', { name: 'Help center', exact: true }),
+    ).toBeVisible();
+    await page.getByLabel('Language / Idioma').selectOption('es');
+    await expect(
+      page.getByRole('heading', { name: 'Centro de ayuda', exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole('button', {
+        name: 'Cambiar de LeagueApps a Athlentry',
+        exact: true,
+      })
+      .click();
+    await expect(
+      page.getByRole('heading', {
+        name: 'Cambiar de LeagueApps a Athlentry',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Esta guía explica el proceso de migración', {
+        exact: false,
+      }),
+    ).toBeVisible();
+
+    await page.goto(`/portal/orgs/${actor.orgId}/help`);
+    await expect(
+      page.getByRole('heading', { name: 'Help center', exact: true }),
+    ).toBeVisible();
+    await page.getByLabel('Language / Idioma').selectOption('es');
+    await expect(
+      page.getByRole('heading', { name: 'Centro de ayuda', exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole('button', { name: 'Usar el portal familiar', exact: true })
+      .click();
+    await expect(
+      page.getByRole('heading', {
+        name: 'Usar el portal familiar',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('El portal familiar muestra la información', {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Asistente de ayuda', exact: true }),
+    ).toHaveCount(0);
+    expect(aiRequests).toBe(0);
+    expect(await accessibilityViolations(page)).toEqual([]);
+  } finally {
+    await database.destroy();
+  }
+});

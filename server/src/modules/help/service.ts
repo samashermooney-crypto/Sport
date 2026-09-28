@@ -115,7 +115,15 @@ export function createHelpService(
       articles.find((item) => item.locale === wanted) ??
       articles.find((item) => item.locale === 'en');
     if (!article) return null;
-    return article;
+    return {
+      slug: article.slug,
+      locale: article.locale,
+      title: article.title,
+      summary: article.summary,
+      category: article.category,
+      audience: article.audience,
+      body: article.body,
+    };
   }
 
   function search(query: string, locale: string): HelpArticleSummary[] {

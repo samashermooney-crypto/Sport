@@ -564,4 +564,21 @@ describe('Phase 15 import transactions', () => {
     );
     expect(committed).toMatchObject({ created: 0 });
   });
+
+  it('does not expose an organization import batch to another organization', async () => {
+    const imports = createImportsService(database, null);
+    const batch = await imports.createBatch(staff.orgId, staff.accountId, {
+      kind: 'people',
+      fileName: 'members.csv',
+      bytes: csv('First name,Last name,Email\nNew,Player,new@example.test'),
+    });
+    const outsider = await factories.actor();
+
+    await expect(
+      imports.listBatches(staff.orgId, outsider.accountId),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+    await expect(
+      imports.getBatch(staff.orgId, outsider.accountId, batch.id),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+  });
 });

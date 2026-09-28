@@ -161,6 +161,28 @@ describe('help center', () => {
     expect(switchGuide?.title).toContain('LeagueApps');
     const article = help.getArticle('switch-from-leagueapps', 'es');
     expect(article?.body).toContain('Athlentry');
+    expect(article).toMatchObject({
+      slug: 'switch-from-leagueapps',
+      locale: 'es',
+      title: 'Cambiar de LeagueApps a Athlentry',
+      summary:
+        'Planifique una migración segura con los registros y las exportaciones disponibles para su organización.',
+      category: 'Cambiar a Athlentry',
+      audience: 'admin',
+    });
+    expect(typeof article?.body).toBe('string');
+    expect(Object.keys(article ?? {}).sort()).toEqual(
+      [
+        'audience',
+        'body',
+        'category',
+        'locale',
+        'slug',
+        'summary',
+        'title',
+      ].sort(),
+    );
+    expect(article).not.toHaveProperty('order');
     expect(help.getArticle('missing-article', 'en')).toBeNull();
   });
 
