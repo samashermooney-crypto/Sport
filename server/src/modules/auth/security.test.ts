@@ -148,16 +148,34 @@ describe('MFA enrollment and re-authentication', () => {
       ),
     ).toBe(true);
 
+    const passwordStepUp = await stepUpWithPassword(
+      dependencies,
+      active,
+      'large cedar forest bridge 14',
+    );
+    expect(passwordStepUp).not.toBeNull();
+    if (!passwordStepUp) throw new Error('Password step-up failed');
+    const originalAbsoluteExpiry = await database
+      .selectFrom('sessions')
+      .select('absolute_expires_at')
+      .where('id', '=', issued.id)
+      .executeTakeFirstOrThrow();
+    const rotatedAbsoluteExpiry = await database
+      .selectFrom('sessions')
+      .select('absolute_expires_at')
+      .where('id', '=', passwordStepUp.id)
+      .executeTakeFirstOrThrow();
+    expect(rotatedAbsoluteExpiry.absolute_expires_at).toEqual(
+      originalAbsoluteExpiry.absolute_expires_at,
+    );
     expect(
-      await stepUpWithPassword(
-        dependencies,
-        active,
-        'large cedar forest bridge 14',
-      ),
-    ).toBe(true);
+      await database
+        .transaction()
+        .execute((trx) => resolveSession(trx, issued.token, now)),
+    ).toBeNull();
     const stepped = await database
       .transaction()
-      .execute((trx) => resolveSession(trx, issued.token, now));
+      .execute((trx) => resolveSession(trx, passwordStepUp.token, now));
     if (!stepped) throw new Error('Session missing');
     expect(await regenerateRecoveryCodes(dependencies, stepped)).toHaveLength(
       10,
@@ -167,7 +185,14 @@ describe('MFA enrollment and re-authentication', () => {
       decodeBase32(enrollment.manualKey),
       Math.floor(now.getTime() / 30_000),
     );
-    expect(await stepUpWithTotp(dependencies, stepped, nextCode)).toBe(true);
-    expect(await stepUpWithTotp(dependencies, stepped, nextCode)).toBe(false);
+    const totpStepUp = await stepUpWithTotp(dependencies, stepped, nextCode);
+    expect(totpStepUp).not.toBeNull();
+    if (!totpStepUp) throw new Error('TOTP step-up failed');
+    expect(
+      await database
+        .transaction()
+        .execute((trx) => resolveSession(trx, passwordStepUp.token, now)),
+    ).toBeNull();
+    expect(await stepUpWithTotp(dependencies, stepped, nextCode)).toBeNull();
   });
 });

@@ -211,7 +211,7 @@ const authRoutes: OpenApiRoute[] = [
     path: `${authBase}/step-up`,
     summary: 'Reauthenticate',
     body: auth.stepUpBodySchema,
-    response: auth.authStatusResponseSchema,
+    response: auth.authStepUpResponseSchema,
   },
   {
     method: 'get',

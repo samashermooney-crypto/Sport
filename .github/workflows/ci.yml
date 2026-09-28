@@ -6,7 +6,8 @@ on:
   pull_request:
 
 jobs:
-  secret-scan:
+  gitleaks:
+    name: Secret scan (Gitleaks)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -17,7 +18,10 @@ jobs:
       - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITLEAKS_VERSION: 8.29.1
           GITLEAKS_ENABLE_COMMENTS: 'false'
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
 
   static:
     runs-on: ubuntu-latest
@@ -40,8 +44,8 @@ jobs:
             build) npm run build ;;
             size) npm run build && npm run size ;;
             knip) npm run knip ;;
-            openapi) npm run openapi && git diff --exit-code -- docs/api/openapi.json server/src/generated/api-route-metadata.ts ;;
-            registry) npm run registry && git diff --exit-code -- server/src/generated/registry.ts web/src/generated/registry.ts web/src/generated/nested-routes.ts shared/src/generated/errors.ts shared/src/generated/permissions.ts server/test/security/permission-matrix.json ;;
+            openapi) npm run openapi && git diff --exit-code -- docs/api/openapi.json ;;
+            registry) npm run registry && git diff --exit-code -- server/src/generated/registry.ts web/src/generated/registry.ts web/src/generated/nested-routes.ts shared/src/generated/errors.ts shared/src/generated/permissions.ts ;;
             audit) npm audit --omit=dev --audit-level=high ;;
           esac
 

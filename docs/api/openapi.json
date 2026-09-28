@@ -1291,7 +1291,13 @@
                 "schema": {
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "type": "object",
-                  "properties": { "status": { "type": "string" } },
+                  "properties": {
+                    "status": { "type": "string", "const": "elevated" },
+                    "token": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{43}$"
+                    }
+                  },
                   "required": ["status"],
                   "additionalProperties": false
                 }

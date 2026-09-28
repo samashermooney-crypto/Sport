@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
+import { Temporal } from '@js-temporal/polyfill';
 import { orgToday } from '@shared/dates';
 import { gymnastics } from '@shared/sport/templates/gymnastics';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -18,6 +19,7 @@ import {
 } from './access';
 import { PostgresClassAttendance } from './attendance';
 import { PostgresClassBookings } from './bookings';
+import { PostgresAcademyDashboard } from './dashboard';
 import { PostgresClassEnrollments } from './enrollments';
 import {
   AgeIneligibleError,
@@ -30,7 +32,11 @@ import { PostgresClassPromotions } from './promotions';
 import { PostgresClassSchedules } from './schedules';
 import { PostgresClassSessions } from './sessions';
 import { PostgresClassSkills } from './skills';
-import { PostgresTuitionSubscriptions, tuitionForOffering } from './tuition';
+import {
+  buildTuitionLines,
+  PostgresTuitionSubscriptions,
+  tuitionForOffering,
+} from './tuition';
 import { runTuitionBilling } from './tuition-job';
 
 const orgA = randomUUID();
@@ -52,6 +58,8 @@ const programA = randomUUID();
 const seasonB = randomUUID();
 const profileB = randomUUID();
 const programB = randomUUID();
+const organizationTimezone = 'America/Chicago';
+const weekdays = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] as const;
 
 const ownerContext: OrgContext = {
   orgId: orgA,
@@ -131,13 +139,14 @@ async function insertFixtures(): Promise<void> {
   try {
     await admin.query(
       `INSERT INTO organizations (id, slug, name, kind, timezone, status)
-       VALUES ($1, $2, 'Academy Test A', 'club', 'America/Chicago', 'active'),
-              ($3, $4, 'Academy Test B', 'club', 'America/Chicago', 'active')`,
+       VALUES ($1, $2, 'Academy Test A', 'club', $5, 'active'),
+              ($3, $4, 'Academy Test B', 'club', $5, 'active')`,
       [
         orgA,
         `academy-a-${orgA.slice(0, 8)}`,
         orgB,
         `academy-b-${orgB.slice(0, 8)}`,
+        organizationTimezone,
       ],
     );
     await admin.query(
@@ -283,14 +292,21 @@ async function insertFixtures(): Promise<void> {
   }
 }
 
-function thisMonthRange(): { start: string; end: string; today: string } {
-  const today = orgToday('America/Chicago');
-  const [year, month] = today.split('-');
-  const start = `${today.slice(0, 7)}-01`;
-  const end = new Date(Date.UTC(Number(year), Number(month) + 3, 0))
-    .toISOString()
-    .slice(0, 10);
-  return { start, end, today };
+function thisMonthRange(now: Temporal.Instant = Temporal.Now.instant()): {
+  start: string;
+  end: string;
+  today: string;
+} {
+  const today = orgToday(organizationTimezone, now);
+  const start = Temporal.PlainDate.from(today).with({ day: 1 });
+  const end = start.add({ months: 4 }).subtract({ days: 1 });
+  return { start: start.toString(), end: end.toString(), today };
+}
+
+function weekdayFor(date: string): (typeof weekdays)[number] {
+  const weekday = weekdays[Temporal.PlainDate.from(date).dayOfWeek - 1];
+  if (!weekday) throw new Error('Could not resolve fixture weekday');
+  return weekday;
 }
 
 describe('academy classes integration', () => {
@@ -298,6 +314,19 @@ describe('academy classes integration', () => {
   let scheduleId: string;
   let firstSessionId: string;
   let secondOfferingId: string;
+
+  it('uses the organization date when UTC has advanced to the next day', () => {
+    const utcMidnightBoundary = Temporal.Instant.from('2026-09-28T01:14:00Z');
+
+    expect(orgToday(organizationTimezone, utcMidnightBoundary)).toBe(
+      '2026-09-27',
+    );
+    expect(thisMonthRange(utcMidnightBoundary)).toEqual({
+      start: '2026-09-01',
+      end: '2026-12-31',
+      today: '2026-09-27',
+    });
+  });
 
   beforeAll(async () => {
     database = createDatabase(
@@ -409,6 +438,108 @@ describe('academy classes integration', () => {
       personId: instructorPersonA,
       name: 'Instructor Kim',
     });
+  });
+
+  it('warns when a scheduled class exceeds its instructor ratio', async () => {
+    const { offerings, schedules, sessions } = services(ownerContext);
+    const offering = await offerings.create({
+      ...offeringBody,
+      name: 'Ratio monitoring class',
+      billing: 'term',
+      priceCents: 0,
+      tuitionTiers: [],
+      siblingDiscountBps: [],
+      instructorRatio: 8,
+      trialAllowed: false,
+    });
+    const startsOn = Temporal.PlainDate.from(thisMonthRange().today).add({
+      days: 1,
+    });
+    const endsOn = startsOn.add({ days: 14 });
+    const schedule = await schedules.create(
+      offering.id,
+      {
+        recurrence: {
+          kind: 'weekly',
+          interval: 1,
+          byDay: [weekdayFor(startsOn.toString())],
+          startsOn: startsOn.toString(),
+          endsOn: endsOn.toString(),
+          exceptions: [],
+          additions: [],
+        },
+        startTime: '16:00',
+        durationMinutes: 60,
+        timezone: organizationTimezone,
+        spaceId: null,
+        locationText: 'Main gym',
+        termStart: startsOn.toString(),
+        termEnd: endsOn.toString(),
+      },
+      [],
+    );
+    await schedules.assignInstructor(schedule.id, {
+      personId: instructorPersonA,
+    });
+
+    const additionalPeople = Array.from({ length: 5 }, () => randomUUID());
+    const ratioPeople = [
+      childA1,
+      childA2,
+      childA3,
+      childA4,
+      ...additionalPeople,
+    ];
+    await withOrg()(ownerContext, async (trx) => {
+      await trx
+        .insertInto('people')
+        .values(
+          additionalPeople.map((id, index) => ({
+            id,
+            org_id: orgA,
+            first_name: `Ratio${String(index)}`,
+            last_name: 'Gymnast',
+            date_of_birth: '2012-01-01',
+          })),
+        )
+        .execute();
+      await trx
+        .insertInto('class_enrollments')
+        .values(
+          ratioPeople.map((personId) => ({
+            id: randomUUID(),
+            org_id: orgA,
+            class_offering_id: offering.id,
+            person_id: personId,
+            household_id: householdA,
+            account_id: ownerA,
+            status: 'active' as const,
+            starts_on: startsOn.toString(),
+            classes_per_week: 1,
+          })),
+        )
+        .execute();
+    });
+
+    const upcoming = await sessions.list({
+      scheduleId: schedule.id,
+      from: startsOn.toString(),
+      to: endsOn.toString(),
+      limit: 100,
+    });
+    const session = must(upcoming[0]);
+    const dashboard = await new PostgresAcademyDashboard(
+      database,
+      ownerContext,
+    ).get();
+    expect(dashboard.ratioWarnings).toContainEqual(
+      expect.objectContaining({
+        classSessionId: session.id,
+        attendees: 9,
+        instructors: 1,
+        requiredInstructors: 2,
+      }),
+    );
   });
 
   it('enrolls a child with a tuition subscription and prorated invoice', async () => {
@@ -739,6 +870,16 @@ describe('academy classes integration', () => {
       recommended.version,
     );
     expect(approved.status).toBe('approved');
+    const guardianNotification = await withOrg()(guardianContext, (trx) =>
+      trx
+        .selectFrom('notifications')
+        .select('id')
+        .where('account_id', '=', guardianA)
+        .where('type', '=', 'registration.offered')
+        .where(sql<boolean>`payload ->> 'resourceId' = ${recommended.id}`)
+        .executeTakeFirst(),
+    );
+    expect(guardianNotification).toBeTruthy();
     const confirmed = await promotions.confirm(
       approved.id,
       { expectedVersion: approved.version },
@@ -754,9 +895,19 @@ describe('academy classes integration', () => {
   });
 
   it('defers a subscribed level change to the next bill without double charging', async () => {
-    const { enrollments, promotions, skills } = services(guardianContext);
+    const { enrollments, promotions, skills, offerings } =
+      services(guardianContext);
     const levels = await skills.listLevels(profileA);
     const nextLevel = must(levels[1]);
+    const targetOffering = await offerings.get(secondOfferingId);
+    await offerings.update(secondOfferingId, {
+      tuitionTiers: [
+        { maxClassesPerWeek: 1, amountCents: 15_000 },
+        { maxClassesPerWeek: 2, amountCents: 28_000 },
+        { maxClassesPerWeek: null, amountCents: 39_000 },
+      ],
+      expectedVersion: targetOffering.version,
+    });
     const started = await enrollments.enroll(
       {
         classOfferingId: offeringId,
@@ -810,6 +961,45 @@ describe('academy classes integration', () => {
         await enrollments.list({ personId: childA4, limit: 20 })
       ).items.find((item) => item.classOfferingId === secondOfferingId);
       expect(moved?.status).toBe('active');
+
+      const subscriptionId = must(started.enrollment?.billingSubscriptionId);
+      const nextMonth = Temporal.PlainDate.from(thisMonthRange().today)
+        .with({ day: 1 })
+        .add({ months: 1 });
+      const nextBill = await withOrg()(guardianContext, async (trx) => {
+        const active = await trx
+          .selectFrom('class_enrollments')
+          .select(['classes_per_week', 'status'])
+          .where('org_id', '=', orgA)
+          .where('class_offering_id', '=', secondOfferingId)
+          .where('billing_subscription_id', '=', subscriptionId)
+          .where('status', 'in', ['active', 'paused'])
+          .execute();
+        const { lines } = await buildTuitionLines(
+          trx,
+          guardianContext,
+          subscriptionId,
+          nextMonth.toString(),
+          nextMonth.add({ months: 1 }).subtract({ days: 1 }).toString(),
+        );
+        return {
+          classesPerWeek: active
+            .filter((item) => item.status === 'active')
+            .reduce((total, item) => total + item.classes_per_week, 0),
+          tuitionCents: lines.find((line) =>
+            line.description.startsWith(
+              'Intermediate Gymnastics — monthly tuition',
+            ),
+          )?.amountCents,
+        };
+      });
+      const expectedTierCents =
+        nextBill.classesPerWeek <= 1
+          ? 15_000
+          : nextBill.classesPerWeek === 2
+            ? 28_000
+            : 39_000;
+      expect(nextBill.tuitionCents).toBe(expectedTierCents);
     } finally {
       await admin.end();
     }

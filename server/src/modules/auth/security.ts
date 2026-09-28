@@ -12,8 +12,8 @@ import { AuthDomainError } from './domain-error';
 import { verifyAndConsumeTotp } from './mfa';
 import { verifyPassword } from './password';
 import { generateRecoveryCodes } from './recovery';
-import { hasStepUp, revokeSessions, stepUpSession } from './sessions';
-import type { ActiveSession } from './sessions';
+import { hasStepUp, revokeSessions, rotateSessionForStepUp } from './sessions';
+import type { ActiveSession, IssuedSession, SessionOptions } from './sessions';
 import { newTotpSecret } from './totp';
 
 export interface SecurityDependencies {
@@ -233,7 +233,9 @@ export async function stepUpWithPassword(
   dependencies: SecurityDependencies,
   session: ActiveSession,
   password: string,
-): Promise<boolean> {
+  metadata: Pick<SessionOptions, 'ip' | 'userAgent'> = {},
+  now = dependencies.clock(),
+): Promise<IssuedSession | null> {
   const account = await dependencies.database
     .selectFrom('accounts')
     .select('password_hash')
@@ -244,20 +246,19 @@ export async function stepUpWithPassword(
     !account?.password_hash ||
     !(await verifyPassword(account.password_hash, password))
   )
-    return false;
+    return null;
   return dependencies.database
     .transaction()
-    .execute((trx) =>
-      stepUpSession(trx, session.id, session.accountId, dependencies.clock()),
-    );
+    .execute((trx) => rotateSessionForStepUp(trx, session, now, metadata));
 }
 
 export async function stepUpWithTotp(
   dependencies: SecurityDependencies,
   session: ActiveSession,
   code: string,
-): Promise<boolean> {
-  const now = dependencies.clock();
+  metadata: Pick<SessionOptions, 'ip' | 'userAgent'> = {},
+  now = dependencies.clock(),
+): Promise<IssuedSession | null> {
   return dependencies.database.transaction().execute(async (trx) => {
     if (
       !(await verifyAndConsumeTotp(
@@ -268,8 +269,8 @@ export async function stepUpWithTotp(
         dependencies.encryption,
       ))
     ) {
-      return false;
+      return null;
     }
-    return stepUpSession(trx, session.id, session.accountId, now);
+    return rotateSessionForStepUp(trx, session, now, metadata, now);
   });
 }
