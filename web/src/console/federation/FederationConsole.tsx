@@ -1,3 +1,4 @@
+import { Temporal } from '@js-temporal/polyfill';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { z } from 'zod';
@@ -88,6 +89,7 @@ type Space = {
   spaceId: string;
   spaceName: string;
   facilityName: string | null;
+  timezone: string;
 };
 type Referee = {
   profileId: string;
@@ -267,6 +269,12 @@ function dateTime(value: string): string {
     timeStyle: 'short',
   });
 }
+function localInstant(value: string, timezone: string): string {
+  return Temporal.PlainDateTime.from(value)
+    .toZonedDateTime(timezone, { disambiguation: 'compatible' })
+    .toInstant()
+    .toString();
+}
 function uuidKey(): string {
   return globalThis.crypto.randomUUID();
 }
@@ -391,6 +399,7 @@ export function FederationConsole(): React.JSX.Element {
     [activeRelationships, orgId],
   );
   const entryPrograms = useMemo(() => data.programs, [data.programs]);
+  const selectedSpace = data.spaces.find((space) => space.spaceId === spaceId);
 
   const reload = useCallback(async () => {
     if (!orgId) return;
@@ -1564,6 +1573,11 @@ export function FederationConsole(): React.JSX.Element {
                       ]}
                     />
                   </Field>
+                  <p className="federation-form__hint">
+                    {selectedSpace
+                      ? `Availability times use ${selectedSpace.timezone}.`
+                      : 'Choose a space to see its timezone.'}
+                  </p>
                   <Field label="Available from">
                     <Input type="datetime-local" id="federation-window-start" />
                   </Field>
@@ -1590,12 +1604,33 @@ export function FederationConsole(): React.JSX.Element {
                       if (
                         !startsAt ||
                         !endsAt ||
-                        !spaceId ||
+                        !selectedSpace ||
                         !sharingRelationshipId
                       ) {
                         setError(
                           'Choose a league, space and complete availability window.',
                         );
+                        return;
+                      }
+                      let startsAtInstant: string;
+                      let endsAtInstant: string;
+                      try {
+                        startsAtInstant = localInstant(
+                          startsAt,
+                          selectedSpace.timezone,
+                        );
+                        endsAtInstant = localInstant(
+                          endsAt,
+                          selectedSpace.timezone,
+                        );
+                      } catch {
+                        setError('Enter a valid availability window.');
+                        return;
+                      }
+                      if (
+                        Date.parse(startsAtInstant) >= Date.parse(endsAtInstant)
+                      ) {
+                        setError('The availability end must follow its start.');
                         return;
                       }
                       void mutate('Availability offered to the league.', () =>
@@ -1604,8 +1639,8 @@ export function FederationConsole(): React.JSX.Element {
                           spaceId,
                           windows: [
                             {
-                              startsAt: new Date(startsAt).toISOString(),
-                              endsAt: new Date(endsAt).toISOString(),
+                              startsAt: startsAtInstant,
+                              endsAt: endsAtInstant,
                             },
                           ],
                           notes:

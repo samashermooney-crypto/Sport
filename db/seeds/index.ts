@@ -2,7 +2,10 @@ import { createHash } from 'node:crypto';
 
 import pg from 'pg';
 
+import { createDatabase } from '../../server/src/db/kysely';
 import { migrate } from '../../server/src/db/migrate';
+import { seedFederationDemo } from '../../server/src/modules/federation/demo';
+import { closeFederationAdminDatabase } from '../../server/src/modules/federation/privileged';
 import { builtInSportTemplates } from '../../shared/src/sport/templates';
 
 const profileIndex = process.argv.indexOf('--profile');
@@ -14,6 +17,7 @@ if (profile !== 'e2e' && profile !== 'demo') {
   const url =
     process.env.DATABASE_ADMIN_URL ??
     `postgres://athlentry_admin@127.0.0.1:5432/athlentry_${profile === 'e2e' ? 'e2e' : 'dev'}`;
+  process.env.DATABASE_ADMIN_URL ??= url;
   (async () => {
     await migrate(url);
     const client = new pg.Client({ connectionString: url });
@@ -40,6 +44,20 @@ if (profile !== 'e2e' && profile !== 'demo') {
       throw error;
     } finally {
       await client.end();
+    }
+    if (profile === 'demo') {
+      const database = createDatabase(url);
+      try {
+        const seeded = await seedFederationDemo(database);
+        process.stdout.write(
+          seeded
+            ? `Seeded federation demo ${seeded.associationOrgId}.\n`
+            : 'Federation demo already exists.\n',
+        );
+      } finally {
+        await database.destroy();
+        await closeFederationAdminDatabase();
+      }
     }
   })().catch((error: unknown) => {
     process.stderr.write(

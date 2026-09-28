@@ -35,16 +35,19 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Reviewed and tested WIP commit `34ceaea`: contests/standings integration suites pass (4 files / 5 tests); all 50 seeded contest formats validate and finalize. The regression verifies configured templates persist program and division snapshots, while unconfigured sports finalize without snapshots and return a 409 for standings reads. Typecheck and full lint pass.
 - [x] Schedule export/calendar and public standings component tests: 3 files / 8 tests passed.
 - [x] Shared algorithm tests pass: 14/14; focused G generator/bracket acceptance tests pass: 2/2. The 48-team case is below the 60-second acceptance bound.
+- [x] Cached per-run timezone and epoch conversions in schedule candidate checks; the 48-team/168-game generator acceptance now takes 0.53 seconds locally with its 60-second assertion unchanged, and all 7 shared schedule-generator tests pass.
 - [x] `npm run typecheck` and `npm run lint` pass after syncing `rebuild/trunk` through `af353fc` (merge `70b7c2d`).
 - [x] Updated scheduling access integration passes, including official closure recipients and emergency batch timing.
 - [x] Program statistic settings, leaderboard aggregation, enabled/public filters, private-stat staff access, and optimistic-concurrency integration regression pass against the isolated Postgres stack.
 - [x] Season-award listing query regression passes against isolated Postgres after qualifying joined table columns.
-- [x] Statistics configuration, contest creation, finalized score with persisted per-team stats, facility closure preview and postponement, and public leaderboard Playwright journey passes on Chromium desktop and WebKit mobile with axe and no schedule-page alerts.
+- [x] Statistics configuration, contest creation, finalized score with persisted per-team stats, facility closure preview and postponement, public leaderboard, and public standings snapshot Playwright journey passes on Chromium desktop and WebKit mobile with axe and no schedule-page alerts.
+- [x] Latest standings table follow-up adds a keyboard-focusable named scroll region; focused schedule-stats journey passes Chromium desktop and WebKit mobile, and targeted ESLint plus `npm run typecheck` pass.
 - [x] Family guardian RSVP browser journey passes on Chromium desktop and WebKit mobile with axe; it caught and fixed the portal's missing same-origin request marker.
 - [x] Offline coach game-day journey passes on Chromium desktop and WebKit mobile with axe: attendance and score queue offline, attendance syncs after reconnect, and the newer server score is preserved while the score conflict remains visible.
 - [x] Chromium + WebKit mobile baseline E2E: 38 passed, 4 failed, 4 skipped; failures were unrelated sign-in, ownership-transfer and people journeys, and no G schedule journey ran.
 - [x] Lock-protected merge gate against `rebuild/trunk` through `2ac58d6`: typecheck and full lint passed; `heavy.sh npm test` passed 803 tests (1 skipped); full Chromium desktop Playwright passed 28 tests (4 skipped).
 - [x] Lock-protected merge gate on 2026-09-27 after syncing OPS trunk through `f091afc`: typecheck and full lint passed; `heavy.sh npm test` passed 819 tests (1 skipped); full Chromium desktop Playwright passed 30 tests (4 skipped).
+- [ ] Latest full-suite attempt after the standings follow-up: 818 passed, 1 skipped, and `server/src/modules/officials/service.integration.test.ts` timed out at 5 seconds; its focused retry passed (1/1). The merge gate did not pass, so the standings follow-up remains unmerged.
 - [ ] Most Phase 8/9 schedule journeys remain outstanding; three G-owned browser journeys currently cover statistics/results/facility closure, family RSVP, and offline game-day sync on Chromium and WebKit mobile. The console and portal routes mount via the generated nested-route registry.
 - [ ] Full gates remain blocked by missing Phase 8/9 browser journeys, discipline result/game-served integration, notification email fan-out, volunteer closure recipients, the facility image serving contract, and baseline WebKit failures. Do not mark ready until browser journeys and all acceptance criteria pass.
 
@@ -71,3 +74,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - G decisions are `DEC-082–096` and `DEC-100–108` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
 - Latest integration: G passed the lock-protected merge gate and was merged into `rebuild/trunk` on 2026-09-27; local only, not pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.
+
+## Requests from J
+
+- CI run `36347047357` (`e2e/schedule-stats.spec.ts:269`) formats the closure form values in `America/Chicago`, but `ScheduleConsole` initializes `timezone` from the browser at line 264 and converts every closure scope with that timezone at lines 2210–2214; Ubuntu's UTC browser therefore sends the Chicago facility closure five hours early, so preview returns 0 affected events. Resolve the closure timezone from the selected facility/space (and org timezone for org scope) before `localInstant` conversion; keep the Linux UTC regression.

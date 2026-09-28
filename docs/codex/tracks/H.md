@@ -1,6 +1,6 @@
 # Track H — communications and chat
 
-Requests from OPS: Resolve the current Knip findings in Phase 11 ownership: wire or remove `web/src/site/sponsors/PublicSponsors.tsx` and wire or remove the 18 unused fundraising, sponsor, store, team-finance and volunteer exports; keep the generated route registry and API surface truthful (2026-09-27).
+Requests from OPS: Confirm the campaign enqueue/status API contract for a 20,000-recipient fan-out using only preview/fake delivery adapters, including a durable completed-recipient count for the k6 scenario (2026-09-27).
 
 Status: Phase 10 H-owned work is ready for integration; Phase 11 is complete and green on trunk; Phase 13 belongs to Track J
 Branch: `track/h-comms` (local only; no push)
@@ -55,11 +55,13 @@ Track B's catalog/preferences and Track C's provider-ID interface are on the mer
 
 ### Open requests
 
+- **OPS:** Confirm the campaign enqueue/status API contract for 20,000-recipient fan-out using preview/fake adapters and expose a durable completed-recipient count for k6.
 - **E/C:** Production guest-donation checkout and signed payment-completion/failure dispatch for `server/src/modules/fundraising/checkout.ts`; dev/test preview checkout is implemented. Confirm registration add-on inventory reservation ownership with E.
 - **B:** Register Phase 11 notification catalog IDs/templates: `fundraising.donation_receipt`, `fundraising.campaign_update`, `sponsor.renewal_reminder`, `store.order_update`, `store.low_stock`, `volunteer.shift_reminder`, `volunteer.requirement_behind`, `team.fee_assessed`, and `team.reimbursement_decided`; provide volunteer administration picklists. H services currently skip catalog-gated notifications until those IDs exist.
 - **C/D:** Authorize safe public sponsor-logo delivery and confirm public sponsor/store page wiring through the website routes.
 - **A:** Phase 10 profile/history links, verified-phone consent, `athleteChatEnabled`, and conversation synchronization.
 - **C:** Phase 10 same-organization conversation-member attachment authorization.
 - **G:** Phase 10 schedule-change coalescing.
+- **OPS:** Confirm the 20,000-recipient campaign enqueue/status contract and durable completed-recipient count.
 - **J:** Owns Phase 13 federation; H does not merge `track/j-federation`.
 - **Phase 10 external work:** A still owns profile message-history links, verified-phone consent, `athleteChatEnabled`, and conversation synchronization; C owns chat attachment authorization; G owns schedule-change coalescing.

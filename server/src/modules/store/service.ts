@@ -16,15 +16,15 @@ import { createNotification } from '../notifications/service';
 
 import { shippingAddressSchema } from './schema';
 
-export class StoreConflictError extends Error {
+class StoreConflictError extends Error {
   readonly status = 409;
   readonly code = 'CONFLICT';
 }
-export class StoreNotFoundError extends Error {
+class StoreNotFoundError extends Error {
   readonly status = 404;
   readonly code = 'NOT_FOUND';
 }
-export class StoreAccessError extends Error {
+class StoreAccessError extends Error {
   readonly status = 403;
   readonly code = 'FORBIDDEN';
 }

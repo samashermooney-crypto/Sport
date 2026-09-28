@@ -17,10 +17,6 @@ Ran `perf/explain-current.mjs` against the isolated `athlentry_ops` app database
 
 The full acceptance review remains pending the Track A `load` seed (100 organizations, 150,000 people, 400,000 registrations and 2,000,000 attendance rows). No index request has been filed because the isolated database lacks matching rows and tenant cardinality.
 
-## Latest-schema rerun — 2026-09-27
-
-Reran `perf/explain-current.mjs` against `athlentry_ops` on port 6832 after migrations through `8010` (156 migration records). The tenant directory was empty and all eight query shapes reported `sampleFound: false`; PostgreSQL selected the same relevant indexes, with zero target rows and no buffer reads. This refreshes schema coverage only. It provides no representative selectivity evidence, so no index request is justified until Track A's load profile is available.
-
 Once the profile is available:
 
 1. Run the four preview load scenarios and collect `pg_stat_statements` deltas for that interval, resetting only in the disposable load database.
