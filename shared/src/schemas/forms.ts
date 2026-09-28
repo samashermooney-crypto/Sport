@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const formScopeSchema = z.enum([
+const formScopeSchema = z.enum([
   'person_profile',
   'registration',
   'team_entry',
@@ -32,7 +32,7 @@ const visibilityConditionSchema = z.strictObject({
   equals: z.union([z.string().max(500), z.number(), z.boolean()]),
 });
 
-export const formFieldSchema = z.strictObject({
+const formFieldSchema = z.strictObject({
   key: z.string().regex(/^[a-z][a-zA-Z0-9_]{0,63}$/),
   type: answerFieldTypeSchema,
   label: z.strictObject({

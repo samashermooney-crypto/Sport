@@ -58,7 +58,7 @@ export const peopleComplianceRoleSchema = z.enum([
   'evaluator',
 ]);
 
-export const personRoleEligibilitySchema = z.strictObject({
+const personRoleEligibilitySchema = z.strictObject({
   eligible: z.boolean(),
   missing: z.array(
     z.strictObject({
@@ -76,7 +76,7 @@ export const personRoleEligibilitySchema = z.strictObject({
   overridden: z.boolean(),
 });
 
-export const peopleListItemSchema = personResponseSchema.extend({
+const peopleListItemSchema = personResponseSchema.extend({
   roleEligibility: personRoleEligibilitySchema.optional(),
 });
 
@@ -94,7 +94,7 @@ export const personPhotoUpdateSchema = z.strictObject({
   fileId: z.uuid().nullable(),
 });
 
-export const familyPersonDocumentSchema = z.strictObject({
+const familyPersonDocumentSchema = z.strictObject({
   id: z.uuid(),
   mime: z.string(),
   bytes: z.number().int().positive(),
