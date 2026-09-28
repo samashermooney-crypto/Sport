@@ -62,11 +62,37 @@ const LAST = [
 ];
 const SEED_TIME = new Date('2025-01-01T12:00:00.000Z');
 const LOAD_ORG_COUNT = 100;
-const LOAD_REGISTRATIONS_PER_PROGRAM = 1000;
+const LOAD_REGISTRATION_BASE_PER_PROGRAM = 1000;
+const LOAD_STANDARD_PROGRAM_COUNT = 4;
+const LOAD_TOTAL_REGISTRATIONS = 400_000;
 const LOAD_ATTENDANCE_EVENTS_PER_ORG = 20;
 const LOAD_ATTENDANCE_PEOPLE_PER_EVENT = 1000;
 const LOAD_FAMILY_ACCOUNTS = 20_000;
 const LOAD_COACH_ACCOUNTS = 500;
+
+export function loadRegistrationCountForProgram(
+  orgIndex: number,
+  programIndex: number,
+): number {
+  if (
+    !Number.isInteger(orgIndex) ||
+    orgIndex < 0 ||
+    orgIndex >= LOAD_ORG_COUNT ||
+    !Number.isInteger(programIndex) ||
+    programIndex < 0 ||
+    programIndex >= LOAD_STANDARD_PROGRAM_COUNT
+  )
+    throw new RangeError('Load registration program index is out of range');
+
+  if (orgIndex === 0) return LOAD_FAMILY_ACCOUNTS / LOAD_STANDARD_PROGRAM_COUNT;
+
+  const otherProgramSlots = (LOAD_ORG_COUNT - 1) * LOAD_STANDARD_PROGRAM_COUNT;
+  const otherRegistrationRows = LOAD_TOTAL_REGISTRATIONS - LOAD_FAMILY_ACCOUNTS;
+  const rowsPerSlot = Math.floor(otherRegistrationRows / otherProgramSlots);
+  const extraRows = otherRegistrationRows % otherProgramSlots;
+  const slotIndex = (orgIndex - 1) * LOAD_STANDARD_PROGRAM_COUNT + programIndex;
+  return rowsPerSlot + (slotIndex < extraRows ? 1 : 0);
+}
 
 function loadUuid(seed: RawBuilder<unknown>): RawBuilder<string> {
   return sql<string>`overlay(
@@ -1838,6 +1864,24 @@ export async function seedLoad(database: Kysely<DB>): Promise<void> {
     ON CONFLICT (id) DO NOTHING
   `.execute(database);
 
+  const adultAthleteAccountId = loadUuid(
+    sql`'load-adult-athlete-account:' || n::text`,
+  );
+  await sql`
+    INSERT INTO accounts (
+      id, email, password_hash, first_name, last_name, date_of_birth,
+      email_verified_at, created_at, updated_at
+    )
+    SELECT
+      ${adultAthleteAccountId},
+      'load.adult.' || lpad((n / 10)::text, 4, '0') || '@load.example.test',
+      ${loadPasswordHash}, 'Load', 'Adult Athlete ' || n::text, '2008-01-01',
+      ${SEED_TIME}, ${SEED_TIME}, ${SEED_TIME}
+    FROM generate_series(0, ${LOAD_FAMILY_ACCOUNTS - 1}) AS generated(n)
+    WHERE n % 10 = 0 AND n < 19500
+    ON CONFLICT (id) DO NOTHING
+  `.execute(database);
+
   const withOrg = createWithOrg(database);
   for (const org of loadOrgs) {
     const orgId = org.id;
@@ -2140,6 +2184,28 @@ export async function seedLoad(database: Kysely<DB>): Promise<void> {
           ON CONFLICT (id) DO NOTHING
         `.execute(trx);
 
+        const adultAthleteLinkId = loadUuid(
+          sql`'load-adult-athlete-link:' || ${orgId} || ':' || n::text`,
+        );
+        const adultAthletePersonId = loadUuid(
+          sql`'load-person:' || ${orgId} || ':' || n::text`,
+        );
+        const adultAthleteAccountForPersonId = loadUuid(
+          sql`'load-adult-athlete-account:' || n::text`,
+        );
+        await sql`
+          INSERT INTO person_account_links (
+            id, org_id, person_id, account_id, relationship,
+            verified_at, created_at, updated_at
+          )
+          SELECT
+            ${adultAthleteLinkId}, ${orgId}, ${adultAthletePersonId},
+            ${adultAthleteAccountForPersonId}, 'self', ${SEED_TIME}, ${SEED_TIME}, ${SEED_TIME}
+          FROM generate_series(0, ${LOAD_FAMILY_ACCOUNTS - 1}) AS generated(n)
+          WHERE n % 10 = 0 AND n < 19500
+          ON CONFLICT (id) DO NOTHING
+        `.execute(trx);
+
         const preferenceId = loadUuid(
           sql`'load-email-opt-in:' || ${orgId} || ':' || n::text`,
         );
@@ -2152,6 +2218,38 @@ export async function seedLoad(database: Kysely<DB>): Promise<void> {
             ${preferenceId}, ${orgId}, ${guardianAccountId},
             'marketing', 'email', true, ${SEED_TIME}, ${SEED_TIME}
           FROM generate_series(0, ${LOAD_FAMILY_ACCOUNTS - 1}) AS generated(n)
+          ON CONFLICT (id) DO NOTHING
+        `.execute(trx);
+
+        const adultAthletePreferenceId = loadUuid(
+          sql`'load-adult-email-opt-in:' || ${orgId} || ':' || n::text`,
+        );
+        await sql`
+          INSERT INTO communication_preferences (
+            id, org_id, account_id, category, channel, enabled,
+            created_at, updated_at
+          )
+          SELECT
+            ${adultAthletePreferenceId}, ${orgId}, ${adultAthleteAccountId},
+            'marketing', 'email', true, ${SEED_TIME}, ${SEED_TIME}
+          FROM generate_series(0, ${LOAD_FAMILY_ACCOUNTS - 1}) AS generated(n)
+          WHERE n % 10 = 0 AND n < 19500
+          ON CONFLICT (id) DO NOTHING
+        `.execute(trx);
+
+        const adultCoachPreferenceId = loadUuid(
+          sql`'load-adult-coach-email-opt-in:' || ${orgId} || ':' || n::text`,
+        );
+        await sql`
+          INSERT INTO communication_preferences (
+            id, org_id, account_id, category, channel, enabled,
+            created_at, updated_at
+          )
+          SELECT
+            ${adultCoachPreferenceId}, ${orgId}, ${loadCoachAccountId},
+            'marketing', 'email', true, ${SEED_TIME}, ${SEED_TIME}
+          FROM generate_series(0, ${LOAD_COACH_ACCOUNTS - 1}) AS generated(n)
+          WHERE n % 10 = 0
           ON CONFLICT (id) DO NOTHING
         `.execute(trx);
 
@@ -2200,10 +2298,26 @@ export async function seedLoad(database: Kysely<DB>): Promise<void> {
       }
 
       const programMapValues = sql.join(
-        standardOfferings.map(
-          (offering, index) =>
-            sql`(${index}::int, ${programs[index]?.id ?? ''}::uuid, ${divisions[index]?.id ?? ''}::uuid, ${offering.id}::uuid)`,
-        ),
+        standardOfferings.map((offering, index) => {
+          const registrationCount = loadRegistrationCountForProgram(
+            org.index,
+            index,
+          );
+          const extraPersonOffset =
+            registrationCount > LOAD_REGISTRATION_BASE_PER_PROGRAM
+              ? LOAD_REGISTRATION_BASE_PER_PROGRAM *
+                  LOAD_STANDARD_PROGRAM_COUNT +
+                index * (registrationCount - LOAD_REGISTRATION_BASE_PER_PROGRAM)
+              : 0;
+          return sql`(
+              ${index}::int,
+              ${programs[index]?.id ?? ''}::uuid,
+              ${divisions[index]?.id ?? ''}::uuid,
+              ${offering.id}::uuid,
+              ${registrationCount}::int,
+              ${extraPersonOffset}::int
+            )`;
+        }),
         sql`, `,
       );
       const teamMapValues =
@@ -2219,10 +2333,17 @@ export async function seedLoad(database: Kysely<DB>): Promise<void> {
         ? sql`LEFT JOIN team_map ON team_map.team_index = source.person_index % 10 AND source.program_index = 0`
         : sql`LEFT JOIN team_map ON false`;
       const teamValue = isRegistrationOrg
-        ? sql`team_map.team_season_id`
+        ? sql`CASE
+            WHEN source.n < ${LOAD_REGISTRATION_BASE_PER_PROGRAM}
+              THEN team_map.team_season_id
+            ELSE NULL::uuid
+          END`
         : sql`NULL::uuid`;
       await sql`
-        WITH program_map(program_index, program_id, division_id, offering_id) AS (
+        WITH program_map(
+          program_index, program_id, division_id, offering_id,
+          registration_count, extra_person_offset
+        ) AS (
           VALUES ${programMapValues}
         ), team_map(team_index, team_season_id) AS (
           VALUES ${teamMapValues}
@@ -2233,9 +2354,15 @@ export async function seedLoad(database: Kysely<DB>): Promise<void> {
             program_map.division_id,
             program_map.offering_id,
             n,
-            ((n + program_map.program_index * ${LOAD_REGISTRATIONS_PER_PROGRAM}) % ${org.peopleCount})::int AS person_index
+            ((CASE
+              WHEN n < ${LOAD_REGISTRATION_BASE_PER_PROGRAM}
+                THEN n + program_map.program_index * ${LOAD_REGISTRATION_BASE_PER_PROGRAM}
+              ELSE n - ${LOAD_REGISTRATION_BASE_PER_PROGRAM} + program_map.extra_person_offset
+            END) % ${org.peopleCount})::int AS person_index
           FROM program_map
-          CROSS JOIN generate_series(0, ${LOAD_REGISTRATIONS_PER_PROGRAM - 1}) AS generated(n)
+          CROSS JOIN LATERAL generate_series(
+            0, program_map.registration_count - 1
+          ) AS generated(n)
         )
         INSERT INTO registrations (
           id, org_id, program_id, division_id, offering_id,
@@ -2247,10 +2374,17 @@ export async function seedLoad(database: Kysely<DB>): Promise<void> {
           ${orgId}, source.program_id, source.division_id, source.offering_id,
           ${loadUuid(sql`'load-person:' || ${orgId} || ':' || source.person_index::text`)},
           ${loadUuid(sql`'load-household:' || ${orgId} || ':' || source.person_index::text`)},
-          ${adminId}, 'online', 'confirmed', ${teamValue}, ${SEED_TIME}, ${SEED_TIME}
+          ${adminId}, 'online',
+          CASE
+            WHEN source.n < ${LOAD_REGISTRATION_BASE_PER_PROGRAM} THEN 'confirmed'
+            ELSE 'waitlisted'
+          END,
+          ${teamValue}, ${SEED_TIME}, ${SEED_TIME}
         FROM source
         ${teamJoin}
-        ON CONFLICT (id) DO NOTHING
+        ON CONFLICT (id) DO UPDATE
+        SET status = EXCLUDED.status,
+            team_season_id = EXCLUDED.team_season_id
       `.execute(trx);
 
       if (isRegistrationOrg) {
@@ -2263,7 +2397,7 @@ export async function seedLoad(database: Kysely<DB>): Promise<void> {
             VALUES ${rosterTeamRows}
           ), generated AS (
             SELECT n, n % 10 AS team_index, n / 10 + 1 AS jersey
-            FROM generate_series(0, ${LOAD_REGISTRATIONS_PER_PROGRAM - 1}) AS players(n)
+            FROM generate_series(0, ${LOAD_REGISTRATION_BASE_PER_PROGRAM - 1}) AS players(n)
           )
           INSERT INTO roster_entries (
             id, org_id, team_season_id, person_id, registration_id,
