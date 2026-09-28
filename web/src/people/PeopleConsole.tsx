@@ -742,7 +742,8 @@ export function PersonDetail(): React.JSX.Element {
             <PersonPhoto
               orgId={orgId}
               person={current}
-              onSaved={async () => {
+              onSaved={async (updated) => {
+                client.setQueryData(['people', orgId, personId], updated);
                 await client.invalidateQueries({ queryKey: ['people', orgId] });
               }}
             />
