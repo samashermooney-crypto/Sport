@@ -198,6 +198,7 @@ function PaymentForm({
 export function PaymentElementCheckout({
   publishableKey,
   clientSecret,
+  customerSessionClientSecret,
   quote,
   returnUrl,
   onSubmitted,
@@ -205,6 +206,7 @@ export function PaymentElementCheckout({
 }: {
   publishableKey: string;
   clientSecret: string;
+  customerSessionClientSecret?: string;
   quote: PaymentQuote;
   returnUrl: string;
   onSubmitted: (state: PaymentSubmissionState) => void;
@@ -216,12 +218,17 @@ export function PaymentElementCheckout({
   const options = useMemo<StripeElementsOptions>(
     () => ({
       clientSecret,
+      ...(customerSessionClientSecret ? { customerSessionClientSecret } : {}),
       appearance: appearance(),
     }),
-    [clientSecret],
+    [clientSecret, customerSessionClientSecret],
   );
   return (
-    <Elements key={clientSecret} stripe={stripe} options={options}>
+    <Elements
+      key={`${clientSecret}:${customerSessionClientSecret ?? ''}`}
+      stripe={stripe}
+      options={options}
+    >
       <PaymentForm
         quote={quote}
         returnUrl={returnUrl}

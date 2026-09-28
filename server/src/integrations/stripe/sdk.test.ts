@@ -149,6 +149,33 @@ describe('Stripe SDK gateway', () => {
     });
   });
 
+  it('creates a Payment Element customer session that only redisplays saved methods', async () => {
+    const test = gateway();
+    const create = vi
+      .spyOn(test.stripe.customerSessions, 'create')
+      .mockResolvedValue({
+        client_secret: 'cuss_test_secret',
+      } as Stripe.Response<Stripe.CustomerSession>);
+
+    await expect(
+      test.gateway.createPaymentElementCustomerSession('cus_payer'),
+    ).resolves.toEqual({ clientSecret: 'cuss_test_secret' });
+    expect(create.mock.calls[0]?.[0]).toEqual({
+      customer: 'cus_payer',
+      components: {
+        payment_element: {
+          enabled: true,
+          features: {
+            payment_method_redisplay: 'enabled',
+            payment_method_allow_redisplay_filters: ['always', 'unspecified'],
+            payment_method_remove: 'disabled',
+            payment_method_save: 'disabled',
+          },
+        },
+      },
+    });
+  });
+
   it('reverses transfers and application fees on destination charge refunds', async () => {
     const test = gateway();
     const create = vi.spyOn(test.stripe.refunds, 'create').mockResolvedValue({

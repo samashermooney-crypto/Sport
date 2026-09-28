@@ -1,3 +1,11 @@
+import type { Agent } from 'node:https';
+
+import {
+  createPushHttpsAgent,
+  UnsafePushDestinationError,
+} from './destination';
+import type { PushAddressResolver } from './destination';
+
 export interface PushSubscription {
   endpoint: string;
   keys: { p256dh: string; auth: string };
@@ -16,6 +24,7 @@ export interface WebPushClient {
     options?: {
       TTL?: number;
       urgency?: 'very-low' | 'low' | 'normal' | 'high';
+      agent?: Agent;
     },
   ): Promise<unknown>;
 }
@@ -60,6 +69,7 @@ export class WebPushSender implements PushSender {
   constructor(
     client: WebPushClient,
     config: { subject: string; publicKey: string; privateKey: string },
+    private readonly resolveAddresses?: PushAddressResolver,
   ) {
     if (
       !config.subject.startsWith('mailto:') &&
@@ -74,15 +84,22 @@ export class WebPushSender implements PushSender {
     subscription: PushSubscription,
     message: PushMessage,
   ): Promise<PushDeliveryResult> {
+    let agent: Agent | undefined;
     try {
+      agent = await createPushHttpsAgent(
+        subscription.endpoint,
+        this.resolveAddresses,
+      );
       const response = await this.client.sendNotification(
         subscription,
         JSON.stringify(message),
-        { TTL: 3600, urgency: 'normal' },
+        { TTL: 3600, urgency: 'normal', agent },
       );
       const providerId = pushProviderId(response);
       return { status: 'sent', ...(providerId ? { providerId } : {}) };
     } catch (error) {
+      if (error instanceof UnsafePushDestinationError)
+        return { status: 'invalid-subscription' };
       const status =
         error && typeof error === 'object' && 'statusCode' in error
           ? error.statusCode
@@ -90,6 +107,8 @@ export class WebPushSender implements PushSender {
       if (status === 404 || status === 410)
         return { status: 'invalid-subscription' };
       throw error;
+    } finally {
+      agent?.destroy();
     }
   }
 }

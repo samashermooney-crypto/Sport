@@ -7,14 +7,15 @@ import { createTestFactories } from '../../server/test/factories';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test('SEC-005 / Track A: step-up reauthentication rotates the session token', async ({
+test('SEC-005: step-up reauthentication rotates the session token', async ({
   request,
 }) => {
   const database = createDatabase(
     `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
   );
   const password = 'safe step-up sports password 38';
-  const apiBase = `http://127.0.0.1:${String(3001 + offset)}/api/v1/auth`;
+  const apiOrigin = `http://127.0.0.1:${String(3001 + offset)}`;
+  const apiBase = `${apiOrigin}/api/v1/auth`;
   const webOrigin = `https://127.0.0.1:${String(5173 + offset)}`;
 
   try {
@@ -36,6 +37,21 @@ test('SEC-005 / Track A: step-up reauthentication rotates the session token', as
         new Date(),
       ),
     );
+    let apiReady = false;
+    for (let attempt = 0; attempt < 50 && !apiReady; attempt += 1) {
+      try {
+        const health = await request.get(`${apiOrigin}/healthz`, {
+          timeout: 500,
+        });
+        apiReady = health.status() === 200;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    }
+    expect(
+      apiReady,
+      'API server should start before the security request',
+    ).toBe(true);
     const cookie = `__Host-athlentry_session=${session.token}`;
     const response = await request.post(`${apiBase}/step-up`, {
       headers: {

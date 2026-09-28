@@ -18,6 +18,8 @@ Blocked on: none
 ## Requests from SEC
 
 - Regenerate `server/src/db/types.ts` after migration `1054_late_fee_fk_index.sql`; applying current migrations added `invoice_lines.late_fee_installment_id`, which is absent from the checked-in generated types (2026-09-27).
+
+- SEC-005: implemented transactional step-up rotation in the auth session service. Password/TOTP verification issues and elevates a new session while revoking the old one; cookie clients receive a replacement cookie and bearer clients receive a no-store replacement token. MFA enrollment confirmation and step-up also consume the shared MFA rate limit. Auth security/routes tests and the SEC-005 Chromium journey pass (2026-09-27).
 - SEC-KNIP-A: triage the Knip findings in A-owned shared schemas: `importRowPreviewSchema` and types `ImportRowPreview`, `ImportBatchList`, `ImportMappingPreset` in `shared/src/schemas/imports.ts`; `duplicatePersonSchema`, `duplicatePairSchema`, and `personMergeSummarySchema` in `shared/src/schemas/people.ts` (2026-09-27).
 Self-review: Server app, worker and configuration consume the generated module/integration registry; web routing consumes generated feature routes.
 Self-review: Existing auth routes keep `/api/v1/auth`; full browser sign-up, Mailpit verification, MFA and device journey passes on Chromium and WebKit.

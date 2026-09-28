@@ -551,7 +551,7 @@
 - **Decision:** The existing account `linked_org_ids` array remains an append-only candidate index. A trigger adds an org when a person-account link is inserted and a migration backfills existing links. The family reader starts from the authenticated global account, then checks active, verified links and active people separately inside `withOrg` for each candidate organization. Revocation does not remove the candidate ID.
 - **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
 - **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
-### DEC-109 — Keep guest donation checkout behind the finance adapter
+### DEC-119 — Keep guest donation checkout behind the finance adapter
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 11 fundraising
 - **Context:** E's current payment service requires an account-bound customer and invoice, while a guest donor must not receive a synthetic Athlentry account or have a donation misrepresented as another payer's invoice.
@@ -559,7 +559,7 @@
 - **Why:** This preserves payer identity and accounting integrity and keeps provider details in E's adapter.
 - **Consequences / follow-ups:** Guest donation checkout remains unavailable on trunk until E/C wire the adapter and webhook. Orders containing products with different tax rates need separate invoices.
 
-### DEC-110 — Keep store order terms recoverable and registration add-ons versioned
+### DEC-120 — Keep store order terms recoverable and registration add-ons versioned
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 11 store
 - **Context:** A store order reserves inventory in one tenant transaction, then issues an E-owned invoice in a separate transaction. A process interruption between those commits must not lose the invoice link or change what the purchaser agreed to buy. Registration add-on requirements must remain reviewable as products and sizes change, and shipped orders must retain the address used at purchase.
@@ -854,6 +854,14 @@
 - **Decision:** Keep route-authorization, permission-matrix and tenancy-fuzz assertions active. When an assertion cannot establish a policy because its contract is missing, report that concrete contract gap as a failing acceptance item; do not infer policy from path names or count random nonexistent IDs as tenant-isolation evidence.
 - **Why:** Security coverage must remain visible in CI while preventing unsupported assumptions from becoming false authorization guarantees.
 - **Consequences / follow-ups:** This supersedes DEC-114's `test.fixme` consequence. Track C owns route metadata, real foreign-tenant fixtures and the complete allow/deny matrix; the QA regressions remain active and must pass after those contracts land.
+
+### DEC-116 — Approve split transfer refunds as one frozen finance operation
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 4 refunds and Phase 5 registration transfers
+- **Context:** A cheaper transfer can be funded by several Stripe payments; independently approving or executing each share would let the combined refund bypass the invoice's second-person threshold or leave the registration moved before finance review.
+- **Decision:** When the combined exact-line refund exceeds the strictest frozen per-payment threshold, persist one aggregate approval with the line, requested cents, ordered payment shares, per-share service-fee proposal, thresholds and request hashes. Enforce snapshot immutability in the database. Require an active finance approver other than the transfer requester; do not mutate the registration or call Stripe while pending. Finance reviews the sanitized queue, and the same transfer idempotency key must be retried against an unchanged source plan after approval.
+- **Why:** The approval binds one immutable economic proposal while existing per-payment attempt fences and refund allocations continue to protect each Stripe operation.
+- **Consequences / follow-ups:** Changed payment shares or policy fail closed and require a new operation key; ambiguous Stripe outcomes remain fenced for reconciliation. Multi-refund external execution remains sequential and individually idempotent.
 ### DEC-114 — Fail closed on incomplete route-security metadata
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 16 §1 security verification
@@ -861,10 +869,26 @@
 - **Decision:** Keep the all-route authorization, permission-matrix, and tenancy-fuzz Playwright checks marked `test.fixme` until Track C publishes operation metadata, real synthetic out-of-tenant resource fixtures, and a reviewed allow/deny row for every route. Do not count a random nonexistent ID as proof that an existing foreign resource is isolated.
 - **Why:** The checks must fail on real authorization gaps without inventing route policy or hiding a cross-tenant read behind an unrelated 404.
 - **Consequences / follow-ups:** Track C owns the generated contracts and CI wiring; the precise requests are recorded in `docs/codex/tracks/SEC.md` and `docs/codex/tracks/C.md`. Remove the `test.fixme` markers when those contracts are available and the checks can exercise real fixtures.
-### DEC-115 — Balance Rec teams by age at season start
+### DEC-116 — Balance Rec teams by age at season start
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 6 Rec placement boards
 - **Context:** Phase 6 requires age balancing, but the shared team balancer previously considered ratings, roster size, hard constraints, and preferences only.
 - **Decision:** Supply whole-year age at the target program's `starts_on` date to the existing shared balancer and include team mean-age variance with the same objective weight as mean-rating variance. When some athletes lack a date of birth, use the median known age for objective calculations; omit age balancing if none have a date of birth.
 - **Why:** Age fairness belongs in the same deterministic optimization that enforces team sizes, ratings, and linked-player constraints. Using the season start gives a consistent reference for every registration in the program.
 - **Consequences / follow-ups:** Existing callers without age retain their previous objective and metrics. The Rec dashboard shows mean age beside mean rating. The seeded 120-player balancer test verifies both fairness dimensions within the five-second budget.
+
+### DEC-117 — Rotate the authenticated session after step-up reauthentication
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 §1 authentication
+- **Context:** Elevating the existing session left its pre-authentication token usable after successful password or TOTP verification.
+- **Decision:** In one transaction, lock the active session, revoke it, issue a replacement with the same client and privilege class, preserve its absolute expiry, and elevate the replacement. Return a replacement cookie for web sessions and a no-store bearer token for native sessions. Rate-limit MFA enrollment confirmation and step-up attempts through the shared MFA limiter.
+- **Why:** Reauthentication must invalidate any token that an attacker may have captured before the user completed the stronger check, while preserving a continuous session for the user.
+- **Consequences / follow-ups:** Password/TOTP, cookie rotation, bearer rotation, expiry preservation, stale-token rejection and MFA rate limiting are covered by auth integration tests; the browser fixation journey covers web behavior.
+
+### DEC-118 — Pin Web Push requests to validated public provider addresses
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 §1 server-side request forgery protection
+- **Context:** Web Push subscription endpoints are account-supplied URLs; validating only their scheme or hostname leaves loopback/private targets and DNS rebinding available to the server-side transport.
+- **Decision:** Allow only the supported push-provider HTTPS hostnames on port 443, resolve them once, reject the destination if any answer is non-public, and pass a custom HTTPS agent that pins lookup to a validated address. Treat rejected destinations as invalid subscriptions so the normal cleanup boundary removes them.
+- **Why:** The push adapter needs to contact provider infrastructure without becoming a general-purpose server-side URL fetcher.
+- **Consequences / follow-ups:** Provider-domain changes require security review; TLS hostname validation remains enabled. Tests cover private and reserved IP ranges, mixed answers, rebinding pinning, and loopback rejection.
