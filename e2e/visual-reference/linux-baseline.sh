@@ -1,9 +1,21 @@
 #!/usr/bin/env bash
-# Regenerates the Linux parity baselines inside the Playwright container:
-#   docker run --rm -v "$PWD":/work -w /work mcr.microsoft.com/playwright:v1.63.0-noble \
-#     bash e2e/visual-reference/linux-baseline.sh
-# Requires npm ci to have run in the container first (Linux node_modules).
+# Regenerates Linux parity baselines on the same ubuntu-24.04 x86_64 runner as
+# the CI e2e job. Run after `npm ci` and `npx playwright install --with-deps
+# chromium webkit`. Do not run in a Docker Desktop container: native controls
+# can rasterize differently there from the hosted Actions runner.
 set -euo pipefail
+
+if [ "$(uname -s)" != 'Linux' ] || [ "$(uname -m)" != 'x86_64' ]; then
+  echo 'Linux parity baselines must be captured on the ubuntu-24.04 x86_64 CI runner.' >&2
+  exit 1
+fi
+if [ "${GITHUB_ACTIONS:-}" != 'true' ] || [ -e /.dockerenv ] || \
+  ! grep -q '^VERSION_ID="24.04"$' /etc/os-release; then
+  echo 'Capture Linux parity baselines on the hosted ubuntu-24.04 runner, not in a container.' >&2
+  exit 1
+fi
+
+npx playwright install-deps chromium webkit
 
 # Legacy app dependencies are no longer root deps. Install them separately so
 # baseline generation keeps the exact dependency tree from the root lockfile.

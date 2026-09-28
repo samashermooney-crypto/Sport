@@ -11,6 +11,8 @@ import { platformNav } from '../platform/nav';
 import { platformRoutes } from '../platform/routes';
 import { portalNav } from '../portal/nav';
 import { portalRoutes } from '../portal/routes';
+import { siteNav } from '../site/nav';
+import { siteRoutes } from '../site/routes';
 import { uiNav } from '../ui/nav';
 import { uiRoutes } from '../ui/routes';
 
@@ -21,5 +23,6 @@ export const webFeatures: readonly WebFeature[] = [
   { name: 'people', routes: peopleRoutes, nav: peopleNav },
   { name: 'platform', routes: platformRoutes, nav: platformNav },
   { name: 'portal', routes: portalRoutes, nav: portalNav },
+  { name: 'site', routes: siteRoutes, nav: siteNav },
   { name: 'ui', routes: uiRoutes, nav: uiNav },
 ];

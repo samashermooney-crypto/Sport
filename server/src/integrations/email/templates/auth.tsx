@@ -22,7 +22,7 @@ type AuthEmailKind =
   | 'mfa-enabled'
   | 'recovery-codes-changed'
   | 'security-alert';
-const copy = {
+export const emailTranslationCatalog = {
   en: {
     verification: [
       'Verify your email',
@@ -164,7 +164,8 @@ export function createAuthEmail(input: {
   locale: 'en' | 'es';
   branding?: EmailBranding;
 }): EmailMessage {
-  const [subject, introduction] = copy[input.locale][input.kind];
+  const [subject, introduction] =
+    emailTranslationCatalog[input.locale][input.kind];
   const branding = input.branding ?? { organizationName: 'Athlentry' };
   const urlText = input.url
     ? `${input.locale === 'es' ? 'Continuar' : 'Continue'}: ${input.url}`

@@ -861,7 +861,7 @@
 - **Decision:** Keep the all-route authorization, permission-matrix, and tenancy-fuzz Playwright checks marked `test.fixme` until Track C publishes operation metadata, real synthetic out-of-tenant resource fixtures, and a reviewed allow/deny row for every route. Do not count a random nonexistent ID as proof that an existing foreign resource is isolated.
 - **Why:** The checks must fail on real authorization gaps without inventing route policy or hiding a cross-tenant read behind an unrelated 404.
 - **Consequences / follow-ups:** Track C owns the generated contracts and CI wiring; the precise requests are recorded in `docs/codex/tracks/SEC.md` and `docs/codex/tracks/C.md`. Remove the `test.fixme` markers when those contracts are available and the checks can exercise real fixtures.
-### DEC-116 — Balance Rec teams by age at season start
+### DEC-128 — Balance Rec teams by age at season start
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 6 Rec placement boards
 - **Context:** Phase 6 requires age balancing, but the shared team balancer previously considered ratings, roster size, hard constraints, and preferences only.
@@ -885,7 +885,8 @@
 - **Why:** The push adapter needs to contact provider infrastructure without becoming a general-purpose server-side URL fetcher.
 - **Consequences / follow-ups:** Provider-domain changes require security review; TLS hostname validation remains enabled. Tests cover private and reserved IP ranges, mixed answers, rebinding pinning, and loopback rejection.
 
-### DEC-119 — Keep Phase 15 imports additive and tenant-scoped
+
+### DEC-130 — Keep Phase 15 imports additive and tenant-scoped
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 imports and onboarding
 - **Context:** Track A owns the Phase 2 import tables and routes while Phase 15 adds additional import kinds and reversible processing. Preset privacy and financial rollback behavior were not specified for the extension.
@@ -893,7 +894,7 @@
 - **Why:** This avoids overwriting Track A's import engine, prevents cross-organization preset leakage, and preserves financial and compliance records.
 - **Consequences / follow-ups:** Reconcile the additive route/job mount with Track A whenever trunk is merged. Volunteer-hours rows were reconciled against Phase 11's required facility, actor, and status fields during the latest trunk sync.
 
-### DEC-120 — Reverse imported operations with status changes
+### DEC-131 — Reverse imported operations with status changes
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 imports
 - **Context:** Normal tenant tables intentionally do not grant DELETE to the application role, and automatic review rejected a proposed migration that broadened this privilege. Operational records still need an import rollback path.
@@ -901,7 +902,7 @@
 - **Why:** This keeps rollback inside the existing withOrg/update permissions while preserving evidence needed for child safety and financial reconciliation.
 - **Consequences / follow-ups:** Verify every importer kind has a supported reversal state before committing; retained records must be visible in the rollback summary for staff review.
 
-### DEC-121 — Use the published website state for onboarding completion
+### DEC-132 — Use the published website state for onboarding completion
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 onboarding
 - **Context:** Track D owns the website schema and publishes pages through org-level settings plus per-page status. An organization URL can exist before a site is publicly available.
@@ -909,7 +910,7 @@
 - **Why:** The checklist reflects persisted publication state while still working against pre-Phase-14 snapshots used during rollout.
 - **Consequences / follow-ups:** Track D should confirm the final console destination and keep the settings/page contract stable; queries remain inside `withOrg`.
 
-### DEC-122 — Run the local load seed in the initialized development database
+### DEC-133 — Run the local load seed in the initialized development database
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 demo and load profiles
 - **Context:** The local Postgres initializer creates `athlentry_dev`, `athlentry_test`, and `athlentry_e2e`, but no `athlentry_load`; the documented load seed failed when it selected a database that did not exist.
@@ -917,7 +918,7 @@
 - **Why:** The documented command works with the repository's default local stack without needing database initialization outside Track K's seed ownership.
 - **Consequences / follow-ups:** Running `load` locally adds the synthetic load organization alongside the demo profile; use a separate `DATABASE_ADMIN_URL` when isolated load data is preferred.
 
-### DEC-123 — Keep seeded finance and communications examples inert
+### DEC-134 — Keep seeded finance and communications examples inert
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 demo data
 - **Context:** Demo organizations should exercise the main finance and communications console areas, while local seeding must not move money or send messages.
@@ -925,7 +926,7 @@
 - **Why:** This gives the finance and communications screens realistic rows without moving money or contacting families through a real provider.
 - **Consequences / follow-ups:** The invoice remains a normal demo balance and uses only fake `example.test` accounts; campaign and chat content state that they are examples.
 
-### DEC-124 — Limit sharing in seeded federation relationships
+### DEC-135 — Limit sharing in seeded federation relationships
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 demo data and Phase 13 federation
 - **Context:** The Metro demo requires first-class member-club relationships and inter-club entries, while federation can optionally share roster, compliance, and discipline data.
@@ -933,7 +934,7 @@
 - **Why:** This exercises the inter-club workflow while protecting children’s roster and compliance information.
 - **Consequences / follow-ups:** The six named demo profiles remain the primary organizations; the two additional Metro club records are subordinate members using `example.test` identities.
 
-### DEC-125 — Keep Northstar demo billing scoped to each family
+### DEC-136 — Keep Northstar demo billing scoped to each family
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 academy demo profile
 - **Context:** The required Northstar profile needs 300 students actively enrolled across 40 tuition classes, while demo subscriptions must not expose one household's billing link to another.
@@ -941,7 +942,7 @@
 - **Why:** The profile exercises class, family, and tuition screens with valid guardian links while remaining below each class's 18-seat capacity.
 - **Consequences / follow-ups:** These accounts share the documented demo password and remain fictional; no payment is created or charged by seeding.
 
-### DEC-126 — Require the source facility for historical volunteer hours
+### DEC-137 — Require the source facility for historical volunteer hours
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 volunteer-hours import
 - **Context:** Phase 11 requires each volunteer shift to reference an organization facility, while historical spreadsheets may omit a location.
@@ -949,10 +950,18 @@
 - **Why:** Historical imports should not invent where work occurred, and the resulting record must satisfy the volunteer module's tenant-scoped facility contract.
 - **Consequences / follow-ups:** The generic template includes a sample facility; organizations must map their own source locations to active facilities before committing rows.
 
-### DEC-127 — Keep the Phase 15 Metro seed within its sharing contract
+### DEC-138 — Keep the Phase 15 Metro seed within its sharing contract
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 demo data and Phase 13 federation
-- **Context:** The Phase 15 `demo` seed already creates the required Metro association, two member clubs, inter-club entries, and eight officials with only `team_entries` sharing. The additional federation demo helper failed on a clean database when it queried an empty list of hosted clubs, and its relationship requested roster, compliance, and discipline sharing beyond DEC-120.
-- **Decision:** Keep the six-profile Phase 15 seed self-contained and do not invoke the optional federation demo helper from `db:seed --profile demo` until its empty-link query is fixed and its sharing scope matches DEC-120.
+- **Context:** The Phase 15 `demo` seed already creates the required Metro association, two member clubs, inter-club entries, and eight officials with only `team_entries` sharing. The additional federation demo helper failed on a clean database when it queried an empty list of hosted clubs, and its relationship requested roster, compliance, and discipline sharing beyond DEC-135.
+- **Decision:** Keep the six-profile Phase 15 seed self-contained and do not invoke the optional federation demo helper from `db:seed --profile demo` until its empty-link query is fixed and its sharing scope matches DEC-135.
 - **Why:** The Phase 15 profile remains complete without broadening child data sharing or making the seed command fail after creating partial extra data.
 - **Consequences / follow-ups:** Track J owns the empty-link query fix; the base Metro seed continues to include both member clubs, accepted inter-club entries, and the referee pool.
+
+### DEC-129 — Pin custom-domain certificate probes to public addresses
+- **Date:** 2026-09-28
+- **Phase / area:** Phase 14 custom website domains
+- **Context:** Domain ownership verification also checks for a trusted TLS certificate. A tenant-controlled hostname can resolve to loopback or a private service if the TLS probe lets the socket resolve it again.
+- **Decision:** Resolve the verified hostname, reject non-public IPv4 and IPv6 targets, and pin the TLS handshake to a vetted address while validating the certificate against the requested hostname.
+- **Why:** Domain verification must not become a server-side request forgery path into private network services.
+- **Consequences / follow-ups:** If DNS has no publicly routable address, the domain remains pending verification. Public IPv4/IPv6 range classification has focused tests.
