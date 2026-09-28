@@ -97,6 +97,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 
 - **Track C (sprint wiring owner):** the schedule navigation aggregators and generated nested routes are now wired on trunk. Track C's `track/c-adapters` branch defines the scoped public facility layout image route; it is not present on `rebuild/trunk` yet. G now uploads only public website assets, attaches the approved file ID to the facility, and renders through that route contract. The G browser test mocks the route response until the C implementation is integrated.
 - **Track A:** the previous roster check-constraint failure in `peopleFilters.test.ts` passes on the current trunk sync. Recheck any remaining auth/ownership e2e failures in the full browser gate.
+- **Track E:** the full Vitest gate on the `5651da37` sync failed only `server/test/registration/team-entries.test.ts` because `server/src/modules/registration/team-entries.ts:158` treats a valid zero byte in a SHA-256 digest as an incomplete UUID (`UUID digest is incomplete`). The same failure appeared in CI run `36370435506`; G does not own registration. Current run: 276 files passed, 1 failed, 1 skipped; 986 tests passed, 1 failed, 1 skipped.
 - **Track B:** align shared `contestStageSchema` with `02-DATA-MODEL.md`: it accepts `tournament` (rejected by `contests_stage_check`) and omits `championship`/`consolation`/`exhibition`; G's service/routes now follow the data-model enum. Generator fairness and double-elimination bye progression fixes are in G's current branch and need review with the shared-algorithm owner before integration.
 - **Track H:** resolved by the Phase 11 merge (`0ca39573`): event-linked volunteer shifts and signups are now included in closure recipients and covered by the North Park mass-closure journey.
 - **Track H / I:** the prior sponsor-placement and academy-promotion failures no longer reproduce after syncing through `84c85f8`; the latest full Vitest run passed those suites. These paths remain outside G's ownership.
@@ -115,7 +116,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
 - G decisions are `DEC-082–096`, `DEC-100–108`, and `DEC-116–117` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
-- Latest G sync: `rebuild/trunk` through `bc9b22b3` is merged into this worktree; migrations, DB types, registries, and OpenAPI were regenerated at the prior sync through `84c85f8`. Full typecheck, lint, Vitest, production build, and Chromium desktop e2e gates passed on that prior base; rerun the required gates after this sync before integration. G commits remain local and are not pushed.
+- Latest G sync: the in-progress merge brings local `rebuild/trunk` through `5651da37` into this worktree; migrations, DB types, registries, and OpenAPI were regenerated at the prior sync through `84c85f8`. Typecheck and lint pass on `5651da37`; full Vitest has the unrelated Track E UUID failure recorded above. G commits remain local and are not pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.
 
 ## Requests from J
