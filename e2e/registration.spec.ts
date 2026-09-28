@@ -37,6 +37,14 @@ test('family registers two siblings together, signs waivers, and chooses uniform
         }),
         name: 'Noah Sibling',
       },
+      {
+        id: await factories.person(actor, {
+          firstName: 'Ava',
+          lastName: 'Sibling',
+          dateOfBirth: '2020-01-01',
+        }),
+        name: 'Ava Sibling',
+      },
     ];
     const waiverDocumentId = crypto.randomUUID();
     const terms = {
@@ -59,6 +67,7 @@ test('family registers two siblings together, signs waivers, and chooses uniform
         .set({
           status: 'registration_open',
           visibility: 'public',
+          eligibility: { minAge: 8, maxAge: 16 },
           settings: {
             volunteerRequirement: {
               required: true,
@@ -184,6 +193,14 @@ test('family registers two siblings together, signs waivers, and chooses uniform
       .getByRole('link', { name: 'Register Maya Sibling again' })
       .click();
     const journeyStartedAt = Date.now();
+    const programFilter = page.getByLabel('Show programs for');
+    await programFilter.selectOption(
+      `${participants[2]?.id ?? ''}:${householdId}`,
+    );
+    await expect(
+      page.getByText('No programs are available for this filter.'),
+    ).toBeVisible();
+    await programFilter.selectOption('');
     const visitedScreens = new Set<string>();
     const expectJourneyScreen = async (name: string, timeout = 5000) => {
       await expect(page.getByRole('heading', { name })).toBeVisible({
@@ -223,7 +240,7 @@ test('family registers two siblings together, signs waivers, and chooses uniform
         .executeTakeFirstOrThrow(),
     );
     const guardianName = `${parent.first_name} ${parent.last_name}`;
-    for (const participant of participants) {
+    for (const participant of participants.slice(0, 2)) {
       const section = page.locator('section.money-panel').filter({
         has: page.getByRole('heading', {
           name: `${participant.name} · Player`,
