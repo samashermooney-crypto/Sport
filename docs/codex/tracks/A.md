@@ -17,8 +17,9 @@ Branch gate 2026-09-27: `npm run typecheck`, full `npm run lint`, all 877 Vitest
 Branch gate after sync 9381acd1: typecheck, full lint, build and 20 focused PostgreSQL tests passed.
 Waiver API metadata: fixed the signature query field map; OpenAPI generation passes. Track C owns generated registry/OpenAPI wiring for forms and waivers.
 People archive journey: the focused Chromium/WebKit run had 51 passes, four expected visual skips and one redirect timeout; after moving navigation ahead of cache refetch, the journey passed in both engines.
-Latest `rebuild/trunk` is `da7c13f4`; sync it before the self-merge gate.
-Blocked on: none
+Synced `rebuild/trunk` through `da7c13f4` in merge commit `f370ad47`; inspect the trunk ref again before the self-merge gate.
+Progress 2026-09-27: After syncing `rebuild/trunk` at `f370ad47`, made the released-roster filter fixture independent of the database's current date. The 12 focused Phase 2 PostgreSQL files passed 26 tests; adult self-claim, teen read-only/revocation, household invitation and people CRUD passed 10 Chromium/WebKit journeys; design parity passed 16 Chromium/WebKit tests (four expected skips); typecheck, lint and the focused MFA security test passed. The latest full Vitest run through `heavy.sh` is red: two Classes promotion tests violate `class_enrollments_check`, the Sponsors placement test returns no active placement, and database setup/cleanup plus three individual tests timed out under load. The A-owned filter and identity tests pass when run in isolation. The current trunk lock is held, so the merge gate remains pending.
+Open gate dependencies: Track C's forms/waivers route and generated API wiring; the cross-track full-suite failures above; and release of the trunk lock before attempting the self-merge gate.
 
 ## Requests from SEC
 

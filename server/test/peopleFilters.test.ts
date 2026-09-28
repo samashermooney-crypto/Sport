@@ -91,7 +91,7 @@ it('filters people by active program registration and current team roster', asyn
       .execute();
     await trx
       .updateTable('roster_entries')
-      .set({ status: 'released', left_on: '2026-09-27' })
+      .set({ status: 'released' })
       .where('id', '=', rosterId)
       .execute();
   });
