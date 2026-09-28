@@ -294,9 +294,13 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     await expect(page.getByRole('status')).toHaveText(
       'Program statistics settings saved.',
     );
-    await page
-      .getByRole('button', { name: 'Create contest · first sport format' })
-      .click();
+    const selectedEvent = page.getByLabel('Selected event');
+    await selectedEvent.selectOption(eventId);
+    const createContest = page.getByRole('button', {
+      name: 'Create contest · first sport format',
+    });
+    await expect(createContest).toBeEnabled();
+    await createContest.click();
     await expect(
       page.getByText(/head_to_head_score|head-to-head-score/i),
     ).toBeVisible({ timeout: 15_000 });

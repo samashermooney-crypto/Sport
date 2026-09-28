@@ -75,6 +75,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 - [x] Expanded offline coach game-day journey passes on Chromium desktop and WebKit mobile with axe (2/2); the attendance service integration regression passes (1/1), and targeted ESLint passes after the JSONB lineup fix.
 - [x] All 12 G-owned schedule journeys pass together on Chromium desktop and WebKit mobile with axe: 24/24 tests, including UTC org-, facility-, and space-closure conversion checks and Chicago/Phoenix DST-spanning series edits.
 - [x] After the closure timezone fix, `npm run typecheck`, full `npm run lint`, and `npm run build` pass; the focused UTC stats/closure journey passes on both Chromium and WebKit.
+- [x] Reproduced the trunk Linux CI closure mismatch from run `36370435506`: the runner uses UTC while the closure fields represent Chicago facility-local times, so the old console converted the window to the wrong instants and previewed 0 events instead of 1. The branch resolves org/facility/space scope to its configured timezone; the regression pins browser timezone to UTC and checks exact request instants. The expanded `schedule-stats.spec.ts` passes 2/2 in `mcr.microsoft.com/playwright:v1.63.0-noble` on Linux AMD64, Node 24, `CI=true`, two workers, Chromium desktop + WebKit mobile. The journey now explicitly selects its fixture event before creating the contest.
 - [x] Chromium + WebKit mobile baseline E2E: 38 passed, 4 failed, 4 skipped; failures were unrelated sign-in, ownership-transfer and people journeys, and no G schedule journey ran.
 - [x] Lock-protected merge gate against `rebuild/trunk` through `2ac58d6`: typecheck and full lint passed; `heavy.sh npm test` passed 803 tests (1 skipped); full Chromium desktop Playwright passed 28 tests (4 skipped).
 - [x] Lock-protected merge gate on 2026-09-27 after syncing OPS trunk through `f091afc`: typecheck and full lint passed; `heavy.sh npm test` passed 819 tests (1 skipped); full Chromium desktop Playwright passed 30 tests (4 skipped).
@@ -105,7 +106,7 @@ Status: working; Phase 8/9 acceptance and the full merge gate remain incomplete.
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
 - G decisions are `DEC-082–096` and `DEC-100–108` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
-- Latest G integration: merged `rebuild/trunk` through `2c52eb47` into this branch (`7eb399d7`). The Linux API-readiness fix and G browser journeys pass; the full Vitest gate remains red on the cross-track failures listed above. Current G commits remain local and are not pushed.
+- Latest G integration: merged `rebuild/trunk` through `1a82760e` into this branch (`6e0be867`). GitHub CI run `36370435506` confirms the pre-fix closure preview failure on trunk; the branch's Linux AMD64 Chromium/WebKit reproduction passes after scope-timezone conversion. The full Vitest gate remains red on the cross-track failures listed above. Current G commits remain local and are not pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.
 
 ## Requests from J
