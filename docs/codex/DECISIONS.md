@@ -551,7 +551,7 @@
 - **Decision:** The existing account `linked_org_ids` array remains an append-only candidate index. A trigger adds an org when a person-account link is inserted and a migration backfills existing links. The family reader starts from the authenticated global account, then checks active, verified links and active people separately inside `withOrg` for each candidate organization. Revocation does not remove the candidate ID.
 - **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
 - **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
-### DEC-109 — Keep guest donation checkout behind the finance adapter
+### DEC-119 — Keep guest donation checkout behind the finance adapter
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 11 fundraising
 - **Context:** E's current payment service requires an account-bound customer and invoice, while a guest donor must not receive a synthetic Athlentry account or have a donation misrepresented as another payer's invoice.
@@ -559,7 +559,7 @@
 - **Why:** This preserves payer identity and accounting integrity and keeps provider details in E's adapter.
 - **Consequences / follow-ups:** Guest donation checkout remains unavailable on trunk until E/C wire the adapter and webhook. Orders containing products with different tax rates need separate invoices.
 
-### DEC-110 — Keep store order terms recoverable and registration add-ons versioned
+### DEC-120 — Keep store order terms recoverable and registration add-ons versioned
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 11 store
 - **Context:** A store order reserves inventory in one tenant transaction, then issues an E-owned invoice in a separate transaction. A process interruption between those commits must not lose the invoice link or change what the purchaser agreed to buy. Registration add-on requirements must remain reviewable as products and sizes change, and shipped orders must retain the address used at purchase.
@@ -861,8 +861,31 @@
 - **Decision:** Keep the all-route authorization, permission-matrix, and tenancy-fuzz Playwright checks marked `test.fixme` until Track C publishes operation metadata, real synthetic out-of-tenant resource fixtures, and a reviewed allow/deny row for every route. Do not count a random nonexistent ID as proof that an existing foreign resource is isolated.
 - **Why:** The checks must fail on real authorization gaps without inventing route policy or hiding a cross-tenant read behind an unrelated 404.
 - **Consequences / follow-ups:** Track C owns the generated contracts and CI wiring; the precise requests are recorded in `docs/codex/tracks/SEC.md` and `docs/codex/tracks/C.md`. Remove the `test.fixme` markers when those contracts are available and the checks can exercise real fixtures.
+### DEC-116 — Balance Rec teams by age at season start
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 6 Rec placement boards
+- **Context:** Phase 6 requires age balancing, but the shared team balancer previously considered ratings, roster size, hard constraints, and preferences only.
+- **Decision:** Supply whole-year age at the target program's `starts_on` date to the existing shared balancer and include team mean-age variance with the same objective weight as mean-rating variance. When some athletes lack a date of birth, use the median known age for objective calculations; omit age balancing if none have a date of birth.
+- **Why:** Age fairness belongs in the same deterministic optimization that enforces team sizes, ratings, and linked-player constraints. Using the season start gives a consistent reference for every registration in the program.
+- **Consequences / follow-ups:** Existing callers without age retain their previous objective and metrics. The Rec dashboard shows mean age beside mean rating. The seeded 120-player balancer test verifies both fairness dimensions within the five-second budget.
 
-### DEC-124 — Keep Phase 15 imports additive and tenant-scoped
+### DEC-117 — Rotate the authenticated session after step-up reauthentication
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 §1 authentication
+- **Context:** Elevating the existing session left its pre-authentication token usable after successful password or TOTP verification.
+- **Decision:** In one transaction, lock the active session, revoke it, issue a replacement with the same client and privilege class, preserve its absolute expiry, and elevate the replacement. Return a replacement cookie for web sessions and a no-store bearer token for native sessions. Rate-limit MFA enrollment confirmation and step-up attempts through the shared MFA limiter.
+- **Why:** Reauthentication must invalidate any token that an attacker may have captured before the user completed the stronger check, while preserving a continuous session for the user.
+- **Consequences / follow-ups:** Password/TOTP, cookie rotation, bearer rotation, expiry preservation, stale-token rejection and MFA rate limiting are covered by auth integration tests; the browser fixation journey covers web behavior.
+
+### DEC-118 — Pin Web Push requests to validated public provider addresses
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 §1 server-side request forgery protection
+- **Context:** Web Push subscription endpoints are account-supplied URLs; validating only their scheme or hostname leaves loopback/private targets and DNS rebinding available to the server-side transport.
+- **Decision:** Allow only the supported push-provider HTTPS hostnames on port 443, resolve them once, reject the destination if any answer is non-public, and pass a custom HTTPS agent that pins lookup to a validated address. Treat rejected destinations as invalid subscriptions so the normal cleanup boundary removes them.
+- **Why:** The push adapter needs to contact provider infrastructure without becoming a general-purpose server-side URL fetcher.
+- **Consequences / follow-ups:** Provider-domain changes require security review; TLS hostname validation remains enabled. Tests cover private and reserved IP ranges, mixed answers, rebinding pinning, and loopback rejection.
+
+### DEC-119 — Keep Phase 15 imports additive and tenant-scoped
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 imports and onboarding
 - **Context:** Track A owns the Phase 2 import tables and routes while Phase 15 adds additional import kinds and reversible processing. Preset privacy and financial rollback behavior were not specified for the extension.
@@ -870,7 +893,7 @@
 - **Why:** This avoids overwriting Track A's import engine, prevents cross-organization preset leakage, and preserves financial and compliance records.
 - **Consequences / follow-ups:** Reconcile the additive route/job mount with Track A whenever trunk is merged. Volunteer-hours rows were reconciled against Phase 11's required facility, actor, and status fields during the latest trunk sync.
 
-### DEC-116 — Reverse imported operations with status changes
+### DEC-120 — Reverse imported operations with status changes
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 imports
 - **Context:** Normal tenant tables intentionally do not grant DELETE to the application role, and automatic review rejected a proposed migration that broadened this privilege. Operational records still need an import rollback path.
@@ -878,7 +901,7 @@
 - **Why:** This keeps rollback inside the existing withOrg/update permissions while preserving evidence needed for child safety and financial reconciliation.
 - **Consequences / follow-ups:** Verify every importer kind has a supported reversal state before committing; retained records must be visible in the rollback summary for staff review.
 
-### DEC-117 — Use the published website state for onboarding completion
+### DEC-121 — Use the published website state for onboarding completion
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 onboarding
 - **Context:** Track D owns the website schema and publishes pages through org-level settings plus per-page status. An organization URL can exist before a site is publicly available.
@@ -886,7 +909,7 @@
 - **Why:** The checklist reflects persisted publication state while still working against pre-Phase-14 snapshots used during rollout.
 - **Consequences / follow-ups:** Track D should confirm the final console destination and keep the settings/page contract stable; queries remain inside `withOrg`.
 
-### DEC-118 — Run the local load seed in the initialized development database
+### DEC-122 — Run the local load seed in the initialized development database
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 demo and load profiles
 - **Context:** The local Postgres initializer creates `athlentry_dev`, `athlentry_test`, and `athlentry_e2e`, but no `athlentry_load`; the documented load seed failed when it selected a database that did not exist.
@@ -894,7 +917,7 @@
 - **Why:** The documented command works with the repository's default local stack without needing database initialization outside Track K's seed ownership.
 - **Consequences / follow-ups:** Running `load` locally adds the synthetic load organization alongside the demo profile; use a separate `DATABASE_ADMIN_URL` when isolated load data is preferred.
 
-### DEC-119 — Keep seeded finance and communications examples inert
+### DEC-123 — Keep seeded finance and communications examples inert
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 demo data
 - **Context:** Demo organizations should exercise the main finance and communications console areas, while local seeding must not move money or send messages.
@@ -902,7 +925,7 @@
 - **Why:** This gives the finance and communications screens realistic rows without moving money or contacting families through a real provider.
 - **Consequences / follow-ups:** The invoice remains a normal demo balance and uses only fake `example.test` accounts; campaign and chat content state that they are examples.
 
-### DEC-120 — Limit sharing in seeded federation relationships
+### DEC-124 — Limit sharing in seeded federation relationships
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 demo data and Phase 13 federation
 - **Context:** The Metro demo requires first-class member-club relationships and inter-club entries, while federation can optionally share roster, compliance, and discipline data.
@@ -910,7 +933,7 @@
 - **Why:** This exercises the inter-club workflow while protecting children’s roster and compliance information.
 - **Consequences / follow-ups:** The six named demo profiles remain the primary organizations; the two additional Metro club records are subordinate members using `example.test` identities.
 
-### DEC-121 — Keep Northstar demo billing scoped to each family
+### DEC-125 — Keep Northstar demo billing scoped to each family
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 academy demo profile
 - **Context:** The required Northstar profile needs 300 students actively enrolled across 40 tuition classes, while demo subscriptions must not expose one household's billing link to another.
@@ -918,7 +941,7 @@
 - **Why:** The profile exercises class, family, and tuition screens with valid guardian links while remaining below each class's 18-seat capacity.
 - **Consequences / follow-ups:** These accounts share the documented demo password and remain fictional; no payment is created or charged by seeding.
 
-### DEC-122 — Require the source facility for historical volunteer hours
+### DEC-126 — Require the source facility for historical volunteer hours
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 volunteer-hours import
 - **Context:** Phase 11 requires each volunteer shift to reference an organization facility, while historical spreadsheets may omit a location.
@@ -926,18 +949,10 @@
 - **Why:** Historical imports should not invent where work occurred, and the resulting record must satisfy the volunteer module's tenant-scoped facility contract.
 - **Consequences / follow-ups:** The generic template includes a sample facility; organizations must map their own source locations to active facilities before committing rows.
 
-### DEC-123 — Keep the Phase 15 Metro seed within its sharing contract
+### DEC-127 — Keep the Phase 15 Metro seed within its sharing contract
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 15 demo data and Phase 13 federation
 - **Context:** The Phase 15 `demo` seed already creates the required Metro association, two member clubs, inter-club entries, and eight officials with only `team_entries` sharing. The additional federation demo helper failed on a clean database when it queried an empty list of hosted clubs, and its relationship requested roster, compliance, and discipline sharing beyond DEC-120.
 - **Decision:** Keep the six-profile Phase 15 seed self-contained and do not invoke the optional federation demo helper from `db:seed --profile demo` until its empty-link query is fixed and its sharing scope matches DEC-120.
 - **Why:** The Phase 15 profile remains complete without broadening child data sharing or making the seed command fail after creating partial extra data.
 - **Consequences / follow-ups:** Track J owns the empty-link query fix; the base Metro seed continues to include both member clubs, accepted inter-club entries, and the referee pool.
-
-### DEC-125 — Balance Rec teams by age at season start
-- **Date:** 2026-09-27
-- **Phase / area:** Phase 6 Rec placement boards
-- **Context:** Phase 6 requires age balancing, but the shared team balancer previously considered ratings, roster size, hard constraints, and preferences only.
-- **Decision:** Supply whole-year age at the target program's `starts_on` date to the existing shared balancer and include team mean-age variance with the same objective weight as mean-rating variance. When some athletes lack a date of birth, use the median known age for objective calculations; omit age balancing if none have a date of birth.
-- **Why:** Age fairness belongs in the same deterministic optimization that enforces team sizes, ratings, and linked-player constraints. Using the season start gives a consistent reference for every registration in the program.
-- **Consequences / follow-ups:** Existing callers without age retain their previous objective and metrics. The Rec dashboard shows mean age beside mean rating. The seeded 120-player balancer test verifies both fairness dimensions within the five-second budget.
