@@ -1,6 +1,6 @@
 import { orgWorkspaceSchema } from '@shared/schemas/orgs';
 import { useQuery } from '@tanstack/react-query';
-import { useParams } from 'react-router';
+import { useLocation, useParams } from 'react-router';
 
 import { apiGet } from '../../api/client';
 import { PageHeader } from '../../ui/primitives';
@@ -11,6 +11,7 @@ import { ProgramDetail } from './ProgramDetail';
 
 function ProgramRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
+  const location = useLocation();
   const workspace = useQuery({
     queryKey: ['orgs', orgId, 'workspace'],
     queryFn: () =>
@@ -34,7 +35,13 @@ function ProgramRoute(): React.JSX.Element {
       ]}
       mobileTabs={[
         { label: 'Home', to: `/console/orgs/${orgId}` },
-        { label: 'Programs', to: `/console/orgs/${orgId}/programs` },
+        {
+          label: 'Programs',
+          to: `/console/orgs/${orgId}/programs`,
+          current: location.pathname.startsWith(
+            `/console/orgs/${orgId}/programs`,
+          ),
+        },
         { label: 'Teams', to: `/console/orgs/${orgId}/teams` },
       ]}
     >
@@ -54,6 +61,7 @@ export const consoleProgramsRoutes = [
 ];
 
 function ProgramDetailRoute(): React.JSX.Element {
+  const location = useLocation();
   const { orgId, programId } = useParams<{
     orgId: string;
     programId: string;
@@ -80,7 +88,13 @@ function ProgramDetailRoute(): React.JSX.Element {
       ]}
       mobileTabs={[
         { label: 'Home', to: `/console/orgs/${orgId}` },
-        { label: 'Programs', to: `/console/orgs/${orgId}/programs` },
+        {
+          label: 'Programs',
+          to: `/console/orgs/${orgId}/programs`,
+          current: location.pathname.startsWith(
+            `/console/orgs/${orgId}/programs`,
+          ),
+        },
       ]}
     >
       <main className="console-home">
