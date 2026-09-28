@@ -60630,9 +60630,10 @@
                     "items": {
                       "type": "array",
                       "items": { "$ref": "#/$defs/__schema0" }
-                    }
+                    },
+                    "organizationTimezone": { "type": "string" }
                   },
-                  "required": ["items"],
+                  "required": ["items", "organizationTimezone"],
                   "additionalProperties": false,
                   "$defs": {
                     "__schema0": {
