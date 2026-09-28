@@ -7,6 +7,7 @@ import { peopleListSchema } from '@shared/schemas/people';
 import { useQuery } from '@tanstack/react-query';
 import type { PropsWithChildren } from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams } from 'react-router';
 
 import { apiGet } from '../api/client';
@@ -19,6 +20,7 @@ export function ConsoleShell({
   orgId,
   children,
 }: PropsWithChildren<{ orgId: string }>): React.JSX.Element {
+  const { t } = useTranslation('console');
   const location = useLocation();
   const navigate = useNavigate();
   const impersonationId = useImpersonationId();
@@ -82,8 +84,27 @@ export function ConsoleShell({
     Audit: `${home}/audit`,
     Account: '/me',
   } as const;
+  const labels: Record<keyof typeof links, string> = {
+    Home: t('home'),
+    People: t('people'),
+    Households: t('households'),
+    Forms: t('forms'),
+    Waivers: t('waivers'),
+    Imports: t('imports'),
+    Schedule: t('schedule'),
+    Messages: t('messages'),
+    Safety: t('safety'),
+    Classes: t('classes'),
+    Federation: t('federation'),
+    Profile: t('profile'),
+    Staff: t('staff'),
+    Credentials: t('credentials'),
+    Payments: t('payments'),
+    Audit: t('audit'),
+    Account: t('account'),
+  };
   const item = (label: keyof typeof links) => ({
-    label,
+    label: labels[label],
     to: links[label],
     current:
       location.pathname === links[label] ||
@@ -96,7 +117,7 @@ export function ConsoleShell({
       orgSwitcher={
         organizations.data && organizations.data.length > 1 ? (
           <Select
-            aria-label="Switch organization"
+            aria-label={t('switchOrganization')}
             value={orgId}
             options={organizations.data.map((organization) => ({
               value: organization.id,
@@ -110,7 +131,7 @@ export function ConsoleShell({
       }
       navigation={[
         {
-          label: 'Manage',
+          label: t('manage'),
           items: [
             ...(!impersonationId ? [item('Home')] : []),
             item('People'),
@@ -121,7 +142,7 @@ export function ConsoleShell({
           ],
         },
         {
-          label: 'Operations',
+          label: t('operations'),
           items: [
             item('Schedule'),
             item('Messages'),
@@ -131,7 +152,7 @@ export function ConsoleShell({
           ],
         },
         {
-          label: 'Organization',
+          label: t('organization'),
           items: [
             item('Profile'),
             item('Staff'),
@@ -140,7 +161,7 @@ export function ConsoleShell({
             item('Audit'),
           ],
         },
-        { label: 'Account', items: [item('Account')] },
+        { label: t('account'), items: [item('Account')] },
       ]}
       mobileTabs={[
         ...(!impersonationId ? [item('Home')] : []),
@@ -156,7 +177,7 @@ export function ConsoleShell({
       searchLoading={peopleSearch.isFetching || householdSearch.isFetching}
       searchError={
         peopleSearch.isError || householdSearch.isError
-          ? 'People search is unavailable. Try again.'
+          ? t('peopleSearchUnavailable')
           : undefined
       }
     >

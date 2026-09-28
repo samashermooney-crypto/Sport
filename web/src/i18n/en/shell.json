@@ -1,0 +1,20 @@
+{
+  "brandHome": "Athlentry home",
+  "mainNavigation": "Main navigation",
+  "searchAthlentry": "Search Athlentry",
+  "searchLabel": "Search…",
+  "searchButton": "Search",
+  "closeNavigationMenu": "Close navigation menu",
+  "mobileNavigation": "Mobile navigation",
+  "commandPalette": "Command palette",
+  "searchPagesAndActions": "Search pages and actions",
+  "searchPeopleProgramsTeamsInvoices": "Search people, programs, teams, invoices…",
+  "searchPeopleProgramsInvoices": "Search people, programs, invoices…",
+  "close": "Close",
+  "searching": "Searching…",
+  "noMatchingResults": "No matching results",
+  "pressEnterToSearch": "Press Enter to search Athlentry",
+  "noMatchingDestinations": "No matching destinations",
+  "globalSearch": "Global search",
+  "searchResults": "Search results"
+}

@@ -1,4 +1,5 @@
 import type { CSSProperties, PropsWithChildren } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
 import './public-site-shell.css';
@@ -51,12 +52,13 @@ export function PublicSiteShell({
   primaryColor,
   secondaryColor,
   footerLinks = [],
-  footerCredit = 'Powered by Athlentry',
+  footerCredit,
   logoMark = 'A',
-  skipLinkLabel = 'Skip to content',
-  navigationLabel = 'Website navigation',
+  skipLinkLabel,
+  navigationLabel,
   children,
 }: PublicSiteShellProps): React.JSX.Element {
+  const { t } = useTranslation('public');
   const style: SiteStyle = {
     ...(primaryColor ? { '--site-primary': primaryColor } : {}),
     ...(secondaryColor ? { '--site-secondary': secondaryColor } : {}),
@@ -65,11 +67,11 @@ export function PublicSiteShell({
   return (
     <div className="ui-public-site" style={style}>
       <a className="ui-public-site__skip-link" href="#ui-public-site-main">
-        {skipLinkLabel}
+        {skipLinkLabel ?? t('skipToContent')}
       </a>
       <header className="ui-public-site__header">
         <Link
-          aria-label={`${organizationName} home`}
+          aria-label={t('organizationHome', { organizationName })}
           className="ui-public-site__brand"
           to={homeTo}
         >
@@ -83,7 +85,10 @@ export function PublicSiteShell({
           {renderLink(administratorLink)}
         </div>
       </header>
-      <nav aria-label={navigationLabel} className="ui-public-site__nav">
+      <nav
+        aria-label={navigationLabel ?? t('websiteNavigation')}
+        className="ui-public-site__nav"
+      >
         <ul>
           {navigation.map((item) => (
             <li key={`${item.label}:${item.to}`}>{renderLink(item)}</li>
@@ -100,7 +105,7 @@ export function PublicSiteShell({
             {footerLinks.map((item) => renderLink(item))}
           </div>
         ) : null}
-        <small>{footerCredit}</small>
+        <small>{footerCredit ?? t('poweredBy')}</small>
       </footer>
     </div>
   );

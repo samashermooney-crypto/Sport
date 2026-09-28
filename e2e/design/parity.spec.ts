@@ -134,6 +134,48 @@ test('public site shell matches the legacy header and navigation at desktop and 
   await expect(page.locator('#leagues')).toBeInViewport();
 });
 
+test('console and public shells localize navigation and accessibility labels', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('athlentry-language', 'es');
+  });
+  await page.goto('/__ui');
+  await page.getByRole('button', { name: 'Buscar en Athlentry' }).click();
+  const palette = page.getByRole('dialog', { name: 'Paleta de comandos' });
+  const search = palette.getByRole('searchbox', {
+    name: 'Buscar páginas y acciones',
+  });
+  await expect(search).toHaveAttribute(
+    'placeholder',
+    'Buscar páginas y acciones',
+  );
+  await search.fill('no existe');
+  await expect(palette.getByText('No hay destinos coincidentes')).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/__ui?surface=public');
+  await expect(
+    page.getByRole('navigation', { name: 'Navegación del sitio web' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Inicio', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Iniciar sesión como miembro' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Encuentra tu próxima temporada.' }),
+  ).toBeVisible();
+  await expect(page.locator('.ui-public-site__skip-link')).toHaveText(
+    'Saltar al contenido',
+  );
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
 test('the showcase is axe-clean at desktop and phone widths', async ({
   page,
 }) => {

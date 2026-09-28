@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PropsWithChildren, ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
 import { Button, Input } from './primitives';
@@ -38,6 +39,7 @@ export function AppShell({
   searchLoading?: boolean;
   searchError?: string | undefined;
 }>): React.JSX.Element {
+  const { t } = useTranslation('shell');
   const [active, setActive] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -90,11 +92,11 @@ export function AppShell({
       className={`ui-app-shell${mobileTabs?.length ? ' ui-shell-has-tabs' : ''}`}
     >
       <header className="topbar ui-topbar">
-        <Link to="/" className="brand-mark" aria-label="Athlentry home">
+        <Link to="/" className="brand-mark" aria-label={t('brandHome')}>
           <span>A</span>
         </Link>
         {orgSwitcher ?? <span className="org-name">{orgName}</span>}
-        <nav className="main-navigation" aria-label="Main navigation">
+        <nav className="main-navigation" aria-label={t('mainNavigation')}>
           {navigation.map((group) => (
             <div className="ui-nav-group" key={group.label}>
               <button
@@ -132,7 +134,7 @@ export function AppShell({
         <button
           className="ui-global-search"
           type="button"
-          aria-label="Search Athlentry"
+          aria-label={t('searchAthlentry')}
           onClick={() => {
             setPaletteOpen(true);
           }}
@@ -151,14 +153,14 @@ export function AppShell({
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.35-4.35" />
           </svg>
-          <span>Search…</span>
+          <span>{t('searchLabel')}</span>
         </button>
         <div className="ui-shell-actions">{actions}</div>
       </header>
       {active && (
         <button
           className="ui-menu-dismiss"
-          aria-label="Close navigation menu"
+          aria-label={t('closeNavigationMenu')}
           onClick={() => {
             setActive(null);
           }}
@@ -166,7 +168,7 @@ export function AppShell({
       )}
       {children}
       {mobileTabs?.length ? (
-        <nav className="ui-mobile-tabs" aria-label="Mobile navigation">
+        <nav className="ui-mobile-tabs" aria-label={t('mobileNavigation')}>
           {mobileTabs.map((item) => (
             <Link
               key={item.to}
@@ -182,7 +184,7 @@ export function AppShell({
       <dialog
         className="ui-command-dialog"
         ref={paletteRef}
-        aria-label="Command palette"
+        aria-label={t('commandPalette')}
         onClose={() => {
           // A queued close event from Escape can arrive after the next shortcut
           // has reopened the dialog. Keep the newer open state in that case.
@@ -203,13 +205,13 @@ export function AppShell({
             autoFocus
             type="search"
             aria-label={
-              onGlobalSearch ? 'Search Athlentry' : 'Search pages and actions'
+              onGlobalSearch ? t('searchAthlentry') : t('searchPagesAndActions')
             }
             aria-busy={searchLoading}
             placeholder={
               onGlobalSearch
-                ? 'Search people, programs, teams, invoices…'
-                : 'Search pages and actions'
+                ? t('searchPeopleProgramsTeamsInvoices')
+                : t('searchPagesAndActions')
             }
             value={query}
             onChange={(event) => {
@@ -220,7 +222,7 @@ export function AppShell({
           <Button
             type="button"
             secondary
-            aria-label="Close"
+            aria-label={t('close')}
             onClick={() => {
               setPaletteOpen(false);
             }}
@@ -241,7 +243,9 @@ export function AppShell({
               </Link>
             </li>
           ))}
-          {onGlobalSearch && searchLoading && <li role="status">Searching…</li>}
+          {onGlobalSearch && searchLoading && (
+            <li role="status">{t('searching')}</li>
+          )}
           {onGlobalSearch && searchSubmitted && searchError && (
             <li role="alert">{searchError}</li>
           )}
@@ -251,9 +255,9 @@ export function AppShell({
               <li>
                 {onGlobalSearch
                   ? searchSubmitted
-                    ? 'No matching results'
-                    : 'Press Enter to search Athlentry'
-                  : 'No matching destinations'}
+                    ? t('noMatchingResults')
+                    : t('pressEnterToSearch')
+                  : t('noMatchingDestinations')}
               </li>
             )}
         </ul>
@@ -268,7 +272,7 @@ export function GlobalSearch({
   onSubmit,
   results = [],
   loading = false,
-  placeholder = 'Search people, programs, invoices…',
+  placeholder,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -277,6 +281,7 @@ export function GlobalSearch({
   loading?: boolean;
   placeholder?: string;
 }): React.JSX.Element {
+  const { t } = useTranslation('shell');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const submitted = value.trim() !== '' && value.trim() === submittedQuery;
   return (
@@ -296,21 +301,24 @@ export function GlobalSearch({
           onChange(event.target.value);
         }}
         aria-busy={loading}
-        placeholder={placeholder}
-        aria-label="Global search"
+        placeholder={placeholder ?? t('searchPeopleProgramsInvoices')}
+        aria-label={t('globalSearch')}
       />
       <Button secondary disabled={!value.trim()}>
-        Search
+        {t('searchButton')}
       </Button>
-      {loading && <span role="status">Searching…</span>}
+      {loading && <span role="status">{t('searching')}</span>}
       {!loading && submitted && (
-        <ul className="ui-global-search-results" aria-label="Search results">
+        <ul
+          className="ui-global-search-results"
+          aria-label={t('searchResults')}
+        >
           {results.map((result) => (
             <li key={`${result.to}-${result.label}`}>
               <Link to={result.to}>{result.label}</Link>
             </li>
           ))}
-          {!results.length && <li>No matching results</li>}
+          {!results.length && <li>{t('noMatchingResults')}</li>}
         </ul>
       )}
     </form>
