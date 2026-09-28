@@ -25,9 +25,9 @@ Owns: `server/src/modules/classes/**`, `web/src/console/classes/**`, `web/src/po
 - **F (compliance):** `role_credential_requirements.role` still has no `instructor`; class instructor and substitute checks use existing `head_coach`/DEC-080 contract until F adds the instructor role.
 - **K (Phase 15 seed):** seed Northstar Gymnastics & Swim Academy with class-mode program, 40 classes, 300 students, tuition tiers, skills and schedules.
 - **G (scheduling):** ensure facility closure/blackout changes cancel or flag materialized `class_session` events; I's schedule generator skips registered holidays/blackouts at creation time.
-- **C (SEC-002 fixture fidelity, 2026-09-28):** the enabled tenancy fuzzer has 152 org-scoped GET/PATCH/DELETE operations with child path IDs but only file routes use an existing foreign resource ID; the other child IDs are random UUIDs. DEC-114 requires existing foreign-resource fixtures so a missing-ID 404 cannot count as tenant-isolation evidence. Add explicit path-resource fixture metadata and seed rows before marking all-route fuzz complete.
+- **C (SEC-002 fixture fidelity, 2026-09-28):** C branch `f0c6634f` publishes metadata and enables the 152-operation fuzzer, but `tenancy-fuzz.spec.ts` still substitutes the foreign org ID in each route and random UUIDs for child IDs except files; generated tenancy fixtures currently carry body/query data and `pathResource: 'file'` only. DEC-114 requires existing foreign child-resource IDs under the caller's own org path. Add path-resource fixture metadata/seed rows and update the fuzzer to use them before marking all-route fuzz complete. I's class journey now covers an existing foreign offering on direct and nested routes.
 - **C (launch-gate security evidence, 2026-09-28):** refresh `LAUNCH-GATE.md` item 6 against `d52e4c83`. Gitleaks, SSRF and session-fixation checks are enabled and passed locally; only the three SEC-002 route-authorization, permission-matrix and tenancy-fuzz specs remain `test.fixme`. Hosted CI status is still unobserved locally.
-- **E (full-suite UUID edge case, 2026-09-28):** `stableUuid()` in `server/src/modules/registration/team-entries.ts` treats a valid zero SHA-256 byte as an incomplete digest. `team-entries.test.ts` failed in two UTC full-suite runs and passed once on a focused rerun; validate digest length rather than byte truthiness to remove the intermittent gate failure.
+- **E (full-suite UUID edge case, 2026-09-28):** `stableUuid()` in `server/src/modules/registration/team-entries.ts` treats a valid zero SHA-256 byte as an incomplete digest. `team-entries.test.ts` failed in three UTC full-suite runs (including the 2-worker merge gate after `d52e4c83`) and passed once on a focused rerun; validate digest length rather than byte truthiness to remove the intermittent gate failure.
 
 ## Requests from OPS
 
@@ -41,7 +41,7 @@ Owns: `server/src/modules/classes/**`, `web/src/console/classes/**`, `web/src/po
 
 ## Blocked on
 
-Phase 12 acceptance is complete. Phase 16 §1 remains open pending Track C's generated SEC-002 metadata, real foreign-resource fixtures and reviewed role matrix, plus hosted Gitleaks CI evidence. On `d52e4c83`, the full suite passed 987 tests with 1 existing skip and Chromium passed 50 with 3 SEC-002 cases still skipped. The portal shell link and other Phase 12 track-owned follow-ups remain requested above.
+Phase 12 acceptance is complete. Phase 16 §1 remains open pending Track C's all-route SEC-002 metadata, real foreign-resource fixtures and reviewed role matrix, plus hosted Gitleaks CI evidence. On `d52e4c83`, the full suite passed 987 tests with 1 existing skip and Chromium passed 50 with 3 SEC-002 cases still skipped. A later I merge attempt was correctly aborted when the full suite reproduced E's `team-entries.test.ts` UUID digest failure; the I-owned class suite and focused Chromium security journey pass. The portal shell link and other Phase 12 track-owned follow-ups remain requested above.
 
 ## Decisions taken
 
@@ -54,7 +54,7 @@ Phase 12 acceptance is complete. Phase 16 §1 remains open pending Track C's gen
 
 ## Phase 16 §1 security work
 
-- SEC-002 class-resource and CSRF coverage: the Chromium journey reads an owned offering (200), requires 404 for GET and schema-valid PATCH of an existing foreign offering under the actor's organization, verifies the foreign row is unchanged, and requires 403 for a missing request marker or hostile Origin. The expanded journey passes 1/1 on the current I branch; the `d52e4c83` Chromium merge gate passed 50 with the 3 SEC-002 contract-dependent cases still skipped.
+- SEC-002 class-resource and CSRF coverage: the Chromium journey reads owned offering/schedule/waitlist lists (200), requires 404 for direct GET and schema-valid PATCH plus nested schedule/waitlist GETs against an existing foreign offering under the actor's organization, verifies the foreign row is unchanged, and requires 403 for a missing request marker or hostile Origin. The expanded journey passes 1/1 and the class PostgreSQL suite passes 19/19 on the current I branch; the `d52e4c83` Chromium merge gate passed 50 with the 3 SEC-002 contract-dependent cases still skipped.
 - SEC-005 (Auth / Track A): `/step-up` atomically replaces the cookie or bearer session after password/TOTP verification, and revokes the prior token. MFA enrollment confirmation and step-up now share the MFA request limiter. Auth security/routes integration tests and the Chromium fixation journey pass.
 - SEC-SSRF-C-001 (Push / Track C): Web Push endpoints are limited to supported provider hosts, all DNS answers are checked against non-public ranges, and an HTTPS agent pins delivery to the vetted address. Sender tests (11/11) and the Chromium SSRF journey pass.
 - SEC-CI-001 (CI / Track C): the Gitleaks workflow job and enabled source assertion are present; hosted CI status remains unobserved locally.

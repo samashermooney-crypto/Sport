@@ -36,7 +36,7 @@ function offeringInput(programId: string) {
   };
 }
 
-test('SEC-002: class offering routes hide an existing foreign-tenant offering ID', async ({
+test('SEC-002: class offering routes hide existing foreign IDs on direct and nested paths', async ({
   request,
 }) => {
   const database = createDatabase(
@@ -119,6 +119,16 @@ test('SEC-002: class offering routes hide an existing foreign-tenant offering ID
       { headers },
     );
     expect(ownResponse.status()).toBe(200);
+    const ownSchedules = await request.get(
+      `${apiBase}/${own.orgId}/offerings/${ownOffering.id}/schedules`,
+      { headers },
+    );
+    expect(ownSchedules.status()).toBe(200);
+    const ownWaitlist = await request.get(
+      `${apiBase}/${own.orgId}/offerings/${ownOffering.id}/waitlist`,
+      { headers },
+    );
+    expect(ownWaitlist.status()).toBe(200);
 
     const offeringPath = `${apiBase}/${own.orgId}/offerings/${ownOffering.id}`;
     const missingRequestMarker = await request.patch(offeringPath, {
@@ -142,6 +152,16 @@ test('SEC-002: class offering routes hide an existing foreign-tenant offering ID
       { headers },
     );
     expect(foreignResponse.status()).toBe(404);
+    const foreignSchedules = await request.get(
+      `${apiBase}/${own.orgId}/offerings/${foreignOffering.id}/schedules`,
+      { headers },
+    );
+    expect(foreignSchedules.status()).toBe(404);
+    const foreignWaitlist = await request.get(
+      `${apiBase}/${own.orgId}/offerings/${foreignOffering.id}/waitlist`,
+      { headers },
+    );
+    expect(foreignWaitlist.status()).toBe(404);
 
     const foreignPatch = await request.patch(
       `${apiBase}/${own.orgId}/offerings/${foreignOffering.id}`,
