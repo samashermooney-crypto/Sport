@@ -853,3 +853,10 @@
 - **Decision:** Keep the all-route authorization, permission-matrix, and tenancy-fuzz Playwright checks marked `test.fixme` until Track C publishes operation metadata, real synthetic out-of-tenant resource fixtures, and a reviewed allow/deny row for every route. Do not count a random nonexistent ID as proof that an existing foreign resource is isolated.
 - **Why:** The checks must fail on real authorization gaps without inventing route policy or hiding a cross-tenant read behind an unrelated 404.
 - **Consequences / follow-ups:** Track C owns the generated contracts and CI wiring; the precise requests are recorded in `docs/codex/tracks/SEC.md` and `docs/codex/tracks/C.md`. Remove the `test.fixme` markers when those contracts are available and the checks can exercise real fixtures.
+### DEC-115 — Balance Rec teams by age at season start
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 6 Rec placement boards
+- **Context:** Phase 6 requires age balancing, but the shared team balancer previously considered ratings, roster size, hard constraints, and preferences only.
+- **Decision:** Supply whole-year age at the target program's `starts_on` date to the existing shared balancer and include team mean-age variance with the same objective weight as mean-rating variance. When some athletes lack a date of birth, use the median known age for objective calculations; omit age balancing if none have a date of birth.
+- **Why:** Age fairness belongs in the same deterministic optimization that enforces team sizes, ratings, and linked-player constraints. Using the season start gives a consistent reference for every registration in the program.
+- **Consequences / follow-ups:** Existing callers without age retain their previous objective and metrics. The Rec dashboard shows mean age beside mean rating. The seeded 120-player balancer test verifies both fairness dimensions within the five-second budget.

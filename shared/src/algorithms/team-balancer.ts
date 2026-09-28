@@ -1,6 +1,8 @@
 export type BalancePlayer = {
   id: string;
   rating?: number | null;
+  /** Age in whole years, for example at a program's start date. */
+  age?: number | null;
   positions: readonly string[];
   fixedTeamId?: string;
   friendRequestId?: string;
@@ -28,6 +30,7 @@ export type BalanceMetrics = {
   teamId: string;
   size: number;
   meanRating: number;
+  meanAge?: number;
   totalRating: number;
   positionCoverageViolations: number;
   preferenceMisses: number;
@@ -41,6 +44,7 @@ export type BalanceOutput = {
 type Unit = {
   ids: string[];
   rating: number;
+  age: number;
   fixedTeamId: string | null;
   players: BalancePlayer[];
 };
@@ -70,7 +74,11 @@ function stdev(values: readonly number[]): number {
   );
 }
 
-function unitsFor(input: BalanceInput, medianRating: number): Unit[] {
+function unitsFor(
+  input: BalanceInput,
+  medianRating: number,
+  medianAge: number,
+): Unit[] {
   const byId = new Map(input.players.map((player) => [player.id, player]));
   const parent = new Map(input.players.map((player) => [player.id, player.id]));
   const find = (id: string): string => {
@@ -125,6 +133,7 @@ function unitsFor(input: BalanceInput, medianRating: number): Unit[] {
         (sum, player) => sum + (player.rating ?? medianRating),
         0,
       ),
+      age: players.reduce((sum, player) => sum + (player.age ?? medianAge), 0),
       fixedTeamId: [...fixed][0] ?? null,
       players,
     };
@@ -135,6 +144,8 @@ function metricFor(
   team: BalanceTeam,
   units: readonly Unit[],
   medianRating: number,
+  medianAge: number,
+  includeAge: boolean,
 ): BalanceMetrics {
   const players = units.flatMap((unit) => unit.players);
   const totalRating = units.reduce((sum, unit) => sum + unit.rating, 0);
@@ -155,7 +166,7 @@ function metricFor(
         player.location &&
         player.location !== team.preferredLocation),
   ).length;
-  return {
+  const metric: BalanceMetrics = {
     teamId: team.id,
     size: players.length,
     meanRating: players.length ? totalRating / players.length : medianRating,
@@ -163,15 +174,29 @@ function metricFor(
     positionCoverageViolations,
     preferenceMisses,
   };
+  if (includeAge) {
+    metric.meanAge = players.length
+      ? units.reduce((sum, unit) => sum + unit.age, 0) / players.length
+      : medianAge;
+  }
+  return metric;
 }
 
 function objective(
   input: BalanceInput,
   assigned: Map<string, Unit[]>,
   medianRating: number,
+  medianAge: number,
+  includeAge: boolean,
 ): { value: number; metrics: BalanceMetrics[] } {
   const metrics = input.teams.map((team) =>
-    metricFor(team, assigned.get(team.id) ?? [], medianRating),
+    metricFor(
+      team,
+      assigned.get(team.id) ?? [],
+      medianRating,
+      medianAge,
+      includeAge,
+    ),
   );
   const returningSplit = input.returningStay
     ? 0
@@ -185,6 +210,9 @@ function objective(
   return {
     value:
       stdev(metrics.map((metric) => metric.meanRating)) * 100 +
+      (includeAge
+        ? stdev(metrics.map((metric) => metric.meanAge ?? medianAge)) * 100
+        : 0) +
       stdev(metrics.map((metric) => metric.size)) * 50 +
       metrics.reduce(
         (sum, metric) =>
@@ -221,6 +249,13 @@ export function balanceTeams(input: BalanceInput): BalanceOutput {
     )
   )
     throw new RangeError('Invalid player rating');
+  if (
+    input.players.some(
+      (player) =>
+        player.age != null && (!Number.isFinite(player.age) || player.age < 0),
+    )
+  )
+    throw new RangeError('Invalid player age');
   const budget = input.timeBudgetSeconds ?? 5;
   if (!Number.isFinite(budget) || budget < 0 || budget > 5)
     throw new RangeError('Time budget must be 0–5 seconds');
@@ -230,7 +265,12 @@ export function balanceTeams(input: BalanceInput): BalanceOutput {
       player.rating == null ? [] : [player.rating],
     ),
   );
-  const units = unitsFor(input, medianRating);
+  const ages = input.players.flatMap((player) =>
+    player.age == null ? [] : [player.age],
+  );
+  const includeAge = ages.length > 0;
+  const medianAge = median(ages);
+  const units = unitsFor(input, medianRating, medianAge);
   const assigned = new Map(input.teams.map((team) => [team.id, [] as Unit[]]));
   const maxFor = (teamId: string): number =>
     input.teams.find((team) => team.id === teamId)?.maxRoster ?? 0;
@@ -323,7 +363,13 @@ export function balanceTeams(input: BalanceInput): BalanceOutput {
     if (!chosen) throw new Error('No team choice');
     assigned.get(chosen.id)?.push(unit);
   });
-  let best = objective(input, assigned, medianRating).value;
+  let best = objective(
+    input,
+    assigned,
+    medianRating,
+    medianAge,
+    includeAge,
+  ).value;
   const iterations = Math.floor(budget * 100);
   for (let step = 0; step < iterations; step += 1) {
     const firstTeam = input.teams[Math.floor(random() * input.teams.length)];
@@ -346,14 +392,26 @@ export function balanceTeams(input: BalanceInput): BalanceOutput {
       continue;
     a.splice(a.indexOf(ua), 1, ub);
     b.splice(b.indexOf(ub), 1, ua);
-    const candidate = objective(input, assigned, medianRating).value;
+    const candidate = objective(
+      input,
+      assigned,
+      medianRating,
+      medianAge,
+      includeAge,
+    ).value;
     if (candidate < best) best = candidate;
     else {
       a.splice(a.indexOf(ub), 1, ua);
       b.splice(b.indexOf(ua), 1, ub);
     }
   }
-  const metrics = objective(input, assigned, medianRating).metrics;
+  const metrics = objective(
+    input,
+    assigned,
+    medianRating,
+    medianAge,
+    includeAge,
+  ).metrics;
   const assignments = Object.fromEntries(
     [...assigned].flatMap(([teamId, teamUnits]) =>
       teamUnits.flatMap((unit) => unit.ids.map((id) => [id, teamId])),

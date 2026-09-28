@@ -39,6 +39,32 @@ describe('team balancer', () => {
 
   it('is deterministic for a seed', () => {
     expect(balanceTeams(input)).toEqual(balanceTeams(input));
+    expect(balanceTeams(input).metrics[0]).not.toHaveProperty('meanAge');
+  });
+
+  it('balances team mean age while preserving the rating objective', () => {
+    const players = Array.from({ length: 8 }, (_, index) => ({
+      id: `age-${String(index)}`,
+      rating: 5,
+      age: index < 4 ? 8 : 10,
+      positions: [],
+    }));
+    const result = balanceTeams({
+      ...input,
+      players,
+      teams: [
+        { id: 'red', maxRoster: 4 },
+        { id: 'blue', maxRoster: 4 },
+      ],
+      siblingsTogether: false,
+      returningStay: false,
+      seed: 7,
+      timeBudgetSeconds: 1,
+    });
+    expect(result.metrics.map((metric) => metric.meanAge)).toEqual([9, 9]);
+    expect(result.metrics.every((metric) => metric.meanRating === 5)).toBe(
+      true,
+    );
   });
 
   it('rejects conflicting fixed assignments inside a linked group', () => {
@@ -80,6 +106,7 @@ describe('team balancer', () => {
       const player: BalanceInput['players'][number] = {
         id: `p${String(index)}`,
         rating: 20 + ((index * 37) % 80),
+        age: 8 + (index % 4),
         positions:
           index % 12 === 0
             ? ['keeper']
@@ -122,6 +149,13 @@ describe('team balancer', () => {
       expect(metric.meanRating).toBeGreaterThanOrEqual(globalMean * 0.97);
     for (const metric of output.metrics)
       expect(metric.meanRating).toBeLessThanOrEqual(globalMean * 1.03);
+    expect(output.metrics.every((metric) => metric.meanAge !== undefined)).toBe(
+      true,
+    );
+    const teamAges = output.metrics.map((metric) => metric.meanAge ?? 0);
+    expect(Math.max(...teamAges) - Math.min(...teamAges)).toBeLessThanOrEqual(
+      1,
+    );
     expect(
       balanceTeams({
         players,

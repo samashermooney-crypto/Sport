@@ -959,6 +959,7 @@ export async function createPlacementBoard(
       school: string | null;
       household_id: string | null;
       group_name: string;
+      age_years?: number | null;
     }[] = [];
     if (eventId) {
       const rows = await sql<{
@@ -968,6 +969,7 @@ export async function createPlacementBoard(
         school: string | null;
         household_id: string | null;
         group_name: string;
+        age_years?: number | null;
       }>`SELECT p.person_id,r.composite::float8 AS composite,p.position_keys AS positions,pe.school_name AS school,
           (SELECT hm.household_id FROM household_members hm
            WHERE hm.org_id=p.org_id AND hm.person_id=p.person_id
@@ -991,12 +993,15 @@ export async function createPlacementBoard(
         household_id: string | null;
         group_name: string;
         coach_rating: number | null;
+        age_years: number | null;
       }>`SELECT DISTINCT ON (r.person_id) r.person_id,pe.school_name AS school,
         (SELECT hm.household_id FROM household_members hm WHERE hm.org_id=r.org_id AND hm.person_id=r.person_id ORDER BY hm.is_primary_contact DESC LIMIT 1) AS household_id,
-        d.name AS group_name,pref.coach_rating::float8 AS coach_rating
+        d.name AS group_name,pref.coach_rating::float8 AS coach_rating,
+        EXTRACT(YEAR FROM age(target.starts_on,pe.date_of_birth))::int AS age_years
         FROM registrations r
         JOIN people pe ON pe.org_id=r.org_id AND pe.id=r.person_id
         JOIN divisions d ON d.org_id=r.org_id AND d.id=r.division_id
+        JOIN programs target ON target.org_id=r.org_id AND target.id=r.program_id
         LEFT JOIN placement_preferences pref ON pref.org_id=r.org_id AND pref.program_id=r.program_id AND pref.person_id=r.person_id
         WHERE r.org_id=${context.orgId} AND r.program_id=${targetProgramId}
           AND r.status='confirmed'
@@ -1011,6 +1016,7 @@ export async function createPlacementBoard(
         school: row.school,
         household_id: row.household_id,
         group_name: row.group_name,
+        age_years: row.age_years,
       }));
     }
     if (!participants.length)
@@ -1107,6 +1113,7 @@ export async function createPlacementBoard(
       return {
         id: row.person_id,
         rating: row.composite === null ? null : row.composite - ratingFloor,
+        ...(row.age_years == null ? {} : { age: row.age_years }),
         positions: row.positions,
         ...(fixedTeamId ? { fixedTeamId } : {}),
         ...(input.siblingsTogether &&
