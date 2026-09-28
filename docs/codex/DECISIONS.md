@@ -900,3 +900,11 @@
 - **Decision:** Allow only the supported push-provider HTTPS hostnames on port 443, resolve them once, reject the destination if any answer is non-public, and pass a custom HTTPS agent that pins lookup to a validated address. Treat rejected destinations as invalid subscriptions so the normal cleanup boundary removes them.
 - **Why:** The push adapter needs to contact provider infrastructure without becoming a general-purpose server-side URL fetcher.
 - **Consequences / follow-ups:** Provider-domain changes require security review; TLS hostname validation remains enabled. Tests cover private and reserved IP ranges, mixed answers, rebinding pinning, and loopback rejection.
+
+### DEC-121 — Pin custom-domain certificate probes to public addresses
+- **Date:** 2026-09-28
+- **Phase / area:** Phase 14 custom website domains
+- **Context:** Domain ownership verification also checks for a trusted TLS certificate. A tenant-controlled hostname can resolve to loopback or a private service if the TLS probe lets the socket resolve it again.
+- **Decision:** Resolve the verified hostname, reject non-public IPv4 and IPv6 targets, and pin the TLS handshake to a vetted address while validating the certificate against the requested hostname.
+- **Why:** Domain verification must not become a server-side request forgery path into private network services.
+- **Consequences / follow-ups:** If DNS has no publicly routable address, the domain remains pending verification. Public IPv4/IPv6 range classification has focused tests.
