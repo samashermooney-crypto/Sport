@@ -78,5 +78,3 @@ export const moduleDefinition = {
   errorCodes: [],
   openapiRoutes: onboardingOpenApiRoutes,
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };
-
-export { createOnboardingRouter };

@@ -25,7 +25,7 @@ export const onboardingChecklistSchema = z.strictObject({
   completeCount: z.number(),
 });
 
-export const helpArticleSummarySchema = z.strictObject({
+const helpArticleSummarySchema = z.strictObject({
   slug: z.string(),
   locale: z.string(),
   title: z.string(),

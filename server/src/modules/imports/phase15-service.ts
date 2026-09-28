@@ -1539,5 +1539,3 @@ export function createImportsService(
     importFields,
   };
 }
-
-export type ImportsService = ReturnType<typeof createImportsService>;

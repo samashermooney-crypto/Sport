@@ -6,7 +6,7 @@ export interface ZipEntry {
   directory: boolean;
 }
 
-export class ZipParseError extends Error {}
+class ZipParseError extends Error {}
 
 const MAX_ENTRIES = 256;
 const MAX_EXPANDED_BYTES = 20 * 1024 * 1024;

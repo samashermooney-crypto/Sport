@@ -14,7 +14,7 @@ export const importKindSchema = z.enum([
 ]);
 export type ImportKind = z.infer<typeof importKindSchema>;
 
-export const importMappingSchema = z.strictObject({
+const importMappingSchema = z.strictObject({
   columns: z.record(z.string(), z.string().nullable()),
   options: z
     .object({

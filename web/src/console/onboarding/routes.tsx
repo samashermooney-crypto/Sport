@@ -42,5 +42,3 @@ export const consoleOnboardingRoutes: RouteObject[] = [
     element: <ImportsRoute />,
   },
 ];
-
-export const onboardingRoutes = consoleOnboardingRoutes;

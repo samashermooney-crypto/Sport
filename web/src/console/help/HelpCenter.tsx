@@ -613,7 +613,7 @@ function stripArticleTitleHeading(body: string, title: string): string {
   return heading === title ? lines.slice(1).join('\n').trimStart() : body;
 }
 
-export function AiHelpChat({
+function AiHelpChat({
   orgId,
   locale,
 }: {

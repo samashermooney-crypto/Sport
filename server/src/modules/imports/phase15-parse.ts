@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 
-export const IMPORT_MAX_ROWS = 20_000;
-export const IMPORT_MAX_BYTES = 20 * 1024 * 1024;
+const IMPORT_MAX_ROWS = 20_000;
+const IMPORT_MAX_BYTES = 20 * 1024 * 1024;
 
 export class ImportParseError extends Error {}
 
@@ -10,7 +10,7 @@ export interface ParsedTable {
   rows: Record<string, string>[];
 }
 
-export function decodeText(bytes: Uint8Array): string {
+function decodeText(bytes: Uint8Array): string {
   if (
     bytes.length >= 3 &&
     bytes[0] === 0xef &&
@@ -119,7 +119,7 @@ export function parseCsv(bytes: Uint8Array): ParsedTable {
   return cellsToTable(parseCsvText(decodeText(bytes)));
 }
 
-export async function parseXlsx(bytes: Uint8Array): Promise<ParsedTable> {
+async function parseXlsx(bytes: Uint8Array): Promise<ParsedTable> {
   const workbook = new ExcelJS.Workbook();
   const buffer = Buffer.from(bytes) as unknown as Parameters<
     typeof workbook.xlsx.load

@@ -604,16 +604,3 @@ export const importFields: Record<ImportKind, ImportField[]> = {
   historical_payments: historicalPaymentFields,
   volunteer_hours: volunteerHourFields,
 };
-
-export const importKindLabels: Record<ImportKind, string> = {
-  people: 'People',
-  households: 'Households',
-  registrations: 'Registration history',
-  teams: 'Teams',
-  rosters: 'Rosters',
-  schedule: 'Schedule',
-  facilities: 'Facilities',
-  credentials: 'Credentials',
-  historical_payments: 'Historical payments',
-  volunteer_hours: 'Volunteer hours',
-};

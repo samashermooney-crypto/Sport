@@ -301,23 +301,3 @@ export function parseList(raw: string): string[] {
     .map((item) => item.trim())
     .filter(Boolean);
 }
-
-export function splitName(raw: string): {
-  first: string;
-  last: string;
-} {
-  const value = raw.trim();
-  const comma = value.indexOf(',');
-  if (comma >= 0) {
-    return {
-      first: value.slice(comma + 1).trim(),
-      last: value.slice(0, comma).trim(),
-    };
-  }
-  const parts = value.split(/\s+/);
-  if (parts.length === 1) return { first: parts[0] ?? '', last: '' };
-  return {
-    first: parts.slice(0, -1).join(' '),
-    last: parts.at(-1) ?? '',
-  };
-}
