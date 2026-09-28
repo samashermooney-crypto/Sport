@@ -19,6 +19,31 @@
   padding: var(--space-16) 0;
 }
 
+.schedule-facility-layout {
+  display: grid;
+  gap: var(--space-8);
+  justify-items: start;
+  margin: 0;
+}
+
+.schedule-facility-layout img {
+  display: block;
+  max-width: min(100%, 720px);
+  max-height: 520px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-4);
+  object-fit: contain;
+}
+
+.schedule-facility-layout[hidden] {
+  display: none;
+}
+
+.schedule-facility-layout figcaption {
+  color: var(--muted);
+  font-size: var(--font-size-12);
+}
+
 .schedule-page__header p,
 .schedule-card > p,
 .schedule-card__title p {

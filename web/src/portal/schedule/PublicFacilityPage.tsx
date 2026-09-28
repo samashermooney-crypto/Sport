@@ -101,6 +101,18 @@ export function PublicFacilityPage({
           </a>
         )}
       </header>
+      {data.facility.layout_image_file_id && (
+        <figure className="schedule-facility-layout">
+          <img
+            src={`/api/v1/files/public/orgs/${encodeURIComponent(slug)}/facilities/${encodeURIComponent(facilityId)}/layout`}
+            alt={`${data.facility.name} facility layout`}
+            onError={(event) => {
+              event.currentTarget.parentElement?.setAttribute('hidden', '');
+            }}
+          />
+          <figcaption>Facility layout</figcaption>
+        </figure>
+      )}
       {!!data.closures.length && (
         <section className="schedule-card" aria-label="Facility closures">
           <h2>Closure notices</h2>

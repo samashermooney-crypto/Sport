@@ -274,6 +274,7 @@ export function ScheduleConsole({
 }): React.JSX.Element {
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [facilityLayout, setFacilityLayout] = useState<File | null>(null);
   const [organizationTimezone, setOrganizationTimezone] = useState<
     string | null
   >(null);
@@ -363,6 +364,55 @@ export function ScheduleConsole({
       );
     }
   }, [orgId]);
+
+  async function uploadFacilityLayout(file: File): Promise<string> {
+    if (
+      !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
+      file.size > 15 * 1024 * 1024
+    )
+      throw new Error('Choose a JPEG, PNG or WebP layout image up to 15 MB.');
+    const upload = await api<{ fileId: string; uploadUrl: string }>(
+      '/api/v1/files/uploads',
+      {
+        ...json({
+          purpose: 'website_asset',
+          mime: file.type,
+          bytes: file.size,
+          ownerType: 'organization',
+          ownerId: orgId,
+          sensitivity: 'public',
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Athlentry-Org': orgId,
+        },
+      },
+    );
+    const local = upload.uploadUrl.startsWith('/');
+    const response = await fetch(upload.uploadUrl, {
+      method: 'PUT',
+      body: file,
+      credentials: local ? 'include' : 'omit',
+      headers: {
+        'Content-Type': file.type,
+        ...(local
+          ? { 'X-Athlentry-Request': '1', 'X-Athlentry-Org': orgId }
+          : {}),
+      },
+    });
+    if (!response.ok) throw new Error('Facility layout upload failed.');
+    await api<{ id: string }>(
+      `/api/v1/files/uploads/${encodeURIComponent(upload.fileId)}/complete`,
+      {
+        ...json({}),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Athlentry-Org': orgId,
+        },
+      },
+    );
+    return upload.fileId;
+  }
 
   useEffect(() => {
     void loadEvents();
@@ -2627,6 +2677,9 @@ export function ScheduleConsole({
               event.preventDefault();
               const form = new FormData(event.currentTarget);
               void perform(async () => {
+                const layoutImageFileId = facilityLayout
+                  ? await uploadFacilityLayout(facilityLayout)
+                  : null;
                 await api(
                   `${base(orgId, 'scheduling')}/facilities`,
                   json({
@@ -2636,10 +2689,12 @@ export function ScheduleConsole({
                     ownership: formText(form, 'ownership'),
                     parkingNotes: formText(form, 'parkingNotes') || null,
                     isPublic: form.get('isPublic') === 'on',
+                    layoutImageFileId,
                   }),
                 );
                 await loadFacilities();
                 await loadSpaces();
+                setFacilityLayout(null);
               }, 'Facility created.');
             }}
           >
@@ -2657,6 +2712,16 @@ export function ScheduleConsole({
             </Field>
             <Field label="Parking notes">
               <Textarea name="parkingNotes" rows={2} maxLength={2000} />
+            </Field>
+            <Field label="Facility layout image">
+              <Input
+                name="layoutImage"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(event) => {
+                  setFacilityLayout(event.currentTarget.files?.[0] ?? null);
+                }}
+              />
             </Field>
             <label className="schedule-check">
               <input name="isPublic" type="checkbox" /> List publicly

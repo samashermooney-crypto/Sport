@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 import { expect, test } from '@playwright/test';
 
 import { createDatabase } from '../server/src/db/kysely';
@@ -65,11 +67,18 @@ test('staff publishes a facility page with its public space listing', async ({
     await facilityForm
       .getByLabel('Parking notes')
       .fill('Use the east entrance and overflow lot.');
+    await facilityForm
+      .getByLabel('Facility layout image')
+      .setInputFiles('server/test/fixtures/gps-photo.jpg');
     await facilityForm.getByLabel('List publicly').check();
     await facilityForm.getByRole('button', { name: 'Add facility' }).click();
     const facilityCreated = await facilityResponse;
     expect(facilityCreated.ok()).toBe(true);
-    const facility = (await facilityCreated.json()) as { id: string };
+    const facility = (await facilityCreated.json()) as {
+      id: string;
+      layout_image_file_id: string | null;
+    };
+    expect(facility.layout_image_file_id).toBeTruthy();
     await expect(page.getByRole('status')).toHaveText('Facility created.');
 
     const spaceDetails = facilities
@@ -99,6 +108,17 @@ test('staff publishes a facility page with its public space listing', async ({
       .select('slug')
       .where('id', '=', actor.orgId)
       .executeTakeFirstOrThrow();
+    await page.route(
+      (url) =>
+        url.pathname ===
+        `/api/v1/files/public/orgs/${encodeURIComponent(organization.slug)}/facilities/${encodeURIComponent(facility.id)}/layout`,
+      async (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'image/jpeg',
+          body: await readFile('server/test/fixtures/gps-photo.jpg'),
+        }),
+    );
     await page.goto(`/orgs/${organization.slug}/facilities/${facility.id}`);
     await expect(
       page.getByRole('heading', { name: 'East Community Park' }),
@@ -107,6 +127,11 @@ test('staff publishes a facility page with its public space listing', async ({
       page.getByText('Use the east entrance and overflow lot.'),
     ).toBeVisible();
     await expect(page.getByText('East Turf Field · field')).toBeVisible();
+    await expect(
+      page.getByRole('img', {
+        name: 'East Community Park facility layout',
+      }),
+    ).toBeVisible();
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
     await database.destroy();
