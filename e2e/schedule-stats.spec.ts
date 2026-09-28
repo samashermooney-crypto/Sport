@@ -275,9 +275,13 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     ]);
 
     await page.goto(`/console/orgs/${actor.orgId}/schedule`);
-    await page
-      .getByRole('textbox', { name: 'Program ID *' })
-      .fill(program.programId);
+    await page.getByLabel('Program *').selectOption(program.programId);
+    const selectedDivision = page
+      .getByRole('region', { name: 'Schedule generator' })
+      .getByLabel('Division *');
+    await expect(selectedDivision).toBeEnabled();
+    await selectedDivision.selectOption(program.divisionId);
+    await expect(selectedDivision).toHaveValue(program.divisionId);
     await page.getByRole('button', { name: 'Load statistic settings' }).click();
     await expect(page.getByLabel('Goals (team) · public')).toBeVisible({
       timeout: 15_000,
@@ -367,10 +371,45 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
       [home.teamSeasonId]: '3',
       [away.teamSeasonId]: '1',
     });
+    const leaderboardResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes('/stats/leaders'),
+    );
     await page.getByRole('button', { name: 'Load leaderboards' }).click();
-    await expect(page.getByRole('heading', { name: 'Goals' })).toBeVisible();
+    const leaderboardResponse = await leaderboardResponsePromise;
+    expect(leaderboardResponse.ok()).toBe(true);
+    const leaderboardUrl = new URL(leaderboardResponse.url());
+    expect(leaderboardUrl.pathname).toContain(
+      `/programs/${program.programId}/stats/leaders`,
+    );
+    expect(leaderboardUrl.searchParams.get('divisionId')).toBe(
+      program.divisionId,
+    );
+    const leaderboardPayload = (await leaderboardResponse.json()) as {
+      items: Array<{
+        key: string;
+        leaders: Array<{ value: number }>;
+      }>;
+    };
+    expect(leaderboardPayload.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'goals',
+          leaders: expect.arrayContaining([
+            expect.objectContaining({ value: 3 }),
+          ]),
+        }),
+      ]),
+    );
+    const leaderboard = page.getByRole('region', {
+      name: 'Program and division leaderboards',
+    });
     await expect(
-      page.getByRole('cell', { name: '3', exact: true }),
+      leaderboard.getByRole('heading', { name: 'Goals' }),
+    ).toBeVisible();
+    await expect(
+      leaderboard.getByRole('cell', { name: '3', exact: true }),
     ).toBeVisible();
     await page.getByRole('button', { name: 'Load standings' }).click();
     await expect(page.getByRole('status')).toHaveText(

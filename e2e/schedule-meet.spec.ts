@@ -148,9 +148,7 @@ test('meet director seeds and finalizes six events for forty swimmers', async ({
     ]);
 
     await page.goto(`/console/orgs/${actor.orgId}/schedule`);
-    await page
-      .getByRole('textbox', { name: 'Program ID *' })
-      .fill(program.programId);
+    await page.getByLabel('Program *').selectOption(program.programId);
     const selectedEvent = page.getByLabel('Selected event');
     const teamPoints = new Map<string, number>();
 
@@ -220,7 +218,16 @@ test('meet director seeds and finalizes six events for forty swimmers', async ({
       await page
         .getByLabel('Format-specific result JSON')
         .fill(JSON.stringify({ entries }));
-      await page.getByLabel('Finalize result and update standings').check();
+      const finalizeResult = page.getByLabel(
+        'Finalize result and update standings',
+      );
+      // Tap the visible label on the mobile WebKit journey just as a coach
+      // would; targeting the tiny native checkbox can intermittently leave it
+      // unchecked after a touch click even though the label is a valid target.
+      await page
+        .getByText('Finalize result and update standings', { exact: true })
+        .click();
+      await expect(finalizeResult).toBeChecked();
       const resultResponse = page.waitForResponse(
         (response) =>
           response.request().method() === 'POST' &&

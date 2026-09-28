@@ -93,7 +93,7 @@ test('season end collects family feedback, ratings, awards, and archive', async 
     ]);
 
     await page.goto(`/console/orgs/${actor.orgId}/schedule`);
-    await page.getByLabel('Program ID *').fill(program.programId);
+    await page.getByLabel('Program *').selectOption(program.programId);
     const panel = page.locator('section[aria-labelledby="season-end-heading"]');
     await expect(panel).toBeVisible();
     await panel.getByLabel('Family survey title').fill('Season feedback');
@@ -149,7 +149,7 @@ test('season end collects family feedback, ratings, awards, and archive', async 
     expect(await accessibilityViolations(page)).toEqual([]);
 
     await page.goto(`/console/orgs/${actor.orgId}/schedule`);
-    await page.getByLabel('Program ID *').fill(program.programId);
+    await page.getByLabel('Program *').selectOption(program.programId);
     const staffPanel = page.locator(
       'section[aria-labelledby="season-end-heading"]',
     );

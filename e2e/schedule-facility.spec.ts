@@ -79,7 +79,9 @@ test('staff publishes a facility page with its public space listing', async ({
       layout_image_file_id: string | null;
     };
     expect(facility.layout_image_file_id).toBeTruthy();
-    await expect(page.getByRole('status')).toHaveText('Facility created.');
+    await expect(
+      page.getByText('Facility created.', { exact: true }),
+    ).toBeVisible();
 
     const spaceDetails = facilities
       .locator('details')
@@ -99,9 +101,9 @@ test('staff publishes a facility page with its public space listing', async ({
     await spaceForm.getByLabel('Surface').fill('Synthetic turf');
     await spaceForm.getByRole('button', { name: 'Add space' }).click();
     expect((await spaceResponse).ok()).toBe(true);
-    await expect(page.getByRole('status')).toHaveText(
-      'Bookable space created.',
-    );
+    await expect(
+      page.getByText('Bookable space created.', { exact: true }),
+    ).toBeVisible();
 
     const organization = await database
       .selectFrom('organizations')

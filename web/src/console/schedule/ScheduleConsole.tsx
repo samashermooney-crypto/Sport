@@ -82,6 +82,20 @@ type Space = {
   name: string;
   kind: string;
 };
+type ProgramOption = {
+  id: string;
+  name: string;
+  mode: string;
+  starts_on: string;
+  ends_on: string;
+};
+type DivisionOption = { id: string; name: string; is_default: boolean };
+type BracketOption = {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+};
 function closureTimezoneFor(
   scopeType: string,
   scopeId: string | null,
@@ -273,6 +287,18 @@ export function ScheduleConsole({
   orgId: string;
 }): React.JSX.Element {
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
+  const [programs, setPrograms] = useState<ProgramOption[]>([]);
+  const [programsLoading, setProgramsLoading] = useState(true);
+  const [divisions, setDivisions] = useState<DivisionOption[]>([]);
+  const [divisionsLoading, setDivisionsLoading] = useState(false);
+  const [tournamentBrackets, setTournamentBrackets] = useState<BracketOption[]>(
+    [],
+  );
+  const [tournamentBracketsLoading, setTournamentBracketsLoading] =
+    useState(false);
+  const [generationBracketId, setGenerationBracketId] = useState('');
+  const [seasonStartsOn, setSeasonStartsOn] = useState(today());
+  const [seasonEndsOn, setSeasonEndsOn] = useState(today(90));
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [facilityLayout, setFacilityLayout] = useState<File | null>(null);
   const [organizationTimezone, setOrganizationTimezone] = useState<
@@ -315,6 +341,132 @@ export function ScheduleConsole({
     useState<ProgramStatLeaderboards | null>(null);
   const [programStatSettings, setProgramStatSettings] =
     useState<ProgramStatSettings | null>(null);
+
+  const selectedProgram = programs.find((program) => program.id === programId);
+  const programSelectOptions = [
+    {
+      value: '',
+      label: programsLoading ? 'Loading programs…' : 'Select a program',
+    },
+    ...programs.map((program) => ({
+      value: program.id,
+      label: `${program.name} · ${program.mode}`,
+    })),
+  ];
+  const divisionSelectOptions = [
+    {
+      value: '',
+      label: divisionsLoading ? 'Loading divisions…' : 'Select a division',
+    },
+    ...divisions.map((division) => ({
+      value: division.id,
+      label: division.name,
+    })),
+  ];
+  const generationBracketOptions = [
+    {
+      value: '',
+      label: tournamentBracketsLoading
+        ? 'Loading tournaments…'
+        : 'Select a tournament',
+    },
+    ...tournamentBrackets.map((bracket) => ({
+      value: bracket.id,
+      label: `${bracket.name} · ${bracket.status}`,
+    })),
+  ];
+
+  function selectProgram(value: string): void {
+    setProgramId(value);
+    setDivisionId('');
+    setGenerationBracketId('');
+    setStandingsScopeId('');
+    setStandings(null);
+    setProgramStatSettings(null);
+    setProgramStatLeaders(null);
+  }
+
+  function programPicker(label = 'Program', required = false, name?: string) {
+    return (
+      <Field label={label} required={required}>
+        <Select
+          {...(name ? { name } : {})}
+          value={programId}
+          onChange={(event) => {
+            selectProgram(event.target.value);
+          }}
+          disabled={programsLoading || programs.length === 0}
+          required={required}
+          options={programSelectOptions}
+        />
+      </Field>
+    );
+  }
+
+  function divisionPicker(label = 'Division', required = false, name?: string) {
+    return (
+      <Field label={label} required={required}>
+        <Select
+          {...(name ? { name } : {})}
+          value={divisionId}
+          onChange={(event) => {
+            setDivisionId(event.target.value);
+          }}
+          disabled={divisionsLoading || divisions.length === 0}
+          required={required}
+          options={divisionSelectOptions}
+        />
+      </Field>
+    );
+  }
+
+  const loadPrograms = useCallback(async () => {
+    setProgramsLoading(true);
+    try {
+      const items = await api<ProgramOption[]>(base(orgId, 'programs'));
+      setPrograms(items);
+      setProgramId((current) =>
+        items.some((program) => program.id === current)
+          ? current
+          : (items[0]?.id ?? ''),
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : 'Could not load programs.',
+      );
+    } finally {
+      setProgramsLoading(false);
+    }
+  }, [orgId]);
+
+  const loadTournamentBrackets = useCallback(async () => {
+    if (!programId) {
+      setTournamentBrackets([]);
+      setGenerationBracketId('');
+      setTournamentBracketsLoading(false);
+      return [];
+    }
+    setTournamentBracketsLoading(true);
+    try {
+      const { items } = await api<{ items: BracketOption[] }>(
+        `${base(orgId, 'tournaments')}/programs/${encodeURIComponent(programId)}`,
+      );
+      setTournamentBrackets(items);
+      setGenerationBracketId((current) =>
+        items.some((item) => item.id === current)
+          ? current
+          : (items[0]?.id ?? ''),
+      );
+      return items;
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : 'Could not load tournaments.',
+      );
+      return [];
+    } finally {
+      setTournamentBracketsLoading(false);
+    }
+  }, [orgId, programId]);
 
   const loadEvents = useCallback(async () => {
     setError('');
@@ -416,9 +568,58 @@ export function ScheduleConsole({
 
   useEffect(() => {
     void loadEvents();
+  }, [loadEvents]);
+
+  useEffect(() => {
+    void loadPrograms();
     void loadFacilities();
     void loadSpaces();
-  }, [loadEvents, loadFacilities, loadSpaces]);
+  }, [loadFacilities, loadPrograms, loadSpaces]);
+
+  useEffect(() => {
+    void loadTournamentBrackets();
+  }, [loadTournamentBrackets]);
+
+  useEffect(() => {
+    if (!selectedProgram) return;
+    setSeasonStartsOn(selectedProgram.starts_on.slice(0, 10));
+    setSeasonEndsOn(selectedProgram.ends_on.slice(0, 10));
+  }, [selectedProgram]);
+
+  useEffect(() => {
+    let active = true;
+    if (!programId) {
+      setDivisions([]);
+      setDivisionId('');
+      setDivisionsLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+    setDivisions([]);
+    setDivisionId('');
+    setDivisionsLoading(true);
+    void api<{ divisions: DivisionOption[] }>(
+      `${base(orgId, 'programs')}/${encodeURIComponent(programId)}`,
+    )
+      .then(({ divisions: nextDivisions }) => {
+        if (!active) return;
+        setDivisions(nextDivisions);
+        setDivisionId(nextDivisions[0]?.id ?? '');
+      })
+      .catch((cause: unknown) => {
+        if (!active) return;
+        setError(
+          cause instanceof Error ? cause.message : 'Could not load divisions.',
+        );
+      })
+      .finally(() => {
+        if (active) setDivisionsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [orgId, programId]);
 
   const runId = run?.id;
   const runStatus = run?.status;
@@ -518,7 +719,7 @@ export function ScheduleConsole({
   function standingsScope() {
     const id =
       standingsScopeId.trim() ||
-      (standingsScopeType === 'program' ? programId.trim() : '');
+      (standingsScopeType === 'program' ? programId.trim() : divisionId.trim());
     return {
       id,
       noun: standingsScopeType === 'program' ? 'programs' : 'divisions',
@@ -532,7 +733,7 @@ export function ScheduleConsole({
 
   async function loadStandings(): Promise<void> {
     if (!standingsScope().id) {
-      setError('Enter a program or division ID first.');
+      setError('Select a program or division first.');
       return;
     }
     await perform(async () => {
@@ -542,7 +743,7 @@ export function ScheduleConsole({
 
   async function refreshStandings(): Promise<void> {
     if (!standingsScope().id) {
-      setError('Enter a program or division ID first.');
+      setError('Select a program or division first.');
       return;
     }
     await perform(async () => {
@@ -1613,26 +1814,8 @@ export function ScheduleConsole({
                 required
               />
             </Field>
-            <Field label="Program ID">
-              <Input
-                name="programId"
-                value={programId}
-                onChange={(event) => {
-                  setProgramId(event.target.value);
-                  setProgramStatSettings(null);
-                  setProgramStatLeaders(null);
-                }}
-              />
-            </Field>
-            <Field label="Division ID">
-              <Input
-                name="divisionId"
-                value={divisionId}
-                onChange={(event) => {
-                  setDivisionId(event.target.value);
-                }}
-              />
-            </Field>
+            {programPicker('Program', false, 'programId')}
+            {divisionPicker('Division', false, 'divisionId')}
             <Field label="Space ID">
               <Input name="spaceId" />
             </Field>
@@ -1683,6 +1866,16 @@ export function ScheduleConsole({
             Generate a deterministic draft, review every unplaced game, then
             apply or discard.
           </p>
+          {programsLoading && <p role="status">Loading programs…</p>}
+          {!programsLoading && programs.length === 0 && (
+            <p role="status">
+              No programs are available yet.{' '}
+              <Link to={`/console/orgs/${orgId}/programs`}>
+                Create a program
+              </Link>{' '}
+              before building its schedule.
+            </p>
+          )}
           <form
             className="schedule-form schedule-form--two"
             onSubmit={(event) => void createGeneration(event)}
@@ -1704,31 +1897,24 @@ export function ScheduleConsole({
                 ]}
               />
             </Field>
-            <Field label="Program ID" required>
-              <Input
-                value={programId}
-                onChange={(event) => {
-                  setProgramId(event.target.value);
-                  setProgramStatSettings(null);
-                  setProgramStatLeaders(null);
-                }}
-                required
-              />
-            </Field>
+            {programPicker('Program', true)}
             {generationMode === 'league' ? (
-              <Field label="Division ID" required>
-                <Input
-                  value={divisionId}
-                  onChange={(event) => {
-                    setDivisionId(event.target.value);
-                  }}
-                  required
-                />
-              </Field>
+              divisionPicker('Division', true)
             ) : (
               <>
-                <Field label="Tournament bracket ID" required>
-                  <Input name="bracketId" required />
+                <Field label="Tournament" required>
+                  <Select
+                    name="bracketId"
+                    value={generationBracketId}
+                    onChange={(event) => {
+                      setGenerationBracketId(event.target.value);
+                    }}
+                    disabled={
+                      tournamentBracketsLoading || !tournamentBrackets.length
+                    }
+                    required
+                    options={generationBracketOptions}
+                  />
                 </Field>
                 <Field label="Pool dates (comma separated YYYY-MM-DD)" required>
                   <Input
@@ -1743,7 +1929,10 @@ export function ScheduleConsole({
               <Input
                 name="seasonStartsOn"
                 type="date"
-                defaultValue={today()}
+                value={seasonStartsOn}
+                onChange={(event) => {
+                  setSeasonStartsOn(event.target.value);
+                }}
                 required
               />
             </Field>
@@ -1751,7 +1940,10 @@ export function ScheduleConsole({
               <Input
                 name="seasonEndsOn"
                 type="date"
-                defaultValue={today(90)}
+                value={seasonEndsOn}
+                onChange={(event) => {
+                  setSeasonEndsOn(event.target.value);
+                }}
                 required
               />
             </Field>
@@ -1798,6 +1990,7 @@ export function ScheduleConsole({
               disabled={
                 loading ||
                 !programId ||
+                (generationMode === 'tournament' && !generationBracketId) ||
                 (generationMode === 'league' && !divisionId)
               }
             >
@@ -2137,11 +2330,27 @@ export function ScheduleConsole({
                   required
                 />
               </Field>
-              <Field label="Program ID">
-                <Input name="programId" />
+              <Field label="Program">
+                <Select
+                  name="programId"
+                  value={programId}
+                  onChange={(event) => {
+                    selectProgram(event.target.value);
+                  }}
+                  disabled={programsLoading || !programs.length}
+                  options={programSelectOptions}
+                />
               </Field>
-              <Field label="Division ID">
-                <Input name="divisionId" />
+              <Field label="Division">
+                <Select
+                  name="divisionId"
+                  value={divisionId}
+                  onChange={(event) => {
+                    setDivisionId(event.target.value);
+                  }}
+                  disabled={divisionsLoading || !divisions.length}
+                  options={divisionSelectOptions}
+                />
               </Field>
               <Field label="Space ID">
                 <Input name="spaceId" />
@@ -2986,8 +3195,16 @@ export function ScheduleConsole({
               <Field label="Team season ID">
                 <Input name="allocationTeamSeasonId" />
               </Field>
-              <Field label="Division ID">
-                <Input name="allocationDivisionId" />
+              <Field label="Division">
+                <Select
+                  name="allocationDivisionId"
+                  value={divisionId}
+                  onChange={(event) => {
+                    setDivisionId(event.target.value);
+                  }}
+                  disabled={divisionsLoading || !divisions.length}
+                  options={divisionSelectOptions}
+                />
               </Field>
               <Field label="Weekday" required>
                 <Input
@@ -3088,21 +3305,33 @@ export function ScheduleConsole({
               value={standingsScopeType}
               options={['program', 'division']}
               onChange={(event) => {
-                setStandingsScopeType(
-                  event.target.value as 'program' | 'division',
+                const next = event.target.value as 'program' | 'division';
+                setStandingsScopeType(next);
+                setStandingsScopeId(
+                  next === 'program' ? programId : divisionId,
                 );
               }}
             />
           </Field>
-          <Field label="Program or division ID">
-            <Input
+          <Field label="Program or division">
+            <Select
               value={
                 standingsScopeId ||
-                (standingsScopeType === 'program' ? programId : '')
+                (standingsScopeType === 'program' ? programId : divisionId)
               }
               onChange={(event) => {
                 setStandingsScopeId(event.target.value);
               }}
+              disabled={
+                standingsScopeType === 'program'
+                  ? programsLoading || !programs.length
+                  : divisionsLoading || !divisions.length
+              }
+              options={
+                standingsScopeType === 'program'
+                  ? programSelectOptions
+                  : divisionSelectOptions
+              }
             />
           </Field>
           <div className="schedule-actions">
@@ -3390,7 +3619,19 @@ export function ScheduleConsole({
           ))}
       </section>
       <ScheduleRequestsPanel orgId={orgId} />
-      <TournamentPanel orgId={orgId} programId={programId} />
+      <TournamentPanel
+        orgId={orgId}
+        programId={programId}
+        divisionId={divisionId}
+        divisions={divisions}
+        divisionsLoading={divisionsLoading}
+        brackets={tournamentBrackets}
+        bracketsLoading={tournamentBracketsLoading}
+        refreshBrackets={loadTournamentBrackets}
+        onDivisionChange={(value) => {
+          setDivisionId(value);
+        }}
+      />
       <OfficialsPanel orgId={orgId} programId={programId} />
       <SeasonEndPanel orgId={orgId} programId={programId} />
     </main>
@@ -3989,19 +4230,119 @@ type BracketView = {
   }>;
 };
 
+type TournamentTeamOption = {
+  id: string;
+  name: string;
+  display_name: string | null;
+  division_id: string;
+  status: string;
+};
 function TournamentPanel({
   orgId,
   programId,
+  divisionId,
+  divisions,
+  divisionsLoading,
+  brackets,
+  bracketsLoading,
+  refreshBrackets,
+  onDivisionChange,
 }: {
   orgId: string;
   programId: string;
+  divisionId: string;
+  divisions: DivisionOption[];
+  divisionsLoading: boolean;
+  brackets: BracketOption[];
+  bracketsLoading: boolean;
+  refreshBrackets: () => Promise<BracketOption[]>;
+  onDivisionChange: (divisionId: string) => void;
 }): React.JSX.Element {
   const [bracketId, setBracketId] = useState('');
   const [bracket, setBracket] = useState<BracketView | null>(null);
+  const [tournamentTeams, setTournamentTeams] = useState<
+    TournamentTeamOption[]
+  >([]);
+  const [teamsLoading, setTeamsLoading] = useState(false);
+  const [entrySeeds, setEntrySeeds] = useState<
+    Array<{ teamSeasonId: string; seed: number }>
+  >([]);
   const [seedResult, setSeedResult] = useState<unknown>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const selectedTeams = tournamentTeams.filter(
+    (team) => team.division_id === divisionId && team.status !== 'withdrawn',
+  );
+  const bracketSelectOptions = [
+    {
+      value: '',
+      label: bracketsLoading ? 'Loading tournaments…' : 'Select a tournament',
+    },
+    ...brackets.map((item) => ({
+      value: item.id,
+      label: `${item.name} · ${item.status}`,
+    })),
+  ];
+
+  useEffect(() => {
+    setBracket(null);
+    setBracketId('');
+  }, [programId]);
+
+  useEffect(() => {
+    if (!brackets.some((item) => item.id === bracketId))
+      setBracketId(brackets[0]?.id ?? '');
+  }, [brackets, bracketId]);
+
+  useEffect(() => {
+    let active = true;
+    setTournamentTeams([]);
+    setEntrySeeds([]);
+    if (!programId) {
+      setTeamsLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+    setTeamsLoading(true);
+    void api<TournamentTeamOption[]>(
+      `${base(orgId, 'teams')}?programId=${encodeURIComponent(programId)}`,
+    )
+      .then((items) => {
+        if (active) setTournamentTeams(items);
+      })
+      .catch((cause: unknown) => {
+        if (active)
+          setError(
+            cause instanceof Error ? cause.message : 'Could not load teams.',
+          );
+      })
+      .finally(() => {
+        if (active) setTeamsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [orgId, programId]);
+
+  useEffect(() => {
+    setEntrySeeds([]);
+  }, [divisionId]);
+
+  function includeTeam(teamSeasonId: string, included: boolean): void {
+    setEntrySeeds((current) => {
+      if (included) {
+        if (current.some((entry) => entry.teamSeasonId === teamSeasonId))
+          return current;
+        return [...current, { teamSeasonId, seed: current.length + 1 }];
+      }
+      return current
+        .filter((entry) => entry.teamSeasonId !== teamSeasonId)
+        .map((entry, index) => ({ ...entry, seed: index + 1 }));
+    });
+  }
+
   async function loadBracket(id = bracketId): Promise<void> {
     const result = await api<BracketView>(
       `${base(orgId, 'tournaments')}/brackets/${encodeURIComponent(id)}`,
@@ -4013,15 +4354,20 @@ function TournamentPanel({
     event: SubmitEvent<HTMLFormElement>,
   ): Promise<void> {
     event.preventDefault();
-    const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    let entries: unknown;
-    try {
-      entries = JSON.parse(formText(form, 'entries'));
-    } catch {
-      setError('Enter tournament entries as valid JSON.');
+    if (!entrySeeds.length) {
+      setError('Select at least one team for the tournament.');
       return;
     }
+    const seeds = entrySeeds.map((entry) => entry.seed);
+    if (
+      seeds.some((seed) => !Number.isInteger(seed) || seed < 1) ||
+      new Set(seeds).size !== seeds.length
+    ) {
+      setError('Use a different positive seed for each team.');
+      return;
+    }
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     setBusy(true);
     setError('');
     setMessage('');
@@ -4037,9 +4383,10 @@ function TournamentPanel({
           type: formText(form, 'type'),
           seedingSource: 'manual',
           thirdPlace: form.get('thirdPlace') === 'on',
-          entries,
+          entries: entrySeeds,
         }),
       );
+      await refreshBrackets();
       await loadBracket(created.id);
       setMessage('Tournament created.');
       formElement.reset();
@@ -4062,6 +4409,7 @@ function TournamentPanel({
     setMessage('');
     try {
       await action();
+      if (programId) await refreshBrackets();
       setMessage(success);
     } catch (cause) {
       setError(
@@ -4088,8 +4436,22 @@ function TournamentPanel({
         <Field label="Tournament name" required>
           <Input name="name" required maxLength={160} />
         </Field>
-        <Field label="Division ID">
-          <Input name="divisionId" />
+        <Field label="Division">
+          <Select
+            name="divisionId"
+            value={divisionId}
+            onChange={(event) => {
+              onDivisionChange(event.target.value);
+            }}
+            disabled={divisionsLoading || !divisions.length}
+            options={[
+              { value: '', label: 'Select a division' },
+              ...divisions.map((division) => ({
+                value: division.id,
+                label: division.name,
+              })),
+            ]}
+          />
         </Field>
         <Field label="Format">
           <Select
@@ -4104,15 +4466,72 @@ function TournamentPanel({
             ]}
           />
         </Field>
-        <Field
-          label="Entries JSON"
-          hint={
-            'Example: [{"teamSeasonId":"uuid","seed":1},{"teamSeasonId":"uuid","seed":2}]'
-          }
-          required
-        >
-          <Textarea name="entries" rows={4} required defaultValue="[]" />
-        </Field>
+        <fieldset className="schedule-team-picker">
+          <legend>Teams in tournament</legend>
+          {teamsLoading ? <p role="status">Loading teams…</p> : null}
+          {!teamsLoading && selectedTeams.length === 0 && (
+            <p>
+              No teams are available for this division.{' '}
+              <Link to={`/console/orgs/${orgId}/teams`}>Manage teams</Link>.
+            </p>
+          )}
+          {selectedTeams.map((team) => {
+            const label = team.display_name?.trim() || team.name;
+            const selected = entrySeeds.some(
+              (entry) => entry.teamSeasonId === team.id,
+            );
+            return (
+              <label className="schedule-check" key={team.id}>
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  aria-label={`Add ${label} to tournament`}
+                  onChange={(event) => {
+                    includeTeam(team.id, event.currentTarget.checked);
+                  }}
+                />
+                {label}
+              </label>
+            );
+          })}
+        </fieldset>
+        {entrySeeds.length > 0 && (
+          <div className="schedule-team-seeds" aria-label="Tournament seeds">
+            <h3>Seed order</h3>
+            <ol>
+              {entrySeeds.map((entry) => {
+                const team = selectedTeams.find(
+                  (item) => item.id === entry.teamSeasonId,
+                );
+                const label =
+                  team?.display_name?.trim() || team?.name || 'Team';
+                return (
+                  <li key={entry.teamSeasonId}>
+                    <span>{label}</span>
+                    <Field label={`Seed for ${label}`}>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={1024}
+                        value={entry.seed}
+                        onChange={(event) => {
+                          const seed = Number(event.target.value);
+                          setEntrySeeds((current) =>
+                            current.map((item) =>
+                              item.teamSeasonId === entry.teamSeasonId
+                                ? { ...item, seed }
+                                : item,
+                            ),
+                          );
+                        }}
+                      />
+                    </Field>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        )}
         <label className="schedule-check">
           <input name="thirdPlace" type="checkbox" /> Add third-place match
         </label>
@@ -4121,12 +4540,15 @@ function TournamentPanel({
         </Button>
       </form>
       <div className="schedule-actions">
-        <Field label="Bracket ID">
-          <Input
+        <Field label="Tournament">
+          <Select
             value={bracketId}
             onChange={(event) => {
               setBracketId(event.target.value);
+              setBracket(null);
             }}
+            disabled={bracketsLoading || !brackets.length}
+            options={bracketSelectOptions}
           />
         </Field>
         <Button

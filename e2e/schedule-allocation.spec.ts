@@ -157,7 +157,7 @@ test('coach requests an allocated practice slot for scheduler approval', async (
     const generator = page.locator(
       'section[aria-labelledby="schedule-generator-heading"]',
     );
-    await generator.getByLabel('Program ID *').fill(program.programId);
+    await generator.getByLabel('Program *').selectOption(program.programId);
     const allocationDetails = facilities
       .locator('details')
       .filter({ hasText: 'Allocate recurring practice or game time' });

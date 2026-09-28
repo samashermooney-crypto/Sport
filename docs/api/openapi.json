@@ -53462,7 +53462,86 @@
                             "type": "string",
                             "enum": ["opens_soon", "open", "full", "closed"]
                           },
-                          "waitlistEnabled": { "type": "boolean" }
+                          "waitlistEnabled": { "type": "boolean" },
+                          "eligibleParticipants": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "personId": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                },
+                                "householdId": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                },
+                                "eligible": { "type": "boolean" },
+                                "alreadyRegistered": { "type": "boolean" },
+                                "age": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    { "type": "null" }
+                                  ]
+                                },
+                                "grade": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    { "type": "null" }
+                                  ]
+                                },
+                                "ageGroupLabel": { "type": ["string", "null"] },
+                                "reasons": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "code": {
+                                        "type": "string",
+                                        "enum": [
+                                          "AGE_BELOW_MIN",
+                                          "AGE_ABOVE_MAX",
+                                          "GRADE_OUT_OF_RANGE",
+                                          "GENDER_MISMATCH",
+                                          "MEMBERSHIP_REQUIRED",
+                                          "RETURNING_ONLY",
+                                          "INVITE_ONLY",
+                                          "RESIDENCY",
+                                          "HOUSEHOLD_LIMIT",
+                                          "DATE_OF_BIRTH_REQUIRED",
+                                          "GRADUATION_YEAR_REQUIRED"
+                                        ]
+                                      },
+                                      "message": { "type": "string" }
+                                    },
+                                    "required": ["code", "message"],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "personId",
+                                "householdId",
+                                "eligible",
+                                "alreadyRegistered",
+                                "age",
+                                "grade",
+                                "ageGroupLabel",
+                                "reasons"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
                         },
                         "required": [
                           "programId",
@@ -53474,7 +53553,8 @@
                           "divisionId",
                           "priceCents",
                           "status",
-                          "waitlistEnabled"
+                          "waitlistEnabled",
+                          "eligibleParticipants"
                         ],
                         "additionalProperties": false
                       }

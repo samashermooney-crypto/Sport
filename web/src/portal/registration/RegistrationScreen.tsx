@@ -24,6 +24,20 @@ const catalogSchema = z.strictObject({
       priceCents: z.number().int().nonnegative(),
       status: z.enum(['opens_soon', 'open', 'full', 'closed']),
       waitlistEnabled: z.boolean(),
+      eligibleParticipants: z.array(
+        z.strictObject({
+          personId: z.uuid(),
+          householdId: z.uuid(),
+          eligible: z.boolean(),
+          alreadyRegistered: z.boolean(),
+          age: z.number().int().nullable(),
+          grade: z.number().int().nullable(),
+          ageGroupLabel: z.string().nullable(),
+          reasons: z.array(
+            z.strictObject({ code: z.string(), message: z.string() }),
+          ),
+        }),
+      ),
     }),
   ),
 });
@@ -79,6 +93,7 @@ export function RegistrationScreen({
   const { i18n } = useTranslation();
   const returningPersonId = searchParams.get('participantId');
   const [sport, setSport] = useState('');
+  const [eligibleHouseholdMember, setEligibleHouseholdMember] = useState('');
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [cart, setCart] = useState<CartLine[]>([]);
   const [busy, setBusy] = useState(false);
@@ -101,8 +116,20 @@ export function RegistrationScreen({
       [...new Set(catalog.data?.items.map((item) => item.sport) ?? [])].sort(),
     [catalog.data],
   );
+  const eligibilityFor = (item: CatalogItem, choice: string) => {
+    const [personId, householdId] = choice.split(':');
+    return item.eligibleParticipants.find(
+      (result) =>
+        result.personId === personId && result.householdId === householdId,
+    );
+  };
   const visible =
-    catalog.data?.items.filter((item) => !sport || item.sport === sport) ?? [];
+    catalog.data?.items.filter((item) => {
+      if (sport && item.sport !== sport) return false;
+      if (!eligibleHouseholdMember) return true;
+      const match = eligibilityFor(item, eligibleHouseholdMember);
+      return match?.eligible && !match.alreadyRegistered;
+    }) ?? [];
   const returningParticipant = participants.data?.people.find(
     (person) => person.personId === returningPersonId,
   );
@@ -115,6 +142,14 @@ export function RegistrationScreen({
       (person) => `${person.personId}:${person.householdId}` === choice,
     );
     if (!participant) return;
+    const eligibility = eligibilityFor(item, choice);
+    if (!eligibility?.eligible || eligibility.alreadyRegistered) {
+      setError(
+        eligibility?.reasons.map((reason) => reason.message).join(' ') ||
+          'This family member cannot be added to this program.',
+      );
+      return;
+    }
     if (
       cart.some(
         (line) =>
@@ -179,6 +214,14 @@ export function RegistrationScreen({
       (person) => `${person.personId}:${person.householdId}` === choice,
     );
     if (!participant || busyWaitlistOffering) return;
+    const eligibility = eligibilityFor(item, choice);
+    if (!eligibility?.eligible || eligibility.alreadyRegistered) {
+      setError(
+        eligibility?.reasons.map((reason) => reason.message).join(' ') ||
+          'This family member cannot join this waitlist.',
+      );
+      return;
+    }
     const joinedKey = `${item.offeringId}:${participant.personId}`;
     setBusyWaitlistOffering(item.offeringId);
     setError('');
@@ -249,6 +292,26 @@ export function RegistrationScreen({
                 </option>
               ))}
             </select>
+            <label htmlFor="registration-eligible-participant">
+              Show programs for
+            </label>
+            <select
+              id="registration-eligible-participant"
+              value={eligibleHouseholdMember}
+              onChange={(event) => {
+                setEligibleHouseholdMember(event.target.value);
+              }}
+            >
+              <option value="">All family members</option>
+              {participants.data.people.map((person) => (
+                <option
+                  key={`${person.personId}:${person.householdId}`}
+                  value={`${person.personId}:${person.householdId}`}
+                >
+                  {person.name}
+                </option>
+              ))}
+            </select>
             {visible.length === 0 && (
               <p>No programs are available for this filter.</p>
             )}
@@ -285,20 +348,71 @@ export function RegistrationScreen({
                         }}
                       >
                         <option value="">Choose a family member</option>
-                        {participants.data.people.map((person: Participant) => (
-                          <option
-                            key={`${person.personId}:${person.householdId}`}
-                            value={`${person.personId}:${person.householdId}`}
-                          >
-                            {person.name} · {person.householdName}
-                          </option>
-                        ))}
+                        {participants.data.people.map((person: Participant) =>
+                          (() => {
+                            const choice = `${person.personId}:${person.householdId}`;
+                            const eligibility = eligibilityFor(item, choice);
+                            return (
+                              <option
+                                key={choice}
+                                value={choice}
+                                disabled={
+                                  !eligibility?.eligible ||
+                                  eligibility.alreadyRegistered
+                                }
+                              >
+                                {person.name} · {person.householdName}
+                                {!eligibility?.eligible
+                                  ? ' · Not eligible'
+                                  : eligibility.alreadyRegistered
+                                    ? ' · Already registered'
+                                    : ''}
+                              </option>
+                            );
+                          })(),
+                        )}
                       </select>
+                      {(() => {
+                        const choice =
+                          selected[item.offeringId] ?? preferredChoice;
+                        const eligibility = eligibilityFor(item, choice);
+                        return eligibility ? (
+                          <>
+                            {eligibility.ageGroupLabel && (
+                              <p>
+                                Age or grade group: {eligibility.ageGroupLabel}
+                              </p>
+                            )}
+                            {!eligibility.eligible && (
+                              <p role="status">
+                                {eligibility.reasons
+                                  .map((reason) => reason.message)
+                                  .join(' ')}
+                              </p>
+                            )}
+                            {eligibility.alreadyRegistered && (
+                              <p role="status">
+                                This family member is already registered.
+                              </p>
+                            )}
+                          </>
+                        ) : null;
+                      })()}
                       <button
                         className="button"
                         type="button"
                         disabled={
-                          !(selected[item.offeringId] ?? preferredChoice)
+                          !(selected[item.offeringId] ?? preferredChoice) ||
+                          (() => {
+                            const eligibility = eligibilityFor(
+                              item,
+                              selected[item.offeringId] ?? preferredChoice,
+                            );
+                            return (
+                              !eligibility?.eligible ||
+                              eligibility.alreadyRegistered
+                            );
+                          })()
                         }
                         onClick={() => {
                           add(item);
@@ -329,14 +443,29 @@ export function RegistrationScreen({
                         }}
                       >
                         <option value="">Choose a family member</option>
-                        {participants.data.people.map((person: Participant) => (
-                          <option
-                            key={`${person.personId}:${person.householdId}`}
-                            value={`${person.personId}:${person.householdId}`}
-                          >
-                            {person.name} · {person.householdName}
-                          </option>
-                        ))}
+                        {participants.data.people.map((person: Participant) =>
+                          (() => {
+                            const choice = `${person.personId}:${person.householdId}`;
+                            const eligibility = eligibilityFor(item, choice);
+                            return (
+                              <option
+                                key={choice}
+                                value={choice}
+                                disabled={
+                                  !eligibility?.eligible ||
+                                  eligibility.alreadyRegistered
+                                }
+                              >
+                                {person.name} · {person.householdName}
+                                {!eligibility?.eligible
+                                  ? ' · Not eligible'
+                                  : eligibility.alreadyRegistered
+                                    ? ' · Already registered'
+                                    : ''}
+                              </option>
+                            );
+                          })(),
+                        )}
                       </select>
                       {(() => {
                         const choice =
@@ -346,21 +475,46 @@ export function RegistrationScreen({
                           waitlistPositions[
                             `${item.offeringId}:${selectedPersonId}`
                           ];
+                        const eligibility = eligibilityFor(item, choice);
                         return position ? (
                           <p role="status">
                             You are #{position} on this waitlist.
                           </p>
                         ) : (
-                          <button
-                            className="button"
-                            type="button"
-                            disabled={!choice || Boolean(busyWaitlistOffering)}
-                            onClick={() => void joinWaitlist(item)}
-                          >
-                            {busyWaitlistOffering === item.offeringId
-                              ? 'Joining waitlist…'
-                              : 'Join waitlist'}
-                          </button>
+                          <>
+                            {eligibility?.ageGroupLabel && (
+                              <p>
+                                Age or grade group: {eligibility.ageGroupLabel}
+                              </p>
+                            )}
+                            {!eligibility?.eligible && (
+                              <p role="status">
+                                {eligibility?.reasons
+                                  .map((reason) => reason.message)
+                                  .join(' ')}
+                              </p>
+                            )}
+                            {eligibility?.alreadyRegistered && (
+                              <p role="status">
+                                This family member is already registered.
+                              </p>
+                            )}
+                            <button
+                              className="button"
+                              type="button"
+                              disabled={
+                                !choice ||
+                                !eligibility?.eligible ||
+                                eligibility.alreadyRegistered ||
+                                Boolean(busyWaitlistOffering)
+                              }
+                              onClick={() => void joinWaitlist(item)}
+                            >
+                              {busyWaitlistOffering === item.offeringId
+                                ? 'Joining waitlist…'
+                                : 'Join waitlist'}
+                            </button>
+                          </>
                         );
                       })()}
                     </>

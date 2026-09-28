@@ -200,7 +200,7 @@ test('scheduler crews ten games and officials respond to offers and pay totals m
     const generator = page.locator(
       'section[aria-labelledby="schedule-generator-heading"]',
     );
-    await generator.getByLabel('Program ID *').fill(program.programId);
+    await generator.getByLabel('Program *').selectOption(program.programId);
     const selectedEvent = page.getByLabel('Selected event');
     for (const [index, eventId] of eventIds.entries()) {
       const title = `Officials Game ${String(index + 1)}`;

@@ -120,9 +120,12 @@ test('staff edits a recurring series across Chicago and Phoenix DST dates', asyn
       throw new Error(
         `Series creation failed (${String(created.status())}): ${await created.text()}`,
       );
-    await expect(page.getByRole('status')).toHaveText(
-      'Recurring series created. Its ID is ready in the edit form.',
-    );
+    await expect(
+      page.getByText(
+        'Recurring series created. Its ID is ready in the edit form.',
+        { exact: true },
+      ),
+    ).toBeVisible();
 
     const originalSeries = await createWithOrg(database)(actor, (trx) =>
       trx
@@ -186,7 +189,9 @@ test('staff edits a recurring series across Chicago and Phoenix DST dates', asyn
       throw new Error(
         `Series edit failed (${String(edited.status())}): ${await edited.text()}`,
       );
-    await expect(page.getByRole('status')).toHaveText('Series changes saved.');
+    await expect(
+      page.getByText('Series changes saved.', { exact: true }),
+    ).toBeVisible();
 
     const changedEvents = await createWithOrg(database)(actor, (trx) =>
       trx
