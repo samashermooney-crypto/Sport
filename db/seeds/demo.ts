@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { builtInSportTemplates } from '@shared/sport/templates';
 import { sql } from 'kysely';
-import type { Insertable, Kysely } from 'kysely';
+import type { Insertable, Kysely, RawBuilder } from 'kysely';
 
 import type { DB } from '../../server/src/db/types';
 import { createWithOrg } from '../../server/src/db/withOrg';
@@ -61,6 +61,23 @@ const LAST = [
   'Sullivan',
 ];
 const SEED_TIME = new Date('2025-01-01T12:00:00.000Z');
+const LOAD_ORG_COUNT = 100;
+const LOAD_REGISTRATIONS_PER_PROGRAM = 1000;
+const LOAD_ATTENDANCE_EVENTS_PER_ORG = 20;
+const LOAD_ATTENDANCE_PEOPLE_PER_EVENT = 1000;
+const LOAD_FAMILY_ACCOUNTS = 20_000;
+const LOAD_COACH_ACCOUNTS = 500;
+
+function loadUuid(seed: RawBuilder<unknown>): RawBuilder<string> {
+  const digest = sql`md5(${seed})`;
+  return sql<string>`(
+    substr(${digest}, 1, 8) || '-' ||
+    substr(${digest}, 9, 4) || '-7' ||
+    substr(${digest}, 14, 3) || '-8' ||
+    substr(${digest}, 18, 3) || '-' ||
+    substr(${digest}, 21, 12)
+  )::uuid`;
+}
 
 interface ProgramSpec {
   name: string;
@@ -1737,81 +1754,637 @@ export async function seedDemo(database: Kysely<DB>): Promise<void> {
 }
 
 export async function seedLoad(database: Kysely<DB>): Promise<void> {
-  const orgId = stableId('load-org');
-  const adminId = stableId('load-admin');
+  const soccer = builtInSportTemplates.find(
+    (candidate) => candidate.key === 'soccer',
+  );
+  if (!soccer) throw new Error('The built-in soccer template is unavailable');
+
+  const loadOrgs = Array.from({ length: LOAD_ORG_COUNT }, (_, index) => {
+    const suffix = String(index).padStart(3, '0');
+    const legacyBase = index === 0;
+    return {
+      index,
+      id: stableId(legacyBase ? 'load-org' : `load-org-${String(index)}`),
+      slug: legacyBase ? 'load-org' : `load-org-${suffix}`,
+      name: legacyBase
+        ? 'Load Test Organization'
+        : `Load Test Organization ${suffix}`,
+      adminId: stableId(
+        legacyBase ? 'load-admin' : `load-admin-${String(index)}`,
+      ),
+      adminEmail: legacyBase
+        ? 'admin@load.example.test'
+        : `admin+${suffix}@load.example.test`,
+      peopleCount: index === 0 ? 20_000 : index <= 13 ? 1_314 : 1_313,
+    };
+  });
+
   await database
     .insertInto('organizations')
-    .values({
-      id: orgId,
-      slug: 'load-org',
-      name: 'Load Test Organization',
-      kind: 'league',
-      timezone: 'America/Chicago',
-      status: 'active',
-    })
+    .values(
+      loadOrgs.map((org) => ({
+        id: org.id,
+        slug: org.slug,
+        name: org.name,
+        kind: 'league',
+        timezone: 'America/Chicago',
+        email: `hello+${org.slug}@load.example.test`,
+        status: 'active',
+        nonprofit: true,
+      })),
+    )
     .onConflict((oc) => oc.column('id').doNothing())
     .execute();
+
   await database
     .insertInto('accounts')
-    .values({
-      id: adminId,
-      email: 'admin@load.example.test',
-      first_name: 'Load',
-      last_name: 'Admin',
-      date_of_birth: '1980-01-01',
-      email_verified_at: SEED_TIME,
-    })
+    .values(
+      loadOrgs.map((org) => ({
+        id: org.adminId,
+        email: org.adminEmail,
+        first_name: 'Load',
+        last_name: `Administrator ${String(org.index).padStart(3, '0')}`,
+        date_of_birth: '1980-01-01',
+        email_verified_at: SEED_TIME,
+      })),
+    )
     .onConflict((oc) => oc.column('id').doNothing())
     .execute();
+
+  const loadPasswordHash = await hashPassword('Athlentry-Load-2026!');
+  const familyAccountId = loadUuid(sql`'load-family-account:' || n::text`);
+  await sql`
+    INSERT INTO accounts (
+      id, email, password_hash, first_name, last_name, date_of_birth,
+      email_verified_at, created_at, updated_at
+    )
+    SELECT
+      ${familyAccountId},
+      'load.family.' || lpad(n::text, 5, '0') || '@load.example.test',
+      ${loadPasswordHash}, 'Load', 'Family ' || n::text, '1985-01-01',
+      ${SEED_TIME}, ${SEED_TIME}, ${SEED_TIME}
+    FROM generate_series(0, ${LOAD_FAMILY_ACCOUNTS - 1}) AS generated(n)
+    ON CONFLICT (id) DO NOTHING
+  `.execute(database);
+
+  const coachAccountId = loadUuid(sql`'load-coach-account:' || n::text`);
+  await sql`
+    INSERT INTO accounts (
+      id, email, password_hash, first_name, last_name, date_of_birth,
+      email_verified_at, created_at, updated_at
+    )
+    SELECT
+      ${coachAccountId},
+      'load.coach.' || lpad(n::text, 3, '0') || '@load.example.test',
+      ${loadPasswordHash}, 'Load', 'Coach ' || n::text, '1985-01-01',
+      ${SEED_TIME}, ${SEED_TIME}, ${SEED_TIME}
+    FROM generate_series(0, ${LOAD_COACH_ACCOUNTS - 1}) AS generated(n)
+    ON CONFLICT (id) DO NOTHING
+  `.execute(database);
+
   const withOrg = createWithOrg(database);
-  await withOrg({ orgId, actor: { accountId: adminId } }, async (trx) => {
-    const member = await trx
-      .selectFrom('org_memberships')
-      .select('id')
-      .where('org_id', '=', orgId)
-      .where('account_id', '=', adminId)
-      .executeTakeFirst();
-    if (!member) {
-      await trx
-        .insertInto('org_memberships')
-        .values({
-          id: stableId('load-member'),
+  for (const org of loadOrgs) {
+    const orgId = org.id;
+    const adminId = org.adminId;
+    const isRegistrationOrg = org.index === 0;
+    const programCount = isRegistrationOrg ? 5 : 4;
+    const teamCount = isRegistrationOrg ? 10 : 0;
+    const context = { orgId, actor: { accountId: adminId } };
+    const seasonId = stableId(`load-season:${org.slug}`);
+    const sportId = stableId(`load-sport:${org.slug}`);
+    const programs = Array.from({ length: programCount }, (_, index) => ({
+      id: stableId(`load-program:${org.slug}:${String(index)}`),
+      org_id: orgId,
+      season_id: seasonId,
+      sport_profile_id: sportId,
+      mode: 'league',
+      name:
+        isRegistrationOrg && index === 4
+          ? 'Load registration spike program'
+          : `Load soccer program ${String(index + 1)}`,
+      slug: `${org.slug}-program-${String(index + 1)}`,
+      status: 'registration_open',
+      visibility: 'public',
+      starts_on: '2027-01-01',
+      ends_on: '2027-12-31',
+      registration_opens_at: new Date('2026-08-01T00:00:00.000Z'),
+      registration_closes_at: new Date('2027-02-01T00:00:00.000Z'),
+      created_at: SEED_TIME,
+      updated_at: SEED_TIME,
+    }));
+    const divisions = programs.map((program, index) => ({
+      id: stableId(`load-division:${org.slug}:${String(index)}`),
+      org_id: orgId,
+      program_id: program.id,
+      name: 'Open division',
+      code: `LOAD-${String(index + 1)}`,
+      level: 'open',
+      sort_order: 0,
+      created_at: SEED_TIME,
+      updated_at: SEED_TIME,
+    }));
+    const standardOfferings = programs.slice(0, 4).map((program, index) => ({
+      id: stableId(`load-offering:${org.slug}:${String(index)}`),
+      org_id: orgId,
+      program_id: program.id,
+      division_id: divisions[index]?.id ?? null,
+      name: `Load soccer offering ${String(index + 1)}`,
+      registrant_role: 'athlete',
+      price_cents: 0,
+      capacity: null,
+      visibility: 'public',
+      active: true,
+      sort_order: 0,
+      created_at: SEED_TIME,
+      updated_at: SEED_TIME,
+    }));
+    const spikeOfferings = isRegistrationOrg
+      ? Array.from({ length: 10 }, (_, index) => ({
+          id: stableId(`load-spike-offering:${org.slug}:${String(index)}`),
           org_id: orgId,
-          account_id: adminId,
-          status: 'active',
-          joined_at: SEED_TIME,
-        })
-        .execute();
-      await trx
-        .insertInto('role_assignments')
-        .values({
-          id: stableId('load-role'),
-          org_id: orgId,
-          account_id: adminId,
-          role: 'owner',
-          scope_type: 'org',
-        })
-        .execute();
-    }
-    const existing = await trx
-      .selectFrom('people')
-      .select((eb) => eb.fn.countAll<string>().as('count'))
-      .where('org_id', '=', orgId)
-      .executeTakeFirst();
-    if (Number(existing?.count ?? 0) >= 2000) return;
-    const people: Insertable<DB['people']>[] = Array.from(
-      { length: 2000 },
-      (_, index) => {
-        const name = personName(index);
-        return {
-          id: stableId(`load-person-${String(index)}`),
-          org_id: orgId,
-          first_name: name.first,
-          last_name: `${name.last}-${String(index)}`,
-          date_of_birth: '2012-01-01',
-        };
-      },
+          program_id: programs[4]?.id ?? '',
+          division_id: divisions[4]?.id ?? null,
+          name: `Limited capacity test offering ${String(index + 1)}`,
+          registrant_role: 'athlete',
+          price_cents: 0,
+          capacity: 100,
+          visibility: 'public',
+          active: true,
+          sort_order: index,
+          created_at: SEED_TIME,
+          updated_at: SEED_TIME,
+        }))
+      : [];
+    const teamIds = Array.from({ length: teamCount }, (_, index) =>
+      stableId(`load-team:${org.slug}:${String(index)}`),
     );
-    await insertChunks(trx, 'people', people);
-  });
+    const teamSeasonIds = Array.from({ length: teamCount }, (_, index) =>
+      stableId(`load-team-season:${org.slug}:${String(index)}`),
+    );
+
+    await withOrg(context, async (trx) => {
+      const member = await trx
+        .selectFrom('org_memberships')
+        .select('id')
+        .where('org_id', '=', orgId)
+        .where('account_id', '=', adminId)
+        .executeTakeFirst();
+      if (!member) {
+        await trx
+          .insertInto('org_memberships')
+          .values({
+            id: stableId(`load-member:${org.slug}`),
+            org_id: orgId,
+            account_id: adminId,
+            status: 'active',
+            title: 'Load administrator',
+            joined_at: SEED_TIME,
+          })
+          .execute();
+      }
+      const ownerRole = await trx
+        .selectFrom('role_assignments')
+        .select('id')
+        .where('org_id', '=', orgId)
+        .where('account_id', '=', adminId)
+        .where('role', '=', 'owner')
+        .where('scope_type', '=', 'org')
+        .where('revoked_at', 'is', null)
+        .executeTakeFirst();
+      if (!ownerRole) {
+        await trx
+          .insertInto('role_assignments')
+          .values({
+            id: stableId(`load-role:${org.slug}`),
+            org_id: orgId,
+            account_id: adminId,
+            role: 'owner',
+            scope_type: 'org',
+            granted_by: adminId,
+            granted_at: SEED_TIME,
+          })
+          .execute();
+      }
+
+      await trx
+        .insertInto('seasons')
+        .values({
+          id: seasonId,
+          org_id: orgId,
+          name: '2027 Load Season',
+          starts_on: '2027-01-01',
+          ends_on: '2027-12-31',
+          status: 'active',
+          created_at: SEED_TIME,
+          updated_at: SEED_TIME,
+        })
+        .onConflict((oc) => oc.column('id').doNothing())
+        .execute();
+      await trx
+        .insertInto('sport_profiles')
+        .values({
+          id: sportId,
+          org_id: orgId,
+          name: soccer.name.en,
+          profile: JSON.parse(JSON.stringify(soccer)) as never,
+          created_at: SEED_TIME,
+          updated_at: SEED_TIME,
+        })
+        .onConflict((oc) => oc.column('id').doNothing())
+        .execute();
+      await trx
+        .insertInto('programs')
+        .values(programs)
+        .onConflict((oc) => oc.column('id').doNothing())
+        .execute();
+      await trx
+        .insertInto('divisions')
+        .values(divisions)
+        .onConflict((oc) => oc.column('id').doNothing())
+        .execute();
+      await trx
+        .insertInto('registration_offerings')
+        .values([...standardOfferings, ...spikeOfferings])
+        .onConflict((oc) => oc.column('id').doNothing())
+        .execute();
+
+      const programZero = programs[0];
+      const divisionZero = divisions[0];
+      if (!programZero || !divisionZero)
+        throw new Error(`Missing base program for ${org.slug}`);
+
+      if (isRegistrationOrg) {
+        await trx
+          .insertInto('teams')
+          .values(
+            teamIds.map((id, index) => ({
+              id,
+              org_id: orgId,
+              name: `Load team ${String(index + 1).padStart(2, '0')}`,
+              short_name: `LT${String(index + 1).padStart(2, '0')}`,
+              sport_profile_id: sportId,
+              competition_gender: 'open',
+              birth_year: 2012,
+              level: 'open',
+              status: 'active',
+              created_at: SEED_TIME,
+              updated_at: SEED_TIME,
+            })),
+          )
+          .onConflict((oc) => oc.column('id').doNothing())
+          .execute();
+        await trx
+          .insertInto('team_seasons')
+          .values(
+            teamSeasonIds.map((id, index) => ({
+              id,
+              org_id: orgId,
+              team_id: teamIds[index] ?? '',
+              program_id: programZero.id,
+              division_id: divisionZero.id,
+              display_name: `Load team ${String(index + 1).padStart(2, '0')}`,
+              roster_limit: 100,
+              status: 'active',
+              created_at: SEED_TIME,
+              updated_at: SEED_TIME,
+            })),
+          )
+          .onConflict((oc) => oc.column('id').doNothing())
+          .execute();
+      }
+
+      const peopleId = loadUuid(
+        sql`'load-person:' || ${orgId} || ':' || n::text`,
+      );
+      await sql`
+        INSERT INTO people (
+          id, org_id, first_name, last_name, date_of_birth,
+          gender, status, created_at, updated_at
+        )
+        SELECT
+          ${peopleId}, ${orgId}, 'Load',
+          'Athlete ' || ${String(org.index).padStart(3, '0')} || '-' || lpad(n::text, 5, '0'),
+          make_date(2008 + (n % 10)::int, 1, 1),
+          CASE WHEN n % 2 = 0 THEN 'female' ELSE 'male' END,
+          'active', ${SEED_TIME}, ${SEED_TIME}
+        FROM generate_series(0, ${org.peopleCount - 1}) AS generated(n)
+        ON CONFLICT (id) DO NOTHING
+      `.execute(trx);
+
+      const householdId = loadUuid(
+        sql`'load-household:' || ${orgId} || ':' || n::text`,
+      );
+      await sql`
+        INSERT INTO households (
+          id, org_id, name, status, created_at, updated_at
+        )
+        SELECT
+          ${householdId}, ${orgId}, 'Load household ' || lpad(n::text, 5, '0'),
+          'active', ${SEED_TIME}, ${SEED_TIME}
+        FROM generate_series(0, ${org.peopleCount - 1}) AS generated(n)
+        ON CONFLICT (id) DO NOTHING
+      `.execute(trx);
+
+      const householdMemberId = loadUuid(
+        sql`'load-household-member:' || ${orgId} || ':' || n::text`,
+      );
+      await sql`
+        INSERT INTO household_members (
+          id, org_id, household_id, person_id, role,
+          is_primary_contact, receives_communications,
+          financially_responsible, can_pick_up, created_at, updated_at
+        )
+        SELECT
+          ${householdMemberId}, ${orgId}, ${householdId}, ${peopleId}, 'athlete',
+          false, true, false, false, ${SEED_TIME}, ${SEED_TIME}
+        FROM generate_series(0, ${org.peopleCount - 1}) AS generated(n)
+        ON CONFLICT (id) DO NOTHING
+      `.execute(trx);
+
+      if (isRegistrationOrg) {
+        const familyLinkId = loadUuid(
+          sql`'load-family-link:' || ${orgId} || ':' || n::text`,
+        );
+        const familyPersonId = loadUuid(
+          sql`'load-person:' || ${orgId} || ':' || n::text`,
+        );
+        const guardianAccountId = loadUuid(
+          sql`'load-family-account:' || n::text`,
+        );
+        await sql`
+          INSERT INTO person_account_links (
+            id, org_id, person_id, account_id, relationship,
+            verified_at, created_at, updated_at
+          )
+          SELECT
+            ${familyLinkId}, ${orgId}, ${familyPersonId},
+            ${guardianAccountId}, 'guardian', ${SEED_TIME}, ${SEED_TIME}, ${SEED_TIME}
+          FROM generate_series(0, ${LOAD_FAMILY_ACCOUNTS - 1}) AS generated(n)
+          ON CONFLICT (id) DO NOTHING
+        `.execute(trx);
+
+        const coachLinkId = loadUuid(
+          sql`'load-coach-link:' || ${orgId} || ':' || n::text`,
+        );
+        const coachPersonId = loadUuid(
+          sql`'load-person:' || ${orgId} || ':' || (19500 + n)::text`,
+        );
+        const loadCoachAccountId = loadUuid(
+          sql`'load-coach-account:' || n::text`,
+        );
+        await sql`
+          INSERT INTO person_account_links (
+            id, org_id, person_id, account_id, relationship,
+            verified_at, created_at, updated_at
+          )
+          SELECT
+            ${coachLinkId}, ${orgId}, ${coachPersonId},
+            ${loadCoachAccountId}, 'self', ${SEED_TIME}, ${SEED_TIME}, ${SEED_TIME}
+          FROM generate_series(0, ${LOAD_COACH_ACCOUNTS - 1}) AS generated(n)
+          ON CONFLICT (id) DO NOTHING
+        `.execute(trx);
+
+        const preferenceId = loadUuid(
+          sql`'load-email-opt-in:' || ${orgId} || ':' || n::text`,
+        );
+        await sql`
+          INSERT INTO communication_preferences (
+            id, org_id, account_id, category, channel, enabled,
+            created_at, updated_at
+          )
+          SELECT
+            ${preferenceId}, ${orgId}, ${guardianAccountId},
+            'marketing', 'email', true, ${SEED_TIME}, ${SEED_TIME}
+          FROM generate_series(0, ${LOAD_FAMILY_ACCOUNTS - 1}) AS generated(n)
+          ON CONFLICT (id) DO NOTHING
+        `.execute(trx);
+
+        const capacityCounterValues = spikeOfferings.map((offering, index) => ({
+          id: stableId(`load-capacity-counter:${org.slug}:${String(index)}`),
+          org_id: orgId,
+          subject_type: 'offering',
+          subject_id: offering.id,
+          capacity: 100,
+          confirmed: 0,
+          held: 0,
+          created_at: SEED_TIME,
+          updated_at: SEED_TIME,
+        }));
+        await trx
+          .insertInto('capacity_counters')
+          .values(capacityCounterValues)
+          .onConflict((oc) => oc.column('id').doNothing())
+          .execute();
+
+        const teamSeasonRows = sql.join(
+          teamSeasonIds.map((id, index) => sql`(${index}::int, ${id}::uuid)`),
+          sql`, `,
+        );
+        await sql`
+          WITH team_map(team_index, team_season_id) AS (
+            VALUES ${teamSeasonRows}
+          ), generated AS (
+            SELECT n, (n / 50)::int AS team_index
+            FROM generate_series(0, ${LOAD_COACH_ACCOUNTS - 1}) AS staff(n)
+          )
+          INSERT INTO team_staff (
+            id, org_id, team_season_id, person_id, role, status, added_by,
+            created_at, updated_at
+          )
+          SELECT
+            ${loadUuid(sql`'load-team-staff:' || ${orgId} || ':' || n::text`)},
+            ${orgId}, team_map.team_season_id,
+            ${loadUuid(sql`'load-person:' || ${orgId} || ':' || (19500 + n)::text`)},
+            CASE WHEN n % 50 = 0 THEN 'head_coach' ELSE 'assistant_coach' END,
+            'active', ${adminId}, ${SEED_TIME}, ${SEED_TIME}
+          FROM generated
+          JOIN team_map USING (team_index)
+          ON CONFLICT (id) DO NOTHING
+        `.execute(trx);
+      }
+
+      const programMapValues = sql.join(
+        standardOfferings.map(
+          (offering, index) =>
+            sql`(${index}::int, ${programs[index]?.id ?? ''}::uuid, ${divisions[index]?.id ?? ''}::uuid, ${offering.id}::uuid)`,
+        ),
+        sql`, `,
+      );
+      const teamMapValues =
+        isRegistrationOrg && teamSeasonIds.length > 0
+          ? sql.join(
+              teamSeasonIds.map(
+                (id, index) => sql`(${index}::int, ${id}::uuid)`,
+              ),
+              sql`, `,
+            )
+          : sql`(-1::int, NULL::uuid)`;
+      const teamJoin = isRegistrationOrg
+        ? sql`LEFT JOIN team_map ON team_map.team_index = source.person_index % 10 AND source.program_index = 0`
+        : sql`LEFT JOIN team_map ON false`;
+      const teamValue = isRegistrationOrg
+        ? sql`team_map.team_season_id`
+        : sql`NULL::uuid`;
+      await sql`
+        WITH program_map(program_index, program_id, division_id, offering_id) AS (
+          VALUES ${programMapValues}
+        ), team_map(team_index, team_season_id) AS (
+          VALUES ${teamMapValues}
+        ), source AS (
+          SELECT
+            program_map.program_index,
+            program_map.program_id,
+            program_map.division_id,
+            program_map.offering_id,
+            n,
+            ((n + program_map.program_index * ${LOAD_REGISTRATIONS_PER_PROGRAM}) % ${org.peopleCount})::int AS person_index
+          FROM program_map
+          CROSS JOIN generate_series(0, ${LOAD_REGISTRATIONS_PER_PROGRAM - 1}) AS generated(n)
+        )
+        INSERT INTO registrations (
+          id, org_id, program_id, division_id, offering_id,
+          person_id, household_id, registered_by_account_id,
+          source, status, team_season_id, created_at, updated_at
+        )
+        SELECT
+          ${loadUuid(sql`'load-registration:' || ${orgId} || ':' || source.program_index::text || ':' || source.n::text`)},
+          ${orgId}, source.program_id, source.division_id, source.offering_id,
+          ${loadUuid(sql`'load-person:' || ${orgId} || ':' || source.person_index::text`)},
+          ${loadUuid(sql`'load-household:' || ${orgId} || ':' || source.person_index::text`)},
+          ${adminId}, 'online', 'confirmed', ${teamValue}, ${SEED_TIME}, ${SEED_TIME}
+        FROM source
+        ${teamJoin}
+        ON CONFLICT (id) DO NOTHING
+      `.execute(trx);
+
+      if (isRegistrationOrg) {
+        const rosterTeamRows = sql.join(
+          teamSeasonIds.map((id, index) => sql`(${index}::int, ${id}::uuid)`),
+          sql`, `,
+        );
+        await sql`
+          WITH team_map(team_index, team_season_id) AS (
+            VALUES ${rosterTeamRows}
+          ), generated AS (
+            SELECT n, n % 10 AS team_index, n / 10 + 1 AS jersey
+            FROM generate_series(0, ${LOAD_REGISTRATIONS_PER_PROGRAM - 1}) AS players(n)
+          )
+          INSERT INTO roster_entries (
+            id, org_id, team_season_id, person_id, registration_id,
+            kind, jersey_number, status, joined_on, created_at, updated_at
+          )
+          SELECT
+            ${loadUuid(sql`'load-roster:' || ${orgId} || ':' || n::text`)},
+            ${orgId}, team_map.team_season_id,
+            ${loadUuid(sql`'load-person:' || ${orgId} || ':' || n::text`)},
+            ${loadUuid(sql`'load-registration:' || ${orgId} || ':0:' || n::text`)},
+            'rostered', jersey::text, 'active', '2027-01-01', ${SEED_TIME}, ${SEED_TIME}
+          FROM generated
+          JOIN team_map USING (team_index)
+          ON CONFLICT (id) DO NOTHING
+        `.execute(trx);
+      }
+
+      const eventId = loadUuid(
+        sql`'load-event:' || ${orgId} || ':' || event_index::text`,
+      );
+      await sql`
+        WITH generated AS (
+          SELECT n AS event_index
+          FROM generate_series(0, ${LOAD_ATTENDANCE_EVENTS_PER_ORG - 1}) AS events(n)
+        )
+        INSERT INTO events (
+          id, org_id, program_id, division_id, kind, title,
+          starts_at, ends_at, timezone, status, published,
+          created_at, updated_at
+        )
+        SELECT
+          ${eventId}, ${orgId}, ${programZero.id}, ${divisionZero.id},
+          'practice', 'Load practice ' || (event_index + 1)::text,
+          '2027-03-01T15:00:00Z'::timestamptz + event_index * interval '7 days',
+          '2027-03-01T16:30:00Z'::timestamptz + event_index * interval '7 days',
+          'America/Chicago', 'scheduled', true, ${SEED_TIME}, ${SEED_TIME}
+        FROM generated
+        ON CONFLICT (id) DO NOTHING
+      `.execute(trx);
+
+      if (isRegistrationOrg) {
+        const homeTeamRows = sql.join(
+          teamSeasonIds.map((id, index) => sql`(${index}::int, ${id}::uuid)`),
+          sql`, `,
+        );
+        await sql`
+          WITH team_map(team_index, team_season_id) AS (
+            VALUES ${homeTeamRows}
+          ), generated AS (
+            SELECT n AS event_index, n % ${teamCount} AS home_index,
+              (n + 1) % ${teamCount} AS away_index
+            FROM generate_series(0, ${LOAD_ATTENDANCE_EVENTS_PER_ORG - 1}) AS events(n)
+          ), contests AS (
+            INSERT INTO contests (
+              id, org_id, event_id, sport_profile_id, profile_version,
+              format, stage, counts_for_standings, status, created_at, updated_at
+            )
+            SELECT
+              ${loadUuid(sql`'load-contest:' || ${orgId} || ':' || event_index::text`)},
+              ${orgId}, ${eventId}, ${sportId}, 1,
+              'head_to_head_score', 'regular', true, 'scheduled', ${SEED_TIME}, ${SEED_TIME}
+            FROM generated
+            ON CONFLICT (id) DO NOTHING
+            RETURNING id
+          )
+          INSERT INTO contest_participants (
+            id, org_id, contest_id, team_season_id, side, created_at, updated_at
+          )
+          SELECT
+            ${loadUuid(sql`'load-contest-participant:' || ${orgId} || ':' || event_index::text || ':home'`)},
+            ${orgId}::uuid,
+            ${loadUuid(sql`'load-contest:' || ${orgId} || ':' || event_index::text`)},
+            home_team.team_season_id, 'home', ${SEED_TIME}::timestamptz, ${SEED_TIME}::timestamptz
+          FROM generated
+          JOIN team_map AS home_team ON home_team.team_index = generated.home_index
+          UNION ALL
+          SELECT
+            ${loadUuid(sql`'load-contest-participant:' || ${orgId} || ':' || event_index::text || ':away'`)},
+            ${orgId}::uuid,
+            ${loadUuid(sql`'load-contest:' || ${orgId} || ':' || event_index::text`)},
+            away_team.team_season_id, 'away', ${SEED_TIME}::timestamptz, ${SEED_TIME}::timestamptz
+          FROM generated
+          JOIN team_map AS away_team ON away_team.team_index = generated.away_index
+          ON CONFLICT (id) DO NOTHING
+        `.execute(trx);
+      }
+
+      const attendanceId = loadUuid(
+        sql`'load-attendance:' || ${orgId} || ':' || event_index::text || ':' || attendee_index::text`,
+      );
+      const attendanceEventId = loadUuid(
+        sql`'load-event:' || ${orgId} || ':' || event_index::text`,
+      );
+      const attendancePersonId = loadUuid(
+        sql`'load-person:' || ${orgId} || ':' || person_index::text`,
+      );
+      await sql`
+        WITH generated AS (
+          SELECT
+            events.event_index,
+            people.attendee_index,
+            ((people.attendee_index + events.event_index * ${LOAD_ATTENDANCE_PEOPLE_PER_EVENT}) % ${org.peopleCount})::int AS person_index
+          FROM generate_series(0, ${LOAD_ATTENDANCE_EVENTS_PER_ORG - 1}) AS events(event_index)
+          CROSS JOIN generate_series(0, ${LOAD_ATTENDANCE_PEOPLE_PER_EVENT - 1}) AS people(attendee_index)
+        )
+        INSERT INTO attendance (
+          id, org_id, event_id, person_id, rsvp, status,
+          checked_in_at, created_at, updated_at
+        )
+        SELECT
+          ${attendanceId}, ${orgId}, ${attendanceEventId}, ${attendancePersonId},
+          'yes', CASE WHEN attendee_index % 10 = 0 THEN 'late' ELSE 'present' END,
+          '2027-03-01T15:05:00Z'::timestamptz + event_index * interval '7 days',
+          ${SEED_TIME}, ${SEED_TIME}
+        FROM generated
+        ON CONFLICT (id) DO NOTHING
+      `.execute(trx);
+    });
+  }
 }
