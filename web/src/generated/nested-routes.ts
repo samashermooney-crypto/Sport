@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router';
 
 import { consoleAuditRoutes } from '../console/audit/routes';
 import { consoleClassesRoutes } from '../console/classes/routes';
+import { consoleEvaluationsRoutes } from '../console/evaluations/routes';
 import { consoleFacilitiesRoutes } from '../console/facilities/routes';
 import { consoleFederationRoutes } from '../console/federation/routes';
 import { consoleFundraisingRoutes } from '../console/fundraising/routes';
@@ -19,6 +20,7 @@ import { consoleTeamFinanceRoutes } from '../console/teamFinance/routes';
 import { consoleTeamsRoutes } from '../console/teams/routes';
 import { consoleVolunteersRoutes } from '../console/volunteers/routes';
 import { portalClassesRoutes } from '../portal/classes/routes';
+import { portalEvaluationsRoutes } from '../portal/evaluations/routes';
 import { portalHelpRoutes } from '../portal/help/routes';
 import { portalMessagesRoutes } from '../portal/messages/routes';
 import { portalMoneyRoutes } from '../portal/money/routes';
@@ -35,6 +37,7 @@ import { siteSponsorsRoutes } from '../site/sponsors/routes';
 export const webNestedRoutes: readonly RouteObject[] = [
   consoleAuditRoutes,
   consoleClassesRoutes,
+  consoleEvaluationsRoutes,
   consoleFacilitiesRoutes,
   consoleFederationRoutes,
   consoleFundraisingRoutes,
@@ -52,6 +55,7 @@ export const webNestedRoutes: readonly RouteObject[] = [
   consoleTeamsRoutes,
   consoleVolunteersRoutes,
   portalClassesRoutes,
+  portalEvaluationsRoutes,
   portalHelpRoutes,
   portalMessagesRoutes,
   portalMoneyRoutes,
