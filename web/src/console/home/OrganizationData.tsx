@@ -9,6 +9,8 @@ import { useState } from 'react';
 import { apiGet, apiPost } from '../../api/client';
 import { Button, Card, Link } from '../../ui/primitives';
 
+import { OrganizationPrivacy } from './OrganizationPrivacy';
+
 import '../home.css';
 
 function formatDate(value: string | null): string {
@@ -190,6 +192,7 @@ export function OrganizationData({
         A download link is valid for up to seven days. For a step-up prompt,{' '}
         <Link to="/me/security">open account security</Link> and return here.
       </p>
+      <OrganizationPrivacy orgId={orgId} />
     </main>
   );
 }

@@ -33,6 +33,28 @@ it('lists an archive, creates a secure link and requests a new export', async ()
             },
           ],
         };
+      } else if (
+        url.endsWith(`/exports/orgs/${orgId}/privacy-requests`) &&
+        method === 'GET'
+      ) {
+        result = { items: [] };
+      } else if (
+        url.endsWith(`/exports/orgs/${orgId}/retention-policy`) &&
+        method === 'GET'
+      ) {
+        result = {
+          version: 1,
+          rules: {
+            financialRecordsYears: 7,
+            waiverAndSafetyYearsAfterAge18: 7,
+            waiverAndSafetyYearsAfterEvent: 7,
+            backgroundCheckValidityPlusYears: 1,
+            messagesYears: 3,
+            evaluationScoresYearsAfterEvent: 2,
+            expiredTokensDays: 30,
+          },
+          updatedAt: '2026-09-27T18:00:00.000Z',
+        };
       } else if (url.endsWith('/download-link')) {
         result = {
           url: 'https://athlentry.example.test/api/v1/exports/download/abc',

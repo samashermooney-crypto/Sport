@@ -54,6 +54,50 @@
   margin: 0;
   color: var(--ink);
 }
+.organization-privacy {
+  display: grid;
+  gap: var(--space-16);
+  margin-top: var(--space-30);
+}
+.organization-privacy__layout {
+  align-items: start;
+}
+.organization-privacy__card h3,
+.organization-privacy__request h4 {
+  margin-top: 0;
+  color: var(--ink);
+}
+.organization-privacy__form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: end;
+  gap: var(--space-12);
+}
+.organization-privacy__form > button {
+  justify-self: start;
+}
+.organization-privacy__requests {
+  display: grid;
+  gap: var(--space-12);
+}
+.organization-privacy__request {
+  display: grid;
+  gap: var(--space-8);
+  min-width: 0;
+  padding: var(--space-12);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-3);
+}
+.organization-privacy__request h4 {
+  margin-bottom: 0;
+  text-transform: capitalize;
+}
+.organization-privacy__request dd {
+  overflow-wrap: anywhere;
+}
+.organization-privacy__request textarea {
+  min-height: 76px;
+}
 @media (max-width: 600px) {
   .console-home {
     padding: var(--space-16);
