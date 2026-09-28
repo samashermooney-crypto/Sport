@@ -159,7 +159,11 @@ describe('registration reminder scheduling', () => {
         .execute();
     });
 
-    const dependencies = { database, organizationIds: [orgId] };
+    const dependencies = {
+      database,
+      organizationIds: [orgId],
+      now: () => new Date(),
+    };
     expect(await enqueueRegistrationReminders(dependencies)).toBe(2);
     expect(await enqueueRegistrationReminders(dependencies)).toBe(0);
 

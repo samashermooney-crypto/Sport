@@ -1115,6 +1115,21 @@ describe('staff refund HTTP', () => {
       amountCents: number;
     };
     expect(approval).toMatchObject({ status: 'pending', amountCents: 500 });
+    const queue = await fetch(
+      `${baseUrl}/orgs/${context.orgId}/refund-approvals`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(queue.status).toBe(200);
+    expect(await queue.json()).toMatchObject({
+      approvals: [
+        {
+          id: approval.id,
+          scope: 'payment',
+          amountCents: 500,
+          transferDetails: null,
+        },
+      ],
+    });
     const approvalPath = `refund-approvals/${approval.id}/approve`;
     expect((await post(approvalPath, token, false)).status).toBe(403);
     expect((await post(approvalPath, approverToken, false)).status).toBe(403);

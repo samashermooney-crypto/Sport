@@ -52,6 +52,7 @@ import {
 import { runFinanceNoticeJob } from './money-notice-job.js';
 import { payerReceiptListSchema } from './payer-receipts.js';
 import { payoutReconciliationSchema } from './reconciliation.js';
+import { refundApprovalQueueSchema } from './refund-approval-repo.js';
 import {
   createFinanceRouter,
   offlinePaymentBodySchema,
@@ -463,6 +464,12 @@ export const moduleDefinition = {
       summary: 'Create a policy-based refund to original method or credit',
       body: refundBodySchema,
       response: refundResponseSchema,
+    },
+    {
+      method: 'get',
+      path: '/api/v1/finance/orgs/{orgId}/refund-approvals',
+      summary: 'List pending finance refund approvals with frozen proposals',
+      response: refundApprovalQueueSchema,
     },
     {
       method: 'post',

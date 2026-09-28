@@ -10,11 +10,15 @@ import { enqueueRegistrationNotice } from './notices.js';
 export interface RegistrationReminderDependencies {
   database: Kysely<DB>;
   organizationIds?: readonly string[];
+  now?: () => Date;
 }
 
 export async function enqueueRegistrationReminders(
   dependencies: RegistrationReminderDependencies,
 ): Promise<number> {
+  const now = dependencies.now?.() ?? new Date();
+  const expiringOfferCutoff = new Date(now.getTime() + 6 * 60 * 60 * 1000);
+  const checkoutReminderCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const organizationIds =
     dependencies.organizationIds ??
     (
@@ -34,13 +38,14 @@ export async function enqueueRegistrationReminders(
       const expiredOffers = await sql<{ offering_id: string }>`
         SELECT offering_id FROM waitlist_entries
         WHERE org_id = ${orgId}::uuid AND status = 'offered'
-          AND offer_expires_at <= now()
+          AND offer_expires_at <= ${now}
         ORDER BY offering_id, id
         FOR UPDATE SKIP LOCKED LIMIT 100
       `.execute(trx);
       const lifecycle = new PostgresRegistrationLifecycle(
         dependencies.database,
         context,
+        () => now,
       );
       for (const offeringId of new Set(
         expiredOffers.rows.map(({ offering_id }) => offering_id),
@@ -57,8 +62,8 @@ export async function enqueueRegistrationReminders(
         JOIN checkouts c ON c.org_id = w.org_id AND c.id = w.checkout_id
         WHERE w.org_id = ${orgId}::uuid AND w.status = 'offered'
           AND w.expiring_notified_at IS NULL
-          AND w.offer_expires_at > now()
-          AND w.offer_expires_at <= now() + interval '6 hours'
+          AND w.offer_expires_at > ${now}
+          AND w.offer_expires_at <= ${expiringOfferCutoff}
         ORDER BY w.offer_expires_at, w.id
         FOR UPDATE OF w SKIP LOCKED LIMIT 100
       `.execute(trx);
@@ -66,7 +71,7 @@ export async function enqueueRegistrationReminders(
       for (const offer of offers.rows) {
         const updated = await trx
           .updateTable('waitlist_entries')
-          .set({ expiring_notified_at: sql`now()` })
+          .set({ expiring_notified_at: now })
           .where('org_id', '=', orgId)
           .where('id', '=', offer.id)
           .where('expiring_notified_at', 'is', null)
@@ -91,14 +96,14 @@ export async function enqueueRegistrationReminders(
         SELECT id, account_id FROM checkouts
         WHERE org_id = ${orgId}::uuid AND status = 'awaiting_payment'
           AND reminder_sent_at IS NULL
-          AND created_at <= now() - interval '24 hours'
+          AND created_at <= ${checkoutReminderCutoff}
         ORDER BY created_at, id
         FOR UPDATE SKIP LOCKED LIMIT 100
       `.execute(trx);
       for (const checkout of checkouts.rows) {
         const updated = await trx
           .updateTable('checkouts')
-          .set({ reminder_sent_at: sql`now()` })
+          .set({ reminder_sent_at: now })
           .where('org_id', '=', orgId)
           .where('id', '=', checkout.id)
           .where('status', '=', 'awaiting_payment')
