@@ -68,6 +68,27 @@ export interface Accounts {
   version: Generated<number>;
 }
 
+export interface AiConversationMessages {
+  citations: Generated<Json>;
+  content: string;
+  conversation_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  org_id: string;
+  role: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface AiConversations {
+  account_id: string | null;
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  id: string;
+  org_id: string;
+  updated_at: Generated<Timestamp>;
+  visitor_key: string | null;
+}
+
 export interface AidApplications {
   answers: Generated<Json>;
   award_bps: number | null;
@@ -88,6 +109,35 @@ export interface AidApplications {
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
+}
+
+export interface AiDrafts {
+  applied_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  draft: Json;
+  id: string;
+  kind: string;
+  org_id: string;
+  redactions: Generated<number>;
+  source_file_name: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface AiUsageEvents {
+  actor_account_id: string | null;
+  completion_tokens: Generated<number>;
+  created_at: Generated<Timestamp>;
+  detail: string | null;
+  feature: string;
+  id: string;
+  model: string;
+  org_id: string;
+  prompt_tokens: Generated<number>;
+  redactions: Generated<number>;
+  status: string;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface AllocationRequests {
@@ -498,10 +548,25 @@ export interface CheckoutCapacityRefundClaims {
   updated_at: Generated<Timestamp>;
 }
 
+export interface CheckoutPolicyAcceptances {
+  accepted_at: Generated<Timestamp>;
+  account_id: string;
+  checkout_id: string;
+  created_at: Generated<Timestamp>;
+  id: string;
+  org_id: string;
+  terms_hash: string;
+  terms_snapshot: Json;
+  updated_at: Generated<Timestamp>;
+  user_agent: string | null;
+}
+
 export interface Checkouts {
   account_id: string;
   completed_at: Timestamp | null;
   created_at: Generated<Timestamp>;
+  creation_hash: string | null;
+  creation_key: string | null;
   expires_at: Timestamp;
   first_payment_failed_at: Timestamp | null;
   id: string;
@@ -509,9 +574,16 @@ export interface Checkouts {
   invoice_id: string | null;
   items: Generated<Json>;
   org_id: string;
+  payment_due_at: Timestamp | null;
   payment_intent_id: string | null;
+  payment_plan: Json | null;
   payment_plan_choice: Json | null;
   pricing_snapshot: Json | null;
+  reminder_sent_at: Timestamp | null;
+  requirements: Generated<Json>;
+  requirements_completed_at: Timestamp | null;
+  requirements_enc: Buffer | null;
+  source: Generated<string>;
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
@@ -1000,6 +1072,7 @@ export interface Divisions {
   created_at: Generated<Timestamp>;
   eligibility: Generated<Json>;
   id: string;
+  is_default: Generated<boolean>;
   level: Generated<string>;
   name: string;
   org_id: string;
@@ -1007,6 +1080,31 @@ export interface Divisions {
   sort_order: Generated<number>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
+}
+
+export interface Donations {
+  amount_cents: number;
+  anonymous: Generated<boolean>;
+  campaign_id: string;
+  checkout_session_id: string | null;
+  created_at: Generated<Timestamp>;
+  creation_key: string | null;
+  dedication: string | null;
+  donor_account_id: string | null;
+  donor_email: string;
+  donor_name: string;
+  id: Generated<string>;
+  invoice_id: string | null;
+  invoice_line_id: string | null;
+  org_id: string;
+  paid_at: Timestamp | null;
+  payment_id: string | null;
+  provider_payment_id: string | null;
+  quid_pro_quo_value_cents: Generated<number>;
+  receipt_number: string;
+  receipt_sent_at: Timestamp | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface EmergencyContacts {
@@ -1020,6 +1118,134 @@ export interface EmergencyContacts {
   priority: number;
   relationship: string;
   removed_at: Timestamp | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationCriteria {
+  created_at: Generated<Timestamp>;
+  criterion_key: string;
+  evaluation_event_id: string;
+  id: string;
+  label: string;
+  org_id: string;
+  position_keys: Generated<string[]>;
+  position_specific: Generated<boolean>;
+  scale_max: Numeric;
+  scale_min: Numeric;
+  sort_order: Generated<number>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+  weight: Numeric;
+}
+
+export interface EvaluationEvents {
+  created_at: Generated<Timestamp>;
+  id: string;
+  name: string;
+  normalization: Generated<string>;
+  org_id: string;
+  share_results_with_families: Generated<boolean>;
+  status: Generated<string>;
+  target_program_id: string;
+  tryout_program_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationGroups {
+  age_max_months: number | null;
+  age_min_months: number | null;
+  created_at: Generated<Timestamp>;
+  evaluation_event_id: string;
+  gender: string | null;
+  id: string;
+  name: string;
+  org_id: string;
+  position_keys: Generated<string[]>;
+  sort_order: Generated<number>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationParticipants {
+  bib_number: number;
+  check_in_status: Generated<string>;
+  checked_in_at: Timestamp | null;
+  checked_in_by: string | null;
+  created_at: Generated<Timestamp>;
+  evaluation_event_id: string;
+  evaluation_group_id: string;
+  evaluation_session_id: string | null;
+  id: string;
+  media_consent: Generated<boolean>;
+  notes: string | null;
+  org_id: string;
+  person_id: string;
+  photo_file_id: string | null;
+  position_keys: Generated<string[]>;
+  registration_id: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationResults {
+  composite: Numeric | null;
+  computed_at: Generated<Timestamp>;
+  created_at: Generated<Timestamp>;
+  evaluation_event_id: string;
+  evaluation_participant_id: string;
+  evaluator_count: Generated<number>;
+  id: string;
+  missing_criteria: Generated<string[]>;
+  normalized_scores: Generated<Json>;
+  org_id: string;
+  rank_in_group: number | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationScores {
+  client_mutation_id: string;
+  created_at: Generated<Timestamp>;
+  evaluation_criterion_id: string;
+  evaluation_event_id: string;
+  evaluation_participant_id: string;
+  evaluator_account_id: string;
+  id: string;
+  notes: string | null;
+  org_id: string;
+  score: Numeric;
+  scored_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationSessionEvaluators {
+  account_id: string;
+  assigned_by: string;
+  created_at: Generated<Timestamp>;
+  evaluation_session_id: string;
+  id: string;
+  org_id: string;
+  revoked_at: Timestamp | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface EvaluationSessions {
+  calendar_event_id: string;
+  capacity: number | null;
+  created_at: Generated<Timestamp>;
+  ends_at: Timestamp;
+  evaluation_event_id: string;
+  evaluation_group_id: string | null;
+  facility_id: string | null;
+  id: string;
+  name: string;
+  org_id: string;
+  starts_at: Timestamp;
+  timezone: string;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -1310,6 +1536,38 @@ export interface FormResponses {
   updated_at: Generated<Timestamp>;
 }
 
+export interface FundraisingCampaigns {
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  description_html: Generated<string>;
+  ends_at: Timestamp | null;
+  goal_cents: number;
+  id: Generated<string>;
+  image_file_id: string | null;
+  name: string;
+  org_id: string;
+  show_donor_names: Generated<boolean>;
+  slug: string;
+  starts_at: Timestamp;
+  status: Generated<string>;
+  team_season_id: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface FundraisingSettings {
+  created_at: Generated<Timestamp>;
+  ein_ciphertext: Buffer | null;
+  ein_key_version: string | null;
+  ein_nonce: Buffer | null;
+  is_nonprofit: Generated<boolean>;
+  org_id: string;
+  show_full_ein: Generated<boolean>;
+  updated_at: Generated<Timestamp>;
+  updated_by: string;
+  version: Generated<number>;
+}
+
 export interface GameReports {
   body_html: string;
   contest_id: string;
@@ -1540,8 +1798,30 @@ export interface InstallmentStaffActions {
   updated_at: Generated<Timestamp>;
 }
 
+export interface InventoryBalances {
+  available: number | null;
+  on_hand: number | null;
+  org_id: string | null;
+  product_variant_id: string | null;
+  reserved: number | null;
+}
+
+export interface InventoryMovements {
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  id: Generated<string>;
+  memo: string | null;
+  movement: string;
+  order_line_id: string | null;
+  org_id: string;
+  product_variant_id: string;
+  quantity: number;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface InvoiceLines {
   amount_cents: number;
+  checkout_line_index: number | null;
   created_at: Generated<Timestamp>;
   description: string;
   gl_code: string | null;
@@ -1927,6 +2207,18 @@ export interface OrgMemberships {
   version: Generated<number>;
 }
 
+export interface OrgOnboardingItems {
+  completed_at: Timestamp | null;
+  completed_by_event: string | null;
+  created_at: Generated<Timestamp>;
+  dismissed_at: Timestamp | null;
+  dismissed_by: string | null;
+  id: string;
+  key: string;
+  org_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface OrgRelationships {
   child_org_id: string;
   created_at: Generated<Timestamp>;
@@ -2238,6 +2530,99 @@ export interface PgbossVersion {
   version: number;
 }
 
+export interface Phase15ImportBatches {
+  committed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  error_count: Generated<number>;
+  file_bytes: number;
+  file_id: string | null;
+  file_name: string;
+  id: string;
+  kind: string;
+  mapping: Json | null;
+  mapping_preset_id: string | null;
+  org_id: string;
+  progress: Generated<Json>;
+  rolled_back_at: Timestamp | null;
+  row_count: Generated<number>;
+  status: Generated<string>;
+  summary: Json | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface Phase15ImportMappingPresets {
+  builtin: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  id: string;
+  kind: string;
+  mapping: Json;
+  name: string;
+  org_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface Phase15ImportRows {
+  action: Generated<string>;
+  batch_id: string;
+  created_at: Generated<Timestamp>;
+  duplicates: Generated<Json>;
+  id: string;
+  issues: Generated<Json>;
+  normalized: Json | null;
+  org_id: string;
+  raw: Json;
+  row_number: number;
+  target_id: string | null;
+  target_version: number | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface PlacementBoards {
+  created_at: Generated<Timestamp>;
+  division_id: string | null;
+  evaluation_event_id: string | null;
+  fairness_metrics: Generated<Json>;
+  id: string;
+  options: Generated<Json>;
+  org_id: string;
+  published_at: Timestamp | null;
+  seed: number;
+  status: Generated<string>;
+  target_program_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface PlacementLocks {
+  created_at: Generated<Timestamp>;
+  id: string;
+  locked_by: string;
+  org_id: string;
+  person_id: string;
+  placement_board_id: string;
+  reason: string;
+  released_at: Timestamp | null;
+  team_season_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface PlacementPreferences {
+  coach_rating: Numeric | null;
+  created_at: Generated<Timestamp>;
+  friend_request_person_id: string | null;
+  id: string;
+  note: string | null;
+  org_id: string;
+  person_id: string;
+  practice_location: string | null;
+  program_id: string;
+  source: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Plans {
   active: Generated<boolean>;
   application_fee_bps: number;
@@ -2335,6 +2720,50 @@ export interface PrivacyRequests {
   reason: string | null;
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
+}
+
+export interface ProductCategories {
+  archived_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  name: string;
+  org_id: string;
+  sort_order: Generated<number>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface Products {
+  active: Generated<boolean>;
+  category_id: string | null;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  description: string | null;
+  id: Generated<string>;
+  kind: Generated<string>;
+  name: string;
+  org_id: string;
+  required_for_registration: Generated<boolean>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ProductVariants {
+  archived_at: Timestamp | null;
+  attributes: Generated<Json>;
+  color: string | null;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  low_stock_notified_at: Timestamp | null;
+  low_stock_threshold: number | null;
+  org_id: string;
+  price_cents: number;
+  product_id: string;
+  size: string | null;
+  sku: string;
+  tax_rate_id: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
 }
 
 export interface Programs {
@@ -2461,15 +2890,51 @@ export interface Refunds {
   version: Generated<number>;
 }
 
+export interface RegistrationAddOnSelections {
+  amount_cents: number;
+  created_at: Generated<Timestamp>;
+  id: string;
+  invoice_line_id: string | null;
+  line_key: string;
+  name: string;
+  org_id: string;
+  quantity: number;
+  registration_id: string;
+  size: string | null;
+  unit_amount_cents: number;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface RegistrationApprovals {
   created_at: Generated<Timestamp>;
   decided_at: Generated<Timestamp>;
   decided_by: string;
   decision: string;
   id: string;
+  idempotency_key: string | null;
   note: string | null;
   org_id: string;
   registration_id: string;
+  request_hash: Buffer | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface RegistrationNoticeOutbox {
+  account_id: string;
+  attempts: Generated<number>;
+  created_at: Generated<Timestamp>;
+  id: string;
+  kind: string;
+  last_error: string | null;
+  lease_token: string | null;
+  lease_until: Timestamp | null;
+  message_key: string;
+  org_id: string;
+  payload: Generated<Json>;
+  provider_message_id: string | null;
+  sent_at: Timestamp | null;
+  source_id: string;
+  status: Generated<string>;
   updated_at: Generated<Timestamp>;
 }
 
@@ -2497,6 +2962,11 @@ export interface RegistrationOfferings {
 }
 
 export interface Registrations {
+  approval_decision: Json | null;
+  approval_payment_due_at: Timestamp | null;
+  cancel_idempotency_key: string | null;
+  cancel_request_hash: Buffer | null;
+  cancel_result: Json | null;
   canceled_at: Timestamp | null;
   canceled_by: string | null;
   checkout_id: string | null;
@@ -2530,6 +3000,26 @@ export interface RegistrationStatusHistory {
   registration_id: string;
   to_status: string;
   updated_at: Generated<Timestamp>;
+}
+
+export interface ReimbursementRequests {
+  amount_cents: number;
+  category: string;
+  created_at: Generated<Timestamp>;
+  decided_at: Timestamp | null;
+  decided_by: string | null;
+  decision_reason: string | null;
+  id: Generated<string>;
+  ledger_entry_id: string | null;
+  memo: string;
+  org_id: string;
+  receipt_file_id: string;
+  requester_account_id: string;
+  requester_person_id: string;
+  status: Generated<string>;
+  team_ledger_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
 }
 
 export interface RescheduleRequests {
@@ -2875,6 +3365,27 @@ export interface Spaces {
   version: Generated<number>;
 }
 
+export interface Sponsors {
+  amount_cents: number;
+  contact: Generated<Json>;
+  contract_end: Timestamp;
+  contract_start: Timestamp;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  id: Generated<string>;
+  invoice_id: string | null;
+  logo_file_id: string | null;
+  name: string;
+  org_id: string;
+  placements: Generated<Json>;
+  renewal_notified_at: Timestamp | null;
+  status: Generated<string>;
+  tier: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+  website_url: string | null;
+}
+
 export interface SportProfiles {
   archived_at: Timestamp | null;
   created_at: Generated<Timestamp>;
@@ -2941,6 +3452,69 @@ export interface StatLines {
   version: Generated<number>;
 }
 
+export interface StoreFulfillments {
+  created_at: Generated<Timestamp>;
+  fulfilled_at: Timestamp | null;
+  fulfilled_by: string | null;
+  id: Generated<string>;
+  method: string;
+  order_id: string;
+  org_id: string;
+  status: Generated<string>;
+  tracking_number: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface StoreOrderLines {
+  amount_cents: number;
+  created_at: Generated<Timestamp>;
+  description: string;
+  id: Generated<string>;
+  order_id: string;
+  org_id: string;
+  person_id: string | null;
+  product_id: string;
+  product_variant_id: string;
+  quantity: number;
+  registration_id: string | null;
+  team_season_id: string | null;
+  unit_amount_cents: number;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface StoreOrders {
+  account_id: string;
+  created_at: Generated<Timestamp>;
+  household_id: string | null;
+  id: Generated<string>;
+  idempotency_key: string;
+  invoice_id: string | null;
+  org_id: string;
+  registration_id: string | null;
+  request_hash: Generated<string>;
+  shipping_address: Json | null;
+  status: Generated<string>;
+  subtotal_cents: Generated<number>;
+  tax_cents: Generated<number>;
+  tax_rate_bps: Generated<number>;
+  team_season_id: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface StoreRegistrationAddons {
+  active: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  offering_id: string;
+  org_id: string;
+  product_id: string;
+  quantity: Generated<number>;
+  required: Generated<boolean>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface StripeEvents {
   account: string | null;
   attempts: Generated<number>;
@@ -2954,6 +3528,21 @@ export interface StripeEvents {
   received_at: Generated<Timestamp>;
   stripe_event_id: string;
   type: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface SupportRequests {
+  body: string;
+  contact_email: string | null;
+  context: Generated<Json>;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  id: string;
+  kind: string;
+  notified_at: Timestamp | null;
+  org_id: string;
+  status: Generated<string>;
+  subject: string;
   updated_at: Generated<Timestamp>;
 }
 
@@ -2985,6 +3574,8 @@ export interface TeamEntries {
   captain_person_id: string | null;
   contact_account_id: string | null;
   created_at: Generated<Timestamp>;
+  creation_hash: Buffer | null;
+  creation_key: string | null;
   division_id: string;
   entrant_org_id: string | null;
   external_team_id: string | null;
@@ -2996,6 +3587,124 @@ export interface TeamEntries {
   seed_hint: number | null;
   status: string;
   team_season_id: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface TeamEntryInvites {
+  accepted_registration_id: string | null;
+  checkout_id: string | null;
+  created_at: Generated<Timestamp>;
+  email: string;
+  expires_at: Timestamp;
+  id: string;
+  invited_by: string;
+  org_id: string;
+  person_id: string | null;
+  status: Generated<string>;
+  team_entry_id: string;
+  token_hash: Buffer;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface TeamFeeAssessments {
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  due_on: Timestamp;
+  id: Generated<string>;
+  installment_plan: Json | null;
+  installment_template_id: string | null;
+  org_id: string;
+  per_player_cents: number;
+  status: Generated<string>;
+  team_season_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface TeamFeeObligations {
+  account_id: string;
+  amount_cents: number;
+  assessment_id: string;
+  created_at: Generated<Timestamp>;
+  household_id: string;
+  id: Generated<string>;
+  invoice_id: string;
+  invoice_line_id: string;
+  org_id: string;
+  person_id: string;
+  team_ledger_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface TeamLedgerEntries {
+  amount_cents: number;
+  approved_at: Timestamp | null;
+  approved_by: string | null;
+  category: string;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  direction: string;
+  id: Generated<string>;
+  invoice_id: string | null;
+  invoice_line_id: string | null;
+  memo: string | null;
+  occurred_on: Timestamp;
+  org_id: string;
+  payment_id: string | null;
+  receipt_file_id: string | null;
+  source: string;
+  team_ledger_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface TeamLedgers {
+  budget_cents: Generated<number>;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  id: Generated<string>;
+  org_id: string;
+  status: Generated<string>;
+  team_season_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface TeamOffers {
+  amount_cents: number;
+  checkout_id: string | null;
+  created_at: Generated<Timestamp>;
+  decline_reason: string | null;
+  declined_by_account_id: string | null;
+  deposit_cents: number;
+  expires_at: Timestamp;
+  household_id: string;
+  id: string;
+  message: string | null;
+  offering_id: string;
+  org_id: string;
+  person_id: string;
+  placement_id: string;
+  registration_id: string | null;
+  reminder_sent_at: Timestamp | null;
+  responded_at: Timestamp | null;
+  status: Generated<string>;
+  team_season_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface TeamPlacements {
+  created_at: Generated<Timestamp>;
+  id: string;
+  locked: Generated<boolean>;
+  org_id: string;
+  person_id: string;
+  placement_board_id: string;
+  seed_rating: Numeric | null;
+  source: string;
+  status: Generated<string>;
+  team_season_id: string;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
 }
@@ -3088,6 +3797,7 @@ export interface Transfers {
   idempotency_key: string;
   org_id: string;
   performed_by: string;
+  request_hash: Buffer | null;
   result: Generated<Json>;
   to_registration_id: string;
   updated_at: Generated<Timestamp>;
@@ -3125,11 +3835,99 @@ export interface TuitionSubscriptions {
   withdrawal_notice_days: Generated<number>;
 }
 
-export interface WaitlistEntries {
+export interface VolunteerBuyouts {
+  amount_cents: number;
   created_at: Generated<Timestamp>;
+  created_by: string;
+  creation_key: string;
+  household_id: string;
+  id: Generated<string>;
+  invoice_id: string;
+  org_id: string;
+  person_id: string | null;
+  requirement_id: string;
+  units: Numeric;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface VolunteerRequirements {
+  amount_per_athlete: Numeric | null;
+  amount_per_household: Numeric | null;
+  auto_invoice_shortfall: Generated<boolean>;
+  buyout_offering_id: string | null;
+  buyout_price_cents: number | null;
+  counts_coach_roles: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  deadline: Timestamp;
+  id: Generated<string>;
+  notice_days: Generated<number>;
+  org_id: string;
+  program_id: string | null;
+  season_id: string | null;
+  unit: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface VolunteerRoles {
+  archived_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  description: string | null;
+  id: Generated<string>;
+  minimum_age: Generated<number>;
+  name: string;
+  org_id: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface VolunteerShifts {
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  credit_hours: Generated<Numeric>;
+  ends_at: Timestamp;
+  event_id: string | null;
+  facility_id: string;
+  id: Generated<string>;
+  notes: string | null;
+  org_id: string;
+  requirement_id: string | null;
+  slots: number;
+  starts_at: Timestamp;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+  volunteer_role_id: string;
+}
+
+export interface VolunteerSignups {
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  credited_at: Timestamp | null;
+  credited_by: string | null;
+  hours_credited: Generated<Numeric>;
+  household_id: string;
+  id: Generated<string>;
+  org_id: string;
+  person_id: string;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+  volunteer_shift_id: string;
+}
+
+export interface WaitlistEntries {
+  accepted_at: Timestamp | null;
+  checkout_id: string | null;
+  created_at: Generated<Timestamp>;
+  expiring_notified_at: Timestamp | null;
   household_id: string;
   id: string;
   offer_expires_at: Timestamp | null;
+  offer_idempotency_key: string | null;
+  offer_request_hash: Buffer | null;
   offered_at: Timestamp | null;
   offering_id: string;
   org_id: string;
@@ -3188,6 +3986,10 @@ export interface WorkerHeartbeats {
 export interface DB {
   account_consents: AccountConsents;
   accounts: Accounts;
+  ai_conversation_messages: AiConversationMessages;
+  ai_conversations: AiConversations;
+  ai_drafts: AiDrafts;
+  ai_usage_events: AiUsageEvents;
   aid_applications: AidApplications;
   allocation_requests: AllocationRequests;
   allocations: Allocations;
@@ -3215,6 +4017,7 @@ export interface DB {
   chat_notification_batches: ChatNotificationBatches;
   chat_reports: ChatReports;
   checkout_capacity_refund_claims: CheckoutCapacityRefundClaims;
+  checkout_policy_acceptances: CheckoutPolicyAcceptances;
   checkouts: Checkouts;
   class_enrollments: ClassEnrollments;
   class_instructors: ClassInstructors;
@@ -3245,7 +4048,16 @@ export interface DB {
   dispute_liability_movements: DisputeLiabilityMovements;
   disputes: Disputes;
   divisions: Divisions;
+  donations: Donations;
   emergency_contacts: EmergencyContacts;
+  evaluation_criteria: EvaluationCriteria;
+  evaluation_events: EvaluationEvents;
+  evaluation_groups: EvaluationGroups;
+  evaluation_participants: EvaluationParticipants;
+  evaluation_results: EvaluationResults;
+  evaluation_scores: EvaluationScores;
+  evaluation_session_evaluators: EvaluationSessionEvaluators;
+  evaluation_sessions: EvaluationSessions;
   event_participants: EventParticipants;
   event_series: EventSeries;
   events: Events;
@@ -3263,6 +4075,8 @@ export interface DB {
   financial_aid_programs: FinancialAidPrograms;
   form_definitions: FormDefinitions;
   form_responses: FormResponses;
+  fundraising_campaigns: FundraisingCampaigns;
+  fundraising_settings: FundraisingSettings;
   game_reports: GameReports;
   gl_codes: GlCodes;
   household_members: HouseholdMembers;
@@ -3278,6 +4092,8 @@ export interface DB {
   installment_plan_templates: InstallmentPlanTemplates;
   installment_staff_actions: InstallmentStaffActions;
   installments: Installments;
+  inventory_balances: InventoryBalances;
+  inventory_movements: InventoryMovements;
   invoice_lines: InvoiceLines;
   invoices: Invoices;
   level_promotions: LevelPromotions;
@@ -3300,6 +4116,7 @@ export interface DB {
   org_billing_invoices: OrgBillingInvoices;
   org_counters: OrgCounters;
   org_memberships: OrgMemberships;
+  org_onboarding_items: OrgOnboardingItems;
   org_relationships: OrgRelationships;
   org_subscriptions: OrgSubscriptions;
   organizations: Organizations;
@@ -3321,6 +4138,12 @@ export interface DB {
   'pgboss.schedule': PgbossSchedule;
   'pgboss.subscription': PgbossSubscription;
   'pgboss.version': PgbossVersion;
+  phase15_import_batches: Phase15ImportBatches;
+  phase15_import_mapping_presets: Phase15ImportMappingPresets;
+  phase15_import_rows: Phase15ImportRows;
+  placement_boards: PlacementBoards;
+  placement_locks: PlacementLocks;
+  placement_preferences: PlacementPreferences;
   plans: Plans;
   platform_audit_log: PlatformAuditLog;
   platform_feature_flags: PlatformFeatureFlags;
@@ -3330,6 +4153,9 @@ export interface DB {
   pool_members: PoolMembers;
   pools: Pools;
   privacy_requests: PrivacyRequests;
+  product_categories: ProductCategories;
+  product_variants: ProductVariants;
+  products: Products;
   programs: Programs;
   provider_delivery_keys: ProviderDeliveryKeys;
   punch_cards: PunchCards;
@@ -3338,10 +4164,13 @@ export interface DB {
   refund_approvals: RefundApprovals;
   refund_attempts: RefundAttempts;
   refunds: Refunds;
+  registration_add_on_selections: RegistrationAddOnSelections;
   registration_approvals: RegistrationApprovals;
+  registration_notice_outbox: RegistrationNoticeOutbox;
   registration_offerings: RegistrationOfferings;
   registration_status_history: RegistrationStatusHistory;
   registrations: Registrations;
+  reimbursement_requests: ReimbursementRequests;
   reschedule_requests: RescheduleRequests;
   result_audit: ResultAudit;
   return_to_play_clearances: ReturnToPlayClearances;
@@ -3366,16 +4195,29 @@ export interface DB {
   space_blackouts: SpaceBlackouts;
   space_bookings: SpaceBookings;
   spaces: Spaces;
+  sponsors: Sponsors;
   sport_profile_versions: SportProfileVersions;
   sport_profiles: SportProfiles;
   sport_templates: SportTemplates;
   standings_configs: StandingsConfigs;
   standings_snapshots: StandingsSnapshots;
   stat_lines: StatLines;
+  store_fulfillments: StoreFulfillments;
+  store_order_lines: StoreOrderLines;
+  store_orders: StoreOrders;
+  store_registration_addons: StoreRegistrationAddons;
   stripe_events: StripeEvents;
+  support_requests: SupportRequests;
   suppressions: Suppressions;
   tax_rates: TaxRates;
   team_entries: TeamEntries;
+  team_entry_invites: TeamEntryInvites;
+  team_fee_assessments: TeamFeeAssessments;
+  team_fee_obligations: TeamFeeObligations;
+  team_ledger_entries: TeamLedgerEntries;
+  team_ledgers: TeamLedgers;
+  team_offers: TeamOffers;
+  team_placements: TeamPlacements;
   team_seasons: TeamSeasons;
   team_staff: TeamStaff;
   teams: Teams;
@@ -3384,6 +4226,11 @@ export interface DB {
   transfers: Transfers;
   tuition_invoices: TuitionInvoices;
   tuition_subscriptions: TuitionSubscriptions;
+  volunteer_buyouts: VolunteerBuyouts;
+  volunteer_requirements: VolunteerRequirements;
+  volunteer_roles: VolunteerRoles;
+  volunteer_shifts: VolunteerShifts;
+  volunteer_signups: VolunteerSignups;
   waitlist_entries: WaitlistEntries;
   waiver_documents: WaiverDocuments;
   waiver_signatures: WaiverSignatures;

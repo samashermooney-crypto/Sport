@@ -19,6 +19,36 @@ async function closeServer(server: Server): Promise<void> {
 }
 
 describe('Phase 0 server', () => {
+  it('reports database readiness and worker status without exposing metrics', async () => {
+    const app = createApp(undefined, undefined, {
+      databaseReady: () => Promise.resolve(false),
+      workerReady: () => Promise.resolve(true),
+    });
+    const server = app.listen(0, '127.0.0.1');
+    try {
+      await once(server, 'listening');
+      const address = server.address();
+      if (!address || typeof address === 'string')
+        throw new Error('Server did not bind a TCP port');
+      const base = `http://127.0.0.1:${String(address.port)}`;
+      const ready = await fetch(`${base}/readyz`);
+      expect(ready.status).toBe(503);
+      expect(await ready.json()).toEqual({ ready: false });
+      const status = await fetch(`${base}/status`);
+      expect(status.status).toBe(503);
+      expect(await status.json()).toEqual({
+        status: 'degraded',
+        components: {
+          api: 'operational',
+          database: 'degraded',
+          worker: 'operational',
+        },
+      });
+    } finally {
+      await closeServer(server);
+    }
+  });
+
   it('responds to health checks', async () => {
     const server = createApp().listen(0);
     try {

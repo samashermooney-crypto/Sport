@@ -17,7 +17,6 @@ import { federationConflict, federationNotFound } from './errors';
 import {
   findRelationship,
   getFederationAdminDatabase,
-  withFederationAccess,
   type FederationRelationshipRow,
 } from './privileged';
 
@@ -615,4 +614,3 @@ export async function respondToSharing(
 }
 
 export type { FederationRelationshipStatus };
-export { withFederationAccess };

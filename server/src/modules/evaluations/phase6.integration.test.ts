@@ -1,0 +1,1547 @@
+import { randomUUID } from 'node:crypto';
+
+import type { Kysely } from 'kysely';
+import pg from 'pg';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+
+import { createDatabase } from '../../db/kysely';
+import type { DB } from '../../db/types';
+import { createWithOrg } from '../../db/withOrg';
+import type { OrgContext } from '../../db/withOrg';
+
+import {
+  assignEvaluationEvaluator,
+  assignEvaluationParticipant,
+  acceptTeamOffer,
+  checkInEvaluationParticipant,
+  computeEvaluationResults,
+  createEvaluationEvent,
+  createEvaluationSession,
+  createPlacementBoard,
+  createTeamOffer,
+  declineTeamOffer,
+  evaluationConsistency,
+  expireTeamOffers,
+  getEvaluationSetup,
+  getPlacementBoard,
+  listEvaluationEvaluatorCandidates,
+  listEvaluationRegistrants,
+  listFamilyOffers,
+  listEvaluationScoringSheet,
+  listMyPlacementPrograms,
+  listMyEvaluationResults,
+  listOfferDashboard,
+  listPlacementPreferences,
+  lockPlacement,
+  movePlacement,
+  publishPlacementBoard,
+  sendOfferReminders,
+  upsertEvaluationScore,
+  upsertPlacementPreference,
+  upsertMyPlacementPreference,
+  withdrawTeamOffer,
+} from './service';
+import type { AcceptedOfferCheckout, OfferCheckoutAdapter } from './service';
+
+// This suite seeds the complete evaluation fixture after cloning the migrated
+// test database. Give that setup hook room for the expanded trunk schema.
+vi.setConfig({ hookTimeout: 60_000 });
+
+const orgA = randomUUID();
+const orgB = randomUUID();
+const ownerAccount = randomUUID();
+const guardianAccount = randomUUID();
+const outsiderAccount = randomUUID();
+const evaluatorAccountA = randomUUID();
+const evaluatorAccountB = randomUUID();
+const evaluatorPersonA = randomUUID();
+const evaluatorPersonB = randomUUID();
+const guardianPerson = randomUUID();
+const seasonId = randomUUID();
+const priorSeasonId = randomUUID();
+const sportProfileId = randomUUID();
+const tryoutProgramId = randomUUID();
+const tryoutDivisionId = randomUUID();
+const tryoutOfferingId = randomUUID();
+const targetProgramId = randomUUID();
+const priorProgramId = randomUUID();
+const divisionId = randomUUID();
+const smallDivisionId = randomUUID();
+const smallTeamSeasonId = randomUUID();
+const priorDivisionId = randomUUID();
+const offeringId = randomUUID();
+const householdId = randomUUID();
+const householdB = randomUUID();
+const childA = randomUUID();
+const childB = randomUUID();
+const childC = randomUUID();
+const childD = randomUUID();
+const childE = randomUUID();
+const priorTeamId = randomUUID();
+const priorTeamSeasonId = randomUUID();
+const teamSeasonIds = [randomUUID(), randomUUID(), randomUUID()];
+
+const ownerContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: ownerAccount },
+};
+const guardianContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: guardianAccount },
+};
+const outsiderContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: outsiderAccount },
+};
+const orgBContext: OrgContext = {
+  orgId: orgB,
+  actor: { accountId: ownerAccount },
+};
+
+let clockNow = new Date('2026-09-27T15:00:00.000Z');
+let database: Kysely<DB>;
+const dependencies = () => ({ database, clock: () => clockNow });
+
+class FakeCheckout implements OfferCheckoutAdapter {
+  calls: number = 0;
+  inputs: Array<Parameters<OfferCheckoutAdapter['accept']>[0]> = [];
+  private readonly results = new Map<string, Promise<AcceptedOfferCheckout>>();
+  private readonly concurrentCalls: Promise<void>;
+  private releaseConcurrentCalls!: () => void;
+
+  constructor(
+    private readonly admin: pg.Client,
+    private readonly waitForConcurrentCalls = 0,
+  ) {
+    this.concurrentCalls = new Promise((resolve) => {
+      this.releaseConcurrentCalls = resolve;
+    });
+    if (waitForConcurrentCalls === 0) this.releaseConcurrentCalls();
+  }
+
+  async accept(input: Parameters<OfferCheckoutAdapter['accept']>[0]) {
+    this.calls += 1;
+    this.inputs.push(input);
+    if (this.waitForConcurrentCalls > 0) {
+      if (this.calls >= this.waitForConcurrentCalls)
+        this.releaseConcurrentCalls();
+      await this.concurrentCalls;
+    }
+    const existing = this.results.get(input.idempotencyKey);
+    if (existing) return existing;
+    const result = this.createCheckout(input);
+    this.results.set(input.idempotencyKey, result);
+    return result;
+  }
+
+  private async createCheckout(
+    input: Parameters<OfferCheckoutAdapter['accept']>[0],
+  ): Promise<AcceptedOfferCheckout> {
+    const checkoutId = randomUUID();
+    const registrationId = randomUUID();
+    const invoiceId = randomUUID();
+    await this.admin.query(
+      `INSERT INTO checkouts (id, org_id, account_id, status, expires_at, items)
+       VALUES ($1, $2, $3, 'completed', now() + interval '1 hour', '[]'::jsonb)`,
+      [checkoutId, input.orgId, input.accountId],
+    );
+    await this.admin.query(
+      `INSERT INTO registrations (id, org_id, program_id, division_id, offering_id, person_id, household_id, registered_by_account_id, source, status, team_season_id, checkout_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'offer_acceptance', 'confirmed', $9, $10)`,
+      [
+        registrationId,
+        input.orgId,
+        targetProgramId,
+        divisionId,
+        input.offeringId,
+        input.personId,
+        input.householdId,
+        input.accountId,
+        input.teamSeasonId,
+        checkoutId,
+      ],
+    );
+    await this.admin.query(
+      `INSERT INTO invoices (id, org_id, number, account_id, status, currency, source)
+       VALUES ($1, $2, 9001, $3, 'open', 'USD', 'checkout')`,
+      [invoiceId, input.orgId, input.accountId],
+    );
+    return {
+      registrationId,
+      checkoutId,
+      invoiceId,
+      depositCents: 5000,
+      paymentPlanId: null,
+    };
+  }
+}
+
+let admin: pg.Client;
+let adminConnected = false;
+let databaseInitialized = false;
+let eventId: string;
+let sessionId: string;
+let criterionId: string;
+let participantA: string;
+let participantB: string;
+let participantC: string;
+let participantD: string;
+let participantE: string;
+let groupBId: string;
+let groupAId: string;
+let boardId: string;
+let offerId: string;
+const tryoutRegistrationIds = new Map<string, string>();
+
+function tryoutRegistrationFor(personId: string): string {
+  const registrationId = tryoutRegistrationIds.get(personId);
+  if (!registrationId) throw new Error('Missing confirmed tryout registration');
+  return registrationId;
+}
+
+beforeAll(async () => {
+  admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+  await admin.connect();
+  adminConnected = true;
+  const accounts = [
+    ownerAccount,
+    guardianAccount,
+    outsiderAccount,
+    evaluatorAccountA,
+    evaluatorAccountB,
+  ];
+  for (const [index, id] of accounts.entries())
+    await admin.query(
+      `INSERT INTO accounts (id, email, first_name, last_name, date_of_birth)
+       VALUES ($1, $2, $3, 'Phase6', '1985-01-01')`,
+      [id, `phase6-${String(index)}@example.invalid`, `Acct${String(index)}`],
+    );
+  await admin.query(
+    `INSERT INTO organizations (id, slug, name, kind, timezone, status)
+     VALUES ($1, $2, 'Eval Org A', 'club', 'America/Chicago', 'active'),
+            ($3, $4, 'Eval Org B', 'club', 'America/Chicago', 'active')`,
+    [orgA, `eval-a-${orgA.slice(0, 8)}`, orgB, `eval-b-${orgB.slice(0, 8)}`],
+  );
+  for (const accountId of accounts)
+    await admin.query(
+      `INSERT INTO org_memberships (id, org_id, account_id, status, joined_at)
+       VALUES ($1, $2, $3, 'active', now())`,
+      [randomUUID(), orgA, accountId],
+    );
+  await admin.query(
+    `INSERT INTO role_assignments (id, org_id, account_id, role, scope_type, granted_by, pending_mfa)
+     VALUES ($1, $2, $3, 'owner', 'org', $3, false)`,
+    [randomUUID(), orgA, ownerAccount],
+  );
+  for (const accountId of [evaluatorAccountA, evaluatorAccountB])
+    await admin.query(
+      `INSERT INTO role_assignments (id, org_id, account_id, role, scope_type, granted_by, pending_mfa)
+       VALUES ($1, $2, $3, 'evaluator', 'org', $4, false)`,
+      [randomUUID(), orgA, accountId, ownerAccount],
+    );
+  await admin.query(
+    `INSERT INTO sport_profiles (id, org_id, name, profile)
+     VALUES ($1, $2, 'Soccer', '{}'::jsonb)`,
+    [sportProfileId, orgA],
+  );
+  await admin.query(
+    `INSERT INTO seasons (id, org_id, name, starts_on, ends_on, status)
+     VALUES ($1, $2, 'Current', '2026-08-01', '2026-12-31', 'active'),
+            ($3, $2, 'Prior', '2025-08-01', '2025-12-31', 'archived')`,
+    [seasonId, orgA, priorSeasonId],
+  );
+  await admin.query(
+    `INSERT INTO programs (id, org_id, season_id, sport_profile_id, mode, name, slug, status, visibility, starts_on, ends_on)
+     VALUES ($1, $2, $3, $4, 'tryout', 'Tryout', 'tryout-a', 'published', 'private', '2026-09-01', '2026-09-30'),
+            ($5, $2, $3, $4, 'club', 'Competitive', 'competitive-a', 'published', 'private', '2026-10-01', '2026-12-31'),
+            ($6, $2, $7, $4, 'club', 'Prior Comp', 'prior-comp', 'archived', 'private', '2025-09-01', '2025-12-31')`,
+    [
+      tryoutProgramId,
+      orgA,
+      seasonId,
+      sportProfileId,
+      targetProgramId,
+      priorProgramId,
+      priorSeasonId,
+    ],
+  );
+  await admin.query(
+    `INSERT INTO divisions (id, org_id, program_id, name)
+     VALUES ($1, $2, $3, 'U10'), ($4, $2, $3, 'U10B'), ($5, $2, $6, 'U10')`,
+    [
+      divisionId,
+      orgA,
+      targetProgramId,
+      smallDivisionId,
+      priorDivisionId,
+      priorProgramId,
+    ],
+  );
+  await admin.query(
+    `INSERT INTO divisions (id, org_id, program_id, name) VALUES ($1, $2, $3, 'Tryout U10')`,
+    [tryoutDivisionId, orgA, tryoutProgramId],
+  );
+  await admin.query(
+    `INSERT INTO households (id, org_id, name) VALUES ($1, $2, 'Household A'), ($3, $2, 'Household B')`,
+    [householdId, orgA, householdB],
+  );
+  await admin.query(
+    `INSERT INTO people (id, org_id, first_name, last_name, date_of_birth, competition_gender, school_name)
+     VALUES ($1, $2, 'Eval', 'One', '1980-01-01', NULL, NULL),
+            ($3, $2, 'Eval', 'Two', '1981-01-01', NULL, NULL),
+            ($4, $2, 'Guardian', 'Person', '1982-01-01', NULL, NULL),
+            ($5, $2, 'Kid', 'Alpha', '2017-04-15', 'female', 'North'),
+            ($6, $2, 'Kid', 'Beta', '2017-06-20', 'female', 'North'),
+            ($7, $2, 'Kid', 'Gamma', '2017-08-25', 'female', 'South'),
+            ($8, $2, 'Kid', 'Delta', '2017-03-10', 'female', 'North'),
+            ($9, $2, 'Kid', 'Echo', '2017-05-12', 'female', 'South')`,
+    [
+      evaluatorPersonA,
+      orgA,
+      evaluatorPersonB,
+      guardianPerson,
+      childA,
+      childB,
+      childC,
+      childD,
+      childE,
+    ],
+  );
+  await admin.query(
+    `INSERT INTO household_members (id, org_id, household_id, person_id, role, is_primary_contact)
+     VALUES ($1, $2, $3, $4, 'guardian', true), ($5, $2, $3, $6, 'athlete', false),
+            ($7, $2, $8, $9, 'athlete', false), ($10, $2, $8, $11, 'athlete', false)`,
+    [
+      randomUUID(),
+      orgA,
+      householdId,
+      guardianPerson,
+      randomUUID(),
+      childA,
+      randomUUID(),
+      householdB,
+      childB,
+      randomUUID(),
+      childC,
+    ],
+  );
+  await admin.query(
+    `INSERT INTO person_account_links (id, org_id, person_id, account_id, relationship, verified_at)
+     VALUES ($1, $2, $3, $4, 'guardian', now()), ($5, $2, $6, $7, 'self', now()), ($8, $2, $9, $10, 'self', now())`,
+    [
+      randomUUID(),
+      orgA,
+      childA,
+      guardianAccount,
+      randomUUID(),
+      evaluatorPersonA,
+      evaluatorAccountA,
+      randomUUID(),
+      evaluatorPersonB,
+      evaluatorAccountB,
+    ],
+  );
+  for (const [index, teamSeasonId] of teamSeasonIds.entries()) {
+    const teamId = randomUUID();
+    await admin.query(
+      `INSERT INTO teams (id, org_id, name, sport_profile_id) VALUES ($1, $2, $3, $4)`,
+      [teamId, orgA, `Team ${String(index)}`, sportProfileId],
+    );
+    await admin.query(
+      `INSERT INTO team_seasons (id, org_id, team_id, program_id, division_id, roster_limit, status)
+       VALUES ($1, $2, $3, $4, $5, 2, 'forming')`,
+      [teamSeasonId, orgA, teamId, targetProgramId, divisionId],
+    );
+  }
+  await admin.query(
+    `INSERT INTO teams (id, org_id, name, sport_profile_id) VALUES ($1, $2, 'Prior Hawks', $3)`,
+    [priorTeamId, orgA, sportProfileId],
+  );
+  await admin.query(
+    `INSERT INTO teams (id, org_id, name, sport_profile_id) VALUES ($1, $2, 'Small Side', $3)`,
+    [randomUUID(), orgA, sportProfileId],
+  );
+  await admin.query(
+    `INSERT INTO team_seasons (id, org_id, team_id, program_id, division_id, roster_limit, status)
+     SELECT $1, $2, t.id, $3, $4, 1, 'forming' FROM teams t WHERE t.org_id=$2 AND t.name='Small Side'`,
+    [smallTeamSeasonId, orgA, targetProgramId, smallDivisionId],
+  );
+  await admin.query(
+    `INSERT INTO team_seasons (id, org_id, team_id, program_id, division_id, status)
+     VALUES ($1, $2, $3, $4, $5, 'completed')`,
+    [priorTeamSeasonId, orgA, priorTeamId, priorProgramId, priorDivisionId],
+  );
+  await admin.query(
+    `INSERT INTO registration_offerings (id, org_id, program_id, division_id, name, registrant_role, price_cents, active)
+     VALUES ($1, $2, $3, $4, 'Competitive fee', 'athlete', 25000, true)`,
+    [offeringId, orgA, targetProgramId, divisionId],
+  );
+  await admin.query(
+    `INSERT INTO registration_offerings (id, org_id, program_id, division_id, name, registrant_role, price_cents, active)
+     VALUES ($1, $2, $3, $4, 'Tryout fee', 'athlete', 0, true)`,
+    [tryoutOfferingId, orgA, tryoutProgramId, tryoutDivisionId],
+  );
+  for (const personId of [childA, childB, childC, childD, childE]) {
+    const registrationId = randomUUID();
+    tryoutRegistrationIds.set(personId, registrationId);
+    await admin.query(
+      `INSERT INTO registrations (id, org_id, program_id, division_id, offering_id, person_id, household_id, registered_by_account_id, source, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'staff', 'confirmed')`,
+      [
+        registrationId,
+        orgA,
+        tryoutProgramId,
+        tryoutDivisionId,
+        tryoutOfferingId,
+        personId,
+        personId === childA ? householdId : householdB,
+        guardianAccount,
+      ],
+    );
+  }
+  database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
+  databaseInitialized = true;
+});
+
+afterAll(async () => {
+  if (databaseInitialized) await database.destroy();
+  if (adminConnected) await admin.end();
+});
+
+describe('Phase 6 evaluations integration', () => {
+  it('creates an event, session and group-matched participants with sequential bibs', async () => {
+    const event = await createEvaluationEvent(dependencies(), ownerContext, {
+      tryoutProgramId,
+      targetProgramId,
+      name: 'Fall tryout',
+      normalization: 'z_score_per_evaluator',
+      shareResultsWithFamilies: false,
+      criteria: [
+        {
+          key: 'speed',
+          label: 'Speed',
+          weight: 1,
+          scaleMin: 1,
+          scaleMax: 5,
+          positionSpecific: false,
+          positionKeys: [],
+        },
+        {
+          key: 'skill',
+          label: 'Skill',
+          weight: 2,
+          scaleMin: 1,
+          scaleMax: 5,
+          positionSpecific: false,
+          positionKeys: [],
+        },
+      ],
+      groups: [
+        {
+          name: 'U10',
+          ageMinMonths: 96,
+          ageMaxMonths: 120,
+          gender: 'female',
+          positionKeys: [],
+        },
+        {
+          name: 'U10B',
+          ageMinMonths: 96,
+          ageMaxMonths: 120,
+          gender: 'female',
+          positionKeys: [],
+        },
+      ],
+    });
+    if (!event) throw new Error('Expected an evaluation event');
+    eventId = event.id;
+    expect(event.status).toBe('draft');
+    await admin.query(`UPDATE people SET media_consent='granted' WHERE id=$1`, [
+      childA,
+    ]);
+
+    const session = await createEvaluationSession(
+      dependencies(),
+      ownerContext,
+      eventId,
+      {
+        groupId: null,
+        name: 'Session 1',
+        startsAt: '2026-09-28T15:00:00.000Z',
+        endsAt: '2026-09-28T17:00:00.000Z',
+        timezone: 'America/Chicago',
+        facilityId: null,
+        capacity: 5,
+      },
+    );
+    sessionId = session.id;
+    const calendar = await admin.query<{ kind: string; title: string }>(
+      `SELECT kind, title FROM events WHERE org_id=$1 AND id=$2`,
+      [orgA, session.calendarEventId],
+    );
+    expect(calendar.rows[0]).toEqual({
+      kind: 'evaluation_session',
+      title: 'Session 1',
+    });
+
+    const first = await assignEvaluationParticipant(
+      dependencies(),
+      ownerContext,
+      eventId,
+      {
+        personId: childA,
+        groupId: null,
+        sessionId,
+        registrationId: tryoutRegistrationFor(childA),
+        positionKeys: [],
+      },
+    );
+    const second = await assignEvaluationParticipant(
+      dependencies(),
+      ownerContext,
+      eventId,
+      {
+        personId: childB,
+        groupId: null,
+        sessionId,
+        registrationId: tryoutRegistrationFor(childB),
+        positionKeys: [],
+      },
+    );
+    const third = await assignEvaluationParticipant(
+      dependencies(),
+      ownerContext,
+      eventId,
+      {
+        personId: childC,
+        groupId: null,
+        sessionId,
+        registrationId: tryoutRegistrationFor(childC),
+        positionKeys: [],
+      },
+    );
+    participantA = first.id;
+    participantB = second.id;
+    participantC = third.id;
+    expect(first.bibNumber).toBe(1);
+    expect(second.bibNumber).toBe(2);
+    expect(third.bibNumber).toBe(3);
+
+    const registrantRows = await listEvaluationRegistrants(
+      dependencies(),
+      ownerContext,
+      eventId,
+    );
+    expect(registrantRows.find((row) => row.personId === childA)).toMatchObject(
+      { mediaConsent: true, personVersion: 1 },
+    );
+    const setup = await getEvaluationSetup(
+      dependencies(),
+      ownerContext,
+      eventId,
+    );
+    expect(
+      setup.participants.find((row) => row.personId === childA),
+    ).toMatchObject({ mediaConsent: true, personVersion: 1 });
+
+    const smallGroup = await admin.query<{ id: string }>(
+      `SELECT id FROM evaluation_groups WHERE org_id=$1 AND evaluation_event_id=$2 AND name='U10B'`,
+      [orgA, eventId],
+    );
+    const smallGroupRow = smallGroup.rows[0];
+    if (!smallGroupRow) throw new Error('Expected the U10B evaluation group');
+    groupBId = smallGroupRow.id;
+    const mainGroup = await admin.query<{ id: string }>(
+      `SELECT id FROM evaluation_groups WHERE org_id=$1 AND evaluation_event_id=$2 AND name='U10'`,
+      [orgA, eventId],
+    );
+    const mainGroupRow = mainGroup.rows[0];
+    if (!mainGroupRow) throw new Error('Expected the U10 evaluation group');
+    groupAId = mainGroupRow.id;
+    participantD = (
+      await assignEvaluationParticipant(dependencies(), ownerContext, eventId, {
+        personId: childD,
+        groupId: groupBId,
+        sessionId,
+        registrationId: tryoutRegistrationFor(childD),
+        positionKeys: [],
+      })
+    ).id;
+    participantE = (
+      await assignEvaluationParticipant(dependencies(), ownerContext, eventId, {
+        personId: childE,
+        groupId: groupBId,
+        sessionId,
+        registrationId: tryoutRegistrationFor(childE),
+        positionKeys: [],
+      })
+    ).id;
+
+    await expect(
+      assignEvaluationParticipant(dependencies(), ownerContext, eventId, {
+        personId: childA,
+        groupId: null,
+        sessionId,
+        registrationId: tryoutRegistrationFor(childA),
+        positionKeys: [],
+      }),
+    ).rejects.toMatchObject({ status: 409, code: 'CAPACITY_EXCEEDED' });
+
+    await expect(
+      assignEvaluationParticipant(dependencies(), ownerContext, eventId, {
+        personId: guardianPerson,
+        groupId: null,
+        sessionId: null,
+        registrationId: randomUUID(),
+        positionKeys: [],
+      }),
+    ).rejects.toMatchObject({ status: 422, code: 'GROUP_NOT_ELIGIBLE' });
+    await expect(
+      createEvaluationEvent(dependencies(), orgBContext, {
+        tryoutProgramId,
+        targetProgramId,
+        name: 'Cross-tenant',
+        normalization: 'none',
+        shareResultsWithFamilies: false,
+        criteria: [
+          {
+            key: 'a',
+            label: 'A',
+            weight: 1,
+            scaleMin: 1,
+            scaleMax: 5,
+            positionSpecific: false,
+            positionKeys: [],
+          },
+        ],
+        groups: [
+          {
+            name: 'Open',
+            ageMinMonths: null,
+            ageMaxMonths: null,
+            gender: 'open',
+            positionKeys: [],
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('checks participants in once and gates evaluator assignment through compliance', async () => {
+    const checked = await checkInEvaluationParticipant(
+      dependencies(),
+      ownerContext,
+      participantA,
+    );
+    expect(checked.check_in_status).toBe('checked_in');
+    const repeated = await checkInEvaluationParticipant(
+      dependencies(),
+      ownerContext,
+      participantA,
+    );
+    expect(repeated.check_in_status).toBe('checked_in');
+    expect(repeated.version).toBe(checked.version);
+
+    const candidates = await listEvaluationEvaluatorCandidates(
+      dependencies(),
+      ownerContext,
+    );
+    expect(candidates).toContainEqual(
+      expect.objectContaining({
+        accountId: evaluatorAccountA,
+        firstName: 'Acct3',
+        lastName: 'Phase6',
+      }),
+    );
+
+    const evaluatorCredentialTypeId = randomUUID();
+    await admin.query(
+      `INSERT INTO credential_types (id, org_id, key, name, verification, validity, applies_to, blocks_activation)
+       VALUES ($1, $2, 'phase6_evaluator', 'Evaluator credential', 'manual_staff', '{"kind":"never"}', '{"roles":["evaluator"],"minimumAge":18}', true)`,
+      [evaluatorCredentialTypeId, orgA],
+    );
+    await admin.query(
+      `INSERT INTO role_credential_requirements (id, org_id, role, credential_type_id, scope_type, scope_id, minimum_age)
+       VALUES ($1, $2, 'evaluator', $3, 'program', $4, 18)`,
+      [randomUUID(), orgA, evaluatorCredentialTypeId, targetProgramId],
+    );
+    await expect(
+      assignEvaluationEvaluator(
+        dependencies(),
+        ownerContext,
+        sessionId,
+        evaluatorAccountA,
+      ),
+    ).rejects.toMatchObject({ status: 409, code: 'COMPLIANCE_REQUIRED' });
+    for (const personId of [evaluatorPersonA, evaluatorPersonB]) {
+      await admin.query(
+        `INSERT INTO person_credentials (id, org_id, person_id, credential_type_id, status, expires_on, verified_by, verified_at)
+         VALUES ($1, $2, $3, $4, 'verified', '2027-12-31', $5, $6)`,
+        [
+          randomUUID(),
+          orgA,
+          personId,
+          evaluatorCredentialTypeId,
+          ownerAccount,
+          clockNow,
+        ],
+      );
+    }
+
+    const assigned = await assignEvaluationEvaluator(
+      dependencies(),
+      ownerContext,
+      sessionId,
+      evaluatorAccountA,
+    );
+    expect(assigned.accountId).toBe(evaluatorAccountA);
+    const second = await assignEvaluationEvaluator(
+      dependencies(),
+      ownerContext,
+      sessionId,
+      evaluatorAccountB,
+    );
+    expect(second.accountId).toBe(evaluatorAccountB);
+
+    const photoFileId = randomUUID();
+    await admin.query(
+      `INSERT INTO files (id, org_id, purpose, owner_type, owner_id, storage_key, mime, bytes, sensitivity, created_by, upload_state)
+       VALUES ($1, $2, 'image', 'person', $3, $4, 'image/jpeg', 128, 'internal', $5, 'complete')`,
+      [photoFileId, orgA, childA, `phase6/${photoFileId}.jpg`, ownerAccount],
+    );
+    await admin.query(
+      `UPDATE people SET photo_file_id=$1 WHERE org_id=$2 AND id=$3`,
+      [photoFileId, orgA, childA],
+    );
+
+    const assignedSheet = await listEvaluationScoringSheet(
+      dependencies(),
+      ownerContext,
+      eventId,
+      evaluatorAccountA,
+      false,
+    );
+    expect(
+      assignedSheet.participants.find(
+        (participant) => participant.personId === childA,
+      ),
+    ).toMatchObject({ photoFileId });
+    expect(assignedSheet.participants[0]).not.toHaveProperty('email');
+    expect(assignedSheet.participants[0]).not.toHaveProperty('phone');
+    await admin.query(
+      `UPDATE people SET media_consent='denied' WHERE org_id=$1 AND id=$2`,
+      [orgA, childA],
+    );
+    const consentRevokedSheet = await listEvaluationScoringSheet(
+      dependencies(),
+      ownerContext,
+      eventId,
+      evaluatorAccountA,
+      false,
+    );
+    expect(
+      consentRevokedSheet.participants.find(
+        (participant) => participant.personId === childA,
+      )?.photoFileId,
+    ).toBeNull();
+    await expect(
+      listEvaluationScoringSheet(
+        dependencies(),
+        ownerContext,
+        eventId,
+        outsiderAccount,
+        false,
+      ),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+    await expect(
+      listEvaluationScoringSheet(
+        dependencies(),
+        orgBContext,
+        eventId,
+        evaluatorAccountA,
+        false,
+      ),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+  });
+
+  it('persists concurrent evaluator scores and dedupes clientMutationId replays', async () => {
+    const sheet = await import('./service').then((module) =>
+      module.listEvaluationScoringSheet(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountA,
+        true,
+      ),
+    );
+    const firstCriterion = sheet.criteria[0];
+    if (!firstCriterion) throw new Error('Expected at least one criterion');
+    criterionId = String(firstCriterion.id);
+
+    const [one, two] = await Promise.all([
+      upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountA,
+        {
+          participantId: participantA,
+          criterionId,
+          score: 5,
+          notes: null,
+          clientMutationId: randomUUID(),
+        },
+        true,
+      ),
+      upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountB,
+        {
+          participantId: participantA,
+          criterionId,
+          score: 3,
+          notes: 'harsher',
+          clientMutationId: randomUUID(),
+        },
+        true,
+      ),
+    ]);
+    expect(one.id).not.toBe(two.id);
+
+    const mutationId = randomUUID();
+    const saved = await upsertEvaluationScore(
+      dependencies(),
+      ownerContext,
+      eventId,
+      evaluatorAccountA,
+      {
+        participantId: participantB,
+        criterionId,
+        score: 4,
+        notes: null,
+        clientMutationId: mutationId,
+      },
+      true,
+    );
+    const replay = await upsertEvaluationScore(
+      dependencies(),
+      ownerContext,
+      eventId,
+      evaluatorAccountA,
+      {
+        participantId: participantB,
+        criterionId,
+        score: 4,
+        notes: null,
+        clientMutationId: mutationId,
+      },
+      true,
+    );
+    expect(replay.id).toBe(saved.id);
+
+    const withOrg = createWithOrg(database);
+    const count = await withOrg(ownerContext, async (trx) => {
+      const result = await trx
+        .selectFrom('evaluation_scores')
+        .select(({ fn }) => fn.countAll().as('count'))
+        .where('evaluation_participant_id', '=', participantA)
+        .where('evaluation_criterion_id', '=', criterionId)
+        .executeTakeFirstOrThrow();
+      return Number(result.count);
+    });
+    expect(count).toBe(2);
+
+    await expect(
+      upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountA,
+        {
+          participantId: participantA,
+          criterionId,
+          score: 99,
+          notes: null,
+          clientMutationId: randomUUID(),
+        },
+        true,
+      ),
+    ).rejects.toMatchObject({ status: 422, code: 'INVALID_SCORE' });
+  });
+
+  it('computes normalized results and ranks athletes', async () => {
+    await expect(
+      assignEvaluationParticipant(dependencies(), ownerContext, eventId, {
+        personId: guardianPerson,
+        groupId: null,
+        sessionId: null,
+        registrationId: randomUUID(),
+        positionKeys: [],
+      }),
+    ).rejects.toMatchObject({ status: 409, code: 'EVENT_LOCKED' });
+    const sheet = await import('./service').then((module) =>
+      module.listEvaluationScoringSheet(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountA,
+        true,
+      ),
+    );
+    const skill = sheet.criteria.find((row) => String(row.key) === 'skill');
+    if (!skill) throw new Error('Expected skill criterion on scoring sheet');
+    const skillCriterionId = String(skill.id);
+    for (const [participant, speed, skillScore] of [
+      [participantA, 5, 5],
+      [participantB, 4, 3],
+      [participantC, 2, 2],
+      [participantD, 5, 4],
+      [participantE, 3, 2],
+    ] as const) {
+      await upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountA,
+        {
+          participantId: participant,
+          criterionId,
+          score: speed,
+          notes: null,
+          clientMutationId: randomUUID(),
+        },
+        true,
+      );
+      await upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountA,
+        {
+          participantId: participant,
+          criterionId: skillCriterionId,
+          score: skillScore,
+          notes: null,
+          clientMutationId: randomUUID(),
+        },
+        true,
+      );
+      await upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountB,
+        {
+          participantId: participant,
+          criterionId,
+          score: Math.max(1, speed - 2),
+          notes: null,
+          clientMutationId: randomUUID(),
+        },
+        true,
+      );
+      await upsertEvaluationScore(
+        dependencies(),
+        ownerContext,
+        eventId,
+        evaluatorAccountB,
+        {
+          participantId: participant,
+          criterionId: skillCriterionId,
+          score: Math.max(1, skillScore - 2),
+          notes: null,
+          clientMutationId: randomUUID(),
+        },
+        true,
+      );
+    }
+    const results = await computeEvaluationResults(
+      dependencies(),
+      ownerContext,
+      eventId,
+    );
+    const alpha = results.find((row) => row.participantId === participantA);
+    const gamma = results.find((row) => row.participantId === participantC);
+    expect(alpha?.rankInGroup).toBe(1);
+    expect(gamma?.rankInGroup).toBe(3);
+    expect(alpha?.evaluatorCount).toBe(2);
+    const consistency = await evaluationConsistency(
+      dependencies(),
+      ownerContext,
+      eventId,
+    );
+    expect(consistency).toContainEqual(
+      expect.objectContaining({
+        evaluatorId: evaluatorAccountA,
+        evaluatorName: 'Acct3 Phase6',
+        criterionKey: 'speed',
+        scoreCount: 5,
+      }),
+    );
+  });
+
+  it('builds, locks, moves and publishes a placement board', async () => {
+    const board = await createPlacementBoard(
+      dependencies(),
+      ownerContext,
+      eventId,
+      targetProgramId,
+      {
+        divisionId,
+        evaluationGroupId: groupAId,
+        seed: 7,
+        siblingsTogether: false,
+        returningStay: false,
+        positionMinimums: {},
+      },
+    );
+    boardId = board.id;
+    expect(Object.keys(board.assignments)).toHaveLength(3);
+    const destinationTeamSeason = teamSeasonIds[0];
+    if (!destinationTeamSeason) throw new Error('Expected a team season');
+    await expect(
+      movePlacement(
+        dependencies(),
+        ownerContext,
+        boardId,
+        childA,
+        destinationTeamSeason,
+        99,
+      ),
+    ).rejects.toMatchObject({ status: 409, code: 'VERSION_CONFLICT' });
+    const detail = await getPlacementBoard(
+      dependencies(),
+      ownerContext,
+      boardId,
+    );
+    const placed = detail.placements.find((row) => row.personId === childA);
+    if (!placed) throw new Error('Expected childA placement');
+    const locked = await lockPlacement(
+      dependencies(),
+      ownerContext,
+      boardId,
+      childA,
+      'keeper',
+    );
+    expect(locked.locked).toBe(true);
+    await expect(
+      movePlacement(
+        dependencies(),
+        ownerContext,
+        boardId,
+        childA,
+        destinationTeamSeason,
+        placed.version,
+      ),
+    ).rejects.toMatchObject({ status: 409, code: 'PLACEMENT_LOCKED' });
+    await publishPlacementBoard(dependencies(), ownerContext, boardId);
+  });
+
+  it('sends, accepts, replays and dashboards offers through the checkout adapter', async () => {
+    const withOrg = createWithOrg(database);
+    const placementA = await withOrg(ownerContext, async (trx) =>
+      trx
+        .selectFrom('team_placements')
+        .select(['id', 'team_season_id'])
+        .where('placement_board_id', '=', boardId)
+        .where('person_id', '=', childA)
+        .executeTakeFirstOrThrow(),
+    );
+    const offer = await createTeamOffer(
+      dependencies(),
+      ownerContext,
+      placementA.id,
+      offeringId,
+      25000,
+      5000,
+      new Date(clockNow.getTime() + 72 * 3_600_000).toISOString(),
+      'Welcome to the team',
+    );
+    offerId = offer.id;
+
+    const notifications = await admin.query(
+      `SELECT type, payload->>'resourceId' AS resource FROM notifications WHERE org_id=$1 AND account_id=$2`,
+      [orgA, guardianAccount],
+    );
+    expect(
+      notifications.rows.some(
+        (row: { type: string; resource: string | null }) =>
+          row.type === 'evaluation.offer' && row.resource === offerId,
+      ),
+    ).toBe(true);
+
+    const family = await listFamilyOffers(dependencies(), guardianContext);
+    expect(family.map((row) => row.id)).toContain(offerId);
+    const outsider = await listFamilyOffers(dependencies(), outsiderContext);
+    expect(outsider).toHaveLength(0);
+
+    const checkout = new FakeCheckout(admin, 2);
+    const [accepted, concurrentReplay] = await Promise.all([
+      acceptTeamOffer(dependencies(), guardianContext, offerId, checkout),
+      acceptTeamOffer(dependencies(), guardianContext, offerId, checkout),
+    ]);
+    expect(accepted.status).toBe('accepted');
+    expect(concurrentReplay.status).toBe('accepted');
+    expect(concurrentReplay.registrationId).toBe(accepted.registrationId);
+    expect(concurrentReplay.checkoutId).toBe(accepted.checkoutId);
+    expect(checkout.calls).toBe(2);
+    expect(checkout.inputs).toEqual([
+      {
+        orgId: orgA,
+        offerId,
+        accountId: guardianAccount,
+        householdId,
+        personId: childA,
+        offeringId,
+        teamSeasonId: placementA.team_season_id,
+        amountCents: 25000,
+        depositCents: 5000,
+        idempotencyKey: offerId,
+      },
+      {
+        orgId: orgA,
+        offerId,
+        accountId: guardianAccount,
+        householdId,
+        personId: childA,
+        offeringId,
+        teamSeasonId: placementA.team_season_id,
+        amountCents: 25000,
+        depositCents: 5000,
+        idempotencyKey: offerId,
+      },
+    ]);
+    const acceptanceAudit = await admin.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM audit_log
+       WHERE org_id=$1 AND entity_type='team_offer' AND entity_id=$2
+         AND action='placement.offer.accepted'`,
+      [orgA, offerId],
+    );
+    expect(acceptanceAudit.rows[0]?.count).toBe(1);
+    const replay = await acceptTeamOffer(
+      dependencies(),
+      guardianContext,
+      offerId,
+      checkout,
+    );
+    expect(replay.registrationId).toBe(accepted.registrationId);
+    expect(checkout.calls).toBe(2);
+
+    const dashboard = await listOfferDashboard(
+      dependencies(),
+      ownerContext,
+      boardId,
+    );
+    const teamRow = dashboard.teams.find((row) => row.accepted > 0);
+    expect(teamRow).toBeTruthy();
+  });
+
+  it('declines, withdraws, reminds and expires offers correctly', async () => {
+    const withOrg = createWithOrg(database);
+    const placementB = await withOrg(ownerContext, async (trx) =>
+      trx
+        .selectFrom('team_placements')
+        .select(['id', 'team_season_id'])
+        .where('placement_board_id', '=', boardId)
+        .where('person_id', '=', childB)
+        .executeTakeFirstOrThrow(),
+    );
+    const offerB = await createTeamOffer(
+      dependencies(),
+      ownerContext,
+      placementB.id,
+      offeringId,
+      25000,
+      5000,
+      new Date(clockNow.getTime() + 10 * 3_600_000).toISOString(),
+      null,
+    );
+    const reminded = await sendOfferReminders(dependencies(), ownerContext, 48);
+    expect(reminded.reminded).toBe(1);
+    const again = await sendOfferReminders(dependencies(), ownerContext, 48);
+    expect(again.reminded).toBe(0);
+
+    // childB lives in householdB without a linked guardian, so decline by guardian fails.
+    await expect(
+      declineTeamOffer(dependencies(), guardianContext, offerB.id, 'no', 1),
+    ).rejects.toMatchObject({ status: 404 });
+    const beforeDecline = await listOfferDashboard(
+      dependencies(),
+      ownerContext,
+      boardId,
+    );
+    const beforeDeclineTeam = beforeDecline.teams.find(
+      (row) => row.teamSeasonId === placementB.team_season_id,
+    );
+    if (!beforeDeclineTeam) throw new Error('Expected the offer team row');
+    await admin.query(
+      `INSERT INTO person_account_links (id, org_id, person_id, account_id, relationship, verified_at)
+       VALUES ($1, $2, $3, $4, 'guardian', now())`,
+      [randomUUID(), orgA, childB, outsiderAccount],
+    );
+    const currentOffer = await withOrg(ownerContext, async (trx) =>
+      trx
+        .selectFrom('team_offers')
+        .select('version')
+        .where('id', '=', offerB.id)
+        .executeTakeFirstOrThrow(),
+    );
+    const declined = await declineTeamOffer(
+      dependencies(),
+      outsiderContext,
+      offerB.id,
+      'Family declined',
+      currentOffer.version,
+    );
+    expect(declined.id).toBe(offerB.id);
+    const afterDecline = await listOfferDashboard(
+      dependencies(),
+      ownerContext,
+      boardId,
+    );
+    const afterDeclineTeam = afterDecline.teams.find(
+      (row) => row.teamSeasonId === placementB.team_season_id,
+    );
+    expect(afterDeclineTeam?.declined).toBe(beforeDeclineTeam.declined + 1);
+    expect(afterDeclineTeam?.placed).toBe(beforeDeclineTeam.placed - 1);
+
+    const placementC = await withOrg(ownerContext, async (trx) =>
+      trx
+        .selectFrom('team_placements')
+        .select('id')
+        .where('placement_board_id', '=', boardId)
+        .where('person_id', '=', childC)
+        .executeTakeFirstOrThrow(),
+    );
+    const offerC = await createTeamOffer(
+      dependencies(),
+      ownerContext,
+      placementC.id,
+      offeringId,
+      25000,
+      5000,
+      new Date(clockNow.getTime() + 10 * 3_600_000).toISOString(),
+      null,
+    );
+    const withdrawn = await withdrawTeamOffer(
+      dependencies(),
+      ownerContext,
+      offerC.id,
+    );
+    expect(withdrawn.id).toBe(offerC.id);
+    const publishedPlacement = await withOrg(ownerContext, async (trx) =>
+      trx
+        .selectFrom('team_placements')
+        .select('status')
+        .where('id', '=', placementC.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(publishedPlacement.status).toBe('published');
+    await createTeamOffer(
+      dependencies(),
+      ownerContext,
+      placementC.id,
+      offeringId,
+      25000,
+      5000,
+      new Date(clockNow.getTime() + 3_600_000).toISOString(),
+      null,
+    );
+    clockNow = new Date(clockNow.getTime() + 2 * 3_600_000);
+    const expired = await expireTeamOffers(dependencies(), ownerContext);
+    expect(expired.expired).toBe(1);
+    const placement = await withOrg(ownerContext, async (trx) =>
+      trx
+        .selectFrom('team_placements')
+        .select('status')
+        .where('id', '=', placementC.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(placement.status).toBe('declined');
+  });
+
+  it('shares results with families only when the event allows it', async () => {
+    const hidden = await listMyEvaluationResults(
+      dependencies(),
+      guardianContext,
+    );
+    expect(hidden.find((row) => row.personId === childA)).toBeUndefined();
+    await admin.query(
+      `UPDATE evaluation_events SET share_results_with_families=true WHERE id=$1`,
+      [eventId],
+    );
+    const visible = await listMyEvaluationResults(
+      dependencies(),
+      guardianContext,
+    );
+    const row = visible.find((item) => item.personId === childA);
+    expect(row).toBeTruthy();
+    if (!row) throw new Error('Expected a family-visible result');
+    expect(row.composite).not.toBeNull();
+    expect(visible.find((item) => item.personId === childB)).toBeUndefined();
+  });
+
+  it('seeds a rec-league board from registrations with mutual friends and returning teams', async () => {
+    const recProgramId = randomUUID();
+    const recDivisionId = randomUUID();
+    await admin.query(
+      `INSERT INTO programs (id, org_id, season_id, sport_profile_id, mode, name, slug, status, visibility, starts_on, ends_on)
+       VALUES ($1, $2, $3, $4, 'league', 'Rec League', 'rec-a', 'published', 'private', '2026-09-01', '2026-12-31')`,
+      [recProgramId, orgA, seasonId, sportProfileId],
+    );
+    await admin.query(
+      `INSERT INTO divisions (id, org_id, program_id, name) VALUES ($1, $2, $3, 'Rec U10')`,
+      [recDivisionId, orgA, recProgramId],
+    );
+    const recOffering = randomUUID();
+    await admin.query(
+      `INSERT INTO registration_offerings (id, org_id, program_id, division_id, name, registrant_role, price_cents, active)
+       VALUES ($1, $2, $3, $4, 'Rec fee', 'athlete', 12000, true)`,
+      [recOffering, orgA, recProgramId, recDivisionId],
+    );
+    const recTeams: string[] = [];
+    for (let index = 0; index < 2; index += 1) {
+      const teamId = randomUUID();
+      await admin.query(
+        `INSERT INTO teams (id, org_id, name, sport_profile_id) VALUES ($1, $2, $3, $4)`,
+        [teamId, orgA, `Rec ${String(index)}`, sportProfileId],
+      );
+      const recTeamSeason = randomUUID();
+      await admin.query(
+        `INSERT INTO team_seasons (id, org_id, team_id, program_id, division_id, status)
+         VALUES ($1, $2, $3, $4, $5, 'forming')`,
+        [recTeamSeason, orgA, teamId, recProgramId, recDivisionId],
+      );
+      recTeams.push(recTeamSeason);
+    }
+    const returningTeamSeason = randomUUID();
+    await admin.query(
+      `INSERT INTO team_seasons (id, org_id, team_id, program_id, division_id, status)
+       VALUES ($1, $2, $3, $4, $5, 'forming')`,
+      [returningTeamSeason, orgA, priorTeamId, recProgramId, recDivisionId],
+    );
+    await admin.query(
+      `INSERT INTO roster_entries (id, org_id, team_season_id, person_id, kind, status, joined_on)
+       VALUES ($1, $2, $3, $4, 'rostered', 'active', '2025-09-01')`,
+      [randomUUID(), orgA, priorTeamSeasonId, childC],
+    );
+    const extraKids = [
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+    ];
+    for (const [index, personId] of [
+      childA,
+      childB,
+      childC,
+      ...extraKids,
+    ].entries()) {
+      if (index >= 3)
+        await admin.query(
+          `INSERT INTO people (id, org_id, first_name, last_name, date_of_birth) VALUES ($1, $2, $3, 'Rec', '2017-01-01')`,
+          [personId, orgA, `Kid${String(index)}`],
+        );
+      await admin.query(
+        `INSERT INTO registrations (id, org_id, program_id, division_id, offering_id, person_id, household_id, registered_by_account_id, source, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'online', 'confirmed')`,
+        [
+          randomUUID(),
+          orgA,
+          recProgramId,
+          recDivisionId,
+          recOffering,
+          personId,
+          householdId,
+          guardianAccount,
+        ],
+      );
+    }
+    const waitlistedPersonId = randomUUID();
+    await admin.query(
+      `INSERT INTO people (id, org_id, first_name, last_name, date_of_birth) VALUES ($1, $2, 'Waitlisted', 'Rec', '2017-01-01')`,
+      [waitlistedPersonId, orgA],
+    );
+    await admin.query(
+      `INSERT INTO registrations (id, org_id, program_id, division_id, offering_id, person_id, household_id, registered_by_account_id, source, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'online', 'waitlisted')`,
+      [
+        randomUUID(),
+        orgA,
+        recProgramId,
+        recDivisionId,
+        recOffering,
+        waitlistedPersonId,
+        householdId,
+        guardianAccount,
+      ],
+    );
+    // Mutual friend request between childA and childB.
+    await upsertPlacementPreference(
+      dependencies(),
+      ownerContext,
+      recProgramId,
+      {
+        personId: childA,
+        friendRequestPersonId: childB,
+        practiceLocation: 'North',
+        coachRating: 4.5,
+        note: null,
+        source: 'family',
+      },
+    );
+    await upsertMyPlacementPreference(
+      dependencies(),
+      guardianContext,
+      recProgramId,
+      {
+        personId: childA,
+        friendRequestPersonId: childB,
+        practiceLocation: 'North',
+      },
+    );
+    const familyPrograms = await listMyPlacementPrograms(
+      dependencies(),
+      guardianContext,
+    );
+    expect(familyPrograms).toContainEqual(
+      expect.objectContaining({
+        programId: recProgramId,
+        personId: childA,
+        programName: 'Rec League',
+      }),
+    );
+    await expect(
+      upsertMyPlacementPreference(
+        dependencies(),
+        outsiderContext,
+        recProgramId,
+        {
+          personId: childA,
+          friendRequestPersonId: childB,
+          practiceLocation: null,
+        },
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    await upsertPlacementPreference(
+      dependencies(),
+      ownerContext,
+      recProgramId,
+      {
+        personId: childB,
+        friendRequestPersonId: childA,
+        practiceLocation: null,
+        coachRating: 3,
+        note: null,
+        source: 'staff',
+      },
+    );
+    const prefs = await listPlacementPreferences(
+      dependencies(),
+      ownerContext,
+      recProgramId,
+    );
+    expect(prefs).toHaveLength(9);
+    expect(prefs.some((row) => row.personId === waitlistedPersonId)).toBe(
+      false,
+    );
+    expect(prefs.find((row) => row.personId === childA)).toMatchObject({
+      coachRating: 4.5,
+      source: 'family',
+    });
+
+    const board = await createPlacementBoard(
+      dependencies(),
+      ownerContext,
+      null,
+      recProgramId,
+      {
+        divisionId: recDivisionId,
+        evaluationGroupId: null,
+        seed: 11,
+        siblingsTogether: true,
+        returningStay: true,
+        positionMinimums: {},
+      },
+    );
+    expect(board.assignments[childA]).toBe(board.assignments[childB]);
+    expect(board.assignments[childC]).toBe(returningTeamSeason);
+    expect(Object.keys(board.assignments)).toHaveLength(9);
+    const detail = await getPlacementBoard(
+      dependencies(),
+      ownerContext,
+      board.id,
+    );
+    expect(detail.placements).toHaveLength(9);
+    expect(
+      detail.placements.map((placement) => placement.personId),
+    ).not.toContain(waitlistedPersonId);
+    await admin.query(
+      `UPDATE registrations SET status='canceled' WHERE org_id=$1 AND program_id=$2 AND person_id=$3`,
+      [orgA, recProgramId, childB],
+    );
+    await expect(
+      publishPlacementBoard(dependencies(), ownerContext, board.id),
+    ).rejects.toMatchObject({ code: 'REGISTRATION_REQUIRED' });
+    const rosterBeforeRestore = await admin.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM roster_entries entry
+       JOIN team_seasons team ON team.org_id=entry.org_id AND team.id=entry.team_season_id
+       WHERE entry.org_id=$1 AND team.program_id=$2 AND entry.status='active'`,
+      [orgA, recProgramId],
+    );
+    expect(rosterBeforeRestore.rows[0]?.count).toBe(0);
+    await admin.query(
+      `UPDATE registrations SET status='confirmed' WHERE org_id=$1 AND program_id=$2 AND person_id=$3`,
+      [orgA, recProgramId, childB],
+    );
+    await publishPlacementBoard(dependencies(), ownerContext, board.id);
+    const roster = await admin.query<{
+      person_id: string;
+      registration_id: string | null;
+    }>(
+      `SELECT entry.person_id,entry.registration_id
+       FROM roster_entries entry JOIN team_seasons team
+         ON team.org_id=entry.org_id AND team.id=entry.team_season_id
+       WHERE entry.org_id=$1 AND team.program_id=$2 AND entry.status='active'
+       ORDER BY entry.person_id`,
+      [orgA, recProgramId],
+    );
+    expect(roster.rows).toHaveLength(9);
+    expect(roster.rows.every((row) => row.registration_id !== null)).toBe(true);
+    expect(roster.rows.map((row) => row.person_id)).not.toContain(
+      waitlistedPersonId,
+    );
+  });
+
+  it('caps a tryout board at roster capacity and surfaces next-in-line athletes', async () => {
+    const board = await createPlacementBoard(
+      dependencies(),
+      ownerContext,
+      eventId,
+      targetProgramId,
+      {
+        divisionId: smallDivisionId,
+        evaluationGroupId: groupBId,
+        seed: 5,
+        siblingsTogether: false,
+        returningStay: false,
+        positionMinimums: {},
+      },
+    );
+    expect(Object.keys(board.assignments)).toHaveLength(1);
+    expect(board.assignments[childD]).toBe(smallTeamSeasonId);
+    const dashboard = await listOfferDashboard(
+      dependencies(),
+      ownerContext,
+      board.id,
+    );
+    expect(dashboard.nextInLine).toHaveLength(1);
+    const firstInLine = dashboard.nextInLine[0];
+    if (!firstInLine) throw new Error('Expected a next-in-line suggestion');
+    expect(firstInLine.personId).toBe(childE);
+  });
+});

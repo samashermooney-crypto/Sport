@@ -13,20 +13,34 @@ import { moduleDefinition as communicationsModule } from '../modules/communicati
 import { moduleDefinition as complianceModule } from '../modules/compliance/module';
 import { moduleDefinition as contestsModule } from '../modules/contests/module';
 import { moduleDefinition as disciplineModule } from '../modules/discipline/module';
+import { moduleDefinition as evaluationsModule } from '../modules/evaluations/module';
+import { moduleDefinition as facilitiesModule } from '../modules/facilities/module';
 import { moduleDefinition as federationModule } from '../modules/federation/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
+import { moduleDefinition as fundraisingModule } from '../modules/fundraising/module';
 import { moduleDefinition as importsModule } from '../modules/imports/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
 import { moduleDefinition as notificationsModule } from '../modules/notifications/module';
+import { moduleDefinition as offeringsModule } from '../modules/offerings/module';
 import { moduleDefinition as officialsModule } from '../modules/officials/module';
 import { moduleDefinition as orgsModule } from '../modules/orgs/module';
 import { moduleDefinition as peopleModule } from '../modules/people/module';
 import { moduleDefinition as platformModule } from '../modules/platform/module';
+import { moduleDefinition as programsModule } from '../modules/programs/module';
+import { moduleDefinition as registrationModule } from '../modules/registration/module';
+import { moduleDefinition as rostersModule } from '../modules/rosters/module';
 import { moduleDefinition as safetyModule } from '../modules/safety/module';
 import { moduleDefinition as schedulingModule } from '../modules/scheduling/module';
+import { moduleDefinition as seasonsModule } from '../modules/seasons/module';
+import { moduleDefinition as sponsorsModule } from '../modules/sponsors/module';
+import { moduleDefinition as sportsModule } from '../modules/sports/module';
 import { moduleDefinition as standingsModule } from '../modules/standings/module';
+import { moduleDefinition as storeModule } from '../modules/store/module';
+import { moduleDefinition as teamFinanceModule } from '../modules/team-finance/module';
+import { moduleDefinition as teamsModule } from '../modules/teams/module';
 import { moduleDefinition as tournamentsModule } from '../modules/tournaments/module';
+import { moduleDefinition as volunteersModule } from '../modules/volunteers/module';
 
 export const serverModules: readonly ServerModule[] = [
   attendanceModule,
@@ -37,20 +51,34 @@ export const serverModules: readonly ServerModule[] = [
   complianceModule,
   contestsModule,
   disciplineModule,
+  evaluationsModule,
+  facilitiesModule,
   federationModule,
   filesModule,
   financeModule,
+  fundraisingModule,
   importsModule,
   jobsModule,
   notificationsModule,
+  offeringsModule,
   officialsModule,
   orgsModule,
   peopleModule,
   platformModule,
+  programsModule,
+  registrationModule,
+  rostersModule,
   safetyModule,
   schedulingModule,
+  seasonsModule,
+  sponsorsModule,
+  sportsModule,
   standingsModule,
+  storeModule,
+  teamFinanceModule,
+  teamsModule,
   tournamentsModule,
+  volunteersModule,
 ];
 export const integrationConfigs: readonly IntegrationConfig[] = [
   backgroundCheckConfig,

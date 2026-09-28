@@ -77,6 +77,12 @@ describe('sport profile schema', () => {
         ],
       }).success,
     ).toBe(false);
+    expect(
+      sportProfileSchema.safeParse({
+        ...profile,
+        roster: { ...profile.roster, jerseyRange: [12, 1] },
+      }).success,
+    ).toBe(false);
   });
 
   it('rejects missing translations and unknown contest formats', () => {

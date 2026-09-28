@@ -3,48 +3,44 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- 14:20 CDT Track C: trunk sync is committed as `cf437a2` after applying Track I migrations through 5006 and regenerating DB types, registry, and OpenAPI. K's raw binary upload-body support now emits an `application/octet-stream` binary request schema; generator output and ESLint pass. Full Postgres remains red on the reproduced G-owned 5.035s Officials test plus six template teardown timeouts; do not integrate to trunk until the upstream test repair and full gate pass.
-- 14:15 CDT Track C: synced local trunk `9b934b0` into C and applied migrations through 5006. Typecheck/lint pass; full Postgres suite is red (848 pass, 1 fail, 1 skip across 234 passing files, 6 afterAll timeouts), and the G-owned Officials acceptance timeout reproduces alone at 5.035s. No tests were weakened or skipped. Track G owns the Officials/performance issue; wait for its fix before trunk integration. C has committed Files/OPS slices `4367a77`/`9abb2ac`; raw binary OpenAPI request-body support is the active wiring change.
-- 14:00 CDT Track C: Files contract/error-envelope work is committed as `4367a77`; Files and OPS focused real-Postgres tests pass (4 files, 15 tests), and full typecheck/lint plus registry/OpenAPI refresh pass. OPS route/process/alert wiring is committed next; then sync `rebuild/trunk` at `9b934b0`, address landed wiring requests, and run the hourly/final full gate under `heavy.sh`. Track D owns design-parity CI; Phase 15 stays with K.
-- 12:38 CDT Track C: SEC-002 is implemented (`a981e0d`, `5b64492`, `8290731`); full isolated Postgres/Chromium/WebKit-mobile/build/Knip/audit gates passed on `track/c-adapters`. Generator/app metadata-validation follow-up passed typecheck, lint, OpenAPI and registry/matrix freshness; commit it, then merge and gate trunk. Keep the hourly full gate running; Track D owns the sole reported red design-parity CI job.
-- 09:00 CDT Track C fixed trunk's CI test/Knip failures in `9b5b430`; commits `c9a3621`, `95f51a8`, `be3a9de`, and `6c13238` complete Files privilege, webhook ingress, nested finance routing, and Stripe worker-registry coverage. Full C gates passed on isolated Postgres; the no-commit trunk merge passed typecheck/lint/tests but its Chromium gate failed at the ownership-transfer status assertion and was aborted.
-- M0 is on `main` at `d0f59a1`. The spine, ready B/C/D/E/F/H ranges, Phase 1 tasks 5–9, 11–13 and 17, and Track B's infrastructure are integrated on `rebuild/trunk`. Track A continues tasks 4 and 16. Track E's ready finance and test-mode Billing range through migration 1050 is integrated and trunk green. Track H's chat notification batching through migration 4006 is integrated and trunk green. Track F's Phase 7 foundation is integrated with 46 documented HTTP operations and mounted safety screens. Phase 7 acceptance remains open for coach/official/volunteer gating, the concussion roster journey, QR privacy, Checkr fixture behavior, and detailed response contracts. Inspect E/F/G/H readiness at every task boundary and keep each phase open until every acceptance criterion passes.
-- Track A's Phase 2 People and household foundation is on trunk through membership removal, derived age/grade, balances, program/team filters and consent-aware photos. The guardian direct-link, person-bound invitation and cross-org family read path is integrated. The latest merged trunk gate passed typecheck, lint, 722 tests (one operator smoke skipped), 42 browser tests (four guarded design skips), build, size and generated-file freshness. Continue athlete self links, adult self claims, medical editing and role-aware compliance; keep Phase 2 open.
+- Final local launch gate ran against code snapshot `da7c13f40717352ff6b550b7b5026dd6d1e62f94` on `rebuild/trunk`; command results and all Phase 16 §7 criteria are recorded in [`LAUNCH-GATE.md`](LAUNCH-GATE.md).
+- Launch gate remains open: server/module coverage is below thresholds; load acceptance is unrun; restore proof stops at migration 6002 (trunk is at 8010); security findings and six skipped `fixme` e2e checks remain; Lighthouse evidence and a route crawler are absent; earlier phase acceptance is incomplete. See the gate record for evidence.
+- Local `main` remains `d0f59a1c44e499dc69455ed3ad3e0a2dae9883de`; do not advance it until every launch criterion passes. Phase 15 remains with Track K.
 
 ## Phase status
 
 | Phase | Name | Status | Evidence |
 |---|---|---|---|
-| 0 | Repository reset and tooling | complete | Local gate green; [GitHub Actions run 36279198481](https://github.com/samashermooney-crypto/Sport/actions/runs/36279198481) passed all 9 jobs on `rebuild/phase-0`. |
-| 1 | Platform core | in progress | Branch `rebuild/phase-1` created from green Phase 0. |
-| 2 | People, households, forms, imports | in progress on Track A | People CRUD, age/grade, household, program/team, credential-record, photo, guardian invitation and cross-org family flows have green trunk gates; task 1, task 3, task 9 and remaining phase acceptance remain open. |
-| 3 | Sport engine, programs, teams, facilities | not started | |
-| 4 | Payments and finance | in progress | Test-mode Stripe gateway and finance migrations 1000–1050 integrated; full phase acceptance remains. |
-| 5 | Registration | in progress | Checkout capacity, frozen pricing, payment terms, unique invoice binding and the payer-owned PaymentIntent API from Track E are integrated; registration flows and acceptance remain. |
-| 6 | Evaluations and team formation | not started | |
-| 7 | Compliance and safety | in progress | Track F's foundation is integrated and trunk gate green; full phase acceptance remains. |
-| 8 | Scheduling and facilities | in progress on Track G | Local `track/g-schedule` is working; no range integrated. |
-| 9 | Game day, results, tournaments, officials | in progress on Track G | Local `track/g-schedule` is working; no range integrated. |
-| 10 | Communications | in progress | Track H's ready range is integrated through migration 4006: campaigns, delivery, SMS consent, SafeSport chat and unread batching. Cross-track wiring and Phase 10 acceptance remain open. |
-| 11 | Volunteers, team finance, fundraising, store | not started | |
-| 12 | Academy / class mode | not started | |
-| 13 | Federation | not started | |
-| 14 | Reporting, website, exports | not started | |
-| 15 | Onboarding, imports, demo, AI assist | not started | |
-| 16 | Production hardening and launch gate | not started | |
+| 0 | Repository reset and tooling | complete | Phase 0 implementation and CI evidence remain recorded below. |
+| 1 | Platform core | in progress | Core platform is integrated; several acceptance items remain unchecked in the Phase 1 checklist. |
+| 2 | People, households, forms, imports | in progress | People, household, guardian invitation and cross-org family slices are integrated; task and phase acceptance remains open. |
+| 3 | Sport engine, programs, teams, facilities | in progress | Shared sport engine/schema support exists; the full Programs, Teams and Facilities modules and acceptance are incomplete. |
+| 4 | Payments and finance | in progress | Test-mode Stripe/finance implementation is integrated; full finance acceptance remains open. |
+| 5 | Registration | in progress | Checkout and payer-owned PaymentIntent foundations are integrated; registration flow and acceptance remain open. |
+| 6 | Evaluations and team formation | not started | No Phase 6 implementation or acceptance evidence is recorded. |
+| 7 | Compliance and safety | in progress | Compliance/safety implementation and PostgreSQL coverage are integrated; all Phase 7 acceptance criteria are not yet met. |
+| 8 | Scheduling and facilities | in progress | Scheduling implementation and current trunk tests exist; full phase acceptance remains open. |
+| 9 | Game day, results, tournaments, officials | in progress | Contest, standings, tournament and official paths exist; full phase acceptance remains open. |
+| 10 | Communications | in progress | Communications and chat implementation is integrated; cross-track wiring and phase acceptance remain open. |
+| 11 | Volunteers, team finance, fundraising, store | in progress | Partial Phase 11 implementation/e2e coverage is present; sponsor/file delivery and acceptance remain open. |
+| 12 | Academy / class mode | in progress | Academy/class implementation is integrated and tested; required seeded demo and full acceptance remain open. |
+| 13 | Federation | in progress | Federation implementation is integrated and tested; required seeded association demo and full acceptance remain open. |
+| 14 | Reporting, website, exports | not started | Track D reports Phase 14 has not started; Lighthouse evidence is absent. |
+| 15 | Onboarding, imports, demo, AI assist | not started | Owned by Track K; its required implementation/seed acceptance is not on this trunk snapshot. |
+| 16 | Production hardening and launch gate | in progress | Some hardening checks pass, but multiple mandatory launch criteria fail; see [`LAUNCH-GATE.md`](LAUNCH-GATE.md). |
 
 ## Track status
 
 | Track | Scope | Model | Status | Branch |
 |---|---|---|---|---|
-| A | Core and integration | GPT-6 Sol until S1 | working | `track/a-core` |
-| B | Sport engine, algorithms, policies; platform infrastructure | GPT-6 Sol | logic queue and Phase 1 tasks 10, 14–15 integrated; tasks 9 and 13 in progress | `track/b-logic` |
-| C | Files, providers and wiring | GPT-6 Luna | CI repair committed; adapter/wiring range ready; local trunk gate needs ownership-transfer E2E fix and retry | `track/c-adapters` |
-| D | Design system | GPT-6 Luna | complete component and auth restyle range integrated; app-wide shell acceptance remains with A | `track/d-design` |
-| E | Stripe and finance | GPT-6 Sol | ready aid/credit/tax/year-end/autopay/PDF/notice ranges integrated; phase acceptance remains | `track/e-finance` |
-| F | Safety and compliance | GPT-6 Luna | ready foundation integrated; cross-track and full phase acceptance remain | `track/f-safety` |
-| G | Scheduling and game day | GPT-6 Luna | working locally; no ready range | `track/g-schedule` |
-| H | Communications | GPT-6 Luna | H-owned slice integrated; cross-track acceptance open | `track/h-comms` |
+| A | Core and integration | GPT-6 Sol until S1 | working; Phase 2 acceptance remains | `track/a-core` |
+| B | Sport engine, algorithms, policies; platform infrastructure | GPT-6 Sol | integrated slices; tasks 9 and 13 and remaining acceptance open | `track/b-logic` |
+| C | Files, providers and wiring | GPT-6 Luna | final gate documented; launch criteria remain open | `track/c-adapters` |
+| D | Design system | GPT-6 Luna | parity suite passes locally; Phase 14 and broader shell acceptance remain | `track/d-design` |
+| E | Stripe and finance | GPT-6 Sol | finance slices integrated; phase acceptance remains | `track/e-finance` |
+| F | Safety and compliance | GPT-6 Luna | foundation and restricted-file integration present; phase acceptance remains | `track/f-safety` |
+| G | Scheduling and game day | GPT-6 Luna | current scheduling/game-day slices integrated; phase acceptance remains | `track/g-schedule` |
+| H | Communications | GPT-6 Luna | communications/chat slices integrated; cross-track acceptance remains | `track/h-comms` |
 
 ## Cross-phase schema spine checkpoint
 

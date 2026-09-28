@@ -60,7 +60,7 @@ export function encodeCsv(rows: readonly (readonly unknown[])[]): string {
   return `${rows.map((row) => row.map(quote).join(',')).join('\r\n')}\r\n`;
 }
 
-export function escapeHtml(value: unknown): string {
+function escapeHtml(value: unknown): string {
   const text =
     value == null
       ? ''

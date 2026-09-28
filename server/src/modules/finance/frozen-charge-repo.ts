@@ -30,6 +30,24 @@ export const frozenPaymentTermsSchema = z.object({
     ]),
   ]),
   statementDescriptorSuffix: z.string().trim().min(1).max(22).optional(),
+  plan: z
+    .strictObject({
+      templateId: z.uuid(),
+      templateVersion: z.number().int().positive(),
+      charges: z
+        .array(
+          z.strictObject({
+            sequence: z.number().int().nonnegative(),
+            dueOn: z.string().nullable(),
+            baseCents: cents,
+            taxCents: cents,
+            feeCents: cents,
+            amountCents: cents,
+          }),
+        )
+        .min(1),
+    })
+    .optional(),
 });
 export const frozenChargeSnapshotSchema = z.object({
   subtotalCents: cents,
@@ -115,6 +133,10 @@ export class PostgresFrozenChargeReader implements FrozenChargeReader {
         WHERE org_id = ${input.orgId}::uuid AND id = ${input.invoiceId}::uuid
       `.execute(trx);
       const invoice = invoiceResult.rows[0];
+      const plan = snapshot.paymentTerms.plan ?? null;
+      const expectedBalance = plan
+        ? snapshot.invoiceTotalCents - snapshot.creditAppliedCents
+        : snapshot.chargeNowCents;
       if (
         !invoice ||
         invoice.account_id !== input.accountId ||
@@ -130,16 +152,29 @@ export class PostgresFrozenChargeReader implements FrozenChargeReader {
         invoice.tax_cents !== snapshot.taxCents ||
         invoice.total_cents !== snapshot.invoiceTotalCents ||
         invoice.credit_applied_cents !== snapshot.creditAppliedCents ||
-        invoice.balance_cents !== snapshot.chargeNowCents
+        invoice.balance_cents !== expectedBalance
       )
         throw new Error('Frozen checkout invoice does not reconcile');
-      const baseCents =
-        snapshot.subtotalCents -
-        snapshot.discountCents -
-        snapshot.aidCents -
-        snapshot.creditAppliedCents;
+      const planCharge = plan?.charges.find((charge) => charge.sequence === 0);
+      if (plan && !planCharge)
+        throw new Error('Frozen plan is missing its deposit charge');
+      const baseCents = planCharge
+        ? planCharge.baseCents
+        : snapshot.subtotalCents -
+          snapshot.discountCents -
+          snapshot.aidCents -
+          snapshot.creditAppliedCents;
       if (!Number.isSafeInteger(baseCents) || baseCents < 0)
         throw new Error('Frozen checkout base is invalid');
+      // Approval-pending carts are not payable until staff unlock payment.
+      const approvalPending = await trx
+        .selectFrom('registrations')
+        .select('id')
+        .where('org_id', '=', input.orgId)
+        .where('checkout_id', '=', input.checkoutId)
+        .where('status', '=', 'pending_approval')
+        .executeTakeFirst();
+      if (approvalPending) throw new Error('Checkout is not payable');
       const customer = await trx
         .selectFrom('payer_profiles')
         .select('stripe_customer_id')
@@ -169,7 +204,7 @@ export class PostgresFrozenChargeReader implements FrozenChargeReader {
         connectedAccountId: account.stripe_account_id,
         version: checkout.version,
         baseCents,
-        taxCents: snapshot.taxCents,
+        taxCents: planCharge ? planCharge.taxCents : snapshot.taxCents,
         applicationRate: snapshot.paymentTerms.applicationRate,
         serviceFee:
           snapshot.paymentTerms.serviceFee.enabled &&
@@ -191,8 +226,11 @@ export class PostgresFrozenChargeReader implements FrozenChargeReader {
           : {}),
       };
       const quote = quoteCharge(charge);
+      const expectedFee = planCharge
+        ? planCharge.feeCents
+        : snapshot.serviceFeeCents;
       if (
-        quote.serviceFeeCents !== snapshot.serviceFeeCents ||
+        quote.serviceFeeCents !== expectedFee ||
         quote.amountCents !== snapshot.chargeNowCents
       )
         throw new Error('Frozen checkout fees do not reconcile');
