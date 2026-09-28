@@ -5,6 +5,12 @@ import {
   organizationExportListSchema,
   organizationExportRequestResponseSchema,
   organizationExportSchema,
+  createPrivacyRequestSchema,
+  updatePrivacyRequestSchema,
+  privacyRequestListSchema,
+  privacyRequestSchema,
+  privacySubjectExportSchema,
+  retentionPolicySchema,
 } from '@shared/schemas/exports';
 import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
@@ -20,7 +26,10 @@ import {
   LocalDiskStorage,
   sha256,
 } from '../../integrations/storage/storage';
+import { decryptRestricted } from '../../lib/crypto';
+import type { EncryptionKeys } from '../../lib/crypto';
 import { appendAuditEvent } from '../audit/service';
+import { createNotification } from '../notifications/service';
 import { sendSchedulingJob } from '../scheduling/generator';
 
 import { serializeReportCsv } from './report-serializers';
@@ -178,6 +187,1204 @@ export async function listOrganizationExports(
     return organizationExportListSchema.parse({
       items: rows.map(exportSummary),
     });
+  });
+}
+
+const retentionRules = {
+  financialRecordsYears: 7,
+  waiverAndSafetyYearsAfterAge18: 7,
+  waiverAndSafetyYearsAfterEvent: 7,
+  backgroundCheckValidityPlusYears: 1,
+  messagesYears: 3,
+  evaluationScoresYearsAfterEvent: 2,
+  expiredTokensDays: 30,
+} as const;
+
+function yearsBefore(date: Date, years: number): Date {
+  return new Date(
+    Date.UTC(
+      date.getUTCFullYear() - years,
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      date.getUTCHours(),
+      date.getUTCMinutes(),
+      date.getUTCSeconds(),
+      date.getUTCMilliseconds(),
+    ),
+  );
+}
+
+function affectedRows(result: {
+  numUpdatedRows?: bigint;
+  numDeletedRows?: bigint;
+}): number {
+  return Number(result.numUpdatedRows ?? result.numDeletedRows ?? 0n);
+}
+
+/** Apply the retention schedule tenant by tenant while preserving legal records. */
+export async function runRetentionSweepJob(
+  data: unknown = {},
+  now = new Date(),
+  database: Kysely<DB> = getDatabase(),
+  runWithOrg: RunWithOrg = withOrg,
+) {
+  z.record(z.string(), z.unknown()).parse(data);
+  const organizations = await database
+    .selectFrom('organizations')
+    .select('id')
+    .orderBy('id')
+    .execute();
+  const summaries: Array<{
+    orgId: string;
+    runId: string;
+    counts: Record<string, number>;
+  }> = [];
+
+  for (const { id: orgId } of organizations) {
+    const context = workerContext(orgId);
+    const runId = randomUUID();
+    const startedAt = new Date();
+
+    try {
+      const counts = await runWithOrg(context, async (trx) => {
+        const messageCutoff = yearsBefore(now, retentionRules.messagesYears);
+        const backgroundCutoff = yearsBefore(
+          now,
+          retentionRules.backgroundCheckValidityPlusYears,
+        );
+        const scoreCutoff = yearsBefore(
+          now,
+          retentionRules.evaluationScoresYearsAfterEvent,
+        );
+        const retainedMessage = '[Message retained under policy]';
+
+        const chat = await trx
+          .updateTable('chat_messages')
+          .set({
+            body: retainedMessage,
+            attachments: JSON.stringify([]) as unknown as Json,
+            version: sql<number>`version + 1`,
+          })
+          .where('org_id', '=', orgId)
+          .where('created_at', '<', messageCutoff)
+          .where((eb) =>
+            eb.or([
+              eb('body', '!=', retainedMessage),
+              sql<boolean>`attachments <> '[]'::jsonb`,
+            ]),
+          )
+          .executeTakeFirst();
+        const deliveries = await trx
+          .updateTable('message_deliveries')
+          .set({
+            address: null,
+            provider_message_id: null,
+            error: null,
+            version: sql<number>`version + 1`,
+          })
+          .where('org_id', '=', orgId)
+          .where('created_at', '<', messageCutoff)
+          .where((eb) =>
+            eb.or([
+              eb('address', 'is not', null),
+              eb('provider_message_id', 'is not', null),
+              eb('error', 'is not', null),
+            ]),
+          )
+          .executeTakeFirst();
+        const campaigns = await trx
+          .updateTable('message_campaigns')
+          .set({
+            subject: null,
+            body_html: null,
+            body_text: null,
+            sms_text: null,
+            locale_variants: {} as Json,
+            reply_to: null,
+            version: sql<number>`version + 1`,
+          })
+          .where('org_id', '=', orgId)
+          .where('sent_at', '<', messageCutoff)
+          .where((eb) =>
+            eb.or([
+              eb('subject', 'is not', null),
+              eb('body_html', 'is not', null),
+              eb('body_text', 'is not', null),
+              eb('sms_text', 'is not', null),
+              eb('reply_to', 'is not', null),
+              sql<boolean>`locale_variants <> '{}'::jsonb`,
+            ]),
+          )
+          .executeTakeFirst();
+
+        const expiredBackgroundOrders = trx
+          .selectFrom('background_check_orders as orders')
+          .leftJoin('person_credentials as credentials', (join) =>
+            join
+              .onRef('credentials.org_id', '=', 'orders.org_id')
+              .onRef('credentials.id', '=', 'orders.credential_id'),
+          )
+          .select('orders.id')
+          .where('orders.org_id', '=', orgId)
+          .where((eb) =>
+            eb.or([
+              eb(
+                'credentials.expires_on',
+                '<',
+                new Date(backgroundCutoff.toISOString().slice(0, 10)),
+              ),
+              eb.and([
+                eb('credentials.expires_on', 'is', null),
+                eb('orders.completed_at', '<', backgroundCutoff),
+              ]),
+            ]),
+          );
+        const background = await trx
+          .updateTable('background_check_orders')
+          .set({
+            details_enc: null,
+            provider_candidate_id: null,
+            provider_report_id: null,
+            version: sql<number>`version + 1`,
+          })
+          .where('org_id', '=', orgId)
+          .where('id', 'in', expiredBackgroundOrders)
+          .where((eb) =>
+            eb.or([
+              eb('details_enc', 'is not', null),
+              eb('provider_candidate_id', 'is not', null),
+              eb('provider_report_id', 'is not', null),
+            ]),
+          )
+          .executeTakeFirst();
+
+        const expiredEvaluationEvents = trx
+          .selectFrom('evaluation_events as event')
+          .leftJoin('evaluation_sessions as session', (join) =>
+            join
+              .onRef('session.org_id', '=', 'event.org_id')
+              .onRef('session.evaluation_event_id', '=', 'event.id'),
+          )
+          .select('event.id')
+          .where('event.org_id', '=', orgId)
+          .groupBy(['event.id', 'event.created_at'])
+          .having(
+            sql<boolean>`COALESCE(MAX(session.ends_at), event.created_at) < ${scoreCutoff}`,
+          );
+        const scores = await trx
+          .deleteFrom('evaluation_scores')
+          .where('org_id', '=', orgId)
+          .where('evaluation_event_id', 'in', expiredEvaluationEvents)
+          .executeTakeFirst();
+        const results = await trx
+          .updateTable('evaluation_results')
+          .set({
+            normalized_scores: {} as Json,
+            composite: null,
+            rank_in_group: null,
+            missing_criteria: [],
+            version: sql<number>`version + 1`,
+          })
+          .where('org_id', '=', orgId)
+          .where('evaluation_event_id', 'in', expiredEvaluationEvents)
+          .where((eb) =>
+            eb.or([
+              eb('composite', 'is not', null),
+              eb('rank_in_group', 'is not', null),
+              sql<boolean>`normalized_scores <> '{}'::jsonb`,
+            ]),
+          )
+          .executeTakeFirst();
+
+        const counts = {
+          chatMessagesRedacted: affectedRows(chat),
+          messageDeliveriesRedacted: affectedRows(deliveries),
+          messageCampaignsRedacted: affectedRows(campaigns),
+          backgroundCheckDetailsPurged: affectedRows(background),
+          evaluationScoresPurged: affectedRows(scores),
+          evaluationResultsRedacted: affectedRows(results),
+        };
+        await trx
+          .insertInto('retention_sweep_runs')
+          .values({
+            id: runId,
+            org_id: orgId,
+            started_at: startedAt,
+            finished_at: now,
+            summary: counts as Json,
+          })
+          .execute();
+        await appendAuditEvent(trx, context, {
+          action: 'retention.sweep.completed',
+          entityType: 'retention_sweep_run',
+          entityId: runId,
+          changes: Object.fromEntries(
+            Object.entries(counts).map(([key, value]) => [
+              key,
+              { tier: 'internal' as const, after: value },
+            ]),
+          ),
+        });
+        return counts;
+      });
+      summaries.push({ orgId, runId, counts });
+    } catch (error) {
+      await runWithOrg(context, async (trx) => {
+        await trx
+          .insertInto('retention_sweep_runs')
+          .values({
+            id: runId,
+            org_id: orgId,
+            started_at: startedAt,
+            finished_at: now,
+            summary: { state: 'failed' } as Json,
+          })
+          .execute();
+      }).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  const tokenCutoff = new Date(
+    now.getTime() - retentionRules.expiredTokensDays * 24 * 60 * 60 * 1000,
+  );
+  await sql<{ purged: number }>`
+    SELECT privacy_purge_expired_auth_tokens(${tokenCutoff}) AS purged
+  `.execute(database);
+  await database
+    .deleteFrom('sessions')
+    .where(
+      sql<boolean>`COALESCE(revoked_at, LEAST(idle_expires_at, absolute_expires_at)) < ${tokenCutoff}`,
+    )
+    .execute();
+
+  return { completedOrganizations: summaries.length, summaries };
+}
+
+type PrivacyRequestInput = z.infer<typeof createPrivacyRequestSchema>;
+type PrivacyRequestUpdate = z.infer<typeof updatePrivacyRequestSchema>;
+
+function privacyRequestSummary(row: {
+  id: string;
+  kind: string;
+  subject_type: string;
+  subject_id: string;
+  status: string;
+  resolution_note: string | null;
+  version: number;
+  created_at: Date;
+  updated_at: Date;
+}) {
+  return privacyRequestSchema.parse({
+    id: row.id,
+    kind: row.kind,
+    subjectType: row.subject_type,
+    subjectId: row.subject_id,
+    status: row.status,
+    resolutionNote: row.resolution_note,
+    version: row.version,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  });
+}
+
+export async function getOrganizationRetentionPolicy(
+  context: OrgContext,
+  runWithOrg: RunWithOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    await requireExportManager(trx, context);
+    let row = await trx
+      .selectFrom('retention_policies')
+      .select(['rules', 'version', 'updated_at'])
+      .where('org_id', '=', context.orgId)
+      .executeTakeFirst();
+    if (!row) {
+      row = await trx
+        .insertInto('retention_policies')
+        .values({
+          org_id: context.orgId,
+          rules: retentionRules,
+        })
+        .returning(['rules', 'version', 'updated_at'])
+        .executeTakeFirstOrThrow();
+    }
+    return retentionPolicySchema.parse({
+      version: row.version,
+      rules: { ...retentionRules, ...(row.rules as object) },
+      updatedAt: row.updated_at.toISOString(),
+    });
+  });
+}
+
+export async function listOrganizationPrivacyRequests(
+  context: OrgContext,
+  runWithOrg: RunWithOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    await requireExportManager(trx, context);
+    const rows = await trx
+      .selectFrom('org_privacy_requests')
+      .select([
+        'id',
+        'kind',
+        'subject_type',
+        'subject_id',
+        'status',
+        'resolution_note',
+        'version',
+        'created_at',
+        'updated_at',
+      ])
+      .where('org_id', '=', context.orgId)
+      .orderBy('created_at', 'desc')
+      .limit(100)
+      .execute();
+    return privacyRequestListSchema.parse({
+      items: rows.map(privacyRequestSummary),
+    });
+  });
+}
+
+export async function createOrganizationPrivacyRequest(
+  context: OrgContext,
+  input: PrivacyRequestInput,
+  stepUpAuthenticated: boolean,
+  runWithOrg: RunWithOrg = withOrg,
+) {
+  if (!stepUpAuthenticated)
+    throw new OrganizationExportError(
+      401,
+      'REAUTH_REQUIRED',
+      'Re-authenticate before creating a privacy request',
+    );
+  return runWithOrg(context, async (trx) => {
+    await requireExportManager(trx, context);
+    const subject =
+      input.subjectType === 'person'
+        ? await trx
+            .selectFrom('people')
+            .select('id')
+            .where('org_id', '=', context.orgId)
+            .where('id', '=', input.subjectId)
+            .executeTakeFirst()
+        : await trx
+            .selectFrom('households')
+            .select('id')
+            .where('org_id', '=', context.orgId)
+            .where('id', '=', input.subjectId)
+            .executeTakeFirst();
+    if (!subject)
+      throw new OrganizationExportError(
+        404,
+        'NOT_FOUND',
+        'Privacy request subject not found',
+      );
+    const duplicate = await trx
+      .selectFrom('org_privacy_requests')
+      .select('id')
+      .where('org_id', '=', context.orgId)
+      .where('kind', '=', input.kind)
+      .where('subject_type', '=', input.subjectType)
+      .where('subject_id', '=', input.subjectId)
+      .where('status', 'in', ['pending', 'in_review', 'approved'])
+      .executeTakeFirst();
+    if (duplicate)
+      throw new OrganizationExportError(
+        409,
+        'CONFLICT',
+        'An open request of this type already exists for the subject',
+      );
+    const row = await trx
+      .insertInto('org_privacy_requests')
+      .values({
+        id: randomUUID(),
+        org_id: context.orgId,
+        kind: input.kind,
+        subject_type: input.subjectType,
+        subject_id: input.subjectId,
+        requested_by: context.actor.accountId,
+        details: {},
+      })
+      .returning([
+        'id',
+        'kind',
+        'subject_type',
+        'subject_id',
+        'status',
+        'resolution_note',
+        'version',
+        'created_at',
+        'updated_at',
+      ])
+      .executeTakeFirstOrThrow();
+    await appendAuditEvent(trx, context, {
+      action: 'privacy.request.created',
+      entityType: 'privacy_request',
+      entityId: row.id,
+      changes: {
+        kind: { tier: 'internal', after: row.kind },
+        subject_type: { tier: 'sensitive', after: row.subject_type },
+        subject_id: { tier: 'sensitive', after: row.subject_id },
+      },
+    });
+    return privacyRequestSummary(row);
+  });
+}
+
+async function anonymizePerson(
+  trx: OrgTransaction,
+  context: OrgContext,
+  personId: string,
+  now: Date,
+): Promise<number> {
+  const person = await trx
+    .selectFrom('people')
+    .select(['id', 'photo_file_id'])
+    .where('org_id', '=', context.orgId)
+    .where('id', '=', personId)
+    .executeTakeFirst();
+  if (!person)
+    throw new OrganizationExportError(
+      404,
+      'NOT_FOUND',
+      'Privacy request subject not found',
+    );
+
+  const memberships = await trx
+    .selectFrom('household_members')
+    .select('household_id')
+    .where('org_id', '=', context.orgId)
+    .where('person_id', '=', personId)
+    .execute();
+  const credentialFiles = await trx
+    .selectFrom('person_credentials')
+    .select('file_id')
+    .where('org_id', '=', context.orgId)
+    .where('person_id', '=', personId)
+    .where('file_id', 'is not', null)
+    .execute();
+
+  await trx
+    .updateTable('people')
+    .set({
+      first_name: 'Deleted',
+      last_name: 'Person',
+      preferred_name: null,
+      middle_name: null,
+      suffix: null,
+      date_of_birth: '1900-01-01',
+      gender: 'unspecified',
+      competition_gender: null,
+      email: null,
+      phone_e164: null,
+      address: null,
+      graduation_year: null,
+      school_name: null,
+      photo_file_id: null,
+      media_consent: 'unknown',
+      status: 'anonymized',
+      version: sql<number>`version + 1`,
+    })
+    .where('org_id', '=', context.orgId)
+    .where('id', '=', personId)
+    .execute();
+  await trx
+    .updateTable('person_account_links')
+    .set({ revoked_at: now })
+    .where('org_id', '=', context.orgId)
+    .where('person_id', '=', personId)
+    .where('revoked_at', 'is', null)
+    .execute();
+  await trx
+    .updateTable('emergency_contacts')
+    .set({
+      name: 'Deleted Contact',
+      relationship: 'redacted',
+      phone_e164: 'REDACTED',
+      alt_phone_e164: null,
+    })
+    .where('org_id', '=', context.orgId)
+    .where('person_id', '=', personId)
+    .execute();
+  await trx
+    .updateTable('medical_profiles')
+    .set({
+      allergies_enc: null,
+      allergy_flags: [],
+      conditions_enc: null,
+      medications_enc: null,
+      physician_name_enc: null,
+      physician_phone_enc: null,
+      insurance_carrier_enc: null,
+      insurance_policy_enc: null,
+      notes_enc: null,
+      updated_by: null,
+      version: sql<number>`version + 1`,
+    })
+    .where('org_id', '=', context.orgId)
+    .where('person_id', '=', personId)
+    .execute();
+  await trx
+    .updateTable('person_credentials')
+    .set({
+      identifier_enc: null,
+      file_id: null,
+      rejection_reason: null,
+      provider_reference: null,
+      version: sql<number>`version + 1`,
+    })
+    .where('org_id', '=', context.orgId)
+    .where('person_id', '=', personId)
+    .execute();
+  await trx
+    .updateTable('background_check_orders')
+    .set({
+      provider_candidate_id: null,
+      provider_report_id: null,
+      details_enc: null,
+      version: sql<number>`version + 1`,
+    })
+    .where('org_id', '=', context.orgId)
+    .where('person_id', '=', personId)
+    .execute();
+  await trx
+    .updateTable('evaluation_participants')
+    .set({
+      media_consent: false,
+      photo_file_id: null,
+      version: sql<number>`version + 1`,
+    })
+    .where('org_id', '=', context.orgId)
+    .where('person_id', '=', personId)
+    .execute();
+  await trx
+    .updateTable('athlete_cards')
+    .set({
+      status: 'revoked',
+      photo_file_id: null,
+      version: sql<number>`version + 1`,
+    })
+    .where('org_id', '=', context.orgId)
+    .where('person_id', '=', personId)
+    .execute();
+  const fileIds = [
+    ...credentialFiles.flatMap(({ file_id }) => (file_id ? [file_id] : [])),
+    ...(person.photo_file_id ? [person.photo_file_id] : []),
+  ];
+  if (fileIds.length > 0) {
+    await trx
+      .updateTable('files')
+      .set({ deleted_at: now })
+      .where('org_id', '=', context.orgId)
+      .where('id', 'in', fileIds)
+      .where('deleted_at', 'is', null)
+      .execute();
+  }
+
+  const redactedAnswers = await sql<{ redacted_count: number }>`
+    SELECT privacy_redact_person_form_responses(
+      ${context.orgId}::uuid,
+      ${personId}::uuid
+    ) AS redacted_count
+  `.execute(trx);
+
+  for (const { household_id: householdId } of memberships) {
+    const otherActiveMembers = await trx
+      .selectFrom('household_members as member')
+      .innerJoin('people as person', (join) =>
+        join
+          .onRef('person.org_id', '=', 'member.org_id')
+          .onRef('person.id', '=', 'member.person_id'),
+      )
+      .select('member.id')
+      .where('member.org_id', '=', context.orgId)
+      .where('member.household_id', '=', householdId)
+      .where('member.person_id', '!=', personId)
+      .where('person.status', '=', 'active')
+      .limit(1)
+      .executeTakeFirst();
+    if (!otherActiveMembers) {
+      await trx
+        .updateTable('households')
+        .set({ name: 'Deleted Household', address: null, status: 'archived' })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', householdId)
+        .execute();
+    }
+  }
+  return redactedAnswers.rows[0]?.redacted_count ?? 0;
+}
+
+export async function updateOrganizationPrivacyRequest(
+  context: OrgContext,
+  requestId: string,
+  input: PrivacyRequestUpdate,
+  stepUpAuthenticated: boolean,
+  now = new Date(),
+  runWithOrg: RunWithOrg = withOrg,
+) {
+  if (!stepUpAuthenticated)
+    throw new OrganizationExportError(
+      401,
+      'REAUTH_REQUIRED',
+      'Re-authenticate before updating a privacy request',
+    );
+  return runWithOrg(context, async (trx) => {
+    await requireExportManager(trx, context);
+    const current = await trx
+      .selectFrom('org_privacy_requests')
+      .select(['id', 'kind', 'subject_type', 'subject_id', 'status', 'version'])
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', requestId)
+      .executeTakeFirst();
+    if (!current)
+      throw new OrganizationExportError(
+        404,
+        'NOT_FOUND',
+        'Privacy request not found',
+      );
+    if (current.version !== input.version)
+      throw new OrganizationExportError(
+        409,
+        'CONFLICT',
+        'Privacy request changed; refresh before updating it',
+      );
+    const transitions: Record<string, readonly string[]> = {
+      pending: ['in_review', 'rejected'],
+      in_review: ['approved', 'rejected'],
+      approved: ['completed', 'rejected'],
+      completed: [],
+      rejected: [],
+    };
+    if (!transitions[current.status]?.includes(input.status))
+      throw new OrganizationExportError(
+        409,
+        'CONFLICT',
+        'This privacy request cannot move to the requested status',
+      );
+    const note = input.resolutionNote?.trim() || null;
+    if ((input.status === 'completed' || input.status === 'rejected') && !note)
+      throw new OrganizationExportError(
+        400,
+        'CONFLICT',
+        'A resolution note is required to complete or reject a request',
+      );
+
+    const deletionNoticeAccounts = new Set<string>();
+    let redactedFormResponseCount = 0;
+    if (input.status === 'completed' && current.kind === 'deletion') {
+      let subjectPersonIds: string[];
+      if (current.subject_type === 'person') {
+        subjectPersonIds = [current.subject_id];
+        redactedFormResponseCount = await anonymizePerson(
+          trx,
+          context,
+          current.subject_id,
+          now,
+        );
+      } else {
+        const memberRows = await trx
+          .selectFrom('household_members')
+          .select('person_id')
+          .where('org_id', '=', context.orgId)
+          .where('household_id', '=', current.subject_id)
+          .execute();
+        subjectPersonIds = memberRows.map(({ person_id }) => person_id);
+        if (subjectPersonIds.length > 0) {
+          const links = await trx
+            .selectFrom('person_account_links')
+            .select('account_id')
+            .where('org_id', '=', context.orgId)
+            .where('person_id', 'in', subjectPersonIds)
+            .where('revoked_at', 'is', null)
+            .execute();
+          for (const { account_id: accountId } of links)
+            deletionNoticeAccounts.add(accountId);
+        }
+        for (const { person_id: personId } of memberRows)
+          redactedFormResponseCount += await anonymizePerson(
+            trx,
+            context,
+            personId,
+            now,
+          );
+        await trx
+          .updateTable('households')
+          .set({ name: 'Deleted Household', address: null, status: 'archived' })
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', current.subject_id)
+          .execute();
+      }
+      if (current.subject_type === 'person') {
+        const links = await trx
+          .selectFrom('person_account_links')
+          .select('account_id')
+          .where('org_id', '=', context.orgId)
+          .where('person_id', 'in', subjectPersonIds)
+          .execute();
+        for (const { account_id: accountId } of links)
+          deletionNoticeAccounts.add(accountId);
+      }
+    }
+
+    const row = await trx
+      .updateTable('org_privacy_requests')
+      .set({
+        status: input.status,
+        resolution_note: note,
+        version: sql<number>`version + 1`,
+        completed_at: input.status === 'completed' ? now : null,
+        completed_by:
+          input.status === 'completed' ? context.actor.accountId : null,
+      })
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', requestId)
+      .where('version', '=', input.version)
+      .returning([
+        'id',
+        'kind',
+        'subject_type',
+        'subject_id',
+        'status',
+        'resolution_note',
+        'version',
+        'created_at',
+        'updated_at',
+      ])
+      .executeTakeFirst();
+    if (!row)
+      throw new OrganizationExportError(
+        409,
+        'CONFLICT',
+        'Privacy request changed; refresh before updating it',
+      );
+    await appendAuditEvent(trx, context, {
+      action: 'privacy.request.status_changed',
+      entityType: 'privacy_request',
+      entityId: requestId,
+      changes: {
+        status: {
+          tier: 'internal',
+          before: current.status,
+          after: input.status,
+        },
+        subject_type: { tier: 'sensitive', after: current.subject_type },
+        subject_id: { tier: 'sensitive', after: current.subject_id },
+        ...(input.status === 'completed' && current.kind === 'deletion'
+          ? {
+              redacted_form_responses: {
+                tier: 'internal' as const,
+                after: redactedFormResponseCount,
+              },
+            }
+          : {}),
+      },
+    });
+    if (input.status === 'completed' && current.kind === 'deletion') {
+      for (const accountId of deletionNoticeAccounts) {
+        await createNotification(trx, context, {
+          accountId,
+          type: 'privacy_request.updated',
+          payload: {
+            resourceType: 'privacy_request',
+            resourceId: requestId,
+          },
+        });
+      }
+    }
+    return privacyRequestSummary(row);
+  });
+}
+
+export async function createPrivacySubjectExport(
+  context: OrgContext,
+  requestId: string,
+  stepUpAuthenticated: boolean,
+  now = new Date(),
+  runWithOrg: RunWithOrg = withOrg,
+  encryption?: EncryptionKeys,
+) {
+  if (!stepUpAuthenticated)
+    throw new OrganizationExportError(
+      401,
+      'REAUTH_REQUIRED',
+      'Re-authenticate before exporting subject data',
+    );
+  return runWithOrg(context, async (trx) => {
+    await requireExportManager(trx, context);
+    const request = await trx
+      .selectFrom('org_privacy_requests')
+      .select(['id', 'kind', 'subject_type', 'subject_id', 'status'])
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', requestId)
+      .executeTakeFirst();
+    if (!request)
+      throw new OrganizationExportError(
+        404,
+        'NOT_FOUND',
+        'Privacy request not found',
+      );
+    if (request.kind !== 'access' || request.status !== 'approved')
+      throw new OrganizationExportError(
+        409,
+        'CONFLICT',
+        'Only an approved access request can produce a subject export',
+      );
+
+    const data: Record<string, unknown> = {};
+    let personIds: string[] = [];
+    if (request.subject_type === 'person') {
+      const person = await trx
+        .selectFrom('people')
+        .select([
+          'id',
+          'first_name',
+          'last_name',
+          'preferred_name',
+          'date_of_birth',
+          'gender',
+          'competition_gender',
+          'email',
+          'phone_e164',
+          'address',
+          'graduation_year',
+          'school_name',
+          'media_consent',
+          'status',
+        ])
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', request.subject_id)
+        .executeTakeFirst();
+      if (!person)
+        throw new OrganizationExportError(
+          404,
+          'NOT_FOUND',
+          'Privacy request subject not found',
+        );
+      data.person = person;
+      personIds = [person.id];
+    } else {
+      const household = await trx
+        .selectFrom('households')
+        .select(['id', 'name', 'address', 'status', 'created_at'])
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', request.subject_id)
+        .executeTakeFirst();
+      if (!household)
+        throw new OrganizationExportError(
+          404,
+          'NOT_FOUND',
+          'Privacy request subject not found',
+        );
+      data.household = household;
+      const members = await trx
+        .selectFrom('household_members as member')
+        .innerJoin('people as person', (join) =>
+          join
+            .onRef('person.org_id', '=', 'member.org_id')
+            .onRef('person.id', '=', 'member.person_id'),
+        )
+        .select([
+          'member.role',
+          'member.is_primary_contact',
+          'member.receives_communications',
+          'member.financially_responsible',
+          'person.id as person_id',
+          'person.first_name',
+          'person.last_name',
+          'person.preferred_name',
+          'person.date_of_birth',
+          'person.email',
+          'person.phone_e164',
+          'person.status',
+        ])
+        .where('member.org_id', '=', context.orgId)
+        .where('member.household_id', '=', request.subject_id)
+        .limit(250)
+        .execute();
+      data.members = members;
+      personIds = members.map(({ person_id }) => person_id);
+    }
+
+    if (personIds.length > 0) {
+      data.registrations = await trx
+        .selectFrom('registrations')
+        .innerJoin('programs', (join) =>
+          join
+            .onRef('programs.org_id', '=', 'registrations.org_id')
+            .onRef('programs.id', '=', 'registrations.program_id'),
+        )
+        .select([
+          'registrations.id',
+          'programs.name as program_name',
+          'registrations.status',
+          'registrations.source',
+          'registrations.created_at',
+        ])
+        .where('registrations.org_id', '=', context.orgId)
+        .where('registrations.person_id', 'in', personIds)
+        .orderBy('registrations.created_at', 'desc')
+        .limit(500)
+        .execute();
+      data.attendance = await trx
+        .selectFrom('attendance')
+        .select([
+          'event_id',
+          'status',
+          'rsvp',
+          'checked_in_at',
+          'checked_out_at',
+          'created_at',
+        ])
+        .where('org_id', '=', context.orgId)
+        .where('person_id', 'in', personIds)
+        .orderBy('created_at', 'desc')
+        .limit(500)
+        .execute();
+      data.waiverSignatures = await trx
+        .selectFrom('waiver_signatures')
+        .select([
+          'id',
+          'participant_person_id',
+          'document_version',
+          'document_hash',
+          'method',
+          'signed_at',
+        ])
+        .where('org_id', '=', context.orgId)
+        .where('participant_person_id', 'in', personIds)
+        .orderBy('signed_at', 'desc')
+        .limit(500)
+        .execute();
+      data.credentials = await trx
+        .selectFrom('person_credentials')
+        .innerJoin('credential_types', (join) =>
+          join
+            .onRef('credential_types.org_id', '=', 'person_credentials.org_id')
+            .onRef(
+              'credential_types.id',
+              '=',
+              'person_credentials.credential_type_id',
+            ),
+        )
+        .select([
+          'credential_types.name as credential_type',
+          'person_credentials.status',
+          'person_credentials.issued_on',
+          'person_credentials.expires_on',
+        ])
+        .where('person_credentials.org_id', '=', context.orgId)
+        .where('person_credentials.person_id', 'in', personIds)
+        .orderBy('person_credentials.created_at', 'desc')
+        .limit(250)
+        .execute();
+
+      const emergencyContacts = await trx
+        .selectFrom('emergency_contacts')
+        .select([
+          'person_id',
+          'name',
+          'relationship',
+          'phone_e164',
+          'alt_phone_e164',
+          'priority',
+        ])
+        .where('org_id', '=', context.orgId)
+        .where('person_id', 'in', personIds)
+        .orderBy('priority')
+        .limit(500)
+        .execute();
+      data.emergencyContacts = emergencyContacts;
+
+      const formResponses = await trx
+        .selectFrom('form_responses')
+        .select([
+          'id',
+          'subject_type',
+          'subject_id',
+          'definition_version',
+          'answers',
+          'answers_enc',
+          'submitted_at',
+        ])
+        .where('org_id', '=', context.orgId)
+        .where((eb) =>
+          eb.or([
+            eb('subject_type', '=', 'person').and(
+              'subject_id',
+              'in',
+              personIds,
+            ),
+            eb('subject_type', '=', 'registration').and(
+              'subject_id',
+              'in',
+              trx
+                .selectFrom('registrations')
+                .select('id')
+                .where('org_id', '=', context.orgId)
+                .where('person_id', 'in', personIds),
+            ),
+          ]),
+        )
+        .orderBy('submitted_at', 'desc')
+        .limit(500)
+        .execute();
+      data.formResponses = formResponses.map((response) => {
+        if (!response.answers_enc) return response;
+        if (!encryption)
+          throw new OrganizationExportError(
+            503,
+            'DEPENDENCY_UNAVAILABLE',
+            'Restricted response export is unavailable',
+          );
+        return {
+          ...response,
+          answers_enc: undefined,
+          restrictedAnswers: JSON.parse(
+            decryptRestricted(response.answers_enc, encryption).toString(
+              'utf8',
+            ),
+          ) as unknown,
+        };
+      });
+      for (const response of formResponses) {
+        if (!response.answers_enc) continue;
+        await appendAuditEvent(trx, context, {
+          action: 'restricted.read',
+          entityType: 'form_response',
+          entityId: response.id,
+          changes: {
+            answers: { tier: 'restricted', after: '[exported]' },
+          },
+        });
+      }
+
+      const medicalRows = await trx
+        .selectFrom('medical_profiles')
+        .select([
+          'id',
+          'person_id',
+          'allergies_enc',
+          'allergy_flags',
+          'conditions_enc',
+          'medications_enc',
+          'physician_name_enc',
+          'physician_phone_enc',
+          'insurance_carrier_enc',
+          'insurance_policy_enc',
+          'notes_enc',
+        ])
+        .where('org_id', '=', context.orgId)
+        .where('person_id', 'in', personIds)
+        .limit(250)
+        .execute();
+      data.medicalProfiles = medicalRows.map((profile) => {
+        if (
+          !encryption &&
+          [
+            profile.allergies_enc,
+            profile.conditions_enc,
+            profile.medications_enc,
+            profile.physician_name_enc,
+            profile.physician_phone_enc,
+            profile.insurance_carrier_enc,
+            profile.insurance_policy_enc,
+            profile.notes_enc,
+          ].some(Boolean)
+        )
+          throw new OrganizationExportError(
+            503,
+            'DEPENDENCY_UNAVAILABLE',
+            'Restricted medical export is unavailable',
+          );
+        const decode = (value: Buffer | null) =>
+          value && encryption
+            ? decryptRestricted(value, encryption).toString('utf8')
+            : null;
+        return {
+          personId: profile.person_id,
+          allergyFlags: profile.allergy_flags,
+          allergies: decode(profile.allergies_enc),
+          conditions: decode(profile.conditions_enc),
+          medications: decode(profile.medications_enc),
+          physicianName: decode(profile.physician_name_enc),
+          physicianPhone: decode(profile.physician_phone_enc),
+          insuranceCarrier: decode(profile.insurance_carrier_enc),
+          insurancePolicy: decode(profile.insurance_policy_enc),
+          notes: decode(profile.notes_enc),
+        };
+      });
+      for (const profile of medicalRows) {
+        if (
+          [
+            profile.allergies_enc,
+            profile.conditions_enc,
+            profile.medications_enc,
+            profile.physician_name_enc,
+            profile.physician_phone_enc,
+            profile.insurance_carrier_enc,
+            profile.insurance_policy_enc,
+            profile.notes_enc,
+          ].some(Boolean)
+        )
+          await appendAuditEvent(trx, context, {
+            action: 'restricted.read',
+            entityType: 'medical_profile',
+            entityId: profile.person_id,
+            changes: {
+              medical_data: { tier: 'restricted', after: '[exported]' },
+            },
+          });
+      }
+    }
+    const householdIds =
+      request.subject_type === 'household'
+        ? [request.subject_id]
+        : await trx
+            .selectFrom('household_members')
+            .select('household_id')
+            .where('org_id', '=', context.orgId)
+            .where('person_id', '=', request.subject_id)
+            .execute()
+            .then((rows) => rows.map(({ household_id }) => household_id));
+    if (householdIds.length > 0)
+      data.invoices = await trx
+        .selectFrom('invoices')
+        .select([
+          'id',
+          'number',
+          'status',
+          'currency',
+          'total_cents',
+          'paid_cents',
+          'balance_cents',
+          'due_on',
+          'created_at',
+        ])
+        .where('org_id', '=', context.orgId)
+        .where('household_id', 'in', householdIds)
+        .orderBy('created_at', 'desc')
+        .limit(500)
+        .execute();
+
+    const result = privacySubjectExportSchema.parse({
+      requestId: request.id,
+      generatedAt: now.toISOString(),
+      subjectType: request.subject_type,
+      subjectId: request.subject_id,
+      data,
+    });
+    await appendAuditEvent(trx, context, {
+      action: 'privacy.access_export.generated',
+      entityType: 'privacy_request',
+      entityId: request.id,
+      changes: {
+        subject_type: { tier: 'sensitive', after: request.subject_type },
+        subject_id: { tier: 'sensitive', after: request.subject_id },
+      },
+    });
+    return result;
   });
 }
 

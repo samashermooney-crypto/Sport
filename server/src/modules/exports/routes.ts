@@ -3,6 +3,12 @@ import {
   organizationExportDownloadLinkSchema,
   organizationExportListSchema,
   organizationExportRequestResponseSchema,
+  createPrivacyRequestSchema,
+  privacyRequestListSchema,
+  privacyRequestSchema,
+  privacySubjectExportSchema,
+  retentionPolicySchema,
+  updatePrivacyRequestSchema,
 } from '@shared/schemas/exports';
 import express from 'express';
 import { z } from 'zod';
@@ -16,10 +22,15 @@ import { hasStepUp } from '../auth/sessions';
 
 import {
   createOrganizationExportDownloadLink,
+  createOrganizationPrivacyRequest,
+  createPrivacySubjectExport,
   downloadOrganizationExport,
+  getOrganizationRetentionPolicy,
+  listOrganizationPrivacyRequests,
   listOrganizationExports,
   OrganizationExportError,
   requestOrganizationExport,
+  updateOrganizationPrivacyRequest,
 } from './service';
 
 const emptyBodySchema = z.strictObject({});
@@ -136,6 +147,85 @@ export function createExportsRouter(
       const result = await listOrganizationExports(context, withOrg);
       response.setHeader('Cache-Control', 'no-store');
       response.json(organizationExportListSchema.parse(result));
+    }),
+  );
+
+  router.get(
+    '/orgs/:orgId/privacy-requests',
+    route(async (request, response) => {
+      const { context } = await sessionContext(dependencies, request);
+      const result = await listOrganizationPrivacyRequests(context, withOrg);
+      response.setHeader('Cache-Control', 'no-store');
+      response.json(privacyRequestListSchema.parse(result));
+    }),
+  );
+
+  router.post(
+    '/orgs/:orgId/privacy-requests',
+    route(async (request, response) => {
+      if (!requireMutationOrigin(request, response, dependencies)) return;
+      const { session, context } = await sessionContext(dependencies, request);
+      const input = createPrivacyRequestSchema.parse(request.body);
+      const result = await createOrganizationPrivacyRequest(
+        context,
+        input,
+        hasStepUp(session, dependencies.clock()),
+        withOrg,
+      );
+      response
+        .status(201)
+        .setHeader('Cache-Control', 'no-store')
+        .json(privacyRequestSchema.parse(result));
+    }),
+  );
+
+  router.patch(
+    '/orgs/:orgId/privacy-requests/:requestId',
+    route(async (request, response) => {
+      if (!requireMutationOrigin(request, response, dependencies)) return;
+      const { session, context } = await sessionContext(dependencies, request);
+      const input = updatePrivacyRequestSchema.parse(request.body);
+      const result = await updateOrganizationPrivacyRequest(
+        context,
+        z.uuid().parse(request.params.requestId),
+        input,
+        hasStepUp(session, dependencies.clock()),
+        dependencies.clock(),
+        withOrg,
+      );
+      response
+        .setHeader('Cache-Control', 'no-store')
+        .json(privacyRequestSchema.parse(result));
+    }),
+  );
+
+  router.post(
+    '/orgs/:orgId/privacy-requests/:requestId/access-export',
+    route(async (request, response) => {
+      if (!requireMutationOrigin(request, response, dependencies)) return;
+      const { session, context } = await sessionContext(dependencies, request);
+      emptyBodySchema.parse(request.body ?? {});
+      const result = await createPrivacySubjectExport(
+        context,
+        z.uuid().parse(request.params.requestId),
+        hasStepUp(session, dependencies.clock()),
+        dependencies.clock(),
+        withOrg,
+        dependencies.encryption,
+      );
+      response
+        .setHeader('Cache-Control', 'no-store')
+        .json(privacySubjectExportSchema.parse(result));
+    }),
+  );
+
+  router.get(
+    '/orgs/:orgId/retention-policy',
+    route(async (request, response) => {
+      const { context } = await sessionContext(dependencies, request);
+      const result = await getOrganizationRetentionPolicy(context, withOrg);
+      response.setHeader('Cache-Control', 'no-store');
+      response.json(retentionPolicySchema.parse(result));
     }),
   );
 
