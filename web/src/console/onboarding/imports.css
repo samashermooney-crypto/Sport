@@ -30,3 +30,6 @@
 .imports-error {
   color: var(--bad);
 }
+.imports-screen .button.secondary.imports-rollback:hover {
+  color: var(--ink-2);
+}

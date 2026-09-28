@@ -472,6 +472,7 @@ function BatchWizard({
           </p>
           <Button
             secondary
+            className="imports-rollback"
             onClick={() => {
               rollback.mutate();
             }}

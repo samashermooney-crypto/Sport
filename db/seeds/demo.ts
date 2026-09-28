@@ -445,6 +445,167 @@ async function seedConsoleExamples(
       .execute();
   });
 
+  await withOrg(context, async (trx) => {
+    await trx
+      .insertInto('fundraising_settings')
+      .values({
+        org_id: orgId,
+        is_nonprofit: spec.kind === 'league' || spec.kind === 'association',
+        ein_ciphertext: null,
+        ein_nonce: null,
+        ein_key_version: null,
+        show_full_ein: false,
+        updated_by: adminId,
+        created_at: SEED_TIME,
+        updated_at: SEED_TIME,
+      })
+      .onConflict((oc) => oc.column('org_id').doNothing())
+      .execute();
+
+    await trx
+      .insertInto('fundraising_campaigns')
+      .values({
+        id: stableId(`demo-fundraising-${spec.seed}`),
+        org_id: orgId,
+        name: 'Season equipment and access fund',
+        slug: 'season-equipment-access',
+        goal_cents: 250_000,
+        starts_at: new Date('2026-08-01T00:00:00.000Z'),
+        ends_at: new Date('2026-12-31T23:59:59.000Z'),
+        team_season_id:
+          spec.teamCount > 0
+            ? stableId(`demo-teamseason-${spec.seed}-0`)
+            : null,
+        description_html:
+          '<p>Fictional campaign for demonstration. No donations have been collected.</p>',
+        image_file_id: null,
+        status: 'draft',
+        show_donor_names: false,
+        created_by: adminId,
+        created_at: SEED_TIME,
+        updated_at: SEED_TIME,
+      })
+      .onConflict((oc) => oc.column('id').doNothing())
+      .execute();
+
+    await trx
+      .insertInto('sponsors')
+      .values({
+        id: stableId(`demo-sponsor-${spec.seed}`),
+        org_id: orgId,
+        name: 'Example Community Sports Partner',
+        contact: {
+          name: 'Demo Partner Contact',
+          email: `partner@${spec.slug}.example.test`,
+        },
+        logo_file_id: null,
+        website_url: 'https://partner.example.test',
+        tier: 'Community',
+        amount_cents: 150_000,
+        contract_start: '2026-01-01',
+        contract_end: '2026-12-31',
+        placements: JSON.stringify([{ surface: 'website_home' }]),
+        invoice_id: null,
+        status: 'prospect',
+        renewal_notified_at: null,
+        created_by: adminId,
+        created_at: SEED_TIME,
+        updated_at: SEED_TIME,
+      })
+      .onConflict((oc) => oc.column('id').doNothing())
+      .execute();
+
+    const categoryId = stableId(`demo-store-category-${spec.seed}`);
+    const productId = stableId(`demo-store-product-${spec.seed}`);
+    const variantId = stableId(`demo-store-variant-${spec.seed}`);
+    await trx
+      .insertInto('product_categories')
+      .values({
+        id: categoryId,
+        org_id: orgId,
+        name: 'Demonstration gear',
+        sort_order: 10,
+        archived_at: null,
+        created_at: SEED_TIME,
+        updated_at: SEED_TIME,
+      })
+      .onConflict((oc) => oc.column('id').doNothing())
+      .execute();
+    await trx
+      .insertInto('products')
+      .values({
+        id: productId,
+        org_id: orgId,
+        category_id: categoryId,
+        name: 'Practice shirt',
+        description: 'Fictional demonstration stock; no order has been placed.',
+        kind: 'uniform',
+        required_for_registration: false,
+        active: true,
+        created_by: adminId,
+        created_at: SEED_TIME,
+        updated_at: SEED_TIME,
+      })
+      .onConflict((oc) => oc.column('id').doNothing())
+      .execute();
+    await trx
+      .insertInto('product_variants')
+      .values({
+        id: variantId,
+        org_id: orgId,
+        product_id: productId,
+        sku: `DEMO-SHIRT-${spec.seed.toUpperCase()}`,
+        size: 'Adult Medium',
+        color: 'Blue',
+        attributes: {},
+        price_cents: 2_500,
+        tax_rate_id: null,
+        low_stock_threshold: 2,
+        archived_at: null,
+        created_at: SEED_TIME,
+        updated_at: SEED_TIME,
+      })
+      .onConflict((oc) => oc.column('id').doNothing())
+      .execute();
+    await trx
+      .insertInto('inventory_movements')
+      .values({
+        id: stableId(`demo-store-receive-${spec.seed}`),
+        org_id: orgId,
+        product_variant_id: variantId,
+        movement: 'receive',
+        quantity: 8,
+        order_line_id: null,
+        memo: 'Fictional demonstration stock; not sold.',
+        created_by: adminId,
+        created_at: SEED_TIME,
+        updated_at: SEED_TIME,
+      })
+      .onConflict((oc) => oc.column('id').doNothing())
+      .execute();
+
+    if (spec.teamCount > 0) {
+      const teamSeasonId = stableId(`demo-teamseason-${spec.seed}-0`);
+      await trx
+        .insertInto('team_fee_assessments')
+        .values({
+          id: stableId(`demo-team-fee-assessment-${spec.seed}`),
+          org_id: orgId,
+          team_season_id: teamSeasonId,
+          per_player_cents: 15_000,
+          due_on: '2026-12-01',
+          installment_template_id: null,
+          installment_plan: null,
+          status: 'draft',
+          created_by: adminId,
+          created_at: SEED_TIME,
+          updated_at: SEED_TIME,
+        })
+        .onConflict((oc) => oc.column('id').doNothing())
+        .execute();
+    }
+  });
+
   const invoices = new PostgresInvoiceRepository(database, context);
   await invoices.issue({
     orgId,
@@ -1248,6 +1409,12 @@ export async function seedDemo(database: Kysely<DB>): Promise<void> {
             trial_allowed: true,
             trial_price_cents: 0,
             annual_fee_cents: 2500,
+            makeup_policy: {
+              creditsPerTerm: 0,
+              expiryDays: 90,
+              eligibleLevelIds: null,
+              eligibleOfferingIds: null,
+            },
             sibling_discount_bps: [0, 1000],
             status: 'active',
           });
@@ -1484,7 +1651,7 @@ export async function seedDemo(database: Kysely<DB>): Promise<void> {
           description:
             'Demonstration requirement; no credential documents are included.',
           verification: 'manual_staff',
-          validity: { type: 'expires_after_days', days: 365 },
+          validity: { months: 12 },
           applies_to: { roles: ['head_coach'] },
           blocks_activation: true,
         })

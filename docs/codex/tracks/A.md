@@ -21,3 +21,8 @@ Self-review: The Phase 1 tenancy matrix is derived from the documented Phase 1 O
 Self-review: Account language updates require an authenticated session and verified write origin; the account page follows and saves the durable locale used by SMS consent, with Chromium/WebKit and database evidence.
 Self-review: The platform area now shares the frozen AppShell and exposes only working Platform and Account links; its existing Chromium/WebKit operations journey remains accessible.
 Self-review: People reads and writes run inside `withOrg`, require an active staff role except audited platform impersonation reads, reject impersonation writes, use versions for edits/archive/restore, and leave an audit trail. Remaining Phase 2 task 1 filters and media flows are tracked in PROGRESS.
+
+Requests from K (2026-09-27):
+
+- `server/test/merges.test.ts` fails in “moves registrations, memberships, credentials, responses, invoice lines and attendance to the survivor” because the app role cannot update `form_responses`. Preserve response evidence and fix the person-merge path with an authorized, tenant-scoped mechanism; do not make append-only responses generally mutable.
+- `server/src/modules/compliance/phase7.integration.test.ts` fails when the app role updates `return_to_play_clearances` and `background_check_disputes`. Add the narrow mutation path/grants those audited workflows require while retaining tenant and staff authorization. Both failures reproduce in the full Vitest run on K's branch.

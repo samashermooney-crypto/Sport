@@ -37,6 +37,10 @@ Blocked on: GitHub access is currently unavailable from this environment; local 
 - SEC-CI-001: add Gitleaks secret scanning to CI on pull requests and protected-branch pushes; no Gitleaks job is present in `.github/workflows/ci.yml`; `e2e/security/gitleaks-ci.spec.ts` is committed as `test.fixme` (2026-09-27).
 - SEC-KNIP-C: triage current Knip findings in C-owned files: unused `scripts/backup.ts` and `scripts/restore-drill.ts`; unused `writeStructuredLog` from `server/src/lib/observability/logging.ts`; unused `captureOperationalAlert` and `captureRedactedException` from `server/src/lib/observability/sentry.ts` (2026-09-27).
 
+## Requests from K
+
+- Shared `.button.secondary:hover` in `web/src/ui/components.css` sets the hover background to `#f0f4f6` while `.button:hover` keeps white foreground, producing a 1.1:1 contrast ratio on K's committed import rollback button in Chromium axe. Set the secondary hover foreground back to `var(--ink-2)` without changing the palette; K added a scoped imports fallback pending this shared fix (2026-09-27).
+
 ## Verification and environment
 
 - Use real PostgreSQL integration tests; do not skip or weaken DB tests. Run full tests and Playwright only through `~/athlentry-sprint/heavy.sh`.

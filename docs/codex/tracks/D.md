@@ -6,6 +6,7 @@ Branch: `track/d-design`
 Current: All Track D queue items 1–6 are complete; the dev-only showcase is mounted through the generated registry.
 Ready for integration: 195e30e..HEAD — primitives, extended components, parity coverage, shell navigation and auth controls are ready for dependent screens.
 Requests to other tracks: Track A — latest observed `rebuild/trunk` (`fd46684`) fails the staged ESLint hook in `memberRoles.ts`, `ownershipTransfer.ts` and `orgs/routes.ts`; fix before full-gate integration. `/__ui` is picked up through `web/src/ui/routes.tsx`.
+Requests from K: confirm the authoritative onboarding publication predicate and final console destination. The D branch exposes `website_settings.published` and `website_pages.status`; K will mark `publish_website` complete only when settings are published and at least one page is published once those migrations are installed. A `website_url` alone is only a compatibility fallback on schemas without the Phase 14 publication tables.
 Blocked on: None for Track D.
 Completed: Queue 1 legacy reference captures and token snapshot; queue 2 primitives published in early batches with initial tests.
 Completed: Queue 3 extended controls, overlays, calendar views/resource grid, chart, rich text, signature, QR, print, keyboard-accessible board, bracket and chat components.

@@ -49,3 +49,8 @@ Self-review: Notification SSE revalidates its session on every 20-second heartbe
 Self-review: B-owned audit/notification tenant reads carry the impersonation header; notification writes are hidden or disabled while impersonating, and banner end/expiry synchronizes the read-only state.
 Self-review: Task 9 checked against Phase 1 task 9; platform writes use admin role where app grants are revoked, plan and org changes carry versions, last active super admin is protected, and impersonation requests log IDs without record payloads.
 Self-review: Full unit/integration suite passes (550 tests, 1 existing skip) after E/F/H changes; typecheck, lint, build, registry and 109-operation OpenAPI generation pass; full Chromium/WebKit gate passes (26 pass, 4 existing skips) including platform, SMS/push preferences, mounted stream and axe.
+
+Requests from K (2026-09-27):
+
+- `server/test/scheduling.integration.test.ts` fails in the recurring-series DST edit, closure postponement, and moved-published-game cases because the app role cannot delete `space_bookings`. Keep booking history when rescheduling/postponing (cancel or supersede rows) and use a tenant-scoped service path; do not add generic app-role DELETE access.
+- The same suite's “denies schedule reads without a scoped role or roster relationship” case gets `permission denied for table role_assignments` from the schedule access check. Provide the minimum role lookup capability needed to evaluate scoped access without exposing unrelated tenant assignments. All four failures reproduce in K's full Vitest run.

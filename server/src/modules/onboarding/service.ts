@@ -134,7 +134,27 @@ async function detectCompleted(
     .select('website_url')
     .where('id', '=', orgId)
     .executeTakeFirst();
-  if (website?.website_url) done.add('publish_website');
+  const websitePublicationSchema = await sql<{ available: boolean }>`
+    SELECT to_regclass('website_settings') IS NOT NULL
+      AND to_regclass('website_pages') IS NOT NULL AS available
+  `.execute(trx);
+  if (websitePublicationSchema.rows[0]?.available) {
+    const publication = await sql<{ published: boolean }>`
+      SELECT COALESCE(settings.published, false) AND EXISTS (
+        SELECT 1
+        FROM website_pages AS page
+        WHERE page.org_id = settings.org_id
+          AND page.status = 'published'
+      ) AS published
+      FROM website_settings AS settings
+      WHERE settings.org_id = ${orgId}
+    `.execute(trx);
+    if (publication.rows[0]?.published) done.add('publish_website');
+  } else if (website?.website_url) {
+    // Older schema snapshots have no publication contract yet. Once Phase 14
+    // is installed, the persisted published settings/page state is authoritative.
+    done.add('publish_website');
+  }
   const requirement = await trx
     .selectFrom('role_credential_requirements')
     .select('id')

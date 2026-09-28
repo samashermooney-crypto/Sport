@@ -1,8 +1,9 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { expect, test } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
 import { newId } from '@shared/ids';
+import { sql } from 'kysely';
 import Stripe from 'stripe';
 
 import { createDatabase } from '../server/src/db/kysely';
@@ -81,6 +82,11 @@ function makeZip(entries: { name: string; bytes: Uint8Array }[]): Buffer {
   return Buffer.concat([...local, centralBytes, end]);
 }
 
+function stableDemoId(seed: string): string {
+  const digest = createHash('sha256').update(seed).digest('hex');
+  return `${digest.slice(0, 8)}-${digest.slice(8, 12)}-7${digest.slice(13, 16)}-8${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+}
+
 test('a new organization persists and auto-completes its nine setup items using Stripe mock', async ({
   page,
 }, testInfo) => {
@@ -140,11 +146,30 @@ test('a new organization persists and auto-completes its nine setup items using 
         .where('org_id', '=', actor.orgId)
         .where('id', '=', fixtureProgram.programId)
         .execute();
-      await trx
-        .updateTable('organizations')
-        .set({ website_url: 'https://fixture.example.test' })
-        .where('id', '=', actor.orgId)
-        .execute();
+      const websiteSchema = await sql<{ available: boolean }>`
+        SELECT to_regclass('website_settings') IS NOT NULL
+          AND to_regclass('website_pages') IS NOT NULL AS available
+      `.execute(trx);
+      if (websiteSchema.rows[0]?.available) {
+        const pageId = newId();
+        await sql`
+          INSERT INTO website_pages
+            (id, org_id, slug, title, status, blocks, seo, published_at)
+          VALUES
+            (${pageId}, ${actor.orgId}, 'home', 'Fixture website', 'published', '[]'::jsonb, '{}'::jsonb, now())
+        `.execute(trx);
+        await sql`
+          INSERT INTO website_settings (org_id, published)
+          VALUES (${actor.orgId}, true)
+          ON CONFLICT (org_id) DO UPDATE SET published = true
+        `.execute(trx);
+      } else {
+        await trx
+          .updateTable('organizations')
+          .set({ website_url: 'https://fixture.example.test' })
+          .where('id', '=', actor.orgId)
+          .execute();
+      }
       await trx
         .insertInto('facilities')
         .values({
@@ -254,6 +279,167 @@ test('a new organization persists and auto-completes its nine setup items using 
       page.getByRole('heading', { name: 'AI assistance' }),
     ).toHaveCount(0);
     expect(aiRequests).toBe(0);
+  } finally {
+    await database.destroy();
+  }
+});
+
+test('demo profiles render populated shared and sport-specific console areas', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(180_000);
+  const database = createDatabase(
+    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+  );
+  const profiles = [
+    {
+      seed: 'riverside',
+      route: (orgId: string) => `/console/orgs/${orgId}/volunteers`,
+      heading: 'Volunteers',
+      content: 'Event helper',
+      specialtyTable: 'volunteer_roles',
+    },
+    {
+      seed: 'summit',
+      route: (orgId: string) => `/console/orgs/${orgId}/team-finance`,
+      heading: 'Team finance',
+      content: '14U Peak 1',
+      specialtyTable: 'team_ledgers',
+    },
+    {
+      seed: 'northstar',
+      route: (orgId: string) => `/console/orgs/${orgId}/classes`,
+      heading: 'Classes and students',
+      content: 'Gymnastics Level 1 Class 01',
+      specialtyTable: 'class_offerings',
+    },
+    {
+      seed: 'metro',
+      route: (orgId: string) => `/console/federation/${orgId}`,
+      heading: 'League and association',
+      content: 'Riverbend Soccer Club',
+      specialtyTable: 'team_entries',
+    },
+    {
+      seed: 'lakeside',
+      route: (orgId: string) => `/console/orgs/${orgId}/schedule`,
+      heading: 'Schedule & facilities',
+      content: 'Lakeside Wrestling Duals - Season Welcome',
+      specialtyTable: 'events',
+    },
+    {
+      seed: 'cityside',
+      route: (orgId: string) => `/console/orgs/${orgId}/people`,
+      heading: 'People',
+      content: 'Avery Reyes',
+      specialtyTable: 'people',
+    },
+  ] as const;
+  const withOrg = createWithOrg(database);
+
+  try {
+    for (const profile of profiles) {
+      const orgId = stableDemoId(`demo-org-${profile.seed}`);
+      const accountId = stableDemoId(`demo-admin-${profile.seed}`);
+      const result = await withOrg({ orgId, actor: { accountId } }, (trx) =>
+        sql<{
+          people: number;
+          programs: number;
+          events: number;
+          invoices: number;
+          fundraising: number;
+          sponsors: number;
+          products: number;
+          specialty: number;
+        }>`SELECT
+            (SELECT count(*)::int FROM people WHERE org_id = ${orgId}) AS people,
+            (SELECT count(*)::int FROM programs WHERE org_id = ${orgId}) AS programs,
+            (SELECT count(*)::int FROM events WHERE org_id = ${orgId}) AS events,
+            (SELECT count(*)::int FROM invoices WHERE org_id = ${orgId}) AS invoices,
+            (SELECT count(*)::int FROM fundraising_campaigns WHERE org_id = ${orgId}) AS fundraising,
+            (SELECT count(*)::int FROM sponsors WHERE org_id = ${orgId}) AS sponsors,
+            (SELECT count(*)::int FROM products WHERE org_id = ${orgId}) AS products,
+            (SELECT count(*)::int FROM ${sql.ref(profile.specialtyTable)} WHERE org_id = ${orgId}) AS specialty`.execute(
+          trx,
+        ),
+      );
+      const counts = result.rows[0];
+      if (!counts) throw new Error(`Missing ${profile.seed} demo data`);
+      for (const [area, count] of Object.entries(counts)) {
+        expect(count, `${profile.seed} ${area}`).toBeGreaterThan(0);
+      }
+
+      await signIn(page, testInfo, database, accountId);
+      await page.goto(profile.route(orgId));
+      await expect(
+        page.getByRole('heading', { name: profile.heading, exact: true }),
+      ).toBeVisible();
+      if (profile.seed === 'northstar')
+        await page.getByRole('tab', { name: 'Class offerings' }).click();
+      await expect(
+        page
+          .getByText(profile.content, { exact: false })
+          .filter({ visible: true })
+          .first(),
+      ).toBeVisible();
+    }
+
+    const riversideOrgId = stableDemoId('demo-org-riverside');
+    const commonChecks = [
+      {
+        path: `/console/orgs/${riversideOrgId}/fundraising`,
+        heading: 'Campaigns and donations',
+        content: 'Season equipment and access fund',
+      },
+      {
+        path: `/console/orgs/${riversideOrgId}/sponsors`,
+        heading: 'Sponsors',
+        content: 'Example Community Sports Partner',
+      },
+      {
+        path: `/console/orgs/${riversideOrgId}/store`,
+        heading: 'Store inventory',
+        content: 'Practice shirt',
+      },
+      {
+        path: `/console/orgs/${riversideOrgId}/messages`,
+        heading: 'Messages',
+        content: '2026 season welcome',
+      },
+      {
+        path: `/console/orgs/${riversideOrgId}/onboarding`,
+        heading: 'Organization setup',
+        content: 'Set up your organization',
+      },
+      {
+        path: `/console/safety/${riversideOrgId}/requirements`,
+        heading: 'Credential types and requirements',
+        content: 'Coach safety training',
+      },
+      {
+        path: `/console/orgs/${riversideOrgId}/audit`,
+        heading: 'Audit history',
+        content: 'invoice',
+      },
+    ];
+    await signIn(
+      page,
+      testInfo,
+      database,
+      stableDemoId('demo-admin-riverside'),
+    );
+    for (const check of commonChecks) {
+      await page.goto(check.path);
+      await expect(
+        page.getByRole('heading', { name: check.heading, exact: true }),
+      ).toBeVisible();
+      await expect(
+        page
+          .getByText(check.content, { exact: false })
+          .filter({ visible: true })
+          .first(),
+      ).toBeVisible();
+    }
   } finally {
     await database.destroy();
   }
