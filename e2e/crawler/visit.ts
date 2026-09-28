@@ -162,13 +162,43 @@ export async function collectPaths(
   return [...unique.values()];
 }
 
+/** Return visible same-origin links from route content outside shell navigation. */
+export async function collectContentPaths(
+  page: Page,
+  baseURL: string,
+): Promise<string[]> {
+  const hrefs = await page
+    .locator('a[href]:visible')
+    .evaluateAll((anchors) =>
+      anchors
+        .filter(
+          (anchor) =>
+            !anchor.closest('nav') && !anchor.hasAttribute('download'),
+        )
+        .map((anchor) => anchor.getAttribute('href') ?? ''),
+    );
+  return [
+    ...new Set(
+      hrefs
+        .map((href) => sameOriginPath(href, baseURL))
+        .filter(
+          (path): path is string =>
+            path !== null &&
+            !path.startsWith('/api/') &&
+            !/\.(?:pdf|csv|xlsx?|docx?|zip|png|jpe?g|webp|ics)$/i.test(path),
+        ),
+    ),
+  ];
+}
+
 /** Exercise rendered navigation buttons that are not disclosure triggers. */
 export async function clickNavigationButtons(
   page: Page,
   baseURL: string,
   sourcePath: string,
-): Promise<void> {
+): Promise<string[]> {
   const exercised = new Set<string>();
+  const contentPaths = new Set<string>();
   let discoveredEnabledButton = true;
   while (discoveredEnabledButton) {
     discoveredEnabledButton = false;
@@ -210,9 +240,12 @@ export async function clickNavigationButtons(
             await expect(button).toHaveAttribute('aria-current', 'page');
           return null;
         });
+        for (const path of await collectContentPaths(page, baseURL))
+          contentPaths.add(path);
       }
     }
   }
+  return [...contentPaths];
 }
 
 function isSameOrigin(url: string, baseURL: string): boolean {

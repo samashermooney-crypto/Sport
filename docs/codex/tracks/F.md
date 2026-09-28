@@ -13,3 +13,4 @@ Isolated stack: `COMPOSE_PROJECT_NAME=athlentry_f`, `PORT_OFFSET=600` (PostgreSQ
 ## Requests from QA
 
 - QA-ACC-052 — the current Playwright offer test mocks acceptance and stops at the checkout requirements URL. After E/C's production offer-checkout path is wired, extend the desktop/iPhone 13 journey through test-mode deposit settlement, remainder-plan and persisted roster/registration assertions; see `docs/codex/qa/DEFECTS.md`.
+- QA-ACC-054 — the Phase 6 integration test currently checks only that generated `meanAge` values are positive; add DOBs straddling the target program start date and assert exact whole-year ages/team means so a wall-clock or birthday-boundary regression fails. See `docs/codex/qa/DEFECTS.md` (2026-09-28).

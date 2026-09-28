@@ -18,6 +18,7 @@ import {
 import {
   clickNavigationButtons,
   clickNavigationDestination,
+  collectContentPaths,
   collectPaths,
   visitPath,
 } from './visit';
@@ -73,7 +74,9 @@ async function createOrganizationRoleActor(
 ): Promise<RouteActor> {
   const database = createDatabase(databaseUrl);
   try {
-    const owner = await createTestFactories(database).actor();
+    const factories = createTestFactories(database);
+    const owner = await factories.actor();
+    await factories.program(owner);
     if (role === 'owner') {
       await createWithOrg(database)(owner, (trx) =>
         trx
@@ -232,7 +235,9 @@ async function crawlNavigation(
     if (!globalSearchExercised)
       globalSearchExercised = await exerciseGlobalSearch(page);
     const links = await collectPaths(page, baseURL);
-    await clickNavigationButtons(page, baseURL, path);
+    const contentPaths = new Set(await collectContentPaths(page, baseURL));
+    for (const contentPath of await clickNavigationButtons(page, baseURL, path))
+      contentPaths.add(contentPath);
     for (const link of links) {
       discovered.add(link.path);
       const identity = [
@@ -248,11 +253,16 @@ async function crawlNavigation(
       if (!visited.has(link.path) && !queue.includes(link.path))
         queue.push(link.path);
     }
+    for (const contentPath of contentPaths) {
+      discovered.add(contentPath);
+      if (!visited.has(contentPath) && !queue.includes(contentPath))
+        queue.push(contentPath);
+    }
   }
 
   expect(
     [...discovered].filter((path) => !visited.has(path)),
-    'every route found in a rendered navigation should be visited',
+    'every route found in rendered navigation or page content should be visited',
   ).toEqual([]);
   expect(pageErrors, 'uncaught page errors').toEqual([]);
   expect(

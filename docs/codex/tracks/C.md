@@ -47,10 +47,13 @@ Blocked on: GitHub access is currently unavailable from this environment; local 
 
 ## Requests from QA
 
+- QA-ACC-053 — expose route/role-fixture expectations for registered dynamic routes that remain unreachable after crawler traversal of visible same-origin content links. QA seeds a program for organization-role crawls, but other dynamic detail paths still have no route fixture inventory. See `docs/codex/qa/DEFECTS.md` (2026-09-28).
+
 - QA-ACC-050 — refresh `docs/codex/LAUNCH-GATE.md` from snapshot `da7c13f4` against the latest committed trunk before promotion; Phase 6/12 integration and current CI evidence are missing. Reaudit at the current hash; details in `docs/codex/qa/DEFECTS.md`.
 - QA-ACC-052 (coordinate E/F) — wire F's production `OfferCheckoutAdapter` through the generated module registry to E's registration checkout, then extend the mocked offer journey through a test-mode deposit and persisted roster/registration assertions. Details in `docs/codex/qa/DEFECTS.md`.
 
 - QA-SEC-001 — complete generated permission/resource/scope metadata plus tenancy-fixture coverage for every API operation and populate every `server/test/security/permission-matrix.json` operation row. The active route-authorization, permission-matrix, and tenancy-fuzz assertions currently fail on missing metadata/matrix rows; see `docs/codex/qa/DEFECTS.md` (2026-09-27).
+- QA-SEC-016 — make the tenancy fuzz test prove isolation instead of a missing-resource response: provide valid synthetic resource path IDs and mutation bodies, assert same-tenant access first, then change only the organization ID and require 404; enumerate every applicable ID-bearing operation (including scoped create/update routes). `operationPath()` currently generates random UUIDs for every non-tenant ID, so a route returning 404 for nonexistent resources can pass vacuously. See `docs/codex/qa/DEFECTS.md` (2026-09-27).
 - QA-SEC-002 — align the active security-header browser assertions with the mounted app middleware; `e2e/security/security-headers.spec.ts` now executes its assertions and reports the header mismatch. See `docs/codex/qa/DEFECTS.md` (2026-09-27).
 - QA-SEC-003 — add Gitleaks secret scanning to CI; no Gitleaks step is present in `.github/workflows/ci.yml` or `.github/`, and this track's wiring queue still lists it as unfinished. See `docs/codex/qa/DEFECTS.md` (2026-09-27).
 - QA-ACC-033 — include the Federation destination in permission-gated console navigation; its nested route is registered, but the declared nav item is absent from the generated feature registry and Console Home, so the QA journey can reach it only by direct URL. The active browser assertion is in `e2e/federation.spec.ts`; see `docs/codex/qa/DEFECTS.md` (2026-09-27).

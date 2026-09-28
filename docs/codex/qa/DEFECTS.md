@@ -262,6 +262,16 @@
 - **Request:** scope the admin URL to pre-deploy only and verify the web service starts without it.
 - **Status:** open least-privilege deployment gap.
 
+### QA-OPS-005 — Restore-drill cleanup stops when scratch database removal fails
+
+- **Owner:** Track OPS
+- **Phase:** 16 §4.2 restore verification
+- **Evidence:** in `scripts/restore-drill.ts`, the `finally` block awaits `DROP DATABASE` before `adminClient.end()` and `rm(tempDirectory)`. If the drop query rejects, control leaves the cleanup block before the maintenance connection and encrypted temp backup are cleaned up.
+- **Reproduce:** inject a failure for the scratch `DROP DATABASE` query after backup creation and restore; observe that the temp directory removal and explicit maintenance-client close are not reached.
+- **Expected:** every cleanup action is attempted independently on success and failure paths. A failed scratch drop remains visible to the operator, while the temp backup is removed and the maintenance connection is closed; any remaining scratch database is identified for retry/cleanup.
+- **Request:** structure cleanup with nested `try/finally` (or an equivalent all-actions cleanup helper), preserve the primary/cleanup errors, and add a failure-injection test that asserts temp-file removal and connection closure still run when the scratch drop fails.
+- **Status:** high-confidence static reliability finding; failure-path behavior not executed on QA's isolated Postgres stack.
+
 ### QA-SEC-001 — Route permission and tenancy checks are not executable
 
 - **Owner:** Track C
@@ -542,3 +552,33 @@
 - **Expected:** reject a supplied household unless an active `household_members` row links that household and person in the same organization; return 404 without creating a booking or invoice.
 - **Request:** validate the active household/person pair in the shared route helper and in the service transaction paths for drop-ins and punch-card purchases, then keep the active regression in `e2e/security/class-booking-guardian-idor.spec.ts` green.
 - **Status:** high-confidence static privacy and financial-attribution defect; active synthetic API regression added, runtime execution blocked by QA's port collision.
+
+### QA-SEC-016 — Tenancy fuzz accepts vacuous 404s for random resource IDs
+
+- **Owner:** Track C
+- **Phase:** 16 §1.2
+- **Evidence:** `e2e/security/tenancy-fuzz.spec.ts` replaces `{orgId}` with a foreign organization, but `operationPath()` replaces every other `*Id` path parameter with a fresh random UUID. The test asserts only that the foreign request returns 404 and never proves the same route/resource succeeds for its owning organization.
+- **Reproduce:** on a metadata-backed route such as `/api/v1/orgs/{orgId}/people/{personId}`, observe that the generated `personId` does not refer to a fixture row. A route returning 404 for every missing person passes the foreign-tenant assertion without exercising tenant isolation.
+- **Expected:** every ID-bearing tenant route has fixture metadata or a deterministic seeding helper for its referenced resource IDs and valid mutation payloads. The same-tenant control must reach the expected authorized outcome before the test changes only the tenant path ID and requires 404. Cover tenant-scoped create/update methods as well as reads and deletes.
+- **Request:** supply real synthetic path resource IDs and run a same-tenant control for each descriptor, then issue the foreign-tenant request with the identical resource ID/body and assert 404. Extend enumeration to every applicable ID-bearing HTTP operation; do not count a missing-resource 404 as isolation evidence.
+- **Status:** open test-quality gap; the current metadata and Postgres fixture blockers also prevent runtime verification.
+
+### QA-ACC-053 — Route crawler omits registered detail routes outside navigation
+
+- **Owner:** Track C (generated route inventory; coordinate QA crawler fixtures)
+- **Phase:** 16 §3, launch-gate item 10
+- **Evidence:** `e2e/crawler/routes.spec.ts` previously followed only rendered `<nav>` destinations. The crawler now also queues visible same-origin content links and organization-role fixtures seed a program, so the program detail link is reachable; it still does not enumerate `webFeatures` / `webNestedRoutes`. Registered routes without a visible link in the current synthetic role data (including some person, household, message, event and invoice details) remain outside the route queue.
+- **Reproduce:** compare the path patterns in `web/src/generated/nested-routes.ts` with routes discovered by `crawlNavigation`; the route registry includes dynamic detail paths whose resources are not created by current fixtures or linked from the rendered surfaces.
+- **Expected:** launch-gate item 10's route coverage includes registered routes, with valid synthetic resources and authorized role contexts for dynamic IDs; visible content links are traversed in addition to shell navigation.
+- **Request:** expose a lightweight route inventory with role/fixture expectations for routes that remain unreachable from visible same-origin content links, and coordinate valid fixture seeding for their dynamic IDs. QA's crawler now traverses reachable page-content links.
+- **Status:** open route-crawler completeness gap; runtime verification remains blocked by the occupied QA database/browser ports.
+
+### QA-ACC-054 — Phase 6 integration test does not verify age at program start
+
+- **Owner:** Track F
+- **Phase:** 6 Rec team balancing
+- **Evidence:** `server/src/modules/evaluations/service.ts` calculates age from `target.starts_on`, but `phase6.integration.test.ts` only asserts each generated `meanAge` is a positive number. It would not catch using the current date or an off-by-one birthday calculation instead of the program start date.
+- **Reproduce:** review the new age assertion around `phase6.integration.test.ts:1511`; the people fixtures do not assert their expected whole-year age or resulting exact team mean.
+- **Expected:** the database path supplies each player's whole-year age on the target program start date, including a birth date whose birthday falls just after that date; team metrics reflect those exact values.
+- **Request:** use deterministic DOB/program-start fixtures that distinguish target-date age from wall-clock age and assert expected ages or team means at the service boundary.
+- **Status:** test-quality gap; static SQL review confirms the current implementation uses `target.starts_on`, and QA's real-Postgres stack remains unavailable for runtime verification.
