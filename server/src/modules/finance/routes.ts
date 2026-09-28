@@ -144,6 +144,7 @@ import { PostgresRefundRecordStore } from './refund-record-repo.js';
 import { PostgresRefundSourceReader } from './refund-source-repo.js';
 import { refundTermsSchema } from './refund-terms.js';
 import {
+  exactLineRefundProposal,
   refundProposal,
   RefundConflictError,
   StripeRefundService,
@@ -367,6 +368,12 @@ export const refundBodySchema = z.discriminatedUnion('destination', [
     destination: z.literal('original_method'),
     paymentId: z.uuid(),
     cancellationDate: z.iso.date(),
+    exactLine: z
+      .strictObject({
+        invoiceLineId: z.uuid(),
+        amountCents: z.number().int().positive(),
+      })
+      .optional(),
   }),
   z.strictObject({
     destination: z.literal('credit'),
@@ -610,8 +617,8 @@ export function createFinanceRouter(
     return {
       repository,
       service: new ConnectOnboardingService(repository, gatewayFactory(), {
-        returnUrl: (id) => `${base}/orgs/${id}/money/connect/return`,
-        refreshUrl: (id) => `${base}/orgs/${id}/money/connect/refresh`,
+        returnUrl: (id) => `${base}/console/orgs/${id}/money/connect/return`,
+        refreshUrl: (id) => `${base}/console/orgs/${id}/money/connect/refresh`,
       }),
     };
   };
@@ -1543,6 +1550,28 @@ export function createFinanceRouter(
         const input = checkoutPaymentBodySchema.parse(request.body as unknown);
         const idempotencyKey = z.uuid().parse(request.get('Idempotency-Key'));
         const context = { orgId, actor: { accountId: session.accountId } };
+        const payerCheckout = await createWithOrg(dependencies.database)(
+          context,
+          (trx) =>
+            trx
+              .selectFrom('checkouts')
+              .select('id')
+              .where('org_id', '=', orgId)
+              .where('id', '=', input.checkoutId)
+              .where('account_id', '=', session.accountId)
+              .where('status', '=', 'awaiting_payment')
+              .executeTakeFirst(),
+        );
+        if (!payerCheckout) throw new FinanceAccessError();
+        const payerAccount = await dependencies.database
+          .selectFrom('accounts')
+          .select('email')
+          .where('id', '=', session.accountId)
+          .executeTakeFirstOrThrow();
+        await payerMethods().ensureCustomer(
+          session.accountId,
+          payerAccount.email,
+        );
         const result = await new CheckoutPaymentService(
           new PostgresFrozenChargeReader(dependencies.database, context),
           new PostgresPaymentAttemptStore(dependencies.database, context),
@@ -2017,7 +2046,12 @@ export function createFinanceRouter(
         gatewayFactory(),
         new PostgresRefundRecordStore(dependencies.database, context),
       );
-      const result = await service.refund(common);
+      const result = input.exactLine
+        ? await service.refundExactLine({
+            ...common,
+            ...input.exactLine,
+          })
+        : await service.refund(common);
       response.status(201).json(
         refundResponseSchema.parse({
           destination: 'original_method',
@@ -2048,7 +2082,14 @@ export function createFinanceRouter(
         context,
       ).load(orgId, input.paymentId);
       if (!source) throw new RefundConflictError('Payment not found');
-      const proposal = refundProposal(source, input.cancellationDate);
+      const proposal =
+        input.destination === 'original_method' && input.exactLine
+          ? exactLineRefundProposal(
+              source,
+              input.exactLine.invoiceLineId,
+              input.exactLine.amountCents,
+            )
+          : refundProposal(source, input.cancellationDate);
       if (proposal.totalCents <= source.approvalThresholdCents)
         throw new RefundConflictError(
           'Refund does not require second approval',

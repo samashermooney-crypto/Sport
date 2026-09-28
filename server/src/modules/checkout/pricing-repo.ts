@@ -27,6 +27,7 @@ export interface CheckoutPricingSourceLoader {
       checkoutId: string;
       accountId: string;
       items: Json;
+      requirements?: Json;
     },
   ): Promise<{
     pricing: PricingInput;
@@ -131,6 +132,7 @@ export class PostgresCheckoutPricingRepository implements CheckoutPricingReposit
           'pricing_snapshot',
           'idempotency_key',
           'version',
+          'requirements',
         ])
         .where('org_id', '=', input.orgId)
         .where('id', '=', input.checkoutId)
@@ -181,6 +183,7 @@ export class PostgresCheckoutPricingRepository implements CheckoutPricingReposit
         checkoutId: input.checkoutId,
         accountId: checkout.account_id,
         items: checkout.items,
+        requirements: checkout.requirements,
       });
       const terms = frozenPaymentTermsSchema.parse(source.paymentTerms);
       const snapshot = canonicalSnapshot(input.calculate(source.pricing));
