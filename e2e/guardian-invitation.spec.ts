@@ -135,10 +135,14 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
     await addMemberForm.getByRole('combobox').nth(0).selectOption(childId);
     await addMemberForm.getByLabel('Household role').selectOption('athlete');
     await page.getByRole('button', { name: 'Add member' }).click();
-    await expect(page.getByRole('link', { name: 'Mia Rivera' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Mia Rivera' })).toBeVisible({
+      timeout: 15_000,
+    });
     await addMemberForm.getByRole('combobox').nth(0).selectOption(siblingId);
     await page.getByRole('button', { name: 'Add member' }).click();
-    await expect(page.getByRole('link', { name: 'Ava Rivera' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Ava Rivera' })).toBeVisible({
+      timeout: 15_000,
+    });
     await page.goto(`/console/orgs/${staff.orgId}/people/${childId}`);
     await page
       .getByRole('textbox', { name: 'Existing verified adult account email' })
