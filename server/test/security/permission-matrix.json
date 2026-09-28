@@ -10960,6 +10960,32 @@
         "platform_finance_ops"
       ]
     },
+    "get_api_v1_finance_orgs_orgId_refund_approvals": {
+      "permission": "finance.manage",
+      "scope": "organization",
+      "allow": ["owner", "admin", "finance", "treasurer"],
+      "deny": [
+        "anonymous",
+        "registrar",
+        "scheduler",
+        "compliance",
+        "communications",
+        "director",
+        "evaluator",
+        "volunteer_coordinator",
+        "reporter",
+        "guardian",
+        "self",
+        "head_coach",
+        "assistant_coach",
+        "team_manager",
+        "official",
+        "volunteer",
+        "platform_super_admin",
+        "platform_support",
+        "platform_finance_ops"
+      ]
+    },
     "post_api_v1_finance_orgs_orgId_refund_approvals": {
       "permission": "finance.manage",
       "scope": "organization",

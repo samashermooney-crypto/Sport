@@ -39606,6 +39606,10 @@
                   "properties": {
                     "id": { "type": "string", "pattern": "^pi_.*" },
                     "clientSecret": { "type": "string", "minLength": 1 },
+                    "customerSessionClientSecret": {
+                      "type": "string",
+                      "minLength": 1
+                    },
                     "status": { "type": "string", "minLength": 1 },
                     "quote": {
                       "type": "object",
@@ -39646,7 +39650,13 @@
                       "additionalProperties": false
                     }
                   },
-                  "required": ["id", "clientSecret", "status", "quote"],
+                  "required": [
+                    "id",
+                    "clientSecret",
+                    "customerSessionClientSecret",
+                    "status",
+                    "quote"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -40397,6 +40407,9 @@
       "get": {
         "operationId": "get_api_v1_finance_orgs_orgId_refund_approvals",
         "summary": "List pending finance refund approvals with frozen proposals",
+        "x-athlentry-permission": "finance.manage",
+        "x-athlentry-resource": "finance.refund-approvals",
+        "x-athlentry-scope": "organization",
         "tags": ["finance"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
@@ -40589,6 +40602,7 @@
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         },
+        "x-athlentry-tenancy-fixture": { "body": {} },
         "parameters": [
           {
             "name": "orgId",

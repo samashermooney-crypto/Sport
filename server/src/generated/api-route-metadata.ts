@@ -3512,6 +3512,15 @@ export const apiRouteMetadata = [
     scope: 'organization',
   },
   {
+    operationId: 'get_api_v1_finance_orgs_orgId_refund_approvals',
+    method: 'get',
+    path: '/api/v1/finance/orgs/{orgId}/refund-approvals',
+    permission: 'finance.manage',
+    resource: 'finance.refund-approvals',
+    scope: 'organization',
+    tenancyFixture: { body: {} },
+  },
+  {
     operationId: 'post_api_v1_finance_orgs_orgId_refund_approvals',
     method: 'post',
     path: '/api/v1/finance/orgs/{orgId}/refund-approvals',
