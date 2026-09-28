@@ -4,7 +4,7 @@ Implementation commits: `10dde5b`, `e26dee4`, `074b533`, `535746f`, `2bc22b6`, a
 
 Local integration range: `rebuild/trunk..track/g-schedule` (not pushed).
 
-Status: working; local Phase 8/9 gates pass through `bd70207e`; trunk has advanced to `d52e4c83`, and cross-track acceptance contracts remain open.
+Status: ready-for-integration; G-owned implementation and local Phase 8/9 gates pass through `d52e4c83`. Cross-track acceptance blockers are listed below; trunk advanced to `91614aaa` during this run.
 
 ## Owned work and progress
 
@@ -91,7 +91,8 @@ Status: working; local Phase 8/9 gates pass through `bd70207e`; trunk has advanc
 - [x] The officials assignment/response service regression now runs independent operations concurrently; three focused default-timeout runs and the latest six-module G backend suite pass.
 - [x] Twelve G-owned schedule journeys cover recurrence-series edits, schedule tools/manual changes/CSV/reschedules, public facility pages, statistics/results/24-game facility closure with volunteer notification, generator apply/discard and explanations, coach allocation requests, family RSVP, offline game-day sync, officials assignment/pay, swim meets, tournaments, and season end; Chromium desktop and WebKit mobile with axe pass 24/24. The console and portal routes mount via the generated nested-route registry.
 - [x] After syncing through `bd70207e`, typecheck, full lint, production build, registry/OpenAPI generation, full database-backed Vitest (278 files / 991 tests, 1 skipped), full Chromium desktop e2e (53 passed, 6 existing skips), 48-team generator performance (500 ms), and all 12 G journeys on Chromium + WebKit mobile with axe (24/24) pass.
-- [ ] Phase 8/9 signoff on trunk remains blocked on emergency-notice email fan-out, discipline result/game-served integration, and Track C's public facility image route integration. The local branch gates pass through `bd70207e`; sync the newer `d52e4c83` trunk head and land G's changes before final signoff.
+- [x] After syncing through `d52e4c83`, typecheck, full lint, and production build pass; the full database-backed suite passes 278 files / 1,001 tests (1 skipped), full Chromium desktop e2e passes 57 tests (3 existing skips), and all 12 G schedule journeys pass Chromium + WebKit mobile with axe (24/24). Registry and OpenAPI regenerate cleanly.
+- [ ] Phase 8/9 signoff on trunk remains blocked on emergency-notice email fan-out, discipline result/game-served integration, and Track C's public facility image route integration. Local G gates pass through `d52e4c83`; sync the newer `91614aaa` trunk head and land G's changes before final signoff.
 
 ## Cross-track requests and blockers
 
@@ -115,7 +116,7 @@ Status: working; local Phase 8/9 gates pass through `bd70207e`; trunk has advanc
 ## Decisions and review
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
-- G decisions are `DEC-082–096`, `DEC-100–108`, and `DEC-116–117` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
+- G decisions are `DEC-082–096`, `DEC-100–108`, and `DEC-122–123` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
 - Latest G sync: merge commit `03745adf` syncs local `rebuild/trunk` through `5651da37`; migrations, DB types, registries, and OpenAPI were regenerated at the prior sync through `84c85f8`. Typecheck, lint, build, focused G coverage, and the 24 schedule journeys pass on this base. Full Vitest has the unrelated Track E UUID failure recorded above. G commits remain local and are not pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.
 

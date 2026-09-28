@@ -12,7 +12,7 @@ Blocked on: none
 
 ## Requests from SEC
 
-- SEC-005: rotate and revoke the current cookie session after successful `/api/v1/auth/step-up`; Phase 16 §1 requires session rotation after step-up, while the route currently updates `elevated_until` in place and returns no replacement cookie. Regression assertion is `test.fixme` in `e2e/security/session-step-up-fixation.spec.ts` (2026-09-27).
+- SEC-005: implemented transactional step-up rotation in the auth session service. Password/TOTP verification issues and elevates a new session while revoking the old one; cookie clients receive a replacement cookie and bearer clients receive a no-store replacement token. MFA enrollment confirmation and step-up also consume the shared MFA rate limit. Auth security/routes tests and the SEC-005 Chromium journey pass (2026-09-27).
 - SEC-KNIP-A: triage the Knip findings in A-owned shared schemas: `importRowPreviewSchema` and types `ImportRowPreview`, `ImportBatchList`, `ImportMappingPreset` in `shared/src/schemas/imports.ts`; `duplicatePersonSchema`, `duplicatePairSchema`, and `personMergeSummarySchema` in `shared/src/schemas/people.ts` (2026-09-27).
 Self-review: Server app, worker and configuration consume the generated module/integration registry; web routing consumes generated feature routes.
 Self-review: Existing auth routes keep `/api/v1/auth`; full browser sign-up, Mailpit verification, MFA and device journey passes on Chromium and WebKit.
