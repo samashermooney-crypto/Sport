@@ -94,11 +94,11 @@ export class RegistrationCheckoutError extends Error {
   }
 }
 
-function rules(
-  value: Json,
+export function registrationEligibilityRules(
+  value: unknown,
   ageGroup: z.output<typeof ageGroupSchema>,
 ): EligibilityRules {
-  const parsed = eligibilitySchema.parse(value);
+  const parsed = eligibilitySchema.parse(value ?? {});
   const defined = Object.fromEntries(
     Object.entries(parsed).filter(([, item]) => item !== undefined),
   ) as Omit<EligibilityRules, 'ageGroup'>;
@@ -229,11 +229,17 @@ export class PostgresRegistrationCheckoutStart {
           };
           const results = [
             checkEligibility(
-              rules(candidate.program_eligibility, ageGroup),
+              registrationEligibilityRules(
+                candidate.program_eligibility,
+                ageGroup,
+              ),
               facts,
             ),
             checkEligibility(
-              rules(candidate.division_eligibility ?? {}, ageGroup),
+              registrationEligibilityRules(
+                candidate.division_eligibility,
+                ageGroup,
+              ),
               facts,
             ),
           ];

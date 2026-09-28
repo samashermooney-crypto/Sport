@@ -352,9 +352,62 @@ describe('registration checkout start', () => {
     });
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
-      items: { offeringId: string; status: string }[];
+      items: {
+        offeringId: string;
+        status: string;
+        eligibleParticipants: {
+          personId: string;
+          householdId: string;
+          eligible: boolean;
+          alreadyRegistered: boolean;
+          age: number | null;
+          grade: number | null;
+          ageGroupLabel: string | null;
+          reasons: { code: string; message: string }[];
+        }[];
+      }[];
     };
     expect(body.items).toMatchObject([{ offeringId, status: 'open' }]);
+    expect(body.items[0]?.eligibleParticipants).toEqual([
+      {
+        personId,
+        householdId,
+        eligible: true,
+        alreadyRegistered: false,
+        age: 14,
+        grade: null,
+        ageGroupLabel: '14',
+        reasons: [],
+      },
+    ]);
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('programs')
+        .set({ eligibility: { minAge: 8, maxAge: 10 } })
+        .where('org_id', '=', orgId)
+        .where('id', '=', programId)
+        .execute(),
+    );
+    const ageFiltered = await fetch(path, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    const filteredBody = (await ageFiltered.json()) as typeof body;
+    expect(filteredBody.items[0]?.eligibleParticipants).toMatchObject([
+      {
+        personId,
+        eligible: false,
+        age: 14,
+        reasons: [{ code: 'AGE_ABOVE_MAX' }],
+      },
+    ]);
+    await createWithOrg(database)(context, (trx) =>
+      trx
+        .updateTable('programs')
+        .set({ eligibility: { minAge: 8, maxAge: 16 } })
+        .where('org_id', '=', orgId)
+        .where('id', '=', programId)
+        .execute(),
+    );
     const family = await fetch(`${baseUrl}/orgs/${orgId}/participants`, {
       headers: { Cookie: `__Host-athlentry_session=${token}` },
     });
@@ -1020,7 +1073,10 @@ describe('registration checkout start', () => {
     await createWithOrg(database)(context, async (trx) => {
       await trx
         .updateTable('programs')
-        .set({ settings: { waitlistMode: 'manual' } })
+        .set({
+          settings: { waitlistMode: 'manual' },
+          eligibility: { maxAge: 10 },
+        })
         .where('org_id', '=', orgId)
         .where('id', '=', secondProgramId)
         .execute();
@@ -1038,20 +1094,35 @@ describe('registration checkout start', () => {
         .where('subject_id', '=', secondOfferingId)
         .execute();
     });
-    const joinResponse = await fetch(`${baseUrl}/orgs/${orgId}/me/waitlist`, {
-      method: 'POST',
-      headers: {
-        Cookie: `__Host-athlentry_session=${token}`,
-        Origin: 'http://127.0.0.1:5173',
-        'X-Athlentry-Request': '1',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        offeringId: secondOfferingId,
-        personId,
-        householdId,
-      }),
+    const waitlistJoinRequest = () =>
+      fetch(`${baseUrl}/orgs/${orgId}/me/waitlist`, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${token}`,
+          Origin: 'http://127.0.0.1:5173',
+          'X-Athlentry-Request': '1',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          offeringId: secondOfferingId,
+          personId,
+          householdId,
+        }),
+      });
+    const ineligibleJoinResponse = await waitlistJoinRequest();
+    expect(ineligibleJoinResponse.status).toBe(409);
+    expect(await ineligibleJoinResponse.json()).toMatchObject({
+      error: { code: 'INELIGIBLE' },
     });
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .updateTable('programs')
+        .set({ eligibility: { minAge: 8, maxAge: 16 } })
+        .where('org_id', '=', orgId)
+        .where('id', '=', secondProgramId)
+        .execute();
+    });
+    const joinResponse = await waitlistJoinRequest();
     expect(joinResponse.status).toBe(201);
     const waitlist = waitlistEntrySchema.parse(await joinResponse.json());
     expect(
