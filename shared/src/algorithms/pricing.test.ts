@@ -65,6 +65,383 @@ describe('pricing pipeline', () => {
     );
   });
 
+  it('applies sibling rules independently by household and offering scope', () => {
+    const snapshot = calculatePricing({
+      ...base,
+      participants: [
+        {
+          id: 'h1-first',
+          participantId: 'child-a',
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          offeringId: 'offering-a',
+          priceCents: 10_000,
+        },
+        {
+          id: 'h1-second',
+          participantId: 'child-b',
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          offeringId: 'offering-a',
+          priceCents: 8000,
+        },
+        {
+          id: 'h2-first',
+          participantId: 'child-c',
+          householdId: 'house-b',
+          seasonId: 'season-a',
+          offeringId: 'offering-b',
+          priceCents: 12_000,
+        },
+        {
+          id: 'h2-second',
+          participantId: 'child-d',
+          householdId: 'house-b',
+          seasonId: 'season-a',
+          offeringId: 'offering-b',
+          priceCents: 7000,
+        },
+      ],
+      addOns: [],
+      siblingRule: undefined,
+      siblingRules: [
+        {
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          secondBps: 1000,
+          thirdPlusBps: 2000,
+        },
+        {
+          householdId: 'house-b',
+          seasonId: 'season-a',
+          secondBps: 2000,
+          thirdPlusBps: 3000,
+        },
+      ],
+    });
+    expect(
+      snapshot.lines
+        .filter((line) => line.sourceId === 'sibling')
+        .map((line) => [line.parentLineId, line.amountCents]),
+    ).toEqual([
+      ['h1-second', -800],
+      ['h2-second', -1400],
+    ]);
+
+    const scoped = calculatePricing({
+      ...base,
+      participants: [
+        {
+          id: 'eligible-child',
+          participantId: 'child-a',
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          offeringId: 'offering-a',
+          priceCents: 10_000,
+        },
+        {
+          id: 'out-of-scope-child',
+          participantId: 'child-b',
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          offeringId: 'offering-b',
+          priceCents: 8000,
+        },
+      ],
+      addOns: [],
+      siblingRule: undefined,
+      siblingRules: [
+        {
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          secondBps: 1000,
+          thirdPlusBps: 2000,
+          eligibleOfferingIds: ['offering-a'],
+        },
+      ],
+      existingConfirmed: [
+        {
+          id: 'prior-child',
+          participantId: 'older-child',
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          offeringId: 'offering-a',
+          basePriceCents: 12_000,
+        },
+      ],
+    });
+    expect(
+      scoped.lines.filter((line) => line.sourceId === 'sibling'),
+    ).toMatchObject([{ parentLineId: 'eligible-child', amountCents: -1000 }]);
+    expect(
+      scoped.lines.some(
+        (line) => line.parentLineId === 'out-of-scope-child',
+      ),
+    ).toBe(false);
+
+    const byOffering = calculatePricing({
+      ...base,
+      participants: [
+        {
+          id: 'a-first',
+          participantId: 'child-a',
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          offeringId: 'offering-a',
+          priceCents: 10_000,
+        },
+        {
+          id: 'a-second',
+          participantId: 'child-b',
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          offeringId: 'offering-a',
+          priceCents: 8000,
+        },
+        {
+          id: 'b-first',
+          participantId: 'child-c',
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          offeringId: 'offering-b',
+          priceCents: 12_000,
+        },
+        {
+          id: 'b-second',
+          participantId: 'child-d',
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          offeringId: 'offering-b',
+          priceCents: 7000,
+        },
+      ],
+      addOns: [],
+      siblingRule: undefined,
+      siblingRules: [
+        {
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          secondBps: 1000,
+          thirdPlusBps: 2000,
+          eligibleOfferingIds: ['offering-a'],
+        },
+        {
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          secondBps: 2000,
+          thirdPlusBps: 3000,
+          eligibleOfferingIds: ['offering-b'],
+        },
+      ],
+    });
+    expect(
+      byOffering.lines
+        .filter((line) => line.sourceId === 'sibling')
+        .map((line) => [line.parentLineId, line.amountCents]),
+    ).toEqual([
+      ['a-second', -800],
+      ['b-second', -1400],
+    ]);
+  });
+
+  it('isolates aid by household and caps awards to remaining cents', () => {
+    const snapshot = calculatePricing({
+      ...base,
+      participants: [
+        {
+          id: 'a1',
+          participantId: 'child-a',
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          offeringId: 'offering-a',
+          priceCents: 10_000,
+        },
+        {
+          id: 'b1',
+          participantId: 'child-b',
+          householdId: 'house-b',
+          seasonId: 'season-a',
+          offeringId: 'offering-b',
+          priceCents: 10_000,
+        },
+        {
+          id: 'a2',
+          participantId: 'child-c',
+          householdId: 'house-a',
+          seasonId: 'season-a',
+          offeringId: 'offering-a',
+          priceCents: 10_000,
+        },
+      ],
+      addOns: [],
+      siblingRule: undefined,
+      aid: [
+        {
+          id: 'house-a-percent',
+          kind: 'percent',
+          value: 5000,
+          householdId: 'house-a',
+          remainingCents: 7000,
+        },
+        {
+          id: 'house-b-fixed',
+          kind: 'fixed',
+          value: 8000,
+          householdId: 'house-b',
+          remainingCents: 2000,
+        },
+      ],
+    });
+    const aidBySource = new Map<string, number>();
+    for (const line of snapshot.lines.filter((item) => item.kind === 'aid'))
+      aidBySource.set(
+        line.sourceId ?? '',
+        (aidBySource.get(line.sourceId ?? '') ?? 0) - line.amountCents,
+      );
+    expect(aidBySource).toEqual(
+      new Map([
+        ['house-a-percent', 7000],
+        ['house-b-fixed', 2000],
+      ]),
+    );
+    expect(snapshot.aidCents).toBe(9000);
+    expect(
+      snapshot.lines
+        .filter((line) => line.sourceId === 'house-a-percent')
+        .map((line) => [line.parentLineId, line.amountCents]),
+    ).toEqual([
+      ['a1', -3500],
+      ['a2', -3500],
+    ]);
+    expect(
+      snapshot.lines.find((line) => line.sourceId === 'house-b-fixed'),
+    ).toMatchObject({ parentLineId: 'b1', amountCents: -2000 });
+    expect(() =>
+      calculatePricing({
+        ...base,
+        participants: [
+          {
+            id: 'a',
+            participantId: 'child-a',
+            householdId: 'house-a',
+            seasonId: 'season-a',
+            offeringId: 'offering-a',
+            priceCents: 10_000,
+          },
+          {
+            id: 'b',
+            participantId: 'child-b',
+            householdId: 'house-b',
+            seasonId: 'season-a',
+            offeringId: 'offering-b',
+            priceCents: 10_000,
+          },
+        ],
+        addOns: [],
+        siblingRule: undefined,
+        aid: [{ id: 'unscoped', kind: 'fixed', value: 5000 }],
+      }),
+    ).toThrow('Household-scoped aid awards');
+  });
+
+  it('rejects unscoped or malformed household pricing inputs', () => {
+    const participants = [
+      {
+        id: 'a',
+        participantId: 'child-a',
+        householdId: 'house-a',
+        seasonId: 'season-a',
+        offeringId: 'offering-a',
+        priceCents: 10_000,
+      },
+      {
+        id: 'b',
+        participantId: 'child-b',
+        householdId: 'house-b',
+        seasonId: 'season-a',
+        offeringId: 'offering-b',
+        priceCents: 10_000,
+      },
+    ];
+    const firstParticipant = participants[0];
+    if (!firstParticipant) throw new Error('First participant is missing');
+    const input = { ...base, participants, addOns: [], siblingRule: undefined };
+    const rule = {
+      householdId: 'house-a',
+      seasonId: 'season-a',
+      secondBps: 1000,
+      thirdPlusBps: 2000,
+    };
+    expect(() =>
+      calculatePricing({ ...input, siblingRule: base.siblingRule }),
+    ).toThrow('Household-scoped sibling rules are required');
+    expect(() =>
+      calculatePricing({
+        ...input,
+        siblingRules: [rule, rule],
+      }),
+    ).toThrow('Overlapping household sibling rule scope');
+    expect(() =>
+      calculatePricing({
+        ...input,
+        participants: [
+          firstParticipant,
+          {
+            id: 'b',
+            participantId: 'child-b',
+            seasonId: 'season-a',
+            offeringId: 'offering-b',
+            priceCents: 10_000,
+          },
+        ],
+        siblingRules: [rule],
+      }),
+    ).toThrow('Household identity is required');
+    expect(() =>
+      calculatePricing({
+        ...base,
+        aid: [
+          {
+            id: 'wrong-household',
+            kind: 'fixed',
+            value: 100,
+            householdId: 'not-in-cart',
+            remainingCents: 100,
+          },
+        ],
+      }),
+    ).toThrow('Aid household is not represented');
+    expect(() =>
+      calculatePricing({
+        ...base,
+        participants: [firstParticipant],
+        addOns: [],
+        siblingRule: undefined,
+        aid: [
+          {
+            id: 'uncapped-household-award',
+            kind: 'fixed',
+            value: 100,
+            householdId: 'house-a',
+          },
+        ],
+      }),
+    ).toThrow('Household-scoped aid requires a remaining-cent cap');
+    expect(() =>
+      calculatePricing({
+        ...base,
+        aid: [
+          {
+            id: 'negative-cap',
+            kind: 'fixed',
+            value: 100,
+            remainingCents: -1,
+          },
+        ],
+      }),
+    ).toThrow('remaining aid must be non-negative integer cents');
+  });
+
   it('applies one largest nonstackable automatic rule per line', () => {
     const snapshot = calculatePricing({
       ...base,
