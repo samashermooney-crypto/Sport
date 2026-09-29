@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { inflateRawSync } from 'node:zlib';
 
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -33,6 +34,45 @@ const encryption = parseEncryptionKeys(
 );
 let database: ReturnType<typeof createDatabase>;
 let withOrg: ReturnType<typeof createWithOrg>;
+
+function unzipTextEntries(archive: Uint8Array): Map<string, string> {
+  const view = new DataView(
+    archive.buffer,
+    archive.byteOffset,
+    archive.byteLength,
+  );
+  const decoder = new TextDecoder();
+  const entries = new Map<string, string>();
+  let offset = 0;
+  while (
+    offset + 30 <= archive.length &&
+    view.getUint32(offset, true) === 0x04034b50
+  ) {
+    const method = view.getUint16(offset + 8, true);
+    const compressedSize = view.getUint32(offset + 18, true);
+    const nameLength = view.getUint16(offset + 26, true);
+    const extraLength = view.getUint16(offset + 28, true);
+    const nameStart = offset + 30;
+    const dataStart = nameStart + nameLength + extraLength;
+    const name = decoder.decode(
+      archive.subarray(nameStart, nameStart + nameLength),
+    );
+    const compressed = archive.subarray(dataStart, dataStart + compressedSize);
+    const contents =
+      method === 8
+        ? inflateRawSync(compressed)
+        : method === 0
+          ? Buffer.from(compressed)
+          : (() => {
+              throw new Error(
+                `Unsupported ZIP compression method ${String(method)}`,
+              );
+            })();
+    entries.set(name, contents.toString('utf8'));
+    offset = dataStart + compressedSize;
+  }
+  return entries;
+}
 
 const context = (accountId: string): OrgContext => ({
   orgId,
@@ -169,6 +209,17 @@ describe('organization data export', () => {
       now,
     );
     expect(archive.byteLength).toBeGreaterThan(100);
+    const entries = unzipTextEntries(archive);
+    expect(entries.has('manifest.json')).toBe(true);
+    expect(entries.has('files/manifest.csv')).toBe(true);
+    expect(entries.has('tables/people.csv')).toBe(true);
+    expect(entries.get('tables/people.csv')).toContain("'=HYPERLINK");
+    const manifest = JSON.parse(entries.get('manifest.json') ?? '{}') as {
+      files?: number;
+      tables?: Record<string, number>;
+    };
+    expect(manifest.tables?.people).toBeGreaterThan(0);
+    expect(manifest.files).toBe(0);
     await expect(
       downloadOrganizationExport('A'.repeat(43), database, storage, now),
     ).rejects.toMatchObject({ status: 404 });

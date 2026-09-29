@@ -394,6 +394,31 @@ export async function listPublicWebsiteNews(
   });
 }
 
+export async function getPublicWebsiteRobotsPolicy(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const organization = await database
+    .selectFrom('organizations')
+    .select(['id'])
+    .where('slug', '=', orgSlug)
+    .where('status', '=', 'active')
+    .executeTakeFirst();
+  if (!organization) return null;
+  return runWithOrg(
+    { orgId: organization.id, actor: { accountId: publicActor } },
+    async (trx) => {
+      const settings = await trx
+        .selectFrom('website_settings')
+        .select(['published', 'robots_policy'])
+        .executeTakeFirst();
+      if (!settings?.published) return null;
+      return { robotsPolicy: settings.robots_policy };
+    },
+  );
+}
+
 function settingsSummary(row?: {
   version: number;
   published: boolean;
