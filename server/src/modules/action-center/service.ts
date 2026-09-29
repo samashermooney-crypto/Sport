@@ -4,7 +4,7 @@ import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 
 import type { ActionCenterCard, ActionCenterItem } from './schema';
 
-export class ActionCenterError extends Error {
+class ActionCenterError extends Error {
   constructor(
     readonly status: number,
     readonly code: 'NOT_FOUND',
@@ -44,6 +44,7 @@ async function appendCard(
     title: string;
     href: string;
     actionLabel?: string;
+    bulkAction?: ActionCenterCard['bulkAction'];
   },
   query: ReturnType<typeof sql<ActionRow>>,
 ): Promise<void> {
@@ -64,6 +65,7 @@ async function appendCard(
     ...(amount === null || amount === undefined
       ? {}
       : { amountCents: Number(amount) }),
+    ...(input.bulkAction ? { bulkAction: input.bulkAction } : {}),
     actionLabel: input.actionLabel ?? 'Open queue',
     href: input.href,
     items,
@@ -748,6 +750,7 @@ export async function loadActionCenter(
           title: 'Unread website contact submissions',
           href: `${websiteHref}/contacts`,
           actionLabel: 'Open contact inbox',
+          bulkAction: 'mark_contacts_read',
         },
         sql<ActionRow>`
           SELECT id::text AS item_id,

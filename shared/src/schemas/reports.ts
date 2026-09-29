@@ -31,12 +31,12 @@ export const reportFilterSchema = z.strictObject({
     .optional(),
 });
 
-export const reportAggregateSchema = z.strictObject({
+const reportAggregateSchema = z.strictObject({
   fn: z.enum(['count', 'sum', 'avg', 'min', 'max']),
   column: columnKey,
 });
 
-export const reportSortSchema = z.strictObject({
+const reportSortSchema = z.strictObject({
   column: columnKey,
   direction: z.enum(['asc', 'desc']),
 });
@@ -124,7 +124,7 @@ export const reportExportBodySchema = z.strictObject({
   format: z.enum(['csv', 'xlsx']).default('csv'),
 });
 
-export const reportDatasetColumnSchema = z.strictObject({
+const reportDatasetColumnSchema = z.strictObject({
   key: columnKey,
   label: z.string(),
   type: z.enum([
@@ -139,7 +139,7 @@ export const reportDatasetColumnSchema = z.strictObject({
   tier: z.enum(['public', 'internal', 'sensitive', 'restricted']),
 });
 
-export const reportDatasetSchema = z.strictObject({
+const reportDatasetSchema = z.strictObject({
   key: z.string(),
   label: z.string(),
   description: z.string(),

@@ -140,6 +140,8 @@ export function createExportsRouter(
   const withOrg = createWithOrg(dependencies.database);
   const storage = new LocalDiskStorage('data/uploads');
 
+  router.use(express.json({ limit: '64kb' }));
+
   router.get(
     '/orgs/:orgId/exports',
     route(async (request, response) => {

@@ -1,7 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { websiteContactReadResponseSchema } from '@shared/schemas/website';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 
 import { apiGet } from '../../api/client';
-import { Card, Link, PageHeader } from '../../ui/primitives';
+import { Button, Card, Link, PageHeader } from '../../ui/primitives';
 
 import { actionCenterResponseSchema } from './action-center-schema';
 
@@ -12,7 +14,41 @@ function formatMoney(cents: number): string {
   }).format(cents / 100);
 }
 
+async function markWebsiteContactsRead(orgId: string): Promise<number> {
+  const response = await fetch(
+    `/api/v1/website/orgs/${orgId}/contact-submissions/mark-read`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Athlentry-Request': '1',
+      },
+      body: '{}',
+    },
+  );
+  const value: unknown = await response.json().catch(() => null);
+  if (!response.ok)
+    throw new Error('Contact submissions could not be marked as read.');
+  return websiteContactReadResponseSchema.parse(value).updatedCount;
+}
+
 export function ActionCenter({ orgId }: { orgId: string }): React.JSX.Element {
+  const { t } = useTranslation('platform');
+  const queryClient = useQueryClient();
+  const markContactsMutation = useMutation({
+    mutationFn: () => markWebsiteContactsRead(orgId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ['orgs', orgId, 'action-center'],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['orgs', orgId, 'website-contact-submissions'],
+        }),
+      ]);
+    },
+  });
   const actionCenter = useQuery({
     queryKey: ['orgs', orgId, 'action-center'],
     queryFn: () =>
@@ -34,6 +70,15 @@ export function ActionCenter({ orgId }: { orgId: string }): React.JSX.Element {
         kicker="ORGANIZATION HOME"
         description="Review the work that needs attention across your organization."
       />
+      {markContactsMutation.isError ? (
+        <p role="alert">{t('websiteContacts.markReadFailed')}</p>
+      ) : markContactsMutation.isSuccess ? (
+        <p role="status" aria-live="polite">
+          {t('websiteContacts.markedRead', {
+            count: markContactsMutation.data,
+          })}
+        </p>
+      ) : null}
       {actionCenter.data.cards.length === 0 ? (
         <Card className="action-center__empty">
           <h2>Everything is up to date</h2>
@@ -72,6 +117,22 @@ export function ActionCenter({ orgId }: { orgId: string }): React.JSX.Element {
               <Link to={card.href}>
                 {card.actionLabel} <span aria-hidden="true">→</span>
               </Link>
+              {card.bulkAction === 'mark_contacts_read' ? (
+                <>
+                  <Button
+                    type="button"
+                    secondary
+                    disabled={markContactsMutation.isPending}
+                    onClick={() => {
+                      markContactsMutation.mutate();
+                    }}
+                  >
+                    {markContactsMutation.isPending
+                      ? t('websiteContacts.markingRead')
+                      : t('websiteContacts.markAllRead')}
+                  </Button>
+                </>
+              ) : null}
             </Card>
           ))}
         </div>

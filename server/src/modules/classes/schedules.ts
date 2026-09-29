@@ -302,6 +302,14 @@ export class PostgresClassSchedules {
 
   async listForOffering(offeringId: string): Promise<ClassSchedule[]> {
     return this.withOrg(this.context, async (trx) => {
+      const offering = await trx
+        .selectFrom('class_offerings')
+        .select('id')
+        .where('org_id', '=', this.context.orgId)
+        .where('id', '=', offeringId)
+        .executeTakeFirst();
+      if (!offering) throw new ClassesNotFoundError('Class offering not found');
+
       const rows = await trx
         .selectFrom('class_schedules')
         .selectAll()

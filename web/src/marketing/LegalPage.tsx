@@ -40,7 +40,7 @@ const legalDocuments: Record<string, LegalDocument> = {
       },
       {
         heading: 'Children and family accounts',
-        body: 'Sports organizations determine why participant information is collected and who may access it. Guardian and staff access is limited by organization relationships and permissions. Organizations must provide required notices and obtain required parent or guardian consent before entering a child’s information.',
+        body: 'Sports organizations determine why participant information is collected and who may access it. Guardian and staff access is limited by organization relationships and permissions. Organizations must provide required notices and obtain required parent or guardian consent before entering a child’s information. Each organization must assess its duties under COPPA and other children’s privacy laws; this draft does not determine which laws apply to a particular organization or activity.',
       },
       {
         heading: 'Service providers',
@@ -52,7 +52,7 @@ const legalDocuments: Record<string, LegalDocument> = {
       },
       {
         heading: 'FERPA and education records',
-        body: 'Athlentry is a sports organization management service, not a school record system. The organization remains responsible for determining whether any information it provides is subject to an education privacy law or another special requirement.',
+        body: 'Athlentry is a sports organization management service, not a school record system, and FERPA generally does not apply to sports records held outside an educational agency or institution. Applicability depends on the organization and the specific records it shares. Organizations should obtain legal guidance before using the service with education records.',
       },
       {
         heading: 'Questions and requests',
