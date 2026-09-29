@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Ready for integration: local range `195e30e..HEAD` contains reusable primitives and Phase 14/16 work. D typecheck, lint, build, SSR/Lighthouse, and Chromium parity/Action Center checks pass. Corrected Linux baselines are committed on local `rebuild/trunk`; Track C has a no-commit merge of D in progress. Remaining CI blockers include the Track E registration test and cross-track Knip findings listed below.
+Ready for integration: local range `195e30e..HEAD` contains reusable primitives and Phase 14/16 work. D typecheck, lint, build, SSR/Lighthouse, and Chromium parity/Action Center checks pass. Corrected Linux baselines are committed on local `rebuild/trunk`; Track C currently has a no-commit merge of D in progress. GitHub still needs the updated trunk pushed before CI can verify those snapshots.
 
 ## Current
 
@@ -39,21 +39,22 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - Latest design parity browser run: 14 passed, 4 WebKit skips; desktop and mobile shell parity, axe, component screenshots, calendar interactions, board keyboard movement, and global search passed.
 - After the latest font/legal changes: full typecheck, full lint, and production build pass. Website SSR integration passes 10/10; Chromium parity and Action Center journeys pass 10/10.
 - On the current D branch, `npm run typecheck` passes after removing unused report/action-center exports and two empty nested nav files. `npm run knip` no longer reports D-owned files or exports; remaining findings are two evaluation nav files (Tracks F/I) and 12 exports/types in shared export/report/website schemas. No shared or evaluation files were changed.
-- Latest full `npm test`: 306 files passed, 1 skipped; 1,095 tests passed, 1 skipped; one unrelated Track E failure in `server/test/registration/team-entries.test.ts`: `stableUuid` throws “UUID digest is incomplete”.
-- Latest full E2E: 111 passed, 10 skipped, 1 unrelated Track A WebKit-mobile sign-in failure at `e2e/sign-in.spec.ts:151` (“Save these 10 recovery codes now” not found). D parity and the Action Center journey pass.
+- Latest full `npm test`: 307 files passed, 1 skipped; 1,104 tests passed, 1 skipped.
+- Latest full E2E before the new privacy journey: 114 passed, 10 skipped, 2 cross-track failures — Track G WebKit-mobile schedule result checkbox at `e2e/schedule-meet.spec.ts:230`, and Track A WebKit-mobile recovery-code sign-in at `e2e/sign-in.spec.ts:420`. D parity and the Action Center journey pass.
+- New privacy deletion journey now passes on Chromium desktop and WebKit mobile (2/2). It verifies keyboard operation, axe cleanliness, request review/approval, and PII anonymization. The journey exposed a missing 64kb JSON parser on the exports router; the router now parses bounded JSON before validating request bodies.
 
 ## Exact next steps
 
 1. Close remaining Phase 14 integration gaps: Track C to mount `createSiteSsrRouter` at `/site`, route verified custom domains, and wire Action Center/export jobs. Retest Lighthouse on the integrated routes.
 2. Verify remaining Action Center actions and dashboard/PDF role access on the current isolated schema.
 3. Complete the documented manual keyboard journeys where roles/routes are available; preserve failures as specific track requests.
-4. Merge D changes to local `rebuild/trunk` with the self-merge gate when the trunk lock is free and cross-track test failures are resolved. The local trunk already contains the corrected Linux references; the orchestrator handles publishing.
+4. After Track C completes its active trunk merge, verify the updated snapshots and privacy flow are on `rebuild/trunk`; the orchestrator handles publishing.
 
 ## Open requests and blockers
 
 - Track C: permit non-API `extraRouters` in the shared module contract and mount `createSiteSsrRouter` at `/site`; route verified custom-domain hosts; wire Action Center/export routes and jobs.
-- Track E: fix `server/test/registration/team-entries.test.ts` (`stableUuid` “UUID digest is incomplete”), currently failing the full unit suite.
-- Track A: investigate the WebKit-mobile recovery-code sign-in E2E failure in `e2e/sign-in.spec.ts`.
+- Track G: fix the WebKit-mobile schedule result checkbox journey at `e2e/schedule-meet.spec.ts:230`.
+- Track A: investigate the WebKit-mobile recovery-code sign-in E2E failure in `e2e/sign-in.spec.ts:420`.
 - Cross-track Knip: Tracks F/I should wire or remove `web/src/console/evaluations/nav.ts` and `web/src/portal/evaluations/nav.ts`; the shared schema owner should consume or remove the 12 currently unused exports/types reported by `npm run knip` (`shared/src/schemas/{exports,reports,website}.ts`).
 - Manual 27-journey keyboard review and integrated-route Lighthouse recheck remain open.
 
