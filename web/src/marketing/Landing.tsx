@@ -284,7 +284,12 @@ export function Landing(): React.JSX.Element {
                 <ArrowUpRight size={17} />
               </Link>
             </div>
-            <div className="al-screen">
+            <div
+              className="al-screen"
+              role="region"
+              aria-label="Scrollable product preview"
+              tabIndex={0}
+            >
               <div className="al-screen-bar">
                 <span>
                   <i />
