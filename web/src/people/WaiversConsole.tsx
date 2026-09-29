@@ -48,6 +48,7 @@ export function WaiversConsole(): React.JSX.Element {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [publishConfirmationOpen, setPublishConfirmationOpen] = useState(false);
+  const [retireConfirmationOpen, setRetireConfirmationOpen] = useState(false);
 
   function edit(id: string): void {
     const item = documents.data?.items.find((row) => row.id === id);
@@ -62,6 +63,7 @@ export function WaiversConsole(): React.JSX.Element {
     });
     setError('');
     setPublishConfirmationOpen(false);
+    setRetireConfirmationOpen(false);
   }
 
   function create(): void {
@@ -70,6 +72,7 @@ export function WaiversConsole(): React.JSX.Element {
     setDocument(blankWaiver());
     setError('');
     setPublishConfirmationOpen(false);
+    setRetireConfirmationOpen(false);
   }
 
   async function save(): Promise<void> {
@@ -134,6 +137,34 @@ export function WaiversConsole(): React.JSX.Element {
         cause instanceof Error
           ? cause.message
           : 'Waiver could not be published.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function retire(): Promise<void> {
+    if (!orgId || !selectedId || editVersion === null) return;
+    setBusy(true);
+    setError('');
+    try {
+      const saved = await apiPost(
+        `/waivers/orgs/${orgId}/${selectedId}/retire`,
+        { expectedVersion: editVersion },
+        waiverDocumentSchema,
+      );
+      setEditVersion(saved.version);
+      await client.invalidateQueries({
+        queryKey: ['waivers', orgId, 'console'],
+      });
+      setRetireConfirmationOpen(false);
+      notify(
+        'Waiver retired. Existing signatures remain available.',
+        'success',
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : 'Waiver could not be retired.',
       );
     } finally {
       setBusy(false);
@@ -303,6 +334,19 @@ export function WaiversConsole(): React.JSX.Element {
                     Publish version
                   </Button>
                 )}
+              {selectedId &&
+                selected?.publishedAt !== null &&
+                selected?.retiredAt === null && (
+                  <Button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setRetireConfirmationOpen(true);
+                    }}
+                  >
+                    Retire published waiver
+                  </Button>
+                )}
             </div>
           </form>
         </Card>
@@ -321,6 +365,21 @@ export function WaiversConsole(): React.JSX.Element {
           Families can sign this version after publishing. The previous
           published version will be retired, and its signature records stay
           available.
+        </ConfirmDialog>
+        <ConfirmDialog
+          title="Retire this published waiver?"
+          open={retireConfirmationOpen}
+          confirmLabel="Retire waiver"
+          busy={busy}
+          onCancel={() => {
+            setRetireConfirmationOpen(false);
+          }}
+          onConfirm={() => {
+            void retire();
+          }}
+        >
+          Families will no longer be able to sign this waiver. Existing
+          signature records and signed PDFs will remain available.
         </ConfirmDialog>
       </main>
     </PeopleShell>

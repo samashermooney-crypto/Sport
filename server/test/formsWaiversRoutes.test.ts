@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 
+import { waiverDocumentSchema } from '@shared/schemas/waivers';
 import express from 'express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -141,7 +142,7 @@ describe('forms and waivers module routers', () => {
       name: 'waivers',
       path: '/api/v1/waivers',
     });
-    expect(waiversModule.openapiRoutes).toHaveLength(8);
+    expect(waiversModule.openapiRoutes).toHaveLength(9);
 
     const created = await post(`/api/v1/waivers/orgs/${ownerOrgId}`, {
       name: 'Season waiver',
@@ -152,7 +153,11 @@ describe('forms and waivers module routers', () => {
     });
     expect(created.status).toBe(201);
     expect(created.headers.get('cache-control')).toBe('no-store');
-    const document = (await created.json()) as { id: string; name: string };
+    const document = (await created.json()) as {
+      id: string;
+      name: string;
+      version: number;
+    };
     expect(document.name).toBe('Season waiver');
 
     const list = await get(`/api/v1/waivers/orgs/${ownerOrgId}`);
@@ -161,5 +166,35 @@ describe('forms and waivers module routers', () => {
       items: [{ id: document.id, name: 'Season waiver' }],
     });
     expect((await get(`/api/v1/waivers/orgs/${otherOrgId}`)).status).toBe(404);
+
+    const published = await post(
+      `/api/v1/waivers/orgs/${ownerOrgId}/${document.id}/publish`,
+      { expectedVersion: document.version },
+    );
+    expect(published.status).toBe(200);
+    const publishedDocument = (await published.json()) as {
+      id: string;
+      version: number;
+    };
+    const invalidOrigin = await post(
+      `/api/v1/waivers/orgs/${ownerOrgId}/${document.id}/retire`,
+      { expectedVersion: publishedDocument.version },
+      'https://attacker.example',
+    );
+    expect(invalidOrigin.status).toBe(403);
+    const retired = await post(
+      `/api/v1/waivers/orgs/${ownerOrgId}/${document.id}/retire`,
+      { expectedVersion: publishedDocument.version },
+    );
+    expect(retired.status).toBe(200);
+    const retiredDocument = waiverDocumentSchema.parse(await retired.json());
+    expect(retiredDocument.id).toBe(document.id);
+    expect(typeof retiredDocument.publishedAt).toBe('string');
+    expect(typeof retiredDocument.retiredAt).toBe('string');
+    const repeatedRetirement = await post(
+      `/api/v1/waivers/orgs/${ownerOrgId}/${document.id}/retire`,
+      { expectedVersion: publishedDocument.version },
+    );
+    expect(repeatedRetirement.status).toBe(409);
   });
 });

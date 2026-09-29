@@ -9,6 +9,7 @@ import {
   waiverDocumentListSchema,
   waiverDocumentSchema,
   waiverDocumentUpdateSchema,
+  waiverDocumentVersionActionSchema,
   waiverSignatureCreateSchema,
   waiverSignatureListSchema,
   waiverSignatureSchema,
@@ -492,6 +493,65 @@ export function createWaiversService(database: Kysely<DB>) {
           },
         });
         return documentView(published);
+      });
+    },
+
+    async retire(
+      context: OrgContext,
+      documentId: string,
+      expectedVersion: number,
+    ) {
+      const id = z.uuid().parse(documentId);
+      const input = waiverDocumentVersionActionSchema.parse({
+        expectedVersion,
+      });
+      return withOrg(context, async (trx) => {
+        await requireDocumentManager(trx, context);
+        const current = await trx
+          .selectFrom('waiver_documents')
+          .selectAll()
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', id)
+          .forUpdate()
+          .executeTakeFirst();
+        if (!current)
+          throw new WaiversError(404, 'NOT_FOUND', 'Waiver was not found');
+        if (current.version !== input.expectedVersion)
+          throw new WaiversError(409, 'CONFLICT', 'Waiver version changed');
+        if (!current.published_at || current.retired_at)
+          throw new WaiversError(
+            409,
+            'CONFLICT',
+            'Only an active published waiver can be retired.',
+          );
+
+        const retiredAt = new Date();
+        await trx
+          .updateTable('waiver_documents')
+          .set({ retired_at: retiredAt })
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', id)
+          .where('retired_at', 'is', null)
+          .execute();
+        const retired = await trx
+          .selectFrom('waiver_documents')
+          .selectAll()
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', id)
+          .executeTakeFirstOrThrow();
+        await appendAuditEvent(trx, context, {
+          action: 'waiver.retired',
+          entityType: 'waiver_document',
+          entityId: id,
+          changes: {
+            retiredAt: {
+              tier: 'internal',
+              before: null,
+              after: retiredAt.toISOString(),
+            },
+          },
+        });
+        return documentView(retired);
       });
     },
 

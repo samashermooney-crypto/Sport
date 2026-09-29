@@ -11,6 +11,10 @@ export const waiverDocumentUpdateSchema = waiverDocumentCreateSchema.extend({
   expectedVersion: z.int().positive(),
 });
 
+export const waiverDocumentVersionActionSchema = z.strictObject({
+  expectedVersion: z.int().positive(),
+});
+
 export const waiverDocumentSchema = z.strictObject({
   id: z.uuid(),
   name: z.string(),
