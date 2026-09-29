@@ -31,7 +31,8 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 - `server/src/modules/website/service.integration.test.ts`: 10/10 pass after adding assertions for SSR font preloads.
 - `web/src/marketing/LegalPage.test.tsx`: 10/10 pass, including the review watermark on all seven public legal drafts; changed-path ESLint passes.
-- `e2e/design/legal-drafts.spec.ts`: 1/1 Chromium journey passes after registering `/welcome`, `/pricing`, and `/legal/:slug` through the generated web feature registry; all seven legal routes show the draft watermark.
+- `e2e/design/legal-drafts.spec.ts`: 2/2 Chromium journeys pass after registering `/welcome`, `/pricing`, and `/legal/:slug` through the generated web feature registry; all seven legal routes show the draft watermark and landing/pricing navigation reaches the sign-in entry point.
+- `e2e/action-center.spec.ts`: 1/1 database-backed Chromium journey confirms owner mark-all-read updates the submission and clears its Action Center card.
 - New marketing route files pass full typecheck, lint, and production build. The prior run's downloaded CI actuals were compared pixel-for-pixel against all three corrected Linux references.
 - Lighthouse mobile: home 98/100/100; Programs 99/100/100; Schedule 99/100/100.
 - Latest design parity browser run: 14 passed, 4 WebKit skips; desktop and mobile shell parity, axe, component screenshots, calendar interactions, board keyboard movement, and global search passed.
