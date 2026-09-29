@@ -78,6 +78,49 @@ describe('action center', () => {
     ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
   });
 
+  it('restricts finance reminder actions to finance-capable roles', async () => {
+    const communicationsId = randomUUID();
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    try {
+      await admin.query(
+        'INSERT INTO accounts(id,email,first_name,last_name,date_of_birth) VALUES ($1,$2,$3,$4,$5)',
+        [communicationsId, `${communicationsId}@example.invalid`, 'Casey', 'Comms', '1980-01-01'],
+      );
+      await admin.query(
+        'INSERT INTO org_memberships(id,org_id,account_id,status) VALUES ($1,$2,$3,$4)',
+        [randomUUID(), orgId, communicationsId, 'active'],
+      );
+      await admin.query(
+        `INSERT INTO role_assignments(id,org_id,account_id,role,scope_type,pending_mfa)
+         VALUES ($1,$2,$3,'communications','org',false)`,
+        [randomUUID(), orgId, communicationsId],
+      );
+
+      await expect(
+        runActionCenterReminder(
+          context(communicationsId),
+          'past_due_reminders',
+          withOrg,
+          new Date('2026-09-28T12:00:00Z'),
+        ),
+      ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+    } finally {
+      await admin.query(
+        'DELETE FROM role_assignments WHERE account_id=$1 AND org_id=$2',
+        [communicationsId, orgId],
+      );
+      await admin.query(
+        'DELETE FROM org_memberships WHERE account_id=$1 AND org_id=$2',
+        [communicationsId, orgId],
+      );
+      await admin.query('DELETE FROM accounts WHERE id=$1', [communicationsId]);
+      await admin.end();
+    }
+  });
+
   it('links unread website submissions to the working contact inbox', async () => {
     const submissionId = randomUUID();
     const admin = new pg.Client({
