@@ -705,11 +705,68 @@ test('console and family help render localized articles without disabled AI call
     await expect(
       page.getByRole('heading', { name: 'Help center', exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Help', exact: true }).click();
+    await page.getByLabel('Language / Idioma').selectOption('en');
     await expect(
-      page.getByRole('link', { name: 'Help center', exact: true }),
+      page.getByRole('heading', { name: 'Contact support', exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Close navigation menu' }).click();
+
+    const importPath = `/console/orgs/${actor.orgId}/onboarding/imports`;
+    const contextualImportHelp = `/console/orgs/${actor.orgId}/help?article=importing-data&kind=concierge_import&locale=en&from=${encodeURIComponent(importPath)}`;
+    await page.goto(importPath);
+    await expect(
+      page.getByRole('heading', { name: 'Imports', exact: true }),
+    ).toBeVisible();
+    if (testInfo.project.name === 'webkit-mobile') {
+      const helpLink = page
+        .getByRole('navigation', { name: 'Mobile navigation' })
+        .getByRole('link', { name: 'Help', exact: true });
+      await expect(helpLink).toBeVisible();
+      await expect(helpLink).toHaveAttribute('href', contextualImportHelp);
+      await helpLink.click();
+    } else {
+      await page.getByRole('button', { name: 'Help', exact: true }).click();
+      const importGuide = page.getByRole('link', {
+        name: 'Import guide',
+        exact: true,
+      });
+      await expect(importGuide).toHaveAttribute('href', contextualImportHelp);
+      await importGuide.click();
+    }
+    await expect(
+      page.getByRole('heading', { name: /Importing data safely/ }),
+    ).toBeVisible();
+    await expect(page.getByLabel('Request type')).toHaveValue(
+      'concierge_import',
+    );
+    await expect(
+      page.getByRole('heading', { name: 'Contact support', exact: true }),
+    ).toBeVisible();
+
+    await page.goto(`/console/orgs/${actor.orgId}/help`);
+    await expect(
+      page.getByRole('heading', { name: 'Help center', exact: true }),
+    ).toBeVisible();
+    const mobileNavigation = page.getByRole('navigation', {
+      name: 'Mobile navigation',
+    });
+    if (testInfo.project.name === 'webkit-mobile') {
+      const helpLink = mobileNavigation.getByRole('link', {
+        name: 'Help',
+        exact: true,
+      });
+      await expect(helpLink).toBeVisible();
+      await expect(helpLink).toHaveAttribute(
+        'href',
+        `/console/orgs/${actor.orgId}/help`,
+      );
+      await helpLink.click();
+    } else {
+      await page.getByRole('button', { name: 'Help', exact: true }).click();
+      await expect(
+        page.getByRole('link', { name: 'Help center', exact: true }),
+      ).toBeVisible();
+      await page.getByRole('button', { name: 'Close navigation menu' }).click();
+    }
     await page.getByLabel('Language / Idioma').selectOption('es');
     await expect(
       page.getByRole('heading', { name: 'Centro de ayuda', exact: true }),
@@ -736,11 +793,24 @@ test('console and family help render localized articles without disabled AI call
     await expect(
       page.getByRole('heading', { name: 'Help center', exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Help', exact: true }).click();
-    await expect(
-      page.getByRole('link', { name: 'Help', exact: true }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: 'Close navigation menu' }).click();
+    if (testInfo.project.name === 'webkit-mobile') {
+      const helpLink = mobileNavigation.getByRole('link', {
+        name: 'Help',
+        exact: true,
+      });
+      await expect(helpLink).toBeVisible();
+      await expect(helpLink).toHaveAttribute(
+        'href',
+        `/portal/orgs/${actor.orgId}/help`,
+      );
+      await helpLink.click();
+    } else {
+      await page.getByRole('button', { name: 'Help', exact: true }).click();
+      await expect(
+        page.getByRole('link', { name: 'Help', exact: true }),
+      ).toBeVisible();
+      await page.getByRole('button', { name: 'Close navigation menu' }).click();
+    }
     await page.getByLabel('Language / Idioma').selectOption('es');
     await expect(
       page.getByRole('heading', { name: 'Centro de ayuda', exact: true }),
