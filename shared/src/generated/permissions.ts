@@ -1,4 +1,5 @@
 export const modulePermissions = [
+  'action-center.manage',
   'action-center.read',
   'ai.conversations.read',
   'ai.manage',

@@ -507,6 +507,33 @@ export const apiRouteMetadata = [
     tenancyFixture: { body: {} },
   },
   {
+    operationId:
+      'post_api_v1_action_center_orgs_orgId_action_center_actions_past_due_reminders',
+    method: 'post',
+    path: '/api/v1/action-center/orgs/{orgId}/action-center/actions/past-due-reminders',
+    permission: 'action-center.manage',
+    resource: 'action-center.action-center.actions',
+    scope: 'organization',
+  },
+  {
+    operationId:
+      'post_api_v1_action_center_orgs_orgId_action_center_actions_failed_installment_contacts',
+    method: 'post',
+    path: '/api/v1/action-center/orgs/{orgId}/action-center/actions/failed-installment-contacts',
+    permission: 'action-center.manage',
+    resource: 'action-center.action-center.actions',
+    scope: 'organization',
+  },
+  {
+    operationId:
+      'post_api_v1_action_center_orgs_orgId_action_center_actions_staff_compliance_reminders',
+    method: 'post',
+    path: '/api/v1/action-center/orgs/{orgId}/action-center/actions/staff-compliance-reminders',
+    permission: 'action-center.manage',
+    resource: 'action-center.action-center.actions',
+    scope: 'organization',
+  },
+  {
     operationId: 'get_api_v1_ai_status',
     method: 'get',
     path: '/api/v1/ai/status',
@@ -6041,6 +6068,24 @@ export const apiRouteMetadata = [
     permission: 'scheduling.manage',
     resource: 'scheduling.calendar-feeds',
     scope: 'organization',
+  },
+  {
+    operationId: 'get_api_v1_scheduling_orgs_orgId_calendar_feeds',
+    method: 'get',
+    path: '/api/v1/scheduling/orgs/{orgId}/calendar-feeds',
+    permission: 'scheduling.read',
+    resource: 'scheduling.calendar-feeds',
+    scope: 'organization',
+    tenancyFixture: { body: {}, query: { type: 'account' } },
+  },
+  {
+    operationId: 'delete_api_v1_scheduling_orgs_orgId_calendar_feeds_feedId',
+    method: 'delete',
+    path: '/api/v1/scheduling/orgs/{orgId}/calendar-feeds/{feedId}',
+    permission: 'scheduling.manage',
+    resource: 'scheduling.calendar-feeds',
+    scope: 'organization',
+    tenancyFixture: { body: {} },
   },
   {
     operationId: 'get_api_v1_scheduling_orgs_orgId_feeds_token_ics',

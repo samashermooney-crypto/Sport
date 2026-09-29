@@ -141,5 +141,12 @@
     "unread": "Unread",
     "read": "Read",
     "archived": "Archived"
+  },
+  "actionCenter": {
+    "sendReminders": "Send in-app reminders",
+    "contactFamilies": "Notify families",
+    "sendingReminders": "Sending in-app reminders…",
+    "reminderFailed": "The reminder action could not be completed.",
+    "reminderResult": "{{sentCount}} reminder notifications sent to the app inbox; {{skippedCount}} skipped because an unread reminder already exists."
   }
 }

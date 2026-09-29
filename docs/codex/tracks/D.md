@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Ready for integration: `1f95b80..HEAD`. This range contains the website SEO/sitemap, export archive-verification, evaluation-results report, mobile export/report journeys, and the latest CI-derived Linux parity baseline. Full typecheck and lint pass; the D design parity suite passes locally. The local trunk merge gate and hosted CI rerun remain pending.
+Local `rebuild/trunk` now includes the Linux parity correction (`40fa19d2`), Action Center bulk-reminder slice (`5e7c6d3b`, `78ea981e`), and this D slice's bounded JSON parser plus browser reminder coverage. The merged-tree gate passes typecheck, lint, the full real-Postgres suite (1,170 passed, 1 skipped), and Chromium (76 passed, 3 skipped). Hosted `origin/rebuild/trunk` remains at `5b4ad3c1` until Track C publishes local trunk.
 
 ## Current
 
@@ -22,6 +22,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - Queue 1–2: captured legacy references and published primitives in early batches.
 - Queue 3: DateInput, TimeInput, DateRange, MoneyInput, PhoneInput, Combobox, FileUpload, Avatar, Tag, DataList, Stepper, Drawer, Sheet, Pagination, Calendar views/resource view, Timeline, StatTile, Chart, RichTextEditor, SignaturePad, QRCode, PrintLayout, keyboard-accessible Board, Bracket, and Chat thread.
 - Queue 4–6: design parity suite, mobile bottom tab bar, command palette/global search shell, and shared auth controls.
+- Action Center bulk actions: finance-authorized overdue-invoice and failed-autopay reminders, plus compliance-authorized staff reminders, send only unread-deduplicated in-app notifications; they do not send external messages or retry charges. Staff notices go only to a verified self-linked account. Server integration tests pass 8/8 and the UI test passes 3/3.
 - Phase 14 reports: sensitive columns remain role-gated; evaluation results are available as a sensitive-tier standard report; previews cap at 200 rows; scheduled delivery uses local time and secure links where needed. Board PDF is aggregate-only and reuses report access checks.
 - Phase 14 privacy: access export is step-up gated; correction/deletion is reviewed; anonymization retains and pseudonymizes financial/waiver evidence; retention jobs are scoped and audited.
 - Phase 16 accessibility additions: screen-reader chart tables, calendar/board labels, keyboard board movement, keyboard-scrollable landing preview, accessibility statement, and English/Spanish completeness tests.
@@ -38,6 +39,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - `web/src/marketing/LegalPage.test.tsx`: 10/10 pass, including the review watermark on all seven public legal drafts; changed-path ESLint passes.
 - `e2e/design/legal-drafts.spec.ts`: 6/6 Chromium/WebKit journeys pass; all seven legal routes are watermarked and axe-clean, landing/pricing are axe-clean, and the mobile preview scrolls with arrow keys.
 - `e2e/action-center.spec.ts`: 1/1 database-backed Chromium journey confirms the owner can keyboard-focus and activate mark-all-read with Enter; the submission updates and its Action Center card clears.
+- The Action Center journey now sends an overdue-invoice reminder twice, verifies one in-app notification and an unread duplicate skip, and checks the destination payload. Its first run caught the missing bounded JSON parser on the mutation router; after adding it and moving the fixture date seven days back, the browser journey passes.
 - The Action Center journey now keyboards through contact triage, the Registration pace preset and preview, report save, secure-link scheduling, and schedule pause/resume; Chromium and WebKit mobile pass 2/2. It exposed and verified fixes for the exports/reports routers' missing bounded JSON parsers and weekly `date_trunc` grouping.
 - New marketing route files pass full typecheck, lint, and production build. The prior run's downloaded CI actuals were compared pixel-for-pixel against all three corrected Linux references.
 - Lighthouse mobile: home 98/100/100; Programs 99/100/100; Schedule 99/100/100.
@@ -52,14 +54,14 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - `npm run build` passes after the landing keyboard-scroll change; Vite reports its existing third-party annotation and large-chunk warnings.
 - Local trunk merge gate for the core D bundle: typecheck and lint pass; full suite 308 files / 1,107 tests passed, 1 skipped; Chromium desktop E2E 63 passed, 3 skipped; production build passes. Design parity including legacy shell, core components, and 390px controls passes.
 - CI artifact validation: for both failing hosted runs, `ui-core-1440-chromium-desktop-linux.png`, `ui-feedback-390-chromium-desktop-linux.png`, and `ui-controls-390-webkit-mobile-linux.png` exact SHA-256 hashes match the corresponding CI actual PNGs.
-- Latest CI artifact validation: run `36563376855` on `5b4ad3c` had 59 e2e passes, 3 skips and one parity failure: only 21 pixels in `ui-feedback-1440` differed, at the reset icon glyph. Its actual Linux screenshot now matches the committed Linux reference byte-for-byte; the local Chromium and WebKit parity suite passes 18 tests with 4 expected skips.
+- Latest CI artifact validation: run `36563376855` on `5b4ad3c` had 59 e2e passes, 3 skips and one parity failure: 21 pixels in `ui-feedback-1440` differed. The failing commit's expected Linux reference hashes to `603095a6…`; the CI actual screenshot and corrected local Linux reference both hash to `d6bd39ba…`. This is stale-baseline drift, not a layout/font regression. The correction is merged into local trunk; `origin/rebuild/trunk` still points to the older snapshot until Track C publishes. The 390px shell mismatch and missing core capture do not recur in this latest CI run.
 - `web/src/ui/tokens.test.ts`: 3/3 pass; the legacy token-equality check is unchanged.
 - Organization export journey: Chromium and WebKit mobile both pass request → worker build → seven-day signed link → ZIP download, including a valid ZIP signature (2/2).
 - Design sweep: feature CSS under console, portal, platform, and site uses shared `web/src/ui` tokens for colors, borders, radii, and fonts; no raw palette colors were found outside the shared UI and marketing styles. Track G’s season-award print CSS still uses a separate `system-ui` font and literal ink colors and should move to the shared `PrintLayout` or equivalent legacy font treatment.
 
 ## Exact next steps
 
-1. Merge `1f95b80..HEAD` into local `rebuild/trunk` and run the full merge gate when `/Users/sammooney/Sport-trunk` is clean. That shared checkout currently has staged Track K Phase 15 work and no `MERGE_HEAD`; leave it untouched until K/C completes it. The stale trunk lock was released after confirming no active gate process.
+1. Track C needs to publish local trunk so hosted CI can verify the corrected Linux parity captures and Action Center route fix; `origin/rebuild/trunk` is still at `5b4ad3c1`.
 2. Track A: extend the module router contract so the website module can register public `/site` SSR routes. Track C: mount the route, regenerate OpenAPI for the new website operation, expose host-root sitemap/robots aliases, resolve verified custom-domain hosts before the production SPA fallback, then rerun public-site Lighthouse against the actual app mount.
 3. Audit the remaining app screens against `web/src/ui` tokens/components and fix D-owned visual inconsistencies or record exact owner requests.
 4. Complete the documented manual keyboard journeys where roles/routes are available; preserve remaining cross-track failures as specific requests.
@@ -67,11 +69,12 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 ## Open requests and blockers
 
 - Track A: `server/src/lib/module-contract.ts` currently limits `extraRouters.path` to `/api/v1/*`; allow the website's public SSR router path without weakening API route typing.
-- Track C: mount `createSiteSsrRouter` at `/site` before the production SPA fallback, regenerate `docs/api/openapi.json` for the new website robots operation, expose sitemap and robots routes at each resolved site's host root, and route active verified custom-domain hosts to the org site with a tenant-safe resolver. Action Center/export/report API routes and scheduled jobs are already registry-wired.
+- Track C: mount `createSiteSsrRouter` at `/site` before the production SPA fallback, expose sitemap and robots routes at each resolved site's host root, and route active verified custom-domain hosts to the org site with a tenant-safe resolver. `docs/api/openapi.json` now includes the website robots and Action Center reminder operations. Action Center/export/report API routes and scheduled jobs are already registry-wired.
 - Track G: fix the WebKit-mobile schedule result checkbox journey at `e2e/schedule-meet.spec.ts:230`.
 - Track G: replace the separate `system-ui`/literal-color season-award print style in `web/src/console/schedule/ScheduleConsole.tsx` with the shared `PrintLayout` or the legacy font/color treatment.
 - Track A: investigate the WebKit-mobile recovery-code sign-in E2E failure in `e2e/sign-in.spec.ts:420`.
 - Cross-track Knip: Tracks F/I should wire or remove `web/src/console/evaluations/nav.ts` and `web/src/portal/evaluations/nav.ts`; the shared schema owner should consume or remove the 12 currently unused exports/types reported by `npm run knip` (`shared/src/schemas/{exports,reports,website}.ts`).
+- Post-sync Knip regression on K at `5d4116f0`: `npm run knip` reports the unused export `actionCenterBulkActionSchema` at `server/src/modules/action-center/schema.ts:10:14`, introduced by the D bulk-reminder slice. Please consume it in request validation or remove the unused export; K left D-owned code unchanged.
 - Manual 27-journey keyboard review and integrated-route Lighthouse recheck remain open.
 
 `COMPOSE_PROJECT_NAME=athlentry_d_finish`; `PORT_OFFSET=2000`.

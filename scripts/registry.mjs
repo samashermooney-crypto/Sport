@@ -256,6 +256,7 @@ const permissionRoles = {
     'volunteer_coordinator',
     'communications',
   ],
+  'action-center.manage': ['owner', 'admin', 'finance', 'compliance'],
   'exports.read': ['owner', 'admin'],
   'exports.manage': ['owner', 'admin'],
   'orgs.read': organizationRoles,

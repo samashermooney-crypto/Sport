@@ -1043,3 +1043,11 @@
 - **Decision:** Permit the app role to see a `site_domains` row only when a transaction-local request host exactly matches an active, verified custom domain. Select only the active organization's public slug, then fetch all site content through its existing public `withOrg` reads. Emit host-root robots and sitemap URLs with the request's verified origin.
 - **Why:** Custom host routing needs a narrowly scoped global lookup; exact-host RLS exposes no other organization's domains or private verification tokens.
 - **Consequences / follow-ups:** Every routing lookup must set `app.public_site_host` transaction-locally. Database tests verify active verified hosts route, and pending/unverified hosts do not.
+
+### DEC-125 — Keep calendar feed scopes explicit and family links verified
+- **Date:** 2026-09-29
+- **Phase / area:** Phase 8 ICS subscriptions
+- **Context:** The original feed constraint could represent only account or team subscriptions, so facility feeds could not be stored; account feeds also derive events from linked people.
+- **Decision:** Store account feeds with the account key, team feeds with a matching team-season key, and facility feeds with neither key and an explicit facility scope. Require schedule read for account/team scopes and schedule management for facility scopes. Include only active, verified account-to-person links in account ICS feeds, and require scope authorization before idempotently returning a revoked feed.
+- **Why:** The database shape matches all three public subscription types, and private family calendars must not disclose events through an unverified or unauthorized link.
+- **Consequences / follow-ups:** Migration `3018` replaces the account/team-only scope check; token plaintext is returned only on creation. Focused integration and Chromium/WebKit journeys cover creation, listing, revocation, tenant boundaries, and unverified-link exclusion.
