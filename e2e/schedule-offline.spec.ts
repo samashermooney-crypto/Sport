@@ -213,6 +213,7 @@ test('coach syncs offline attendance and surfaces a changed score', async ({
     await page.goto(
       `/console/orgs/${actor.orgId}/schedule/events/${eventId}/game-day`,
     );
+    await expect(page.locator('.ui-app-shell')).toHaveCount(1);
     await expect(page.getByRole('heading', { name: 'Game day' })).toBeVisible();
     const roster = page.locator('section[aria-labelledby="gameday-roster"]');
     await expect(

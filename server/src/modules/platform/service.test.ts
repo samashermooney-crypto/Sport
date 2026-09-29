@@ -45,6 +45,7 @@ function session(accountId: string, mfaVerifiedAt: Date | null): ActiveSession {
   return {
     id: randomUUID(),
     accountId,
+    tokenHash: Buffer.alloc(32),
     kind: 'cookie',
     client: 'web',
     privileged: true,

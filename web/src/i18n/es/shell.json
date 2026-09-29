@@ -1,0 +1,20 @@
+{
+  "brandHome": "Inicio de Athlentry",
+  "mainNavigation": "Navegación principal",
+  "searchAthlentry": "Buscar en Athlentry",
+  "searchLabel": "Buscar…",
+  "searchButton": "Buscar",
+  "closeNavigationMenu": "Cerrar menú de navegación",
+  "mobileNavigation": "Navegación móvil",
+  "commandPalette": "Paleta de comandos",
+  "searchPagesAndActions": "Buscar páginas y acciones",
+  "searchPeopleProgramsTeamsInvoices": "Buscar personas, programas, equipos y facturas…",
+  "searchPeopleProgramsInvoices": "Buscar personas, programas y facturas…",
+  "close": "Cerrar",
+  "searching": "Buscando…",
+  "noMatchingResults": "No hay resultados coincidentes",
+  "pressEnterToSearch": "Presiona Enter para buscar en Athlentry",
+  "noMatchingDestinations": "No hay destinos coincidentes",
+  "globalSearch": "Búsqueda global",
+  "searchResults": "Resultados de búsqueda"
+}

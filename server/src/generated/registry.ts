@@ -20,6 +20,7 @@ import { moduleDefinition as facilitiesModule } from '../modules/facilities/modu
 import { moduleDefinition as federationModule } from '../modules/federation/module';
 import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
+import { moduleDefinition as formsModule } from '../modules/forms/module';
 import { moduleDefinition as fundraisingModule } from '../modules/fundraising/module';
 import { moduleDefinition as importsModule } from '../modules/imports/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
@@ -44,6 +45,7 @@ import { moduleDefinition as teamFinanceModule } from '../modules/team-finance/m
 import { moduleDefinition as teamsModule } from '../modules/teams/module';
 import { moduleDefinition as tournamentsModule } from '../modules/tournaments/module';
 import { moduleDefinition as volunteersModule } from '../modules/volunteers/module';
+import { moduleDefinition as waiversModule } from '../modules/waivers/module';
 import { moduleDefinition as websiteModule } from '../modules/website/module';
 
 export const serverModules: readonly ServerModule[] = [
@@ -62,6 +64,7 @@ export const serverModules: readonly ServerModule[] = [
   federationModule,
   filesModule,
   financeModule,
+  formsModule,
   fundraisingModule,
   importsModule,
   jobsModule,
@@ -86,6 +89,7 @@ export const serverModules: readonly ServerModule[] = [
   teamsModule,
   tournamentsModule,
   volunteersModule,
+  waiversModule,
   websiteModule,
 ];
 export const integrationConfigs: readonly IntegrationConfig[] = [

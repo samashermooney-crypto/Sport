@@ -8,7 +8,6 @@ import {
   authMessageResponseSchema,
   authSignInResponseSchema,
   authStatusResponseSchema,
-  authStepUpResponseSchema,
   changePasswordBodySchema,
   deletionRequestBodySchema,
   deletionRequestResponseSchema,
@@ -29,6 +28,7 @@ import {
   signInBodySchema,
   signUpSchema,
   stepUpBodySchema,
+  stepUpResponseSchema,
   tokenBodySchema,
 } from '@shared/schemas/auth';
 import { apiErrorSchema } from '@shared/schemas/errors';
@@ -492,12 +492,20 @@ export function createAuthRouter(
         'INVALID_CREDENTIALS',
         'Re-authentication failed',
       );
-    if (session.kind === 'cookie') setSessionCookie(response, rotated, now);
     response.setHeader('Cache-Control', 'no-store');
+    if (session.kind === 'cookie') {
+      setSessionCookie(response, rotated, now);
+      response.json(
+        stepUpResponseSchema.parse({ client: 'web', status: 'elevated' }),
+      );
+      return;
+    }
     response.json(
-      authStepUpResponseSchema.parse({
+      stepUpResponseSchema.parse({
+        client: session.client,
         status: 'elevated',
-        ...(session.kind === 'bearer' ? { token: rotated.token } : {}),
+        token: rotated.token,
+        absoluteExpiresAt: rotated.absoluteExpiresAt.toISOString(),
       }),
     );
   });

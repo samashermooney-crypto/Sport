@@ -72,13 +72,15 @@ export const authMessageResponseSchema = z.strictObject({
   message: z.string(),
 });
 export const authStatusResponseSchema = z.strictObject({ status: z.string() });
-export const authStepUpResponseSchema = z.strictObject({
-  status: z.literal('elevated'),
-  token: z
-    .string()
-    .regex(/^[A-Za-z0-9_-]{43}$/)
-    .optional(),
-});
+export const stepUpResponseSchema = z.discriminatedUnion('client', [
+  z.strictObject({ client: z.literal('web'), status: z.literal('elevated') }),
+  z.strictObject({
+    client: z.enum(['ios', 'android']),
+    status: z.literal('elevated'),
+    token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+    absoluteExpiresAt: z.iso.datetime(),
+  }),
+]);
 export const authSignInResponseSchema = z.discriminatedUnion('status', [
   z.strictObject({ status: z.literal('session') }),
   z.strictObject({ status: z.literal('enrollment_required') }),

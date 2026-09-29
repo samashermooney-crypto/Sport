@@ -6,7 +6,8 @@ import { createDatabase } from '../server/src/db/kysely';
 import { createWithOrg } from '../server/src/db/withOrg';
 import {
   issueSession,
-  stepUpSession,
+  resolveSession,
+  rotateSessionForStepUp,
 } from '../server/src/modules/auth/sessions';
 import { createTestFactories } from '../server/test/factories';
 
@@ -45,8 +46,11 @@ test('owner requests, downloads and verifies an organization export', async ({
         },
         now,
       );
-      await stepUpSession(trx, issued.id, actor.accountId, now);
-      return issued;
+      const active = await resolveSession(trx, issued.token, now);
+      if (!active) throw new Error('Could not resolve newly issued session');
+      const rotated = await rotateSessionForStepUp(trx, active, now, {}, now);
+      if (!rotated) throw new Error('Could not rotate session for step-up');
+      return rotated;
     });
 
     await page.context().addCookies([

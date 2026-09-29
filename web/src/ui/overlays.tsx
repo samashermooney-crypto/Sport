@@ -58,6 +58,43 @@ export function Dialog({
   );
 }
 
+export function ConfirmDialog({
+  title,
+  children,
+  open,
+  confirmLabel,
+  busy = false,
+  onCancel,
+  onConfirm,
+}: PropsWithChildren<{
+  title: string;
+  open: boolean;
+  confirmLabel: string;
+  busy?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}>): React.JSX.Element | null {
+  return (
+    <Dialog
+      title={title}
+      open={open}
+      onClose={() => {
+        if (!busy) onCancel();
+      }}
+    >
+      <p>{children}</p>
+      <div className="ui-page-actions">
+        <Button type="button" secondary disabled={busy} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="button" disabled={busy} onClick={onConfirm}>
+          {busy ? 'Working…' : confirmLabel}
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
 export function Drawer({
   title,
   children,

@@ -2,6 +2,8 @@ import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
+import { ConsoleShell } from '../../ui/ConsoleShell';
+
 const MessagesConsole = lazy(() =>
   import('./MessagesConsole').then(({ MessagesConsole: Component }) => ({
     default: Component,
@@ -22,7 +24,9 @@ function MessagesRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
   return orgId ? (
     <Suspense fallback={<main role="status">Loading messages…</main>}>
-      <MessagesConsole orgId={orgId} />
+      <ConsoleShell orgId={orgId}>
+        <MessagesConsole orgId={orgId} />
+      </ConsoleShell>
     </Suspense>
   ) : (
     <main>Organization not found.</main>
@@ -33,7 +37,9 @@ function PersonMessageHistoryRoute(): React.JSX.Element {
   const { orgId, personId } = useParams<{ orgId: string; personId: string }>();
   return orgId && personId ? (
     <Suspense fallback={<main role="status">Loading messages…</main>}>
-      <PersonMessageHistory orgId={orgId} personId={personId} />
+      <ConsoleShell orgId={orgId}>
+        <PersonMessageHistory orgId={orgId} personId={personId} />
+      </ConsoleShell>
     </Suspense>
   ) : (
     <main>Person not found.</main>
@@ -47,7 +53,9 @@ function HouseholdMessageHistoryRoute(): React.JSX.Element {
   }>();
   return orgId && householdId ? (
     <Suspense fallback={<main role="status">Loading messages…</main>}>
-      <HouseholdMessageHistory orgId={orgId} householdId={householdId} />
+      <ConsoleShell orgId={orgId}>
+        <HouseholdMessageHistory orgId={orgId} householdId={householdId} />
+      </ConsoleShell>
     </Suspense>
   ) : (
     <main>Household not found.</main>

@@ -10,11 +10,14 @@ import type { z } from 'zod';
 
 import { apiGet, apiPatch, apiPost } from '../api/client';
 import { useImpersonationId } from '../platform/impersonation';
+import { useToast } from '../ui/app-feedback';
 import { AuthFrame, ErrorBox } from '../ui/auth';
+import { ConfirmDialog } from '../ui/overlays';
 import {
   Button,
   Card,
   Checkbox,
+  EmptyState,
   Field,
   Input,
   Link,
@@ -41,6 +44,7 @@ function MemberEditor({
   member: HouseholdMember;
   refresh: () => Promise<void>;
 }): React.JSX.Element {
+  const notify = useToast();
   const [role, setRole] = useState(member.role);
   const [primary, setPrimary] = useState(member.isPrimaryContact);
   const [receives, setReceives] = useState(member.receivesCommunications);
@@ -49,7 +53,29 @@ function MemberEditor({
   const [livesHere, setLivesHere] = useState(member.livesHere);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [removeConfirmationOpen, setRemoveConfirmationOpen] = useState(false);
   const path = `/people/households/orgs/${orgId}/${householdId}/members/${member.id}`;
+  async function removeMember(): Promise<void> {
+    setBusy(true);
+    setError('');
+    try {
+      await apiPost(
+        `${path}/remove`,
+        { expectedVersion: version },
+        householdResponseSchema,
+      );
+      setRemoveConfirmationOpen(false);
+      await refresh();
+      notify('Household member removed.', 'success');
+    } catch (cause) {
+      setRemoveConfirmationOpen(false);
+      setError(
+        cause instanceof Error ? cause.message : 'Member could not be removed.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <details>
       <summary>
@@ -74,7 +100,10 @@ function MemberEditor({
             },
             householdResponseSchema,
           )
-            .then(refresh)
+            .then(async () => {
+              await refresh();
+              notify('Household member saved.', 'success');
+            })
             .catch((cause: unknown) => {
               setError(
                 cause instanceof Error
@@ -155,40 +184,33 @@ function MemberEditor({
         secondary
         disabled={busy}
         onClick={() => {
-          if (
-            !window.confirm(
-              `Remove ${member.firstName} ${member.lastName} from this household?`,
-            )
-          )
-            return;
-          setBusy(true);
-          setError('');
-          void apiPost(
-            `${path}/remove`,
-            { expectedVersion: version },
-            householdResponseSchema,
-          )
-            .then(refresh)
-            .catch((cause: unknown) => {
-              setError(
-                cause instanceof Error
-                  ? cause.message
-                  : 'Member could not be removed.',
-              );
-            })
-            .finally(() => {
-              setBusy(false);
-            });
+          setRemoveConfirmationOpen(true);
         }}
       >
         Remove member
       </Button>
+      <ConfirmDialog
+        title="Remove this household member?"
+        open={removeConfirmationOpen}
+        confirmLabel="Remove member"
+        busy={busy}
+        onCancel={() => {
+          setRemoveConfirmationOpen(false);
+        }}
+        onConfirm={() => {
+          void removeMember();
+        }}
+      >
+        {member.firstName} {member.lastName} will be removed from this
+        household. Their person and financial records are retained.
+      </ConfirmDialog>
     </details>
   );
 }
 
 export function HouseholdsList(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
+  const notify = useToast();
   const impersonation = useImpersonationId();
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -252,7 +274,12 @@ export function HouseholdsList(): React.JSX.Element {
                   </li>
                 ))}
               </ul>
-              {list.data.items.length === 0 && <p>No households yet.</p>}
+              {list.data.items.length === 0 && (
+                <EmptyState title="No households yet">
+                  Create a household to group family members, registrations, and
+                  balances.
+                </EmptyState>
+              )}
               {list.data.nextCursor && (
                 <Button
                   secondary
@@ -299,6 +326,7 @@ export function HouseholdsList(): React.JSX.Element {
                     void navigate(
                       `/console/orgs/${orgId}/households/${created.id}`,
                     );
+                    notify('Household created.', 'success');
                   })
                   .catch((cause: unknown) => {
                     setError(
@@ -340,6 +368,7 @@ export function HouseholdDetail(): React.JSX.Element {
   }>();
   const impersonation = useImpersonationId();
   const client = useQueryClient();
+  const notify = useToast();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState<string | null>(null);
@@ -500,7 +529,10 @@ export function HouseholdDetail(): React.JSX.Element {
                     },
                     householdResponseSchema,
                   )
-                    .then(refresh)
+                    .then(async () => {
+                      await refresh();
+                      notify('Household saved.', 'success');
+                    })
                     .catch((cause: unknown) => {
                       setError(
                         cause instanceof Error
@@ -595,6 +627,7 @@ export function HouseholdDetail(): React.JSX.Element {
                     .then(async () => {
                       setPersonId('');
                       await refresh();
+                      notify('Household member added.', 'success');
                     })
                     .catch((cause: unknown) => {
                       setError(
