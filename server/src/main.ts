@@ -6,6 +6,7 @@ import {
   captureRedactedException,
   initSentry,
 } from './lib/observability/sentry';
+import { closeFederationAdminDatabase } from './modules/federation/privileged';
 
 async function main(): Promise<void> {
   const port = Number(process.env.PORT ?? 3001);
@@ -27,7 +28,10 @@ async function main(): Promise<void> {
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.on(signal, () => {
       server.close(() => {
-        void (stripeWebhookRuntime?.stop() ?? Promise.resolve()).then(
+        void Promise.all([
+          stripeWebhookRuntime?.stop() ?? Promise.resolve(),
+          closeFederationAdminDatabase(),
+        ]).then(
           () => process.exit(0),
           (error: unknown) => {
             captureRedactedException(error);

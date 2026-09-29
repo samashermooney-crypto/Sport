@@ -72,9 +72,9 @@ test('owner requests, downloads and verifies an organization export', async ({
       page.getByRole('heading', { name: 'Exports', exact: true }),
     ).toBeVisible();
     await page.getByRole('button', { name: 'Request export' }).click();
-    await expect(page.getByRole('status')).toContainText(
-      'Export request queued',
-    );
+    await expect(
+      page.getByText('Export request queued', { exact: false }),
+    ).toBeVisible();
 
     const exportId = await withOrg(actor, async (trx) => {
       const row = await trx

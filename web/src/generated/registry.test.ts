@@ -15,14 +15,20 @@ describe('generated web feature registry', () => {
   });
 
   it('includes the console and portal evaluation navigation contributions', () => {
-    expect(consoleNav.map(({ path }) => path)).toContain(
-      '/console/orgs/:orgId/evaluations',
+    expect(consoleNav.map(({ path }) => path)).toEqual(
+      expect.arrayContaining([
+        '/console/orgs/:orgId/evaluations',
+        '/console/orgs/:orgId/help',
+        '/console/orgs/:orgId/onboarding',
+        '/console/orgs/:orgId/onboarding/imports',
+      ]),
     );
     expect(portalNav.map(({ path }) => path)).toEqual(
       expect.arrayContaining([
         '/portal/orgs/:orgId/offers',
         '/portal/orgs/:orgId/results',
         '/portal/orgs/:orgId/placement-preferences',
+        '/portal/orgs/:orgId/help',
       ]),
     );
   });

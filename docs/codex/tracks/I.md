@@ -17,6 +17,10 @@ Owns: `server/src/modules/classes/**`, `web/src/console/classes/**`, `web/src/po
 - Phase 12 promotion acceptance is asserted in PostgreSQL integration coverage: approval creates the guardian's in-app notification, and a subscribed promotion moves billing to the target offering's tuition tier on the next bill without adding a duplicate same-month invoice.
 - Phase 12 ratio monitoring is asserted in PostgreSQL integration coverage: a 9-athlete scheduled class at an 8:1 ratio with one active instructor appears in the dashboard warnings with two instructors required.
 
+## Request from K (2026-09-28)
+
+- On K's full-suite run, `server/src/modules/classes/classes.integration.test.ts` fails “recommends, approves and confirms a promotion” and “defers a subscribed level change to the next bill without double charging” at `server/src/modules/classes/promotions.ts:347`. The code sets the source enrollment's `ends_on=today` even when `starts_on` is in the future, violating migration 5001's `starts_on <= ends_on` check. Preserve a valid enrollment interval while avoiding duplicate billing, and add regression coverage for future-start enrollment promotion.
+
 ## Requests to other tracks
 
 - **C (navigation, 2026-09-27):** add a family-portal Classes link in `PortalShell`. The current nested-route generator now registers `/console/orgs/:orgId/classes` and `/me/orgs/:orgId/classes` without changes to central aggregators.

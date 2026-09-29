@@ -20,6 +20,7 @@ export function PortalShell({
       to: `/portal/orgs/${orgId}/notifications`,
     },
     { label: t('money'), to: `/portal/orgs/${orgId}/money` },
+    { label: 'Help', to: `/portal/orgs/${orgId}/help` },
     { label: t('account'), to: '/me' },
   ].map((item) => ({ ...item, current: location.pathname === item.to }));
   return (

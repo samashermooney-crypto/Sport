@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PropsWithChildren, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 
 import { Button, Input } from './primitives';
 
@@ -39,7 +39,15 @@ export function AppShell({
   searchLoading?: boolean;
   searchError?: string | undefined;
 }>): React.JSX.Element {
-  const { t } = useTranslation('shell');
+  const { t, i18n } = useTranslation('shell');
+  const location = useLocation();
+  const contextualHelp = contextualHelpGroup(
+    location.pathname,
+    i18n.resolvedLanguage ?? i18n.language,
+  );
+  const activeNavigation = contextualHelp
+    ? [...navigation, contextualHelp]
+    : navigation;
   const [active, setActive] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -76,7 +84,7 @@ export function AppShell({
     if (paletteOpen && !dialog.open) dialog.showModal();
     if (!paletteOpen && dialog.open) dialog.close();
   }, [paletteOpen]);
-  const allItems = navigation.flatMap((group) => group.items);
+  const allItems = activeNavigation.flatMap((group) => group.items);
   const destinationResults = allItems.filter((item) =>
     item.label.toLowerCase().includes(query.toLowerCase()),
   );
@@ -97,7 +105,7 @@ export function AppShell({
         </Link>
         {orgSwitcher ?? <span className="org-name">{orgName}</span>}
         <nav className="main-navigation" aria-label={t('mainNavigation')}>
-          {navigation.map((group) => (
+          {activeNavigation.map((group) => (
             <div className="ui-nav-group" key={group.label}>
               <button
                 type="button"
@@ -264,6 +272,71 @@ export function AppShell({
       </dialog>
     </div>
   );
+}
+
+function contextualHelpGroup(
+  pathname: string,
+  language: string | undefined,
+): ShellNavGroup | undefined {
+  const match = pathname.match(
+    /^\/(?:console\/orgs|portal\/orgs|me\/orgs|me\/safety|console\/safety|console\/federation|orgs)\/([^/]+)/,
+  );
+  if (!match) return undefined;
+
+  const orgId = match[1];
+  if (!orgId) return undefined;
+  const isFamily =
+    pathname.startsWith('/portal/') ||
+    pathname.startsWith('/me/orgs/') ||
+    pathname.startsWith('/me/safety/');
+  const isSpanish = (language ?? 'en').toLowerCase().startsWith('es');
+  const locale = isSpanish ? 'es' : 'en';
+  const isImport = /\/(?:imports|onboarding)(?:\/|$)/.test(pathname);
+  const isAi = pathname.includes('/ai');
+  const article = isFamily
+    ? 'family-portal'
+    : isImport
+      ? 'importing-data'
+      : isAi
+        ? 'ai-assistant'
+        : 'support';
+  const requestKind = isImport ? 'concierge_import' : 'support';
+  const base = isFamily
+    ? `/portal/orgs/${orgId}/help`
+    : `/console/orgs/${orgId}/help`;
+  const context = encodeURIComponent(pathname);
+  const guideUrl = `${base}?article=${article}&kind=${requestKind}&locale=${locale}&from=${context}`;
+  const contactUrl = `${base}?contact=1&kind=${requestKind}&locale=${locale}&from=${context}#help-support-form`;
+
+  return {
+    label: isSpanish ? 'Ayuda' : 'Help',
+    items: [
+      {
+        label: isFamily
+          ? isSpanish
+            ? 'Ayuda'
+            : 'Help'
+          : isImport
+            ? isSpanish
+              ? 'Guía de importación'
+              : 'Import guide'
+            : isSpanish
+              ? 'Centro de ayuda'
+              : 'Help center',
+        to: guideUrl,
+      },
+      {
+        label: isImport
+          ? isSpanish
+            ? 'Solicitar ayuda de importación'
+            : 'Request import help'
+          : isSpanish
+            ? 'Contactar soporte'
+            : 'Contact support',
+        to: contactUrl,
+      },
+    ],
+  };
 }
 
 export function GlobalSearch({
