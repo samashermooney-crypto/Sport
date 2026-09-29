@@ -2543,9 +2543,10 @@ export function ScheduleConsole({
                   `${base(orgId, 'scheduling')}/closures/preview`,
                   json(closure),
                 );
+                const eventLabel = preview.count === 1 ? 'event' : 'events';
                 if (
                   !window.confirm(
-                    `Close this schedule window and postpone ${String(preview.count)} affected events?`,
+                    `Close this schedule window and postpone ${String(preview.count)} affected ${eventLabel}?`,
                   )
                 )
                   return;
