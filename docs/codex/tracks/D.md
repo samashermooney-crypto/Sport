@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Ready for integration: the core D bundle and Phase 14 export/Lighthouse evidence are integrated on local `rebuild/trunk`; the complete merge gate passed. The current robots/sitemap route slice passes its focused website integration test and is awaiting its own merge gate. The orchestrator still needs to publish local trunk commits and rerun hosted CI.
+Ready for integration: the core D bundle and Phase 14 export/Lighthouse evidence are integrated on local `rebuild/trunk`; the complete merge gate passed. The current website SEO and export archive-verification slices pass their focused integration tests and are awaiting their merge gate. The orchestrator still needs to publish local trunk commits and rerun hosted CI.
 
 ## Current
 
@@ -32,6 +32,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 - `server/src/modules/website/service.integration.test.ts`: 10/10 pass after adding assertions for SSR font preloads.
 - `server/src/modules/website/contact.routes.integration.test.ts`: 1/1 pass for robots policy, sitemap generated-page URLs and noindex behavior, plus the existing public-contact workflow.
+- `server/src/modules/exports/service.integration.test.ts`: 5/5 pass; organization archive includes table CSVs, manifest.json, files/manifest.csv, and formula-neutralized people data.
 - `web/src/marketing/LegalPage.test.tsx`: 10/10 pass, including the review watermark on all seven public legal drafts; changed-path ESLint passes.
 - `e2e/design/legal-drafts.spec.ts`: 6/6 Chromium/WebKit journeys pass; all seven legal routes are watermarked and axe-clean, landing/pricing are axe-clean, and the mobile preview scrolls with arrow keys.
 - `e2e/action-center.spec.ts`: 1/1 database-backed Chromium journey confirms the owner can keyboard-focus and activate mark-all-read with Enter; the submission updates and its Action Center card clears.
