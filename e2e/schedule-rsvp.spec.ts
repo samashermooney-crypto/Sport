@@ -128,7 +128,9 @@ test('guardian RSVPs an athlete to a team event', async ({
     await expect(page.getByText('Family RSVP game')).toBeVisible();
     const going = page.getByRole('button', { name: 'Going' });
     await going.click();
-    await expect(page.getByRole('status')).toHaveText('Your RSVP is saved.');
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Your RSVP is saved.' }),
+    ).toHaveText('Your RSVP is saved.');
     await expect(going).toHaveAttribute('aria-pressed', 'true');
     const savedRsvp = await createWithOrg(database)(actor, (trx) =>
       trx
@@ -143,6 +145,68 @@ test('guardian RSVPs an athlete to a team event', async ({
       rsvp: 'yes',
       rsvp_by_account_id: actor.accountId,
     });
+
+    const familyFeedPanel = page.getByRole('region', {
+      name: 'Family calendar subscriptions',
+    });
+    const familyFeedResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/calendar-feeds'),
+    );
+    await familyFeedPanel
+      .getByRole('button', { name: 'Create Family calendar feed' })
+      .click();
+    const familyFeed = (await (await familyFeedResponse).json()) as {
+      id: string;
+      url: string;
+    };
+    const familyFeedUrl = new URL(
+      familyFeed.url,
+      String(testInfo.project.use.baseURL),
+    );
+    const familyCalendar = await page.request.get(familyFeedUrl.toString());
+    expect(familyCalendar.ok()).toBe(true);
+    expect(await familyCalendar.text()).toContain('SUMMARY:Family RSVP game');
+    await expect(familyFeedPanel.getByLabel('Family calendar URL')).toHaveValue(
+      familyFeedUrl.toString(),
+    );
+
+    const teamFeedPanel = page.getByRole('region', {
+      name: 'Team calendar subscriptions',
+    });
+    const teamFeedResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/calendar-feeds'),
+    );
+    await teamFeedPanel
+      .getByRole('button', { name: 'Create Team calendar feed' })
+      .click();
+    const teamFeed = (await (await teamFeedResponse).json()) as {
+      id: string;
+      url: string;
+    };
+    const teamFeedUrl = new URL(
+      teamFeed.url,
+      String(testInfo.project.use.baseURL),
+    );
+    const teamCalendar = await page.request.get(teamFeedUrl.toString());
+    expect(teamCalendar.ok()).toBe(true);
+    expect(await teamCalendar.text()).toContain('SUMMARY:Family RSVP game');
+
+    page.once('dialog', async (dialog) => {
+      await dialog.accept();
+    });
+    const revokeResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'DELETE' &&
+        response.url().endsWith(`/calendar-feeds/${teamFeed.id}`),
+    );
+    await teamFeedPanel.getByRole('button', { name: 'Revoke URL' }).click();
+    expect((await revokeResponse).status()).toBe(204);
+    expect((await page.request.get(teamFeedUrl.toString())).status()).toBe(404);
+
     await expect(page.getByRole('alert')).toHaveCount(0);
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {

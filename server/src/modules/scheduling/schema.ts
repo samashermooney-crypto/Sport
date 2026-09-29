@@ -346,6 +346,15 @@ export const feedCreatedSchema = z.strictObject({
   url: z.string(),
 });
 
+export const calendarFeedListSchema = z.strictObject({
+  items: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      createdAt: z.iso.datetime({ offset: true }),
+    }),
+  ),
+});
+
 export type EventCreateWithOverrideInput = z.infer<
   typeof eventCreateWithOverrideSchema
 >;

@@ -916,3 +916,11 @@
 - **Decision:** Marketing headings inherit their section foreground, darken only the demo-window label color to `#62685d`, and expose the scrollable product preview as a named keyboard-focusable region. Keep all shared design tokens and layout values unchanged.
 - **Why:** Makes the original light-on-dark section treatment legible and lets keyboard and Safari users reach the existing horizontal preview without changing the broader design system.
 - **Consequences / follow-ups:** Automated axe checks cover the landing, pricing, and legal routes; the parity suite continues to guard the shared tokens and existing visual references.
+
+### DEC-125 — Keep calendar feed scopes explicit and family links verified
+- **Date:** 2026-09-29
+- **Phase / area:** Phase 8 ICS subscriptions
+- **Context:** The original feed constraint could represent only account or team subscriptions, so facility feeds could not be stored; account feeds also derive events from linked people.
+- **Decision:** Store account feeds with the account key, team feeds with a matching team-season key, and facility feeds with neither key and an explicit facility scope. Require schedule read for account/team scopes and schedule management for facility scopes. Include only active, verified account-to-person links in account ICS feeds, and require scope authorization before idempotently returning a revoked feed.
+- **Why:** The database shape matches all three public subscription types, and private family calendars must not disclose events through an unverified or unauthorized link.
+- **Consequences / follow-ups:** Migration `3018` replaces the account/team-only scope check; token plaintext is returned only on creation. Focused integration and Chromium/WebKit journeys cover creation, listing, revocation, tenant boundaries, and unverified-link exclusion.
