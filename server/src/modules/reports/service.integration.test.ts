@@ -298,6 +298,29 @@ describe('report service', () => {
     expect(preview.truncated).toBe(true);
   });
 
+  it('groups registration pace into weekly buckets', async () => {
+    const preview = await previewReport(
+      context(orgA, registrarId),
+      {
+        dataset: 'registrations',
+        columns: ['id'],
+        filters: [],
+        groupBy: ['created_at'],
+        timeGrain: 'week',
+        aggregates: [{ fn: 'count', column: 'id' }],
+        sort: [{ column: 'created_at', direction: 'asc' }],
+        limit: 200,
+      },
+      withOrg,
+    );
+
+    expect(preview.columns).toMatchObject([
+      { key: 'created_at', type: 'datetime' },
+      { key: 'count_id', type: 'number' },
+    ]);
+    expect(preview.rows.length).toBeGreaterThan(0);
+  });
+
   it('calculates year-over-year retention from unique confirmed participants', async () => {
     const cohorts = await previewReport(
       context(orgA, registrarId),

@@ -24,6 +24,38 @@ function safeJsonLd(value: unknown): string {
     .replaceAll('&', '\\u0026');
 }
 
+function siteFontPreloads(): ReactNode[] {
+  return [
+    createElement('link', {
+      key: 'fonts-preconnect',
+      rel: 'preconnect',
+      href: 'https://fonts.googleapis.com',
+    }),
+    createElement('link', {
+      key: 'font-files-preconnect',
+      rel: 'preconnect',
+      href: 'https://fonts.gstatic.com',
+      crossOrigin: 'anonymous',
+    }),
+    createElement('link', {
+      key: 'open-sans-latin-preload',
+      rel: 'preload',
+      href: 'https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTS-mu0SC55I.woff2',
+      as: 'font',
+      type: 'font/woff2',
+      crossOrigin: 'anonymous',
+    }),
+    createElement('link', {
+      key: 'open-sans-latin-ext-preload',
+      rel: 'preload',
+      href: 'https://fonts.gstatic.com/l/font?kit=memFYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0EwsQaPuWBIXazFHt1kuGajuKbEhWw&skey=62c1cbfccc78b4b2&v=v44',
+      as: 'font',
+      type: 'font/woff2',
+      crossOrigin: 'anonymous',
+    }),
+  ];
+}
+
 function renderDocument(
   site: NonNullable<Awaited<ReturnType<typeof getPublicWebsitePage>>>,
 ) {
@@ -79,6 +111,7 @@ function renderDocument(
         name: 'viewport',
         content: 'width=device-width, initial-scale=1',
       }),
+      ...siteFontPreloads(),
       createElement('link', { rel: 'stylesheet', href: '/site.css' }),
       createElement('title', null, title),
       description
@@ -259,6 +292,7 @@ function renderNewsDocument(
         name: 'viewport',
         content: 'width=device-width, initial-scale=1',
       }),
+      ...siteFontPreloads(),
       createElement('link', { rel: 'stylesheet', href: '/site.css' }),
       createElement('title', null, title),
       createElement('meta', { name: 'description', content: copy.description }),
@@ -394,6 +428,7 @@ function renderGeneratedSitePage(
         name: 'viewport',
         content: 'width=device-width, initial-scale=1',
       }),
+      ...siteFontPreloads(),
       createElement('link', { rel: 'stylesheet', href: '/site.css' }),
       createElement('title', null, options.title),
       createElement('meta', {
