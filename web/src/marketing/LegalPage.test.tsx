@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,8 +14,32 @@ function renderDocument(slug: string) {
   );
 }
 
+const legalDrafts = [
+  { slug: 'terms', title: 'Terms of Service' },
+  { slug: 'privacy', title: 'Privacy Policy' },
+  { slug: 'dpa', title: 'Data Processing Addendum' },
+  { slug: 'acceptable-use', title: 'Acceptable Use Policy' },
+  { slug: 'subprocessors', title: 'Subprocessors' },
+  { slug: 'security', title: 'Security Overview' },
+  { slug: 'accessibility', title: 'Accessibility Statement' },
+];
+
 describe('marketing legal pages', () => {
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllEnvs();
+  });
+
+  it.each(legalDrafts)(
+    '$title stays watermarked before legal approval',
+    ({ slug, title }) => {
+      const { container } = renderDocument(slug);
+      expect(within(container).getByRole('status').textContent).toContain(
+        'DRAFT — requires legal review',
+      );
+      expect(screen.getByRole('heading', { name: title })).toBeTruthy();
+    },
+  );
 
   it('shows the review watermark on unapproved legal documents', () => {
     const { container } = renderDocument('privacy');

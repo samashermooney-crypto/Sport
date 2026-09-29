@@ -3,6 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
+Ready for integration: local range `195e30e..HEAD` contains reusable primitives and Phase 14/16 work. D typecheck, lint, build, SSR/Lighthouse, and Chromium parity/Action Center checks pass; the full merge gate is currently blocked by the Track E registration test failure listed below.
 
 ## Current
 
@@ -29,7 +30,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 ## Recent checks
 
 - `server/src/modules/website/service.integration.test.ts`: 10/10 pass after adding assertions for SSR font preloads.
-- `web/src/marketing/LegalPage.test.tsx`: 3/3 pass; changed-path ESLint passes.
+- `web/src/marketing/LegalPage.test.tsx`: 10/10 pass, including the review watermark on all seven public legal drafts; changed-path ESLint passes.
 - Lighthouse mobile: home 98/100/100; Programs 99/100/100; Schedule 99/100/100.
 - After the latest font/legal changes: full typecheck, full lint, and production build pass. Website SSR integration passes 10/10; Chromium parity and Action Center journeys pass 10/10.
 - Latest full `npm test`: 306 files passed, 1 skipped; 1,095 tests passed, 1 skipped; one unrelated Track E failure in `server/test/registration/team-entries.test.ts`: `stableUuid` throws “UUID digest is incomplete”.
