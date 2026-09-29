@@ -141,3 +141,73 @@ it('marks all unread website contacts read from the queue card', async () => {
   expect(await screen.findByText('2 messages marked as read.')).toBeTruthy();
   expect(await screen.findByText('Everything is up to date')).toBeTruthy();
 });
+
+it('sends and announces an in-app reminder from a finance queue card', async () => {
+  await i18n.changeLanguage('en');
+  const fetcher = vi.fn(
+    (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = requestUrl(input);
+      if (url.endsWith('/past-due-reminders')) {
+        expect(init?.method).toBe('POST');
+        expect(init?.headers).toMatchObject({ 'X-Athlentry-Request': '1' });
+        expect(init?.body).toBe('{}');
+        return Promise.resolve(
+          new Response(JSON.stringify({ sentCount: 2, skippedCount: 1 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            cards: [
+              {
+                id: 'past-due-balances',
+                title: 'Past-due unpaid balances',
+                count: 3,
+                amountCents: 7200,
+                bulkAction: 'past_due_reminders',
+                actionLabel: 'Review receivables',
+                href: `/console/orgs/${orgId}/reports`,
+                items: [],
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+    },
+  );
+  vi.stubGlobal('fetch', fetcher);
+
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <ActionCenter orgId={orgId} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(
+    await screen.findByRole('heading', { name: 'Past-due unpaid balances' }),
+  ).toBeTruthy();
+  screen.getByRole('button', { name: 'Send in-app reminders' }).click();
+  expect(
+    await screen.findByText(
+      '2 reminder notifications sent to the app inbox; 1 skipped because an unread reminder already exists.',
+    ),
+  ).toBeTruthy();
+  const reminderRequest = fetcher.mock.calls.find(([input]) =>
+    requestUrl(input).endsWith('/past-due-reminders'),
+  );
+  expect(reminderRequest?.[1]?.method).toBe('POST');
+  expect(reminderRequest?.[1]?.headers).toEqual({
+    'Content-Type': 'application/json',
+    'X-Athlentry-Request': '1',
+  });
+  expect(reminderRequest?.[1]?.body).toBe('{}');
+});
