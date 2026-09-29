@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Ready for integration: local range `195e30e..HEAD` contains reusable primitives and Phase 14/16 work. D typecheck, lint, build, SSR/Lighthouse, and Chromium parity/Action Center checks pass. Corrected Linux baselines are committed on local `rebuild/trunk`; Track C has a no-commit merge of D in progress. Remaining CI blockers include the Track E registration test and cross-track Knip findings listed below.
+Ready for integration: local range `195e30e..HEAD` contains reusable primitives and Phase 14/16 work. D typecheck, lint, build, SSR/Lighthouse, and Chromium parity/Action Center checks pass. Corrected Linux baselines are committed on local `rebuild/trunk`; Track C currently has a no-commit merge of D in progress. GitHub still needs the updated trunk pushed before CI can verify those snapshots.
 
 ## Current
 
@@ -15,7 +15,7 @@ Phase 14 implementation includes curated report datasets, role-filtered builders
 
 Lighthouse 13.5.0 mobile-default audits used Playwright’s bundled Chromium, a synthetic published organization with one public program/event, and the direct `createSiteSsrRouter` mount. Results: home **98/100/100**, Programs **99/100/100**, Schedule **99/100/100** (Performance/Accessibility/SEO). The first run exposed a 0.239 CLS from late Open Sans subset loads; SSR now preconnects and preloads the existing Latin and Latin Extended files without changing the site CSS or typeface. Audit JSON was saved under `/private/tmp/athlentry-lighthouse/reports/`.
 
-Phase 16 §3: chart/report alternatives are semantic tables, calendars and boards are named, and boards expose a tested keyboard move alternative. English/Spanish completeness and email translation checks are automated. The accessibility statement appears on marketing and public-site footers. `docs/qa/ACCESSIBILITY.md` lists 27 manual keyboard journeys; the human keyboard pass remains open. Phase 16 §5 legal/trust pages are drafts, watermarked until `LEGAL_DOCS_APPROVED=true`; the Privacy draft names COPPA and qualifies the FERPA note. Phase 16 §6 landing, pricing, and README copy describes implemented behavior.
+Phase 16 §3: chart/report alternatives are semantic tables, calendars and boards are named, and boards expose a tested keyboard move alternative. English/Spanish completeness and email translation checks are automated. The accessibility statement appears on marketing and public-site footers. The marketing, pricing, and legal pages now have Chromium/WebKit axe journeys; the landing's low-contrast manifesto heading and demo chrome, and its mobile preview scrolling, were corrected without changing shared tokens or layout values (DEC-124). The preview now announces Left/Right arrow instructions and scrolls by keyboard. `docs/qa/ACCESSIBILITY.md` lists 27 manual keyboard journeys; the human keyboard pass remains open. Phase 16 §5 legal/trust pages are drafts, watermarked until `LEGAL_DOCS_APPROVED=true`; the Privacy draft names COPPA and qualifies the FERPA note. Phase 16 §6 landing, pricing, and README copy describes implemented behavior.
 
 ## Completed
 
@@ -24,36 +24,42 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - Queue 4–6: design parity suite, mobile bottom tab bar, command palette/global search shell, and shared auth controls.
 - Phase 14 reports: sensitive columns remain role-gated; previews cap at 200 rows; scheduled delivery uses local time and secure links where needed. Board PDF is aggregate-only and reuses report access checks.
 - Phase 14 privacy: access export is step-up gated; correction/deletion is reviewed; anonymization retains and pseudonymizes financial/waiver evidence; retention jobs are scoped and audited.
-- Phase 16 accessibility additions: screen-reader chart tables, calendar/board labels, keyboard board movement, accessibility statement, and English/Spanish completeness tests.
+- Phase 16 accessibility additions: screen-reader chart tables, calendar/board labels, keyboard board movement, keyboard-scrollable landing preview, accessibility statement, and English/Spanish completeness tests.
+- Phase 16 landing/documentation: landing contrast and mobile preview keyboard access are axe-verified; README now covers the product, architecture, local commands, environment/deployment references, and the complete D18 exclusions.
 - Linux parity references and runner provenance are on local `rebuild/trunk`; no tolerance or token-equality changes.
 
 ## Recent checks
 
 - `server/src/modules/website/service.integration.test.ts`: 10/10 pass after adding assertions for SSR font preloads.
 - `web/src/marketing/LegalPage.test.tsx`: 10/10 pass, including the review watermark on all seven public legal drafts; changed-path ESLint passes.
-- `e2e/design/legal-drafts.spec.ts`: 2/2 Chromium journeys pass after registering `/welcome`, `/pricing`, and `/legal/:slug` through the generated web feature registry; all seven legal routes show the draft watermark and landing/pricing navigation reaches the sign-in entry point.
+- `e2e/design/legal-drafts.spec.ts`: 6/6 Chromium/WebKit journeys pass; all seven legal routes are watermarked and axe-clean, landing/pricing are axe-clean, and the mobile preview scrolls with arrow keys.
 - `e2e/action-center.spec.ts`: 1/1 database-backed Chromium journey confirms the owner can keyboard-focus and activate mark-all-read with Enter; the submission updates and its Action Center card clears.
-- The same Chromium journey now also keyboards through the Registration pace preset and preview. It exposed and verified fixes for the reports router's missing bounded JSON parser and weekly `date_trunc` grouping; `server/src/modules/reports/service.integration.test.ts` passes 7/7.
+- The Action Center journey now keyboards through contact triage, the Registration pace preset and preview, report save, secure-link scheduling, and schedule pause/resume; Chromium and WebKit mobile pass 2/2. It exposed and verified fixes for the exports/reports routers' missing bounded JSON parsers and weekly `date_trunc` grouping.
 - New marketing route files pass full typecheck, lint, and production build. The prior run's downloaded CI actuals were compared pixel-for-pixel against all three corrected Linux references.
 - Lighthouse mobile: home 98/100/100; Programs 99/100/100; Schedule 99/100/100.
 - Latest design parity browser run: 14 passed, 4 WebKit skips; desktop and mobile shell parity, axe, component screenshots, calendar interactions, board keyboard movement, and global search passed.
 - After the latest font/legal changes: full typecheck, full lint, and production build pass. Website SSR integration passes 10/10; Chromium parity and Action Center journeys pass 10/10.
 - On the current D branch, `npm run typecheck` passes after removing unused report/action-center exports and two empty nested nav files. `npm run knip` no longer reports D-owned files or exports; remaining findings are two evaluation nav files (Tracks F/I) and 12 exports/types in shared export/report/website schemas. No shared or evaluation files were changed.
-- Latest full `npm test`: 306 files passed, 1 skipped; 1,095 tests passed, 1 skipped; one unrelated Track E failure in `server/test/registration/team-entries.test.ts`: `stableUuid` throws “UUID digest is incomplete”.
-- Latest full E2E: 111 passed, 10 skipped, 1 unrelated Track A WebKit-mobile sign-in failure at `e2e/sign-in.spec.ts:151` (“Save these 10 recovery codes now” not found). D parity and the Action Center journey pass.
+- Latest full `npm test`: 307 files passed, 1 skipped; 1,104 tests passed, 1 skipped.
+- Latest full E2E before the new privacy journey: 114 passed, 10 skipped, 2 cross-track failures — Track G WebKit-mobile schedule result checkbox at `e2e/schedule-meet.spec.ts:230`, and Track A WebKit-mobile recovery-code sign-in at `e2e/sign-in.spec.ts:420`. D parity and the Action Center journey pass.
+- New privacy deletion journey now passes on Chromium desktop and WebKit mobile (2/2). It verifies keyboard operation, axe cleanliness, request review/approval, and PII anonymization. The journey exposed a missing 64kb JSON parser on the exports router; the router now parses bounded JSON before validating request bodies.
+- The shared overlay keyboard check now opens dialog, drawer, and sheet with Enter, closes with Escape, and verifies focus returns to each trigger on Chromium desktop and WebKit mobile (2/2).
+- Landing, pricing, and all seven watermarked legal pages pass serious/critical axe checks on Chromium desktop and WebKit mobile; the explicit mobile preview arrow-scroll journey also passes on both (6/6 journeys). Automated axe waits for the landing entrance animation to settle before measuring contrast.
+- Latest focused Phase 14 services: Action Center role isolation 4/4, report builder/service authorization and preview 7/7, and secure scheduled report delivery 2/2.
+- `npm run build` passes after the landing keyboard-scroll change; Vite reports its existing third-party annotation and large-chunk warnings.
 
 ## Exact next steps
 
 1. Close remaining Phase 14 integration gaps: Track C to mount `createSiteSsrRouter` at `/site`, route verified custom domains, and wire Action Center/export jobs. Retest Lighthouse on the integrated routes.
-2. Verify remaining Action Center actions and dashboard/PDF role access on the current isolated schema.
+2. Recheck Action Center/export wiring and report role access after Track C completes the shared app mount; the focused D service checks and keyboard save/schedule journey now pass.
 3. Complete the documented manual keyboard journeys where roles/routes are available; preserve failures as specific track requests.
-4. Merge D changes to local `rebuild/trunk` with the self-merge gate when the trunk lock is free and cross-track test failures are resolved. The local trunk already contains the corrected Linux references; the orchestrator handles publishing.
+4. After Track C completes its active trunk merge, verify the updated snapshots and privacy flow are on `rebuild/trunk`; the orchestrator handles publishing.
 
 ## Open requests and blockers
 
 - Track C: permit non-API `extraRouters` in the shared module contract and mount `createSiteSsrRouter` at `/site`; route verified custom-domain hosts; wire Action Center/export routes and jobs.
-- Track E: fix `server/test/registration/team-entries.test.ts` (`stableUuid` “UUID digest is incomplete”), currently failing the full unit suite.
-- Track A: investigate the WebKit-mobile recovery-code sign-in E2E failure in `e2e/sign-in.spec.ts`.
+- Track G: fix the WebKit-mobile schedule result checkbox journey at `e2e/schedule-meet.spec.ts:230`.
+- Track A: investigate the WebKit-mobile recovery-code sign-in E2E failure in `e2e/sign-in.spec.ts:420`.
 - Cross-track Knip: Tracks F/I should wire or remove `web/src/console/evaluations/nav.ts` and `web/src/portal/evaluations/nav.ts`; the shared schema owner should consume or remove the 12 currently unused exports/types reported by `npm run knip` (`shared/src/schemas/{exports,reports,website}.ts`).
 - Manual 27-journey keyboard review and integrated-route Lighthouse recheck remain open.
 
