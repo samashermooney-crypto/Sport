@@ -2,6 +2,30 @@ import ICAL from 'ical.js';
 import { describe, expect, it } from 'vitest';
 
 import { formatCalendarFeed } from './events';
+import { eventUpdateSchema } from './schema';
+
+describe('schedule event update schema', () => {
+  it('does not apply create defaults to omitted update fields', () => {
+    const update = eventUpdateSchema.parse({ expectedVersion: 1 });
+
+    expect(update).not.toHaveProperty('published');
+    expect(update).not.toHaveProperty('participants');
+    expect(update).not.toHaveProperty('arrivalMinutesBefore');
+  });
+
+  it('preserves explicitly provided publish and participant changes', () => {
+    const update = eventUpdateSchema.parse({
+      expectedVersion: 2,
+      published: false,
+      participants: [],
+      arrivalMinutesBefore: 30,
+    });
+
+    expect(update.published).toBe(false);
+    expect(update.participants).toEqual([]);
+    expect(update.arrivalMinutesBefore).toBe(30);
+  });
+});
 
 describe('schedule calendar feed encoding', () => {
   it('emits stable event ids, updates, cancellation state, and folded UTF-8 lines', () => {

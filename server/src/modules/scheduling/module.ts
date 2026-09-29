@@ -139,7 +139,7 @@ const openapiRoutes = [
   route('get', '/orgs/{orgId}/facilities', 'List facilities', {
     response: z.object({
       items: z.array(json),
-      organizationTimezone: z.string(),
+      organizationTimezone: z.string().min(1),
     }),
   }),
   route('post', '/orgs/{orgId}/facilities', 'Create a facility', {
@@ -253,6 +253,12 @@ const openapiRoutes = [
     '/orgs/{orgId}/schedule-import-runs/{runId}/discard',
     'Discard a schedule import',
     { body: version, response: z.object({ status: z.string() }) },
+  ),
+  route(
+    'get',
+    '/orgs/{orgId}/team-seasons/{teamSeasonId}/practice-allocations',
+    'List practice allocations for a team slot picker',
+    { response: z.object({ items: z.array(json) }) },
   ),
   route(
     'post',
