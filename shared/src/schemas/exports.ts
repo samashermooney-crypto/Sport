@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const organizationExportStatusSchema = z.enum([
+const organizationExportStatusSchema = z.enum([
   'queued',
   'building',
   'ready',
@@ -29,13 +29,9 @@ export const organizationExportDownloadLinkSchema = z.strictObject({
   expiresAt: z.iso.datetime(),
 });
 
-export const privacyRequestKindSchema = z.enum([
-  'access',
-  'correction',
-  'deletion',
-]);
-export const privacyRequestSubjectTypeSchema = z.enum(['person', 'household']);
-export const privacyRequestStatusSchema = z.enum([
+const privacyRequestKindSchema = z.enum(['access', 'correction', 'deletion']);
+const privacyRequestSubjectTypeSchema = z.enum(['person', 'household']);
+const privacyRequestStatusSchema = z.enum([
   'pending',
   'in_review',
   'approved',
@@ -79,7 +75,7 @@ export const privacySubjectExportSchema = z.strictObject({
   data: z.record(z.string(), z.unknown()),
 });
 
-export const retentionPolicyRulesSchema = z.strictObject({
+const retentionPolicyRulesSchema = z.strictObject({
   financialRecordsYears: z.literal(7),
   waiverAndSafetyYearsAfterAge18: z.literal(7),
   waiverAndSafetyYearsAfterEvent: z.literal(7),

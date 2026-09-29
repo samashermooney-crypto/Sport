@@ -111,7 +111,7 @@ export const websitePublicPageSchema = z.strictObject({
   footerNavigation: z.array(websiteMenuItemSchema),
 });
 
-export const websiteNewsSlugSchema = z
+const websiteNewsSlugSchema = z
   .string()
   .trim()
   .min(1)
@@ -256,7 +256,7 @@ export type WebsiteSettings = z.infer<typeof websiteSettingsSchema>;
 export type WebsiteMenu = z.infer<typeof websiteMenuSchema>;
 export type WebsiteMenuItem = z.infer<typeof websiteMenuItemSchema>;
 
-export const websiteDomainHostSchema = z
+const websiteDomainHostSchema = z
   .string()
   .trim()
   .toLowerCase()
@@ -359,5 +359,4 @@ export const websiteSaveResponseSchema = z.strictObject({
 });
 
 export type WebsiteBlock = z.infer<typeof websiteBlockSchema>;
-export type WebsitePageBody = z.infer<typeof websitePageBodySchema>;
 export type WebsiteNewsPost = z.infer<typeof websiteNewsPostSchema>;
