@@ -116,15 +116,17 @@ test('owner keyboard-operates the Action Center and report builder', async ({
     await evaluationResults.focus();
     await expect(evaluationResults).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('status')).toContainText(
-      'Evaluation results preset loaded.',
-    );
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: 'Evaluation results preset loaded.' }),
+    ).toContainText('Evaluation results preset loaded.');
     const preview = page.getByRole('button', { name: 'Preview report' });
     await preview.focus();
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('status')).toContainText(
-      'preview rows loaded.',
-    );
+    await expect(
+      page.getByRole('status').filter({ hasText: 'preview rows loaded.' }),
+    ).toContainText('preview rows loaded.');
 
     const registrationPace = page.getByRole('button', {
       name: 'Registration pace',

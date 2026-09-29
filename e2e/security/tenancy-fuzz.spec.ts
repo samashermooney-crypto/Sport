@@ -24,6 +24,7 @@ interface OpenApiOperation {
     body?: unknown;
     query?: Record<string, string>;
     pathResource?: 'file';
+    tenantHeader?: boolean;
   };
 }
 
@@ -81,6 +82,7 @@ test('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, and DELE
     body?: unknown;
     query?: Record<string, string>;
     pathResource?: 'file';
+    tenantHeader?: boolean;
     parameters?: OpenApiOperation['parameters'];
   }> = [];
 
@@ -104,7 +106,8 @@ test('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, and DELE
       if (tenantScoped) {
         if (
           !/\{(?:orgId|organizationId|tenantId)\}/i.test(path) &&
-          fixture?.pathResource !== 'file'
+          fixture?.pathResource !== 'file' &&
+          !fixture?.tenantHeader
         ) {
           uncovered.push(
             `${method.toUpperCase()} ${path}: missing tenant path parameter`,
@@ -119,6 +122,7 @@ test('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, and DELE
           ...(fixture?.pathResource
             ? { pathResource: fixture.pathResource }
             : {}),
+          ...(fixture?.tenantHeader ? { tenantHeader: true } : {}),
           ...(operation.parameters ? { parameters: operation.parameters } : {}),
         });
       }
@@ -189,6 +193,7 @@ test('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, and DELE
       body,
       query,
       pathResource,
+      tenantHeader,
       parameters,
     } of organizationOperations) {
       const target = operationPath(
@@ -203,7 +208,9 @@ test('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, and DELE
       const operationHeaders =
         pathResource === 'file'
           ? { ...headers, 'X-Athlentry-Org': ownOrganization.orgId }
-          : headers;
+          : tenantHeader
+            ? { ...headers, 'X-Athlentry-Org': foreignOrganization.orgId }
+            : headers;
       if (method !== 'get')
         Object.assign(operationHeaders, {
           'Idempotency-Key': randomUUID(),

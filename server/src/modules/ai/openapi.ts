@@ -10,6 +10,7 @@ export const aiOpenApiRoutes = [
     method: 'get',
     path: '/api/v1/ai/status',
     summary: 'Read optional AI assistant availability',
+    tenancyFixture: { tenantHeader: true },
     response: z.object({
       enabled: z.boolean(),
       provider: z.string().nullable(),
@@ -21,6 +22,7 @@ export const aiOpenApiRoutes = [
     method: 'post',
     path: '/api/v1/ai/form-drafts',
     summary: 'Create a reviewed draft from a form document',
+    tenancyFixture: { tenantHeader: true },
     query: { name: z.string().optional() },
     response: z.object({
       draftId: z.uuid(),
@@ -33,12 +35,14 @@ export const aiOpenApiRoutes = [
     method: 'post',
     path: '/api/v1/ai/form-drafts/{id}/apply',
     summary: 'Apply a reviewed form draft',
+    tenancyFixture: { tenantHeader: true },
     response: z.object({ formDefinitionId: z.uuid() }),
   },
   {
     method: 'post',
     path: '/api/v1/ai/form-drafts/{id}/discard',
     summary: 'Discard a form draft',
+    tenancyFixture: { tenantHeader: true },
     response: z.object({}),
     status: 204,
   },
@@ -46,6 +50,7 @@ export const aiOpenApiRoutes = [
     method: 'post',
     path: '/api/v1/ai/translate',
     summary: 'Translate staff supplied text',
+    tenancyFixture: { tenantHeader: true },
     body: z.object({
       text: z.string().min(1).max(20_000),
       target: z.enum(['en', 'es']),
@@ -59,6 +64,8 @@ export const aiOpenApiRoutes = [
     method: 'post',
     path: '/api/v1/ai/chat',
     summary: 'Ask the organization help assistant',
+    public: true,
+    tenancyFixture: { tenantHeader: true },
     body: z.object({
       message: z.string().min(1).max(4000),
       conversationId: z.uuid().optional(),
@@ -75,6 +82,8 @@ export const aiOpenApiRoutes = [
     method: 'get',
     path: '/api/v1/ai/conversations',
     summary: 'List staff assistant conversations',
+    permission: 'ai.conversations.read',
+    tenancyFixture: { tenantHeader: true },
     response: z.object({
       conversations: z.array(
         z.object({

@@ -39,6 +39,7 @@ export type OpenApiRoute = {
     body?: unknown;
     query?: Record<string, string>;
     pathResource?: 'file';
+    tenantHeader?: boolean;
   };
 };
 
@@ -711,6 +712,16 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
           },
         ]
       : []),
+    ...(route.tenancyFixture?.tenantHeader
+      ? [
+          {
+            name: 'X-Athlentry-Org',
+            in: 'header',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ]
+      : []),
   ];
   const status = String(route.status ?? 200);
   const binaryContentType =
@@ -761,9 +772,10 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
     result['x-athlentry-tenancy-fixture'] = metadata.tenancyFixture;
   if (parameters.length) result.parameters = parameters;
   if (
-    (route.body &&
-      (route.requestBinary || route.requestContentTypes?.length)) ||
-    (route.requestBinary && route.requestContentTypes?.length)
+    route.body &&
+    (route.requestBinary ||
+      route.requestContentType ||
+      route.requestContentTypes?.length)
   )
     throw new Error(
       `OpenAPI route cannot have JSON and binary request bodies: ${route.path}`,
@@ -882,6 +894,37 @@ const routeContractOverrides = new Map<string, Partial<OpenApiRoute>>([
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       ],
     },
+  ],
+  ['get /api/v1/forms/orgs/{orgId}', { permission: 'forms.manage' }],
+  [
+    'get /api/v1/forms/orgs/{orgId}/person',
+    { permission: 'forms.person.read' },
+  ],
+  [
+    'get /api/v1/forms/orgs/{orgId}/{formId}/reuse',
+    { permission: 'forms.person.read' },
+  ],
+  [
+    'get /api/v1/forms/orgs/{orgId}/responses/{responseId}',
+    { permission: 'forms.responses.read' },
+  ],
+  ['post /api/v1/forms/orgs/{orgId}/responses', { permission: 'forms.submit' }],
+  ['get /api/v1/waivers/orgs/{orgId}', { permission: 'waivers.manage' }],
+  [
+    'get /api/v1/waivers/orgs/{orgId}/person',
+    { permission: 'waivers.person.read' },
+  ],
+  [
+    'post /api/v1/waivers/orgs/{orgId}/{waiverId}/signatures',
+    { permission: 'waivers.sign' },
+  ],
+  [
+    'get /api/v1/waivers/orgs/{orgId}/signatures',
+    { permission: 'waivers.signature.read' },
+  ],
+  [
+    'get /api/v1/waivers/orgs/{orgId}/signatures/{signatureId}/pdf',
+    { permission: 'waivers.signature.read' },
   ],
   [
     'patch /api/v1/attendance/orgs/{orgId}/events/{eventId}/people/{personId}/attendance',

@@ -5,6 +5,7 @@
   "notifications": "Notificaciones",
   "classes": "Clases",
   "money": "Pagos",
+  "help": "Ayuda",
   "account": "Cuenta",
   "notificationsLoadFailed": "No se pudieron cargar las notificaciones.",
   "notificationReadFailed": "No se pudo marcar la notificación como leída.",

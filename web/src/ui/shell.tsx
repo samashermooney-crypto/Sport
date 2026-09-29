@@ -339,6 +339,22 @@ function contextualHelpGroup(
   };
 }
 
+export function contextualHelpMobileTab(
+  pathname: string,
+  language: string | undefined,
+): ShellNavItem | undefined {
+  const group = contextualHelpGroup(pathname, language);
+  const destination = group?.items[0];
+  if (!group || !destination) return undefined;
+
+  return {
+    ...destination,
+    label: group.label,
+    current:
+      new URL(destination.to, 'https://athlentry.local').pathname === pathname,
+  };
+}
+
 export function GlobalSearch({
   value,
   onChange,

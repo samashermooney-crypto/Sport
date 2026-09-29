@@ -14,13 +14,13 @@ import { apiGet } from '../api/client';
 import { useImpersonationId } from '../platform/impersonation';
 
 import { Select } from './primitives';
-import { AppShell } from './shell';
+import { AppShell, contextualHelpMobileTab } from './shell';
 
 export function ConsoleShell({
   orgId,
   children,
 }: PropsWithChildren<{ orgId: string }>): React.JSX.Element {
-  const { t } = useTranslation('console');
+  const { t, i18n } = useTranslation('console');
   const location = useLocation();
   const navigate = useNavigate();
   const impersonationId = useImpersonationId();
@@ -54,6 +54,10 @@ export function ConsoleShell({
       ),
     enabled: Boolean(orgId && searchQuery),
   });
+  const mobileHelpTab = contextualHelpMobileTab(
+    location.pathname,
+    i18n.resolvedLanguage ?? i18n.language,
+  );
   const globalSearchResults = [
     ...(peopleSearch.data?.items.map((person) => ({
       label: `${person.firstName} ${person.lastName}`,
@@ -168,6 +172,7 @@ export function ConsoleShell({
         item('People'),
         item('Schedule'),
         item('Messages'),
+        ...(mobileHelpTab ? [mobileHelpTab] : []),
         item('Account'),
       ]}
       onGlobalSearch={(query) => {

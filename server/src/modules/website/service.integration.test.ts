@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { request as httpRequest } from 'node:http';
 
 import express from 'express';
 import pg from 'pg';
@@ -37,6 +38,7 @@ import {
   setPrimaryWebsiteDomain,
   disableWebsiteDomain,
   saveWebsiteEmbed,
+  resolveVerifiedWebsiteHost,
 } from './service';
 
 const orgId = randomUUID();
@@ -838,20 +840,24 @@ describe('website page service', () => {
   });
 
   it('mounts site SSR and host-root SEO routes only for routable hosts', async () => {
-    const customHost = `club-${orgId.slice(0, 8)}.example.test`;
-    const pendingHost = `pending-${orgId.slice(0, 8)}.example.test`;
+    const hostToken = randomUUID().slice(0, 8);
+    const customHost = `verified-${hostToken}.example.test`;
+    const pendingHost = `pending-${hostToken}.example.test`;
     const admin = new pg.Client({
       connectionString: process.env.TEST_DATABASE_URL,
     });
     await admin.connect();
-    await admin.query(
-      `INSERT INTO site_domains
-       (id, org_id, host, kind, status, verify_token, verification_method, verified_at, is_primary)
-       VALUES ($1, $2, $3, 'custom', 'active', 'test-token', 'txt', now(), true),
-              ($4, $2, $5, 'custom', 'pending', 'pending-token', 'txt', NULL, false)`,
-      [randomUUID(), orgId, customHost, randomUUID(), pendingHost],
-    );
-    await admin.end();
+    try {
+      await admin.query(
+        `INSERT INTO site_domains
+         (id, org_id, host, kind, status, verify_token, verification_method, verified_at, is_primary)
+         VALUES ($1, $2, $3, 'custom', 'active', 'test-token', 'txt', now(), true),
+                ($4, $2, $5, 'custom', 'pending', 'pending-token', 'txt', NULL, false)`,
+        [randomUUID(), orgId, customHost, randomUUID(), pendingHost],
+      );
+    } finally {
+      await admin.end();
+    }
 
     await saveWebsitePage(
       context,
@@ -878,6 +884,7 @@ describe('website page service', () => {
 
     const app = createApp({
       database,
+      appUrl: 'http://localhost:3000',
       captchaWidget: { mode: 'preview' },
     } as unknown as AuthDependencies);
     const server = app.listen(0, '127.0.0.1');
@@ -887,41 +894,86 @@ describe('website page service', () => {
       if (!address || typeof address === 'string')
         throw new Error('The test server did not open a TCP port');
       const origin = `http://127.0.0.1:${String(address.port)}`;
-      const hostHeaders = { Host: customHost, Accept: 'text/html' };
-      const home = await fetch(origin, { headers: hostHeaders });
-      const homeHtml = await home.text();
+      await expect(
+        resolveVerifiedWebsiteHost(database, customHost),
+      ).resolves.toBe(orgSlug);
+      const requestWithHost = (
+        pathname: string,
+        hostname: string,
+        accept = 'text/html',
+      ) =>
+        new Promise<{ status: number; body: string }>((resolve, reject) => {
+          const request = httpRequest(
+            `${origin}${pathname}`,
+            { headers: { host: hostname, accept } },
+            (response) => {
+              let body = '';
+              response.setEncoding('utf8');
+              response.on('data', (chunk: string) => {
+                body += chunk;
+              });
+              response.on('end', () => {
+                resolve({ status: response.statusCode ?? 0, body });
+              });
+            },
+          );
+          request.on('error', reject);
+          request.end();
+        });
+      const home = await requestWithHost('/', customHost);
+      const homeHtml = home.body;
       expect(home.status).toBe(200);
       expect(homeHtml).toContain(
         '<title>Custom Domain Home · Website Test Club</title>',
       );
       expect(homeHtml).toContain('Published on the verified host.');
 
-      const mountedSite = await fetch(`${origin}/site/${orgSlug}`, {
-        headers: hostHeaders,
-      });
+      const mountedSite = await requestWithHost(`/site/${orgSlug}`, customHost);
       expect(mountedSite.status).toBe(200);
-      expect(await mountedSite.text()).toContain('Custom Domain Home');
+      expect(mountedSite.body).toContain('Custom Domain Home');
 
-      const robots = await fetch(`${origin}/robots.txt`, {
-        headers: { Host: customHost },
-      });
+      const robots = await requestWithHost(
+        '/robots.txt',
+        customHost,
+        'text/plain',
+      );
       expect(robots.status).toBe(200);
-      expect(await robots.text()).toContain(
+      expect(robots.body).toContain(
         `Sitemap: https://${customHost}/sitemap.xml`,
       );
 
-      const sitemap = await fetch(`${origin}/sitemap.xml`, {
-        headers: { Host: customHost },
-      });
-      const sitemapXml = await sitemap.text();
+      const sitemap = await requestWithHost(
+        '/sitemap.xml',
+        customHost,
+        'application/xml',
+      );
+      const sitemapXml = sitemap.body;
       expect(sitemap.status).toBe(200);
       expect(sitemapXml).toContain(`https://${customHost}/`);
       expect(sitemapXml).toContain(`https://${customHost}/programs`);
       expect(sitemapXml).not.toContain('.athlentry.com');
 
-      const unverified = await fetch(`${origin}/site/${orgSlug}`, {
-        headers: { Host: pendingHost, Accept: 'text/html' },
-      });
+      const subdomainHost = `${orgSlug}.athlentry.com`;
+      const subdomainRobots = await requestWithHost(
+        '/robots.txt',
+        subdomainHost,
+        'text/plain',
+      );
+      expect(subdomainRobots.status).toBe(200);
+      expect(subdomainRobots.body).toContain(
+        `Sitemap: https://${subdomainHost}/sitemap.xml`,
+      );
+      const subdomainSitemap = await requestWithHost(
+        '/sitemap.xml',
+        subdomainHost,
+        'application/xml',
+      );
+      expect(subdomainSitemap.status).toBe(200);
+      expect(subdomainSitemap.body).toContain(
+        `https://${subdomainHost}/programs`,
+      );
+
+      const unverified = await requestWithHost(`/site/${orgSlug}`, pendingHost);
       expect(unverified.status).toBe(404);
     } finally {
       await new Promise<void>((resolve, reject) =>

@@ -5,6 +5,7 @@
   "notifications": "Notifications",
   "classes": "Classes",
   "money": "Payments",
+  "help": "Help",
   "account": "Account",
   "notificationsLoadFailed": "Could not load notifications.",
   "notificationReadFailed": "Could not mark the notification read.",
