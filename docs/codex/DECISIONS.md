@@ -196,9 +196,9 @@
 - **Date:** 2026-09-26
 - **Phase / area:** Phase 1 files integration
 - **Context:** The file adapter initially allowed nullable organization ids, while the global RLS invariant requires tenant-owned file records. The file service leaves authorization to the application composition root.
-- **Decision:** Require `files.org_id` for every record. Local file routes require an authenticated actor in the organization and the request's organization header. General uploads require an active org-level owner, admin or registrar role with completed MFA. A verified active guardian link may upload restricted evidence only for its represented person and an approved credential or return-to-play clearance purpose. Restricted downloads require an active owner or compliance role with completed MFA and an audited content read; sensitive downloads permit registrar, and internal/public downloads permit active members. Mutating routes verify origin and request header.
+- **Decision:** Require `files.org_id` for every record. Local file routes require an authenticated actor in the organization and the request's organization header. General uploads require an active org-level owner, admin or registrar role with completed MFA. A verified active guardian link may upload restricted evidence only for its represented person and an approved credential or return-to-play clearance purpose. Restricted downloads require an active owner or compliance role with completed MFA and an audited content read, except that DEC-126 permits a verified guardian or adult self link to access only `person_document` files for that linked person. This exception does not grant access to restricted credential, return-to-play or generic person-owned files. Sensitive downloads permit registrar, and internal/public downloads permit active members. Mutating routes verify origin and request header.
 - **Why:** Privacy and child safety require an explicit tenant and narrow authorization before upload or download. Public website assets are published through a separate later flow.
-- **Consequences / follow-ups:** Phase 1 and Phase 7 file acceptance must verify these role boundaries over HTTP, including guardian ownership and 404 denial for unauthorized Restricted reads. Later public asset publishing must copy approved assets into a separate public delivery path without exposing private file URLs.
+- **Consequences / follow-ups:** Phase 1 and Phase 7 file acceptance must verify these role boundaries over HTTP, including guardian ownership and 404 denial for unauthorized Restricted reads. Phase 2 family documents use the `person_document` owner type and are the sole family-link download exception. Later public asset publishing must copy approved assets into a separate public delivery path without exposing private file URLs.
 
 ### DEC-024 — Separate campaign mail sender
 - **Date:** 2026-09-26
@@ -551,7 +551,7 @@
 - **Decision:** The existing account `linked_org_ids` array remains an append-only candidate index. A trigger adds an org when a person-account link is inserted and a migration backfills existing links. The family reader starts from the authenticated global account, then checks active, verified links and active people separately inside `withOrg` for each candidate organization. Revocation does not remove the candidate ID.
 - **Why:** Discovery stays fast while stale index entries never grant access. Every tenant read remains inside the org-scoped helper.
 - **Consequences / follow-ups:** The family screen currently shows basic linked profiles. Profile/medical/document editing and athlete invitations remain Phase 2 work. Any new family consumer must recheck the link inside `withOrg`.
-### DEC-119 — Keep guest donation checkout behind the finance adapter
+### DEC-121 — Keep guest donation checkout behind the finance adapter
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 11 fundraising
 - **Context:** E's current payment service requires an account-bound customer and invoice, while a guest donor must not receive a synthetic Athlentry account or have a donation misrepresented as another payer's invoice.
@@ -559,7 +559,7 @@
 - **Why:** This preserves payer identity and accounting integrity and keeps provider details in E's adapter.
 - **Consequences / follow-ups:** Guest donation checkout remains unavailable on trunk until E/C wire the adapter and webhook. Orders containing products with different tax rates need separate invoices.
 
-### DEC-120 — Keep store order terms recoverable and registration add-ons versioned
+### DEC-122 — Keep store order terms recoverable and registration add-ons versioned
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 11 store
 - **Context:** A store order reserves inventory in one tenant transaction, then issues an E-owned invoice in a separate transaction. A process interruption between those commits must not lose the invoice link or change what the purchaser agreed to buy. Registration add-on requirements must remain reviewable as products and sizes change, and shipped orders must retain the address used at purchase.
@@ -798,7 +798,6 @@
 - **Decision:** Store enabled stat keys in `programs.settings.statsEnabled`, expose a version-checked `results.manage` settings API and staff console editor, and capture only enabled keys. Public summaries include only enabled definitions marked public; private athlete metrics are shown in result-entry controls to staff managers only.
 - **Why:** Program-level opt-in prevents accidental collection, version checks avoid lost edits, and the public flag protects youth performance data.
 - **Consequences / follow-ups:** Personal bests and program/division leaderboards use shared aggregation functions and include only finalized contests. Saving a result replaces its stat lines when the request supplies a stats array; clients that omit that optional field preserve prior stat lines.
-
 ### DEC-109 — Reuse the existing head coach compliance role for class instructors
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 12 academy instructor assignment
@@ -847,7 +846,7 @@
 - **Why:** This limits child-data exposure, prevents arbitrary person IDs from granting access, and keeps staff ratings intact when a family edits its own preferences.
 - **Consequences / follow-ups:** The team balancer consumes requests only when both athletes request one another. Staff preferences remain accessible through director-only routes.
 
-### DEC-116 — Approve split transfer refunds as one frozen finance operation
+### DEC-123 — Approve split transfer refunds as one frozen finance operation
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 4 refunds and Phase 5 registration transfers
 - **Context:** A cheaper transfer can be funded by several Stripe payments; independently approving or executing each share would let the combined refund bypass the invoice's second-person threshold or leave the registration moved before finance review.
@@ -862,6 +861,45 @@
 - **Why:** The checks must fail on real authorization gaps without inventing route policy or hiding a cross-tenant read behind an unrelated 404.
 - **Consequences / follow-ups:** Track C owns the generated contracts and CI wiring; the precise requests are recorded in `docs/codex/tracks/SEC.md` and `docs/codex/tracks/C.md`. Remove the `test.fixme` markers when those contracts are available and the checks can exercise real fixtures.
 ### DEC-115 — Balance Rec teams by age at season start
+
+### DEC-119 — Preserve signed waiver evidence across person merges
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 waivers and duplicate person merges
+- **Context:** Migration 0904 makes `waiver_signatures` append-only, while the person merge service previously rewrote participant and signer person IDs in those rows.
+- **Decision:** Keep signer and participant IDs exactly as captured. Resolve the full `person_merges` lineage when listing signatures or authorizing a linked person to download historical PDF evidence.
+- **Why:** A merge must not rewrite legally significant signature evidence or fail because an immutable record references a pre-merge person.
+- **Consequences / follow-ups:** Signatures retain their original person IDs and document hashes. PostgreSQL merge tests verify that the survivor can list and download the preserved evidence through the active guardian link.
+
+### DEC-126 — Keep family documents restricted to verified profile links
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 family portal documents and photos
+- **Context:** Phase 2 allows guardians and adult selves to manage family documents, while the Files module separates Restricted evidence from ordinary organization files.
+- **Decision:** Store family documents as Restricted `person_document` files. Only an active, verified guardian or adult self link for that person can upload, list, or download those files; authorized Restricted staff retain their existing access. This is the narrow family-document exception to DEC-023; it does not grant linked accounts access to credential, return-to-play or generic person-owned Restricted files. Profile photos use the existing sensitive-image class and remain available only when media consent is granted.
+- **Why:** Family records can contain identity and medical information, so the narrowest relationship-based access protects privacy while enabling the specified family workflow.
+- **Consequences / follow-ups:** Uploaded records are retained; this UI does not hard-delete them. Documents use PDF, JPEG, and PNG, and every upload/download still passes through Files authorization and audit.
+
+### DEC-127 — Define dual-signer waivers as adult plus guardian
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 2 waivers
+- **Context:** The waiver schema offers a `both` signer requirement but does not define which two legally accountable people fulfill it.
+- **Decision:** Require the adult participant to sign as self and a distinct, verified guardian account to sign as guardian. Reject this requirement for minors because the permission spec does not allow minors to sign their own waivers.
+- **Why:** A guardian signature cannot substitute for the adult participant signature, and one account cannot satisfy both roles.
+- **Consequences / follow-ups:** The family portal shows partial completion and permits the missing role to sign. Waiver managers see this rule when selecting `both`.
+
+### DEC-128 — Preserve secondary-button text contrast on hover
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 1 design system accessibility
+- **Context:** The legacy hover rule changed a secondary button's background to pale gray while the shared hover rule left its text white, producing a 1.1:1 contrast ratio.
+- **Decision:** Keep the legacy secondary hover background and explicitly retain the normal dark text color while hovered.
+- **Why:** This is the smallest contrast-only correction permitted by `01 §11a`; it does not change the button's shape, spacing, or color palette.
+- **Consequences / follow-ups:** Axe checks on the cropped family-photo journey verify the hover state in Chromium and mobile WebKit.
+
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 6 Rec placement boards
+- **Context:** Phase 6 requires age balancing, but the shared team balancer previously considered ratings, roster size, hard constraints, and preferences only.
+- **Decision:** Supply whole-year age at the target program's `starts_on` date to the existing shared balancer and include team mean-age variance with the same objective weight as mean-rating variance. When some athletes lack a date of birth, use the median known age for objective calculations; omit age balancing if none have a date of birth.
+- **Why:** Age fairness belongs in the same deterministic optimization that enforces team sizes, ratings, and linked-player constraints. Using the season start gives a consistent reference for every registration in the program.
+- **Consequences / follow-ups:** Existing callers without age retain their previous objective and metrics. The Rec dashboard shows mean age beside mean rating. The seeded 120-player balancer test verifies both fairness dimensions within the five-second budget.
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 6 Rec placement boards
 - **Context:** Phase 6 requires age balancing, but the shared team balancer previously considered ratings, roster size, hard constraints, and preferences only.
@@ -893,7 +931,7 @@
 - **Why:** Reauthentication must invalidate any token that an attacker may have captured before the user completed the stronger check, while preserving a continuous session for the user.
 - **Consequences / follow-ups:** Password/TOTP, cookie rotation, bearer rotation, expiry preservation, stale-token rejection and MFA rate limiting are covered by auth integration tests; the browser fixation journey covers web behavior.
 
-### DEC-118 — Pin Web Push requests to validated public provider addresses
+### DEC-125 — Pin Web Push requests to validated public provider addresses
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 16 §1 server-side request forgery protection
 - **Context:** Web Push subscription endpoints are account-supplied URLs; validating only their scheme or hostname leaves loopback/private targets and DNS rebinding available to the server-side transport.

@@ -260,6 +260,18 @@ export async function stepUpWithTotp(
   now = dependencies.clock(),
 ): Promise<IssuedSession | null> {
   return dependencies.database.transaction().execute(async (trx) => {
+    const current = await trx
+      .selectFrom('sessions')
+      .select('id')
+      .where('id', '=', session.id)
+      .where('account_id', '=', session.accountId)
+      .where('token_hash', '=', session.tokenHash)
+      .where('revoked_at', 'is', null)
+      .where('idle_expires_at', '>', now)
+      .where('absolute_expires_at', '>', now)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!current) return null;
     if (
       !(await verifyAndConsumeTotp(
         trx,

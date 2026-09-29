@@ -214,21 +214,8 @@ export function createMergesRepository(database: Kysely<DB>) {
         if (Number(responses.numUpdatedRows) > 0)
           moved.form_responses = Number(responses.numUpdatedRows);
 
-        for (const column of [
-          'participant_person_id',
-          'signer_person_id',
-        ] as const) {
-          const result = await trx
-            .updateTable('waiver_signatures')
-            .set({ [column]: survivorId })
-            .where('org_id', '=', orgId)
-            .where(column, '=', mergedId)
-            .executeTakeFirst();
-          if (Number(result.numUpdatedRows) > 0)
-            moved[`waiver_signatures.${column}`] = Number(
-              result.numUpdatedRows,
-            );
-        }
+        // Preserve signed waiver evidence exactly as recorded. Waiver reads
+        // resolve these original person ids through person_merges lineage.
 
         const pickedUp = await trx
           .updateTable('attendance')

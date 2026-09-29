@@ -5,6 +5,7 @@ import {
   mfaEnrollmentResponseSchema,
   recoveryCodesResponseSchema,
   sessionsResponseSchema,
+  stepUpResponseSchema,
 } from '@shared/schemas/auth';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
@@ -111,7 +112,7 @@ export function SecuritySettings(): React.JSX.Element {
         stepMethod === 'password'
           ? { method: 'password', password: values.secret }
           : { method: 'totp', code: values.secret },
-        authStatusResponseSchema,
+        stepUpResponseSchema,
       );
       stepForm.reset();
       setNotice(t('stepUpNotice'));

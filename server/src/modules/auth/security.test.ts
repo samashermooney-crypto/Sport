@@ -185,14 +185,26 @@ describe('MFA enrollment and re-authentication', () => {
       decodeBase32(enrollment.manualKey),
       Math.floor(now.getTime() / 30_000),
     );
-    const totpStepUp = await stepUpWithTotp(dependencies, stepped, nextCode);
-    expect(totpStepUp).not.toBeNull();
-    if (!totpStepUp) throw new Error('TOTP step-up failed');
+    expect(
+      await stepUpWithTotp(
+        dependencies,
+        { ...stepped, tokenHash: Buffer.alloc(32) },
+        nextCode,
+      ),
+    ).toBeNull();
+    const totpRotation = await stepUpWithTotp(dependencies, stepped, nextCode);
+    expect(totpRotation).not.toBeNull();
+    expect(await stepUpWithTotp(dependencies, stepped, nextCode)).toBeNull();
+    if (!totpRotation) throw new Error('TOTP step-up did not rotate');
     expect(
       await database
         .transaction()
         .execute((trx) => resolveSession(trx, passwordStepUp.token, now)),
     ).toBeNull();
-    expect(await stepUpWithTotp(dependencies, stepped, nextCode)).toBeNull();
+    expect(
+      await database
+        .transaction()
+        .execute((trx) => resolveSession(trx, totpRotation.token, now)),
+    ).not.toBeNull();
   });
 });

@@ -156,6 +156,8 @@ test('new account verifies its preview email and signs in', async ({
   test.setTimeout(60_000);
   const email = `e2e-${testInfo.project.name}-${Date.now().toString()}@example.test`;
   const password = 'Pinecones!7348Ridge';
+  // The service-worker/provider doubles keep this local, while the assertion
+  // below verifies the VAPID key passed to PushManager.
   await page.addInitScript(() => {
     let subscription: {
       endpoint: string;
@@ -165,7 +167,25 @@ test('new account verifies its preview email and signs in', async ({
     const registration = {
       pushManager: {
         getSubscription: () => Promise.resolve(subscription),
-        subscribe: () => {
+        subscribe: (options: PushSubscriptionOptionsInit) => {
+          const serverKey = options.applicationServerKey;
+          const keyBytes =
+            serverKey instanceof ArrayBuffer
+              ? new Uint8Array(serverKey)
+              : ArrayBuffer.isView(serverKey)
+                ? new Uint8Array(
+                    serverKey.buffer,
+                    serverKey.byteOffset,
+                    serverKey.byteLength,
+                  )
+                : new Uint8Array();
+          if (
+            options.userVisibleOnly !== true ||
+            keyBytes.length !== 65 ||
+            keyBytes[0] !== 4
+          ) {
+            throw new Error('PushManager received invalid VAPID options.');
+          }
           const endpoint = `https://push.example.test/${crypto.randomUUID()}`;
           subscription = {
             endpoint,
