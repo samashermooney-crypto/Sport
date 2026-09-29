@@ -10,6 +10,7 @@ import type { DB } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 import { LocalDiskStorage } from '../../integrations/storage/storage';
+import type { Storage } from '../../integrations/storage/storage';
 import { decryptRestricted, encryptRestricted } from '../../lib/crypto';
 import type { EncryptionKeys } from '../../lib/crypto';
 
@@ -20,7 +21,7 @@ export interface CardDependencies {
   encryption: EncryptionKeys;
   clock: () => Date;
   appUrl: string;
-  localStorage?: LocalDiskStorage;
+  localStorage?: Pick<Storage, 'get'>;
 }
 
 export class CardError extends Error {
