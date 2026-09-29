@@ -14,11 +14,13 @@ import { apiGet, apiPatch, apiPost } from '../api/client';
 import { useImpersonationId } from '../platform/impersonation';
 import { ConsoleShell } from '../ui/ConsoleShell';
 import { useToast } from '../ui/app-feedback';
-import { AuthFrame, AuthLink, ErrorBox } from '../ui/auth';
+import { AuthFrame, ErrorBox } from '../ui/auth';
 import { ConfirmDialog } from '../ui/overlays';
 import {
   Button,
   Card,
+  EmptyState,
+  ErrorState,
   Field,
   Input,
   Link,
@@ -340,6 +342,38 @@ export function PeopleList(): React.JSX.Element {
       ),
     enabled: Boolean(orgId),
   });
+  const hasActiveFilters = Boolean(
+    query.trim() ||
+    status !== 'active' ||
+    gender ||
+    minAge ||
+    maxAge ||
+    grade ||
+    householdId ||
+    programId ||
+    teamSeasonId ||
+    credentialStatus ||
+    eligibilityRole ||
+    hasBalance,
+  );
+  function clearFilters(): void {
+    setQuery('');
+    setCursor(null);
+    setStatus('active');
+    setGender('');
+    setMinAge('');
+    setMaxAge('');
+    setGrade('');
+    setHouseholdSearch('');
+    setHouseholdId('');
+    setProgramSearch('');
+    setProgramId('');
+    setTeamSearch('');
+    setTeamSeasonId('');
+    setCredentialStatus('');
+    setEligibilityRole('');
+    setHasBalance('');
+  }
   if (!orgId)
     return (
       <AuthFrame>
@@ -572,7 +606,16 @@ export function PeopleList(): React.JSX.Element {
             </p>
           )}
           {people.isPending && <p role="status">Loading people…</p>}
-          {people.isError && <ErrorBox error="People could not be loaded." />}
+          {people.isError && (
+            <ErrorState
+              title="People could not be loaded"
+              onRetry={() => {
+                void people.refetch();
+              }}
+            >
+              Your filters are still set.
+            </ErrorState>
+          )}
           {people.data && (
             <>
               <ul>
@@ -613,7 +656,24 @@ export function PeopleList(): React.JSX.Element {
                 ))}
               </ul>
               {people.data.items.length === 0 && (
-                <p>No {status} people match this search.</p>
+                <EmptyState
+                  title={
+                    hasActiveFilters
+                      ? 'No people match these filters'
+                      : 'No people yet'
+                  }
+                  action={
+                    hasActiveFilters ? (
+                      <Button type="button" secondary onClick={clearFilters}>
+                        Clear filters
+                      </Button>
+                    ) : undefined
+                  }
+                >
+                  {hasActiveFilters
+                    ? `No ${status} people match the current search. Clear filters or adjust your search.`
+                    : 'Add people individually or import a roster to get started.'}
+                </EmptyState>
               )}
               {people.data.nextCursor && (
                 <Button
@@ -688,16 +748,29 @@ export function PersonDetail(): React.JSX.Element {
     );
   if (person.isPending)
     return (
-      <AuthFrame>
-        <h1>Loading person…</h1>
-      </AuthFrame>
+      <PeopleShell orgId={orgId}>
+        <main className="console-home">
+          <PageHeader kicker="PERSON" title="Person" />
+          <p role="status">Loading person…</p>
+        </main>
+      </PeopleShell>
     );
   if (person.isError)
     return (
-      <AuthFrame>
-        <h1>Person unavailable</h1>
-        <AuthLink to={`/console/orgs/${orgId}/people`}>Back to people</AuthLink>
-      </AuthFrame>
+      <PeopleShell orgId={orgId}>
+        <main className="console-home">
+          <PageHeader kicker="PERSON" title="Person unavailable" />
+          <ErrorState
+            title="Person could not be loaded"
+            onRetry={() => {
+              void person.refetch();
+            }}
+          >
+            Check your access or return to the people list.
+          </ErrorState>
+          <Link to={`/console/orgs/${orgId}/people`}>Back to people</Link>
+        </main>
+      </PeopleShell>
     );
   const current = person.data;
   const personName =
