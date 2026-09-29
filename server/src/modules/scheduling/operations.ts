@@ -2,6 +2,7 @@ import { newId } from '@shared/ids';
 import { expand } from '@shared/recurrence';
 import { sql } from 'kysely';
 
+import type { Json } from '../../db/types';
 import { withOrg } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 import { VersionConflictError } from '../../lib/version-check';
@@ -306,6 +307,85 @@ export async function createAllocation(
   });
 }
 
+export async function listTeamPracticeAllocations(
+  context: OrgContext,
+  teamSeasonId: string,
+) {
+  return withOrg(context, async (trx) => {
+    const team = await trx
+      .selectFrom('team_seasons')
+      .select('program_id')
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', teamSeasonId)
+      .executeTakeFirst();
+    if (!team)
+      throw new SchedulingRuleError('Team season not found.', 404, 'NOT_FOUND');
+    await assertSchedulePermission(trx, context, 'attendance.manage', {
+      teamSeasonId,
+    });
+    const setting = await trx
+      .selectFrom('schedule_settings')
+      .select('coach_slot_picker_enabled')
+      .where('org_id', '=', context.orgId)
+      .where('program_id', '=', team.program_id)
+      .executeTakeFirst();
+    if (!setting?.coach_slot_picker_enabled)
+      throw new SchedulingRuleError(
+        'Practice slot requests are not enabled for this program.',
+        403,
+        'FORBIDDEN',
+      );
+    const items = await trx
+      .selectFrom('allocations')
+      .innerJoin('spaces', (join) =>
+        join
+          .onRef('spaces.org_id', '=', 'allocations.org_id')
+          .onRef('spaces.id', '=', 'allocations.space_id'),
+      )
+      .innerJoin('facilities', (join) =>
+        join
+          .onRef('facilities.org_id', '=', 'spaces.org_id')
+          .onRef('facilities.id', '=', 'spaces.facility_id'),
+      )
+      .select([
+        'allocations.id',
+        'allocations.recurrence',
+        'allocations.starts_on',
+        'allocations.ends_on',
+        'allocations.start_time',
+        'allocations.end_time',
+        'allocations.purpose',
+        'spaces.name as space_name',
+        'facilities.timezone',
+      ])
+      .where('allocations.org_id', '=', context.orgId)
+      .where('allocations.team_season_id', '=', teamSeasonId)
+      .where('allocations.status', '=', 'active')
+      .where('spaces.archived_at', 'is', null)
+      .where('facilities.archived_at', 'is', null)
+      .orderBy('allocations.starts_on')
+      .execute();
+    if (!items.length) return [];
+    const requests = await trx
+      .selectFrom('allocation_requests')
+      .select(['allocation_id', 'starts_at'])
+      .where('org_id', '=', context.orgId)
+      .where(
+        'allocation_id',
+        'in',
+        items.map((item) => item.id),
+      )
+      .where('status', 'in', ['pending', 'approved'])
+      .execute();
+    return items.map((item) => ({
+      ...item,
+      requested_starts_at: requests
+        .filter((request) => request.allocation_id === item.id)
+        .map((request) => request.starts_at),
+    }));
+  });
+}
+
 export async function requestAllocationSlot(
   context: OrgContext,
   allocationId: string,
@@ -318,6 +398,7 @@ export async function requestAllocationSlot(
       .where('org_id', '=', context.orgId)
       .where('id', '=', allocationId)
       .where('status', '=', 'active')
+      .forUpdate()
       .executeTakeFirst();
     if (!allocation)
       throw new SchedulingRuleError('Allocation not found.', 404, 'NOT_FOUND');
@@ -387,6 +468,35 @@ export async function requestAllocationSlot(
       throw new SchedulingRuleError(
         'Choose a slot from the allocated practice block.',
       );
+    const existingRequest = await trx
+      .selectFrom('allocation_requests')
+      .select('id')
+      .where('org_id', '=', context.orgId)
+      .where('allocation_id', '=', allocation.id)
+      .where('starts_at', '=', start)
+      .where('status', 'in', ['pending', 'approved'])
+      .executeTakeFirst();
+    if (existingRequest)
+      throw new SchedulingRuleError(
+        'This allocated slot already has a request.',
+        409,
+        'SCHEDULE_CONFLICT',
+      );
+    const reservation = await trx
+      .selectFrom('space_bookings')
+      .select('booking_group_id')
+      .where('org_id', '=', context.orgId)
+      .where('allocation_id', '=', allocation.id)
+      .where(
+        sql<boolean>`during = tstzrange(${start.toISOString()}::timestamptz, ${end.toISOString()}::timestamptz, '[)')`,
+      )
+      .executeTakeFirst();
+    if (!reservation)
+      throw new SchedulingRuleError(
+        'This allocated slot has already been used.',
+        409,
+        'SCHEDULE_CONFLICT',
+      );
     const settings = await trx
       .selectFrom('schedule_settings')
       .select('slot_approval_required')
@@ -426,7 +536,7 @@ export async function requestAllocationSlot(
       const eventId = await makePracticeEvent(
         trx,
         context,
-        allocation,
+        { ...allocation, allocation_id: allocation.id },
         start,
         end,
       );
@@ -450,6 +560,7 @@ async function makePracticeEvent(
   trx: OrgTransaction,
   context: OrgContext,
   allocation: {
+    allocation_id: string;
     space_id: string;
     team_season_id: string | null;
     division_id: string | null;
@@ -457,6 +568,28 @@ async function makePracticeEvent(
   startsAt: Date,
   endsAt: Date,
 ): Promise<string> {
+  const reservation = await trx
+    .selectFrom('space_bookings')
+    .select('booking_group_id')
+    .where('org_id', '=', context.orgId)
+    .where('allocation_id', '=', allocation.allocation_id)
+    .where(
+      sql<boolean>`during = tstzrange(${startsAt.toISOString()}::timestamptz, ${endsAt.toISOString()}::timestamptz, '[)')`,
+    )
+    .executeTakeFirst();
+  if (!reservation)
+    throw new SchedulingRuleError(
+      'The allocated practice slot is no longer available.',
+      409,
+      'SCHEDULE_CONFLICT',
+    );
+  await trx
+    .deleteFrom('space_bookings')
+    .where('org_id', '=', context.orgId)
+    .where('allocation_id', '=', allocation.allocation_id)
+    .where('booking_group_id', '=', reservation.booking_group_id)
+    .execute();
+
   const eventId = newId();
   const team = allocation.team_season_id
     ? await trx
@@ -698,7 +831,7 @@ export async function requestReschedule(
         event_id: eventId,
         requested_by: context.actor.accountId,
         reason: input.reason,
-        proposed_slots: slots as never,
+        proposed_slots: JSON.stringify(slots) as unknown as Json,
       })
       .execute();
     await appendAuditEvent(trx, context, {

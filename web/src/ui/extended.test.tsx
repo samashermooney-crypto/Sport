@@ -1,8 +1,10 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
   Combobox,
+  Board,
+  Chart,
   DateRangeInput,
   FileUpload,
   MoneyInput,
@@ -93,5 +95,63 @@ describe('rich text allow-list', () => {
     expect((onFiles.mock.calls[0]?.[0] as FileList)[0]?.name).toBe(
       'roster.csv',
     );
+  });
+});
+
+describe('accessible chart data', () => {
+  it('exposes chart values in a screen-reader table', () => {
+    render(
+      <Chart
+        title="Registrations"
+        valueFormatter={(value) => `${value.toString()} people`}
+        values={[
+          { label: 'August', value: 12 },
+          { label: 'September', value: 18 },
+        ]}
+      />,
+    );
+
+    const table = screen.getByRole('table', { name: 'Registrations data' });
+    expect(
+      within(table).getByRole('rowheader', { name: 'September' }),
+    ).toBeTruthy();
+    expect(within(table).getByRole('cell', { name: '18 people' })).toBeTruthy();
+    expect(
+      screen.getByRole('img', {
+        name: 'Registrations: August 12 people, September 18 people',
+      }),
+    ).toBeTruthy();
+  });
+});
+
+describe('accessible board controls', () => {
+  it('labels board regions and keeps a keyboard move alternative', () => {
+    const onMove = vi.fn();
+    render(
+      <Board
+        ariaLabel="Team placement board"
+        columns={[
+          {
+            id: 'unassigned',
+            title: 'Unassigned',
+            items: [{ id: 'person-1', label: 'Jordan Lee' }],
+          },
+          { id: 'team-a', title: 'Team A', items: [] },
+        ]}
+        onMove={onMove}
+      />,
+    );
+
+    const board = screen.getByRole('region', {
+      name: 'Team placement board',
+    });
+    const unassigned = within(board).getByRole('group', { name: /Unassigned/ });
+    fireEvent.change(
+      within(unassigned).getByRole('combobox', {
+        name: 'Move Jordan Lee to',
+      }),
+      { target: { value: 'team-a' } },
+    );
+    expect(onMove).toHaveBeenCalledWith('person-1', 'team-a');
   });
 });

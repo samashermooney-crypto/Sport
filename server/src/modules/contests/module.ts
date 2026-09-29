@@ -68,12 +68,20 @@ const endpoints = [
     '/public/orgs/{orgSlug}/contests/{contestId}/live',
     'Read public live contest results',
   ],
+  [
+    'get',
+    '/public/orgs/{orgSlug}/contests/{contestId}/live/events',
+    'Stream public live contest results',
+  ],
 ] as const;
 const openapiRoutes = endpoints.map(([method, path, summary]) => ({
   method,
   path: `${base}${path}`,
   summary,
-  response: json,
+  response: path.endsWith('/live/events') ? z.string() : json,
+  ...(path.endsWith('/live/events')
+    ? { contentType: 'text/event-stream' }
+    : {}),
   ...(['post', 'put', 'patch'].includes(method) ? { body: json } : {}),
   ...(path.startsWith('/public/') ? { public: true } : {}),
   tags: ['contests'],

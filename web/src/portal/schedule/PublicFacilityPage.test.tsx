@@ -37,7 +37,7 @@ describe('public facility page', () => {
     render(<PublicFacilityPage slug={slug} facilityId={facilityId} />);
 
     const image = await screen.findByRole('img', {
-      name: 'Northstar Fieldhouse layout',
+      name: 'Northstar Fieldhouse facility layout',
     });
     expect(image.getAttribute('src')).toBe(
       `/api/v1/files/public/orgs/${encodeURIComponent(slug)}/facilities/${encodeURIComponent(facilityId)}/layout`,

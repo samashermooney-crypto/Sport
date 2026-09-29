@@ -95,11 +95,17 @@ export function ConsoleHome(): React.JSX.Element {
       description: 'Inspect recorded changes and protected access.',
       to: `/console/orgs/${orgId}/audit`,
     },
+    {
+      label: 'Export organization data',
+      description: 'Request a protected archive of organization records.',
+      to: `/console/orgs/${orgId}/data`,
+    },
   ];
   const actions = [
     ...(workspace.data.canManage
       ? [
           ...manageActions.slice(0, 7),
+          ...(manageActions[8] ? [manageActions[8]] : []),
           {
             label: 'Manage payment processing',
             description: 'Connect your organization to accept online payments.',

@@ -839,7 +839,7 @@
 - **Why:** Families are charged only for the agreed change in service, preserving the financial balance through a mid-cycle level move.
 - **Consequences / follow-ups:** Promotion pricing uses the shared proration algorithm and the household's tiered total; non-monthly registration fees remain invoiced normally.
 
-### DEC-115 — Scope family placement preferences to active registrations
+### DEC-121 — Scope family placement preferences to active registrations
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 6 team formation
 - **Context:** Families need to submit rec-league practice-location and mutual-friend preferences, while staff-only coach ratings and placement notes share the same backing record.
@@ -861,13 +861,29 @@
 - **Decision:** Keep the all-route authorization, permission-matrix, and tenancy-fuzz Playwright checks marked `test.fixme` until Track C publishes operation metadata, real synthetic out-of-tenant resource fixtures, and a reviewed allow/deny row for every route. Do not count a random nonexistent ID as proof that an existing foreign resource is isolated.
 - **Why:** The checks must fail on real authorization gaps without inventing route policy or hiding a cross-tenant read behind an unrelated 404.
 - **Consequences / follow-ups:** Track C owns the generated contracts and CI wiring; the precise requests are recorded in `docs/codex/tracks/SEC.md` and `docs/codex/tracks/C.md`. Remove the `test.fixme` markers when those contracts are available and the checks can exercise real fixtures.
-### DEC-116 — Balance Rec teams by age at season start
+### DEC-115 — Balance Rec teams by age at season start
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 6 Rec placement boards
 - **Context:** Phase 6 requires age balancing, but the shared team balancer previously considered ratings, roster size, hard constraints, and preferences only.
 - **Decision:** Supply whole-year age at the target program's `starts_on` date to the existing shared balancer and include team mean-age variance with the same objective weight as mean-rating variance. When some athletes lack a date of birth, use the median known age for objective calculations; omit age balancing if none have a date of birth.
 - **Why:** Age fairness belongs in the same deterministic optimization that enforces team sizes, ratings, and linked-player constraints. Using the season start gives a consistent reference for every registration in the program.
 - **Consequences / follow-ups:** Existing callers without age retain their previous objective and metrics. The Rec dashboard shows mean age beside mean rating. The seeded 120-player balancer test verifies both fairness dimensions within the five-second budget.
+
+### DEC-122 — Include active event volunteers in closure notices
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 8 closures and schedule-change notifications
+- **Context:** Track H's volunteer shifts can be linked to schedule events, but closure recipient lookup previously covered only event participants and assigned officials.
+- **Decision:** Resolve event-linked volunteer signups in `signed_up`, `confirmed` or `checked_in` status through active, verified guardian/self account links. Exclude canceled signups and shifts that are completed or canceled; deduplicate recipients before writing the emergency batch.
+- **Why:** A facility closure must reach volunteers already assigned to the affected event while respecting revoked or unverified family links and avoiding notices to canceled assignments.
+- **Consequences / follow-ups:** One recipient receives one emergency batch containing all affected event changes. Track B's notification service emits the in-app notice; email fan-out remains a Track B integration request.
+
+### DEC-123 — Stream public contest snapshots by contest version
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 9 public live results
+- **Context:** The public live-results JSON endpoint exposed finalized snapshots but public pages did not receive score changes while a contest was in progress.
+- **Decision:** Add a public EventSource page and a `text/event-stream` endpoint that emits the existing privacy-filtered contest snapshot when its version changes, heartbeats while active, and closes after finalization or ten minutes.
+- **Why:** Viewers can see live format-specific scores without exposing staff result controls or adding participant profile fields to the public response.
+- **Consequences / follow-ups:** The stream only opens for published events and uses the same result snapshot as the public JSON endpoint; the page is covered by Chromium/WebKit accessibility journeys and the endpoint by generated OpenAPI.
 
 ### DEC-117 — Rotate the authenticated session after step-up reauthentication
 - **Date:** 2026-09-27
@@ -885,10 +901,18 @@
 - **Why:** The push adapter needs to contact provider infrastructure without becoming a general-purpose server-side URL fetcher.
 - **Consequences / follow-ups:** Provider-domain changes require security review; TLS hostname validation remains enabled. Tests cover private and reserved IP ranges, mixed answers, rebinding pinning, and loopback rejection.
 
-### DEC-119 — Keep API role metadata descriptive and resource checks authoritative
+### DEC-124 — Keep API role metadata descriptive and resource checks authoritative
 - **Date:** 2026-09-27
 - **Phase / area:** Phase 16 security metadata
 - **Context:** OpenAPI needs one permission and scope label for each operation, while many permissions depend on active membership, linked-guardian status, conversation membership, resource ownership and sensitivity.
 - **Decision:** Generate the complete operation/role matrix from each operation's metadata and a conservative role-family map. Treat it as an auditable reference and completeness check; runtime route and service guards remain authoritative for tenant membership, ownership, consent, sensitivity and resource state. Return 404 when the caller is outside the addressed organization, retaining 403 for an active member denied by a role policy.
 - **Why:** A compact role matrix cannot express every resource-level condition. Separating route intent from live ownership checks avoids letting a broad role label grant child, finance, chat or Restricted-file access.
 - **Consequences / follow-ups:** New permissions must be added to the generated role-family map. Integration and browser tests continue to exercise the actual resource-level rules.
+
+### DEC-125 — Pin custom-domain certificate probes to public addresses
+- **Date:** 2026-09-28
+- **Phase / area:** Phase 14 custom website domains
+- **Context:** Domain ownership verification also checks for a trusted TLS certificate. A tenant-controlled hostname can resolve to loopback or a private service if the TLS probe lets the socket resolve it again.
+- **Decision:** Resolve the verified hostname, reject non-public IPv4 and IPv6 targets, and pin the TLS handshake to a vetted address while validating the certificate against the requested hostname.
+- **Why:** Domain verification must not become a server-side request forgery path into private network services.
+- **Consequences / follow-ups:** If DNS has no publicly routable address, the domain remains pending verification. Public IPv4/IPv6 range classification has focused tests.

@@ -1,4 +1,5 @@
 export const modulePermissions = [
+  'action-center.read',
   'attendance.manage',
   'attendance.read',
   'attendance.rsvp',
@@ -20,6 +21,8 @@ export const modulePermissions = [
   'evaluations.manage',
   'evaluations.read',
   'evaluations.score',
+  'exports.manage',
+  'exports.read',
   'facilities.manage',
   'facilities.read',
   'federation.manage',
@@ -46,6 +49,8 @@ export const modulePermissions = [
   'programs.read',
   'registration.manage',
   'registration.read',
+  'reports.manage',
+  'reports.read',
   'results.manage',
   'results.read',
   'rosters.manage',
@@ -74,4 +79,6 @@ export const modulePermissions = [
   'tournaments.read',
   'volunteers.manage',
   'volunteers.read',
+  'website.manage',
+  'website.read',
 ] as const;

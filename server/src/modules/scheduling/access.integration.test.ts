@@ -16,7 +16,13 @@ import {
   respondToAssignment,
 } from '../officials/service';
 import { getStandings } from '../standings/service';
-import { createBracket, getBracket } from '../tournaments/service';
+import {
+  checkInTournamentTeam,
+  createBracket,
+  generateBracket,
+  getBracket,
+  listBrackets,
+} from '../tournaments/service';
 
 import { eventRecipients, queueChangeBatch } from './events';
 
@@ -108,7 +114,9 @@ describe('schedule module access boundaries', () => {
     const programId = newId();
     const divisionId = newId();
     const teamId = newId();
+    const secondTeamId = newId();
     const teamSeasonId = newId();
+    const secondTeamSeasonId = newId();
     const offeringId = newId();
     const template = builtInSportTemplates[0];
     await createWithOrg(database)(owner, async (trx) => {
@@ -169,22 +177,39 @@ describe('schedule module access boundaries', () => {
         .execute();
       await trx
         .insertInto('teams')
-        .values({
-          id: teamId,
-          org_id: orgId,
-          name: 'Access Test Team',
-          sport_profile_id: sportProfileId,
-        })
+        .values([
+          {
+            id: teamId,
+            org_id: orgId,
+            name: 'Access Test Team',
+            sport_profile_id: sportProfileId,
+          },
+          {
+            id: secondTeamId,
+            org_id: orgId,
+            name: 'Access Test Team Two',
+            sport_profile_id: sportProfileId,
+          },
+        ])
         .execute();
       await trx
         .insertInto('team_seasons')
-        .values({
-          id: teamSeasonId,
-          org_id: orgId,
-          team_id: teamId,
-          program_id: programId,
-          division_id: divisionId,
-        })
+        .values([
+          {
+            id: teamSeasonId,
+            org_id: orgId,
+            team_id: teamId,
+            program_id: programId,
+            division_id: divisionId,
+          },
+          {
+            id: secondTeamSeasonId,
+            org_id: orgId,
+            team_id: secondTeamId,
+            program_id: programId,
+            division_id: divisionId,
+          },
+        ])
         .execute();
     });
 
@@ -217,8 +242,27 @@ describe('schedule module access boundaries', () => {
       name: 'Access Test Bracket',
       type: 'single_elim',
       seedingSource: 'manual',
-      entries: [{ teamSeasonId, seed: 1 }],
+      entries: [
+        { teamSeasonId, seed: 1 },
+        { teamSeasonId: secondTeamSeasonId, seed: 2 },
+      ],
     });
+    const entryId = bracket.entryIds[0];
+    if (!entryId) throw new Error('Expected the tournament entry to persist.');
+    await expect(
+      checkInTournamentTeam(owner, bracket.id, entryId, 1),
+    ).resolves.toMatchObject({ status: 'checked_in', version: 2 });
+    await expect(listBrackets(owner, programId)).resolves.toContainEqual(
+      expect.objectContaining({ id: bracket.id, type: 'single_elim' }),
+    );
+    await expect(generateBracket(owner, bracket.id, 1)).resolves.toMatchObject({
+      matches: 1,
+      size: 2,
+      automaticByes: 0,
+    });
+    await expect(
+      checkInTournamentTeam(member, bracket.id, entryId, 2),
+    ).rejects.toMatchObject({ status: 403 });
 
     await expect(listEventAttendance(owner, eventId)).resolves.toBeDefined();
     await expect(contestDetail(owner, contest.id)).resolves.toBeDefined();

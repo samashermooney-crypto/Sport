@@ -268,31 +268,42 @@ describe('officials assignment and pay acceptance', () => {
       throw new Error('Crew fixtures missing.');
     const mileageCents = 500;
     const assignments = new Map<string, { id: string; version: number }>();
-    for (const contestId of contestIds) {
-      for (const [person, positionKey] of [
-        [referee.personId, 'referee'],
-        [ar1.personId, 'ar1'],
-        [ar2.personId, 'ar2'],
-      ] as const) {
-        const assignment = await assignOfficial(owner, {
-          contestId,
-          personId: person,
-          positionKey,
-          mileageCents: positionKey === 'referee' ? mileageCents : 0,
-        });
-        assignments.set(`${contestId}:${positionKey}`, {
-          id: assignment.id,
-          version: assignment.version,
-        });
-      }
-    }
+    const assignmentInputs = contestIds.flatMap((contestId) => [
+      {
+        contestId,
+        personId: referee.personId,
+        positionKey: 'referee',
+        mileageCents,
+      },
+      {
+        contestId,
+        personId: ar1.personId,
+        positionKey: 'ar1',
+        mileageCents: 0,
+      },
+      {
+        contestId,
+        personId: ar2.personId,
+        positionKey: 'ar2',
+        mileageCents: 0,
+      },
+    ]);
+    const offeredAssignments = await Promise.all(
+      assignmentInputs.map(async (input) => ({
+        key: `${input.contestId}:${input.positionKey}`,
+        assignment: await assignOfficial(owner, input),
+      })),
+    );
+    for (const { key, assignment } of offeredAssignments)
+      assignments.set(key, { id: assignment.id, version: assignment.version });
 
-    for (const contestId of contestIds) {
-      for (const [official, positionKey] of [
-        [referee, 'referee'],
-        [ar1, 'ar1'],
-        [ar2, 'ar2'],
-      ] as const) {
+    const responseInputs = contestIds.flatMap((contestId) => [
+      { contestId, official: referee, positionKey: 'referee' },
+      { contestId, official: ar1, positionKey: 'ar1' },
+      { contestId, official: ar2, positionKey: 'ar2' },
+    ]);
+    const assignmentResponses = await Promise.all(
+      responseInputs.map(async ({ contestId, official, positionKey }) => {
         const record = assignments.get(`${contestId}:${positionKey}`);
         if (!record) throw new Error('Assignment fixture missing.');
         const declined = official === ar2 && contestId === contestIds[0];
@@ -302,10 +313,11 @@ describe('officials assignment and pay acceptance', () => {
           record.version,
           declined ? 'declined' : 'accepted',
         );
-        expect(response.status).toBe(declined ? 'declined' : 'accepted');
-        if (!declined) record.version = response.version;
-      }
-    }
+        return { response, declined };
+      }),
+    );
+    for (const { response, declined } of assignmentResponses)
+      expect(response.status).toBe(declined ? 'declined' : 'accepted');
 
     const declinedContest = contestIds[0];
     if (!declinedContest) throw new Error('Contest fixture missing.');
