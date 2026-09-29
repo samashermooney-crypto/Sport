@@ -250,7 +250,12 @@ test('a new organization persists and auto-completes its nine setup items using 
     });
 
     await signIn(page, testInfo, database, actor.accountId);
-    await page.goto(`/console/orgs/${actor.orgId}/onboarding`);
+    await page.goto(`/console/orgs/${actor.orgId}`);
+    const setupLink = page
+      .getByRole('link', { name: 'Organization setup', exact: true })
+      .first();
+    await expect(setupLink).toBeVisible();
+    await setupLink.click();
     await expect(
       page.getByRole('heading', { name: 'Organization setup' }),
     ).toBeVisible();
@@ -660,6 +665,9 @@ test('console and family help render localized articles without disabled AI call
 
     await page.goto(`/console/orgs/${actor.orgId}/help`);
     await expect(
+      page.getByRole('link', { name: 'Help center', exact: true }),
+    ).toBeVisible();
+    await expect(
       page.getByRole('heading', { name: 'Help center', exact: true }),
     ).toBeVisible();
     await page.getByLabel('Language / Idioma').selectOption('es');
@@ -685,6 +693,9 @@ test('console and family help render localized articles without disabled AI call
     ).toBeVisible();
 
     await page.goto(`/portal/orgs/${actor.orgId}/help`);
+    await expect(
+      page.getByRole('link', { name: 'Help', exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByRole('heading', { name: 'Help center', exact: true }),
     ).toBeVisible();
