@@ -10,6 +10,7 @@ export type PriceWindow = {
 export type ParticipantPrice = {
   id: string;
   participantId: string;
+  householdId?: string;
   seasonId: string;
   offeringId: string;
   priceCents: number;
@@ -24,8 +25,17 @@ export type AddOnPrice = {
 };
 export type ExistingRegistration = {
   id: string;
+  householdId?: string;
   seasonId: string;
+  offeringId?: string;
   basePriceCents: number;
+};
+export type SiblingDiscountRule = {
+  householdId: string;
+  seasonId: string;
+  secondBps: number;
+  thirdPlusBps: number;
+  eligibleOfferingIds?: readonly string[];
 };
 export type DiscountRule = {
   id: string;
@@ -46,6 +56,9 @@ export type AidAward = {
   id: string;
   kind: 'percent' | 'fixed';
   value: number;
+  householdId?: string;
+  /** Maximum cents this award may apply in this checkout after prior usage. */
+  remainingCents?: number;
   eligibleOfferingIds?: readonly string[];
 };
 export type PriceLine = {
@@ -62,6 +75,7 @@ export type PricingInput = {
   addOns: readonly AddOnPrice[];
   existingConfirmed: readonly ExistingRegistration[];
   siblingRule?: { secondBps: number; thirdPlusBps: number } | undefined;
+  siblingRules?: readonly SiblingDiscountRule[];
   automaticRules: readonly DiscountRule[];
   codes: readonly DiscountCode[];
   aid: readonly AidAward[];
@@ -119,6 +133,92 @@ export function calculatePricing(input: PricingInput): PricingSnapshot {
   );
   if (participantById.size !== input.participants.length)
     throw new RangeError('Duplicate participant line ID');
+  const householdIds = new Set(
+    input.participants.flatMap((item) =>
+      item.householdId ? [item.householdId] : [],
+    ),
+  );
+  if (input.siblingRule && (input.siblingRules?.length ?? 0) > 0)
+    throw new RangeError('Choose either legacy or household sibling rules');
+  const hasUnidentifiedParticipants = input.participants.some(
+    (item) => !item.householdId,
+  );
+  if (
+    input.siblingRule &&
+    (householdIds.size > 1 ||
+      (householdIds.size === 1 && hasUnidentifiedParticipants))
+  )
+    throw new RangeError(
+      'Household-scoped sibling rules are required for mixed-household checkouts',
+    );
+  if (
+    input.siblingRules?.length &&
+    (input.participants.some((item) => !item.householdId) ||
+      input.existingConfirmed.some((item) => !item.householdId))
+  )
+    throw new RangeError(
+      'Household identity is required for scoped sibling pricing',
+    );
+  if (
+    (householdIds.size > 1 ||
+      (householdIds.size === 1 && hasUnidentifiedParticipants)) &&
+    input.aid.some(
+      (award) => !award.householdId || award.remainingCents === undefined,
+    )
+  )
+    throw new RangeError(
+      'Household-scoped aid awards with remaining-cent caps are required for mixed-household checkouts',
+    );
+  if (
+    input.aid.some(
+      (award) =>
+        award.householdId !== undefined && award.remainingCents === undefined,
+    )
+  )
+    throw new RangeError('Household-scoped aid requires a remaining-cent cap');
+  if (
+    input.aid.some(
+      (award) =>
+        award.householdId &&
+        !input.participants.some(
+          (participant) => participant.householdId === award.householdId,
+        ),
+    )
+  )
+    throw new RangeError('Aid household is not represented in checkout');
+  const siblingScopes = new Map<string, SiblingDiscountRule[]>();
+  for (const rule of input.siblingRules ?? []) {
+    const scope = `${rule.householdId}:${rule.seasonId}`;
+    if (
+      rule.eligibleOfferingIds &&
+      new Set(rule.eligibleOfferingIds).size !== rule.eligibleOfferingIds.length
+    )
+      throw new RangeError('Duplicate sibling-eligible offering');
+    const sameHouseholdSeason = siblingScopes.get(scope) ?? [];
+    if (
+      sameHouseholdSeason.some((existing) => {
+        if (!existing.eligibleOfferingIds || !rule.eligibleOfferingIds)
+          return true;
+        const existingIds = new Set(existing.eligibleOfferingIds);
+        return rule.eligibleOfferingIds.some((id) => existingIds.has(id));
+      })
+    )
+      throw new RangeError('Overlapping household sibling rule scope');
+    sameHouseholdSeason.push(rule);
+    siblingScopes.set(scope, sameHouseholdSeason);
+    if (
+      rule.eligibleOfferingIds &&
+      input.existingConfirmed.some(
+        (existing) =>
+          existing.householdId === rule.householdId &&
+          existing.seasonId === rule.seasonId &&
+          !existing.offeringId,
+      )
+    )
+      throw new RangeError(
+        'Offering identity is required for scoped existing registrations',
+      );
+  }
   for (const item of input.participants)
     lines.push({
       id: item.id,
@@ -203,6 +303,55 @@ export function calculatePricing(input: PricingInput): PricingSnapshot {
       });
     }
   }
+  for (const rule of input.siblingRules ?? []) {
+    money(rule.secondBps, 'sibling second bps');
+    money(rule.thirdPlusBps, 'sibling third bps');
+    const current = baseLines
+      .filter((line) => {
+        const item = participantById.get(line.id);
+        return (
+          item?.householdId === rule.householdId &&
+          item.seasonId === rule.seasonId &&
+          (!rule.eligibleOfferingIds ||
+            rule.eligibleOfferingIds.includes(item.offeringId))
+        );
+      })
+      .map((line) => ({
+        id: line.id,
+        price: line.amountCents,
+        current: true as const,
+        line,
+      }));
+    const existing = input.existingConfirmed
+      .filter(
+        (item) =>
+          item.householdId === rule.householdId &&
+          item.seasonId === rule.seasonId &&
+          (!rule.eligibleOfferingIds ||
+            (item.offeringId !== undefined &&
+              rule.eligibleOfferingIds.includes(item.offeringId))),
+      )
+      .map((item) => ({
+        id: item.id,
+        price: item.basePriceCents,
+        current: false as const,
+      }));
+    const ranked = [...current, ...existing].sort(
+      (a, b) => b.price - a.price || a.id.localeCompare(b.id),
+    );
+    ranked.forEach((item, index) => {
+      if (item.current && index > 0)
+        apply(
+          'discount',
+          'sibling',
+          item.line,
+          percentOf(
+            item.line.amountCents,
+            index === 1 ? rule.secondBps : rule.thirdPlusBps,
+          ),
+        );
+    });
+  }
   const rules = [...input.automaticRules].sort(
     (a, b) => a.priority - b.priority || a.id.localeCompare(b.id),
   );
@@ -259,27 +408,39 @@ export function calculatePricing(input: PricingInput): PricingSnapshot {
   }
   for (const award of input.aid) {
     money(award.value, 'aid value');
+    if (award.remainingCents !== undefined)
+      money(award.remainingCents, 'remaining aid');
     const matches = baseLines.filter(
       (line) =>
         eligible(line, award.eligibleOfferingIds) &&
+        (!award.householdId ||
+          participantById.get(
+            line.kind === 'add_on' ? (line.parentLineId ?? '') : line.id,
+          )?.householdId === award.householdId) &&
         (remaining.get(line.id) ?? 0) > 0,
     );
     if (award.kind === 'percent')
-      matches.forEach((line) => {
-        apply(
-          'aid',
-          award.id,
-          line,
+      (() => {
+        const amounts = matches.map((line) =>
           discountAmount('percent', award.value, remaining.get(line.id) ?? 0),
         );
-      });
+        const proposed = amounts.reduce((sum, amount) => sum + amount, 0);
+        const capped = Math.min(award.remainingCents ?? proposed, proposed);
+        const allocations =
+          capped < proposed ? allocate(capped, amounts) : amounts;
+        matches.forEach((line, index) => {
+          apply('aid', award.id, line, allocations[index] ?? 0);
+        });
+      })();
     else {
       const weights = matches.map((line) => remaining.get(line.id) ?? 0);
+      const available = weights.reduce((sum, amount) => sum + amount, 0);
       const amounts = weights.length
         ? allocate(
             Math.min(
               award.value,
-              weights.reduce((a, b) => a + b, 0),
+              award.remainingCents ?? award.value,
+              available,
             ),
             weights,
           )

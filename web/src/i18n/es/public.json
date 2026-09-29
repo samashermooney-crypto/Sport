@@ -1,0 +1,23 @@
+{
+  "skipToContent": "Saltar al contenido",
+  "websiteNavigation": "Navegación del sitio web",
+  "poweredBy": "Impulsado por Athlentry",
+  "homeLabel": "inicio",
+  "organizationHome": "Inicio de {{organizationName}}",
+  "memberSignIn": "Iniciar sesión como miembro",
+  "administratorSignIn": "Iniciar sesión de administrador",
+  "home": "Inicio",
+  "leagues": "Ligas",
+  "tournaments": "Torneos",
+  "events": "Eventos",
+  "clubTeams": "Equipos de club",
+  "camps": "Campamentos",
+  "classes": "Clases",
+  "calendar": "Calendario",
+  "locations": "Ubicaciones",
+  "store": "Tienda",
+  "terms": "Términos",
+  "privacy": "Privacidad",
+  "heroHeadline": "Encuentra tu próxima temporada.",
+  "heroDescription": "Explora programas, horarios y oportunidades para jugar."
+}

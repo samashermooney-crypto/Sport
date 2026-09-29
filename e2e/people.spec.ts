@@ -77,6 +77,26 @@ test('owner creates, edits and archives a person from the console', async ({
       page.getByRole('textbox', { name: 'Preferred name' }),
     ).toHaveValue('Lex');
     const personId = page.url().split('/').at(-1) ?? '';
+    const credentialTypeId = newId();
+    await factories.row(actor, 'credential_types', {
+      id: credentialTypeId,
+      org_id: actor.orgId,
+      key: `e2e_coach_${newId().replaceAll('-', '_')}`,
+      name: 'Head coach safety training',
+      verification: 'manual_staff',
+      validity: {},
+      applies_to: { roles: ['head_coach'], minimumAge: 18 },
+      active: true,
+    });
+    await factories.row(actor, 'role_credential_requirements', {
+      id: newId(),
+      org_id: actor.orgId,
+      role: 'head_coach',
+      credential_type_id: credentialTypeId,
+      scope_type: 'org',
+      scope_id: null,
+      minimum_age: 18,
+    });
     await expect(
       page.getByText(
         'Grant media consent in this profile before adding a photo.',
@@ -98,8 +118,18 @@ test('owner creates, edits and archives a person from the console', async ({
     await page
       .getByLabel('Choose photo')
       .setInputFiles('server/test/fixtures/gps-photo.jpg');
+    const photoSaved = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response
+          .url()
+          .endsWith(`/api/v1/people/orgs/${actor.orgId}/${personId}/photo`),
+    );
     await page.getByRole('button', { name: 'Crop and upload photo' }).click();
-    await expect(page.getByRole('img', { name: 'Alex Rivera' })).toBeVisible();
+    expect((await photoSaved).ok()).toBe(true);
+    await expect(page.getByRole('img', { name: 'Alex Rivera' })).toBeVisible({
+      timeout: 15_000,
+    });
     await page
       .getByRole('combobox', { name: 'Media consent' })
       .selectOption('denied');
@@ -114,8 +144,22 @@ test('owner creates, edits and archives a person from the console', async ({
     expect((await consentRevoked).ok()).toBe(true);
     await expect(page.getByRole('img', { name: 'Alex Rivera' })).toHaveCount(0);
     expect(await accessibilityViolations(page)).toEqual([]);
-    page.once('dialog', (dialog) => dialog.accept());
+    const archivedPerson = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response
+          .url()
+          .endsWith(`/people/orgs/${actor.orgId}/${personId}/archive`),
+    );
     await page.getByRole('button', { name: 'Archive person' }).click();
+    const archiveConfirmation = page.getByRole('dialog', {
+      name: 'Archive this person?',
+    });
+    await expect(archiveConfirmation).toBeVisible();
+    await archiveConfirmation
+      .getByRole('button', { name: 'Archive person' })
+      .click();
+    expect((await archivedPerson).ok()).toBe(true);
     await expect(page).toHaveURL(`/console/orgs/${actor.orgId}/people`);
     await expect(
       page.getByText('No active people match this search.'),
@@ -159,6 +203,50 @@ test('owner creates, edits and archives a person from the console', async ({
       registration_id: registrationId,
     });
     await page.goto(`/console/orgs/${actor.orgId}/people`);
+    const commandPalette = page.getByRole('dialog', {
+      name: 'Command palette',
+    });
+    await page.getByRole('button', { name: 'Search Athlentry' }).click();
+    const globalSearch = commandPalette.getByRole('searchbox', {
+      name: 'Search Athlentry',
+    });
+    await globalSearch.fill('Rivera household');
+    const householdSearchResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes(`/people/households/orgs/${actor.orgId}`),
+    );
+    await globalSearch.press('Enter');
+    expect((await householdSearchResponse).ok()).toBe(true);
+    await commandPalette
+      .getByRole('link', { name: 'Rivera household' })
+      .click();
+    await expect(page).toHaveURL(householdUrl);
+    await expect(
+      page.getByRole('heading', { name: 'Rivera household' }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Search Athlentry' }).click();
+    const peopleSearch = commandPalette.getByRole('searchbox', {
+      name: 'Search Athlentry',
+    });
+    await peopleSearch.fill('Alex Rivera');
+    const peopleSearchResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes(`/people/orgs/${actor.orgId}?`),
+    );
+    await peopleSearch.press('Enter');
+    expect((await peopleSearchResponse).ok()).toBe(true);
+    await commandPalette.getByRole('link', { name: 'Alex Rivera' }).click();
+    await expect(page).toHaveURL(
+      `/console/orgs/${actor.orgId}/people/${personId}`,
+    );
+    await expect(
+      page.getByRole('heading', { name: 'Alex Rivera' }),
+    ).toBeVisible();
+
+    await page.goto(`/console/orgs/${actor.orgId}/people`);
     await page
       .getByRole('searchbox', { name: 'Find household' })
       .fill('Rivera');
@@ -190,6 +278,17 @@ test('owner creates, edits and archives a person from the console', async ({
     await expect(
       page.getByText('No active people match this search.'),
     ).toBeVisible();
+    await page
+      .getByRole('combobox', { name: 'Compliance credential status' })
+      .selectOption('');
+    await page
+      .getByRole('combobox', { name: 'Review role eligibility' })
+      .selectOption('head_coach');
+    await expect(page.getByText(/Head coach: Needs review/)).toBeVisible();
+    await expect(page.getByText(/at least 18 years old/)).toBeVisible();
+    await expect(
+      page.getByText('Required credential has not been submitted.'),
+    ).toBeVisible();
     await page.goto(householdUrl);
     await expect(
       page.getByRole('heading', { name: 'Rivera household' }),
@@ -217,8 +316,14 @@ test('owner creates, edits and archives a person from the console', async ({
     await expect(
       memberEditor.getByRole('checkbox', { name: 'Can pick up' }),
     ).toBeChecked();
-    page.once('dialog', (dialog) => dialog.accept());
     await memberEditor.getByRole('button', { name: 'Remove member' }).click();
+    const removeConfirmation = page.getByRole('dialog', {
+      name: 'Remove this household member?',
+    });
+    await expect(removeConfirmation).toBeVisible();
+    await removeConfirmation
+      .getByRole('button', { name: 'Remove member' })
+      .click();
     await expect(page.getByText('No members yet.')).toBeVisible();
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {

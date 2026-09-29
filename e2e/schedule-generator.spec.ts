@@ -122,14 +122,13 @@ test('staff reviews generator explanations, discards, then applies a draft', asy
     ]);
 
     await page.goto(`/console/orgs/${actor.orgId}/schedule`);
-    await page
-      .getByRole('textbox', { name: 'Program ID *' })
-      .first()
-      .fill(program.programId);
     const generator = page.getByRole('region', { name: 'Schedule generator' });
     const form = generator.locator('form');
-    await form.getByLabel('Program ID *').fill(program.programId);
-    await form.getByLabel('Division ID *').fill(program.divisionId);
+    await form.getByLabel('Program *').selectOption(program.programId);
+    const division = form.getByLabel('Division *');
+    await expect(division).toBeEnabled();
+    await division.selectOption(program.divisionId);
+    await expect(division).toHaveValue(program.divisionId);
     await form.getByLabel('Season starts *').fill(seasonStartsOn);
     await form.getByLabel('Season ends *').fill(seasonEndsOn);
     await form.getByLabel('Games per team *').fill('1');
@@ -198,9 +197,9 @@ test('staff reviews generator explanations, discards, then applies a draft', asy
       generator.getByText('All requested games were placed.'),
     ).toBeVisible();
     await generator.getByRole('button', { name: 'Apply draft' }).click();
-    await expect(page.getByRole('status')).toHaveText(
-      'Generated schedule applied.',
-    );
+    await expect(
+      page.getByText('Generated schedule applied.', { exact: true }),
+    ).toBeVisible();
 
     const runs = await createWithOrg(database)(actor, (trx) =>
       trx

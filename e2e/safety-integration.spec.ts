@@ -61,6 +61,7 @@ test('owner opens the safety center and person portal on desktop and phone', asy
     await expect(
       page.getByRole('navigation', { name: 'Safety tasks' }),
     ).toBeVisible();
+    await expect(page.locator('.ui-app-shell')).toHaveCount(1);
     expect(await accessibilityViolations(page)).toEqual([]);
     await page
       .getByRole('link', { name: 'Credential types and requirements' })
@@ -74,6 +75,7 @@ test('owner opens the safety center and person portal on desktop and phone', asy
     await expect(
       page.getByRole('heading', { name: 'Credentials' }),
     ).toBeVisible();
+    await expect(page.locator('.ui-app-shell')).toHaveCount(1);
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
     await database.destroy();

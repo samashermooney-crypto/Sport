@@ -358,6 +358,20 @@ export async function eventRecipients(
       .where('official_assignments.status', 'not in', ['declined', 'canceled'])
       .execute();
     personIds.push(...officials.map((row) => row.person_id));
+    const volunteers = await trx
+      .selectFrom('volunteer_shifts as shift')
+      .innerJoin('volunteer_signups as signup', (join) =>
+        join
+          .onRef('signup.org_id', '=', 'shift.org_id')
+          .onRef('signup.volunteer_shift_id', '=', 'shift.id'),
+      )
+      .select('signup.person_id')
+      .where('shift.org_id', '=', orgId)
+      .where('shift.event_id', '=', eventId)
+      .where('shift.status', 'not in', ['completed', 'canceled'])
+      .where('signup.status', 'in', ['signed_up', 'confirmed', 'checked_in'])
+      .execute();
+    personIds.push(...volunteers.map((row) => row.person_id));
   }
   if (!personIds.length) return [];
   const links = await trx
@@ -2158,37 +2172,22 @@ export async function createSpace(
 
 export async function createCalendarFeed(
   context: OrgContext,
-  scope: { type: 'account' | 'team' | 'facility'; id?: string },
+  scope: { type: 'account' } | { type: 'team' | 'facility'; id: string },
 ) {
   return withOrg(context, async (trx) => {
-    if (
-      scope.type === 'account' &&
-      scope.id &&
-      scope.id !== context.actor.accountId
-    )
-      throw new SchedulingRuleError(
-        'Account feeds can only be created for yourself.',
-        403,
-        'FORBIDDEN',
-      );
-    await assertSchedulePermission(
-      trx,
-      context,
-      scope.type === 'account' ? 'schedule.read' : 'schedule.manage',
-      scope.type === 'team' && scope.id ? { teamSeasonId: scope.id } : {},
-    );
+    await assertCalendarFeedScopePermission(trx, context, scope);
     const token = randomBytes(32).toString('base64url');
     const id = newId();
     const scopeJson = {
       type: scope.type,
-      ...(scope.id ? { id: scope.id } : {}),
+      ...(scope.type === 'account' ? {} : { id: scope.id }),
     };
     await trx
       .insertInto('calendar_feeds')
       .values({
         id,
         account_id: scope.type === 'account' ? context.actor.accountId : null,
-        team_season_id: scope.type === 'team' ? (scope.id ?? null) : null,
+        team_season_id: scope.type === 'team' ? scope.id : null,
         org_id: context.orgId,
         token_hash: createHash('sha256').update(token).digest(),
         scope: scopeJson as unknown as Json,
@@ -2204,6 +2203,149 @@ export async function createCalendarFeed(
       url: `/api/v1/scheduling/orgs/${context.orgId}/feeds/${token}.ics`,
     };
   });
+}
+
+export async function listCalendarFeeds(
+  context: OrgContext,
+  scope: { type: 'account' } | { type: 'team' | 'facility'; id: string },
+) {
+  return withOrg(context, async (trx) => {
+    await assertCalendarFeedScopePermission(trx, context, scope);
+    let query = trx
+      .selectFrom('calendar_feeds')
+      .select(['id', 'created_at'])
+      .where('org_id', '=', context.orgId)
+      .where('revoked_at', 'is', null);
+    if (scope.type === 'account') {
+      query = query.where('account_id', '=', context.actor.accountId);
+    } else {
+      query = query.where(sql<boolean>`scope->>'type' = ${scope.type}`);
+      query = query.where(sql<boolean>`scope->>'id' = ${scope.id}`);
+    }
+    const rows = await query.orderBy('created_at', 'desc').execute();
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        createdAt: row.created_at.toISOString(),
+      })),
+    };
+  });
+}
+
+export async function revokeCalendarFeed(
+  context: OrgContext,
+  feedId: string,
+  now = new Date(),
+): Promise<void> {
+  await withOrg(context, async (trx) => {
+    const feed = await trx
+      .selectFrom('calendar_feeds')
+      .select(['account_id', 'team_season_id', 'scope', 'revoked_at'])
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', feedId)
+      .executeTakeFirst();
+    if (!feed)
+      throw new SchedulingRuleError(
+        'Calendar feed not found.',
+        404,
+        'NOT_FOUND',
+      );
+    const scope = feed.scope as { type?: string; id?: string };
+    if (scope.type === 'account') {
+      if (feed.account_id !== context.actor.accountId)
+        throw new SchedulingRuleError(
+          'Account feeds can only be revoked by their owner.',
+          403,
+          'FORBIDDEN',
+        );
+      await assertCalendarFeedScopePermission(trx, context, {
+        type: 'account',
+      });
+    } else if (
+      (scope.type === 'team' || scope.type === 'facility') &&
+      scope.id
+    ) {
+      await assertCalendarFeedScopePermission(trx, context, {
+        type: scope.type,
+        id: scope.id,
+      });
+    } else {
+      throw new SchedulingRuleError(
+        'Calendar feed not found.',
+        404,
+        'NOT_FOUND',
+      );
+    }
+
+    if (feed.revoked_at) return;
+
+    await trx
+      .updateTable('calendar_feeds')
+      .set({ revoked_at: now, updated_at: now })
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', feedId)
+      .where('revoked_at', 'is', null)
+      .execute();
+    await appendAuditEvent(trx, context, {
+      action: 'schedule.ics.revoke',
+      entityType: 'calendar_feed',
+      entityId: feedId,
+    });
+  });
+}
+
+async function assertCalendarFeedScopePermission(
+  trx: OrgTransaction,
+  context: OrgContext,
+  scope: { type: 'account' } | { type: 'team' | 'facility'; id: string },
+): Promise<void> {
+  if (scope.type === 'account') {
+    const linkedPerson = await trx
+      .selectFrom('person_account_links')
+      .select('person_id')
+      .where('org_id', '=', context.orgId)
+      .where('account_id', '=', context.actor.accountId)
+      .where('revoked_at', 'is', null)
+      .where('verified_at', 'is not', null)
+      .executeTakeFirst();
+    if (linkedPerson) {
+      await assertSchedulePermission(trx, context, 'schedule.read', {
+        personId: linkedPerson.person_id,
+      });
+    } else {
+      await assertSchedulePermission(trx, context, 'schedule.read');
+    }
+    return;
+  }
+
+  if (scope.type === 'team') {
+    const team = await trx
+      .selectFrom('team_seasons')
+      .select('id')
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', scope.id)
+      .executeTakeFirst();
+    if (!team)
+      throw new SchedulingRuleError(
+        'Team schedule not found.',
+        404,
+        'NOT_FOUND',
+      );
+    await assertSchedulePermission(trx, context, 'schedule.read', {
+      teamSeasonId: scope.id,
+    });
+    return;
+  }
+
+  const facility = await trx
+    .selectFrom('facilities')
+    .select('id')
+    .where('org_id', '=', context.orgId)
+    .where('id', '=', scope.id)
+    .executeTakeFirst();
+  if (!facility)
+    throw new SchedulingRuleError('Facility not found.', 404, 'NOT_FOUND');
+  await assertSchedulePermission(trx, context, 'schedule.manage');
 }
 
 export async function getCalendarFeed(
@@ -2264,6 +2406,7 @@ export async function getCalendarFeed(
         .where('org_id', '=', context.orgId)
         .where('account_id', '=', feed.account_id)
         .where('revoked_at', 'is', null)
+        .where('verified_at', 'is not', null)
         .execute();
       const personIds = linked.map((row) => row.person_id);
       const direct = personIds.length

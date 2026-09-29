@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
+import type { OrgContext } from '../../db/withOrg';
+
 import {
+  createScheduleImport,
   decodeScheduleImportFile,
+  exportScheduleCsv,
   normalizeScheduleImportInstant,
+  shiftGamesOnDate,
 } from './tools';
+
+const context: OrgContext = {
+  orgId: '00000000-0000-4000-8000-000000000001',
+  actor: { accountId: '00000000-0000-4000-8000-000000000002' },
+};
 
 describe('schedule import formats and local times', () => {
   it('reads UTF-8 BOM and auto-detects Windows-1252 CSV', () => {
@@ -62,5 +72,41 @@ describe('schedule import formats and local times', () => {
         'America/Phoenix',
       ),
     ).toBe('2026-03-08T09:30:00Z');
+  });
+
+  it('rejects invalid export ranges before querying tenant data', async () => {
+    await expect(
+      exportScheduleCsv(
+        context,
+        { type: 'program', id: '00000000-0000-4000-8000-000000000003' },
+        {
+          from: new Date('2026-01-01T00:00:00.000Z'),
+          to: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ),
+    ).rejects.toThrow('The export date range must be at most 370 days.');
+  });
+
+  it('rejects invalid import files before queueing work', async () => {
+    await expect(
+      createScheduleImport(context, new Uint8Array(), 'schedule.csv'),
+    ).rejects.toThrow('Imports must be between 1 byte and 20 MB.');
+    await expect(
+      createScheduleImport(
+        context,
+        new TextEncoder().encode('event'),
+        'schedule.xlsx',
+      ),
+    ).rejects.toThrow('Choose a .csv file.');
+  });
+
+  it('rejects a zero-day bulk shift before loading games', async () => {
+    await expect(
+      shiftGamesOnDate(context, {
+        fromDate: '2026-10-10',
+        toDate: '2026-10-10',
+        timezone: 'UTC',
+      }),
+    ).rejects.toThrow('Choose a different date within 370 days.');
   });
 });

@@ -1,0 +1,186 @@
+import { describe, expect, it } from 'vitest';
+
+import { canExportTier, REPORT_DATASETS } from './datasets';
+
+describe('report dataset catalog', () => {
+  it('has unique dataset and column keys', () => {
+    expect(new Set(REPORT_DATASETS.map((dataset) => dataset.key)).size).toBe(
+      REPORT_DATASETS.length,
+    );
+    for (const dataset of REPORT_DATASETS) {
+      const keys = dataset.columns.map((column) => column.key);
+      expect(new Set(keys).size).toBe(keys.length);
+    }
+  });
+
+  it('only exposes background-check status and non-sensitive context', () => {
+    const dataset = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'background_checks',
+    );
+    expect(dataset?.columns.map((column) => column.key)).toEqual([
+      'id',
+      'person_name',
+      'provider',
+      'status',
+      'completed_at',
+      'created_at',
+    ]);
+  });
+
+  it('provides volunteer completion reporting without exposing household data', () => {
+    const dataset = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'volunteers',
+    );
+    expect(dataset?.requiredTables).toEqual([
+      'volunteer_signups',
+      'volunteer_shifts',
+      'volunteer_roles',
+      'people',
+    ]);
+    expect(dataset?.columns.map((column) => column.key)).toEqual([
+      'id',
+      'status',
+      'hours_credited',
+      'shift_starts_at',
+      'role_name',
+      'person_name',
+    ]);
+    expect(dataset?.columns.every((column) => column.tier === 'internal')).toBe(
+      true,
+    );
+  });
+
+  it('keeps demographic registration cuts on sensitive source columns', () => {
+    const registrations = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'registrations',
+    );
+    expect(registrations?.joins).toContainEqual({
+      alias: 'h',
+      table: 'households',
+      on: 'h.id = t.household_id AND h.org_id = t.org_id',
+      kind: 'left',
+    });
+    expect(
+      registrations?.columns.find((column) => column.key === 'person_gender'),
+    ).toMatchObject({ tier: 'sensitive', source: 'p.gender' });
+    expect(
+      registrations?.columns.find(
+        (column) => column.key === 'household_postal_code',
+      ),
+    ).toMatchObject({
+      tier: 'sensitive',
+      source: "h.address ->> 'postalCode'",
+    });
+  });
+
+  it('defines a privacy-safe year-over-year retention cohort dataset', () => {
+    const cohorts = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'retention_cohorts',
+    );
+    expect(cohorts?.roles).toContain('registrar');
+    expect(cohorts?.columns.map((column) => column.key)).toEqual([
+      'current_year',
+      'previous_year',
+      'previous_participants',
+      'retained_participants',
+      'retention_rate_percent',
+    ]);
+    expect(cohorts?.columns.every((column) => column.tier === 'internal')).toBe(
+      true,
+    );
+  });
+
+  it('keeps aid details and uniform reports on the intended source fields', () => {
+    const aidAwards = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'aid_awards',
+    );
+    expect(aidAwards?.columns.map((column) => column.key)).toEqual([
+      'id',
+      'program_name',
+      'status',
+      'award_cents',
+      'requested_cents',
+      'created_at',
+    ]);
+    expect(
+      aidAwards?.columns.find((column) => column.key === 'award_cents'),
+    ).toMatchObject({ tier: 'sensitive', type: 'money' });
+
+    const uniformSizes = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'uniform_sizes',
+    );
+    expect(uniformSizes?.requiredTables).toContain('store_order_lines');
+    expect(uniformSizes?.columns.map((column) => column.key)).toEqual([
+      'id',
+      'product_name',
+      'product_kind',
+      'size',
+      'color',
+      'quantity',
+      'order_status',
+      'created_at',
+    ]);
+  });
+
+  it('keeps academy reports aggregate-only and free of participant fields', () => {
+    const enrollments = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'academy_enrollments',
+    );
+    expect(enrollments?.requiredTables).toEqual([
+      'class_enrollments',
+      'class_offerings',
+    ]);
+    expect(enrollments?.columns.map((column) => column.key)).toEqual([
+      'id',
+      'status',
+      'starts_on',
+      'ends_on',
+      'offering_name',
+      'billing',
+      'price_cents',
+    ]);
+    expect(enrollments?.columns.map((column) => column.key)).not.toContain(
+      'person_id',
+    );
+
+    const bookings = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'academy_bookings',
+    );
+    expect(bookings?.requiredTables).toEqual([
+      'class_session_bookings',
+      'class_sessions',
+      'class_offerings',
+      'events',
+    ]);
+    expect(bookings?.columns.map((column) => column.key)).toEqual([
+      'id',
+      'status',
+      'kind',
+      'event_starts_at',
+      'offering_name',
+    ]);
+    expect(bookings?.columns.map((column) => column.key)).not.toContain(
+      'person_id',
+    );
+  });
+
+  it('exposes invoice dispute amounts only as sensitive money data', () => {
+    const invoices = REPORT_DATASETS.find(
+      (candidate) => candidate.key === 'invoices',
+    );
+    expect(
+      invoices?.columns.find((column) => column.key === 'disputed_cents'),
+    ).toMatchObject({
+      type: 'money',
+      tier: 'sensitive',
+      source: 't.disputed_cents',
+    });
+  });
+
+  it('requires step-up for sensitive exports and blocks reporter exports', () => {
+    expect(canExportTier(['finance'], 'sensitive', false)).toBe(false);
+    expect(canExportTier(['finance'], 'sensitive', true)).toBe(true);
+    expect(canExportTier(['reporter'], 'sensitive', true)).toBe(false);
+    expect(canExportTier(['reporter'], 'internal', false)).toBe(true);
+  });
+});

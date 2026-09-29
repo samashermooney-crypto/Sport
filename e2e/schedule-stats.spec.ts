@@ -5,11 +5,14 @@ import { builtInSportTemplates } from '@shared/sport/templates';
 import { createDatabase } from '../server/src/db/kysely';
 import { createWithOrg } from '../server/src/db/withOrg';
 import { issueSession } from '../server/src/modules/auth/sessions';
+import { emitPendingScheduleBatches } from '../server/src/modules/scheduling/generator';
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
 import { e2eDatabaseUrl } from './database';
 
+
+test.use({ timezoneId: 'UTC' });
 
 function zonedInputValue(value: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -32,7 +35,7 @@ function zonedInputValue(value: Date, timeZone: string): string {
 test('staff configures statistics, finalizes a game, closes a facility, and opens its leaderboard', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   const database = createDatabase(
     e2eDatabaseUrl('app'),
   );
@@ -42,9 +45,18 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     const program = await factories.program(actor);
     const home = await factories.team(actor, program);
     const away = await factories.team(actor, program);
+    const closurePersonId = await factories.person(actor, {
+      firstName: 'North',
+      lastName: 'Park Volunteer',
+      dateOfBirth: '1988-06-12',
+    });
+    const closureHouseholdId = await factories.household(actor);
     const facilityId = newId();
     const spaceId = newId();
-    const closureEventId = newId();
+    const volunteerRoleId = newId();
+    const eventId = newId();
+    const closureEventIds = Array.from({ length: 24 }, () => newId());
+    const volunteerShiftIds = closureEventIds.map(() => newId());
     const closureEventStartsAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
     closureEventStartsAt.setSeconds(0, 0);
     const closureEventEndsAt = new Date(
@@ -118,6 +130,7 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
           name: 'North Park Fields',
           ownership: 'owned',
           timezone: 'America/Chicago',
+          public: true,
         })
         .execute();
       await trx
@@ -131,7 +144,27 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
           suitability: { sportProfileIds: [program.sportProfileId] },
         })
         .execute();
-      const eventId = newId();
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: newId(),
+          org_id: actor.orgId,
+          person_id: closurePersonId,
+          account_id: actor.accountId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute();
+      await trx
+        .insertInto('volunteer_roles')
+        .values({
+          id: volunteerRoleId,
+          org_id: actor.orgId,
+          name: 'North Park field volunteer',
+          minimum_age: 18,
+          created_by: actor.accountId,
+        })
+        .execute();
       const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await trx
         .insertInto('events')
@@ -169,19 +202,52 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
         .execute();
       await trx
         .insertInto('events')
-        .values({
-          id: closureEventId,
-          org_id: actor.orgId,
-          program_id: program.programId,
-          division_id: program.divisionId,
-          kind: 'game',
-          title: 'Rainout closure game',
-          starts_at: closureEventStartsAt,
-          ends_at: closureEventEndsAt,
-          timezone: 'America/Chicago',
-          space_id: spaceId,
-          published: true,
-        })
+        .values(
+          closureEventIds.map((id, index) => ({
+            id,
+            org_id: actor.orgId,
+            program_id: program.programId,
+            division_id: program.divisionId,
+            kind: 'game' as const,
+            title: `North Park rainout game ${String(index + 1)}`,
+            starts_at: closureEventStartsAt,
+            ends_at: closureEventEndsAt,
+            timezone: 'America/Chicago',
+            space_id: spaceId,
+            published: true,
+          })),
+        )
+        .execute();
+      await trx
+        .insertInto('volunteer_shifts')
+        .values(
+          closureEventIds.map((eventId, index) => ({
+            id: volunteerShiftIds[index] ?? newId(),
+            org_id: actor.orgId,
+            volunteer_role_id: volunteerRoleId,
+            event_id: eventId,
+            facility_id: facilityId,
+            starts_at: closureEventStartsAt,
+            ends_at: closureEventEndsAt,
+            slots: 1,
+            credit_hours: 1,
+            created_by: actor.accountId,
+          })),
+        )
+        .execute();
+      await trx
+        .insertInto('volunteer_signups')
+        .values(
+          volunteerShiftIds.map((volunteerShiftId) => ({
+            id: newId(),
+            org_id: actor.orgId,
+            volunteer_shift_id: volunteerShiftId,
+            person_id: closurePersonId,
+            household_id: closureHouseholdId,
+            status: 'confirmed',
+            created_by: actor.accountId,
+          })),
+        )
         .execute();
     });
     const session = await database.transaction().execute((trx) =>
@@ -209,14 +275,20 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     ]);
 
     await page.goto(`/console/orgs/${actor.orgId}/schedule`);
-    await page
-      .getByRole('textbox', { name: 'Program ID *' })
-      .fill(program.programId);
+    await page.getByLabel('Program *').selectOption(program.programId);
+    const selectedDivision = page
+      .getByRole('region', { name: 'Schedule generator' })
+      .getByLabel('Division *');
+    await expect(selectedDivision).toBeEnabled();
+    await selectedDivision.selectOption(program.divisionId);
+    await expect(selectedDivision).toHaveValue(program.divisionId);
     await page.getByRole('button', { name: 'Load statistic settings' }).click();
-    await expect(page.getByLabel('Goals (team) · public')).toBeVisible();
+    await expect(page.getByLabel('Goals (team) · public')).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(
       page.getByLabel('Private mark (athlete) · staff only'),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     await page.getByLabel('Goals (team) · public').check();
     const saveStats = page.getByRole('button', {
       name: 'Save statistic settings',
@@ -226,11 +298,45 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     await expect(page.getByRole('status')).toHaveText(
       'Program statistics settings saved.',
     );
-    await page
-      .getByRole('button', { name: 'Create contest · first sport format' })
-      .click();
+    const selectedEvent = page.getByLabel('Selected event');
+    await selectedEvent.selectOption(eventId);
+    const createContest = page.getByRole('button', {
+      name: 'Create contest · first sport format',
+    });
+    await expect(createContest).toBeEnabled();
+    await createContest.click();
     await expect(
       page.getByText(/head_to_head_score|head-to-head-score/i),
+    ).toBeVisible({ timeout: 15_000 });
+    const contestId = await createWithOrg(database)(
+      actor,
+      async (trx) =>
+        (
+          await trx
+            .selectFrom('contests')
+            .select('id')
+            .where('org_id', '=', actor.orgId)
+            .where('event_id', '=', eventId)
+            .executeTakeFirstOrThrow()
+        ).id,
+    );
+    const organization = await database
+      .selectFrom('organizations')
+      .select('slug')
+      .where('id', '=', actor.orgId)
+      .executeTakeFirstOrThrow();
+    const livePage = await page.context().newPage();
+    await livePage.goto(
+      `/orgs/${organization.slug}/contests/${contestId}/live`,
+    );
+    await expect(
+      livePage.getByRole('heading', { name: 'Live score' }),
+    ).toBeVisible();
+    await expect(livePage.getByRole('status')).toHaveText(
+      'Live score updates connected.',
+    );
+    await expect(
+      livePage.getByText('scheduled', { exact: true }),
     ).toBeVisible();
     await page.getByLabel(`Goals for ${home.teamSeasonId}`).fill('3');
     await page.getByLabel(`Goals for ${away.teamSeasonId}`).fill('1');
@@ -240,6 +346,14 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     await page.getByLabel('Finalize result and update standings').check();
     await page.getByRole('button', { name: 'Submit result' }).click();
     await expect(page.getByRole('status')).toHaveText('Result submitted.');
+    const liveScoreboard = livePage.getByRole('region', {
+      name: 'Live scoreboard',
+    });
+    await expect(livePage.getByText('final', { exact: true })).toBeVisible();
+    await expect(liveScoreboard.getByText('2', { exact: true })).toBeVisible();
+    await expect(liveScoreboard.getByText('1', { exact: true })).toBeVisible();
+    expect(await accessibilityViolations(livePage)).toEqual([]);
+    await livePage.close();
     const savedStats = await createWithOrg(database)(actor, (trx) =>
       trx
         .selectFrom('stat_lines')
@@ -257,10 +371,45 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
       [home.teamSeasonId]: '3',
       [away.teamSeasonId]: '1',
     });
+    const leaderboardResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes('/stats/leaders'),
+    );
     await page.getByRole('button', { name: 'Load leaderboards' }).click();
-    await expect(page.getByRole('heading', { name: 'Goals' })).toBeVisible();
+    const leaderboardResponse = await leaderboardResponsePromise;
+    expect(leaderboardResponse.ok()).toBe(true);
+    const leaderboardUrl = new URL(leaderboardResponse.url());
+    expect(leaderboardUrl.pathname).toContain(
+      `/programs/${program.programId}/stats/leaders`,
+    );
+    expect(leaderboardUrl.searchParams.get('divisionId')).toBe(
+      program.divisionId,
+    );
+    const leaderboardPayload = (await leaderboardResponse.json()) as {
+      items: Array<{
+        key: string;
+        leaders: Array<{ value: number }>;
+      }>;
+    };
+    expect(leaderboardPayload.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'goals',
+          leaders: expect.arrayContaining([
+            expect.objectContaining({ value: 3 }),
+          ]),
+        }),
+      ]),
+    );
+    const leaderboard = page.getByRole('region', {
+      name: 'Program and division leaderboards',
+    });
     await expect(
-      page.getByRole('cell', { name: '3', exact: true }),
+      leaderboard.getByRole('heading', { name: 'Goals' }),
+    ).toBeVisible();
+    await expect(
+      leaderboard.getByRole('cell', { name: '3', exact: true }),
     ).toBeVisible();
     await page.getByRole('button', { name: 'Load standings' }).click();
     await expect(page.getByRole('status')).toHaveText(
@@ -304,6 +453,79 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
     const closureForm = page
       .locator('form')
       .filter({ has: page.getByRole('button', { name: 'Preview and close' }) });
+    await closureForm.getByLabel('Closure scope').selectOption('org');
+    await closureForm
+      .getByLabel('Starts')
+      .fill(zonedInputValue(closureStartsAt, 'America/Chicago'));
+    await closureForm
+      .getByLabel('Ends')
+      .fill(zonedInputValue(closureEndsAt, 'America/Chicago'));
+    const orgPreviewRequest = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' &&
+        request.url().endsWith('/closures/preview'),
+    );
+    const orgPreviewResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/closures/preview'),
+    );
+    page.once('dialog', async (dialog) => {
+      await dialog.dismiss();
+    });
+    await closureForm
+      .getByRole('button', { name: 'Preview and close' })
+      .click();
+    const [orgPreview, orgPreviewResult] = await Promise.all([
+      orgPreviewRequest,
+      orgPreviewResponse,
+    ]);
+    const orgPreviewBody = orgPreview.postDataJSON() as {
+      startsAt: string;
+      endsAt: string;
+    };
+    expect(new Date(orgPreviewBody.startsAt).getTime()).toBe(
+      closureStartsAt.getTime(),
+    );
+    expect(new Date(orgPreviewBody.endsAt).getTime()).toBe(
+      closureEndsAt.getTime(),
+    );
+    expect(await orgPreviewResult.json()).toMatchObject({ count: 24 });
+
+    await closureForm.getByLabel('Closure scope').selectOption('space');
+    await closureForm.getByLabel('Facility or space ID').fill(spaceId);
+    const spacePreviewRequest = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' &&
+        request.url().endsWith('/closures/preview'),
+    );
+    const spacePreviewResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/closures/preview'),
+    );
+    page.once('dialog', async (dialog) => {
+      await dialog.dismiss();
+    });
+    await closureForm
+      .getByRole('button', { name: 'Preview and close' })
+      .click();
+    const [spacePreview, spacePreviewResult] = await Promise.all([
+      spacePreviewRequest,
+      spacePreviewResponse,
+    ]);
+    const spacePreviewBody = spacePreview.postDataJSON() as {
+      startsAt: string;
+      endsAt: string;
+    };
+    expect(new Date(spacePreviewBody.startsAt).getTime()).toBe(
+      closureStartsAt.getTime(),
+    );
+    expect(new Date(spacePreviewBody.endsAt).getTime()).toBe(
+      closureEndsAt.getTime(),
+    );
+    expect(await spacePreviewResult.json()).toMatchObject({ count: 24 });
+
     await closureForm.getByLabel('Closure scope').selectOption('facility');
     await closureForm.getByLabel('Facility or space ID').fill(facilityId);
     await closureForm
@@ -313,29 +535,119 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
       .getByLabel('Ends')
       .fill(zonedInputValue(closureEndsAt, 'America/Chicago'));
     await closureForm.getByLabel('Reason').selectOption('weather');
+    await closureForm
+      .getByLabel('Portal message')
+      .fill('North Park fields closed due to heavy rain.');
     let closureDialog = '';
+    const facilityPreviewRequest = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' &&
+        request.url().endsWith('/closures/preview'),
+    );
+    const facilityPreviewResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/closures/preview'),
+    );
     page.once('dialog', async (dialog) => {
       closureDialog = dialog.message();
       await dialog.accept();
     });
+    const closureResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/closures'),
+      { timeout: 15_000 },
+    );
     await closureForm
       .getByRole('button', { name: 'Preview and close' })
       .click();
+    const [facilityPreview, facilityPreviewResult] = await Promise.all([
+      facilityPreviewRequest,
+      facilityPreviewResponse,
+    ]);
+    const facilityPreviewBody = facilityPreview.postDataJSON() as {
+      startsAt: string;
+      endsAt: string;
+    };
+    expect(new Date(facilityPreviewBody.startsAt).getTime()).toBe(
+      closureStartsAt.getTime(),
+    );
+    expect(new Date(facilityPreviewBody.endsAt).getTime()).toBe(
+      closureEndsAt.getTime(),
+    );
+    expect(await facilityPreviewResult.json()).toMatchObject({ count: 24 });
+    expect((await closureResponse).ok()).toBe(true);
     await expect(page.getByRole('status')).toHaveText(
       'Closure recorded and affected events updated.',
     );
-    expect(closureDialog).toContain('postpone 1 affected events');
-    const closedEvent = await createWithOrg(database)(actor, (trx) =>
+    expect(closureDialog).toContain('postpone 24 affected events');
+    const closedEvents = await createWithOrg(database)(actor, (trx) =>
       trx
         .selectFrom('events')
         .select(['status', 'status_reason'])
         .where('org_id', '=', actor.orgId)
-        .where('id', '=', closureEventId)
+        .where('id', 'in', closureEventIds)
+        .execute(),
+    );
+    expect(closedEvents).toHaveLength(24);
+    expect(
+      closedEvents.every(
+        (event) =>
+          event.status === 'postponed' &&
+          /^closure:/.test(event.status_reason ?? ''),
+      ),
+    ).toBe(true);
+    const emergencyBatch = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('schedule_change_batches')
+        .select(['id', 'changes', 'emit_after', 'notification_type'])
+        .where('org_id', '=', actor.orgId)
+        .where('recipient_account_id', '=', actor.accountId)
+        .execute(),
+    );
+    expect(emergencyBatch).toHaveLength(1);
+    expect(emergencyBatch[0]?.notification_type).toBe('safety.emergency');
+    expect(emergencyBatch[0]?.emit_after.getTime()).toBeLessThanOrEqual(
+      Date.now(),
+    );
+    expect(emergencyBatch[0]?.changes).toHaveLength(24);
+    for (const eventId of closureEventIds) {
+      expect(emergencyBatch[0]?.changes).toContainEqual(
+        expect.objectContaining({ eventId }),
+      );
+    }
+    await emitPendingScheduleBatches(database);
+    const emergencyNotice = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('notifications')
+        .select(['type', 'payload', 'delivered_channels'])
+        .where('org_id', '=', actor.orgId)
+        .where('account_id', '=', actor.accountId)
+        .where('type', '=', 'safety.emergency')
         .executeTakeFirstOrThrow(),
     );
-    expect(closedEvent.status).toBe('postponed');
-    expect(closedEvent.status_reason).toMatch(/^closure:/);
+    expect(emergencyNotice.delivered_channels).toEqual(['in_app']);
+    expect(emergencyNotice.payload).toMatchObject({
+      resourceType: 'schedule_change_batch',
+      resourceId: emergencyBatch[0]?.id,
+      href: '/me/schedule',
+    });
     await expect(page.getByRole('alert')).toHaveCount(0);
+    expect(await accessibilityViolations(page)).toEqual([]);
+    await page.goto(`/orgs/${organization.slug}/facilities/${facilityId}`);
+    await expect(
+      page.getByRole('heading', { name: 'North Park Fields' }),
+    ).toBeVisible();
+    const closureNotices = page.getByRole('region', {
+      name: 'Facility closures',
+    });
+    await expect(closureNotices).toContainText('weather');
+    await expect(closureNotices).toContainText(
+      'North Park fields closed due to heavy rain.',
+    );
+    const publicEvents = page.getByRole('table').getByRole('row');
+    await expect(publicEvents.filter({ hasText: 'postponed' })).toHaveCount(24);
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
     await database.destroy();

@@ -65,6 +65,10 @@ describe('shared design system interactions', () => {
     const calendar = container.querySelector<HTMLElement>('.ui-calendar');
     expect(calendar).not.toBeNull();
     if (!calendar) throw new Error('Calendar missing');
+    const calendarHeading = within(calendar).getByRole('heading', { level: 2 });
+    expect(
+      screen.getByRole('region', { name: calendarHeading.textContent }),
+    ).toBe(calendar);
     fireEvent.click(within(calendar).getByRole('button', { name: 'week' }));
     expect(calendar.querySelectorAll('[role="gridcell"]')).toHaveLength(7);
     expect(within(calendar).getByText('Opening day')).toBeTruthy();

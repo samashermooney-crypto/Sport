@@ -9,7 +9,7 @@ import { accessibilityViolations } from './axe';
 import { e2eDatabaseUrl } from './database';
 
 
-test('family registers two siblings together, signs waivers, and chooses uniform sizes', async ({
+test('family re-registers two returning siblings, signs waivers, and chooses uniform sizes', async ({
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
@@ -157,15 +157,30 @@ test('family registers two siblings together, signs waivers, and chooses uniform
         )
         .execute();
     });
-    const returningParticipant = participants[0];
-    if (!returningParticipant)
-      throw new Error('Returning participant fixture is missing');
-    await factories.registration(
-      actor,
-      previousProgram,
-      returningParticipant.id,
-      householdId,
+    for (const participant of participants.slice(0, 2))
+      await factories.registration(
+        actor,
+        previousProgram,
+        participant.id,
+        householdId,
+      );
+    const priorRegistrations = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('registrations')
+        .select(['person_id', 'status'])
+        .where('org_id', '=', actor.orgId)
+        .where('program_id', '=', previousProgram.programId)
+        .where(
+          'person_id',
+          'in',
+          participants.slice(0, 2).map((participant) => participant.id),
+        )
+        .execute(),
     );
+    expect(priorRegistrations).toHaveLength(2);
+    expect(
+      priorRegistrations.every(({ status }) => status === 'confirmed'),
+    ).toBe(true);
 
     const session = await database.transaction().execute((trx) =>
       issueSession(

@@ -41,6 +41,7 @@ import {
   createComplianceOverride,
   listBackgroundCheckDisputes,
   listOwnBackgroundChecks,
+  listRequirements,
   listPersonCredentials,
   listCredentialReviewQueue,
   listCredentialTypes,
@@ -274,6 +275,21 @@ afterAll(async () => {
 });
 
 describe('Phase 7 safety and compliance integration', () => {
+  it('lists scoped credential requirements with their current credential labels', async () => {
+    await expect(listRequirements(database, ownerContext)).resolves.toEqual([
+      expect.objectContaining({
+        role: 'head_coach',
+        credentialTypeId,
+        credentialName: 'SafeSport training',
+        scopeType: 'org',
+        scopeId: null,
+        minimumAge: 18,
+        active: true,
+        version: 1,
+      }),
+    ]);
+  });
+
   it('gates and activates credentialed staff, audits Restricted reads, and demotes on expiry', async () => {
     await expectRoleIneligible(personA, 'CREDENTIAL_MISSING');
 

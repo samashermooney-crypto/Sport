@@ -4,10 +4,7 @@ import { expect, test } from '@playwright/test';
 
 import { createDatabase } from '../server/src/db/kysely';
 import { createWithOrg } from '../server/src/db/withOrg';
-import {
-  issueSession,
-  stepUpSession,
-} from '../server/src/modules/auth/sessions';
+import { issueSession } from '../server/src/modules/auth/sessions';
 import { createTestFactories } from '../server/test/factories';
 import { newId } from '../shared/src/ids';
 
@@ -96,7 +93,11 @@ test('recipient accepts owner transfer from the staff screen', async ({
         },
         now,
       );
-      await stepUpSession(trx, session.id, actor.accountId, now);
+      await trx
+        .updateTable('sessions')
+        .set({ elevated_until: new Date(now.getTime() + 15 * 60_000) })
+        .where('id', '=', session.id)
+        .execute();
       return session;
     });
     const baseURL = String(testInfo.project.use.baseURL);

@@ -1,5 +1,7 @@
 # Track H — communications and chat
 
+Track K verification (2026-09-28): Resolved by `rebuild/trunk` commit `fecad764` (2026-09-28): C passed the injected `now` to chat message creation and attachment-expiry checks. K verified the fix in the post-sync full suite (283 files / 1,032 tests, zero failures or skips); the prior isolated chat file had reproduced 9 passed / 2 failed.
+
 Requests from OPS: Confirm the campaign enqueue/status API contract for a 20,000-recipient fan-out using only preview/fake delivery adapters, including a durable completed-recipient count for the k6 scenario (2026-09-27).
 Requests from OPS: Fix `server/test/modules/sponsors/service.integration.test.ts`: `keeps placements tenant scoped and issues sponsorship invoices through finance` expects the active “Community Sports Medicine” Gold placement, but `listPublicPlacements` returns `[]` (2026-09-27).
 
@@ -66,20 +68,19 @@ Track B's catalog/preferences and Track C's provider-ID interface are on the mer
 - **OPS:** Confirm the 20,000-recipient campaign enqueue/status contract and durable completed-recipient count.
 - **J:** Owns Phase 13 federation; H does not merge `track/j-federation`.
 - **Phase 10 external work:** A still owns profile message-history links, verified-phone consent, `athleteChatEnabled`, and conversation synchronization; C owns chat attachment authorization; G owns schedule-change coalescing.
+Requests from K (2026-09-27; rechecked 2026-09-28):
+
+- Resolved in the post-repair full run: the team-finance fixture no longer fails on its direct `payment_allocations` update; keep production allocation history immutable.
+- Resolved in `b1a8420f`: the sponsor placement fixture now uses `orgToday` for the org timezone and an org-local offset for `contractEnd`, preserving the placement assertion.
+
+- Track I trunk-gate note (2026-09-27): the sponsor placement integration fixture derived `contractStart` from UTC `toISOString()` while `publicSponsorPlacements` correctly compares against the organization-local date. The fixture now uses `orgToday()` for the owning organization timezone and a `Temporal.PlainDate` offset for `contractEnd`; no sponsor runtime behavior changed.
+
 ## Requests from QA
 
-- QA-ACC-062 — `ensureTeamConversation()` returns a team conversation without the required `muted` boolean. The communications POST handler then fails strict `conversationSchema` parsing with 400 after creating/synchronizing the conversation, so the SafeSport journey cannot open the staff team chat or let the guardian reply. Return the persisted mute state (false for the created/active member) and add route-level coverage for both first creation and idempotent reopen; see `docs/codex/qa/DEFECTS.md`.
-- QA-ACC-059 — fix the “team finances issue three installments” acceptance fixture: it directly UPDATEs `payment_allocations`, which migration `0103_spine_finance_core.sql` deliberately keeps append-only (SELECT/INSERT only). Create allocations through a supported service/repository or seed the desired row on insert; do not loosen the append-only policy. B observed permission denied in its Chromium run on trunk `5651da37`; see `docs/codex/qa/DEFECTS.md`.
-
-- **QA-ACC-021:** extend the communications browser journey through quiet-hour deferral and tokenized unsubscribe; current browser coverage stops after schedule cancellation.
-- **QA-ACC-037:** run the Phase 11 $300 donation acceptance path anonymously. The current scenario keeps its authenticated setup session while completing the public fundraiser checkout.
-- **QA-SEC-009:** QA runtime-confirmed on `d52e4c83`: a program-scoped director received HTTP 200 for another household's ledger. Limit reads to the verified guardian or explicitly authorized org-wide volunteer oversight.
-- **QA-ACC-038 (coordinate E):** connect family uniform orders to the selected athlete's registration/team for size reporting, and reject unrelated team-season IDs. The current store portal omits both attribution fields that the report requires.
-- **QA-ACC-039:** QA runtime reproduced two fulfilled requests, two buyouts, and two payable invoice lines when only one buyout unit remained. Make reservation and invoice issuance concurrency-safe.
-- **QA-ACC-040:** make `countsCoachRoles` affect household requirement credits; it is persisted but the ledger only counts completed volunteer signups.
-- **QA-ACC-041:** implement idempotent notice and shortfall-invoice enforcement for enabled volunteer requirements; `autoInvoiceShortfall` and `noticeDays` are stored but no job consumes them.
-- **QA-ACC-042:** add event-block shift generation and a deduplicated shift-reminder job; the volunteer module has no jobs and creates shifts one at a time.
-- **QA-ACC-043 (coordinate B):** register and emit purchaser order-status notifications after fulfillment transitions; `updateFulfillment()` currently changes state without enqueuing a notification.
-- **QA-ACC-044 (coordinate E/C):** provide a production guest-donation checkout adapter through the fundraising route/module contract; the current route returns 503 `CHECKOUT_UNAVAILABLE` because no provider is supplied. Keep preview checkout non-production-only and settle payments only through signed webhook events. See `docs/codex/qa/DEFECTS.md` (2026-09-27).
-- **QA-ACC-045 (coordinate B):** add notification catalog support and verify the sponsor renewal job creates a single reminder for expiring active contracts; the current service returns zero before scanning because `sponsor.renewal_reminder` is not registered. The active regression is `e2e/phase11-sponsor-renewal.spec.ts` (2026-09-27).
-- Track I trunk-gate note (2026-09-27): the sponsor placement integration fixture derived `contractStart` from UTC `toISOString()` while `publicSponsorPlacements` correctly compares against the organization-local date. The fixture now uses `orgToday()` for the owning organization timezone and a `Temporal.PlainDate` offset for `contractEnd`; no sponsor runtime behavior changed.
+- **QA-SEC-009:** `householdVolunteerLedger()` allows any active organization membership to pass its household-level access query, including a program-scoped director. Enforce the appropriate household guardian or explicit org-wide oversight authorization; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-038:** Family uniform orders still need athlete registration/team attribution for size reports, with unrelated team-season IDs rejected. Coordinate the checkout attribution contract with E; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-039:** Buyout invoice issuance occurs before the requirement row lock and remaining-unit recheck, so competing requests can leave two invoices even if the second buyout insert is rejected. Serialize capacity validation and invoice/buyout issuance as one idempotent operation; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-040 / QA-ACC-041:** `countsCoachRoles`, `autoInvoiceShortfall`, and `noticeDays` are persisted but do not affect household credits or drive reminder/shortfall invoice enforcement. Implement the configured ledger and idempotent job behavior; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-042:** Add event-block shift generation and a deduplicated shift-reminder job; current shifts are created one at a time and the module has no generation/reminder job. See `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-043:** `updateFulfillment()` changes order/fulfillment state without notifying the purchaser. Register and emit the order-status notification after successful transitions; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-044 (coordinate E/C):** Production guest donation checkout remains unavailable (`CHECKOUT_UNAVAILABLE`). Inject the production adapter and signed completion/failure dispatch while keeping tests on fake providers and synthetic signatures; see `docs/codex/qa/DEFECTS.md`.

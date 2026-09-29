@@ -28,6 +28,16 @@ test('coach syncs offline attendance and surfaces a changed score', async ({
       lastName: 'Runner',
       dateOfBirth: '2012-05-12',
     });
+    const injuredPersonId = await factories.person(actor, {
+      firstName: 'Casey',
+      lastName: 'Injured',
+      dateOfBirth: '2012-06-17',
+    });
+    const suspendedPersonId = await factories.person(actor, {
+      firstName: 'Pat',
+      lastName: 'Suspended',
+      dateOfBirth: '2012-08-21',
+    });
     const eventId = newId();
     const contestId = newId();
     const homeEventParticipantId = newId();
@@ -50,7 +60,51 @@ test('coach syncs offline attendance and surfaces a changed score', async ({
           org_id: actor.orgId,
           team_season_id: home.teamSeasonId,
           person_id: personId,
+          positions: ['GK'],
           status: 'active',
+        })
+        .execute();
+      await trx
+        .insertInto('roster_entries')
+        .values({
+          id: newId(),
+          org_id: actor.orgId,
+          team_season_id: home.teamSeasonId,
+          person_id: injuredPersonId,
+          status: 'injured',
+        })
+        .execute();
+      await trx
+        .insertInto('roster_entries')
+        .values({
+          id: newId(),
+          org_id: actor.orgId,
+          team_season_id: home.teamSeasonId,
+          person_id: suspendedPersonId,
+          status: 'active',
+        })
+        .execute();
+      await trx
+        .insertInto('medical_profiles')
+        .values({
+          id: newId(),
+          org_id: actor.orgId,
+          person_id: personId,
+          allergy_flags: ['peanut'],
+          updated_by: actor.accountId,
+        })
+        .execute();
+      await trx
+        .insertInto('emergency_contacts')
+        .values({
+          id: newId(),
+          org_id: actor.orgId,
+          person_id: personId,
+          name: 'Riley Runner',
+          relationship: 'parent',
+          phone_e164: '+14155550123',
+          alt_phone_e164: '+14155550124',
+          priority: 1,
         })
         .execute();
       await trx
@@ -117,6 +171,20 @@ test('coach syncs offline attendance and surfaces a changed score', async ({
           },
         ])
         .execute();
+      await trx
+        .insertInto('discipline_records')
+        .values({
+          id: newId(),
+          org_id: actor.orgId,
+          person_id: suspendedPersonId,
+          team_season_id: home.teamSeasonId,
+          contest_id: contestId,
+          type: 'send_off',
+          description: 'One-game suspension for game-day flag coverage.',
+          suspension_games: 1,
+          issued_by: actor.accountId,
+        })
+        .execute();
     });
     const session = await database.transaction().execute((trx) =>
       issueSession(
@@ -145,7 +213,47 @@ test('coach syncs offline attendance and surfaces a changed score', async ({
     await page.goto(
       `/console/orgs/${actor.orgId}/schedule/events/${eventId}/game-day`,
     );
+    await expect(page.locator('.ui-app-shell')).toHaveCount(1);
     await expect(page.getByRole('heading', { name: 'Game day' })).toBeVisible();
+    const roster = page.locator('section[aria-labelledby="gameday-roster"]');
+    await expect(
+      roster.getByRole('row', { name: /Casey Injured/ }),
+    ).toContainText('Injured');
+    await expect(
+      roster.getByRole('row', { name: /Pat Suspended/ }),
+    ).toContainText('Suspended');
+    await expect(
+      roster.getByRole('row', { name: /Jordan Runner/ }),
+    ).toContainText('peanut');
+    await expect(
+      page.getByRole('link', { name: 'Call +14155550123' }),
+    ).toHaveAttribute('href', 'tel:+14155550123');
+    await expect(
+      page.getByRole('link', { name: 'Call alternate +14155550124' }),
+    ).toHaveAttribute('href', 'tel:+14155550124');
+    await expect(page.getByRole('link', { name: 'Text' })).toHaveAttribute(
+      'href',
+      'sms:+14155550123',
+    );
+    await page.getByLabel('Jordan minutes played').fill('0');
+    await expect(
+      roster.getByRole('row', { name: /Jordan Runner/ }),
+    ).toContainText('Below minimum');
+    await page.getByLabel('Position for Jordan Runner').selectOption('gk');
+    await page.getByRole('button', { name: 'Save lineup' }).click();
+    await expect(page.getByRole('status')).toHaveText('Lineup saved.');
+    const savedLineup = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('lineups')
+        .select('entries')
+        .where('org_id', '=', actor.orgId)
+        .where('contest_id', '=', contestId)
+        .where('team_season_id', '=', home.teamSeasonId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(savedLineup.entries).toMatchObject([
+      { personId, position: 'gk', order: 0 },
+    ]);
     const attendance = page.getByLabel('Attendance for Jordan Runner');
     await page.context().setOffline(true);
     await expect(page.getByText('Offline', { exact: true })).toBeVisible();

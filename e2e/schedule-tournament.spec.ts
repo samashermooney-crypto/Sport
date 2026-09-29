@@ -69,17 +69,24 @@ test('director generates and publishes a seeded 13-team double-elimination brack
     ]);
 
     await page.goto(`/console/orgs/${actor.orgId}/schedule`);
-    await page.getByLabel('Program ID *').fill(program.programId);
+    await page.getByLabel('Program *').selectOption(program.programId);
     const panel = page.locator('section[aria-labelledby="tournament-heading"]');
-    const entries = teams.map((team, index) => ({
-      teamSeasonId: team.teamSeasonId,
-      seed: index + 1,
-    }));
     const form = panel.locator('form').first();
     await form.getByLabel('Tournament name').fill('13 Team Weekend Cup');
-    await form.getByLabel('Division ID').fill(program.divisionId);
+    const division = form.getByLabel('Division');
+    await expect(division).toBeEnabled();
+    await division.selectOption(program.divisionId);
+    await expect(division).toHaveValue(program.divisionId);
     await form.getByLabel('Format').selectOption('double_elim');
-    await form.getByLabel('Entries JSON').fill(JSON.stringify(entries));
+    for (let index = 0; index < teams.length; index += 1) {
+      const label = `Cup Team ${String(index + 1).padStart(2, '0')}`;
+      const entry = form.getByLabel(`Add ${label} to tournament`);
+      await form.getByText(label, { exact: true }).click();
+      await expect(entry).toBeChecked();
+      await expect(form.getByLabel(`Seed for ${label}`)).toHaveValue(
+        String(index + 1),
+      );
+    }
     const createResponse = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&

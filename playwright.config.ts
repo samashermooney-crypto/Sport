@@ -28,7 +28,10 @@ export default defineConfig({
   ],
   webServer: {
     command: 'node scripts/dev.mjs --e2e',
-    url: webUrl,
+    // Wait through Vite's API proxy as well as the page server; the API
+    // listener can start after Vite, and page-only readiness races its first
+    // authenticated requests on slower Linux CI workers.
+    url: `${webUrl}/healthz`,
     ignoreHTTPSErrors: true,
     reuseExistingServer: false,
     timeout: 180_000,

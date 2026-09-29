@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PropsWithChildren, ReactNode } from 'react';
-import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import { Link, useLocation } from 'react-router';
 
 import { Button, Input } from './primitives';
 
@@ -25,6 +26,7 @@ export function AppShell({
   onGlobalSearch,
   searchResults = [],
   searchLoading = false,
+  searchError,
   children,
 }: PropsWithChildren<{
   orgName: string;
@@ -35,7 +37,17 @@ export function AppShell({
   onGlobalSearch?: (query: string) => void;
   searchResults?: ShellNavItem[];
   searchLoading?: boolean;
+  searchError?: string | undefined;
 }>): React.JSX.Element {
+  const { t, i18n } = useTranslation('shell');
+  const location = useLocation();
+  const contextualHelp = contextualHelpGroup(
+    location.pathname,
+    i18n.resolvedLanguage ?? i18n.language,
+  );
+  const activeNavigation = contextualHelp
+    ? [...navigation, contextualHelp]
+    : navigation;
   const [active, setActive] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -72,13 +84,15 @@ export function AppShell({
     if (paletteOpen && !dialog.open) dialog.showModal();
     if (!paletteOpen && dialog.open) dialog.close();
   }, [paletteOpen]);
-  const allItems = navigation.flatMap((group) => group.items);
+  const allItems = activeNavigation.flatMap((group) => group.items);
   const destinationResults = allItems.filter((item) =>
     item.label.toLowerCase().includes(query.toLowerCase()),
   );
   const results = onGlobalSearch
     ? query.trim()
-      ? searchResults
+      ? searchSubmitted
+        ? searchResults
+        : []
       : allItems
     : destinationResults;
   return (
@@ -86,12 +100,12 @@ export function AppShell({
       className={`ui-app-shell${mobileTabs?.length ? ' ui-shell-has-tabs' : ''}`}
     >
       <header className="topbar ui-topbar">
-        <Link to="/" className="brand-mark" aria-label="Athlentry home">
+        <Link to="/" className="brand-mark" aria-label={t('brandHome')}>
           <span>A</span>
         </Link>
         {orgSwitcher ?? <span className="org-name">{orgName}</span>}
-        <nav className="main-navigation" aria-label="Main navigation">
-          {navigation.map((group) => (
+        <nav className="main-navigation" aria-label={t('mainNavigation')}>
+          {activeNavigation.map((group) => (
             <div className="ui-nav-group" key={group.label}>
               <button
                 type="button"
@@ -128,7 +142,7 @@ export function AppShell({
         <button
           className="ui-global-search"
           type="button"
-          aria-label="Search Athlentry"
+          aria-label={t('searchAthlentry')}
           onClick={() => {
             setPaletteOpen(true);
           }}
@@ -147,14 +161,14 @@ export function AppShell({
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.35-4.35" />
           </svg>
-          <span>Search…</span>
+          <span>{t('searchLabel')}</span>
         </button>
         <div className="ui-shell-actions">{actions}</div>
       </header>
       {active && (
         <button
           className="ui-menu-dismiss"
-          aria-label="Close navigation menu"
+          aria-label={t('closeNavigationMenu')}
           onClick={() => {
             setActive(null);
           }}
@@ -162,7 +176,7 @@ export function AppShell({
       )}
       {children}
       {mobileTabs?.length ? (
-        <nav className="ui-mobile-tabs" aria-label="Mobile navigation">
+        <nav className="ui-mobile-tabs" aria-label={t('mobileNavigation')}>
           {mobileTabs.map((item) => (
             <Link
               key={item.to}
@@ -178,7 +192,7 @@ export function AppShell({
       <dialog
         className="ui-command-dialog"
         ref={paletteRef}
-        aria-label="Command palette"
+        aria-label={t('commandPalette')}
         onClose={() => {
           // A queued close event from Escape can arrive after the next shortcut
           // has reopened the dialog. Keep the newer open state in that case.
@@ -199,13 +213,13 @@ export function AppShell({
             autoFocus
             type="search"
             aria-label={
-              onGlobalSearch ? 'Search Athlentry' : 'Search pages and actions'
+              onGlobalSearch ? t('searchAthlentry') : t('searchPagesAndActions')
             }
             aria-busy={searchLoading}
             placeholder={
               onGlobalSearch
-                ? 'Search people, programs, teams, invoices…'
-                : 'Search pages and actions'
+                ? t('searchPeopleProgramsTeamsInvoices')
+                : t('searchPagesAndActions')
             }
             value={query}
             onChange={(event) => {
@@ -216,7 +230,7 @@ export function AppShell({
           <Button
             type="button"
             secondary
-            aria-label="Close"
+            aria-label={t('close')}
             onClick={() => {
               setPaletteOpen(false);
             }}
@@ -237,20 +251,92 @@ export function AppShell({
               </Link>
             </li>
           ))}
-          {onGlobalSearch && searchLoading && <li role="status">Searching…</li>}
-          {!results.length && !searchLoading && (
-            <li>
-              {onGlobalSearch
-                ? searchSubmitted
-                  ? 'No matching results'
-                  : 'Press Enter to search Athlentry'
-                : 'No matching destinations'}
-            </li>
+          {onGlobalSearch && searchLoading && (
+            <li role="status">{t('searching')}</li>
           )}
+          {onGlobalSearch && searchSubmitted && searchError && (
+            <li role="alert">{searchError}</li>
+          )}
+          {!results.length &&
+            !searchLoading &&
+            (!searchError || !searchSubmitted) && (
+              <li>
+                {onGlobalSearch
+                  ? searchSubmitted
+                    ? t('noMatchingResults')
+                    : t('pressEnterToSearch')
+                  : t('noMatchingDestinations')}
+              </li>
+            )}
         </ul>
       </dialog>
     </div>
   );
+}
+
+function contextualHelpGroup(
+  pathname: string,
+  language: string | undefined,
+): ShellNavGroup | undefined {
+  const match = pathname.match(
+    /^\/(?:console\/orgs|portal\/orgs|me\/orgs|me\/safety|console\/safety|console\/federation|orgs)\/([^/]+)/,
+  );
+  if (!match) return undefined;
+
+  const orgId = match[1];
+  if (!orgId) return undefined;
+  const isFamily =
+    pathname.startsWith('/portal/') ||
+    pathname.startsWith('/me/orgs/') ||
+    pathname.startsWith('/me/safety/');
+  const isSpanish = (language ?? 'en').toLowerCase().startsWith('es');
+  const locale = isSpanish ? 'es' : 'en';
+  const isImport = /\/(?:imports|onboarding)(?:\/|$)/.test(pathname);
+  const isAi = pathname.includes('/ai');
+  const article = isFamily
+    ? 'family-portal'
+    : isImport
+      ? 'importing-data'
+      : isAi
+        ? 'ai-assistant'
+        : 'support';
+  const requestKind = isImport ? 'concierge_import' : 'support';
+  const base = isFamily
+    ? `/portal/orgs/${orgId}/help`
+    : `/console/orgs/${orgId}/help`;
+  const context = encodeURIComponent(pathname);
+  const guideUrl = `${base}?article=${article}&kind=${requestKind}&locale=${locale}&from=${context}`;
+  const contactUrl = `${base}?contact=1&kind=${requestKind}&locale=${locale}&from=${context}#help-support-form`;
+
+  return {
+    label: isSpanish ? 'Ayuda' : 'Help',
+    items: [
+      {
+        label: isFamily
+          ? isSpanish
+            ? 'Ayuda'
+            : 'Help'
+          : isImport
+            ? isSpanish
+              ? 'Guía de importación'
+              : 'Import guide'
+            : isSpanish
+              ? 'Centro de ayuda'
+              : 'Help center',
+        to: guideUrl,
+      },
+      {
+        label: isImport
+          ? isSpanish
+            ? 'Solicitar ayuda de importación'
+            : 'Request import help'
+          : isSpanish
+            ? 'Contactar soporte'
+            : 'Contact support',
+        to: contactUrl,
+      },
+    ],
+  };
 }
 
 export function GlobalSearch({
@@ -259,7 +345,7 @@ export function GlobalSearch({
   onSubmit,
   results = [],
   loading = false,
-  placeholder = 'Search people, programs, invoices…',
+  placeholder,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -268,6 +354,7 @@ export function GlobalSearch({
   loading?: boolean;
   placeholder?: string;
 }): React.JSX.Element {
+  const { t } = useTranslation('shell');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const submitted = value.trim() !== '' && value.trim() === submittedQuery;
   return (
@@ -287,21 +374,24 @@ export function GlobalSearch({
           onChange(event.target.value);
         }}
         aria-busy={loading}
-        placeholder={placeholder}
-        aria-label="Global search"
+        placeholder={placeholder ?? t('searchPeopleProgramsInvoices')}
+        aria-label={t('globalSearch')}
       />
       <Button secondary disabled={!value.trim()}>
-        Search
+        {t('searchButton')}
       </Button>
-      {loading && <span role="status">Searching…</span>}
+      {loading && <span role="status">{t('searching')}</span>}
       {!loading && submitted && (
-        <ul className="ui-global-search-results" aria-label="Search results">
+        <ul
+          className="ui-global-search-results"
+          aria-label={t('searchResults')}
+        >
           {results.map((result) => (
             <li key={`${result.to}-${result.label}`}>
               <Link to={result.to}>{result.label}</Link>
             </li>
           ))}
-          {!results.length && <li>No matching results</li>}
+          {!results.length && <li>{t('noMatchingResults')}</li>}
         </ul>
       )}
     </form>

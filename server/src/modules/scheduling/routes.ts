@@ -19,10 +19,12 @@ import {
   getConflicts,
   getEvent,
   listEvents,
+  listCalendarFeeds,
   listFacilities,
   listSpaces,
   publicFacilityPage,
   publishEvent,
+  revokeCalendarFeed,
   updateEvent,
   SchedulingRuleError,
 } from './events';
@@ -38,6 +40,7 @@ import {
   createClosure,
   decideAllocationRequest,
   decideRescheduleRequest,
+  listTeamPracticeAllocations,
   listAllocationRequests,
   listRescheduleRequests,
   previewClosure,
@@ -81,6 +84,16 @@ const idSchema = z.uuid();
 const expectedVersionSchema = z.strictObject({
   expectedVersion: z.number().int().positive(),
 });
+const calendarFeedCreateSchema = z.discriminatedUnion('type', [
+  z.strictObject({ type: z.literal('account') }),
+  z.strictObject({ type: z.literal('team'), id: idSchema }),
+  z.strictObject({ type: z.literal('facility'), id: idSchema }),
+]);
+const calendarFeedListQuerySchema = z.discriminatedUnion('type', [
+  z.strictObject({ type: z.literal('account') }),
+  z.strictObject({ type: z.literal('team'), id: idSchema }),
+  z.strictObject({ type: z.literal('facility'), id: idSchema }),
+]);
 const closureParamsSchema = z.strictObject({
   scopeType: z.enum(['facility', 'space', 'org']),
   scopeId: z.uuid().nullable().optional(),
@@ -116,10 +129,6 @@ const spaceCreateSchema = z.strictObject({
   hasLights: z.boolean().optional(),
   suitability: z.record(z.string(), z.json()).optional(),
   capacityPeople: z.number().int().positive().nullable().optional(),
-});
-const feedCreateSchema = z.strictObject({
-  type: z.enum(['account', 'team', 'facility']),
-  id: z.uuid().optional(),
 });
 const allocationRequestSchema = z.strictObject({
   startsAt: z.iso.datetime({ offset: true }),
@@ -737,6 +746,22 @@ export function createSchedulingRouter(
     }
   });
 
+  router.get(
+    '/orgs/:orgId/team-seasons/:teamSeasonId/practice-allocations',
+    async (request, response) => {
+      try {
+        response.json({
+          items: await listTeamPracticeAllocations(
+            await authenticatedContext(dependencies, request),
+            idSchema.parse(request.params.teamSeasonId),
+          ),
+        });
+      } catch (error) {
+        handleError(response, error);
+      }
+    },
+  );
+
   router.post(
     '/orgs/:orgId/allocations/:allocationId/requests',
     async (request, response) => {
@@ -1006,20 +1031,49 @@ export function createSchedulingRouter(
   router.post('/orgs/:orgId/calendar-feeds', async (request, response) => {
     try {
       requireVerifiedMutation(dependencies, request);
-      const input = feedCreateSchema.parse(request.body);
-      response.status(201).json(
-        await createCalendarFeed(
+      const input = calendarFeedCreateSchema.parse(request.body);
+      response
+        .status(201)
+        .json(
+          await createCalendarFeed(
+            await authenticatedContext(dependencies, request),
+            input,
+          ),
+        );
+    } catch (error) {
+      handleError(response, error);
+    }
+  });
+
+  router.get('/orgs/:orgId/calendar-feeds', async (request, response) => {
+    try {
+      const input = calendarFeedListQuerySchema.parse(request.query);
+      response.json(
+        await listCalendarFeeds(
           await authenticatedContext(dependencies, request),
-          {
-            type: input.type,
-            ...(input.id === undefined ? {} : { id: input.id }),
-          },
+          input,
         ),
       );
     } catch (error) {
       handleError(response, error);
     }
   });
+
+  router.delete(
+    '/orgs/:orgId/calendar-feeds/:feedId',
+    async (request, response) => {
+      try {
+        requireVerifiedMutation(dependencies, request);
+        await revokeCalendarFeed(
+          await authenticatedContext(dependencies, request),
+          idSchema.parse(request.params.feedId),
+        );
+        response.status(204).end();
+      } catch (error) {
+        handleError(response, error);
+      }
+    },
+  );
 
   router.get('/orgs/:orgId/feeds/:token.ics', async (request, response) => {
     try {

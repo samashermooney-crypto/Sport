@@ -87,6 +87,95 @@ test('shell chrome compares against the legacy captures at desktop and phone wid
   }
 });
 
+test('public site shell matches the legacy header and navigation at desktop and phone widths', async ({
+  page,
+  browserName,
+}) => {
+  await page.goto('/__ui?surface=public');
+  await expect(
+    page.getByRole('heading', { name: 'Northstar Youth Sports' }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('navigation', { name: 'Website navigation' }),
+  ).toBeVisible();
+
+  for (const [width, height, reference] of [
+    [1440, 157, 'public-site-home-1440.png'],
+    [390, 179, 'public-site-home-390.png'],
+  ] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(() => document.fonts.ready);
+    if (browserName !== 'webkit') {
+      const rendered = await page.screenshot({ animations: 'disabled' });
+      const difference = await headerDifferenceRatio(
+        rendered,
+        reference,
+        width,
+        height,
+      );
+      expect(
+        difference,
+        `${String(width)}px public-site shell mismatch: ${(difference * 100).toFixed(2)}% of pixels differ`,
+      ).toBeLessThan(0.065);
+    }
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(
+      results.violations.map(({ id, impact, nodes }) => ({
+        id,
+        impact,
+        targets: nodes.map(({ target }) => target),
+      })),
+      `axe violations at ${String(width)}px`,
+    ).toEqual([]);
+  }
+
+  await page.getByRole('link', { name: 'Leagues', exact: true }).click();
+  await expect(page).toHaveURL(/#leagues$/);
+  await expect(page.locator('#leagues')).toBeInViewport();
+});
+
+test('console and public shells localize navigation and accessibility labels', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('athlentry-language', 'es');
+  });
+  await page.goto('/__ui');
+  await page.getByRole('button', { name: 'Buscar en Athlentry' }).click();
+  const palette = page.getByRole('dialog', { name: 'Paleta de comandos' });
+  const search = palette.getByRole('searchbox', {
+    name: 'Buscar páginas y acciones',
+  });
+  await expect(search).toHaveAttribute(
+    'placeholder',
+    'Buscar páginas y acciones',
+  );
+  await search.fill('no existe');
+  await expect(palette.getByText('No hay destinos coincidentes')).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/__ui?surface=public');
+  await expect(
+    page.getByRole('navigation', { name: 'Navegación del sitio web' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Inicio', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Iniciar sesión como miembro' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Encuentra tu próxima temporada.' }),
+  ).toBeVisible();
+  await expect(page.locator('.ui-public-site__skip-link')).toHaveText(
+    'Saltar al contenido',
+  );
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
 test('the showcase is axe-clean at desktop and phone widths', async ({
   page,
 }) => {
@@ -160,7 +249,9 @@ test('interactive controls meet 44px targets at phone width', async ({
     ['Open drawer', 'Example drawer'],
     ['Open sheet', 'Example sheet'],
   ] as const) {
-    await page.getByRole('button', { name: trigger }).click();
+    const triggerButton = page.getByRole('button', { name: trigger });
+    await triggerButton.focus();
+    await page.keyboard.press('Enter');
     const overlay = page.getByRole('dialog', { name });
     await expect(overlay).toBeVisible();
     const closeSize = await overlay
@@ -173,6 +264,7 @@ test('interactive controls meet 44px targets at phone width', async ({
     expect(closeSize.height).toBeGreaterThanOrEqual(44);
     await page.keyboard.press('Escape');
     await expect(overlay).toBeHidden();
+    await expect(triggerButton).toBeFocused();
   }
 });
 

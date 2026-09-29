@@ -10,10 +10,10 @@ import {
   hasStepUp,
   issueSession,
   listActiveSessions,
+  rotateSessionForStepUp,
   resolveSession,
   revokeSession,
   revokeSessions,
-  stepUpSession,
 } from './sessions';
 
 const accountId = newId();
@@ -82,7 +82,7 @@ describe('session lifecycle', () => {
     ).toBeNull();
   });
 
-  it('requires recent MFA for privileged sessions and expires step-up after 15 minutes', async () => {
+  it('requires recent MFA, rotates the session token, and expires step-up after 15 minutes', async () => {
     await expect(
       database
         .transaction()
@@ -111,16 +111,26 @@ describe('session lifecycle', () => {
     expect(issued.absoluteExpiresAt.toISOString()).toBe(
       '2026-10-03T18:00:00.000Z',
     );
+    const original = await database
+      .transaction()
+      .execute((trx) => resolveSession(trx, issued.token, now));
+    expect(original).not.toBeNull();
+    if (!original) throw new Error('Session is unexpectedly absent');
+    const rotated = await database
+      .transaction()
+      .execute((trx) => rotateSessionForStepUp(trx, original, now));
+    expect(rotated).not.toBeNull();
+    if (!rotated) throw new Error('Session token was not rotated');
     expect(
       await database
         .transaction()
-        .execute((trx) => stepUpSession(trx, issued.id, accountId, now)),
-    ).toBe(true);
+        .execute((trx) => resolveSession(trx, issued.token, now)),
+    ).toBeNull();
     const active = await database
       .transaction()
-      .execute((trx) => resolveSession(trx, issued.token, now));
+      .execute((trx) => resolveSession(trx, rotated.token, now));
     expect(active).not.toBeNull();
-    if (!active) throw new Error('Session is unexpectedly absent');
+    if (!active) throw new Error('Rotated session is unexpectedly absent');
     expect(hasStepUp(active, new Date(now.getTime() + 14 * 60_000))).toBe(true);
     expect(hasStepUp(active, new Date(now.getTime() + 15 * 60_000))).toBe(
       false,
@@ -133,7 +143,7 @@ describe('session lifecycle', () => {
     expect(
       await database
         .transaction()
-        .execute((trx) => resolveSession(trx, issued.token, now)),
+        .execute((trx) => resolveSession(trx, rotated.token, now)),
     ).toBeNull();
   });
 
@@ -191,6 +201,7 @@ describe('session lifecycle', () => {
       {
         id: first.id,
         accountId,
+        tokenHash: Buffer.alloc(32),
         kind: 'cookie',
         client: 'web',
         privileged: false,
@@ -228,6 +239,7 @@ describe('session lifecycle', () => {
       {
         id: second.id,
         accountId,
+        tokenHash: Buffer.alloc(32),
         kind: 'cookie',
         client: 'web',
         privileged: false,

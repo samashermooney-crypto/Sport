@@ -16,6 +16,7 @@ import {
   eventResponseSchema,
   eventSeriesCreateSchema,
   eventUpdateSchema,
+  calendarFeedListSchema,
   feedCreatedSchema,
   generatorConstraintsSchema,
   generationRunResponseSchema,
@@ -60,7 +61,7 @@ const spaceBody = z.strictObject({
   capacityPeople: z.number().int().positive().nullable().optional(),
 });
 const route = (
-  method: 'get' | 'post' | 'put' | 'patch',
+  method: 'get' | 'post' | 'put' | 'patch' | 'delete',
   path: string,
   summary: string,
   options: {
@@ -139,7 +140,7 @@ const openapiRoutes = [
   route('get', '/orgs/{orgId}/facilities', 'List facilities', {
     response: z.object({
       items: z.array(json),
-      organizationTimezone: z.string(),
+      organizationTimezone: z.string().min(1),
     }),
   }),
   route('post', '/orgs/{orgId}/facilities', 'Create a facility', {
@@ -255,6 +256,12 @@ const openapiRoutes = [
     { body: version, response: z.object({ status: z.string() }) },
   ),
   route(
+    'get',
+    '/orgs/{orgId}/team-seasons/{teamSeasonId}/practice-allocations',
+    'List practice allocations for a team slot picker',
+    { response: z.object({ items: z.array(json) }) },
+  ),
+  route(
     'post',
     '/orgs/{orgId}/allocations',
     'Allocate recurring facility time',
@@ -360,13 +367,32 @@ const openapiRoutes = [
     '/orgs/{orgId}/calendar-feeds',
     'Create a tokenized calendar feed',
     {
-      body: z.strictObject({
-        type: z.enum(['account', 'team', 'facility']),
-        id: z.uuid().optional(),
-      }),
+      body: z.discriminatedUnion('type', [
+        z.strictObject({ type: z.literal('account') }),
+        z.strictObject({ type: z.literal('team'), id: z.uuid() }),
+        z.strictObject({ type: z.literal('facility'), id: z.uuid() }),
+      ]),
       response: feedCreatedSchema,
       status: 201,
     },
+  ),
+  route(
+    'get',
+    '/orgs/{orgId}/calendar-feeds',
+    'List active tokenized calendar feeds for an account, team, or facility',
+    {
+      query: {
+        type: z.enum(['account', 'team', 'facility']),
+        id: z.uuid().optional(),
+      },
+      response: calendarFeedListSchema,
+    },
+  ),
+  route(
+    'delete',
+    '/orgs/{orgId}/calendar-feeds/{feedId}',
+    'Revoke a tokenized calendar feed',
+    { response: z.null(), status: 204 },
   ),
   route(
     'get',

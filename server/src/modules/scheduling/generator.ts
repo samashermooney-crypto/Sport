@@ -12,11 +12,12 @@ import type {
 import { newId } from '@shared/ids';
 import { expand } from '@shared/recurrence';
 import { sql } from 'kysely';
+import type { Kysely } from 'kysely';
 import { PgBoss } from 'pg-boss';
 
 import { getDatabase } from '../../db/kysely';
-import type { Json } from '../../db/types';
-import { withOrg } from '../../db/withOrg';
+import type { DB, Json } from '../../db/types';
+import { createWithOrg, withOrg } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 import { VersionConflictError } from '../../lib/version-check';
 import { appendAuditEvent } from '../audit/service';
@@ -1538,10 +1539,12 @@ async function createSeriesOccurrenceInTransaction(
   }
 }
 
-export async function emitPendingScheduleBatches(): Promise<{
+export async function emitPendingScheduleBatches(
+  database: Kysely<DB> = getDatabase(),
+): Promise<{
   emitted: number;
 }> {
-  const database = getDatabase();
+  const runWithOrg = createWithOrg(database);
   const orgs = await database
     .selectFrom('organizations')
     .select('id')
@@ -1569,7 +1572,7 @@ export async function emitPendingScheduleBatches(): Promise<{
     );
   }
   for (const org of orgs) {
-    emitted += await withOrg(
+    emitted += await runWithOrg(
       { orgId: org.id, actor: { accountId: newId() } },
       async (trx) => {
         const due = await trx
@@ -1650,6 +1653,6 @@ export const scheduleJobHandlers = [
   {
     name: scheduleBatchEmitJob,
     cron: '* * * * *',
-    run: emitPendingScheduleBatches,
+    run: () => emitPendingScheduleBatches(),
   },
 ] as const;

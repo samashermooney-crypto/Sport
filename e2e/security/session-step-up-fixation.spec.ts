@@ -8,7 +8,7 @@ import { e2eDatabaseUrl } from '../database';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test('SEC-005: step-up reauthentication rotates the session token', async ({
+test('SEC-005 / Track A: step-up reauthentication rotates the session token', async ({
   request,
 }) => {
   const database = createDatabase(
