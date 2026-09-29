@@ -8,5 +8,13 @@ export async function accessibilityViolations(page: Page): Promise<string[]> {
       (violation) =>
         violation.impact === 'serious' || violation.impact === 'critical',
     )
-    .map((violation) => `${violation.id}: ${violation.description}`);
+    .map((violation) => {
+      const targets = violation.nodes
+        .map(
+          ({ target, failureSummary }) =>
+            `${target.join(' ')}: ${failureSummary ?? 'contrast failure'}`,
+        )
+        .join('; ');
+      return `${violation.id}: ${violation.description} (${targets})`;
+    });
 }

@@ -47,6 +47,13 @@ Requests to other tracks: H installment failure/final-notice push/SMS fanout sti
 - SEC-CI-001: **implemented** — CI scans full git history on pull requests and pushes to protected branches without PR comments; its regression spec is enabled and passes.
 - SEC-KNIP-C: **implemented** — documented Render backup and operator restore-drill scripts are Knip entry points; the Files upload parser and unconsumed enum exports are private; `@sentry/node` is classified as a dynamic optional runtime dependency. Knip reports no C-owned findings.
 
+## Requests from K
+
+- The K AI UI reads `VITE_AI_ENABLED`, but `vite.config.ts` does not currently derive it. Expose the flag only when `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` are both configured; keep it false otherwise so the configured AI feature can appear without making disabled-provider UI/network calls.
+- The Phase 15 raw upload `POST /api/v1/imports/orgs/{orgId}/phase15/batches` accepts `application/octet-stream`, `text/csv`, `application/zip`, and XLSX via `express.raw`, but generated OpenAPI omits its request body. Extend route metadata/generation to describe a binary request body with those media types; keep the response and upload limits unchanged.
+- K's nested routes expose `/console/orgs/:orgId/help` and `/portal/orgs/:orgId/help`; its navigation contributors are `helpNav` in `web/src/console/help/nav.ts` and `portalHelpNav` in `web/src/portal/help/nav.ts`. K's updated `e2e/phase15.spec.ts` asserts both nav links are visible on their respective help routes. After K lands, import these contributors into `web/src/console/nav.ts` and `web/src/portal/nav.ts` so those assertions pass. Add contextual Help links from each console area to the matching en/es articles and support or concierge-import form. Keep `web/src/ui/OrgShell.tsx` and the design tokens unchanged.
+- K onboarding discovery gap: `web/src/console/nav.ts` currently omits `onboardingNav` from `web/src/console/onboarding/nav.ts`. K's updated `e2e/phase15.spec.ts` now starts at console home and requires a visible Organization setup link before completing the checklist. Aggregate `onboardingNav` or add an equivalent console-home entry so that journey passes. Keep `web/src/ui/OrgShell.tsx` and design tokens unchanged.
+
 ## Verification and environment
 
 - Use real PostgreSQL integration tests; do not skip or weaken DB tests. Run full tests and Playwright only through `~/athlentry-sprint/heavy.sh`.

@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
+import { ConsoleShell } from '../../ui/ConsoleShell';
 import { RouteLoading } from '../../ui/RouteLoading';
 
 const AuditViewer = lazy(() =>
@@ -13,9 +14,11 @@ const AuditViewer = lazy(() =>
 function AuditRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
   return orgId ? (
-    <Suspense fallback={<RouteLoading label="Loading audit records…" />}>
-      <AuditViewer orgId={orgId} />
-    </Suspense>
+    <ConsoleShell orgId={orgId}>
+      <Suspense fallback={<RouteLoading label="Loading audit records…" />}>
+        <AuditViewer orgId={orgId} />
+      </Suspense>
+    </ConsoleShell>
   ) : (
     <main>Organization not found.</main>
   );

@@ -1118,6 +1118,74 @@ describe('files tenancy and lifecycle', () => {
     );
     await restrictedService.completeUpload(guardianContext, pending.fileId);
 
+    const familyDocument = await restrictedService.beginUpload({
+      context: guardianContext,
+      purpose: 'document',
+      mime: 'application/pdf',
+      bytes: bytes.byteLength,
+      ownerType: 'person_document',
+      ownerId: personA,
+      sensitivity: 'restricted',
+    });
+    await restrictedService.uploadLocalBytes(
+      guardianContext,
+      familyDocument.fileId,
+      bytes,
+    );
+    await restrictedService.completeUpload(
+      guardianContext,
+      familyDocument.fileId,
+    );
+    await expect(
+      restrictedService.download(guardianContext, familyDocument.fileId),
+    ).resolves.toBe(`/api/v1/files/${familyDocument.fileId}/content`);
+    await expect(
+      restrictedService.download(
+        unverifiedGuardianContext,
+        familyDocument.fileId,
+      ),
+    ).rejects.toBeInstanceOf(FileValidationError);
+
+    await expect(
+      restrictedService.beginUpload({
+        context: guardianContext,
+        purpose: 'document',
+        mime: 'application/pdf',
+        bytes: bytes.byteLength,
+        ownerType: 'person',
+        ownerId: personA,
+        sensitivity: 'restricted',
+      }),
+    ).rejects.toBeInstanceOf(FilePermissionError);
+
+    const restrictedEvidence = await restrictedService.beginUpload({
+      context: adminContext,
+      purpose: 'document',
+      mime: 'application/pdf',
+      bytes: bytes.byteLength,
+      ownerType: 'person',
+      ownerId: personA,
+      sensitivity: 'restricted',
+    });
+    await restrictedService.uploadLocalBytes(
+      adminContext,
+      restrictedEvidence.fileId,
+      bytes,
+    );
+    await restrictedService.completeUpload(
+      adminContext,
+      restrictedEvidence.fileId,
+    );
+    await expect(
+      restrictedService.download(guardianContext, restrictedEvidence.fileId),
+    ).rejects.toBeInstanceOf(FileValidationError);
+    await expect(
+      restrictedService.download(adminContext, restrictedEvidence.fileId),
+    ).rejects.toBeInstanceOf(FileValidationError);
+    await expect(
+      restrictedService.download(complianceContext, restrictedEvidence.fileId),
+    ).resolves.toBe(`/api/v1/files/${restrictedEvidence.fileId}/content`);
+
     await expect(
       restrictedService.beginUpload({
         context: unverifiedGuardianContext,

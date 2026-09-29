@@ -2,6 +2,8 @@ import { lazy, Suspense } from 'react';
 import type { ComponentType, LazyExoticComponent } from 'react';
 import type { RouteObject } from 'react-router';
 
+import { ConsoleRouteShell } from '../../ui/ConsoleShell';
+
 type SafetyScreen =
   | 'SafetyBackgroundChecks'
   | 'SafetyCards'
@@ -60,7 +62,9 @@ function route(path: string, name: SafetyScreen): RouteObject {
     path,
     element: (
       <Suspense fallback={<main role="status">Loading safety records…</main>}>
-        <Screen />
+        <ConsoleRouteShell>
+          <Screen />
+        </ConsoleRouteShell>
       </Suspense>
     ),
   };

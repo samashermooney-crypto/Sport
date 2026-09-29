@@ -205,6 +205,21 @@ const reportPresets: readonly ReportPreset[] = [
     sortColumn: 'sum_award_cents',
   },
   {
+    label: 'Evaluation results',
+    dataset: 'evaluation_results',
+    columns: [
+      'event_name',
+      'program_name',
+      'group_name',
+      'participant_name',
+      'rank_in_group',
+      'composite_score',
+      'evaluator_count',
+    ],
+    groupBy: [],
+    sortColumn: 'rank_in_group',
+  },
+  {
     label: 'Uniform quantities by size',
     dataset: 'uniform_sizes',
     columns: ['product_name', 'size'],

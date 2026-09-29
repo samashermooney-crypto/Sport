@@ -47,14 +47,62 @@ export const personResponseSchema = z.strictObject({
   version: z.int().positive(),
 });
 
+export const peopleComplianceRoleSchema = z.enum([
+  'head_coach',
+  'assistant_coach',
+  'team_manager',
+  'trainer',
+  'treasurer',
+  'official',
+  'volunteer',
+  'evaluator',
+]);
+
+const personRoleEligibilitySchema = z.strictObject({
+  eligible: z.boolean(),
+  missing: z.array(
+    z.strictObject({
+      code: z.enum([
+        'UNDER_MINIMUM_AGE',
+        'CREDENTIAL_MISSING',
+        'CREDENTIAL_UNVERIFIED',
+        'CREDENTIAL_EXPIRED',
+      ]),
+      typeId: z.uuid().optional(),
+      message: z.string(),
+    }),
+  ),
+  expiryDate: z.iso.date().nullable(),
+  overridden: z.boolean(),
+});
+
+const peopleListItemSchema = personResponseSchema.extend({
+  roleEligibility: personRoleEligibilitySchema.optional(),
+});
+
+export const familyProfileResponseSchema = personResponseSchema.extend({
+  canEdit: z.boolean(),
+});
+
 export const peopleListSchema = z.strictObject({
-  items: z.array(personResponseSchema),
+  items: z.array(peopleListItemSchema),
   nextCursor: z.uuid().nullable(),
 });
 
 export const personPhotoUpdateSchema = z.strictObject({
   expectedVersion: z.int().positive(),
   fileId: z.uuid().nullable(),
+});
+
+const familyPersonDocumentSchema = z.strictObject({
+  id: z.uuid(),
+  mime: z.string(),
+  bytes: z.number().int().positive(),
+  uploadedAt: z.iso.datetime(),
+});
+
+export const familyPersonDocumentsSchema = z.strictObject({
+  items: z.array(familyPersonDocumentSchema),
 });
 
 export const guardianLinkCreateSchema = z.strictObject({
@@ -151,35 +199,45 @@ export const personClaimAcceptedResponseSchema = z.strictObject({
   linkId: z.uuid(),
 });
 
-export const peopleQuerySchema = z.strictObject({
-  q: z.string().trim().max(120).optional(),
-  status: z
-    .enum(['active', 'archived', 'merged', 'anonymized'])
-    .default('active'),
-  gender: z.enum(['female', 'male', 'nonbinary', 'unspecified']).optional(),
-  minAge: z.coerce.number().int().min(0).max(120).optional(),
-  maxAge: z.coerce.number().int().min(0).max(120).optional(),
-  grade: z.coerce.number().int().min(-1).max(12).optional(),
-  householdId: z.uuid().optional(),
-  programId: z.uuid().optional(),
-  teamSeasonId: z.uuid().optional(),
-  credentialStatus: z
-    .enum([
-      'pending_review',
-      'verified',
-      'rejected',
-      'expired',
-      'revoked',
-      'none',
-    ])
-    .optional(),
-  hasBalance: z
-    .enum(['true', 'false'])
-    .transform((value) => value === 'true')
-    .optional(),
-  cursor: z.uuid().optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(30),
-});
+export const peopleQuerySchema = z
+  .strictObject({
+    q: z.string().trim().max(120).optional(),
+    status: z
+      .enum(['active', 'archived', 'merged', 'anonymized'])
+      .default('active'),
+    gender: z.enum(['female', 'male', 'nonbinary', 'unspecified']).optional(),
+    minAge: z.coerce.number().int().min(0).max(120).optional(),
+    maxAge: z.coerce.number().int().min(0).max(120).optional(),
+    grade: z.coerce.number().int().min(-1).max(12).optional(),
+    householdId: z.uuid().optional(),
+    programId: z.uuid().optional(),
+    teamSeasonId: z.uuid().optional(),
+    credentialStatus: z
+      .enum([
+        'pending_review',
+        'verified',
+        'rejected',
+        'expired',
+        'revoked',
+        'none',
+      ])
+      .optional(),
+    eligibilityRole: peopleComplianceRoleSchema.optional(),
+    hasBalance: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
+    cursor: z.uuid().optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(30),
+  })
+  .superRefine((query, context) => {
+    if (query.eligibilityRole && query.status !== 'active')
+      context.addIssue({
+        code: 'custom',
+        path: ['eligibilityRole'],
+        message: 'Role eligibility can only be reviewed for active people.',
+      });
+  });
 
 export const peopleFilterOptionsQuerySchema = z.strictObject({
   kind: z.enum(['program', 'team']),

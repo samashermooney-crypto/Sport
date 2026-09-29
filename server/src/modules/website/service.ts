@@ -394,6 +394,59 @@ export async function listPublicWebsiteNews(
   });
 }
 
+export async function getPublicWebsiteRobotsPolicy(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const organization = await database
+    .selectFrom('organizations')
+    .select(['id'])
+    .where('slug', '=', orgSlug)
+    .where('status', '=', 'active')
+    .executeTakeFirst();
+  if (!organization) return null;
+  return runWithOrg(
+    { orgId: organization.id, actor: { accountId: publicActor } },
+    async (trx) => {
+      const settings = await trx
+        .selectFrom('website_settings')
+        .select(['published', 'robots_policy'])
+        .executeTakeFirst();
+      if (!settings?.published) return null;
+      return { robotsPolicy: settings.robots_policy };
+    },
+  );
+}
+
+export async function resolveVerifiedWebsiteHost(
+  database: WebsiteDatabase,
+  host: string,
+): Promise<string | null> {
+  // This transaction is restricted by the site_domains public-host RLS policy
+  // to the exact active, verified hostname being routed. Only the public slug
+  // is selected; site content still uses the normal org-scoped public reads.
+  const row = await database.transaction().execute(async (trx) => {
+    await sql`SELECT set_config('app.public_site_host', ${host}, true)`.execute(
+      trx,
+    );
+    return trx
+      .selectFrom('site_domains as domain')
+      .innerJoin('organizations as organization', (join) =>
+        join
+          .onRef('organization.id', '=', 'domain.org_id')
+          .on('organization.status', '=', 'active'),
+      )
+      .select('organization.slug')
+      .where('domain.host', '=', host)
+      .where('domain.kind', '=', 'custom')
+      .where('domain.status', '=', 'active')
+      .where('domain.verified_at', 'is not', null)
+      .executeTakeFirst();
+  });
+  return row?.slug ?? null;
+}
+
 function settingsSummary(row?: {
   version: number;
   published: boolean;

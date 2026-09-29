@@ -4,9 +4,11 @@ import express from 'express';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { createApp } from '../../app';
 import { createDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
+import type { AuthDependencies } from '../auth/routes';
 
 import { createSiteSsrRouter } from './public';
 import {
@@ -832,6 +834,114 @@ describe('website page service', () => {
       await admin.query('DELETE FROM seasons WHERE id = $1', [seasonId]);
       // Sport profile snapshots are append-only; the isolated test database is dropped after this file.
       await admin.end();
+    }
+  });
+
+  it('mounts site SSR and host-root SEO routes only for routable hosts', async () => {
+    const customHost = `club-${orgId.slice(0, 8)}.example.test`;
+    const pendingHost = `pending-${orgId.slice(0, 8)}.example.test`;
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    await admin.query(
+      `INSERT INTO site_domains
+       (id, org_id, host, kind, status, verify_token, verification_method, verified_at, is_primary)
+       VALUES ($1, $2, $3, 'custom', 'active', 'test-token', 'txt', now(), true),
+              ($4, $2, $5, 'custom', 'pending', 'pending-token', 'txt', NULL, false)`,
+      [randomUUID(), orgId, customHost, randomUUID(), pendingHost],
+    );
+    await admin.end();
+
+    await saveWebsitePage(
+      context,
+      undefined,
+      {
+        slug: 'home',
+        title: 'Custom Domain Home',
+        blocks: [
+          { type: 'paragraph', text: 'Published on the verified host.' },
+        ],
+        seo: { title: '', description: '', canonicalPath: '' },
+        status: 'published',
+      },
+      new Date('2026-09-29T12:00:00.000Z'),
+      withOrg,
+    );
+
+    const unscopedDomainRows = await database
+      .selectFrom('site_domains')
+      .select('id')
+      .where('host', '=', customHost)
+      .execute();
+    expect(unscopedDomainRows).toEqual([]);
+
+    const app = createApp({
+      database,
+      captchaWidget: { mode: 'preview' },
+    } as unknown as AuthDependencies);
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string')
+        throw new Error('The test server did not open a TCP port');
+      const origin = `http://127.0.0.1:${String(address.port)}`;
+      const hostHeaders = { Host: customHost, Accept: 'text/html' };
+      const home = await fetch(origin, { headers: hostHeaders });
+      const homeHtml = await home.text();
+      expect(home.status).toBe(200);
+      expect(homeHtml).toContain(
+        '<title>Custom Domain Home · Website Test Club</title>',
+      );
+      expect(homeHtml).toContain('Published on the verified host.');
+
+      const mountedSite = await fetch(`${origin}/site/${orgSlug}`, {
+        headers: hostHeaders,
+      });
+      expect(mountedSite.status).toBe(200);
+      expect(await mountedSite.text()).toContain('Custom Domain Home');
+
+      const robots = await fetch(`${origin}/robots.txt`, {
+        headers: { Host: customHost },
+      });
+      expect(robots.status).toBe(200);
+      expect(await robots.text()).toContain(
+        `Sitemap: https://${customHost}/sitemap.xml`,
+      );
+
+      const sitemap = await fetch(`${origin}/sitemap.xml`, {
+        headers: { Host: customHost },
+      });
+      const sitemapXml = await sitemap.text();
+      expect(sitemap.status).toBe(200);
+      expect(sitemapXml).toContain(`https://${customHost}/`);
+      expect(sitemapXml).toContain(`https://${customHost}/programs`);
+      expect(sitemapXml).not.toContain('.athlentry.com');
+
+      const unverified = await fetch(`${origin}/site/${orgSlug}`, {
+        headers: { Host: pendingHost, Accept: 'text/html' },
+      });
+      expect(unverified.status).toBe(404);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        }),
+      );
+      const cleanup = new pg.Client({
+        connectionString: process.env.TEST_DATABASE_URL,
+      });
+      await cleanup.connect();
+      try {
+        await cleanup.query('DELETE FROM site_domains WHERE host IN ($1, $2)', [
+          customHost,
+          pendingHost,
+        ]);
+      } finally {
+        await cleanup.end();
+      }
     }
   });
 

@@ -477,6 +477,7 @@ describe('chat SafeSport and permission rules', () => {
     );
     const fileId = randomUUID();
     const foreignFileId = randomUUID();
+    const expiredFileId = randomUUID();
     const addFile = async (fileOrgId: string, id: string) =>
       withOrg({ orgId: fileOrgId, actor: { accountId: ownerId } }, (trx) =>
         trx
@@ -497,6 +498,23 @@ describe('chat SafeSport and permission rules', () => {
       );
     await addFile(orgId, fileId);
     await addFile(foreignOrgId, foreignFileId);
+    await withOrg({ orgId, actor: { accountId: ownerId } }, (trx) =>
+      trx
+        .insertInto('files')
+        .values({
+          id: expiredFileId,
+          org_id: orgId,
+          purpose: 'document',
+          storage_key: `${orgId}/${expiredFileId}`,
+          mime: 'application/pdf',
+          bytes: 100,
+          sensitivity: 'internal',
+          created_by: ownerId,
+          upload_state: 'complete',
+          expires_at: new Date('2026-09-27T18:00:00Z'),
+        })
+        .execute(),
+    );
 
     await expect(
       sendChatMessage(
@@ -521,6 +539,19 @@ describe('chat SafeSport and permission rules', () => {
           notifications: () => Promise.resolve(),
         },
         new Date('2026-09-27T18:02:00Z'),
+        withOrg,
+      ),
+    ).rejects.toBeInstanceOf(ChatAccessError);
+    await expect(
+      sendChatMessage(
+        ownerContext,
+        conversation.id,
+        { body: 'Expired attachment', attachments: [expiredFileId] },
+        {
+          encryption: { activeKid: 'test', keys: new Map() },
+          notifications: () => Promise.resolve(),
+        },
+        new Date('2026-09-27T18:03:00Z'),
         withOrg,
       ),
     ).rejects.toBeInstanceOf(ChatAccessError);

@@ -16,7 +16,7 @@ import {
 } from './credentials';
 import type { CredentialsDependencies } from './credentials';
 import { hashPassword, verifyPassword } from './password';
-import { issueSession, resolveSession, stepUpSession } from './sessions';
+import { issueSession, resolveSession } from './sessions';
 
 const now = new Date('2026-09-26T18:00:00Z');
 const email = new FakeEmailSender();
@@ -166,11 +166,11 @@ describe('credential and privacy requests', () => {
     await expect(
       requestEmailChange(dependencies, active, 'new@example.invalid'),
     ).rejects.toThrow('Recent');
-    expect(
-      await database
-        .transaction()
-        .execute((trx) => stepUpSession(trx, first.id, accountId, now)),
-    ).toBe(true);
+    await database
+      .updateTable('sessions')
+      .set({ elevated_until: new Date(now.getTime() + 15 * 60_000) })
+      .where('id', '=', first.id)
+      .execute();
     active = await database
       .transaction()
       .execute((trx) => resolveSession(trx, first.token, now));
@@ -209,11 +209,11 @@ describe('credential and privacy requests', () => {
         now,
       ),
     );
-    expect(
-      await database
-        .transaction()
-        .execute((trx) => stepUpSession(trx, third.id, accountId, now)),
-    ).toBe(true);
+    await database
+      .updateTable('sessions')
+      .set({ elevated_until: new Date(now.getTime() + 15 * 60_000) })
+      .where('id', '=', third.id)
+      .execute();
     const reviewed = await database
       .transaction()
       .execute((trx) => resolveSession(trx, third.token, now));

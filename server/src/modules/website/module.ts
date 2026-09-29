@@ -28,6 +28,7 @@ import { z } from 'zod';
 
 import type { ServerModule } from '../../lib/module-contract';
 
+import { createWebsitePublicRouter } from './public';
 import { createWebsiteRouter } from './routes';
 import { publicPlansSchema } from './schema';
 
@@ -68,6 +69,14 @@ const routes = [
     summary:
       'Get public program, schedule, standings, or registration widget data',
     response: websitePublicEmbedSchema,
+    public: true,
+  },
+  {
+    method: 'get',
+    path: '/api/v1/website/public/{orgSlug}/robots.txt',
+    summary: 'Get the public organization website robots policy',
+    response: z.string(),
+    contentType: 'text/plain',
     public: true,
   },
   {
@@ -222,5 +231,6 @@ export const moduleDefinition = {
   name: 'website',
   path: '/api/v1/website',
   router: createWebsiteRouter,
+  publicRouter: createWebsitePublicRouter,
   openapiRoutes: routes,
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };

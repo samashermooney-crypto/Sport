@@ -62,6 +62,114 @@ const payoutDataset: Dataset = {
   ],
 };
 
+const evaluationResultsDataset: Dataset = {
+  key: 'evaluation_results',
+  label: 'Evaluation results',
+  description: 'Scored participants and group rankings for tryout events',
+  table: 'evaluation_results',
+  requiredTables: [
+    'evaluation_results',
+    'evaluation_events',
+    'evaluation_participants',
+    'evaluation_groups',
+    'people',
+    'programs',
+  ],
+  joins: [
+    {
+      alias: 'e',
+      table: 'evaluation_events',
+      on: 'e.id = t.evaluation_event_id AND e.org_id = t.org_id',
+    },
+    {
+      alias: 'p',
+      table: 'evaluation_participants',
+      on: 'p.id = t.evaluation_participant_id AND p.org_id = t.org_id',
+    },
+    {
+      alias: 'g',
+      table: 'evaluation_groups',
+      on: 'g.id = p.evaluation_group_id AND g.org_id = t.org_id',
+    },
+    {
+      alias: 'person',
+      table: 'people',
+      on: 'person.id = p.person_id AND person.org_id = t.org_id',
+    },
+    {
+      alias: 'program',
+      table: 'programs',
+      on: 'program.id = e.target_program_id AND program.org_id = t.org_id',
+    },
+  ],
+  roles: ['owner', 'admin', 'director', 'registrar', 'scheduler'],
+  columns: [
+    {
+      key: 'event_name',
+      label: 'Evaluation event',
+      type: 'text',
+      tier: 'internal',
+      source: 'e.name',
+    },
+    {
+      key: 'program_name',
+      label: 'Target program',
+      type: 'text',
+      tier: 'internal',
+      source: 'program.name',
+    },
+    {
+      key: 'group_name',
+      label: 'Evaluation group',
+      type: 'text',
+      tier: 'internal',
+      source: 'g.name',
+    },
+    {
+      key: 'participant_name',
+      label: 'Participant',
+      type: 'text',
+      tier: 'sensitive',
+      source: "person.first_name || ' ' || person.last_name",
+    },
+    {
+      key: 'rank_in_group',
+      label: 'Group rank',
+      type: 'number',
+      tier: 'sensitive',
+      source: 't.rank_in_group',
+    },
+    {
+      key: 'composite_score',
+      label: 'Composite score',
+      type: 'number',
+      tier: 'sensitive',
+      source: 't.composite',
+    },
+    {
+      key: 'evaluator_count',
+      label: 'Evaluator count',
+      type: 'number',
+      tier: 'internal',
+      source: 't.evaluator_count',
+    },
+    {
+      key: 'missing_criteria_count',
+      label: 'Missing criteria count',
+      type: 'number',
+      tier: 'internal',
+      source: 'cardinality(t.missing_criteria)',
+    },
+    {
+      key: 'computed_at',
+      label: 'Computed at',
+      type: 'datetime',
+      tier: 'internal',
+      source: 't.computed_at',
+    },
+  ],
+};
+
 export const reportDatasetCatalog: readonly Dataset[] = [
   ...REPORT_DATASETS.map((dataset) =>
     dataset.key === 'invoices'
@@ -69,6 +177,7 @@ export const reportDatasetCatalog: readonly Dataset[] = [
       : dataset,
   ),
   payoutDataset,
+  evaluationResultsDataset,
 ];
 const datasetsByKey = new Map(
   reportDatasetCatalog.map((dataset) => [dataset.key, dataset]),

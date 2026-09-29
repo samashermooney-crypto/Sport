@@ -104,6 +104,12 @@ export function ConsoleHome(): React.JSX.Element {
   const actions = [
     ...(workspace.data.canManage
       ? [
+          {
+            label: 'Organization setup',
+            description:
+              'Finish the steps that prepare your organization to launch.',
+            to: `/console/orgs/${orgId}/onboarding`,
+          },
           ...manageActions.slice(0, 7),
           ...(manageActions[8] ? [manageActions[8]] : []),
           {

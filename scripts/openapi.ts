@@ -27,10 +27,10 @@ export type OpenApiRoute = {
   pathParameters?: Record<string, z.ZodType>;
   idempotencyKey?: boolean;
   contentType?: string;
+  requestContentTypes?: readonly string[];
   binary?: boolean;
-  binaryContentTypes?: string[];
+  binaryContentTypes?: readonly string[];
   requestContentType?: string;
-  requestContentTypes?: string[];
   requestBinary?: boolean;
   permission?: string;
   resource?: string;
@@ -211,7 +211,7 @@ const authRoutes: OpenApiRoute[] = [
     path: `${authBase}/step-up`,
     summary: 'Reauthenticate',
     body: auth.stepUpBodySchema,
-    response: auth.authStepUpResponseSchema,
+    response: auth.stepUpResponseSchema,
   },
   {
     method: 'get',
@@ -760,7 +760,15 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
   if (metadata.tenancyFixture)
     result['x-athlentry-tenancy-fixture'] = metadata.tenancyFixture;
   if (parameters.length) result.parameters = parameters;
-  if (route.requestBinary)
+  if (
+    (route.body &&
+      (route.requestBinary || route.requestContentTypes?.length)) ||
+    (route.requestBinary && route.requestContentTypes?.length)
+  )
+    throw new Error(
+      `OpenAPI route cannot have JSON and binary request bodies: ${route.path}`,
+    );
+  if (route.requestBinary || route.requestContentTypes?.length)
     result.requestBody = {
       required: true,
       content: Object.fromEntries(
