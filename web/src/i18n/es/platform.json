@@ -141,5 +141,12 @@
     "unread": "Sin leer",
     "read": "Leído",
     "archived": "Archivado"
+  },
+  "actionCenter": {
+    "sendReminders": "Enviar recordatorios en la aplicación",
+    "contactFamilies": "Avisar a las familias",
+    "sendingReminders": "Enviando recordatorios en la aplicación…",
+    "reminderFailed": "No se pudo completar la acción de recordatorio.",
+    "reminderResult": "Se enviaron {{sentCount}} notificaciones al buzón de la aplicación; se omitieron {{skippedCount}} porque ya hay un recordatorio sin leer."
   }
 }
