@@ -34,6 +34,7 @@ Remaining: sync the C mobile Help navigation and AI feature flag when they land;
 - The safe `VITE_AI_ENABLED` derivation is present in C's active checkout but not in trunk `519c8b4a`. The AI-disabled test and fake-provider backend coverage pass; provider-enabled browser visibility still awaits that C-owned merge.
 
 - Latest K-worktree verification: `npm run typecheck`, `npm run lint`, full real-Postgres `npm test` (324 files / 1,165 passed / zero skips), and `npm run build` pass. `npm run registry` reports 45 server modules, 6 integrations, and 9 web features; `npm run openapi` leaves no generated diff; `npm run knip` is clean.
+- Optional AI UI coverage: `AiToolsScreen.test.tsx` passes 2/2; the enabled path renders provider/model status and consumes a stubbed fake-provider translation response, while the disabled path renders nothing and makes no request. Server integration coverage exercises the fake provider and usage audit.
 - The route-shell regression was fixed in `web/src/console/onboarding/routes.tsx` by wrapping both onboarding screens in the existing `ConsoleShell`. All Phase 15 Chromium journeys pass 4/4, including imports-to-contextual-Help with the concierge request selected. The focused WebKit journey now reaches the imports screen and still fails only because `ConsoleShell.mobileTabs` lacks Help; this remains filed to C with the required contextual query. Keep the mobile test active and merge it only with a green C navigation fix.
 
 
