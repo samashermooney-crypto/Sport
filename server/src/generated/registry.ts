@@ -6,6 +6,7 @@ import { integrationConfig as smsConfig } from '../integrations/sms/config';
 import { integrationConfig as storageConfig } from '../integrations/storage/config';
 import type { IntegrationConfig, ServerModule } from '../lib/module-contract';
 import { moduleDefinition as actionCenterModule } from '../modules/action-center/module';
+import { moduleDefinition as aiModule } from '../modules/ai/module';
 import { moduleDefinition as attendanceModule } from '../modules/attendance/module';
 import { moduleDefinition as auditModule } from '../modules/audit/module';
 import { moduleDefinition as authModule } from '../modules/auth/module';
@@ -22,11 +23,13 @@ import { moduleDefinition as filesModule } from '../modules/files/module';
 import { moduleDefinition as financeModule } from '../modules/finance/module';
 import { moduleDefinition as formsModule } from '../modules/forms/module';
 import { moduleDefinition as fundraisingModule } from '../modules/fundraising/module';
+import { moduleDefinition as helpModule } from '../modules/help/module';
 import { moduleDefinition as importsModule } from '../modules/imports/module';
 import { moduleDefinition as jobsModule } from '../modules/jobs/module';
 import { moduleDefinition as notificationsModule } from '../modules/notifications/module';
 import { moduleDefinition as offeringsModule } from '../modules/offerings/module';
 import { moduleDefinition as officialsModule } from '../modules/officials/module';
+import { moduleDefinition as onboardingModule } from '../modules/onboarding/module';
 import { moduleDefinition as orgsModule } from '../modules/orgs/module';
 import { moduleDefinition as peopleModule } from '../modules/people/module';
 import { moduleDefinition as platformModule } from '../modules/platform/module';
@@ -50,6 +53,7 @@ import { moduleDefinition as websiteModule } from '../modules/website/module';
 
 export const serverModules: readonly ServerModule[] = [
   actionCenterModule,
+  aiModule,
   attendanceModule,
   auditModule,
   authModule,
@@ -66,11 +70,13 @@ export const serverModules: readonly ServerModule[] = [
   financeModule,
   formsModule,
   fundraisingModule,
+  helpModule,
   importsModule,
   jobsModule,
   notificationsModule,
   offeringsModule,
   officialsModule,
+  onboardingModule,
   orgsModule,
   peopleModule,
   platformModule,

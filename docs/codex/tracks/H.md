@@ -1,5 +1,7 @@
 # Track H — communications and chat
 
+Track K verification (2026-09-28): Resolved by `rebuild/trunk` commit `fecad764` (2026-09-28): C passed the injected `now` to chat message creation and attachment-expiry checks. K verified the fix in the post-sync full suite (283 files / 1,032 tests, zero failures or skips); the prior isolated chat file had reproduced 9 passed / 2 failed.
+
 Requests from OPS: Confirm the campaign enqueue/status API contract for a 20,000-recipient fan-out using only preview/fake delivery adapters, including a durable completed-recipient count for the k6 scenario (2026-09-27).
 Requests from OPS: Fix `server/test/modules/sponsors/service.integration.test.ts`: `keeps placements tenant scoped and issues sponsorship invoices through finance` expects the active “Community Sports Medicine” Gold placement, but `listPublicPlacements` returns `[]` (2026-09-27).
 
@@ -66,4 +68,9 @@ Track B's catalog/preferences and Track C's provider-ID interface are on the mer
 - **OPS:** Confirm the 20,000-recipient campaign enqueue/status contract and durable completed-recipient count.
 - **J:** Owns Phase 13 federation; H does not merge `track/j-federation`.
 - **Phase 10 external work:** A still owns profile message-history links, verified-phone consent, `athleteChatEnabled`, and conversation synchronization; C owns chat attachment authorization; G owns schedule-change coalescing.
+Requests from K (2026-09-27; rechecked 2026-09-28):
+
+- Resolved in the post-repair full run: the team-finance fixture no longer fails on its direct `payment_allocations` update; keep production allocation history immutable.
+- Resolved in `b1a8420f`: the sponsor placement fixture now uses `orgToday` for the org timezone and an org-local offset for `contractEnd`, preserving the placement assertion.
+
 - Track I trunk-gate note (2026-09-27): the sponsor placement integration fixture derived `contractStart` from UTC `toISOString()` while `publicSponsorPlacements` correctly compares against the organization-local date. The fixture now uses `orgToday()` for the owning organization timezone and a `Temporal.PlainDate` offset for `contractEnd`; no sponsor runtime behavior changed.

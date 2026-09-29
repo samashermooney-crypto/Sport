@@ -139,6 +139,35 @@ function requestBody(operation: Operation): unknown {
   return {};
 }
 
+describe('OpenAPI upload contracts', () => {
+  it('documents all Phase 15 raw upload content types as binary', () => {
+    const operation = openapi.paths[
+      '/api/v1/imports/orgs/{orgId}/phase15/batches'
+    ]?.['post'] as {
+      requestBody?: {
+        content?: Record<
+          string,
+          { schema?: { type?: string; format?: string } }
+        >;
+      };
+    };
+    const content = operation.requestBody?.content ?? {};
+    expect(Object.keys(content).sort()).toEqual(
+      [
+        'application/octet-stream',
+        'text/csv',
+        'application/zip',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ].sort(),
+    );
+    for (const mediaType of Object.keys(content))
+      expect(content[mediaType]?.schema).toEqual({
+        type: 'string',
+        format: 'binary',
+      });
+  });
+});
+
 describe('Phase 1 tenant route acceptance', () => {
   it('covers the documented organization-addressed route surface', () => {
     expect(operations.length).toBe(32);

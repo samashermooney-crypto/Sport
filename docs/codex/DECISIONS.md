@@ -939,7 +939,80 @@
 - **Why:** The push adapter needs to contact provider infrastructure without becoming a general-purpose server-side URL fetcher.
 - **Consequences / follow-ups:** Provider-domain changes require security review; TLS hostname validation remains enabled. Tests cover private and reserved IP ranges, mixed answers, rebinding pinning, and loopback rejection.
 
-### DEC-121 — Pin custom-domain certificate probes to public addresses
+
+### DEC-130 — Keep Phase 15 imports additive and tenant-scoped
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 imports and onboarding
+- **Context:** Track A owns the Phase 2 import tables and routes while Phase 15 adds additional import kinds and reversible processing. Preset privacy and financial rollback behavior were not specified for the extension.
+- **Decision:** Store Phase 15 batches, rows, and mapping presets in separate tenant-scoped tables and mount them as additive adapters. Keep saved mapping presets within one organization. Historical payments use the external method and are never re-charged; rollback cancels external payments, voids only untouched paid invoices, revokes imported credentials, and retains financial evidence.
+- **Why:** This avoids overwriting Track A's import engine, prevents cross-organization preset leakage, and preserves financial and compliance records.
+- **Consequences / follow-ups:** Reconcile the additive route/job mount with Track A whenever trunk is merged. Volunteer-hours rows were reconciled against Phase 11's required facility, actor, and status fields during the latest trunk sync.
+
+### DEC-131 — Reverse imported operations with status changes
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 imports
+- **Context:** Normal tenant tables intentionally do not grant DELETE to the application role, and automatic review rejected a proposed migration that broadened this privilege. Operational records still need an import rollback path.
+- **Decision:** Roll back records through the domain's inactive state when one exists: retire teams, withdraw team seasons and registrations, release roster entries, remove team staff, archive facilities/spaces, cancel schedules, and revoke credentials. Preserve relationship, participant, financial, file, compliance, audit and safety evidence; report records without a safe inactive state as retained.
+- **Why:** This keeps rollback inside the existing withOrg/update permissions while preserving evidence needed for child safety and financial reconciliation.
+- **Consequences / follow-ups:** Verify every importer kind has a supported reversal state before committing; retained records must be visible in the rollback summary for staff review.
+
+### DEC-132 — Use the published website state for onboarding completion
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 onboarding
+- **Context:** Track D owns the website schema and publishes pages through org-level settings plus per-page status. An organization URL can exist before a site is publicly available.
+- **Decision:** When `website_settings` and `website_pages` are installed, complete onboarding only if `website_settings.published=true` and at least one org page has `status='published'`. On older schema snapshots without those tables, retain `organizations.website_url` as a compatibility fallback.
+- **Why:** The checklist reflects persisted publication state while still working against pre-Phase-14 snapshots used during rollout.
+- **Consequences / follow-ups:** Track D should confirm the final console destination and keep the settings/page contract stable; queries remain inside `withOrg`.
+
+### DEC-133 — Run the local load seed in the initialized development database
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 demo and load profiles
+- **Context:** The local Postgres initializer creates `athlentry_dev`, `athlentry_test`, and `athlentry_e2e`, but no `athlentry_load`; the documented load seed failed when it selected a database that did not exist.
+- **Decision:** Default the `load` profile to the initialized development database, where it adds a deterministic 2,000-person load organization. Keep `DATABASE_ADMIN_URL` as the explicit override for teams that provision a separate load database.
+- **Why:** The documented command works with the repository's default local stack without needing database initialization outside Track K's seed ownership.
+- **Consequences / follow-ups:** Running `load` locally adds the synthetic load organization alongside the demo profile; use a separate `DATABASE_ADMIN_URL` when isolated load data is preferred.
+
+### DEC-134 — Keep seeded finance and communications examples inert
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 demo data
+- **Context:** Demo organizations should exercise the main finance and communications console areas, while local seeding must not move money or send messages.
+- **Decision:** Seed one clearly labeled, open fictional invoice plus a draft campaign and internal sample chat per demo organization. Do not create payments or schedule/send campaigns; any invoice notice stays in the existing local outbox and uses the fake/preview delivery adapter.
+- **Why:** This gives the finance and communications screens realistic rows without moving money or contacting families through a real provider.
+- **Consequences / follow-ups:** The invoice remains a normal demo balance and uses only fake `example.test` accounts; campaign and chat content state that they are examples.
+
+### DEC-135 — Limit sharing in seeded federation relationships
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 demo data and Phase 13 federation
+- **Context:** The Metro demo requires first-class member-club relationships and inter-club entries, while federation can optionally share roster, compliance, and discipline data.
+- **Decision:** Create two fictional member clubs with active parent-child relationships and enable only `team_entries` sharing. Do not grant demo sharing for rosters, compliance status, or discipline records.
+- **Why:** This exercises the inter-club workflow while protecting children’s roster and compliance information.
+- **Consequences / follow-ups:** The six named demo profiles remain the primary organizations; the two additional Metro club records are subordinate members using `example.test` identities.
+
+### DEC-136 — Keep Northstar demo billing scoped to each family
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 academy demo profile
+- **Context:** The required Northstar profile needs 300 students actively enrolled across 40 tuition classes, while demo subscriptions must not expose one household's billing link to another.
+- **Decision:** Seed 300 students, 300 household-specific guardian accounts, and one active tuition subscription and class enrollment per student. Distribute students evenly across the 40 classes (8 per class) and use only synthetic `example.test` identities.
+- **Why:** The profile exercises class, family, and tuition screens with valid guardian links while remaining below each class's 18-seat capacity.
+- **Consequences / follow-ups:** These accounts share the documented demo password and remain fictional; no payment is created or charged by seeding.
+
+### DEC-137 — Require the source facility for historical volunteer hours
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 volunteer-hours import
+- **Context:** Phase 11 requires each volunteer shift to reference an organization facility, while historical spreadsheets may omit a location.
+- **Decision:** Require an explicit active facility mapping for each volunteer-hours row. Do not silently assign a missing location to the first active facility.
+- **Why:** Historical imports should not invent where work occurred, and the resulting record must satisfy the volunteer module's tenant-scoped facility contract.
+- **Consequences / follow-ups:** The generic template includes a sample facility; organizations must map their own source locations to active facilities before committing rows.
+
+### DEC-138 — Keep the Phase 15 Metro seed within its sharing contract
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 15 demo data and Phase 13 federation
+- **Context:** The Phase 15 `demo` seed already creates the required Metro association, two member clubs, inter-club entries, and eight officials with only `team_entries` sharing. The additional federation demo helper failed on a clean database when it queried an empty list of hosted clubs, and its relationship requested roster, compliance, and discipline sharing beyond DEC-135.
+- **Decision:** Keep the six-profile Phase 15 seed self-contained and do not invoke the optional federation demo helper from `db:seed --profile demo` until its empty-link query is fixed and its sharing scope matches DEC-135.
+- **Why:** The Phase 15 profile remains complete without broadening child data sharing or making the seed command fail after creating partial extra data.
+- **Consequences / follow-ups:** Track J owns the empty-link query fix; the base Metro seed continues to include both member clubs, accepted inter-club entries, and the referee pool.
+
+### DEC-129 — Pin custom-domain certificate probes to public addresses
 - **Date:** 2026-09-28
 - **Phase / area:** Phase 14 custom website domains
 - **Context:** Domain ownership verification also checks for a trusted TLS certificate. A tenant-controlled hostname can resolve to loopback or a private service if the TLS probe lets the socket resolve it again.

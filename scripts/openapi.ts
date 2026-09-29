@@ -24,6 +24,7 @@ export type OpenApiRoute = {
   query?: Record<string, z.ZodType>;
   idempotencyKey?: boolean;
   contentType?: string;
+  requestContentTypes?: readonly string[];
   binary?: boolean;
 };
 
@@ -504,7 +505,21 @@ function operation(route: OpenApiRoute): Record<string, unknown> {
     },
   };
   if (parameters.length) result.parameters = parameters;
-  if (route.body)
+  if (route.body && route.requestContentTypes)
+    throw new Error(
+      `OpenAPI route cannot have JSON and binary request bodies: ${route.path}`,
+    );
+  if (route.requestContentTypes?.length)
+    result.requestBody = {
+      required: true,
+      content: Object.fromEntries(
+        route.requestContentTypes.map((contentType) => [
+          contentType,
+          { schema: { type: 'string', format: 'binary' } },
+        ]),
+      ),
+    };
+  else if (route.body)
     result.requestBody = {
       required: true,
       content: { 'application/json': { schema: jsonSchema(route.body) } },
