@@ -50,9 +50,8 @@ Requests to other tracks: H installment failure/final-notice push/SMS fanout sti
 ## Requests from K
 
 - The K AI UI reads `VITE_AI_ENABLED`, but `vite.config.ts` does not currently derive it. Expose the flag only when `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` are both configured; keep it false otherwise so the configured AI feature can appear without making disabled-provider UI/network calls.
-- The Phase 15 raw upload `POST /api/v1/imports/orgs/{orgId}/phase15/batches` accepts `application/octet-stream`, `text/csv`, `application/zip`, and XLSX via `express.raw`, but generated OpenAPI omits its request body. Extend route metadata/generation to describe a binary request body with those media types; keep the response and upload limits unchanged.
-- K's nested routes expose `/console/orgs/:orgId/help` and `/portal/orgs/:orgId/help`; its navigation contributors are `helpNav` in `web/src/console/help/nav.ts` and `portalHelpNav` in `web/src/portal/help/nav.ts`. K's updated `e2e/phase15.spec.ts` asserts both nav links are visible on their respective help routes. After K lands, import these contributors into `web/src/console/nav.ts` and `web/src/portal/nav.ts` so those assertions pass. Add contextual Help links from each console area to the matching en/es articles and support or concierge-import form. Keep `web/src/ui/OrgShell.tsx` and the design tokens unchanged.
-- K onboarding discovery gap: `web/src/console/nav.ts` currently omits `onboardingNav` from `web/src/console/onboarding/nav.ts`. K's updated `e2e/phase15.spec.ts` now starts at console home and requires a visible Organization setup link before completing the checklist. Aggregate `onboardingNav` or add an equivalent console-home entry so that journey passes. Keep `web/src/ui/OrgShell.tsx` and design tokens unchanged.
+- Resolved on current trunk `5cdee29e`: the Phase 15 raw-upload OpenAPI operation has a required binary request body for octet-stream, CSV, ZIP and XLSX; `docs/api/openapi.json` contains all four media types.
+- Resolved on current trunk `5cdee29e`: `consoleNav` and `portalNav` aggregate the Phase 15 Help contributors; `consoleNav` includes `onboardingNav`, and console Home exposes the Organization setup action. The remaining K request is contextual Help links from console areas to matching en/es articles and support/concierge-import forms, with the design system unchanged.
 
 ## Verification and environment
 
@@ -76,6 +75,11 @@ Requests to other tracks: H installment failure/final-notice push/SMS fanout sti
 
 ## Requests from QA
 
+- **QA-ACC-064:** Derive the optional AI client flag from `AI_PROVIDER` and key presence at build time without exposing the key; add configured and disabled state coverage using a fake provider. See `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-065:** Coordinate the public website route contract with A and SSR registration with D; mount `/site` and host-root SEO aliases through the shared app, with tenant-safe verified custom-domain resolution and an integrated smoke journey. See `docs/codex/qa/DEFECTS.md`.
+
 - **QA-ACC-053:** The role crawler still needs complete dynamic detail-route inventory and valid record-derived fixtures for coach/team staff, officials, and volunteers; it currently seeds navigation actors but cannot reach every documented detail route. See `docs/codex/qa/DEFECTS.md`.
 - **QA-SEC-001 / QA-SEC-016:** Current `rebuild/trunk` has an empty permission-matrix operation map and no operation permission/resource/scope metadata in the OpenAPI snapshot. The fuzz test also substitutes random IDs, has no same-tenant controls, and covers only GET/PATCH/DELETE. Integrate the generated contracts and reusable valid-resource fixtures for foreign and same-tenant requests across applicable methods; see `docs/codex/qa/DEFECTS.md`.
 - **QA-SEC-019:** The permission-matrix test verifies only metadata, row/role completeness, and allow/deny partitioning; it does not exercise route authorization against the matrix predictions. Add safe route-level or policy-harness checks for declared allowed/denied roles and scoped-role boundaries; see `docs/codex/qa/DEFECTS.md`.
+
+- **QA-ACC-050:** Refresh the committed launch-gate evidence against current `rebuild/trunk` `5cdee29e` and hosted CI for the exact promotion candidate. The tracked gate cites another candidate and marks route crawling absent; keep item 10 failed until QA's crawler is integrated and all-role route results are current.

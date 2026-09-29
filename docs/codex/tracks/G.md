@@ -138,8 +138,8 @@ Integration attempt on 2026-09-29: under the trunk lock, Git refused to merge be
 - QA-ACC-016: extend the rainout flow through preview/Mailpit family notice and staff approval of a reschedule request; `schedule-stats.spec.ts` currently checks only that the affected event is postponed.
 - QA-ACC-017: extend offline game day through a lineup minimum-play warning and successful score synchronization; keep any conflict case separate from the successful sync assertion.
 - QA-ACC-018: extend `e2e/schedule-tournament.spec.ts` from its current internal-team opening bracket to external-team entry, match results and championship final verification.
-- QA-ACC-019: add a desktop Playwright flow for swim meet timed-result entry and team scoring; current evidence is service integration only.
-- QA-ACC-020: add a browser flow for officials assignment, decline, reassignment and pay-batch creation; current evidence is service integration only.
+- QA-ACC-019: resolved in current trunk `e2e/schedule-meet.spec.ts`; the browser seeds 40 swimmers across six events, enters timed results, verifies tie places and asserts both team point totals. G reports Chromium and WebKit mobile with axe pass; QA exact-head CI is pending.
+- QA-ACC-020: resolved in current trunk `e2e/schedule-officials.spec.ts`; the browser offers ten-game crews, exercises decline/reassignment and verifies the 30-line pay batch and total. G reports Chromium and WebKit mobile with axe pass; QA exact-head CI is pending.
 
 ## Decisions and review
 

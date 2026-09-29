@@ -78,3 +78,13 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - Manual 27-journey keyboard review and integrated-route Lighthouse recheck remain open.
 
 `COMPOSE_PROJECT_NAME=athlentry_d_finish`; `PORT_OFFSET=2000`.
+
+## Requests from QA
+
+- QA-ACC-055: include `expires_on` in credential-compliance reporting and test an expired-but-not-yet-swept verified credential. The current report groups and charts status only.
+- QA-ACC-056: remove expired seven-day organization export objects from storage and safely retire their metadata; add fake-storage coverage for expired and live exports.
+- QA-ACC-057: make approved person anonymization remove photo bytes from storage with retryable cleanup; document a separate credential-evidence retention rule and test both file classes.
+- QA-SEC-017: add a hostile-content SSR regression for organization identity and published website/news content; current static rendering looks escaped, but this path has no stored-XSS test.
+- QA-ACC-058 (coordinate C): inject shared configured `Storage` into the export job and download route; current service and route construct local-disk adapters, incompatible with separate worker/web processes. Prove build-to-download across instances.
+
+- QA-ACC-065: coordinate with A/C to register and mount `createSiteSsrRouter` through the shared app; direct-router tests currently do not establish public-site reachability, SEO host aliases or verified custom-domain serving. Add integrated public-route coverage.

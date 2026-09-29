@@ -19,9 +19,7 @@ test('two member clubs complete a U12 inter-club season', async ({
   page,
 }, testInfo) => {
   test.setTimeout(180_000);
-  const database = createDatabase(
-    e2eDatabaseUrl('app'),
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   const withOrg = createWithOrg(database);
   const factories = createTestFactories(database);
   try {
@@ -339,9 +337,7 @@ test('two member clubs complete a U12 inter-club season', async ({
 test('QA-ACC-033 / Track C: federation is reachable from console navigation', async ({
   page,
 }, testInfo) => {
-  const database = createDatabase(
-    e2eDatabaseUrl('app'),
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   const withOrg = createWithOrg(database);
   const factories = createTestFactories(database);
   try {
@@ -354,8 +350,15 @@ test('QA-ACC-033 / Track C: federation is reachable from console navigation', as
       league,
     );
     await page.goto(`/console/orgs/${league.orgId}`);
+    const federationLink = page.getByRole('link', {
+      name: 'Federation',
+      exact: true,
+    });
+    await expect(federationLink).toBeVisible();
+    await federationLink.click();
+    await expect(page).toHaveURL(`/console/federation/${league.orgId}`);
     await expect(
-      page.getByRole('link', { name: 'Federation', exact: true }),
+      page.getByRole('heading', { name: 'League and association' }),
     ).toBeVisible();
   } finally {
     await database.destroy();

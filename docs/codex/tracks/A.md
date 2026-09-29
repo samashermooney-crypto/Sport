@@ -49,4 +49,6 @@ Progress 2026-09-29: Track A merged on local rebuild/trunk commit 190340f0. The 
 
 ## Requests from QA
 
+- **QA-ACC-065:** extend `ServerModule` to register public non-API routers without weakening API route typing; coordinate with C/D to mount the website SSR path through the shared app. See `docs/codex/qa/DEFECTS.md`.
+
 - **QA-ACC-063:** The self-account medical view still mounts the guardian-only athlete-link query and surfaces a 404. Gate that query and its controls on a verified guardian relationship while preserving guardian access; see `docs/codex/qa/DEFECTS.md`.

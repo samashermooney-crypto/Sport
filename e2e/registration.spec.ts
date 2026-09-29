@@ -8,14 +8,11 @@ import { createTestFactories } from '../server/test/factories';
 import { accessibilityViolations } from './axe';
 import { e2eDatabaseUrl } from './database';
 
-
 test('family re-registers two returning siblings, signs waivers, and chooses uniform sizes', async ({
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
-  const database = createDatabase(
-    e2eDatabaseUrl('app'),
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   try {
     const factories = createTestFactories(database);
     const actor = await factories.actor();
@@ -336,9 +333,7 @@ test('waitlist cancellation offers a spot, acceptance confirms, and expiry advan
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
-  const database = createDatabase(
-    e2eDatabaseUrl('app'),
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   try {
     const factories = createTestFactories(database);
     const actor = await factories.actor();
@@ -600,6 +595,7 @@ test('waitlist cancellation offers a spot, acceptance confirms, and expiry advan
     await expect(
       page.getByRole('heading', { name: 'Registration confirmed' }),
     ).toBeVisible();
+    expect(await accessibilityViolations(page)).toEqual([]);
 
     const acceptedRegistration = await createWithOrg(database)(actor, (trx) =>
       trx

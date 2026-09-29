@@ -31,3 +31,7 @@ Post-sync verification at `fecad764`: `npm run typecheck` and `npm run lint` pas
 Post-sync verification at `6dbb0e2a`: typecheck/lint pass; full Vitest passes 317 files / 1,135 tests with zero failures or skips; production build passes. Seeded demo and reversible team/roster/credential import journeys pass on Chromium and WebKit mobile (4/4). The complete Playwright setup/help nav journeys remain pending C's root navigation aggregation. K's Knip findings are limited to the three onboarding/help navigation contributor files awaiting C wiring; other reported Knip findings are in D/F/J/C-owned paths.
 
 New-admin journey follow-up: the Phase 15 Playwright case now opens a fresh org's checklist before fixture setup, asserts 0/9 and nine persisted pending rows, then verifies automatic completion at 9/9. Those assertions passed in Chromium; the journey then fails on the separately tracked, missing C-owned `Organization setup` root-nav link. The cross-org import regression file passes 8/8; onboarding/help component tests pass 5/5.
+
+## Requests from QA
+
+- **QA-ACC-064:** QA confirms the setup/help nav contributors and raw-upload OpenAPI body are now integrated on trunk. The remaining Phase 15 gap is the provider-enabled browser flag: coordinate with C to derive `VITE_AI_ENABLED` from configured provider/key without exposing the key, and retain fake-provider disabled/enabled coverage. See `docs/codex/qa/DEFECTS.md`.
