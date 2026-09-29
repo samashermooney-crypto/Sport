@@ -47,10 +47,10 @@ test('owner keyboards through privacy deletion and confirms anonymization', asyn
         now,
       );
       const active = await resolveSession(trx, issued.token, now);
-      if (!active) throw new Error('New test session did not resolve');
-      const elevated = await rotateSessionForStepUp(trx, active, now);
-      if (!elevated) throw new Error('Test session step-up failed');
-      return elevated;
+      if (!active) throw new Error('Could not resolve newly issued session');
+      const rotated = await rotateSessionForStepUp(trx, active, now, {}, now);
+      if (!rotated) throw new Error('Could not rotate session for step-up');
+      return rotated;
     });
     await page.context().addCookies([
       {
