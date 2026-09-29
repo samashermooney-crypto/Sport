@@ -4,7 +4,7 @@ Implementation commits: `10dde5b`, `e26dee4`, `074b533`, `535746f`, `2bc22b6`, a
 
 Local integration range: `rebuild/trunk..track/g-schedule` (not pushed).
 
-Status: G implementation is integrated on `rebuild/trunk` as `6dbb0e2a`; the current branch sync through `5b4ad3c1` is under verification. The public facility image route and result-to-discipline/game-served service remain cross-track dependencies.
+Status: the previous G implementation is integrated on `rebuild/trunk` as `1f95b80a`. Calendar subscriptions are committed as `0921e19e`; this branch is synced through `1f95b80a` and the new slice is ready for its locked self-merge. The public facility image route, result-to-discipline/game-served service, and emergency email fan-out remain cross-track acceptance dependencies.
 
 ## Owned work and progress
 
@@ -100,7 +100,9 @@ Status: G implementation is integrated on `rebuild/trunk` as `6dbb0e2a`; the cur
 - [x] In official Playwright 1.63 Noble (Node 24.20, UTC, `CI=true`, G's isolated Docker network), schedule-stats passed Chromium + WebKit (2/2) and all 12 G journeys passed Chromium + WebKit mobile with axe (24/24 in 2.5 minutes). Docker ran Linux ARM64 on this Apple Silicon host; the container used a dedicated writable local-upload volume.
 - [x] Post-sync typecheck and production build passed. The full Linux Chromium attempt reported 54 passed, 8 failed and 3 skipped: two D-owned design screenshots differed on this Linux ARM64 host, and email/checkout tests need the preview services correctly routed inside the test container. All 12 G journeys passed in that run.
 - [x] Calendar-feed integration passed (2/2), including facility ICS content, hashed tokens, scoped permissions, cross-tenant revocation denial, and exclusion of events linked only by an unverified family link. The facility, RSVP/feed, and schedule-stats journeys pass in Chromium desktop and WebKit mobile with CI settings (6/6).
-- [ ] Phase 8/9 signoff still depends on Track F's result-to-discipline/game-served API and Track C's public facility image route. G emits batched schedule changes through Track B's notification service as specified.
+- [x] After syncing `rebuild/trunk` through `1f95b80a`, full Vitest passed 315 files / 1,123 tests with 1 existing skip; full Chromium desktop e2e passed 72 tests with 3 existing skips; `npm run build`, typecheck, and full lint passed. All 12 G journeys pass Chromium + WebKit mobile with axe and retries disabled (24/24); the 40-swimmer meet journey also passed three consecutive WebKit runs after switching the checkbox interaction to Playwright's state-aware `check()`.
+- [x] `npm run openapi` regenerated the account/team/facility calendar-feed create/list/revoke contract. The hosted CI status checked at `5b4ad3c1` passed `schedule-stats` in both browser projects; its only failure was Track D's Linux design-parity image.
+- [ ] Phase 8/9 signoff still depends on Track F's result-to-discipline/game-served API, Track C's public facility image route, and Track B's emergency email fan-out. G emits batched schedule-change notifications through Track B's service; on the current trunk it persists only the in-app channel.
 
 ## Cross-track requests and blockers
 
