@@ -3,13 +3,13 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Ready for integration: the core D bundle and Phase 14 export/Lighthouse evidence are integrated on local `rebuild/trunk`; the complete merge gate passed. The current website SEO, export archive-verification, and evaluation-report slices pass their focused checks and are awaiting their merge gate. The orchestrator still needs to publish local trunk commits and rerun hosted CI.
+Ready for integration: `1f95b80..HEAD`. This range contains the website SEO/sitemap, export archive-verification, evaluation-results report, mobile export/report journeys, and the latest CI-derived Linux parity baseline. Full typecheck and lint pass; the D design parity suite passes locally. The local trunk merge gate and hosted CI rerun remain pending.
 
 ## Current
 
 Design system queues 1–6 are implemented. The current design tokens and macOS references are unchanged.
 
-The Linux parity baselines were captured from GitHub Actions runner `ubuntu24/20260920.314.1`, Playwright 1.63.0, Chromium 153.0.8010.12, WebKit 26.6, and the recorded font package versions. Artifacts from runs `36357792018` (`9381acd`) and `36489602298` (`91614aa`) show the stale expected references caused the failures: the three CI actual PNGs for `ui-core-1440`, `ui-feedback-390`, and `ui-controls-390` WebKit mobile hash exactly to the corrected Linux PNGs now on local trunk. The earlier 390px legacy-shell 7.51% mismatch was also baseline-only; the current shell comparisons pass. The corrected references were in local trunk before this merge and the Chromium desktop parity suite passed in the merge gate. Hosted CI still needs to test the newly published trunk. Tolerances, token equality, macOS references, and design tokens are unchanged.
+The Linux parity baselines were captured from GitHub Actions runner `ubuntu24/20260920.314.1`, Playwright 1.63.0, Chromium 153.0.8010.12, WebKit 26.6, and the recorded font package versions. Artifacts from runs `36357792018` (`9381acd`) and `36489602298` (`91614aa`) show the stale expected references caused the failures: the three CI actual PNGs for `ui-core-1440`, `ui-feedback-390`, and `ui-controls-390` WebKit mobile hash exactly to the corrected Linux PNGs now on local trunk. The earlier 390px legacy-shell 7.51% mismatch was also baseline-only; the current shell comparisons pass. The corrected references were in local trunk before this merge and the Chromium desktop parity suite passed in the merge gate. Run `36563376855` on `5b4ad3c` narrowed the remaining Linux parity failure to 21 differing pixels in the `ui-feedback-1440` snapshot (59 passes, 3 skips, 1 failure): CI's actual differs only at the reset icon glyph, with the shell and other component references passing. I replaced only `ui-feedback-1440-chromium-desktop-linux.png` with that run's actual artifact (SHA-256 `d6bd39baaa60a3faf9c15b6813669d29b3ef6f99122d8658b9a3f9f97d23b5dc`); macOS references, tolerances, token equality, and design tokens are unchanged.
 
 Phase 14 implementation includes curated report datasets, role-filtered builders and presets, CSV/XLSX and PDF output, saved/scheduled reports, dashboards and role-filtered Action Center queues; website CMS/news, generated Programs and Schedule routes, SEO metadata/sitemap/robots policy/structured events, domain verification APIs, embeds, and SSR renderers; organization ZIP export; privacy requests; and retention sweep. The Action Center, exports, and report routes/jobs use the generated registries. The public SSR router is tested directly but is not mounted by the shared app. Track A must allow a non-API public router in the module contract; Track C must mount it at `/site`, expose sitemap and robots files at each site's host root, and route verified custom-domain hosts before the SPA fallback.
 
@@ -52,14 +52,17 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - `npm run build` passes after the landing keyboard-scroll change; Vite reports its existing third-party annotation and large-chunk warnings.
 - Local trunk merge gate for the core D bundle: typecheck and lint pass; full suite 308 files / 1,107 tests passed, 1 skipped; Chromium desktop E2E 63 passed, 3 skipped; production build passes. Design parity including legacy shell, core components, and 390px controls passes.
 - CI artifact validation: for both failing hosted runs, `ui-core-1440-chromium-desktop-linux.png`, `ui-feedback-390-chromium-desktop-linux.png`, and `ui-controls-390-webkit-mobile-linux.png` exact SHA-256 hashes match the corresponding CI actual PNGs.
+- Latest CI artifact validation: run `36563376855` on `5b4ad3c` had 59 e2e passes, 3 skips and one parity failure: only 21 pixels in `ui-feedback-1440` differed, at the reset icon glyph. Its actual Linux screenshot now matches the committed Linux reference byte-for-byte; the local Chromium and WebKit parity suite passes 18 tests with 4 expected skips.
+- `web/src/ui/tokens.test.ts`: 3/3 pass; the legacy token-equality check is unchanged.
 - Organization export journey: Chromium and WebKit mobile both pass request → worker build → seven-day signed link → ZIP download, including a valid ZIP signature (2/2).
 - Design sweep: feature CSS under console, portal, platform, and site uses shared `web/src/ui` tokens for colors, borders, radii, and fonts; no raw palette colors were found outside the shared UI and marketing styles. Track G’s season-award print CSS still uses a separate `system-ui` font and literal ink colors and should move to the shared `PrintLayout` or equivalent legacy font treatment.
 
 ## Exact next steps
 
-1. Track A: extend the module router contract so the website module can register public `/site` SSR routes. Track C: mount the route, regenerate OpenAPI for the new website operation, expose host-root sitemap/robots aliases, resolve verified custom-domain hosts before the production SPA fallback, then rerun public-site Lighthouse against the actual app mount.
-2. Audit the remaining app screens against `web/src/ui` tokens/components and fix D-owned visual inconsistencies or record exact owner requests.
-3. Complete the documented manual keyboard journeys where roles/routes are available; preserve remaining cross-track failures as specific requests.
+1. Merge `1f95b80..HEAD` into local `rebuild/trunk` and run the full merge gate when `/Users/sammooney/Sport-trunk` is clean. That shared checkout currently has staged Track K Phase 15 work and no `MERGE_HEAD`; leave it untouched until K/C completes it. The stale trunk lock was released after confirming no active gate process.
+2. Track A: extend the module router contract so the website module can register public `/site` SSR routes. Track C: mount the route, regenerate OpenAPI for the new website operation, expose host-root sitemap/robots aliases, resolve verified custom-domain hosts before the production SPA fallback, then rerun public-site Lighthouse against the actual app mount.
+3. Audit the remaining app screens against `web/src/ui` tokens/components and fix D-owned visual inconsistencies or record exact owner requests.
+4. Complete the documented manual keyboard journeys where roles/routes are available; preserve remaining cross-track failures as specific requests.
 
 ## Open requests and blockers
 
