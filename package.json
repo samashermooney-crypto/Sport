@@ -36,6 +36,7 @@
     "gen:module": "node scripts/gen-module.mjs",
     "size": "size-limit",
     "knip": "knip",
+    "check:sql-raw": "node scripts/check-sql-raw.mjs",
     "prepare": "simple-git-hooks"
   },
   "dependencies": {
