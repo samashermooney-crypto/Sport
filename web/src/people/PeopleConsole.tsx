@@ -660,7 +660,7 @@ export function PeopleList(): React.JSX.Element {
                   title={
                     hasActiveFilters
                       ? 'No people match these filters'
-                      : 'No people yet'
+                      : `No ${status} people`
                   }
                   action={
                     hasActiveFilters ? (
@@ -672,7 +672,7 @@ export function PeopleList(): React.JSX.Element {
                 >
                   {hasActiveFilters
                     ? `No ${status} people match the current search. Clear filters or adjust your search.`
-                    : 'Add people individually or import a roster to get started.'}
+                    : `No ${status} people match this search.`}
                 </EmptyState>
               )}
               {people.data.nextCursor && (

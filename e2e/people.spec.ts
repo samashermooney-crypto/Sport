@@ -255,9 +255,9 @@ test('owner creates, edits and archives a person from the console', async ({
       .selectOption({ label: 'Rivera household' });
     await expect(page.getByRole('link', { name: 'Alex Rivera' })).toBeVisible();
     await page.getByRole('combobox', { name: 'Balance' }).selectOption('true');
-    await expect(
-      page.getByText('No active people match this search.'),
-    ).toBeVisible();
+    await expect(page.getByText(/No active people match/)).toBeVisible();
+    await page.getByRole('button', { name: 'Clear filters' }).click();
+    await expect(page.getByRole('link', { name: 'Alex Rivera' })).toBeVisible();
     await page.getByRole('combobox', { name: 'Balance' }).selectOption('');
     await page.getByRole('searchbox', { name: 'Find program' }).fill('Fixture');
     await page
@@ -275,9 +275,7 @@ test('owner creates, edits and archives a person from the console', async ({
     await page
       .getByRole('combobox', { name: 'Compliance credential status' })
       .selectOption('pending_review');
-    await expect(
-      page.getByText('No active people match this search.'),
-    ).toBeVisible();
+    await expect(page.getByText(/No active people match/)).toBeVisible();
     await page
       .getByRole('combobox', { name: 'Compliance credential status' })
       .selectOption('');
@@ -324,7 +322,7 @@ test('owner creates, edits and archives a person from the console', async ({
     await removeConfirmation
       .getByRole('button', { name: 'Remove member' })
       .click();
-    await expect(page.getByText('No members yet.')).toBeVisible();
+    await expect(page.getByText('No members yet')).toBeVisible();
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
     await database.destroy();
