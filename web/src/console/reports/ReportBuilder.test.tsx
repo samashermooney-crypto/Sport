@@ -109,6 +109,26 @@ it('limits reports to available role columns and previews the selected definitio
                 tier: 'internal',
               })),
             },
+            {
+              key: 'evaluation_results',
+              label: 'Evaluation results',
+              description: 'Scored participants and group rankings',
+              available: true,
+              columns: [
+                ['event_name', 'Evaluation event', 'text', 'internal'],
+                ['program_name', 'Target program', 'text', 'internal'],
+                ['group_name', 'Evaluation group', 'text', 'internal'],
+                ['participant_name', 'Participant', 'text', 'sensitive'],
+                ['rank_in_group', 'Group rank', 'number', 'sensitive'],
+                ['composite_score', 'Composite score', 'number', 'sensitive'],
+                ['evaluator_count', 'Evaluator count', 'number', 'internal'],
+              ].map(([key, label, type, tier]) => ({
+                key,
+                label,
+                type,
+                tier,
+              })),
+            },
           ],
         };
       } else if (url.endsWith('/saved-reports')) {
@@ -125,6 +145,18 @@ it('limits reports to available role columns and previews the selected definitio
           mfaEnabled: true,
           sessionId: '33333333-3333-4333-8333-333333333333',
           client: 'web',
+        };
+      } else if (
+        url.endsWith('/reports/preview') &&
+        requestedDataset(init?.body) === 'evaluation_results'
+      ) {
+        result = {
+          columns: [
+            { key: 'participant_name', label: 'Participant', type: 'text' },
+            { key: 'rank_in_group', label: 'Group rank', type: 'number' },
+          ],
+          rows: [['Alex Athlete', 1]],
+          truncated: false,
         };
       } else if (
         url.endsWith('/reports/preview') &&
@@ -180,6 +212,12 @@ it('limits reports to available role columns and previews the selected definitio
     name: 'Count of Registration ID by Registered at data',
   });
   expect(within(chartTable).getByRole('cell', { name: '3' })).toBeTruthy();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Evaluation results' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Preview report' }));
+  expect(await screen.findByText('Alex Athlete')).toBeTruthy();
+  expect(previewRequestBody).toContain('"dataset":"evaluation_results"');
+  expect(previewRequestBody).toContain('"composite_score"');
 
   fireEvent.click(
     screen.getByRole('button', { name: 'Payouts by settlement status' }),

@@ -64,6 +64,18 @@ describe('report dataset access', () => {
     );
   });
 
+  it('exposes evaluation results to directors with participant scores tiered as sensitive', () => {
+    const dataset = datasetForActor('evaluation_results', ['director']);
+    const visible = columnsForActor(dataset, ['director']);
+    expect(
+      dataset.columns.find((column) => column.key === 'composite_score'),
+    ).toMatchObject({ tier: 'sensitive', type: 'number' });
+    expect(visible.map((column) => column.key)).toContain('participant_name');
+    expect(() => datasetForActor('evaluation_results', ['finance'])).toThrow(
+      ReportError,
+    );
+  });
+
   it('limits aid awards to money roles and accepts award-state filters', () => {
     const dataset = datasetForActor('aid_awards', ['finance']);
     const visible = columnsForActor(dataset, ['finance']);
