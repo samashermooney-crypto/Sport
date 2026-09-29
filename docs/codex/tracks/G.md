@@ -4,7 +4,7 @@ Implementation commits: `10dde5b`, `e26dee4`, `074b533`, `535746f`, `2bc22b6`, a
 
 Local integration range: `rebuild/trunk..track/g-schedule` (not pushed).
 
-Status: ready-for-integration; G-owned implementation and local Phase 8/9 gates pass on the branch synced through `1e4cbd3`. Remaining cross-track dependencies are listed below.
+Status: G implementation is integrated on `rebuild/trunk` as `6dbb0e2a`; the current branch sync through `5b4ad3c1` is under verification. The public facility image route and result-to-discipline/game-served service remain cross-track dependencies.
 
 ## Owned work and progress
 
@@ -94,8 +94,11 @@ Status: ready-for-integration; G-owned implementation and local Phase 8/9 gates 
 - [x] Generator and tournament journeys select and verify the fixture division after the program's division options load. The stats journey asserts the division-specific leaderboard URL, response data, and rendered value. Resource loading no longer restarts program/facility/space fetches when the initial event selection changes.
 - [x] After syncing through `bd70207e`, typecheck, full lint, production build, registry/OpenAPI generation, full database-backed Vitest (278 files / 991 tests, 1 skipped), full Chromium desktop e2e (53 passed, 6 existing skips), 48-team generator performance (500 ms), and all 12 G journeys on Chromium + WebKit mobile with axe (24/24) pass.
 - [x] After syncing through `68c3ad60`, typecheck, full lint, production build, and the database-backed suite passed (305 files / 1,091 tests; 1 skipped). Full Chromium desktop e2e passed (57 passed, 3 existing skips); all 12 G schedule journeys passed on Chromium + WebKit mobile with axe (24/24). `npm run registry` and `npm run openapi` regenerate the merged trunk outputs cleanly.
-- [x] After syncing through `1e4cbd3`, typecheck and full lint pass. The full database-backed suite passes 307 files / 1,095 tests with 1 existing skip; the full Chromium desktop merge gate passes 57 tests with 3 existing skips. Registry and OpenAPI were regenerated on the merged candidate. The production build and full G Chromium + WebKit axe matrix remain pending.
-- [ ] Phase 8/9 signoff on trunk remains blocked on Track F's result-to-discipline/game-served API and Track C's public facility image route. Emergency closure batches emit through Track B's notification service, whose current delivery record is in-app only. The trunk candidate has passed its full Chromium merge gate.
+- [x] On the previous integration candidate through `1e4cbd3`, typecheck and full lint passed, the database suite passed 307 files / 1,095 tests with 1 existing skip, and full Chromium desktop e2e passed 57 tests with 3 existing skips. Registry and OpenAPI were regenerated; production build and full G Chromium + WebKit axe matrix were pending on that candidate.
+- [x] Post-sync on `5b4ad3c1`: full Vitest passed 308 files / 1,107 tests with 1 existing skip; full lint passed; the 48-team/168-game generator acceptance passed in 701 ms with its 60-second assertion unchanged.
+- [x] In official Playwright 1.63 Noble (Node 24.20, UTC, `CI=true`, G's isolated Docker network), schedule-stats passed Chromium + WebKit (2/2) and all 12 G journeys passed Chromium + WebKit mobile with axe (24/24 in 2.5 minutes). Docker ran Linux ARM64 on this Apple Silicon host; the container used a dedicated writable local-upload volume.
+- [x] Post-sync typecheck and production build passed. The full Linux Chromium attempt reported 54 passed, 8 failed and 3 skipped: two D-owned design screenshots differed on this Linux ARM64 host, and email/checkout tests need the preview services correctly routed inside the test container. All 12 G journeys passed in that run.
+- [ ] Phase 8/9 signoff still depends on Track F's result-to-discipline/game-served API and Track C's public facility image route. G emits batched schedule changes through Track B's notification service as specified.
 
 ## Cross-track requests and blockers
 
@@ -107,7 +110,7 @@ Status: ready-for-integration; G-owned implementation and local Phase 8/9 gates 
 - **Track H:** resolved by the Phase 11 merge (`0ca39573`): event-linked volunteer shifts and signups are now included in closure recipients and covered by the North Park mass-closure journey.
 - **Track H / I:** the prior sponsor-placement and academy-promotion failures no longer reproduce after syncing through `84c85f8`; the latest full Vitest run passed those suites. These paths remain outside G's ownership.
 - **Track F / discipline service owner:** expose the transaction-scoped result-to-discipline creation and finalized-game-served operation needed for automatic card/ejection suspensions. The current service provides `assertNotSuspendedForLineup`, which G calls, but does not provide `createFromContestResult` or automatic games-served counting. Result finalization therefore rejects card finalization with an explicit service-unavailable conflict instead of silently skipping discipline enforcement.
-- **Track B / C notifications integration:** G batches all affected games per recipient and emits one emergency notification through Track B's notification service. Track B currently records only `in_app`; the required Mailpit email fan-out is not yet available or evidenced. G must not implement a separate messaging pipeline.
+- **Track B notifications:** G batches affected games per recipient and emits one emergency notification through Track B's notification service. The Phase 8 contract is to use that service; any email/SMS/push transport is owned by Track B, and G does not implement a separate messaging pipeline.
 
 ## Requests from SEC
 
@@ -121,7 +124,7 @@ Status: ready-for-integration; G-owned implementation and local Phase 8/9 gates 
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
 - G decisions are `DEC-082–096`, `DEC-100–108`, and `DEC-122–123` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
-- Latest G sync: `51b4d7dc` completes the pending trunk sync through `91614aaa`; the current branch tip syncs through `1e4cbd3`. Typecheck, lint, and the 307-file database-backed suite pass on this base. The Chromium merge gate/build and full G browser matrix are pending rerun in the trunk worktree. Registry and OpenAPI are current after the Phase 14 action-center and public contact inbox modules landed. G commits remain local and are not pushed.
+- Latest G sync: branch commit `04799c73` was synced through `1e4cbd3`; the current branch now includes trunk commit `5b4ad3c1`. The G integration commit `6dbb0e2a` is on trunk. Post-sync full Vitest, lint, generator performance and all G Linux Playwright journeys pass. Registry and OpenAPI are current after the Phase 14 action-center and public contact inbox modules landed. G commits remain local and are not pushed.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.
 
 ## Requests from J
