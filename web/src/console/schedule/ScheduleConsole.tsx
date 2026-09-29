@@ -5,6 +5,7 @@ import type { SubmitEvent } from 'react';
 
 import { Badge, Button, Field, Input, Link, Select, Textarea } from '../../ui';
 
+import { CalendarFeedSubscription } from './CalendarFeedSubscription';
 import { ResourceScheduleCalendar } from './ResourceScheduleCalendar';
 import type { ResourceScheduleEvent } from './ResourceScheduleCalendar';
 import {
@@ -2542,9 +2543,10 @@ export function ScheduleConsole({
                   `${base(orgId, 'scheduling')}/closures/preview`,
                   json(closure),
                 );
+                const eventLabel = preview.count === 1 ? 'event' : 'events';
                 if (
                   !window.confirm(
-                    `Close this schedule window and postpone ${String(preview.count)} affected events?`,
+                    `Close this schedule window and postpone ${String(preview.count)} affected ${eventLabel}?`,
                   )
                 )
                   return;
@@ -2860,6 +2862,15 @@ export function ScheduleConsole({
                   {facility.timezone ?? 'Timezone not set'} ·{' '}
                   {facility.public ? 'Public listing enabled' : 'Private'}
                 </small>
+                <details className="schedule-details">
+                  <summary>Calendar subscription</summary>
+                  <CalendarFeedSubscription
+                    orgId={orgId}
+                    type="facility"
+                    id={facility.id}
+                    label={`${facility.name} facility`}
+                  />
+                </details>
               </li>
             ))}
             {!facilities.length && <li>No facilities yet.</li>}
