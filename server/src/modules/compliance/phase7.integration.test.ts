@@ -29,7 +29,14 @@ import {
   readIncident,
 } from '../safety/service';
 
-import { createCard, verifyCard } from './cards';
+import {
+  createCard,
+  listCards,
+  readCardPhoto,
+  revokeCard,
+  verifyCard,
+} from './cards';
+import type { CardDependencies } from './cards';
 import {
   assertEligibleForRole,
   evaluateRoleEligibility,
@@ -39,18 +46,24 @@ import {
   adjudicateBackgroundCheck,
   beginBackgroundCheck,
   createComplianceOverride,
+  dashboardSummary,
+  getBackgroundSettings,
+  listBackgroundChecks,
   listBackgroundCheckDisputes,
+  listOwnBackgroundCheckDisputes,
   listOwnBackgroundChecks,
   listRequirements,
   listPersonCredentials,
   listCredentialReviewQueue,
   listCredentialTypes,
   processCredentialExpiry,
+  readBackgroundCheckDetails,
   recordManualResult,
   resendAdverseActionNotice,
   resolveBackgroundCheckDispute,
   reviewCredential,
   saveBackgroundSettings,
+  saveCheckrResult,
   saveRequirement,
   sendPreAdverseNotice,
   submitBackgroundCheckDispute,
@@ -68,6 +81,7 @@ const accountB = randomUUID();
 const personA = randomUUID();
 const personB = randomUUID();
 const underagePersonA = randomUUID();
+const staffPersonId = randomUUID();
 const credentialTypeId = randomUUID();
 const seasonId = randomUUID();
 const sportProfileId = randomUUID();
@@ -175,6 +189,11 @@ beforeAll(async () => {
       [personA, orgA, personB, orgB, underagePersonA],
     );
     await admin.query(
+      `INSERT INTO people (id, org_id, first_name, last_name, date_of_birth)
+       VALUES ($1, $2, 'Taylor', 'Staff', '1990-05-01')`,
+      [staffPersonId, orgA],
+    );
+    await admin.query(
       `INSERT INTO person_account_links (id, org_id, person_id, account_id, relationship, verified_at)
        VALUES ($1, $2, $3, $4, 'self', now()),
               ($5, $2, $3, $6, 'guardian', now()),
@@ -256,6 +275,11 @@ beforeAll(async () => {
        VALUES ($1, $2, $3, $4, 'head_coach', 'pending_compliance', $5)`,
       [teamStaffId, orgA, teamSeasonId, personA, accountA],
     );
+    await admin.query(
+      `INSERT INTO team_staff (id, org_id, team_season_id, person_id, role, status, added_by)
+       VALUES ($1, $2, $3, $4, 'team_manager', 'active', $5)`,
+      [randomUUID(), orgA, teamSeasonId, staffPersonId, accountA],
+    );
   } finally {
     await admin.end();
   }
@@ -288,6 +312,85 @@ describe('Phase 7 safety and compliance integration', () => {
         version: 1,
       }),
     ]);
+  });
+
+  it('creates and versions program-scoped requirements without accepting invalid scopes', async () => {
+    await expect(
+      saveRequirement(database, ownerContext, {
+        role: 'assistant_coach',
+        credentialTypeId,
+        scopeType: 'org',
+        scopeId: programId,
+        minimumAge: 18,
+        active: true,
+      }),
+    ).rejects.toMatchObject({ status: 400, code: 'VALIDATION_ERROR' });
+    await expect(
+      saveRequirement(database, ownerContext, {
+        role: 'assistant_coach',
+        credentialTypeId: randomUUID(),
+        scopeType: 'org',
+        scopeId: null,
+        minimumAge: 18,
+        active: true,
+      }),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+    await expect(
+      saveRequirement(database, ownerContext, {
+        role: 'assistant_coach',
+        credentialTypeId,
+        scopeType: 'program',
+        scopeId: randomUUID(),
+        minimumAge: 18,
+        active: true,
+      }),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+
+    const created = await saveRequirement(database, ownerContext, {
+      role: 'assistant_coach',
+      credentialTypeId,
+      scopeType: 'program',
+      scopeId: programId,
+      minimumAge: 18,
+      active: true,
+    });
+    expect(created.version).toBe(1);
+    await expect(
+      saveRequirement(database, ownerContext, {
+        id: created.id,
+        version: 2,
+        role: 'assistant_coach',
+        credentialTypeId,
+        scopeType: 'program',
+        scopeId: programId,
+        minimumAge: 18,
+        active: true,
+      }),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+    await expect(
+      saveRequirement(database, ownerContext, {
+        id: randomUUID(),
+        version: 1,
+        role: 'assistant_coach',
+        credentialTypeId,
+        scopeType: 'program',
+        scopeId: programId,
+        minimumAge: 18,
+        active: true,
+      }),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+    await expect(
+      saveRequirement(database, ownerContext, {
+        id: created.id,
+        version: 1,
+        role: 'assistant_coach',
+        credentialTypeId,
+        scopeType: 'program',
+        scopeId: programId,
+        minimumAge: 18,
+        active: false,
+      }),
+    ).resolves.toMatchObject({ id: created.id, version: 2 });
   });
 
   it('gates and activates credentialed staff, audits Restricted reads, and demotes on expiry', async () => {
@@ -836,6 +939,180 @@ describe('Phase 7 safety and compliance integration', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('covers QR card eligibility, family visibility, consented photos, and revocation', async () => {
+    const storage = new MemoryStorage();
+    const photoFileId = randomUUID();
+    const storageKey = `cards/${photoFileId}.jpg`;
+    const photoBytes = Uint8Array.from([0xff, 0xd8, 0xff, 0xd9]);
+    await storage.put(storageKey, photoBytes, 'image/jpeg');
+    await withOrg()(ownerContext, async (trx) => {
+      await trx
+        .updateTable('people')
+        .set({ media_consent: 'granted' })
+        .where('id', '=', personA)
+        .execute();
+      await trx
+        .insertInto('files')
+        .values({
+          id: photoFileId,
+          org_id: orgA,
+          purpose: 'image',
+          owner_type: 'person',
+          owner_id: personA,
+          storage_key: storageKey,
+          mime: 'image/jpeg',
+          bytes: photoBytes.byteLength,
+          sensitivity: 'restricted',
+          created_by: accountA,
+          upload_state: 'complete',
+        })
+        .execute();
+    });
+    const cardDependencies: CardDependencies = {
+      database,
+      encryption,
+      clock: () => clockNow,
+      appUrl: 'https://athlentry.test',
+      localStorage: storage,
+    };
+    await expect(
+      createCard(cardDependencies, ownerContext, {
+        personId: personA,
+        cardKind: 'player',
+        programId: null,
+        seasonId: null,
+        cardNumber: 'HAWK-NO-SCOPE',
+        validUntil: '2027-12-31',
+        photoFileId: null,
+      }),
+    ).rejects.toMatchObject({ status: 400, code: 'VALIDATION_ERROR' });
+
+    const player = await createCard(cardDependencies, ownerContext, {
+      personId: personA,
+      cardKind: 'player',
+      programId,
+      seasonId: null,
+      cardNumber: 'HAWK-PHOTO',
+      validUntil: '2027-12-31',
+      photoFileId,
+    });
+    await expect(
+      verifyCard(database, player.token, encryption, clockNow),
+    ).resolves.toMatchObject({
+      cardNumber: 'HAWK-PHOTO',
+      teamName: 'Safety Hawks',
+      photoAvailable: true,
+      photoUrl: `/api/v1/compliance/cards/verify/${player.token}/photo`,
+    });
+    await expect(
+      readCardPhoto(cardDependencies, player.token),
+    ).resolves.toEqual({ mime: 'image/jpeg', bytes: photoBytes });
+    const listed = await listCards(cardDependencies, ownerContext, personA);
+    expect(listed).toContainEqual(
+      expect.objectContaining({ id: player.id, token: player.token }),
+    );
+    await expect(
+      listCards(
+        cardDependencies,
+        {
+          orgId: orgA,
+          actor: { accountId: accountB },
+        },
+        personA,
+      ),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+
+    const seasonPlayer = await createCard(cardDependencies, ownerContext, {
+      personId: personA,
+      cardKind: 'player',
+      programId: null,
+      seasonId,
+      cardNumber: 'HAWK-SEASON',
+      validUntil: '2027-12-31',
+      photoFileId: null,
+    });
+    await expect(
+      verifyCard(database, seasonPlayer.token, encryption, clockNow),
+    ).resolves.toMatchObject({
+      teamName: 'Safety Hawks',
+      photoAvailable: false,
+    });
+
+    const staff = await createCard(cardDependencies, ownerContext, {
+      personId: staffPersonId,
+      cardKind: 'staff',
+      programId,
+      seasonId: null,
+      cardNumber: 'HAWK-STAFF',
+      validUntil: '2027-12-31',
+      photoFileId: null,
+    });
+    await expect(
+      verifyCard(database, staff.token, encryption, clockNow),
+    ).resolves.toMatchObject({ cardKind: 'staff', teamName: 'Safety Hawks' });
+
+    await expect(
+      createCard(cardDependencies, ownerContext, {
+        personId: underagePersonA,
+        cardKind: 'player',
+        programId: null,
+        seasonId,
+        cardNumber: 'HAWK-NO-ROSTER',
+        validUntil: '2027-12-31',
+        photoFileId: null,
+      }),
+    ).rejects.toMatchObject({ status: 409, code: 'NOT_CARD_ELIGIBLE' });
+    await expect(
+      createCard(cardDependencies, ownerContext, {
+        personId: personA,
+        cardKind: 'player',
+        programId,
+        seasonId: null,
+        cardNumber: 'HAWK-BAD-PHOTO',
+        validUntil: '2027-12-31',
+        photoFileId: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ status: 400, code: 'FILE_INVALID' });
+
+    const tampered = Buffer.from(
+      `${orgA}.${player.id}.2027-12-31.${'A'.repeat(43)}`,
+    ).toString('base64url');
+    await expect(
+      verifyCard(database, 'malformed', encryption, clockNow),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+    await expect(
+      verifyCard(database, tampered, encryption, clockNow),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+
+    const expired = await createCard(cardDependencies, ownerContext, {
+      personId: personA,
+      cardKind: 'player',
+      programId,
+      seasonId: null,
+      cardNumber: 'HAWK-EXPIRED',
+      validUntil: '2026-10-02',
+      photoFileId: null,
+    });
+    await expect(
+      verifyCard(
+        database,
+        expired.token,
+        encryption,
+        new Date('2026-10-04T18:00:00.000Z'),
+      ),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+
+    await expect(
+      revokeCard(database, ownerContext, player.id, 1),
+    ).resolves.toMatchObject({ id: player.id, status: 'revoked', version: 2 });
+    await expect(
+      revokeCard(database, ownerContext, player.id, 1),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+    await expect(
+      verifyCard(database, player.token, encryption, clockNow),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+  });
+
   it('runs the manual FCRA notice and dispute timeline using preview email only', async () => {
     await saveBackgroundSettings(database, ownerContext, false, {
       providerMode: 'manual',
@@ -890,6 +1167,31 @@ describe('Phase 7 safety and compliance integration', () => {
       details: 'Sensitive report details stay encrypted.',
       version: check?.version ?? 0,
     });
+    await expect(
+      readBackgroundCheckDetails(dependencies(), ownerContext, orderId),
+    ).resolves.toMatchObject({
+      id: orderId,
+      status: 'consider',
+      details: 'Sensitive report details stay encrypted.',
+      rightsSummaryText: 'A copy of your rights is available here.',
+    });
+    await expect(
+      readBackgroundCheckDetails(dependencies(), ownerContext, randomUUID()),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+    expect(await listBackgroundChecks(database, ownerContext)).toContainEqual(
+      expect.objectContaining({
+        id: orderId,
+        personId: personA,
+        firstName: 'Morgan',
+        status: 'consider',
+        resultSummary: 'consider',
+      }),
+    );
+    expect(await dashboardSummary(database, ownerContext)).toMatchObject({
+      pendingBackgroundChecks: 1,
+      openIncidents: 1,
+      activeInjuries: 0,
+    });
     check = (await listOwnBackgroundChecks(database, ownerContext))[0];
     expect(result).toMatchObject({
       status: 'consider',
@@ -920,6 +1222,19 @@ describe('Phase 7 safety and compliance integration', () => {
         statement: 'The report includes another person with a similar name.',
       },
     ]);
+    expect(
+      await listOwnBackgroundCheckDisputes(
+        dependencies(),
+        ownerContext,
+        orderId,
+      ),
+    ).toContainEqual(
+      expect.objectContaining({
+        id: disputeId,
+        statement: 'The report includes another person with a similar name.',
+        resolution: null,
+      }),
+    );
     check = (await listOwnBackgroundChecks(database, ownerContext))[0];
     await expect(
       adjudicateBackgroundCheck(dependencies(), ownerContext, {
@@ -944,6 +1259,20 @@ describe('Phase 7 safety and compliance integration', () => {
       version: 1,
     });
     expect(
+      await listOwnBackgroundCheckDisputes(
+        dependencies(),
+        ownerContext,
+        orderId,
+      ),
+    ).toContainEqual(
+      expect.objectContaining({
+        id: disputeId,
+        status: 'resolved',
+        statement: 'The report includes another person with a similar name.',
+        resolution: 'The provider confirmed the correct candidate report.',
+      }),
+    );
+    expect(
       await adjudicateBackgroundCheck(dependencies(), ownerContext, {
         orderId,
         adjudication: 'ineligible',
@@ -965,5 +1294,225 @@ describe('Phase 7 safety and compliance integration', () => {
     );
     expect(sentAgain.delivered).toBe(true);
     expect(email.messages).toHaveLength(2);
+  });
+
+  it('rejects unsupported background-check options and enforces settings versions', async () => {
+    const current = await getBackgroundSettings(database, ownerContext, false);
+    if (!current.settings)
+      throw new Error('Expected saved background settings');
+    const input = {
+      providerMode: 'manual' as const,
+      volunteerPaysFee: false,
+      package: 'basic',
+      disclosureVersion: '2026-02',
+      disclosureText: 'Updated background-check disclosure for testing.',
+      authorizationVersion: '2026-02',
+      authorizationText: 'I authorize the updated background check.',
+      preAdverseNoticeText: 'Pre-adverse decision notice for testing.',
+      rightsSummaryText: 'A current copy of your rights is available here.',
+      adverseNoticeText: 'Final adverse decision notice for testing.',
+      fcraHolidays: [],
+    };
+    await expect(
+      saveBackgroundSettings(database, ownerContext, false, {
+        ...input,
+        volunteerPaysFee: true,
+        version: current.settings.version,
+      }),
+    ).rejects.toMatchObject({ status: 409, code: 'INVOICE_UNAVAILABLE' });
+    await expect(
+      saveBackgroundSettings(database, ownerContext, false, {
+        ...input,
+        providerMode: 'checkr',
+        version: current.settings.version,
+      }),
+    ).rejects.toMatchObject({ status: 409, code: 'PROVIDER_UNAVAILABLE' });
+
+    const updated = await saveBackgroundSettings(
+      database,
+      ownerContext,
+      false,
+      {
+        ...input,
+        version: current.settings.version,
+      },
+    );
+    expect(updated.version).toBe(current.settings.version + 1);
+    await expect(
+      saveBackgroundSettings(database, ownerContext, false, {
+        ...input,
+        version: current.settings.version,
+      }),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+    await expect(
+      getBackgroundSettings(database, ownerContext, true),
+    ).resolves.toMatchObject({
+      settings: {
+        providerMode: 'manual',
+        version: current.settings.version + 1,
+      },
+      options: { manual: true, checkr: false },
+    });
+  });
+
+  it('validates credential validity and calculates annual and non-expiring credentials', async () => {
+    const updateType = (input: {
+      validity:
+        { months: number } | { expires_on_month_day: string } | { never: true };
+      renewalReminderDays?: number[];
+      id?: string;
+      version?: number;
+    }) =>
+      updateCredentialType(database, ownerContext, {
+        id: input.id ?? credentialTypeId,
+        name: 'SafeSport training',
+        description: 'Calendar policy coverage fixture',
+        validity: input.validity,
+        blocksActivation: true,
+        renewalReminderDays: input.renewalReminderDays ?? [30, 14, 3],
+        active: true,
+        version: input.version ?? 2,
+      });
+
+    await expect(
+      updateType({ validity: { expires_on_month_day: '1-15' } }),
+    ).rejects.toMatchObject({ status: 400, code: 'VALIDITY_INVALID' });
+    await expect(
+      updateType({ validity: { expires_on_month_day: '02-30' } }),
+    ).rejects.toMatchObject({ status: 400, code: 'VALIDITY_INVALID' });
+    await expect(
+      updateType({ validity: { months: 12 }, renewalReminderDays: [30, 30] }),
+    ).rejects.toMatchObject({ status: 400, code: 'VALIDATION_ERROR' });
+    await expect(
+      updateType({ validity: { months: 12 }, id: randomUUID(), version: 1 }),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+
+    const calendarType = await updateType({
+      validity: { expires_on_month_day: '01-15' },
+    });
+    expect(calendarType.version).toBe(3);
+    const calendarCredential = await submitCredential(
+      dependencies(),
+      ownerContext,
+      {
+        personId: personA,
+        credentialTypeId,
+        issuedOn: '2026-02-10',
+      },
+    );
+    await expect(
+      reviewCredential(dependencies(), ownerContext, {
+        credentialId: calendarCredential.id,
+        decision: 'approve',
+        version: 1,
+      }),
+    ).resolves.toMatchObject({ status: 'verified', expiresOn: '2027-01-15' });
+
+    const nonExpiringType = await updateType({
+      validity: { never: true },
+      version: calendarType.version,
+    });
+    expect(nonExpiringType.version).toBe(4);
+    const nonExpiringCredential = await submitCredential(
+      dependencies(),
+      ownerContext,
+      { personId: personA, credentialTypeId },
+    );
+    await expect(
+      reviewCredential(dependencies(), ownerContext, {
+        credentialId: nonExpiringCredential.id,
+        decision: 'approve',
+        version: 1,
+      }),
+    ).resolves.toMatchObject({ status: 'verified', expiresOn: null });
+  });
+
+  it('stores Checkr webhooks once and maps provider statuses without exposing report details', async () => {
+    const reportId = `checkr-${randomUUID()}`;
+    const checkrOrderId = randomUUID();
+    await withOrg()(ownerContext, (trx) =>
+      trx
+        .insertInto('background_check_orders')
+        .values({
+          id: checkrOrderId,
+          org_id: orgA,
+          person_id: personA,
+          provider: 'checkr',
+          provider_report_id: reportId,
+          package: 'standard',
+          status: 'in_progress',
+          consent_signed_at: clockNow,
+          disclosure_version: '2026-01',
+          disclosure_text: 'Signed disclosure snapshot.',
+          authorization_version: '2026-01',
+          authorization_text: 'Signed authorization snapshot.',
+        })
+        .execute(),
+    );
+
+    expect(
+      await saveCheckrResult(dependencies(), ownerContext, {
+        providerEventId: 'evt-checkr-clear',
+        reportId,
+        status: 'clear',
+        completedAt: clockNow.toISOString(),
+      }),
+    ).toBe(true);
+    expect(
+      await saveCheckrResult(dependencies(), ownerContext, {
+        providerEventId: 'evt-checkr-consider',
+        reportId,
+        status: 'consider',
+      }),
+    ).toBe(true);
+    expect(
+      await saveCheckrResult(dependencies(), ownerContext, {
+        providerEventId: 'evt-checkr-consider',
+        reportId,
+        status: 'pending',
+      }),
+    ).toBe(true);
+    expect(
+      await saveCheckrResult(dependencies(), ownerContext, {
+        providerEventId: 'evt-checkr-pending',
+        reportId,
+        status: 'pending',
+      }),
+    ).toBe(true);
+    expect(
+      await saveCheckrResult(dependencies(), ownerContext, {
+        providerEventId: 'evt-checkr-missing',
+        reportId: randomUUID(),
+        status: 'clear',
+      }),
+    ).toBe(false);
+
+    await expect(
+      readBackgroundCheckDetails(
+        dependencies(),
+        ownerContext,
+        checkrOrderId,
+        true,
+      ),
+    ).resolves.toMatchObject({ status: 'in_progress', resultSummary: null });
+    const privateDetails = await withOrg()(ownerContext, (trx) =>
+      trx
+        .selectFrom('background_check_orders')
+        .select('details_enc')
+        .where('id', '=', checkrOrderId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(
+      Buffer.from(privateDetails.details_enc ?? []).toString(),
+    ).not.toContain(reportId);
+    expect(
+      await withOrg()(ownerContext, (trx) =>
+        trx
+          .selectFrom('background_check_webhook_events')
+          .select('provider_event_id')
+          .where('report_id', '=', reportId)
+          .execute(),
+      ),
+    ).toHaveLength(3);
   });
 });

@@ -223,11 +223,14 @@ export async function updateCredentialType(
         'Credential validity is not configured',
       );
     try {
-      Temporal.PlainDate.from({
-        year: 2000,
-        month: Number(match[1]),
-        day: Number(match[2]),
-      });
+      Temporal.PlainDate.from(
+        {
+          year: 2000,
+          month: Number(match[1]),
+          day: Number(match[2]),
+        },
+        { overflow: 'reject' },
+      );
     } catch {
       throw new ComplianceServiceError(
         400,
@@ -3018,6 +3021,7 @@ export async function saveCheckrResult(
       .returning('id')
       .executeTakeFirst();
     if (!event) return true;
+    const status = input.status === 'pending' ? 'in_progress' : input.status;
     const resultSummary =
       input.status === 'clear'
         ? 'clear'
@@ -3031,7 +3035,7 @@ export async function saveCheckrResult(
     await trx
       .updateTable('background_check_orders')
       .set({
-        status: input.status,
+        status,
         result_summary: resultSummary,
         completed_at: input.completedAt
           ? new Date(input.completedAt)
@@ -3057,7 +3061,7 @@ export async function saveCheckrResult(
         action: 'background_check.provider_result.received',
         entity_type: 'background_check_order',
         entity_id: order.id,
-        changes: { provider: 'checkr', status: input.status },
+        changes: { provider: 'checkr', status },
       })
       .execute();
     const officers = await trx
@@ -3076,7 +3080,7 @@ export async function saveCheckrResult(
       'compliance.background_check_result',
       {
         orderId: order.id,
-        status: input.status,
+        status,
       },
     );
     return true;
