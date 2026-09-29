@@ -74,6 +74,7 @@ export function createActionCenterRouter(
   dependencies: AuthDependencies,
 ): express.Router {
   const router = express.Router();
+  router.use(express.json({ limit: '32kb' }));
   const withOrg = createWithOrg(dependencies.database);
 
   router.get('/orgs/:orgId/action-center', (request, response) => {
