@@ -916,3 +916,11 @@
 - **Decision:** Resolve the verified hostname, reject non-public IPv4 and IPv6 targets, and pin the TLS handshake to a vetted address while validating the certificate against the requested hostname.
 - **Why:** Domain verification must not become a server-side request forgery path into private network services.
 - **Consequences / follow-ups:** If DNS has no publicly routable address, the domain remains pending verification. Public IPv4/IPv6 range classification has focused tests.
+
+### DEC-124 — Preserve landing design intent while meeting keyboard and contrast checks
+- **Date:** 2026-09-28
+- **Phase / area:** Phase 16 §3 accessibility
+- **Context:** The marketing manifesto heading inherited the global dark text color over its dark-green section, the small demo-window labels fell just below 4.5:1 contrast, and the mobile product preview scrolled horizontally without keyboard focus.
+- **Decision:** Marketing headings inherit their section foreground, darken only the demo-window label color to `#62685d`, and expose the scrollable product preview as a named keyboard-focusable region. Keep all shared design tokens and layout values unchanged.
+- **Why:** Makes the original light-on-dark section treatment legible and lets keyboard and Safari users reach the existing horizontal preview without changing the broader design system.
+- **Consequences / follow-ups:** Automated axe checks cover the landing, pricing, and legal routes; the parity suite continues to guard the shared tokens and existing visual references.

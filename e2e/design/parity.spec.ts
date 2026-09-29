@@ -160,7 +160,9 @@ test('interactive controls meet 44px targets at phone width', async ({
     ['Open drawer', 'Example drawer'],
     ['Open sheet', 'Example sheet'],
   ] as const) {
-    await page.getByRole('button', { name: trigger }).click();
+    const triggerButton = page.getByRole('button', { name: trigger });
+    await triggerButton.focus();
+    await page.keyboard.press('Enter');
     const overlay = page.getByRole('dialog', { name });
     await expect(overlay).toBeVisible();
     const closeSize = await overlay
@@ -173,6 +175,7 @@ test('interactive controls meet 44px targets at phone width', async ({
     expect(closeSize.height).toBeGreaterThanOrEqual(44);
     await page.keyboard.press('Escape');
     await expect(overlay).toBeHidden();
+    await expect(triggerButton).toBeFocused();
   }
 });
 

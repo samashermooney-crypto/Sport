@@ -1,38 +1,38 @@
 # Phase 16 launch gate
 
-Gate snapshot: `rebuild/trunk` code at `da7c13f40717352ff6b550b7b5026dd6d1e62f94` (2026-09-27 local run). The repository was clean before recording these docs. All commands were run locally through `~/athlentry-sprint/heavy.sh` where applicable, against the isolated Postgres stack `COMPOSE_PROJECT_NAME=athlentry_c PORT_OFFSET=510` (Postgres host port 5942). No live credentials, live money, or real messages were used. GitHub status could not be queried because this environment has no network. Local `main` remains `d0f59a1c44e499dc69455ed3ad3e0a2dae9883de`.
+Gate snapshot: the local full-gate rerun completed 2026-09-28 by 22:05 CDT on the uncommitted integration candidate based on `6dbb0e2a4deed06b1196b73dd9a6d2ffa14aff60`, including Track D through `bec47e21`, Track I's four focused class-tenant fixes, and the C registry/navigation and generated-contract updates. All code checks listed below passed locally on the candidate except coverage thresholds. The isolated real-Postgres stack was `COMPOSE_PROJECT_NAME=athlentry_c_gate`, `PORT_OFFSET=5500` (Postgres `127.0.0.1:10932`). No live credentials, money, or messages were used. The candidate is not pushed; the most recent hosted run is an older SHA. Local `main` remains `d0f59a1c44e499dc69455ed3ad3e0a2dae9883de`.
 
 ## Required launch criteria
 
 | # | Result | Criterion | Evidence |
 |---|---|---|---|
-| 1 | **FAIL** | All phases’ acceptance criteria are met with evidence links in `PROGRESS.md`. | The phase table and detailed acceptance checklists in [`PROGRESS.md`](PROGRESS.md) retain unchecked criteria across Phases 1–13; Phases 14–15 are not started. Phase 16 has incomplete security/load/restore/accessibility evidence. |
-| 2 | **FAIL** | CI is green on `main`, including Chromium desktop and WebKit iPhone e2e. | Local Playwright passes below, but network access prevented checking GitHub CI and `main` is still `d0f59a1…`, behind the gated `rebuild/trunk` snapshot. Local checks cannot establish this CI requirement. |
-| 3 | **FAIL** | Coverage: shared ≥95%; finance, registration, checkout, compliance and auth ≥90%; overall server ≥85%. | Full Vitest coverage output parsed from `coverage/coverage-final.json`: shared 96.07% (2175/2264); server overall 65.21% (13576/20818); finance 84.08% (3100/3687); registration 0 instrumented files; checkout 84.36% (410/486); compliance 55.04% (524/952); auth 87.12% (609/699). Server and all listed modules except shared miss their thresholds. |
-| 4 | **FAIL** | Load tests meet Phase 16 §2 targets, with results committed in `perf/results/`. | [`perf/results/2026-09-27-load-tests.md`](../../perf/results/2026-09-27-load-tests.md) says acceptance was not run because the required load seed/contracts are unavailable; the four required scenarios have no passing results. |
-| 5 | **FAIL** | Restore drill passed, with a committed log. | [`perf/results/2026-09-27-restore-drill.md`](../../perf/results/2026-09-27-restore-drill.md) records a successful older drill only through migration 6002. Current trunk contains migrations through 8010, so there is no restore proof for this snapshot. |
-| 6 | **FAIL** | Security checks in Phase 16 §1 pass and the threat model is complete. | Security documentation exists, but required security acceptance is open. The browser run reports six `test.fixme` security cases skipped: `gitleaks-ci.spec.ts`, `permission-matrix.spec.ts`, `route-authorization.spec.ts`, `session-step-up-fixation.spec.ts`, `ssrf.spec.ts`, and `tenancy-fuzz.spec.ts`. `SEC-CI-001` (Gitleaks CI) and `SEC-SSRF-C-001` (Web Push destination validation) remain open in `tracks/C.md`; session fixation and route/permission coverage also remain unresolved. |
-| 7 | **FAIL** | Phase 14 §2.5 Lighthouse targets are met. | No Lighthouse result is committed; `docs/codex/tracks/D.md` states Phase 14 has not started. |
-| 8 | **PASS** | Design parity suite passes and the original design system is preserved, with any accessibility adjustments listed in `DECISIONS.md`. | `heavy.sh npm run test:e2e -- --workers=3`: 74 passed, 16 skipped across Chromium desktop and WebKit mobile; parity checks in the run pass. The Linux parity baseline also passed on the code-identical snapshot `9381acd`; the only code change after it is this final-gate documentation. `web/src/ui/tokens.test.ts` checks token equality and passed in the full Vitest run. |
+| 1 | **FAIL** | All phases' acceptance criteria are met with evidence links in `PROGRESS.md`. | `PROGRESS.md` still has unchecked acceptance criteria across Phases 1–15; phase acceptance journeys and required seeded demos remain open. |
+| 2 | **FAIL** | CI is green on `main`, including Chromium desktop and WebKit iPhone e2e. | Latest hosted run `36489602298` tested older SHA `91614aa`; its `test`, `e2e`, OpenAPI freshness, and Knip jobs failed. The test failure was two chat integration assertions; E2E included Linux design snapshots and the WebKit account/recovery journey; Knip found two evaluation nav files; OpenAPI output was stale. The current local candidate passes the full local suite and regenerated OpenAPI/registry checks, but no hosted run exists for this unpushed candidate and `main` CI is unverified. |
+| 3 | **FAIL** | Coverage: shared ≥95%; finance, registration, checkout, compliance and auth ≥90%; overall server ≥85%. | `npm test -- --coverage` passed its tests, but statements are: shared 95.84%; server sources 66.04%; auth 85.94%; finance 81.97%; registration 65.11%; checkout 82.25%; compliance 54.10%; all files 66.63%. Only shared meets its threshold. |
+| 4 | **FAIL** | Load tests meet Phase 16 §2 targets, with results committed in `perf/results/`. | [`2026-09-27-load-tests.md`](../../perf/results/2026-09-27-load-tests.md) says required load acceptance was not run; none of the four required scenarios has passing results. |
+| 5 | **FAIL** | Restore drill passed, with a committed log. | [`2026-09-27-restore-drill.md`](../../perf/results/2026-09-27-restore-drill.md) predates this candidate; no restore proof covers the current migration set. |
+| 6 | **FAIL** | Security checks in Phase 16 §1 pass and the threat model is complete. | Chromium and WebKit each still skip `permission-matrix.spec.ts`, `route-authorization.spec.ts`, and `tenancy-fuzz.spec.ts`. Gitleaks, SSRF, security-header, session-step-up, and the new existing-foreign-class-resource browser case pass locally; permission/tenant coverage and complete security acceptance remain open. |
+| 7 | **FAIL** | Phase 14 §2.5 Lighthouse targets are met. | No Lighthouse result is committed. |
+| 8 | **FAIL** | Design parity suite passes and the original design system is preserved, with any accessibility adjustments listed in `DECISIONS.md`. | Chromium desktop parity assertions pass and tolerances were not changed. WebKit skips the four desktop-only parity checks. The latest hosted Linux parity failure is from older SHA `91614aa`; the current D baselines have not yet been verified by hosted CI. |
 | 9 | **PASS** | No `TODO`/`FIXME`/`console.log` remains in `server/src`, `web/src`, or `shared/src`. | `rg -n 'TODO|FIXME|console\.log' server/src web/src shared/src` returned no matches. |
-| 10 | **FAIL** | Every console, portal, site and platform navigation item/button is reached by e2e/smoke, with a crawler covering every route and detecting 404/500/unhandled error/empty ErrorState. | No route-crawler implementation or result exists (`rg` search across `e2e` and docs found none). Current journeys cover important flows but do not establish all-route/all-button coverage. |
-| 11 | **PASS** | `40-OPERATOR-CHECKLIST.md` contains only human-only steps. | Reviewed the full checklist. Its Stripe smoke step is explicitly limited to Stripe test mode and test cards; all remaining tasks require operator credentials, external approvals, legal/financial judgment, production infrastructure or human operational work. |
+| 10 | **FAIL** | Every console, portal, site and platform navigation item/button is reached by e2e/smoke, with a crawler covering every route and detecting 404/500/unhandled error/empty ErrorState. | No route-crawler implementation or all-route result exists. Current Playwright journeys cover selected flows only. |
+| 11 | **PASS** | `40-OPERATOR-CHECKLIST.md` contains only human-only steps. | Checklist actions require human credentials, authority, or external configuration. No item is marked complete by this gate; Stripe remains test-mode only. |
 
-## Local gate commands and results
+## Final gate commands and results
 
-- `heavy.sh npm run typecheck` — pass.
-- `heavy.sh npm run lint` — pass.
-- `heavy.sh npm test -- --coverage --maxWorkers=4` — pass: 246 files passed, 1 skipped; 879 tests passed, 1 skipped. Coverage thresholds still fail as shown above.
-- `heavy.sh npm run test:e2e -- --workers=3` — pass: 74 passed, 16 skipped. Chromium-only design assertions are intentionally skipped in WebKit; six security cases are `test.fixme` skips, which remain launch blockers.
-- `heavy.sh npm run build` — pass.
-- `heavy.sh npm run size` — pass: 143.71 kB gzip, below 200 kB.
-- `heavy.sh npm run knip` — pass.
-- `heavy.sh npm audit --omit=dev --audit-level=high` — pass; two moderate `uuid` advisories remain below the requested high threshold.
-- `heavy.sh npm run openapi` plus `git diff --exit-code -- docs/api/openapi.json` — pass, generated OpenAPI current.
-- `heavy.sh npm run registry` plus generated server/web registry, nested-route, shared-error and permission diff checks — pass.
-- `rg -n 'TODO|FIXME|console\.log' server/src web/src shared/src` — pass, no matches.
-- Targeted real-Postgres class journey `classes.integration.test.ts` — pass, 17/17. The full suite also passed on retry with bounded workers; an earlier unbounded run had a timeout under machine load.
+- `npm run typecheck` — pass.
+- `npm run lint` — pass.
+- Full `npm test` against real isolated PostgreSQL — pass: **308 files / 1,106 tests passed, 1 existing skipped**.
+- Chromium desktop Playwright — pass: **60 passed, 3 skipped** (the three SEC-002 permission/route/tenancy specs).
+- WebKit mobile Playwright — pass: **56 passed, 7 skipped** (the same three SEC-002 specs plus four guarded desktop parity checks). The schedule-meet finalization journey passed in the full two-worker rerun. No assertions were weakened.
+- `npm run build` — pass. `npm run size` — pass at **150.42 kB gzip** (200 kB limit).
+- `npm test -- --coverage` — test suite passes, but thresholds fail: all-files statements 66.63%; shared 95.84%; server sources 66.04%; auth 85.94%; finance 81.97%; registration 65.11%; checkout 82.25%; compliance 54.10%.
+- `npm run registry` and `npm run openapi` — pass; generated registry reports 40 server modules, 6 integrations, and 9 web features; generated outputs match the candidate tree.
+- `npm run knip` — pass with no project findings.
+- `npm audit --omit=dev --audit-level=high` — pass at the high threshold; two moderate `uuid` advisories remain through ExcelJS.
+- TODO/FIXME/console.log scan — pass, no matches.
+- Hosted CI — latest run `36489602298` on `91614aa` is red in `test`, `e2e`, OpenAPI freshness, and Knip. It predates the current candidate; current hosted status is pending the orchestrator's push.
 
 ## Promotion decision
 
-**Do not advance local `main`.** Criteria 1–7 and 10 fail. Keep `main` at `d0f59a1c44e499dc69455ed3ad3e0a2dae9883de` until every criterion above passes. This gate record is a local evidence snapshot; it does not claim GitHub CI is green and does not authorize a push.
+**Do not advance local `main`.** Criteria 1–8 and 10 fail. Keep `main` at `d0f59a1c44e499dc69455ed3ad3e0a2dae9883de` until every criterion passes. This candidate has a green local integration gate, but it is not launch-ready and has no hosted CI result.

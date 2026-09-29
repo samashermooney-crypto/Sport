@@ -4,6 +4,8 @@ Codex: keep this file current. Add a step only when it truly requires a human wi
 
 Owner: work through these after Codex finishes, in order.
 
+Final gate rerun (2026-09-28, completed by 22:05 CDT): the local D/C/I integration candidate passes the local merge gate but fails launch criteria 1–8 and 10; no human-only checklist item is marked complete by this run. Keep Stripe in test mode and use documented test cards for any smoke test.
+
 ## Accounts and infrastructure
 1. **Domain** — register the production domain; set `APP_DOMAIN`, `APP_URL`. Configure wildcard DNS `*.APP_DOMAIN` for org subdomains.
 2. **Hosting** — create the web ×2 and worker ×1 services from `render.yaml` (or equivalent), managed Postgres 16 with PITR ≥ 14 days, S3-compatible bucket (private) with versioning, and a second bucket/location for nightly encrypted dumps. Run `scripts/create-db-roles.sql` as the database owner. Set all environment variables from `docs/ENVIRONMENT.md`.

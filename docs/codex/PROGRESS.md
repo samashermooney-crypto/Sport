@@ -3,12 +3,9 @@
 > Codex: keep this file current. Update it in the same commit that completes an item. Before stopping a session, write the "Next steps" block.
 
 ## Next steps
-- Track C hourly update (2026-09-28 03:14 CDT): synchronized C through local `rebuild/trunk` `d52e4c83`, applied migrations and refreshed DB types/OpenAPI/registries. Typecheck, lint, real-Postgres Vitest (279 files / 1,006 passed / 1 existing skip), Chromium (53), WebKit mobile (49 passed / 4 conditional skips), build, size (145.07 kB gzip / 200 kB), Knip and high/critical audit pass. Latest hosted run 36370435506 is for older `1a82760e` and failed test, e2e and Knip; the local synchronized suite and Knip pass, while Track D's Linux parity fix remains to land. B has three commits ahead and remains first in merge priority; C is holding its sync locally pending the final registry/OpenAPI diff check and B's merge. No coverage/test was skipped or weakened. C stack: `COMPOSE_PROJECT_NAME=athlentry_c PORT_OFFSET=510`.
-- Next: complete generated-file freshness checks, commit the synchronized C branch, then refresh C from the B/E/F-priority trunk head, resolve any remaining hosted CI failure with the owning track, and run C's locked merge gate. Continue hourly full gates and refresh `PROGRESS.md`; final gate remains 06:00–07:00.
-- Track C hourly update (2026-09-27 23:02 CDT): the C branch has local commits for evaluator-photo access, season rollover contribution wiring, AI feature gating and OpenAPI MIME support. The latest Files real-Postgres suite passes 10/10; the app wiring and AI flag were included in a combined 22/22 targeted run. Typecheck, lint, OpenAPI generation and Knip pass (Knip reports three configuration hints). Latest shared `rebuild/trunk` observed is `b1a8420f`, not yet synced into C; the trunk lock is free. The owner-reported test/Knip CI result is green through `9b5b430`; current remote status and D's parity fix remain unverified here.
-- Final local launch gate ran against code snapshot `da7c13f40717352ff6b550b7b5026dd6d1e62f94` on `rebuild/trunk`; command results and all Phase 16 §7 criteria are recorded in [`LAUNCH-GATE.md`](LAUNCH-GATE.md).
-- Launch gate remains open: server/module coverage is below thresholds; load acceptance is unrun; restore proof stops at migration 6002 (trunk is at 8010); security findings and six skipped `fixme` e2e checks remain; Lighthouse evidence and a route crawler are absent; earlier phase acceptance is incomplete. See the gate record for evidence.
-- Local `main` remains `d0f59a1c44e499dc69455ed3ad3e0a2dae9883de`; do not advance it until every launch criterion passes. Phase 15 remains with Track K.
+- Local full-gate rerun completed 2026-09-28 by 22:05 CDT on the D/C/I integration candidate; exact command results and all 11 Phase 16 §7 criteria are in [`LAUNCH-GATE.md`](LAUNCH-GATE.md).
+- Local merge gate passes for typecheck, lint, real-Postgres Vitest, Chromium, WebKit, build, size, registry/OpenAPI generation, Knip, audit threshold, and source scan. Launch gate remains open for coverage, load acceptance, current-head restore proof, three skipped SEC-002 checks, hosted CI/Linux parity, Lighthouse evidence, route crawler, and phase acceptance.
+- Do not advance local `main` (`d0f59a1c44e499dc69455ed3ad3e0a2dae9883de`) until every launch criterion passes. Phase 15 remains owned by Track K and is not complete on this trunk snapshot.
 
 ## Phase status
 
@@ -20,7 +17,7 @@
 | 3 | Sport engine, programs, teams, facilities | in progress | Shared sport engine/schema support exists; the full Programs, Teams and Facilities modules and acceptance are incomplete. |
 | 4 | Payments and finance | in progress | Test-mode Stripe/finance implementation is integrated; full finance acceptance remains open. |
 | 5 | Registration | in progress | Checkout and payer-owned PaymentIntent foundations are integrated; registration flow and acceptance remain open. |
-| 6 | Evaluations and team formation | not started | No Phase 6 implementation or acceptance evidence is recorded. |
+| 6 | Evaluations and team formation | in progress | Evaluation and placement paths are integrated; offer checkout and full Phase 6 acceptance remain open. |
 | 7 | Compliance and safety | in progress | Compliance/safety implementation and PostgreSQL coverage are integrated; all Phase 7 acceptance criteria are not yet met. |
 | 8 | Scheduling and facilities | in progress | Scheduling implementation and current trunk tests exist; full phase acceptance remains open. |
 | 9 | Game day, results, tournaments, officials | in progress | Contest, standings, tournament and official paths exist; full phase acceptance remains open. |
@@ -28,7 +25,7 @@
 | 11 | Volunteers, team finance, fundraising, store | in progress | Partial Phase 11 implementation/e2e coverage is present; sponsor/file delivery and acceptance remain open. |
 | 12 | Academy / class mode | in progress | Academy/class implementation is integrated and tested; required seeded demo and full acceptance remain open. |
 | 13 | Federation | in progress | Federation implementation is integrated and tested; required seeded association demo and full acceptance remain open. |
-| 14 | Reporting, website, exports | not started | Track D reports Phase 14 has not started; Lighthouse evidence is absent. |
+| 14 | Reporting, website, exports | in progress | Reporting, website, and export slices are integrated; Phase 14 acceptance and Lighthouse evidence remain open. |
 | 15 | Onboarding, imports, demo, AI assist | not started | Owned by Track K; its required implementation/seed acceptance is not on this trunk snapshot. |
 | 16 | Production hardening and launch gate | in progress | Some hardening checks pass, but multiple mandatory launch criteria fail; see [`LAUNCH-GATE.md`](LAUNCH-GATE.md). |
 
@@ -38,7 +35,7 @@
 |---|---|---|---|---|
 | A | Core and integration | GPT-6 Sol until S1 | working; Phase 2 acceptance remains | `track/a-core` |
 | B | Sport engine, algorithms, policies; platform infrastructure | GPT-6 Sol | integrated slices; tasks 9 and 13 and remaining acceptance open | `track/b-logic` |
-| C | Files, providers and wiring | GPT-6 Luna | final gate documented; launch criteria remain open | `track/c-adapters` |
+| C | Files, providers and wiring | GPT-6 Luna | final gate recorded; C branch remains unmerged and launch criteria remain open | `track/c-adapters` |
 | D | Design system | GPT-6 Luna | parity suite passes locally; Phase 14 and broader shell acceptance remain | `track/d-design` |
 | E | Stripe and finance | GPT-6 Sol | finance slices integrated; phase acceptance remains | `track/e-finance` |
 | F | Safety and compliance | GPT-6 Luna | foundation and restricted-file integration present; phase acceptance remains | `track/f-safety` |
@@ -187,3 +184,14 @@
 - [ ] Published form versioning and historical response rendering.
 - [ ] Signed waiver PDF evidence.
 - [ ] Staff household/two children/guardian invitation and guardian medical entry on a 390 px viewport with axe.
+
+
+## Final gate update — 2026-09-27, 20:00 CDT
+- Track B landed at `6e73bda8`; Track E landed at `2c52eb47`. Track F’s candidate was aborted after red real-Postgres checks; Track D’s Linux parity patch remains unmerged. The final gate on `2c52eb4718c41638a379b261a5f9cc1f49e547ce` failed: CI run 36364979347 is red in tests, E2E parity/schedule-stats, and Knip; local Postgres became unhealthy during the full suite. Typecheck, lint, build, size, registry/OpenAPI freshness, audit threshold, and TODO grep passed. Do not promote `main`. See `LAUNCH-GATE.md` for evidence and remaining blockers.
+
+
+## Final gate rerun — 2026-09-28, 22:05 CDT
+- Local full-gate candidate was based on `6dbb0e2a4deed06b1196b73dd9a6d2ffa14aff60`, with Track D through `bec47e21`, four focused Track I class-tenant fixes, and C registry/navigation/OpenAPI/Knip updates. Real PostgreSQL used `COMPOSE_PROJECT_NAME=athlentry_c_gate`, `PORT_OFFSET=5500`, host port 10932.
+- Green locally: typecheck, lint, full real-Postgres tests (308 files; 1,106 passed; 1 existing skip), Chromium (60 passed; 3 skipped), WebKit (56 passed; 7 skipped), build, size (150.42 kB gzip / 200 kB), registry/OpenAPI generation, Knip, high-threshold audit, and source scan. No tests were weakened.
+- Coverage does not meet launch thresholds: all statements 66.63%, server 66.04%, shared 95.84%, auth 85.94%, finance 81.97%, registration 65.11%, checkout 82.25%, compliance 54.10%. Three SEC-002 browser checks remain skipped.
+- Latest hosted run `36489602298` tested old SHA `91614aa` and failed test, E2E, OpenAPI freshness, and Knip. The current candidate is unpushed and has no hosted result. Do not advance `main`; it remains `d0f59a1c44e499dc69455ed3ad3e0a2dae9883de`. See [`LAUNCH-GATE.md`](LAUNCH-GATE.md).
