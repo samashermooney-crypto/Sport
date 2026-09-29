@@ -107,6 +107,29 @@ test('a new organization persists and auto-completes its nine setup items using 
         .execute();
     });
 
+    await signIn(page, testInfo, database, actor.accountId);
+    await page.goto(`/console/orgs/${actor.orgId}/onboarding`);
+    await expect(
+      page.getByRole('heading', { name: 'Organization setup' }),
+    ).toBeVisible();
+    await expect(page.getByText('0/9 done')).toBeVisible();
+    await expect(page.getByText('Connect payments')).toBeVisible();
+    await expect(page.getByText('Open registration')).toBeVisible();
+
+    const initialChecklist = await withOrg(actor, (trx) =>
+      trx
+        .selectFrom('org_onboarding_items')
+        .select(['completed_at', 'dismissed_at'])
+        .where('org_id', '=', actor.orgId)
+        .execute(),
+    );
+    expect(initialChecklist).toHaveLength(9);
+    expect(
+      initialChecklist.every(
+        (item) => item.completed_at === null && item.dismissed_at === null,
+      ),
+    ).toBe(true);
+
     // Create the connected account against the local stripe-mock container.
     const stripe = new Stripe('sk_test_mock', {
       host: '127.0.0.1',
@@ -249,7 +272,11 @@ test('a new organization persists and auto-completes its nine setup items using 
         .execute();
     });
 
-    await signIn(page, testInfo, database, actor.accountId);
+    await page.goto(`/console/orgs/${actor.orgId}/onboarding`);
+    await expect(
+      page.getByRole('heading', { name: 'Organization setup' }),
+    ).toBeVisible();
+    await expect(page.getByText('9/9 done')).toBeVisible();
     await page.goto(`/console/orgs/${actor.orgId}`);
     const setupLink = page
       .getByRole('link', { name: 'Organization setup', exact: true })
