@@ -177,6 +177,52 @@
   color: var(--ink-2);
 }
 
+.website-contact-inbox__actions,
+.website-contact-inbox__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.website-contact-inbox__actions {
+  margin: 0 0 var(--space-4);
+}
+
+.website-contact-inbox__actions p,
+.website-contact-inbox__heading p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.website-contact-inbox__list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.website-contact-inbox__heading {
+  align-items: flex-start;
+}
+
+.website-contact-inbox__heading h2 {
+  margin: 0 0 var(--space-1);
+}
+
+.website-contact-inbox__body {
+  margin: var(--space-4) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.website-contact-inbox__heading > span {
+  flex: 0 0 auto;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-size: var(--font-size-12);
+}
+
 .website-embed-registration a {
   display: inline-flex;
   min-height: 44px;

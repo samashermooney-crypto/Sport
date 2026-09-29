@@ -10,6 +10,21 @@ const FamilySchedule = lazy(() =>
     default: Component,
   })),
 );
+const LiveContestPage = lazy(() =>
+  import('./LiveContestPage').then(({ LiveContestPage: Component }) => ({
+    default: Component,
+  })),
+);
+const OfficialAssignmentsPortal = lazy(() =>
+  import('./OfficialAssignmentsPortal').then(
+    ({ OfficialAssignmentsPortal: Component }) => ({ default: Component }),
+  ),
+);
+const PracticeSlotPicker = lazy(() =>
+  import('./PracticeSlotPicker').then(({ PracticeSlotPicker: Component }) => ({
+    default: Component,
+  })),
+);
 const PublicFacilityPage = lazy(() =>
   import('./PublicFacilityPage').then(({ PublicFacilityPage: Component }) => ({
     default: Component,
@@ -59,6 +74,29 @@ function FamilyScheduleRoute(): React.JSX.Element {
   );
 }
 
+function PracticeSlotPickerRoute(): React.JSX.Element {
+  const { orgId, teamSeasonId } = useParams<{
+    orgId: string;
+    teamSeasonId: string;
+  }>();
+  return orgId && teamSeasonId ? (
+    loading(<PracticeSlotPicker orgId={orgId} teamSeasonId={teamSeasonId} />)
+  ) : (
+    <main className="schedule-page">
+      Choose a team to request practice time.
+    </main>
+  );
+}
+
+function OfficialAssignmentsRoute(): React.JSX.Element {
+  const { orgId } = useParams<{ orgId: string }>();
+  return orgId ? (
+    loading(<OfficialAssignmentsPortal orgId={orgId} />)
+  ) : (
+    <main className="schedule-page">Organization not found.</main>
+  );
+}
+
 function PublicFacilityRoute(): React.JSX.Element {
   const { slug, facilityId } = useParams<{
     slug: string;
@@ -77,6 +115,15 @@ function PublicTournamentRoute(): React.JSX.Element {
     loading(<PublicTournamentPage slug={slug} bracketId={bracketId} />)
   ) : (
     <main className="schedule-page">Tournament not found.</main>
+  );
+}
+
+function LiveContestRoute(): React.JSX.Element {
+  const { slug, contestId } = useParams<{ slug: string; contestId: string }>();
+  return slug && contestId ? (
+    loading(<LiveContestPage slug={slug} contestId={contestId} />)
+  ) : (
+    <main className="schedule-page">Contest not found.</main>
   );
 }
 
@@ -115,6 +162,14 @@ function PublicDivisionStandingsRoute(): React.JSX.Element {
 
 export const portalScheduleRoutes: readonly RouteObject[] = [
   {
+    path: '/portal/orgs/:orgId/schedule/officials',
+    element: <OfficialAssignmentsRoute />,
+  },
+  {
+    path: '/portal/orgs/:orgId/schedule/teams/:teamSeasonId/practice-slots',
+    element: <PracticeSlotPickerRoute />,
+  },
+  {
     path: '/portal/orgs/:orgId/schedule/teams/:teamSeasonId/people/:personId',
     element: <FamilyScheduleRoute />,
   },
@@ -125,6 +180,10 @@ export const portalScheduleRoutes: readonly RouteObject[] = [
   {
     path: '/orgs/:slug/tournaments/:bracketId',
     element: <PublicTournamentRoute />,
+  },
+  {
+    path: '/orgs/:slug/contests/:contestId/live',
+    element: <LiveContestRoute />,
   },
   {
     path: '/orgs/:slug/programs/:programId/standings',

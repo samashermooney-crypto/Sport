@@ -20,6 +20,10 @@ import {
   websiteEmbedListSchema,
   websiteEmbedSchema,
   websitePublicEmbedSchema,
+  websiteContactSubmissionBodySchema,
+  websiteContactSubmissionListSchema,
+  websiteContactSubmissionSchema,
+  websiteContactReadResponseSchema,
   websiteNewsBodySchema,
   websiteNewsListSchema,
   websiteNewsPostSchema,
@@ -835,7 +839,7 @@ async function getPublicWebsiteChrome(
   const website = await runWithOrg(context, async (trx) => {
     const settings = await trx
       .selectFrom('website_settings')
-      .select(['published', 'robots_policy', 'theme'])
+      .select(['published', 'robots_policy', 'theme', 'contact_inbox_email'])
       .executeTakeFirst();
     if (!settings?.published) return null;
 
@@ -862,6 +866,11 @@ async function getPublicWebsiteChrome(
         href: `/site/${organization.slug}/news`,
       },
     ];
+    if (settings.contact_inbox_email)
+      generatedNavigation.push({
+        label: locale === 'es' ? 'Contacto' : 'Contact',
+        href: `/site/${organization.slug}/contact`,
+      });
     const configuredNavigation = headerMenu
       ? websiteMenuItemSchema.array().parse(headerMenu.items)
       : await trx
@@ -888,6 +897,7 @@ async function getPublicWebsiteChrome(
     return {
       theme: readTheme(settings.theme),
       robotsPolicy: settings.robots_policy,
+      contactEnabled: Boolean(settings.contact_inbox_email),
       navigation,
       footerNavigation: footerMenu
         ? websiteMenuItemSchema.array().parse(footerMenu.items)
@@ -904,6 +914,15 @@ async function getPublicWebsiteChrome(
     },
     ...website,
   };
+}
+
+export async function getPublicWebsiteContactPage(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const site = await getPublicWebsiteChrome(database, orgSlug, runWithOrg);
+  return site?.contactEnabled ? site : null;
 }
 
 function publicProgramDate(value: Date | string): string {
@@ -1076,6 +1095,127 @@ export async function getPublicWebsiteSchedule(
       programName: event.programName,
     })),
   };
+}
+
+export async function createPublicWebsiteContactSubmission(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  input: unknown,
+  captchaTokenDigest: string,
+  remoteIp: string | undefined,
+  now = new Date(),
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const body = websiteContactSubmissionBodySchema.parse(input);
+  const organization = await database
+    .selectFrom('organizations')
+    .select(['id', 'name', 'status'])
+    .where('slug', '=', orgSlug)
+    .where('status', '=', 'active')
+    .executeTakeFirst();
+  if (!organization) return null;
+
+  const context = {
+    orgId: organization.id,
+    actor: { accountId: publicActor },
+  };
+  const settings = await runWithOrg(context, (trx) =>
+    trx
+      .selectFrom('website_settings')
+      .select(['published', 'contact_inbox_email'])
+      .executeTakeFirst(),
+  );
+  if (!settings?.published || !settings.contact_inbox_email) return null;
+
+  const submission = await runWithOrg(context, (trx) =>
+    trx
+      .insertInto('contact_submissions')
+      .values({
+        id: randomUUID(),
+        org_id: organization.id,
+        name: body.name,
+        email: body.email,
+        subject: body.subject || null,
+        body: body.body,
+        turnstile_token: captchaTokenDigest,
+        ip: remoteIp ?? null,
+        status: 'new',
+        created_at: now,
+        updated_at: now,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow(),
+  );
+  return {
+    id: submission.id,
+    organizationName: organization.name,
+    inboxEmail: settings.contact_inbox_email,
+  };
+}
+
+export async function listWebsiteContactSubmissions(
+  context: OrgContext,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const rows = await trx
+      .selectFrom('contact_submissions')
+      .select([
+        'id',
+        'name',
+        'email',
+        'subject',
+        'body',
+        'status',
+        'created_at',
+      ])
+      .where('org_id', '=', context.orgId)
+      .orderBy('created_at', 'desc')
+      .limit(200)
+      .execute();
+    return websiteContactSubmissionListSchema.parse({
+      items: rows.map((row) =>
+        websiteContactSubmissionSchema.parse({
+          id: row.id,
+          name: row.name,
+          email: row.email,
+          subject: row.subject ?? '',
+          body: row.body,
+          status: row.status,
+          createdAt: row.created_at.toISOString(),
+        }),
+      ),
+    });
+  });
+}
+
+export async function markWebsiteContactSubmissionsRead(
+  context: OrgContext,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  return runWithOrg(context, async (trx) => {
+    await authorizeEditor(trx, context);
+    const changed = await trx
+      .updateTable('contact_submissions')
+      .set({ status: 'read' })
+      .where('org_id', '=', context.orgId)
+      .where('status', '=', 'new')
+      .returning('id')
+      .execute();
+    if (changed.length > 0)
+      await appendAuditEvent(trx, context, {
+        action: 'website.contact_submissions.read',
+        entityType: 'website_contact_submissions',
+        entityId: context.orgId,
+        changes: {
+          unreadCount: { tier: 'internal', after: changed.length },
+        },
+      });
+    return websiteContactReadResponseSchema.parse({
+      updatedCount: changed.length,
+    });
+  });
 }
 
 export async function listPublicWebsitePages(

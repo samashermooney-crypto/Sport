@@ -1,6 +1,12 @@
+import { createHash } from 'node:crypto';
+
 import { apiErrorSchema } from '@shared/schemas/errors';
 import { orgSlugSchema } from '@shared/schemas/orgs';
 import {
+  websiteContactReadResponseSchema,
+  websiteContactSubmissionBodySchema,
+  websiteContactSubmissionListSchema,
+  websiteContactSubmissionResponseSchema,
   websiteMenuBodySchema,
   websiteDomainCreateSchema,
   websiteDomainListSchema,
@@ -41,6 +47,7 @@ import {
   listPublicWebsitePlans,
   listPublicWebsiteNews,
   listPublicWebsitePages,
+  listWebsiteContactSubmissions,
   listWebsiteMenus,
   listWebsitePages,
   listWebsiteNews,
@@ -51,6 +58,8 @@ import {
   saveWebsiteNews,
   saveWebsiteSettings,
   saveWebsiteEmbed,
+  createPublicWebsiteContactSubmission,
+  markWebsiteContactSubmissionsRead,
   setPrimaryWebsiteDomain,
   verifyWebsiteDomain,
 } from './service';
@@ -130,6 +139,7 @@ export function createWebsiteRouter(
   dependencies: AuthDependencies,
 ): express.Router {
   const router = express.Router();
+  router.use(express.json({ limit: '128kb' }));
   const withOrg = createWithOrg(dependencies.database);
 
   router.get(
@@ -160,6 +170,68 @@ export function createWebsiteRouter(
           'public, max-age=60, stale-while-revalidate=300',
         )
         .json(result);
+    }),
+  );
+
+  router.post(
+    '/public/:orgSlug/contact',
+    express.urlencoded({ extended: false, limit: '8kb' }),
+    route(async (request, response) => {
+      const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
+      const incoming =
+        request.body && typeof request.body === 'object'
+          ? (request.body as Record<string, unknown>)
+          : {};
+      const body = websiteContactSubmissionBodySchema.parse({
+        name: incoming.name,
+        email: incoming.email,
+        subject: incoming.subject,
+        body: incoming.body,
+        captchaToken:
+          incoming.captchaToken ?? incoming['cf-turnstile-response'],
+      });
+      if (!(await dependencies.captcha.verify(body.captchaToken, request.ip)))
+        throw new WebsiteError(403, 'FORBIDDEN', 'Captcha verification failed');
+      const submitted = await createPublicWebsiteContactSubmission(
+        dependencies.database,
+        orgSlug,
+        body,
+        createHash('sha256').update(body.captchaToken).digest('hex'),
+        request.ip,
+        dependencies.clock(),
+        withOrg,
+      );
+      if (!submitted) {
+        response.sendStatus(404);
+        return;
+      }
+      try {
+        await dependencies.email.send({
+          to: submitted.inboxEmail,
+          subject: 'Website contact form submission',
+          text: [
+            `Organization: ${submitted.organizationName}`,
+            `Name: ${body.name}`,
+            `Email: ${body.email}`,
+            ...(body.subject ? [`Subject: ${body.subject}`] : []),
+            '',
+            body.body,
+          ].join('\n'),
+          replyTo: body.email,
+          kind: 'transactional',
+          idempotencyKey: `website-contact:${submitted.id}`,
+        });
+      } catch {
+        // The submission remains available in the authenticated website inbox.
+      }
+      if (request.is('application/x-www-form-urlencoded')) {
+        response.redirect(303, `/site/${orgSlug}/contact?sent=1`);
+        return;
+      }
+      response
+        .status(202)
+        .setHeader('Cache-Control', 'no-store')
+        .json(websiteContactSubmissionResponseSchema.parse({ received: true }));
     }),
   );
 
@@ -256,6 +328,43 @@ export function createWebsiteRouter(
       );
       response.setHeader('Cache-Control', 'no-store');
       response.json(websiteNewsListSchema.parse(result));
+    }),
+  );
+
+  router.get(
+    '/orgs/:orgId/contact-submissions',
+    route(async (request, response) => {
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await listWebsiteContactSubmissions(
+        requestContext(orgId, session.accountId),
+        withOrg,
+      );
+      response.setHeader('Cache-Control', 'no-store');
+      response.json(websiteContactSubmissionListSchema.parse(result));
+    }),
+  );
+
+  router.post(
+    '/orgs/:orgId/contact-submissions/mark-read',
+    route(async (request, response) => {
+      if (!mutationOriginIsValid(request, dependencies.appUrl)) {
+        throw new WebsiteError(
+          403,
+          'FORBIDDEN',
+          'Request origin is not allowed',
+        );
+      }
+      emptyBodySchema.parse(request.body);
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await markWebsiteContactSubmissionsRead(
+        requestContext(orgId, session.accountId),
+        withOrg,
+      );
+      response
+        .setHeader('Cache-Control', 'no-store')
+        .json(websiteContactReadResponseSchema.parse(result));
     }),
   );
 

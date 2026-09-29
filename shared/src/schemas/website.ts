@@ -111,7 +111,7 @@ export const websitePublicPageSchema = z.strictObject({
   footerNavigation: z.array(websiteMenuItemSchema),
 });
 
-export const websiteNewsSlugSchema = z
+const websiteNewsSlugSchema = z
   .string()
   .trim()
   .min(1)
@@ -215,6 +215,39 @@ export const websiteSettingsResponseSchema = z.strictObject({
   settings: websiteSettingsSchema,
 });
 
+export const websiteContactSubmissionBodySchema = z.strictObject({
+  name: z.string().trim().min(1).max(120),
+  email: z.email().max(254),
+  subject: z.string().trim().max(160).default(''),
+  body: z.string().trim().min(1).max(5000),
+  captchaToken: z.string().trim().min(1).max(2048),
+});
+
+export const websiteContactSubmissionSchema = z.strictObject({
+  id: z.uuid(),
+  name: z.string(),
+  email: z.email(),
+  subject: z.string(),
+  body: z.string(),
+  status: z.enum(['new', 'read', 'archived']),
+  createdAt: z.iso.datetime({ offset: true }),
+});
+export type WebsiteContactSubmission = z.infer<
+  typeof websiteContactSubmissionSchema
+>;
+
+export const websiteContactSubmissionListSchema = z.strictObject({
+  items: z.array(websiteContactSubmissionSchema),
+});
+
+export const websiteContactSubmissionResponseSchema = z.strictObject({
+  received: z.literal(true),
+});
+
+export const websiteContactReadResponseSchema = z.strictObject({
+  updatedCount: z.number().int().nonnegative(),
+});
+
 export const websiteMenuResponseSchema = z.strictObject({
   menu: websiteMenuSchema,
 });
@@ -223,7 +256,7 @@ export type WebsiteSettings = z.infer<typeof websiteSettingsSchema>;
 export type WebsiteMenu = z.infer<typeof websiteMenuSchema>;
 export type WebsiteMenuItem = z.infer<typeof websiteMenuItemSchema>;
 
-export const websiteDomainHostSchema = z
+const websiteDomainHostSchema = z
   .string()
   .trim()
   .toLowerCase()
@@ -326,5 +359,4 @@ export const websiteSaveResponseSchema = z.strictObject({
 });
 
 export type WebsiteBlock = z.infer<typeof websiteBlockSchema>;
-export type WebsitePageBody = z.infer<typeof websitePageBodySchema>;
 export type WebsiteNewsPost = z.infer<typeof websiteNewsPostSchema>;

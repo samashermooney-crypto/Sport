@@ -184,6 +184,7 @@ export function createReportsRouter(
   dependencies: AuthDependencies,
 ): express.Router {
   const router = express.Router();
+  router.use(express.json({ limit: '64kb' }));
   const withOrg = createWithOrg(dependencies.database);
 
   router.get(

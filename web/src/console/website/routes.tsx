@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
 import { WebsiteConsole } from './WebsiteConsole';
+import { WebsiteContactsConsole } from './WebsiteContactsConsole';
 import { WebsiteDomainsConsole } from './WebsiteDomainsConsole';
 import { WebsiteEmbedsConsole } from './WebsiteEmbedsConsole';
 import { WebsiteNewsConsole } from './WebsiteNewsConsole';
@@ -52,8 +53,21 @@ function WebsiteEmbedsRoute(): React.JSX.Element {
   );
 }
 
+function WebsiteContactsRoute(): React.JSX.Element {
+  const { orgId } = useParams<{ orgId: string }>();
+  return orgId ? (
+    <WebsiteContactsConsole orgId={orgId} />
+  ) : (
+    <main>Organization not found.</main>
+  );
+}
+
 export const consoleWebsiteRoutes: readonly RouteObject[] = [
   { path: '/console/orgs/:orgId/website', element: <WebsiteRoute /> },
+  {
+    path: '/console/orgs/:orgId/website/contacts',
+    element: <WebsiteContactsRoute />,
+  },
   {
     path: '/console/orgs/:orgId/website/settings',
     element: <WebsiteSettingsRoute />,

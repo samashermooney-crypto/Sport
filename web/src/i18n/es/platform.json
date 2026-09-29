@@ -116,5 +116,30 @@
     "loading": "Cargando noticias del sitio web…",
     "unavailable": "El editor de noticias de la organización no está disponible.",
     "saveFailed": "No se pudo guardar la noticia."
+  },
+  "websiteContacts": {
+    "manage": "Administrar",
+    "home": "Inicio",
+    "website": "Sitio web",
+    "account": "Cuenta",
+    "contactInbox": "Bandeja de contacto",
+    "kicker": "SITIO PÚBLICO",
+    "title": "Bandeja de contacto",
+    "description": "Lee los mensajes enviados desde el sitio web de tu organización.",
+    "loading": "Cargando mensajes de contacto…",
+    "unavailable": "La bandeja del sitio web no está disponible.",
+    "unreadCount_one": "{{count}} mensaje sin leer",
+    "unreadCount_other": "{{count}} mensajes sin leer",
+    "markAllRead": "Marcar todo como leído",
+    "markingRead": "Marcando como leído…",
+    "markReadFailed": "No se pudieron marcar los mensajes como leídos.",
+    "markedRead_one": "{{count}} mensaje marcado como leído.",
+    "markedRead_other": "{{count}} mensajes marcados como leídos.",
+    "inboxEmpty": "Tu bandeja está vacía",
+    "inboxEmptyDescription": "Los mensajes nuevos del sitio web aparecerán aquí.",
+    "messageFallback": "Mensaje del sitio web",
+    "unread": "Sin leer",
+    "read": "Leído",
+    "archived": "Archivado"
   }
 }

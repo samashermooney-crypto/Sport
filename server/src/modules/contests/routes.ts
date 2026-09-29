@@ -371,5 +371,45 @@ export function createContestsRouter(
       }
     },
   );
+  router.get(
+    '/public/orgs/:orgSlug/contests/:contestId/live/events',
+    async (req, res) => {
+      try {
+        const orgSlug = z.string().min(1).parse(req.params.orgSlug);
+        const contestId = id.parse(req.params.contestId);
+        let snapshot = await liveContestPublic(orgSlug, contestId);
+        res.status(200).set({
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        });
+        res.flushHeaders();
+        const signal = new AbortController();
+        res.on('close', () => {
+          signal.abort();
+        });
+        let previousVersion: number | undefined;
+        const deadline = Date.now() + 10 * 60_000;
+        while (!signal.signal.aborted && Date.now() < deadline) {
+          if (snapshot.contest.version !== previousVersion) {
+            res.write(
+              `id: ${String(snapshot.contest.version)}\nevent: score\ndata: ${JSON.stringify(snapshot)}\n\n`,
+            );
+            previousVersion = snapshot.contest.version;
+          } else {
+            res.write(': keepalive\n\n');
+          }
+          if (snapshot.contest.status === 'final') break;
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          snapshot = await liveContestPublic(orgSlug, contestId);
+        }
+        res.end();
+      } catch (error) {
+        if (res.headersSent) res.end();
+        else fail(res, error);
+      }
+    },
+  );
   return router;
 }

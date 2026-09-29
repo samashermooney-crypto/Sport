@@ -9,6 +9,7 @@ import { createWithOrg } from '../../db/withOrg';
 import type { AuthDependencies } from '../auth/routes';
 
 import {
+  getPublicWebsiteContactPage,
   getPublicWebsiteProgram,
   getPublicWebsitePrograms,
   getPublicWebsiteSchedule,
@@ -21,6 +22,38 @@ function safeJsonLd(value: unknown): string {
     .replaceAll('<', '\\u003c')
     .replaceAll('>', '\\u003e')
     .replaceAll('&', '\\u0026');
+}
+
+function siteFontPreloads(): ReactNode[] {
+  return [
+    createElement('link', {
+      key: 'fonts-preconnect',
+      rel: 'preconnect',
+      href: 'https://fonts.googleapis.com',
+    }),
+    createElement('link', {
+      key: 'font-files-preconnect',
+      rel: 'preconnect',
+      href: 'https://fonts.gstatic.com',
+      crossOrigin: 'anonymous',
+    }),
+    createElement('link', {
+      key: 'open-sans-latin-preload',
+      rel: 'preload',
+      href: 'https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTS-mu0SC55I.woff2',
+      as: 'font',
+      type: 'font/woff2',
+      crossOrigin: 'anonymous',
+    }),
+    createElement('link', {
+      key: 'open-sans-latin-ext-preload',
+      rel: 'preload',
+      href: 'https://fonts.gstatic.com/l/font?kit=memFYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0EwsQaPuWBIXazFHt1kuGajuKbEhWw&skey=62c1cbfccc78b4b2&v=v44',
+      as: 'font',
+      type: 'font/woff2',
+      crossOrigin: 'anonymous',
+    }),
+  ];
 }
 
 function renderDocument(
@@ -78,6 +111,7 @@ function renderDocument(
         name: 'viewport',
         content: 'width=device-width, initial-scale=1',
       }),
+      ...siteFontPreloads(),
       createElement('link', { rel: 'stylesheet', href: '/site.css' }),
       createElement('title', null, title),
       description
@@ -258,6 +292,7 @@ function renderNewsDocument(
         name: 'viewport',
         content: 'width=device-width, initial-scale=1',
       }),
+      ...siteFontPreloads(),
       createElement('link', { rel: 'stylesheet', href: '/site.css' }),
       createElement('title', null, title),
       createElement('meta', { name: 'description', content: copy.description }),
@@ -366,6 +401,7 @@ type GeneratedSiteChrome = {
   organization: { id: string; name: string; slug: string; locale: string };
   theme: { primary: string; secondary: string };
   robotsPolicy: string;
+  contactEnabled?: boolean;
   navigation: { label: string; href: string }[];
   footerNavigation: { label: string; href: string }[];
 };
@@ -392,6 +428,7 @@ function renderGeneratedSitePage(
         name: 'viewport',
         content: 'width=device-width, initial-scale=1',
       }),
+      ...siteFontPreloads(),
       createElement('link', { rel: 'stylesheet', href: '/site.css' }),
       createElement('title', null, options.title),
       createElement('meta', {
@@ -765,8 +802,129 @@ function renderScheduleDocument(
   });
 }
 
+function renderContactDocument(
+  site: NonNullable<Awaited<ReturnType<typeof getPublicWebsiteContactPage>>>,
+  options: { siteKey?: string; sent: boolean },
+) {
+  const spanish = site.organization.locale === 'es';
+  const title = `${spanish ? 'Contacto' : 'Contact'} · ${site.organization.name}`;
+  const description = spanish
+    ? `Contacta con ${site.organization.name}.`
+    : `Contact ${site.organization.name}.`;
+  const form = createElement(
+    'form',
+    {
+      className: 'public-site-contact-form',
+      action: `/api/v1/website/public/${site.organization.slug}/contact`,
+      method: 'post',
+    },
+    createElement(
+      'label',
+      null,
+      spanish ? 'Nombre' : 'Name',
+      createElement('input', {
+        name: 'name',
+        type: 'text',
+        autoComplete: 'name',
+        maxLength: 120,
+        required: true,
+      }),
+    ),
+    createElement(
+      'label',
+      null,
+      spanish ? 'Correo electrónico' : 'Email address',
+      createElement('input', {
+        name: 'email',
+        type: 'email',
+        autoComplete: 'email',
+        maxLength: 254,
+        required: true,
+      }),
+    ),
+    createElement(
+      'label',
+      null,
+      spanish ? 'Asunto (opcional)' : 'Subject (optional)',
+      createElement('input', {
+        name: 'subject',
+        type: 'text',
+        maxLength: 160,
+      }),
+    ),
+    createElement(
+      'label',
+      null,
+      spanish ? 'Mensaje' : 'Message',
+      createElement('textarea', {
+        name: 'body',
+        rows: 6,
+        maxLength: 5000,
+        required: true,
+      }),
+    ),
+    options.siteKey
+      ? createElement(
+          'div',
+          { className: 'public-site-contact-challenge' },
+          createElement('div', {
+            className: 'cf-turnstile',
+            'data-sitekey': options.siteKey,
+            'data-action': 'sign-up',
+          }),
+          createElement('script', {
+            src: 'https://challenges.cloudflare.com/turnstile/v0/api.js',
+            async: true,
+            defer: true,
+          }),
+        )
+      : createElement('input', {
+          type: 'hidden',
+          name: 'captchaToken',
+          value: 'preview-contact-token',
+        }),
+    createElement(
+      'button',
+      { type: 'submit' },
+      spanish ? 'Enviar mensaje' : 'Send message',
+    ),
+  );
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'ContactPage',
+    name: title,
+    url: `https://${site.organization.slug}.athlentry.com/site/${site.organization.slug}/contact`,
+    mainEntity: {
+      '@type': 'SportsOrganization',
+      name: site.organization.name,
+    },
+  };
+  return renderGeneratedSitePage(site, {
+    title,
+    description,
+    canonicalPath: `/site/${site.organization.slug}/contact`,
+    jsonLd,
+    main: createElement(
+      'main',
+      { id: 'main-content', className: 'public-site-main' },
+      createElement('h1', null, spanish ? 'Contacto' : 'Contact'),
+      options.sent
+        ? createElement(
+            'p',
+            { role: 'status', 'aria-live': 'polite' },
+            spanish
+              ? 'Gracias. Hemos recibido tu mensaje.'
+              : 'Thank you. Your message has been received.',
+          )
+        : null,
+      form,
+    ),
+  });
+}
+
 export function createSiteSsrRouter(
-  dependencies: Pick<AuthDependencies, 'database'>,
+  dependencies: Pick<AuthDependencies, 'database'> &
+    Partial<Pick<AuthDependencies, 'captchaWidget'>>,
 ): express.Router {
   const router = express.Router();
   const withOrg = createWithOrg(dependencies.database);
@@ -846,6 +1004,39 @@ export function createSiteSsrRouter(
           )
           .type('html')
           .send(renderScheduleDocument(site));
+      })
+      .catch(() => response.sendStatus(500));
+  });
+  router.get('/:orgSlug/contact', (request, response) => {
+    const orgSlug = orgSlugSchema.safeParse(request.params.orgSlug);
+    if (!orgSlug.success) {
+      response.sendStatus(404);
+      return;
+    }
+    void getPublicWebsiteContactPage(
+      dependencies.database,
+      orgSlug.data,
+      withOrg,
+    )
+      .then((site) => {
+        if (!site) {
+          response.sendStatus(404);
+          return;
+        }
+        response
+          .setHeader(
+            'Cache-Control',
+            'public, max-age=60, stale-while-revalidate=300',
+          )
+          .type('html')
+          .send(
+            renderContactDocument(site, {
+              ...(dependencies.captchaWidget?.mode === 'turnstile'
+                ? { siteKey: dependencies.captchaWidget.siteKey }
+                : {}),
+              sent: request.query.sent === '1',
+            }),
+          );
       })
       .catch(() => response.sendStatus(500));
   });

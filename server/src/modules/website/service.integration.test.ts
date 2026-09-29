@@ -11,6 +11,10 @@ import type { OrgContext } from '../../db/withOrg';
 import { createSiteSsrRouter } from './public';
 import {
   getWebsiteSettings,
+  createPublicWebsiteContactSubmission,
+  getPublicWebsiteContactPage,
+  listWebsiteContactSubmissions,
+  markWebsiteContactSubmissionsRead,
   getPublicWebsiteProgram,
   getPublicWebsitePrograms,
   getPublicWebsiteSchedule,
@@ -80,6 +84,144 @@ beforeAll(async () => {
 afterAll(async () => database.destroy());
 
 describe('website page service', () => {
+  it('routes verified contact submissions to the protected organization inbox', async () => {
+    const now = new Date('2026-09-28T18:00:00.000Z');
+    const inboxEmail = `website-inbox-${orgId.slice(0, 8)}@example.invalid`;
+    const coachId = randomUUID();
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    try {
+      await admin.query(
+        'UPDATE website_settings SET published = true, contact_inbox_email = $2 WHERE org_id = $1',
+        [orgId, inboxEmail],
+      );
+      await admin.query(
+        'INSERT INTO accounts(id,email,first_name,last_name,date_of_birth) VALUES ($1,$2,$3,$4,$5)',
+        [
+          coachId,
+          `${coachId}@example.invalid`,
+          'Public',
+          'Coach',
+          '1988-01-01',
+        ],
+      );
+      await admin.query(
+        'INSERT INTO org_memberships(id,org_id,account_id,status) VALUES ($1,$2,$3,$4)',
+        [randomUUID(), orgId, coachId, 'active'],
+      );
+      const page = await getPublicWebsiteContactPage(
+        database,
+        orgSlug,
+        withOrg,
+      );
+      expect(page?.navigation).toContainEqual({
+        label: 'Contact',
+        href: `/site/${orgSlug}/contact`,
+      });
+
+      const tokenDigest = 'a'.repeat(64);
+      const created = await createPublicWebsiteContactSubmission(
+        database,
+        orgSlug,
+        {
+          name: 'Avery Guardian',
+          email: 'avery@example.invalid',
+          subject: 'Tryout dates',
+          body: 'When will tryouts begin?',
+          captchaToken: 'server-verified-token',
+        },
+        tokenDigest,
+        '192.0.2.44',
+        now,
+        withOrg,
+      );
+      expect(created).toMatchObject({
+        organizationName: 'Website Test Club',
+        inboxEmail,
+      });
+      expect(created?.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+      const inbox = await listWebsiteContactSubmissions(context, withOrg);
+      expect(inbox.items).toContainEqual({
+        id: created?.id,
+        name: 'Avery Guardian',
+        email: 'avery@example.invalid',
+        subject: 'Tryout dates',
+        body: 'When will tryouts begin?',
+        status: 'new',
+        createdAt: now.toISOString(),
+      });
+      await expect(
+        listWebsiteContactSubmissions(
+          { orgId, actor: { accountId: coachId } },
+          withOrg,
+        ),
+      ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+      await expect(
+        markWebsiteContactSubmissionsRead(
+          { orgId, actor: { accountId: coachId } },
+          withOrg,
+        ),
+      ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+      expect(await markWebsiteContactSubmissionsRead(context, withOrg)).toEqual(
+        {
+          updatedCount: 1,
+        },
+      );
+      expect(await markWebsiteContactSubmissionsRead(context, withOrg)).toEqual(
+        {
+          updatedCount: 0,
+        },
+      );
+      await expect(
+        listWebsiteContactSubmissions(context, withOrg),
+      ).resolves.toMatchObject({
+        items: [expect.objectContaining({ id: created?.id, status: 'read' })],
+      });
+
+      const app = express();
+      app.use(createSiteSsrRouter({ database }));
+      const server = app.listen(0);
+      await new Promise<void>((resolve) => server.once('listening', resolve));
+      try {
+        const address = server.address();
+        if (!address || typeof address === 'string')
+          throw new Error('The test server did not open a TCP port');
+        const response = await fetch(
+          `http://127.0.0.1:${String(address.port)}/${orgSlug}/contact`,
+        );
+        const html = await response.text();
+        expect(response.status).toBe(200);
+        expect(html).toContain(
+          `action="/api/v1/website/public/${orgSlug}/contact"`,
+        );
+        expect(html).toContain('name="captchaToken"');
+        expect(html).toContain('rel="preload"');
+        expect(html).toContain('as="font"');
+        expect(html).toContain(
+          'memFYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0EwsQaPuWBIXazFHt1kuGajuKbEhWw',
+        );
+        expect(html).not.toContain(inboxEmail);
+      } finally {
+        await new Promise<void>((resolve, reject) =>
+          server.close((error) => {
+            if (error) reject(error);
+            else resolve();
+          }),
+        );
+      }
+    } finally {
+      await admin.query(
+        'UPDATE website_settings SET contact_inbox_email = NULL WHERE org_id = $1',
+        [orgId],
+      );
+      await admin.end();
+    }
+  });
+
   it('requires a matching DNS record and trusted TLS before a domain is primary', async () => {
     const added = await addWebsiteDomain(
       context,

@@ -296,7 +296,13 @@ function groupExpression(
   timeGrain: ReportDefinition['timeGrain'],
 ): RawBuilder<unknown> {
   if (!timeGrain) return columnExpression(column);
-  return sql`date_trunc(${timeGrain}, ${columnExpression(column)}::timestamp)`;
+  const grain = {
+    day: sql`'day'`,
+    week: sql`'week'`,
+    month: sql`'month'`,
+    year: sql`'year'`,
+  }[timeGrain];
+  return sql`date_trunc(${grain}, ${columnExpression(column)}::timestamp)`;
 }
 
 function filterExpression(

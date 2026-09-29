@@ -6,7 +6,15 @@ import { createDatabase, getDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 
-import { saveLineup } from './service';
+import {
+  attendanceReport,
+  checkOutAthlete,
+  coachGameDay,
+  listEventAttendance,
+  rsvpForChild,
+  saveLineup,
+  setAttendance,
+} from './service';
 
 let database: ReturnType<typeof createDatabase>;
 
@@ -27,6 +35,8 @@ describe('attendance discipline integration', () => {
     const accountId = newId();
     const orgId = newId();
     const personId = newId();
+    const pickupPersonId = newId();
+    const householdId = newId();
     const profileId = newId();
     const seasonId = newId();
     const programId = newId();
@@ -93,6 +103,60 @@ describe('attendance discipline integration', () => {
           last_name: 'Player',
           date_of_birth: '2012-01-01',
         })
+        .execute();
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: newId(),
+          org_id: orgId,
+          person_id: personId,
+          account_id: accountId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute();
+      await trx
+        .insertInto('people')
+        .values({
+          id: pickupPersonId,
+          org_id: orgId,
+          first_name: 'Authorized',
+          last_name: 'Guardian',
+          date_of_birth: '1985-01-01',
+        })
+        .execute();
+      await trx
+        .insertInto('households')
+        .values({ id: householdId, org_id: orgId, name: 'Player Household' })
+        .execute();
+      await trx
+        .insertInto('household_members')
+        .values([
+          {
+            id: newId(),
+            org_id: orgId,
+            household_id: householdId,
+            person_id: personId,
+            role: 'athlete',
+            is_primary_contact: false,
+            receives_communications: false,
+            financially_responsible: false,
+            can_pick_up: false,
+            lives_here: true,
+          },
+          {
+            id: newId(),
+            org_id: orgId,
+            household_id: householdId,
+            person_id: pickupPersonId,
+            role: 'guardian',
+            is_primary_contact: true,
+            receives_communications: true,
+            financially_responsible: true,
+            can_pick_up: true,
+            lives_here: true,
+          },
+        ])
         .execute();
       await trx
         .insertInto('sport_profiles')
@@ -192,6 +256,16 @@ describe('attendance discipline integration', () => {
         })
         .execute();
       await trx
+        .insertInto('event_participants')
+        .values({
+          id: newId(),
+          org_id: orgId,
+          event_id: eventId,
+          team_season_id: teamSeasonId,
+          side: 'home',
+        })
+        .execute();
+      await trx
         .insertInto('contests')
         .values({
           id: contestId,
@@ -223,6 +297,58 @@ describe('attendance discipline integration', () => {
         { personId, position: 'gk', order: 0 },
       ]),
     ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
+
+    const rsvp = await rsvpForChild(actor, eventId, personId, 'yes');
+    expect(rsvp.rsvp).toBe('yes');
+    const checkedIn = await setAttendance(actor, eventId, personId, {
+      status: 'present',
+      expectedVersion: 1,
+      checkIn: true,
+    });
+    expect(checkedIn.status).toBe('present');
+    expect(checkedIn.checked_in_at).toBeInstanceOf(Date);
+    await expect(
+      checkOutAthlete(actor, eventId, personId, newId(), 2),
+    ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+    const checkedOut = await checkOutAthlete(
+      actor,
+      eventId,
+      personId,
+      pickupPersonId,
+      2,
+    );
+    expect(checkedOut.checked_out_at).toBeInstanceOf(Date);
+    expect(checkedOut.picked_up_by_person_id).toBe(pickupPersonId);
+
+    const attendanceList = await listEventAttendance(actor, eventId);
+    expect(attendanceList.counts).toMatchObject({ yes: 1, present: 1 });
+    expect(attendanceList.items).toHaveLength(1);
+    expect(attendanceList.items[0]).toMatchObject({
+      personId,
+      rsvp: 'yes',
+      attendance: 'present',
+    });
+    expect(attendanceList.items[0]?.checkedInAt).toBeInstanceOf(Date);
+    expect(attendanceList.items[0]?.checkedOutAt).toBeInstanceOf(Date);
+    expect(attendanceList.items[0]?.pickedUpByPersonId).toBe(pickupPersonId);
+
+    const report = await attendanceReport(actor, {
+      from: new Date('2026-10-09T00:00:00.000Z'),
+      to: new Date('2026-10-11T00:00:00.000Z'),
+      teamSeasonId,
+    });
+    expect(report).toHaveLength(1);
+    expect(report[0]).toMatchObject({
+      event_id: eventId,
+      rsvp: 'yes',
+      status: 'present',
+    });
+
+    const gameDay = await coachGameDay(actor, eventId);
+    expect(gameDay.roster).toHaveLength(1);
+    expect(gameDay.roster[0]).toMatchObject({ personId, suspended: true });
+    expect(gameDay.roster[0]?.attendance?.status).toBe('present');
+    expect(gameDay.contest?.id).toBe(contestId);
 
     await withOrg(actor, async (trx) => {
       const audit = await trx

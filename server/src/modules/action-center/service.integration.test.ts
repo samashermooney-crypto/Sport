@@ -77,4 +77,108 @@ describe('action center', () => {
       ),
     ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
   });
+
+  it('links unread website submissions to the working contact inbox', async () => {
+    const submissionId = randomUUID();
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    try {
+      await admin.query(
+        `INSERT INTO contact_submissions(id,org_id,name,email,subject,body)
+         VALUES ($1,$2,'Jordan Parent','jordan@example.invalid','Question','Can you share the schedule?')`,
+        [submissionId, orgId],
+      );
+      const result = await loadActionCenter(
+        context(ownerId),
+        withOrg,
+        new Date('2026-09-28T12:00:00Z'),
+      );
+      expect(result.cards).toContainEqual(
+        expect.objectContaining({
+          id: 'unread-contacts',
+          count: 1,
+          href: `/console/orgs/${orgId}/website/contacts`,
+          actionLabel: 'Open contact inbox',
+          bulkAction: 'mark_contacts_read',
+        }),
+      );
+    } finally {
+      await admin.query('DELETE FROM contact_submissions WHERE id = $1', [
+        submissionId,
+      ]);
+      await admin.end();
+    }
+  });
+
+  it('keeps communications queues out of the finance role view', async () => {
+    const communicationsId = randomUUID();
+    const financeId = randomUUID();
+    const submissionId = randomUUID();
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    try {
+      for (const [accountId, role] of [
+        [communicationsId, 'communications'],
+        [financeId, 'finance'],
+      ] as const) {
+        await admin.query(
+          `INSERT INTO accounts(id,email,first_name,last_name,date_of_birth)
+           VALUES ($1,$2,'Action','Role','1980-01-01')`,
+          [accountId, `${accountId}@example.invalid`],
+        );
+        await admin.query(
+          'INSERT INTO org_memberships(id,org_id,account_id,status) VALUES ($1,$2,$3,$4)',
+          [randomUUID(), orgId, accountId, 'active'],
+        );
+        await admin.query(
+          `INSERT INTO role_assignments(id,org_id,account_id,role,scope_type,pending_mfa)
+           VALUES ($1,$2,$3,$4,'org',false)`,
+          [randomUUID(), orgId, accountId, role],
+        );
+      }
+      await admin.query(
+        `INSERT INTO contact_submissions(id,org_id,name,email,subject,body)
+         VALUES ($1,$2,'Jordan Parent','jordan@example.invalid','Question','Can you share the schedule?')`,
+        [submissionId, orgId],
+      );
+
+      const communications = await loadActionCenter(
+        context(communicationsId),
+        withOrg,
+        new Date('2026-09-28T12:00:00Z'),
+      );
+      expect(communications.cards).toContainEqual(
+        expect.objectContaining({ id: 'unread-contacts', count: 1 }),
+      );
+
+      const finance = await loadActionCenter(
+        context(financeId),
+        withOrg,
+        new Date('2026-09-28T12:00:00Z'),
+      );
+      expect(finance.cards.some(({ id }) => id === 'unread-contacts')).toBe(
+        false,
+      );
+    } finally {
+      await admin.query('DELETE FROM contact_submissions WHERE id = $1', [
+        submissionId,
+      ]);
+      await admin.query(
+        'DELETE FROM role_assignments WHERE account_id = ANY($1::uuid[])',
+        [[communicationsId, financeId]],
+      );
+      await admin.query(
+        'DELETE FROM org_memberships WHERE account_id = ANY($1::uuid[])',
+        [[communicationsId, financeId]],
+      );
+      await admin.query('DELETE FROM accounts WHERE id = ANY($1::uuid[])', [
+        [communicationsId, financeId],
+      ]);
+      await admin.end();
+    }
+  });
 });
