@@ -4,7 +4,7 @@ import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 
 import type { ActionCenterCard, ActionCenterItem } from './schema';
 
-export class ActionCenterError extends Error {
+class ActionCenterError extends Error {
   constructor(
     readonly status: number,
     readonly code: 'NOT_FOUND',

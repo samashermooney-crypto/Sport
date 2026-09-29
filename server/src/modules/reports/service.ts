@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { DataTier, Dataset } from '@shared/reports/datasets';
+import type { Dataset } from '@shared/reports/datasets';
 import { canExportTier } from '@shared/reports/datasets';
 import { orgRoleSchema } from '@shared/schemas/orgs';
 import {
@@ -36,13 +36,6 @@ import {
 import { ReportError } from './query';
 
 export type ReportQueryResult = Awaited<ReturnType<typeof runDatasetQuery>>;
-
-type ReportScheduleExportPolicy = {
-  dataset: Dataset;
-  definition: ReportDefinition;
-  access: Awaited<ReturnType<typeof loadReportActorAccess>>;
-  visibleColumns: ReturnType<typeof columnsForActor>;
-};
 
 function requireManager(
   roles: readonly string[],
@@ -260,28 +253,6 @@ export async function exportReport(
   });
 }
 
-export async function reportExportPolicy(
-  context: OrgContext,
-  definitionInput: unknown,
-  runWithOrg: typeof withOrg = withOrg,
-): Promise<ReportScheduleExportPolicy> {
-  const definition = reportDefinitionSchema.parse(definitionInput);
-  return runWithOrg(context, async (trx) => {
-    const access = await loadReportActorAccess(
-      trx,
-      context.orgId,
-      context.actor.accountId,
-    );
-    const { dataset, visible } = await resolveDefinition(
-      trx,
-      access.roles,
-      access.registrarMedicalAccess,
-      definition,
-    );
-    return { dataset, definition, access, visibleColumns: visible };
-  });
-}
-
 export async function createSavedReport(
   context: OrgContext,
   input: unknown,
@@ -479,16 +450,6 @@ export async function updateSavedReport(
     });
     return reportSummary(row);
   });
-}
-
-export function reportContainsTier(
-  dataset: Dataset,
-  definition: ReportDefinition,
-  tier: DataTier,
-): boolean {
-  return usedColumns(dataset, definition).some(
-    (column) => column.tier === tier,
-  );
 }
 
 export function reportUsesOnlyInternalData(

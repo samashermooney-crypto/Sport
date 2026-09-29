@@ -21,5 +21,3 @@ const cardSchema = z.strictObject({
 export const actionCenterResponseSchema = z.strictObject({
   cards: z.array(cardSchema),
 });
-
-export type ActionCenterCard = z.infer<typeof cardSchema>;
