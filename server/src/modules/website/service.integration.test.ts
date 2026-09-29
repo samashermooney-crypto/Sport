@@ -199,6 +199,11 @@ describe('website page service', () => {
           `action="/api/v1/website/public/${orgSlug}/contact"`,
         );
         expect(html).toContain('name="captchaToken"');
+        expect(html).toContain('rel="preload"');
+        expect(html).toContain('as="font"');
+        expect(html).toContain(
+          'memFYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0EwsQaPuWBIXazFHt1kuGajuKbEhWw',
+        );
         expect(html).not.toContain(inboxEmail);
       } finally {
         await new Promise<void>((resolve, reject) =>

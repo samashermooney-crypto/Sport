@@ -3,181 +3,50 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Parity CI follow-up: run `36489602298` at `91614aaac689` used hosted Ubuntu 24.04.5 (`ubuntu24/20260920.314.1`), Playwright 1.63.0, Chromium 153.0.8010.12, and WebKit 26.6. The run's captured actuals for `ui-core-1440`, `ui-feedback-390` (Chromium), and `ui-controls-390` (WebKit) match the D-branch and local-trunk PNGs byte-for-byte; GitHub's `origin/rebuild/trunk` still has the older PNGs. The 390px and 1440px legacy-shell comparisons passed. The 7.51% 390px mismatch was in earlier run `36337698479`, before the shell baseline was corrected, so the current failures are stale component baselines rather than a layout regression. The expected `ui-core-1440` Linux snapshot exists in this run. macOS references, mismatch tolerance, and token-equality assertion remain unchanged. The manifest retains original capture provenance `36357792018`.
-Current: Design system queues 1–6 are complete. Linux references use exact `ubuntu-latest` artifacts, with the runner/browser/font versions recorded; the baseline script preserves the root lockfile dependency tree by isolating legacy dependencies and warms Vite before capture. During trunk sync, migrations 7000 and 8000 collided on Phase 11-owned sponsor/fundraising tables and 7008/8010 duplicated FK index names; D-owned forward migrations 7009 and 7010 preserve the old tenant-scoped rows under legacy names and free canonical names. Migrations through 8011, DB codegen, registry generation, and OpenAPI generation pass. The report API and builder support curated role-visible datasets, 200-row previews, typed filters, grouping and aggregates, saved-report role sharing, CSV/XLSX exports, local-time schedules with pause/resume, and standard presets for registration pace/program/division/age/gender/ZIP, year-over-year participant retention, revenue by program, receivables aging, credential status, installment forecast, attendance status, payout status, official pay, donations, volunteer completion, financial-aid awards, and uniform sizes. Website page editing, safe structured content, versioned revisions, public JSON/sitemap endpoints, an SSR renderer, public plans/pricing, and tenant-scoped settings/menu APIs and console are implemented. The org export API, worker job, secure expiring download links, ZIP builder, and organization home UI are implemented; the generated server registry, nested console route, and OpenAPI schema include them. The privacy request workflow now supports step-up gated access exports, reviewed correction/deletion requests, subject notification, identity/medical/form/photo anonymization, revoked athlete cards, and a retention-policy view. The weekly retention job redacts aged communications and background-check detail, purges expired evaluation scores, and logs per-organization outcomes atomically. Its focused database suite passes 5/5, and the privacy UI request test passes 1/1. Typecheck and focused ESLint pass. Phase 16 landing/legal pages, English/Spanish website copy coverage, transactional-email translation coverage, keyboard review instructions, and README truthfulness are implemented. Website-domain ownership and TLS management, typed public widgets, console routes, iframe snippets, and the public embed route are implemented. Separate Money, Registration, Compliance, and Academy dashboard views are implemented with a 90-day installment forecast and participant-free academy aggregates. The role-filtered Action Center now queries approval, finance, compliance, safety, scheduling, volunteer, communications, and import queues; its focused UI and database suites pass 1/1 and 2/2. Generated page automation, the custom-domain ingress and `/site` SSR mounts, functional bulk actions, and the final Phase 14 acceptance gate remain.
-- Reports overview now charts registrations across the trailing 12 months and a credential-compliance percentage; both retain accessible data tables. `ReportsDashboard.test.tsx` passes 1/1, focused ESLint passes, and the guarded repository typecheck passes.
-Current update: the website news API, versioned editor, published-only public feed and sitemap entry, and SPA/SSR news views are implemented. English/Spanish labels are registered in i18n. The UI and translation tests pass 2/2; the website integration suite passes 5/5 with temporary local timeout overrides for the cloned test database under shared-runner load. Track C still needs to mount the SSR router at `/site`.
-Current update: public Programs index/detail and Schedule pages now render server-side with generated navigation, localized metadata, canonical/robots tags, SportsEvent JSON-LD, public-only active program/event filtering, and reserved CMS slugs. The website Postgres integration file passes 9/9 on the isolated D database; repository typecheck and focused ESLint pass.
-Current update: the public website now has a localized SSR contact form with CAPTCHA verification and safe inbox acknowledgment, plus a tenant-protected staff inbox and mark-all-read action. Submissions retain only a SHA-256 challenge digest and email the configured inbox. Action Center unread-contact cards link to the inbox. Focused website and Action Center server/UI suites pass 15/15; typecheck passes and focused ESLint passes.
-Current update: the unread-contact Action Center card also offers an audited one-click mark-all-read action; success refreshes both the Action Center and website inbox. The website router now parses bounded JSON bodies, fixing the previously undefined body on the mark-read endpoint. Its UI/database tests pass 5/5, the owner Action Center Playwright journey passes 1/1, focused ESLint and full typecheck pass, and OpenAPI reflects the action capability.
-Current gate on the synced D branch: typecheck and full lint pass; full `npm test` passes 302 files (1 skipped), 1,082 tests (1 skipped); Chromium desktop E2E passes 50 tests (3 skipped), including 390px/1440px shell parity; production build passes.
-Current update: the Reports route now includes a permission-filtered organization overview with registrations by program, receivables aging, and year-over-year retention charts. It uses the same report preview API as saved reports, formats currency/percent values in both the visual and accessible data table, and omits summaries whose columns are not allowed for the current role. Its focused UI suite passes 8/8; focused ESLint and typecheck pass.
-Current update: the dashboard now provides independent Organization, Money, Registration, Compliance, and Academy views. Money includes gross invoices, net payments after fees, fees, refunds, disputes, outstanding balances, and installments due in the next 90 days; Academy reports aggregate enrollment and session booking status without participant fields. View switching, the report catalog, and data privacy checks pass (dashboard UI 1/1; dataset catalog 9/9); focused ESLint and repository typecheck pass.
-Current update: the Board season report now downloads as a one-page PDF containing only aggregate metrics. It reuses report role checks, step-up protection for sensitive money fields, and export audit records. Renderer test passes 1/1; the fresh isolated-database integration now passes 6/6, including registrar output, finance rejection without step-up, and finance output after step-up. Repository typecheck passes and focused ESLint passes.
-Phase 16 §3 update: shared charts and report previews expose screen-reader data tables, calendar regions announce their current heading, and boards expose named regions/columns with a keyboard move select. Focused chart/board tests pass 2/2, calendar tests pass 3/3, and the Reports preview test verifies the chart table. The full 27-journey manual keyboard review is still open.
-Current parity integration: D's corrected Linux component references are committed on local `rebuild/trunk` at `6dbb0e2a`; their CI actuals from run `36489602298` match byte-for-byte. GitHub's `origin/rebuild/trunk` remains at `91614aaa` and its three references differ. On that run, the 390px/1440px legacy-shell comparisons passed; the missing-snapshot message and 7.51% shell mismatch do not reproduce. No tolerance or token-equality change was made. The current GitHub trunk run also has unrelated red jobs, so the full integration gate must be green before another trunk merge.
-Ready for integration: local commit range `195e30e..HEAD` includes reusable design primitives and Phase 14/16 work; parity commit `10bf6183` contains the CI Linux screenshots and runner provenance. Local `rebuild/trunk` includes `1e4cbd3b`, the public contact inbox integration. The Action Center mark-read mutation is implemented and now has a passing Playwright journey; it also exposed and fixed the website router's missing JSON parser. Full tests, Chromium desktop E2E (50 passed/3 skipped), and build passed on the last integrated head before these two small changes. Migration 7008 supplies Phase 14 FK indexes; 7009–7010 preserve legacy fundraising website rows and indexes before Phase 11 tables apply; 7011 adds scoped answer redaction.
-Requests to other tracks: Track C — mount `createSiteSsrRouter` from `server/src/modules/website/public.ts` at `/site`; the current `ServerModule.extraRouters` contract only supports `/api/v1/*`. Wire Action Center and its worker jobs. The generated server, nested-web, and OpenAPI registries now include Website and exports.
-Blocked on: None.
 
-Completed:
-- Queue 1 legacy reference captures and token snapshot; queue 2 primitives published in early batches.
-- Queue 3 extended controls, overlays, calendar views/resource grid, chart, rich text, signature, QR, print, keyboard-accessible board, bracket, and chat components.
-- Queue 4 parity suite; queue 5 mobile bottom tabs, command palette, and global search shell; queue 6 shared auth controls.
-- Phase 16 accessibility additions: chart data is available in a semantic screen-reader table; calendars and boards have named regions/columns; board keyboard-move control is tested. The full manual keyboard journey pass remains open.
-- Linux parity snapshots are sourced from GitHub Actions `ubuntu-24.04` x86_64 actuals; the manifest records Playwright/browser/font versions and original capture run `36357792018`. The baseline generator now refuses container and non-x86_64 captures; macOS references, mismatch tolerance, and token-equality assertion remain unchanged.
-- CI run `36364979347` confirms the 390px and 1440px legacy-shell comparisons pass. Its three failed Linux component actuals match D's corrected baselines byte-for-byte, confirming those failures are stale references missing from trunk.
-- Phase 14 migrations 7000–7010, generated DB types, report dataset/query/schema/service/router/module, CSV/XLSX serializers, ZIP helper, org-local schedule CRUD, durable outbox delivery, and per-recipient outcomes are present. D and H migrations through 8010 apply on the isolated Track D database, and the full current schema generates 263 table types.
-- Current sync: D includes local `rebuild/trunk` commit `bd70207e` in merge commit `64a1620e`. The typecheck passed against a fresh isolated schema before this sync; the reused dev DB's historical checksum mismatch for migration 7007 was left untouched, and full migration and code generation completed in the fresh schema DB.
-- Website foundation: role-checked page editing, optimistic versions and revision history, public published-page JSON, sitemap output, structured safe-content schemas, a console editor, public page surface, legacy site CSS port, and an SSR document renderer. Focused schema tests pass 3/3 and the Postgres service tests pass 2/2 on a fresh isolated stack.
-- Website news: tenant-scoped create/update/list APIs with optimistic versions and audit metadata; published-only public feed, sitemap entry, text-only editor, localized English/Spanish copy, and SPA/SSR news views. User body content is rendered as text, not interpreted as HTML.
-- Public pricing now lists only active plans and exposes only name, key, monthly cents, and the custom-pricing flag; the `/pricing` page renders that API response and handles loading, empty, and error states. Marketing pricing/legal/i18n tests pass 4/4 and website PostgreSQL service tests pass 3/3 on the fresh verification stack; focused ESLint and typecheck pass.
-- Standard reports now include registration by gender and household ZIP/postal code. Their source columns remain Sensitive-tier and are only surfaced to roles allowed to query them. Year-over-year retention compares unique confirmed participants across adjacent calendar years, reports the previous cohort size, retained count and percentage, and uses the existing save/share/schedule/export flow. Fresh-stack report tests pass 22/22, including a fixture that verifies 2 prior participants, 1 retained participant and a 50% rate.
-- Organization export now lists and requests tenant archives, requires an owner/admin membership and recent step-up authentication, queues a durable build job, writes tenant table CSVs and a file manifest into an expiring ZIP, and issues a hashed, single-use seven-day download token. The console home links to the export view. Fresh isolated-stack service tests pass 2/2, the UI test passes 1/1, focused ESLint passes, and `npm run typecheck` passes.
+## Current
 
-In progress (exact paths):
-- `server/src/modules/action-center/module.ts`
-- `server/src/modules/action-center/routes.ts`
-- `server/src/modules/action-center/schema.ts`
-- `server/src/modules/action-center/service.ts`
-- `server/src/modules/action-center/service.integration.test.ts`
-- `web/src/console/home/ActionCenter.tsx`
-- `web/src/console/home/ActionCenter.test.tsx`
-- `web/src/console/home/action-center-schema.ts`
-- `web/src/console/home/routes.tsx`
-- `web/src/console/home.css`
-- `docs/codex/tracks/D.md`
-- `db/migrations/7000_website_core.sql`
-- `db/migrations/7001_reports.sql`
-- `db/migrations/7002_exports_privacy.sql`
-- `db/migrations/7003_export_token_fix.sql`
-- `server/src/db/types.ts`
-- `server/src/modules/reports/query.ts`
-- `server/src/modules/reports/board-report.ts`
-- `server/src/modules/reports/board-report.test.ts`
-- `server/src/modules/reports/policy.ts`
-- `server/src/modules/reports/query.test.ts`
-- `server/src/modules/reports/service.ts`
-- `server/src/modules/reports/service.integration.test.ts`
-- `server/src/modules/reports/routes.ts`
-- `server/src/modules/reports/module.ts`
-- `server/src/modules/reports/schedules.ts`
-- `server/src/modules/reports/schedule-delivery.ts`
-- `server/src/modules/reports/schedule-delivery.integration.test.ts`
-- `server/src/modules/reports/schedule-time.ts`
-- `server/src/modules/reports/schedule-time.test.ts`
-- `db/migrations/7004_report_schedule_local_time.sql`
-- `db/migrations/7005_report_delivery_outbox.sql`
-- `db/migrations/7006_report_delivery_recipients.sql`
-- `db/migrations/7007_website_slug_check.sql`
-- `db/migrations/7008_phase14_fk_indexes_and_retention_scope.sql`
-- `db/migrations/7009_preserve_website_campaign_records.sql`
-- `db/migrations/7010_rename_legacy_phase11_indexes.sql`
-- `db/migrations/7011_privacy_redact_form_answers.sql`
-- `server/src/modules/exports/zip.ts`
-- `server/src/modules/exports/zip.test.ts`
-- `server/src/modules/exports/report-serializers.ts`
-- `server/src/modules/exports/report-serializers.test.ts`
-- `shared/src/reports/datasets.ts`
-- `shared/src/reports/datasets.test.ts`
-- `shared/src/schemas/reports.ts`
-- `web/src/console/reports/ReportBuilder.tsx`
-- `web/src/console/reports/ReportBuilder.test.tsx`
-- `web/src/console/reports/ReportsDashboard.tsx`
-- `web/src/console/reports/ReportsDashboard.test.tsx`
-- `web/src/console/reports/routes.tsx`
-- `web/src/console/reports/nav.ts`
-- `web/src/console/reports/report.css`
-- `shared/src/reports/datasets.ts`
-- `shared/src/reports/datasets.test.ts`
-- `web/src/console/reports/ReportBuilder.tsx`
-- `web/src/marketing/Landing.tsx`
-- `web/src/marketing/LegalPage.tsx`
-- `web/src/marketing/LegalPage.test.tsx`
-- `web/src/marketing/landing.css`
-- `web/src/marketing/icons.tsx`
-- `web/src/i18n/en/site.json`
-- `web/src/i18n/es/site.json`
-- `web/src/lib/i18n.ts`
-- `web/src/lib/i18n-completeness.test.ts`
-- `web/src/site/SitePage.tsx`
-- `web/src/ui/routes.tsx`
-- `web/src/ui/vite-env.d.ts`
-- `server/src/integrations/email/templates/auth.tsx`
-- `server/src/integrations/email/templates/auth.test.ts`
-- `server/src/modules/website/public.ts`
-- `server/src/modules/website/contact.routes.integration.test.ts`
-- `server/src/modules/website/schema.ts`
-- `server/src/modules/website/service.ts`
-- `server/src/modules/website/routes.ts`
-- `server/src/modules/website/module.ts`
-- `server/src/modules/website/service.integration.test.ts`
-- `server/src/modules/website/domain-security.ts`
-- `server/src/modules/website/domain-security.test.ts`
-- `web/src/console/website/WebsiteDomainsConsole.tsx`
-- `web/src/console/website/WebsiteDomainsConsole.test.tsx`
-- `web/src/console/website/WebsiteEmbedsConsole.tsx`
-- `web/src/console/website/WebsiteEmbedsConsole.test.tsx`
-- `web/src/site/WebsiteEmbedPage.tsx`
-- `web/src/site/WebsiteEmbedPage.test.tsx`
-- `web/src/console/website/WebsiteNewsConsole.tsx`
-- `web/src/console/website/WebsiteContactsConsole.tsx`
-- `web/src/console/website/WebsiteContactsConsole.test.tsx`
-- `web/src/console/website/WebsiteNewsConsole.test.tsx`
-- `web/src/site/SiteNewsPage.tsx`
-- `web/src/site/routes.tsx`
-- `web/src/console/website/routes.tsx`
-- `web/src/console/website/WebsiteConsole.tsx`
-- `web/src/lib/i18n.ts`
-- `web/src/lib/i18n-completeness.test.ts`
-- `web/src/i18n/en/platform.json`
-- `web/src/i18n/es/platform.json`
-- `web/src/ui/extended.tsx`
-- `web/src/ui/extended.test.tsx`
-- `web/src/ui/primitives.test.tsx`
-- `web/src/ui/components.css`
-- `web/src/console/website/WebsiteSettingsConsole.tsx`
-- `web/src/console/website/WebsiteSettingsConsole.test.tsx`
-- `web/src/console/website/WebsiteConsole.tsx`
-- `web/src/console/website/routes.tsx`
-- `web/src/console/website/website.css`
-- `e2e/visual-reference/linux-baseline.sh`
-- `web/src/marketing/PricingPage.tsx`
-- `web/src/marketing/PricingPage.test.tsx`
-- `vite.config.ts`
-- `docs/qa/ACCESSIBILITY.md`
-- `README.md`
-- `shared/src/schemas/exports.ts`
-- `server/src/modules/exports/service.ts`
-- `server/src/modules/exports/routes.ts`
-- `server/src/modules/exports/module.ts`
-- `server/src/modules/exports/service.integration.test.ts`
-- `web/src/console/home/OrganizationData.tsx`
-- `web/src/console/home/OrganizationData.test.tsx`
-- `web/src/console/home/OrganizationPrivacy.tsx`
-- `web/src/console/home/OrganizationPrivacy.test.tsx`
-- `web/src/console/Home.tsx`
-- `web/src/console/home.css`
+Design system queues 1–6 are implemented. The current design tokens and macOS references are unchanged.
 
-Exact next steps:
-1. Dashboard views and Board PDF are implemented; verify dashboard access by role and exercise the protected PDF route against the isolated Track D schema.
-2. Extend one-click Action Center bulk actions to queues beyond unread website contacts; the contact mark-read action is implemented and tested.
-3. Finish generated pages, domains and embeds; ask Track C to mount the public SSR router at `/site`. Website news, settings, and menus now have tenant-scoped APIs, editors, localized public rendering, and sitemap/navigation output.
-4. Keep the corrected Linux component references on the published `rebuild/trunk` head; CI run `36489602298` confirms the D/local-trunk images equal runner actuals, while GitHub's current remote ref is behind.
-5. Finish Phase 14 acceptance: generated pages/domains/embeds, verified custom-domain routing, SSR mount at `/site`, Lighthouse checks, and the full phase gate.
-6. Track C owns registry and nested-route wiring, including the `/site` mount and Action Center/export jobs. Complete the 27 keyboard journeys and remaining Phase 16 §3 accessibility/i18n evidence, then verify §5 legal drafts and §6 landing/README on the merged head.
+The Linux parity baseline was captured from GitHub Actions runner `ubuntu24/20260920.314.1`, Playwright 1.63.0, Chromium 153.0.8010.12, WebKit 26.6, and recorded font package versions. CI run `36489602298` used remote `91614aaac689`; its three failing component actuals match the corrected D/local-trunk PNGs byte-for-byte. Its 390px and 1440px legacy-shell comparisons pass, so the reported 7.51% mismatch and absent core image are stale remote references, not a layout regression. Corrected PNGs are already on local `rebuild/trunk` at `6dbb0e2a`; GitHub has not received that local trunk head. The mismatch tolerance and token-equality test are unchanged.
 
-Known failing or unverified checks:
-- The last synced Track D merge gate passed: typecheck, lint, 302 test files passed/1 skipped (1,082 tests passed/1 skipped), Chromium desktop 50 passed/3 skipped, and build. After the website parser fix, full typecheck/lint, focused UI test, and the Action Center Playwright journey pass. The latest GitHub run `36489602298` shows stale parity refs on remote `91614aaa`; its 390px/1440px legacy shell checks pass and its component actuals equal the local D/trunk references.
-- Focused report-builder UI test passed 1/1; report query validation passed 5/5, and focused report, schedule, export, ZIP, and shared-dataset checks passed 24/24. The grouped chart and table share the same server preview rows. `npm run typecheck` passes and the Track D reports path passes ESLint after the chart/preset additions.
-- Website schema tests pass 3/3; after adding settings and menus, the website Postgres service suite passes 4/4 and the settings/menu UI test passes 1/1. Targeted Website ESLint and `npm run typecheck` pass. Settings and menus are tenant scoped, reject unsafe links, use optimistic versions, and keep their audit records free of link/email content.
-- Phase 16 focused legal and i18n tests pass 3/3; the transactional-email translation coverage test passes 1/1 on the fresh verification database; marketing/website targeted ESLint and typecheck pass. `docs/qa/ACCESSIBILITY.md` documents the required 27 keyboard journeys; the manual pass has not been performed.
-- The 15 visible report presets are backed by curated datasets and hide when the actor cannot access every referenced column. Aid awards stay money-role-only and Sensitive; uniform size counts omit participant identity; the aging bucket is derived from invoice balance and due date; payout amount retains the Sensitive tier.
-- Full WebKit mobile E2E, knip, audit, Lighthouse acceptance, verified custom-domain ingress and `/site` SSR mount, remaining Action Center queue actions, final Phase 14 acceptance, and manual keyboard journeys remain unverified/open. GitHub's latest run also fails unrelated chat, OpenAPI, knip, and sign-in checks; the parity failures are old remote references. The previous Track A photo-upload E2E failure no longer reproduces on this synced head.
-- The first Playwright attempt found an orphaned Track D E2E runner on port 7173; that runner exited and the fresh isolated run passed.
-- The new Action Center server integration suite passes 2/2 against the isolated Track D database and executes every role-visible source query with an empty organization; the UI queue/link test passes 1/1. No Action Center test failures remain.
-- The org export integration test passes 2/2 against the fresh isolated Track D database; the Organization Data UI test passes 1/1. Focused export ESLint and typecheck pass. One first UI run failed because the project does not install jest-dom matchers; the assertion now uses standard `textContent`.
-- Privacy/retention service suite passes 5/5 and the Organization Privacy request-creation UI test passes 1/1 against isolated tests. The first integration attempt found a malformed evaluation retention cutoff query and a JSONB array encoding issue; both are fixed. The default shared `5432` database still has a historical migration collision, so this suite was run against the Track D stack on port `7432`.
-- Website domain/embed API database tests pass 7/7 on the isolated Track D stack; domain/embed UI tests pass 3/3 and the DNS target classifier passes 10/10. D's Linux baselines are on local `rebuild/trunk` at `6dbb0e2a`; the remote `origin/rebuild/trunk` at `91614aaa` still needs the integrated commit to be published.
+Phase 14 implementation includes curated report datasets, role-filtered builders and presets, CSV/XLSX and PDF output, saved/scheduled reports, dashboards and role-filtered Action Center queues; website CMS/news, generated Programs and Schedule routes, SEO metadata/sitemap/structured events, domain verification APIs, embeds, and SSR renderers; organization ZIP export; privacy requests; and retention sweep. The public SSR router is tested directly, but Track C must wire its `/site` mount and verified custom-domain ingress through the shared app/module contract.
 
-Open requests: Track A — investigate the photo upload E2E assertion in `e2e/people.spec.ts`; Track C — mount D's public website renderer at `/site`, route verified custom-domain hosts to the correct public site, and wire Action Center/export routes and worker jobs; Track H — fix the deterministic chat notification-batching and internal-attachment failures in `server/src/modules/chat/service.integration.test.ts`. `COMPOSE_PROJECT_NAME=athlentry_d_finish`; `PORT_OFFSET=2000`.
+Lighthouse 13.5.0 mobile-default audits used Playwright’s bundled Chromium, a synthetic published organization with one public program/event, and the direct `createSiteSsrRouter` mount. Results: home **98/100/100**, Programs **99/100/100**, Schedule **99/100/100** (Performance/Accessibility/SEO). The first run exposed a 0.239 CLS from late Open Sans subset loads; SSR now preconnects and preloads the existing Latin and Latin Extended files without changing the site CSS or typeface. Audit JSON was saved under `/private/tmp/athlentry-lighthouse/reports/`.
+
+Phase 16 §3: chart/report alternatives are semantic tables, calendars and boards are named, and boards expose a tested keyboard move alternative. English/Spanish completeness and email translation checks are automated. The accessibility statement appears on marketing and public-site footers. `docs/qa/ACCESSIBILITY.md` lists 27 manual keyboard journeys; the human keyboard pass remains open. Phase 16 §5 legal/trust pages are drafts, watermarked until `LEGAL_DOCS_APPROVED=true`; the Privacy draft names COPPA and qualifies the FERPA note. Phase 16 §6 landing, pricing, and README copy describes implemented behavior.
+
+## Completed
+
+- Queue 1–2: captured legacy references and published primitives in early batches.
+- Queue 3: DateInput, TimeInput, DateRange, MoneyInput, PhoneInput, Combobox, FileUpload, Avatar, Tag, DataList, Stepper, Drawer, Sheet, Pagination, Calendar views/resource view, Timeline, StatTile, Chart, RichTextEditor, SignaturePad, QRCode, PrintLayout, keyboard-accessible Board, Bracket, and Chat thread.
+- Queue 4–6: design parity suite, mobile bottom tab bar, command palette/global search shell, and shared auth controls.
+- Phase 14 reports: sensitive columns remain role-gated; previews cap at 200 rows; scheduled delivery uses local time and secure links where needed. Board PDF is aggregate-only and reuses report access checks.
+- Phase 14 privacy: access export is step-up gated; correction/deletion is reviewed; anonymization retains and pseudonymizes financial/waiver evidence; retention jobs are scoped and audited.
+- Phase 16 accessibility additions: screen-reader chart tables, calendar/board labels, keyboard board movement, accessibility statement, and English/Spanish completeness tests.
+- Linux parity references and runner provenance are on local `rebuild/trunk`; no tolerance or token-equality changes.
+
+## Recent checks
+
+- `server/src/modules/website/service.integration.test.ts`: 10/10 pass after adding assertions for SSR font preloads.
+- `web/src/marketing/LegalPage.test.tsx`: 3/3 pass; changed-path ESLint passes.
+- Lighthouse mobile: home 98/100/100; Programs 99/100/100; Schedule 99/100/100.
+- After the latest font/legal changes: full typecheck, full lint, and production build pass. Website SSR integration passes 10/10; Chromium parity and Action Center journeys pass 10/10.
+- Latest full `npm test`: 306 files passed, 1 skipped; 1,095 tests passed, 1 skipped; one unrelated Track E failure in `server/test/registration/team-entries.test.ts`: `stableUuid` throws “UUID digest is incomplete”.
+- Latest full E2E: 111 passed, 10 skipped, 1 unrelated Track A WebKit-mobile sign-in failure at `e2e/sign-in.spec.ts:151` (“Save these 10 recovery codes now” not found). D parity and the Action Center journey pass.
+
+## Exact next steps
+
+1. Close remaining Phase 14 integration gaps: Track C to mount `createSiteSsrRouter` at `/site`, route verified custom domains, and wire Action Center/export jobs. Retest Lighthouse on the integrated routes.
+2. Verify remaining Action Center actions and dashboard/PDF role access on the current isolated schema.
+3. Complete the documented manual keyboard journeys where roles/routes are available; preserve failures as specific track requests.
+4. Merge D changes to local `rebuild/trunk` with the self-merge gate when the trunk lock is free and cross-track test failures are resolved. The local trunk already contains the corrected Linux references; the orchestrator handles publishing.
+
+## Open requests and blockers
+
+- Track C: permit non-API `extraRouters` in the shared module contract and mount `createSiteSsrRouter` at `/site`; route verified custom-domain hosts; wire Action Center/export routes and jobs.
+- Track E: fix `server/test/registration/team-entries.test.ts` (`stableUuid` “UUID digest is incomplete”), currently failing the full unit suite.
+- Track A: investigate the WebKit-mobile recovery-code sign-in E2E failure in `e2e/sign-in.spec.ts`.
+- Manual 27-journey keyboard review and integrated-route Lighthouse recheck remain open.
+
+`COMPOSE_PROJECT_NAME=athlentry_d_finish`; `PORT_OFFSET=2000`.
