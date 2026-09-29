@@ -81,7 +81,10 @@ test('owner marks unread website contacts read from the Action Center', async ({
         response.request().method() === 'POST' &&
         response.url().includes('/contact-submissions/mark-read'),
     );
-    await page.getByRole('button', { name: 'Mark all read' }).click();
+    const markAllRead = page.getByRole('button', { name: 'Mark all read' });
+    await markAllRead.focus();
+    await expect(markAllRead).toBeFocused();
+    await page.keyboard.press('Enter');
     const markReadResponse = await markedRead;
     expect(
       markReadResponse.ok(),
