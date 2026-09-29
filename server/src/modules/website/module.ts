@@ -72,6 +72,14 @@ const routes = [
   },
   {
     method: 'get',
+    path: '/api/v1/website/public/{orgSlug}/robots.txt',
+    summary: 'Get the public organization website robots policy',
+    response: z.string(),
+    contentType: 'text/plain',
+    public: true,
+  },
+  {
+    method: 'get',
     path: '/api/v1/website/public/{orgSlug}/sitemap.xml',
     summary: 'Get the public organization website sitemap',
     response: z.string(),

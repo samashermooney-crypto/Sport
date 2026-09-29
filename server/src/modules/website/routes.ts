@@ -43,6 +43,8 @@ import {
   disableWebsiteDomain,
   getPublicWebsiteEmbed,
   getPublicWebsitePage,
+  getPublicWebsitePrograms,
+  getPublicWebsiteRobotsPolicy,
   getWebsiteSettings,
   listPublicWebsitePlans,
   listPublicWebsiteNews,
@@ -287,32 +289,73 @@ export function createWebsiteRouter(
   );
 
   router.get(
+    '/public/:orgSlug/robots.txt',
+    route(async (request, response) => {
+      const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
+      const site = await getPublicWebsiteRobotsPolicy(
+        dependencies.database,
+        orgSlug,
+        withOrg,
+      );
+      if (!site) {
+        response.sendStatus(404);
+        return;
+      }
+      const sitemap =
+        site.robotsPolicy === 'noindex'
+          ? ''
+          : `Sitemap: https://${orgSlug}.athlentry.com/api/v1/website/public/${encodeURIComponent(orgSlug)}/sitemap.xml\n`;
+      response
+        .setHeader('Cache-Control', 'public, max-age=300')
+        .type('text/plain')
+        .send(
+          `User-agent: *\n${site.robotsPolicy === 'noindex' ? 'Disallow: /\n' : 'Allow: /\n'}${sitemap}`,
+        );
+    }),
+  );
+
+  router.get(
     '/public/:orgSlug/sitemap.xml',
     route(async (request, response) => {
       const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
-      const [pages, news] = await Promise.all([
+      const [pages, news, programs] = await Promise.all([
         listPublicWebsitePages(dependencies.database, orgSlug, withOrg),
         listPublicWebsiteNews(dependencies.database, orgSlug, withOrg),
+        getPublicWebsitePrograms(dependencies.database, orgSlug, withOrg),
       ]);
-      if (!pages || !news) {
+      if (!pages || !news || !programs) {
         response.sendStatus(404);
         return;
       }
       const host = `https://${orgSlug}.athlentry.com`;
-      const pageEntries = pages
+      const shouldIndex = news.robotsPolicy === 'index';
+      const pageEntries = (shouldIndex ? pages : [])
         .map(
           ({ slug, updated_at }) =>
-            `<url><loc>${host}/site/${slug.split('/').map(encodeURIComponent).join('/')}</loc><lastmod>${updated_at.toISOString()}</lastmod></url>`,
+            `<url><loc>${host}/site/${encodeURIComponent(orgSlug)}${slug === 'home' ? '' : `/${slug.split('/').map(encodeURIComponent).join('/')}`}</loc><lastmod>${updated_at.toISOString()}</lastmod></url>`,
         )
         .join('');
-      const newsEntry = news.posts.length
-        ? `<url><loc>${host}/site/${encodeURIComponent(orgSlug)}/news</loc></url>`
+      const generatedEntries = shouldIndex
+        ? [
+            `${host}/site/${encodeURIComponent(orgSlug)}/programs`,
+            `${host}/site/${encodeURIComponent(orgSlug)}/schedule`,
+            ...programs.programs.map(
+              (program) =>
+                `${host}/site/${encodeURIComponent(orgSlug)}/programs/${encodeURIComponent(program.slug)}`,
+            ),
+          ]
+            .map((url) => `<url><loc>${url}</loc></url>`)
+            .join('')
         : '';
+      const newsEntry =
+        shouldIndex && news.posts.length
+          ? `<url><loc>${host}/site/${encodeURIComponent(orgSlug)}/news</loc></url>`
+          : '';
       response
         .setHeader('Cache-Control', 'public, max-age=300')
         .type('application/xml')
         .send(
-          `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pageEntries}${newsEntry}</urlset>`,
+          `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pageEntries}${generatedEntries}${newsEntry}</urlset>`,
         );
     }),
   );

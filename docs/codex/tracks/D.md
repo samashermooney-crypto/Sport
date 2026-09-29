@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Ready for integration: the core D bundle and Phase 14 export/Lighthouse follow-up are integrated on local `rebuild/trunk`; the complete merge gate passed. The orchestrator still needs to publish local trunk commits and rerun hosted CI.
+Ready for integration: the core D bundle and Phase 14 export/Lighthouse evidence are integrated on local `rebuild/trunk`; the complete merge gate passed. The current robots/sitemap route slice passes its focused website integration test and is awaiting its own merge gate. The orchestrator still needs to publish local trunk commits and rerun hosted CI.
 
 ## Current
 
@@ -11,7 +11,7 @@ Design system queues 1–6 are implemented. The current design tokens and macOS 
 
 The Linux parity baselines were captured from GitHub Actions runner `ubuntu24/20260920.314.1`, Playwright 1.63.0, Chromium 153.0.8010.12, WebKit 26.6, and the recorded font package versions. Artifacts from runs `36357792018` (`9381acd`) and `36489602298` (`91614aa`) show the stale expected references caused the failures: the three CI actual PNGs for `ui-core-1440`, `ui-feedback-390`, and `ui-controls-390` WebKit mobile hash exactly to the corrected Linux PNGs now on local trunk. The earlier 390px legacy-shell 7.51% mismatch was also baseline-only; the current shell comparisons pass. The corrected references were in local trunk before this merge and the Chromium desktop parity suite passed in the merge gate. Hosted CI still needs to test the newly published trunk. Tolerances, token equality, macOS references, and design tokens are unchanged.
 
-Phase 14 implementation includes curated report datasets, role-filtered builders and presets, CSV/XLSX and PDF output, saved/scheduled reports, dashboards and role-filtered Action Center queues; website CMS/news, generated Programs and Schedule routes, SEO metadata/sitemap/structured events, domain verification APIs, embeds, and SSR renderers; organization ZIP export; privacy requests; and retention sweep. The Action Center, exports, and report routes/jobs use the generated registries. The public SSR router is tested directly but is not mounted by the shared app. Track A must allow a non-API public router in the module contract; Track C must mount it at `/site` and route verified custom-domain hosts before the SPA fallback.
+Phase 14 implementation includes curated report datasets, role-filtered builders and presets, CSV/XLSX and PDF output, saved/scheduled reports, dashboards and role-filtered Action Center queues; website CMS/news, generated Programs and Schedule routes, SEO metadata/sitemap/robots policy/structured events, domain verification APIs, embeds, and SSR renderers; organization ZIP export; privacy requests; and retention sweep. The Action Center, exports, and report routes/jobs use the generated registries. The public SSR router is tested directly but is not mounted by the shared app. Track A must allow a non-API public router in the module contract; Track C must mount it at `/site`, expose sitemap and robots files at each site's host root, and route verified custom-domain hosts before the SPA fallback.
 
 Lighthouse 13.5.0 mobile-default audits used Playwright’s bundled Chromium, a synthetic published organization with one public program/event, and the direct `createSiteSsrRouter` mount. Results: home **98/100/100**, Programs **99/100/100**, Schedule **99/100/100** (Performance/Accessibility/SEO); raw reports and the device profile are committed under `perf/results/2026-09-28-phase14-lighthouse/`. The first run exposed a 0.239 CLS from late Open Sans subset loads; SSR now preconnects and preloads the existing Latin and Latin Extended files without changing the site CSS or typeface. These scores must be repeated after `/site` is mounted by the shared app.
 
@@ -31,6 +31,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 ## Recent checks
 
 - `server/src/modules/website/service.integration.test.ts`: 10/10 pass after adding assertions for SSR font preloads.
+- `server/src/modules/website/contact.routes.integration.test.ts`: 1/1 pass for robots policy, sitemap generated-page URLs and noindex behavior, plus the existing public-contact workflow.
 - `web/src/marketing/LegalPage.test.tsx`: 10/10 pass, including the review watermark on all seven public legal drafts; changed-path ESLint passes.
 - `e2e/design/legal-drafts.spec.ts`: 6/6 Chromium/WebKit journeys pass; all seven legal routes are watermarked and axe-clean, landing/pricing are axe-clean, and the mobile preview scrolls with arrow keys.
 - `e2e/action-center.spec.ts`: 1/1 database-backed Chromium journey confirms the owner can keyboard-focus and activate mark-all-read with Enter; the submission updates and its Action Center card clears.
@@ -53,14 +54,14 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 ## Exact next steps
 
-1. Track A: extend the module router contract so the website module can register public `/site` SSR routes. Track C: mount the route and resolve verified custom-domain hosts before the production SPA fallback. Then rerun public-site Lighthouse against the actual app mount.
-3. Audit the remaining app screens against `web/src/ui` tokens/components and fix D-owned visual inconsistencies or record exact owner requests.
-4. Complete the documented manual keyboard journeys where roles/routes are available; preserve remaining cross-track failures as specific requests.
+1. Track A: extend the module router contract so the website module can register public `/site` SSR routes. Track C: mount the route, regenerate OpenAPI for the new website operation, expose host-root sitemap/robots aliases, resolve verified custom-domain hosts before the production SPA fallback, then rerun public-site Lighthouse against the actual app mount.
+2. Audit the remaining app screens against `web/src/ui` tokens/components and fix D-owned visual inconsistencies or record exact owner requests.
+3. Complete the documented manual keyboard journeys where roles/routes are available; preserve remaining cross-track failures as specific requests.
 
 ## Open requests and blockers
 
 - Track A: `server/src/lib/module-contract.ts` currently limits `extraRouters.path` to `/api/v1/*`; allow the website's public SSR router path without weakening API route typing.
-- Track C: mount `createSiteSsrRouter` at `/site` before the production SPA fallback and route active verified custom-domain hosts to the org site with a tenant-safe resolver. Action Center/export/report API routes and scheduled jobs are already registry-wired.
+- Track C: mount `createSiteSsrRouter` at `/site` before the production SPA fallback, regenerate `docs/api/openapi.json` for the new website robots operation, expose sitemap and robots routes at each resolved site's host root, and route active verified custom-domain hosts to the org site with a tenant-safe resolver. Action Center/export/report API routes and scheduled jobs are already registry-wired.
 - Track G: fix the WebKit-mobile schedule result checkbox journey at `e2e/schedule-meet.spec.ts:230`.
 - Track G: replace the separate `system-ui`/literal-color season-award print style in `web/src/console/schedule/ScheduleConsole.tsx` with the shared `PrintLayout` or the legacy font/color treatment.
 - Track A: investigate the WebKit-mobile recovery-code sign-in E2E failure in `e2e/sign-in.spec.ts:420`.
