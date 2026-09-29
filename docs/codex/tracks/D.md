@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Ready for integration: local range `195e30e..HEAD` contains reusable primitives and Phase 14/16 work. D typecheck, lint, build, SSR/Lighthouse, and Chromium parity/Action Center checks pass; the full merge gate is currently blocked by the Track E registration test failure listed below.
+Ready for integration: local range `195e30e..HEAD` contains reusable primitives and Phase 14/16 work. D typecheck, lint, build, SSR/Lighthouse, and Chromium parity/Action Center checks pass. Corrected Linux baselines are committed on local `rebuild/trunk`; Track C has a no-commit merge of D in progress. Remaining CI blockers include the Track E registration test and cross-track Knip findings listed below.
 
 ## Current
 
