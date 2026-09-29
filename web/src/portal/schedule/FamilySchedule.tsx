@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { CalendarFeedSubscription } from '../../console/schedule/CalendarFeedSubscription';
 import { Badge, Button } from '../../ui';
 
 import '../../console/schedule/schedule.css';
@@ -203,6 +204,15 @@ export function FamilySchedule({
         ) : (
           !error && <p>No published events are scheduled for this team.</p>
         )}
+      </section>
+      <section className="schedule-grid" aria-label="Calendar subscriptions">
+        <CalendarFeedSubscription orgId={orgId} type="account" label="Family" />
+        <CalendarFeedSubscription
+          orgId={orgId}
+          type="team"
+          id={teamSeasonId}
+          label="Team"
+        />
       </section>
       <FamilyPersonalBests orgId={orgId} personId={personId} />
       <FamilySeasonSurveys orgId={orgId} />

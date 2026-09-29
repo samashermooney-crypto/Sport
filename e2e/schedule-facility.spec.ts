@@ -105,6 +105,51 @@ test('staff publishes a facility page with its public space listing', async ({
       page.getByText('Bookable space created.', { exact: true }),
     ).toBeVisible();
 
+    const facilityRow = facilities
+      .getByRole('listitem')
+      .filter({ hasText: 'East Community Park' });
+    await facilityRow
+      .getByText('Calendar subscription', { exact: true })
+      .click();
+    const feedPanel = facilityRow.getByRole('region', {
+      name: 'East Community Park facility calendar subscriptions',
+    });
+    const feedCreateResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/calendar-feeds'),
+    );
+    await feedPanel
+      .getByRole('button', {
+        name: 'Create East Community Park facility calendar feed',
+      })
+      .click();
+    const createdFeed = (await (await feedCreateResponse).json()) as {
+      id: string;
+      url: string;
+    };
+    expect(createdFeed.url).toMatch(/\/feeds\/[A-Za-z0-9_-]{43}\.ics$/);
+    const feedUrl = new URL(
+      createdFeed.url,
+      String(testInfo.project.use.baseURL),
+    );
+    expect((await page.request.get(feedUrl.toString())).ok()).toBe(true);
+    await expect(
+      feedPanel.getByLabel('East Community Park facility calendar URL'),
+    ).toHaveValue(feedUrl.toString());
+
+    page.once('dialog', async (dialog) => {
+      await dialog.accept();
+    });
+    const revokeResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'DELETE' &&
+        response.url().endsWith(`/calendar-feeds/${createdFeed.id}`),
+    );
+    await feedPanel.getByRole('button', { name: 'Revoke URL' }).click();
+    expect((await revokeResponse).status()).toBe(204);
+    expect((await page.request.get(feedUrl.toString())).status()).toBe(404);
+
     const organization = await database
       .selectFrom('organizations')
       .select('slug')
