@@ -1,10 +1,10 @@
 # Track G — schedule
 
-Implementation commits: `10dde5b`, `e26dee4`, `074b533`, `535746f`, `2bc22b6`, and `dc661ea`. Track notes: `c4454b4`, `5970856`, `6c60d66`. Branch: `track/g-schedule`, local only (not pushed).
+Implementation commits: `10dde5b`, `e26dee4`, `074b533`, `535746f`, `2bc22b6`, `dc661ea`, and `0921e19e`. Acceptance follow-up: `90375192`. Track notes: `c4454b4`, `5970856`, `6c60d66`. Branch: `track/g-schedule`, local only (not pushed).
 
 Local integration range: `rebuild/trunk..track/g-schedule` (not pushed).
 
-Status: the previous G implementation is integrated on `rebuild/trunk` as `1f95b80a`. Calendar subscriptions are committed as `0921e19e`; this branch is synced through `1f95b80a` and the new slice is ready for its locked self-merge. The public facility image route, result-to-discipline/game-served service, and emergency email fan-out remain cross-track acceptance dependencies.
+Status: the previous G implementation is integrated on `rebuild/trunk` as `1f95b80a`. Calendar subscriptions are committed as `0921e19e`, with acceptance follow-up `90375192`; this branch is synced through `519c8b4a`. G's typecheck, lint, build, knip, Chromium gate, and 12 WebKit mobile journeys pass. The full Vitest gate remains red on Track E's registration UUID helper and intermittently on OPS VAPID key encoding. The public facility image route, result-to-discipline/game-served service, and emergency email fan-out remain cross-track acceptance dependencies.
 
 ## Owned work and progress
 
@@ -99,9 +99,11 @@ Status: the previous G implementation is integrated on `rebuild/trunk` as `1f95b
 - [x] Post-sync on `5b4ad3c1`: full Vitest passed 308 files / 1,107 tests with 1 existing skip; full lint passed; the 48-team/168-game generator acceptance passed in 701 ms with its 60-second assertion unchanged.
 - [x] In official Playwright 1.63 Noble (Node 24.20, UTC, `CI=true`, G's isolated Docker network), schedule-stats passed Chromium + WebKit (2/2) and all 12 G journeys passed Chromium + WebKit mobile with axe (24/24 in 2.5 minutes). Docker ran Linux ARM64 on this Apple Silicon host; the container used a dedicated writable local-upload volume.
 - [x] Post-sync typecheck and production build passed. The full Linux Chromium attempt reported 54 passed, 8 failed and 3 skipped: two D-owned design screenshots differed on this Linux ARM64 host, and email/checkout tests need the preview services correctly routed inside the test container. All 12 G journeys passed in that run.
-- [x] Calendar-feed integration passed (2/2), including facility ICS content, hashed tokens, scoped permissions, cross-tenant revocation denial, and exclusion of events linked only by an unverified family link. The facility, RSVP/feed, and schedule-stats journeys pass in Chromium desktop and WebKit mobile with CI settings (6/6).
+- [x] Calendar-feed integration passed (2/2), including facility ICS content, hashed tokens, scoped permissions, cross-tenant revocation denial, and exclusion of events linked only by an unverified family link. The facility, RSVP/feed (family, team, and facility create/revoke flows), and schedule-stats journeys pass in Chromium desktop and WebKit mobile with CI settings (6/6); the RSVP journey passes again after adding family-feed revocation (2/2).
 - [x] After syncing `rebuild/trunk` through `1f95b80a`, full Vitest passed 315 files / 1,123 tests with 1 existing skip; full Chromium desktop e2e passed 72 tests with 3 existing skips; `npm run build`, typecheck, and full lint passed. All 12 G journeys pass Chromium + WebKit mobile with axe and retries disabled (24/24); the 40-swimmer meet journey also passed three consecutive WebKit runs after switching the checkbox interaction to Playwright's state-aware `check()`.
 - [x] `npm run openapi` regenerated the account/team/facility calendar-feed create/list/revoke contract. The hosted CI status checked at `5b4ad3c1` passed `schedule-stats` in both browser projects; its only failure was Track D's Linux design-parity image.
+- [x] After syncing `rebuild/trunk` through `519c8b4a`, typecheck, full lint, build, and knip passed; the full Chromium merge-gate e2e passed 76 tests with 3 existing skips; all 12 G WebKit journeys passed with retries disabled. `npm run openapi` regenerated cleanly after that sync.
+- [ ] The full Vitest run on the `519c8b4a` candidate passed 322 files / 1,163 tests, skipped 1, and failed 2 cross-track tests. Track E's `server/test/registration/team-entries.test.ts` failure reproduced in isolation (1/1) at `stableUuid` (`team-entries.ts:158`); OPS's `server/test/ops/operator-keys.test.ts` failed once in the full run but passed its isolated rerun (2/2), indicating an intermittent private-key byte-length issue.
 - [ ] Phase 8/9 signoff still depends on Track F's result-to-discipline/game-served API, Track C's public facility image route, and Track B's emergency email fan-out. G emits batched schedule-change notifications through Track B's service; on the current trunk it persists only the in-app channel.
 
 ## Cross-track requests and blockers
@@ -109,7 +111,7 @@ Status: the previous G implementation is integrated on `rebuild/trunk` as `1f95b
 - **Track C (sprint wiring owner):** the schedule navigation aggregators and generated nested routes are now wired on trunk. Track C's `track/c-adapters` branch defines the scoped public facility layout image route; it is not present on `rebuild/trunk` yet. G now uploads only public website assets, attaches the approved file ID to the facility, and renders through that route contract. The G browser test mocks the route response until the C implementation is integrated.
 - **Track A:** the previous roster check-constraint, auth and ownership e2e failures no longer reproduce; full Vitest and Chromium browser gates pass on the current G sync.
 - **Track E:** resolved by the `bd70207e` integration; the full database-backed Vitest suite passes 278 files / 991 tests, with 1 skip.
-- **Track E (team-entry UUID helper):** one post-registry full-suite run failed once at `server/src/modules/registration/team-entries.ts:158` with `UUID digest is incomplete`; a valid SHA-256 digest can contain zero at byte 6 or 8. The single-file retry and the following complete suite both passed. Please validate digest length rather than treating those valid byte values as incomplete; G did not change Track E-owned files.
+- **Track E (team-entry UUID helper):** the failure at `server/src/modules/registration/team-entries.ts:158` with `UUID digest is incomplete` has recurred on the `519c8b4a` trunk sync and failed the isolated test (1/1). A valid SHA-256 digest can contain zero at byte 6 or 8; validate the digest length rather than truthiness of those byte values. G did not change Track E-owned files.
 - **Track B:** align shared `contestStageSchema` with `02-DATA-MODEL.md`: it accepts `tournament` (rejected by `contests_stage_check`) and omits `championship`/`consolation`/`exhibition`; G's service/routes now follow the data-model enum. Generator fairness and double-elimination bye progression fixes are in G's current branch and need review with the shared-algorithm owner before integration.
 - **Track H:** resolved by the Phase 11 merge (`0ca39573`): event-linked volunteer shifts and signups are now included in closure recipients and covered by the North Park mass-closure journey.
 - **Track H / I:** the prior sponsor-placement and academy-promotion failures no longer reproduce after syncing through `84c85f8`; the latest full Vitest run passed those suites. These paths remain outside G's ownership.
@@ -123,12 +125,13 @@ Status: the previous G implementation is integrated on `rebuild/trunk` as `1f95b
 ## Requests from OPS
 
 - **Track G (API contract, 2026-09-27):** keep `runScheduleGeneration` exported from `server/src/modules/scheduling/generator.ts`; Track J's federation schedule workflow imports and calls this shared service. OPS restored the export during the current trunk sync after typecheck caught the missing API.
+- **OPS (VAPID key encoding):** the latest full Vitest run failed `server/test/ops/operator-keys.test.ts` because the generated private P-256 key was 31 bytes instead of 32; the isolated rerun passed 2/2. Preserve the full unsigned scalar width when encoding leading-zero keys.
 
 ## Decisions and review
 
 - Reviewed `50 §2–3, §6–7`, `15 C1/C10/C16`, `03`, `20 §6–7`, Phase 8/9 in `11`, `02 §H/I/J/Q`, and `05 §6`.
-- G decisions are `DEC-082–096`, `DEC-100–108`, and `DEC-122–123` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
-- Latest G sync: branch commit `04799c73` was synced through `1e4cbd3`; the current branch now includes trunk commit `5b4ad3c1`. The G integration commit `6dbb0e2a` is on trunk. Post-sync full Vitest, lint, generator performance and all G Linux Playwright journeys pass. Registry and OpenAPI are current after the Phase 14 action-center and public contact inbox modules landed. G commits remain local and are not pushed.
+- G decisions are `DEC-082–096`, `DEC-100–108`, `DEC-122–123`, and `DEC-125` in `docs/codex/DECISIONS.md`; Track A decisions `DEC-097–099` remain intact.
+- Latest G sync: the current branch includes `rebuild/trunk` through `519c8b4a`. The previous G integration commit `1f95b80a` is on trunk; calendar-feed commits `0921e19e` and `90375192` are local and not pushed. Typecheck, lint, build, knip, full Chromium, and all G WebKit journeys pass on this candidate; the full unit suite is blocked by the recorded E/OPS failures. The generator regression passes in 529 ms. OpenAPI was regenerated after D's robots endpoint landed, and `npm run registry` regenerated 45 server modules, 6 integrations, and 9 web features without a diff.
 - Do not mark ready or write “Track G complete” until the outstanding cross-track contracts, schedule journeys and full gates pass.
 
 ## Requests from J

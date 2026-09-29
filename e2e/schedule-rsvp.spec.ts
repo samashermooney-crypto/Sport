@@ -208,6 +208,20 @@ test('guardian RSVPs an athlete to a team event', async ({
     expect((await revokeResponse).status()).toBe(204);
     expect((await page.request.get(teamFeedUrl.toString())).status()).toBe(404);
 
+    page.once('dialog', async (dialog) => {
+      await dialog.accept();
+    });
+    const familyRevokeResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'DELETE' &&
+        response.url().endsWith(`/calendar-feeds/${familyFeed.id}`),
+    );
+    await familyFeedPanel.getByRole('button', { name: 'Revoke URL' }).click();
+    expect((await familyRevokeResponse).status()).toBe(204);
+    expect((await page.request.get(familyFeedUrl.toString())).status()).toBe(
+      404,
+    );
+
     await expect(page.getByRole('alert')).toHaveCount(0);
     expect(await accessibilityViolations(page)).toEqual([]);
   } finally {
