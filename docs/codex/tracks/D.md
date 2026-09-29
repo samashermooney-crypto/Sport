@@ -33,7 +33,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - `web/src/marketing/LegalPage.test.tsx`: 10/10 pass, including the review watermark on all seven public legal drafts; changed-path ESLint passes.
 - `e2e/design/legal-drafts.spec.ts`: 2/2 Chromium journeys pass after registering `/welcome`, `/pricing`, and `/legal/:slug` through the generated web feature registry; all seven legal routes show the draft watermark and landing/pricing navigation reaches the sign-in entry point.
 - `e2e/action-center.spec.ts`: 1/1 database-backed Chromium journey confirms the owner can keyboard-focus and activate mark-all-read with Enter; the submission updates and its Action Center card clears.
-- The same Chromium journey now also keyboards through the Registration pace preset and preview. It exposed and verified fixes for the reports router's missing bounded JSON parser and weekly `date_trunc` grouping; `server/src/modules/reports/service.integration.test.ts` passes 7/7.
+- The Action Center journey now keyboards through contact triage, the Registration pace preset and preview, report save, secure-link scheduling, and schedule pause/resume; Chromium and WebKit mobile pass 2/2. It exposed and verified fixes for the exports/reports routers' missing bounded JSON parsers and weekly `date_trunc` grouping.
 - New marketing route files pass full typecheck, lint, and production build. The prior run's downloaded CI actuals were compared pixel-for-pixel against all three corrected Linux references.
 - Lighthouse mobile: home 98/100/100; Programs 99/100/100; Schedule 99/100/100.
 - Latest design parity browser run: 14 passed, 4 WebKit skips; desktop and mobile shell parity, axe, component screenshots, calendar interactions, board keyboard movement, and global search passed.
@@ -43,11 +43,12 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - Latest full E2E before the new privacy journey: 114 passed, 10 skipped, 2 cross-track failures — Track G WebKit-mobile schedule result checkbox at `e2e/schedule-meet.spec.ts:230`, and Track A WebKit-mobile recovery-code sign-in at `e2e/sign-in.spec.ts:420`. D parity and the Action Center journey pass.
 - New privacy deletion journey now passes on Chromium desktop and WebKit mobile (2/2). It verifies keyboard operation, axe cleanliness, request review/approval, and PII anonymization. The journey exposed a missing 64kb JSON parser on the exports router; the router now parses bounded JSON before validating request bodies.
 - The shared overlay keyboard check now opens dialog, drawer, and sheet with Enter, closes with Escape, and verifies focus returns to each trigger on Chromium desktop and WebKit mobile (2/2).
+- Latest focused Phase 14 services: Action Center role isolation 4/4, report builder/service authorization and preview 7/7, and secure scheduled report delivery 2/2.
 
 ## Exact next steps
 
 1. Close remaining Phase 14 integration gaps: Track C to mount `createSiteSsrRouter` at `/site`, route verified custom domains, and wire Action Center/export jobs. Retest Lighthouse on the integrated routes.
-2. Verify remaining Action Center actions and dashboard/PDF role access on the current isolated schema.
+2. Recheck Action Center/export wiring and report role access after Track C completes the shared app mount; the focused D service checks and keyboard save/schedule journey now pass.
 3. Complete the documented manual keyboard journeys where roles/routes are available; preserve failures as specific track requests.
 4. After Track C completes its active trunk merge, verify the updated snapshots and privacy flow are on `rebuild/trunk`; the orchestrator handles publishing.
 

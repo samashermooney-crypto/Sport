@@ -125,6 +125,40 @@ test('owner keyboard-operates the Action Center and report builder', async ({
     await expect(page.getByRole('status')).toContainText(
       'preview rows loaded.',
     );
+
+    const reportName = page.getByLabel('Report name');
+    await reportName.focus();
+    await page.keyboard.type('Keyboard acceptance report');
+    const saveReport = page.getByRole('button', { name: 'Save report' });
+    await saveReport.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('status')).toContainText('Report saved.');
+    await expect(
+      page.getByRole('button', { name: /Keyboard acceptance report/ }),
+    ).toBeVisible();
+
+    const scheduleReport = page.getByRole('button', {
+      name: 'Schedule report',
+    });
+    await scheduleReport.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('status')).toContainText(
+      'Secure report link scheduled',
+    );
+    const schedule = page
+      .getByRole('row')
+      .filter({ hasText: 'Keyboard acceptance report' });
+    await expect(schedule).toContainText('weekly');
+    await expect(schedule).toContainText('active');
+
+    const pauseSchedule = schedule.getByRole('button', { name: 'Pause' });
+    await pauseSchedule.focus();
+    await page.keyboard.press('Enter');
+    const resumeSchedule = schedule.getByRole('button', { name: 'Resume' });
+    await expect(resumeSchedule).toBeVisible();
+    await resumeSchedule.focus();
+    await page.keyboard.press('Enter');
+    await expect(schedule.getByRole('button', { name: 'Pause' })).toBeVisible();
   } finally {
     await database.destroy();
   }
