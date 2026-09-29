@@ -225,6 +225,22 @@
   border-bottom: 1px solid var(--line-2);
 }
 
+.schedule-calendar-feeds {
+  min-width: 0;
+}
+
+.schedule-calendar-feeds__created {
+  display: grid;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.schedule-calendar-feeds__created p {
+  margin: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .schedule-json {
   max-height: 300px;
   overflow: auto;
