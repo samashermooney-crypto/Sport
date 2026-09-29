@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Ready for integration: `1f95b80..HEAD`. This range contains the website SEO/sitemap, export archive-verification, evaluation-results report, mobile export/report journeys, and the latest CI-derived Linux parity baseline. Full typecheck and lint pass; the D design parity suite passes locally. The local trunk merge gate and hosted CI rerun remain pending.
+Local integration candidate: local `rebuild/trunk` at `519c8b4a` contains the Linux parity correction (`40fa19d2`). The Action Center bulk-reminder slice (`5e7c6d3b`, `78ea981e`) is included in the current local trunk integration; the merge gate passes typecheck, lint, full real-Postgres tests and Chromium. The updated OpenAPI document is generated. Hosted `origin/rebuild/trunk` remains at `5b4ad3c1` until Track C publishes local trunk.
 
 ## Current
 
@@ -22,6 +22,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - Queue 1–2: captured legacy references and published primitives in early batches.
 - Queue 3: DateInput, TimeInput, DateRange, MoneyInput, PhoneInput, Combobox, FileUpload, Avatar, Tag, DataList, Stepper, Drawer, Sheet, Pagination, Calendar views/resource view, Timeline, StatTile, Chart, RichTextEditor, SignaturePad, QRCode, PrintLayout, keyboard-accessible Board, Bracket, and Chat thread.
 - Queue 4–6: design parity suite, mobile bottom tab bar, command palette/global search shell, and shared auth controls.
+- Action Center bulk actions: finance-authorized overdue-invoice and failed-autopay reminders, plus compliance-authorized staff reminders, send only unread-deduplicated in-app notifications; they do not send external messages or retry charges. Staff notices go only to a verified self-linked account. Server integration tests pass 8/8 and the UI test passes 3/3.
 - Phase 14 reports: sensitive columns remain role-gated; evaluation results are available as a sensitive-tier standard report; previews cap at 200 rows; scheduled delivery uses local time and secure links where needed. Board PDF is aggregate-only and reuses report access checks.
 - Phase 14 privacy: access export is step-up gated; correction/deletion is reviewed; anonymization retains and pseudonymizes financial/waiver evidence; retention jobs are scoped and audited.
 - Phase 16 accessibility additions: screen-reader chart tables, calendar/board labels, keyboard board movement, keyboard-scrollable landing preview, accessibility statement, and English/Spanish completeness tests.
@@ -52,14 +53,14 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - `npm run build` passes after the landing keyboard-scroll change; Vite reports its existing third-party annotation and large-chunk warnings.
 - Local trunk merge gate for the core D bundle: typecheck and lint pass; full suite 308 files / 1,107 tests passed, 1 skipped; Chromium desktop E2E 63 passed, 3 skipped; production build passes. Design parity including legacy shell, core components, and 390px controls passes.
 - CI artifact validation: for both failing hosted runs, `ui-core-1440-chromium-desktop-linux.png`, `ui-feedback-390-chromium-desktop-linux.png`, and `ui-controls-390-webkit-mobile-linux.png` exact SHA-256 hashes match the corresponding CI actual PNGs.
-- Latest CI artifact validation: run `36563376855` on `5b4ad3c` had 59 e2e passes, 3 skips and one parity failure: only 21 pixels in `ui-feedback-1440` differed, at the reset icon glyph. Its actual Linux screenshot now matches the committed Linux reference byte-for-byte; the local Chromium and WebKit parity suite passes 18 tests with 4 expected skips.
+- Latest CI artifact validation: run `36563376855` on `5b4ad3c` had 59 e2e passes, 3 skips and one parity failure: 21 pixels in `ui-feedback-1440` differed. The failing commit's expected Linux reference hashes to `603095a6…`; the CI actual screenshot and corrected local Linux reference both hash to `d6bd39ba…`. This is stale-baseline drift, not a layout/font regression. The correction is merged into local trunk; `origin/rebuild/trunk` still points to the older snapshot until Track C publishes. The 390px shell mismatch and missing core capture do not recur in this latest CI run.
 - `web/src/ui/tokens.test.ts`: 3/3 pass; the legacy token-equality check is unchanged.
 - Organization export journey: Chromium and WebKit mobile both pass request → worker build → seven-day signed link → ZIP download, including a valid ZIP signature (2/2).
 - Design sweep: feature CSS under console, portal, platform, and site uses shared `web/src/ui` tokens for colors, borders, radii, and fonts; no raw palette colors were found outside the shared UI and marketing styles. Track G’s season-award print CSS still uses a separate `system-ui` font and literal ink colors and should move to the shared `PrintLayout` or equivalent legacy font treatment.
 
 ## Exact next steps
 
-1. Merge `1f95b80..HEAD` into local `rebuild/trunk` and run the full merge gate when `/Users/sammooney/Sport-trunk` is clean. That shared checkout currently has staged Track K Phase 15 work and no `MERGE_HEAD`; leave it untouched until K/C completes it. The stale trunk lock was released after confirming no active gate process.
+1. The Linux parity fix is in local trunk at `519c8b4a`; the Action Center reminder changes are included in the current local trunk integration, whose typecheck, lint, full test suite and Chromium gate pass. Track C still needs to publish local trunk for hosted CI to verify the corrected Linux capture.
 2. Track A: extend the module router contract so the website module can register public `/site` SSR routes. Track C: mount the route, regenerate OpenAPI for the new website operation, expose host-root sitemap/robots aliases, resolve verified custom-domain hosts before the production SPA fallback, then rerun public-site Lighthouse against the actual app mount.
 3. Audit the remaining app screens against `web/src/ui` tokens/components and fix D-owned visual inconsistencies or record exact owner requests.
 4. Complete the documented manual keyboard journeys where roles/routes are available; preserve remaining cross-track failures as specific requests.

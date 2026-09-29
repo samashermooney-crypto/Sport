@@ -7,6 +7,24 @@ export const actionCenterItemSchema = z.strictObject({
   href: z.string().startsWith('/'),
 });
 
+export const actionCenterBulkActionSchema = z.enum([
+  'mark_contacts_read',
+  'past_due_reminders',
+  'failed_installment_contacts',
+  'staff_compliance_reminders',
+]);
+
+export const actionCenterMutationSchema = z.enum([
+  'past_due_reminders',
+  'failed_installment_contacts',
+  'staff_compliance_reminders',
+]);
+
+export const actionCenterMutationResponseSchema = z.strictObject({
+  sentCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
+});
+
 export const actionCenterCardSchema = z.strictObject({
   id: z.enum([
     'registrations',
@@ -36,7 +54,7 @@ export const actionCenterCardSchema = z.strictObject({
   title: z.string().min(1),
   count: z.number().int().positive(),
   amountCents: z.number().int().nonnegative().optional(),
-  bulkAction: z.enum(['mark_contacts_read']).optional(),
+  bulkAction: actionCenterBulkActionSchema.optional(),
   actionLabel: z.string().min(1),
   href: z.string().startsWith('/'),
   items: z.array(actionCenterItemSchema).max(5),
@@ -48,3 +66,4 @@ export const actionCenterResponseSchema = z.strictObject({
 
 export type ActionCenterCard = z.infer<typeof actionCenterCardSchema>;
 export type ActionCenterItem = z.infer<typeof actionCenterItemSchema>;
+export type ActionCenterMutation = z.infer<typeof actionCenterMutationSchema>;
