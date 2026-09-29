@@ -25,8 +25,8 @@ import { syncPaidTeamFees } from '../server/src/modules/team-finance/service';
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
+import { e2eDatabaseUrl, e2eMailpitApiBaseUrl } from './database';
 
-const offset = Number(process.env.PORT_OFFSET ?? '0');
 
 async function signInBrowser(
   page: import('@playwright/test').Page,
@@ -87,7 +87,7 @@ test.describe('Phase 11 acceptance', () => {
     page,
   }, testInfo) => {
     const database = createDatabase(
-      `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+      e2eDatabaseUrl('app'),
     );
     try {
       const factories = createTestFactories(database);
@@ -248,7 +248,7 @@ test.describe('Phase 11 acceptance', () => {
     page,
   }, testInfo) => {
     const database = createDatabase(
-      `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+      e2eDatabaseUrl('app'),
     );
     try {
       const factories = createTestFactories(database);
@@ -528,7 +528,7 @@ test.describe('Phase 11 acceptance', () => {
     page,
   }, testInfo) => {
     const database = createDatabase(
-      `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+      e2eDatabaseUrl('app'),
     );
     try {
       const factories = createTestFactories(database);
@@ -639,7 +639,7 @@ test.describe('Phase 11 acceptance', () => {
     request,
   }, testInfo) => {
     const database = createDatabase(
-      `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+      e2eDatabaseUrl('app'),
     );
     try {
       const factories = createTestFactories(database);
@@ -726,7 +726,7 @@ test.describe('Phase 11 acceptance', () => {
         .poll(
           async () => {
             const mailbox = await request.get(
-              `http://127.0.0.1:${String(8025 + offset)}/api/v1/messages`,
+              `${e2eMailpitApiBaseUrl()}/api/v1/messages`,
             );
             const summary = (await mailbox.json()) as {
               messages: Array<{
@@ -739,7 +739,7 @@ test.describe('Phase 11 acceptance', () => {
             );
             if (!message) return '';
             const detailResponse = await request.get(
-              `http://127.0.0.1:${String(8025 + offset)}/api/v1/message/${message.ID}`,
+              `${e2eMailpitApiBaseUrl()}/api/v1/message/${message.ID}`,
             );
             const detail = (await detailResponse.json()) as { Text: string };
             receiptText = detail.Text;

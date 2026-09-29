@@ -73,9 +73,9 @@ Track B's catalog/preferences and Track C's provider-ID interface are on the mer
 
 - **QA-ACC-021:** extend the communications browser journey through quiet-hour deferral and tokenized unsubscribe; current browser coverage stops after schedule cancellation.
 - **QA-ACC-037:** run the Phase 11 $300 donation acceptance path anonymously. The current scenario keeps its authenticated setup session while completing the public fundraiser checkout.
-- **QA-SEC-009:** limit household volunteer ledger reads to the verified guardian of that household or an authorized volunteer-oversight role; active program-scoped memberships currently pass the service access check.
+- **QA-SEC-009:** QA runtime-confirmed on `d52e4c83`: a program-scoped director received HTTP 200 for another household's ledger. Limit reads to the verified guardian or explicitly authorized org-wide volunteer oversight.
 - **QA-ACC-038 (coordinate E):** connect family uniform orders to the selected athlete's registration/team for size reporting, and reject unrelated team-season IDs. The current store portal omits both attribution fields that the report requires.
-- **QA-ACC-039:** make volunteer buyout reservation and invoice issuance atomic under concurrency; a late conflicting request currently leaves its issued invoice behind.
+- **QA-ACC-039:** QA runtime reproduced two fulfilled requests, two buyouts, and two payable invoice lines when only one buyout unit remained. Make reservation and invoice issuance concurrency-safe.
 - **QA-ACC-040:** make `countsCoachRoles` affect household requirement credits; it is persisted but the ledger only counts completed volunteer signups.
 - **QA-ACC-041:** implement idempotent notice and shortfall-invoice enforcement for enabled volunteer requirements; `autoInvoiceShortfall` and `noticeDays` are stored but no job consumes them.
 - **QA-ACC-042:** add event-block shift generation and a deduplicated shift-reminder job; the volunteer module has no jobs and creates shifts one at a time.

@@ -11,7 +11,8 @@ import { PostgresClassOfferings } from '../server/src/modules/classes/offerings'
 import { PostgresClassSchedules } from '../server/src/modules/classes/schedules';
 import { createTestFactories } from '../server/test/factories';
 
-const offset = Number(process.env.PORT_OFFSET ?? '0');
+import { e2eDatabaseUrl } from './database';
+
 const timezone = 'America/Chicago';
 const weekdays = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] as const;
 
@@ -46,7 +47,7 @@ test('family books a make-up class and staff records attendance', async ({
 }, testInfo) => {
   test.setTimeout(90_000);
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   try {
     const factories = createTestFactories(database);

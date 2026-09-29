@@ -5,6 +5,7 @@ import { createDatabase } from '../../server/src/db/kysely';
 import { createWithOrg } from '../../server/src/db/withOrg';
 import { issueSession } from '../../server/src/modules/auth/sessions';
 import { createTestFactories } from '../../server/test/factories';
+import { e2eDatabaseUrl } from '../database';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
@@ -12,7 +13,7 @@ test('QA-SEC-013 / Track I: class browse cannot infer age bands for an unlinked 
   request,
 }) => {
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   const withOrg = createWithOrg(database);
 

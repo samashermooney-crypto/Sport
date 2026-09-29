@@ -11,8 +11,8 @@ import { issueSession } from '../server/src/modules/auth/sessions';
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
+import { e2eDatabaseUrl, e2eMailpitApiBaseUrl } from './database';
 
-const offset = Number(process.env.PORT_OFFSET ?? '0');
 
 test('staff invites a guardian and the verified adult accepts on a phone', async ({
   page,
@@ -21,7 +21,7 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
 }, testInfo) => {
   test.setTimeout(60_000);
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   const guardianContext = await browser.newContext({
     ignoreHTTPSErrors: true,
@@ -111,7 +111,7 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
       .poll(async () => {
         const mailbox = (await (
           await request.get(
-            `http://127.0.0.1:${String(8025 + offset)}/api/v1/messages`,
+            `${e2eMailpitApiBaseUrl()}/api/v1/messages`,
           )
         ).json()) as {
           messages: Array<{ ID: string; To: Array<{ Address: string }> }>;
@@ -123,7 +123,7 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
             continue;
           const detail = (await (
             await request.get(
-              `http://127.0.0.1:${String(8025 + offset)}/api/v1/message/${message.ID}`,
+              `${e2eMailpitApiBaseUrl()}/api/v1/message/${message.ID}`,
             )
           ).json()) as { Text: string };
           link =
@@ -244,7 +244,7 @@ test('staff issues an adult profile claim and the invited account accepts', asyn
 }, testInfo) => {
   test.setTimeout(60_000);
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   const recipientContext = await browser.newContext({
     ignoreHTTPSErrors: true,
@@ -317,7 +317,7 @@ test('staff issues an adult profile claim and the invited account accepts', asyn
       .poll(async () => {
         const mailbox = (await (
           await request.get(
-            `http://127.0.0.1:${String(8025 + offset)}/api/v1/messages`,
+            `${e2eMailpitApiBaseUrl()}/api/v1/messages`,
           )
         ).json()) as {
           messages: Array<{ ID: string; To: Array<{ Address: string }> }>;
@@ -327,7 +327,7 @@ test('staff issues an adult profile claim and the invited account accepts', asyn
             continue;
           const detail = (await (
             await request.get(
-              `http://127.0.0.1:${String(8025 + offset)}/api/v1/message/${message.ID}`,
+              `${e2eMailpitApiBaseUrl()}/api/v1/message/${message.ID}`,
             )
           ).json()) as { Text: string };
           link =
@@ -387,7 +387,7 @@ test('guardian invites a teen athlete who accepts a read-only view and is revoke
 }, testInfo) => {
   test.setTimeout(60_000);
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   const guardianContext = await browser.newContext({
     ignoreHTTPSErrors: true,
@@ -492,7 +492,7 @@ test('guardian invites a teen athlete who accepts a read-only view and is revoke
       .poll(async () => {
         const mailbox = (await (
           await request.get(
-            `http://127.0.0.1:${String(8025 + offset)}/api/v1/messages`,
+            `${e2eMailpitApiBaseUrl()}/api/v1/messages`,
           )
         ).json()) as {
           messages: Array<{ ID: string; To: Array<{ Address: string }> }>;
@@ -504,7 +504,7 @@ test('guardian invites a teen athlete who accepts a read-only view and is revoke
             continue;
           const detail = (await (
             await request.get(
-              `http://127.0.0.1:${String(8025 + offset)}/api/v1/message/${message.ID}`,
+              `${e2eMailpitApiBaseUrl()}/api/v1/message/${message.ID}`,
             )
           ).json()) as { Text: string };
           link =

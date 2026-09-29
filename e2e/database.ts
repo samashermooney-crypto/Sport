@@ -21,3 +21,10 @@ export function e2eApiBaseUrl(): string {
     configuredPort ?? String(3001 + Number(process.env.PORT_OFFSET ?? '0'));
   return `http://127.0.0.1:${port}`;
 }
+
+export function e2eMailpitApiBaseUrl(): string {
+  const configuredPort = process.env.ATHLENTRY_E2E_MAILPIT_API_PORT;
+  const port =
+    configuredPort ?? String(8025 + Number(process.env.PORT_OFFSET ?? '0'));
+  return `http://127.0.0.1:${port}`;
+}

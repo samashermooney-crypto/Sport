@@ -80,7 +80,7 @@
 - **Reproduce:** an active program-scoped `director` requests `/api/v1/volunteers/orgs/:orgId/households/:householdId/ledger` for a household outside their volunteer relationship. `e2e/security/volunteer-household-ledger.spec.ts` now actively asserts the expected 404; current code returns the household ledger.
 - **Expected:** only a verified guardian of that household or a role with organization-wide volunteer oversight can read the ledger; unrelated and out-of-scope members receive 404 with no household data.
 - **Request:** replace the broad active-membership check with explicit owner/admin/volunteer-coordinator authorization (including the applicable scope policy) or verified guardian access, and add an integration regression for a program-scoped director.
-- **Status:** high-confidence static access-control defect; database-backed HTTP execution awaits the isolated QA stack.
+- **Status:** runtime-confirmed on the isolated QA Chromium run at trunk snapshot `d52e4c83`: a program-scoped director received HTTP 200 and another household's volunteer ledger. The active regression expects the scoped member to receive 404.
 
 ### QA-ACC-038 — Family uniform orders are not linked to team/program size reports
 
@@ -90,7 +90,7 @@
 - **Reproduce:** place and pay for a uniform as a family through `/me/orgs/:orgId/store`, then query the report for the athlete's program/team. The portal order has no team or registration association and does not appear in the team's report; supplying another valid team-season UUID directly can instead misattribute it.
 - **Expected:** a paid uniform selection for a registered athlete is attributed to that athlete's verified registration and team, and callers cannot attach purchases to unrelated teams; report totals match actual family selections.
 - **Request:** wire the registration add-on and family store flows to derive or validate registration/team attribution from the selected household member, reject mismatched team IDs, and add a browser regression that pays for a family uniform and verifies the team/program report.
-- **Status:** open Phase 11 acceptance/data-integrity gap; current report evidence covers only a direct service call with manually supplied attribution.
+- **Status:** still open. The initial Chromium attempt used an incorrect database mapping, and the corrected-offset retry did not reach this scenario because the temporary API server exited before becoming healthy. Rerun after API startup is stable.
 
 ### QA-ACC-039 — Concurrent volunteer buyouts can leave an extra payable invoice
 
@@ -100,7 +100,7 @@
 - **Reproduce:** with one buyout unit remaining, concurrently call the service twice for one unit using distinct creation keys. One call succeeds; the other rejects after issuing an invoice. `e2e/phase11-buyout-race.spec.ts` now actively asserts that only one buyout invoice line may persist.
 - **Expected:** the losing request leaves no payable invoice or invoice line; buyout reservation and invoice creation must remain consistent under concurrency.
 - **Request:** reserve/decrement remaining units before issuing the invoice, or compensate by voiding the invoice if the locked recheck fails; add a Postgres concurrency regression that asserts the losing request creates no invoice.
-- **Status:** high-confidence financial correctness race from static transaction ordering; execution awaits the isolated QA Postgres stack.
+- **Status:** runtime-confirmed on the isolated QA Postgres stack: both concurrent requests fulfilled, persisted two buyouts, and created two payable invoice lines for one remaining unit. The active aggregate regression expects one success, one conflict, one buyout, and one invoice line.
 
 ### QA-ACC-040 — Volunteer coach-count setting does not affect household progress
 
@@ -170,7 +170,7 @@
 - **Reproduce:** create an offered class waitlist entry for a verified guardian account, revoke its `person_account_links` row, then GET `/api/v1/classes/orgs/:orgId/me/waitlist`; the current query still returns the child's name and entry identifiers.
 - **Expected:** revoking the link immediately removes access to that child's waitlist data and blocks accepting or declining its offer; the response must contain no child or waitlist identifiers.
 - **Request:** revalidate active verified self/guardian access for every child-specific waitlist list/read/mutation, including `waitlistForAccount()`, accept and decline; add a real-Postgres regression for link revocation after offer creation.
-- **Status:** high-confidence authorization/privacy defect from the route and query predicates; execution awaits the isolated QA Postgres stack.
+- **Status:** runtime-confirmed in the isolated QA Chromium run at trunk snapshot `d52e4c83`: after guardian-link revocation, the waitlist endpoint returned two entries.
 
 ### QA-SEC-011 — Class portal booking actions bypass household ownership
 
@@ -180,7 +180,7 @@
 - **Reproduce:** revoke the purchaser's guardian link after a child receives a punch card and booked class session. The former guardian still sees the card; any other active organization member who knows the booking or card UUID can cancel the booking or consume a punch.
 - **Expected:** private class cards are hidden and member portal actions are denied unless the caller is the current verified guardian/self for the person and is authorized for the purchaser-owned record; denied calls leave bookings and remaining punches unchanged.
 - **Request:** enforce current person-link and account ownership in the portal list, booking-cancel and punch-redemption paths (retaining separate authorized staff actions); add a real-Postgres regression asserting 404/no data and no mutation for a revoked guardian and unrelated active member.
-- **Status:** high-confidence authorization/privacy defect from endpoint and service predicates; the active regression is in `e2e/security/class-booking-guardian-idor.spec.ts`, with execution pending the isolated QA stack.
+- **Status:** runtime-confirmed in the isolated QA Chromium run at trunk snapshot `d52e4c83`: a revoked guardian still received the child's punch-card listing, and a forged same-organization household booking returned 201 and persisted under the unrelated household.
 
 ### QA-SEC-012 — League entry reads ignore revoked roster-sharing permission
 
@@ -190,7 +190,7 @@
 - **Reproduce:** accept a relationship with `{ rosters: true, team_entries: true }`, submit and accept a team entry, then have the member club revoke `rosters` while leaving `team_entries` enabled. As a league user, GET `/api/v1/federation/organizations/:leagueOrgId/entries`, `/entries/:entryId`, and `/members/:memberOrgId/teams`; the current implementation returns `snapshot.playerCount`, the full roster (including player names and person references), and per-team `rosterSize`.
 - **Expected:** each response re-evaluates the current active relationship and sharing keys. Keep team-entry metadata when `team_entries` remains enabled, but omit roster-derived counts and player fields after `rosters` is revoked. Suspension or ending the relationship must stop the league from reading the stored roster immediately.
 - **Request:** update `listLeagueEntries()`, `getLeagueEntry()`, and `readMemberTeams()` to gate cached snapshot fields on the current relationship status and `rosters` grant; add real-Postgres/API coverage for child-side immediate revocation and relationship suspension/end.
-- **Status:** confirmed authorization/privacy defect by source inspection; runtime reproduction awaits the isolated QA stack.
+- **Status:** runtime-confirmed in the isolated QA Chromium run at trunk snapshot `d52e4c83`: roster-derived counts remained in the league response after the child organization revoked `rosters` sharing.
 
 ### QA-SEC-013 — Class browse infers an unlinked child's age band
 
@@ -200,7 +200,7 @@
 - **Reproduce:** create several published age-banded classes and a child with a known ID but no active `person_account_links` row for the caller. As a different active organization member, request `/api/v1/classes/orgs/:orgId/me/browse?personId=:childId`; the current route returns offerings filtered using the child's DOB.
 - **Expected:** a supplied `personId` is accepted only when the signed-in account has a current verified self/guardian link; otherwise return the standard authorization denial without age-filtered results.
 - **Request:** call `requireLinkedPerson()` before passing `personId` from `/me/browse` into the service and add the real-Postgres/API regression in the new security spec.
-- **Status:** confirmed personal-data inference path by source inspection; runtime reproduction awaits the isolated QA stack.
+- **Status:** runtime-confirmed in the isolated QA Chromium run at trunk snapshot `d52e4c83`: an unlinked same-organization member received HTTP 200 and age-filtered class results for the child's person ID.
 
 ### QA-SEC-014 — A guardian of an instructor inherits session-roster access
 
@@ -210,17 +210,17 @@
 - **Reproduce:** assign an adult instructor person to an active class schedule; retain a verified guardian link from a separate, non-member account to that person; create a booked student session; GET `/api/v1/classes/orgs/:orgId/sessions/:sessionId/roster` with the guardian's session. The current instructor predicate treats the guardian link as the instructor's own link and returns the roster.
 - **Expected:** only the assigned instructor account itself, authenticated through its current verified self link, or authorized class staff can read the session roster. A guardian link to the instructor person alone must not grant access; return 403/404 with no roster or attendee details.
 - **Request:** require a verified active self relationship (or an equally explicit account-to-instructor authorization) when authorizing session instructors; do not let guardian relationships inherit the instructor's roster permission. Add a real-Postgres/API regression for an adult instructor with a separate linked guardian account.
-- **Status:** confirmed authorization path by source inspection; runtime reproduction awaits the isolated QA Postgres stack.
+- **Status:** runtime-confirmed in the isolated QA Chromium run at trunk snapshot `d52e4c83`: a non-member guardian linked to the instructor person received HTTP 200 and the session roster.
 
 ### QA-ACC-046 — Rejected federation invoice void leaves the assessment marked void
 
 - **Owner:** Track J
 - **Phase:** 13; federation fee cancellation and financial correctness
 - **Evidence:** `voidFeeAssessment()` commits `federation_fee_assessments.status = 'void'` in one transaction, then calls `PostgresInvoiceRepository.void()` in another. The finance service rejects voids when an invoice has an active installment, net payment, credit, or dispute; on that rejection, the assessment remains void while its invoice remains payable. `e2e/phase13-fee-void-atomicity.spec.ts` now actively asserts the active-installment case.
-- **Reproduce:** issue a league fee invoice to a member-club payer, add a scheduled installment to that invoice, and POST the fee assessment void action. The request correctly receives 409 from invoice validation, but a subsequent read shows the assessment is `void` and the invoice is still open with its full balance.
+- **Reproduce:** issue a league fee invoice to a member-club payer, add a scheduled installment to that invoice, and POST the fee assessment void action. QA observed HTTP 500; a subsequent read showed `assessment.status='void'`, `invoice.status='open'`, and `balance_cents=2500`.
 - **Expected:** a rejected invoice void leaves the fee assessment in `invoiced` state and preserves the payable invoice state; successful voids update both records consistently.
 - **Request:** reorder or transact the assessment and invoice state changes so failed invoice validation cannot commit an assessment void; add real-Postgres regression coverage for active installments and net paid balances.
-- **Status:** confirmed partial-write defect by transaction boundaries and invoice validation; runtime reproduction awaits the isolated QA stack.
+- **Status:** runtime-confirmed on the isolated QA stack: the request returned HTTP 500 and committed the assessment as void while leaving its invoice open with the full 2500-cent balance. The active regression expects rejection with both records unchanged.
 
 ### QA-OPS-001 — Render health probes have no `/readyz` handler and public status is missing
 
@@ -276,11 +276,11 @@
 
 - **Owner:** Track C
 - **Phase:** 16 §1.2
-- **Evidence:** current `rebuild/trunk` `bc9b22b3` still has an empty `operations` object and lacks the generated operation metadata. Latest off-trunk Track C head `29f025c3` has metadata for 702/702 OpenAPI operations and 702 permission rows across 23 roles; C reports the route metadata/matrix checks pass on that branch. The tenancy-fuzz quality gap is tracked separately in QA-SEC-016.
+- **Evidence:** current `rebuild/trunk` `91614aaa` still lacks the generated operation metadata and complete 702-row permission matrix. Latest off-trunk Track C head `29f025c3` has metadata for 702/702 OpenAPI operations and 702 permission rows across 23 roles; C reports the route metadata/matrix checks pass on that branch. The tenancy-fuzz quality gap is tracked separately in QA-SEC-016.
 - **Reproduce:** compare `git show rebuild/trunk:server/test/security/permission-matrix.json` with `git show track/c-adapters:server/test/security/permission-matrix.json`, and inspect generated OpenAPI metadata at both refs.
 - **Expected:** integrate the generated metadata and complete role matrix, then run the route-authorization, permission-matrix, and tenant-fuzz checks on the integrated trunk.
-- **Request:** after C's current branch gate is green, integrate the implementation in a small slice and re-run the metadata/matrix suites on trunk. Keep QA-SEC-016 open until its resource-ID controls and method coverage are complete.
-- **Status:** implementation appears complete on off-trunk C head; open for trunk integration and verification. QA's browser run remains blocked because its configured web server cannot start while the QA stack ports are occupied.
+- **Request:** integrate the implementation and re-run the metadata/matrix suites on trunk. Keep QA-SEC-016 open until its resource-ID controls and method coverage are complete.
+- **Status:** open for trunk integration and verification; prior checks on `d52e4c83` reported 702 missing metadata rows and permission-matrix incompleteness. The latest trunk sync adds Track E only; rerun focused security checks after the current gate.
 
 ### QA-SEC-002 — Security-header browser check omits production HSTS coverage
 
@@ -290,37 +290,37 @@
 - **Reproduce:** inspect the browser spec's sole `/healthz` request and compare its assertions with the Phase 16 §1.4 requirement for production HSTS and relevant response types.
 - **Expected:** browser acceptance asserts HSTS in a production-configured response and checks the shared header policy on representative API and static responses, while preserving the explicit embed framing exception.
 - **Request:** add a production-configured browser assertion for HSTS and verify the common headers across representative mounted response types.
-- **Status:** open browser-coverage gap; current browser execution is blocked by the occupied QA Postgres port.
+- **Status:** open browser-coverage gap. A prior Chromium run passed the current `/healthz` assertions; production HSTS and API/static response coverage remain unasserted.
 
 ### QA-SEC-003 — CI has no Gitleaks secret scan
 
 - **Owner:** Track C
 - **Phase:** 16 §1.3
-- **Evidence:** current trunk `.github/workflows/ci.yml` has no Gitleaks step. Latest off-trunk Track C head `29f025c3` adds a `secret-scan` job using the Gitleaks action on pull requests and pushes to `main`/`rebuild/**`.
+- **Evidence:** trunk `.github/workflows/ci.yml` now has a `secret-scan` job using the Gitleaks action on pull requests and pushes to `main`/`rebuild/**`.
 - **Reproduce:** compare the CI workflow on `rebuild/trunk` and `track/c-adapters`; the scan is present only on the C branch.
 - **Expected:** CI scans the repository with Gitleaks and fails on detected secrets without printing secret values.
-- **Request:** add the scan to CI and verify the workflow on a clean repository state.
-- **Status:** implementation appears complete on off-trunk C head; open for integration and protected-branch CI verification.
+- **Request:** verify the workflow on a clean repository state and confirm hosted CI execution.
+- **Status:** implementation integrated at `d52e4c83`; the local source assertion passed in the prior QA run. Hosted GitHub Action execution remains unverified from this workspace.
 
 ### QA-SEC-004 — Web Push accepts internal network endpoints
 
 - **Owner:** Track C
 - **Phase:** 16 §1, SSRF protection
-- **Evidence:** current trunk `server/src/integrations/push/sender.ts` forwards `subscription.endpoint` to the transport without destination validation. Latest off-trunk Track C head `29f025c3` adds provider-host/public-address validation and a pinned HTTPS agent; its unit and synthetic loopback browser regressions are reported green.
+- **Evidence:** trunk now validates supported provider hosts and public DNS answers, then pins delivery to the vetted address before sending Web Push.
 - **Reproduce:** on current trunk, instantiate `WebPushSender` with a fake transport and call `send` with `https://127.0.0.1:443/latest/meta-data`; the endpoint is passed to `sendNotification`. Compare with the C branch implementation.
 - **Expected:** loopback, private, link-local, and non-provider destinations are rejected before transport, with DNS resolution protected from rebinding.
-- **Request:** validate/pin permitted Web Push destinations so the active synthetic regression passes; assert the transport is never called.
-- **Status:** current-trunk SSRF defect; a fix appears complete on off-trunk C head. Merge and re-verify before closing; no live request was made.
+- **Request:** keep synthetic tests proving private destinations are rejected before transport and DNS rebinding is prevented; no live request is needed.
+- **Status:** fixed at `d52e4c83`; sender unit coverage and the Chromium loopback/private-destination regression passed in the prior QA run.
 
 ### QA-SEC-005 — Step-up reauthentication does not rotate the session
 
 - **Owner:** Track A
 - **Phase:** 16 §1.5
-- **Evidence:** current trunk `bc9b22b3` elevates the existing session without replacing its token. Off-trunk Track A commit `a72152a3` changes password/TOTP step-up to rotate the session and sends a replacement cookie or bearer token; its route test checks the old credentials fail and the replacements work.
+- **Evidence:** trunk now rotates the password/TOTP step-up session, returns a replacement cookie or bearer token, and revokes the old token.
 - **Reproduce:** compare the step-up route at `rebuild/trunk` and `track/a-core`, then run `e2e/security/session-step-up-fixation.spec.ts` against the isolated stack.
 - **Expected:** successful step-up rotates the session token, sends the replacement cookie with the required flags, and revokes the prior session token.
-- **Request:** integrate Track A's rotation fix through its gate and run the active cookie and bearer regressions on trunk.
-- **Status:** current-trunk session fixation defect; fix appears implemented off-trunk in `a72152a3`, pending integration and end-to-end verification.
+- **Request:** retain the active cookie and bearer regressions on trunk.
+- **Status:** fixed at `d52e4c83`; the active cookie and bearer fixation regression passed in the prior Chromium run.
 
 ### QA-SEC-006 — CI has no SQL raw-interpolation guard
 
@@ -551,7 +551,7 @@
 - **Reproduce:** as a guardian with a valid link to child A, POST `/api/v1/classes/orgs/:orgId/me/drop-in` with child A's `personId` and a valid same-org household ID containing child B. The route currently accepts the drop-in and stores it under child B's household.
 - **Expected:** reject a supplied household unless an active `household_members` row links that household and person in the same organization; return 404 without creating a booking or invoice.
 - **Request:** validate the active household/person pair in the shared route helper and in the service transaction paths for drop-ins and punch-card purchases, then keep the active regression in `e2e/security/class-booking-guardian-idor.spec.ts` green.
-- **Status:** high-confidence static privacy and financial-attribution defect; active synthetic API regression added, runtime execution blocked by QA's port collision.
+- **Status:** runtime-confirmed in the isolated QA Chromium run at trunk snapshot `d52e4c83`: the forged-household drop-in returned 201 and persisted under the unrelated household.
 
 ### QA-SEC-016 — Tenancy fuzz accepts vacuous 404s for random resource IDs
 
@@ -631,7 +631,7 @@
 
 - **Owner:** Track SEC
 - **Phase:** 16 §1 key management
-- **Branch evidence:** current trunk snapshot `bc9b22b3`; the same rotation list remains in latest Track SEC head `d0385562`.
+- **Branch evidence:** current trunk snapshot `91614aaa`; the same rotation list remains in the integrated Track SEC implementation.
 - **Evidence:** `rotateEncryptedData()` enumerates encrypted columns in `server/src/lib/security/encryption-rotation.ts`, but omits `athlete_cards.qr_secret_enc` and `checkouts.requirements_enc`, both written with `encryptRestricted()`. It also omits `fundraising_settings.ein_ciphertext`, which is produced by `encryptRestricted()` but stores ciphertext, nonce, and key ID separately in `ein_ciphertext`, `ein_nonce`, and `ein_key_version`. Rotation therefore leaves all three values on the old key while reporting its scan complete.
 - **Reproduce:** insert all three values encrypted under `previous`, run `scripts/rotate-encryption-key.ts --apply` with `next` active and both keys configured, then decrypt using a keyring containing only `next`; card and checkout values still carry the old embedded key ID, and the fundraiser EIN still records `previous` in `ein_key_version`.
 - **Expected:** every `encryptRestricted()` data field is included in rotation, including split-envelope formats, and the integration test proves old-key ciphertext in each field is re-encrypted, remains readable under the new key, and is counted in dry-run/apply summaries.
@@ -706,9 +706,20 @@
 
 - **Owner:** Track H
 - **Phase:** 10 team chat / SafeSport guardian inclusion
-- **Branch evidence:** current `track/qa` Chromium run on trunk snapshot `5651da37`.
+- **Branch evidence:** QA Chromium run on trunk snapshot `d52e4c83`, before the subsequent Track E-only trunk update.
 - **Evidence:** the owner-role team chat journey loads the active team and posts a valid request to `POST /api/v1/communications/orgs/:orgId/chat/conversations`. The service creates/synchronizes the team conversation, but `ensureTeamConversation()` omits `muted` from its returned object while the route parses the response with strict `conversationSchema`, which requires `muted: boolean`. The endpoint responds `400 VALIDATION_ERROR` with `path: ["muted"]`; the browser cannot select the newly created conversation, so the minor athlete's guardian inclusion/reply journey stops before messaging.
 - **Reproduce:** run `e2e/journeys/chat-safesport.spec.ts` with the staff owner assigned an active team and completed MFA. The first team-chat click returns 400; retry also fails because the existing-conversation return omits `muted` too.
 - **Expected:** both create and reopen return a schema-valid conversation including the persisted caller mute state, then the staff member can send and the linked guardian can read/reply.
 - **Request:** include `muted` in both `ensureTeamConversation()` return paths (and check `ensureTeamStaffConversation()` for the same contract), then add route-level tests for first creation and idempotent reopen plus the browser guardian-reply assertion. Preserve strict response validation.
-- **Status:** independently reproduced by QA in the isolated QA Chromium stack; the active journey remains red until the H-owned contract defect is fixed.
+- **Status:** independently reproduced by QA in the isolated QA Chromium stack; the active journey remains red until the H-owned response contract defect is fixed.
+
+### QA-ACC-063 — Self-account medical view requests a guardian-only athlete link
+
+- **Owner:** Track A
+- **Phase:** 2 medical portal and self-account privacy
+- **Branch evidence:** QA Chromium rerun against trunk snapshot `d52e4c83` with the isolated QA database and remapped API/web ports.
+- **Evidence:** `FamilyMedical` renders `AthleteAccess` for every non-staff medical view, and `AthleteAccess` immediately queries `/api/v1/people/orgs/:orgId/:personId/athlete-link`. The self actor receives 404; the endpoint is intended for guardian access and guardian journeys remain supported.
+- **Reproduce:** sign in as a self-linked athlete, open the family medical view in the role crawler, and observe the guardian-only athlete-link endpoint return 404.
+- **Expected:** the self-account medical view issues no guardian-only request and renders no guardian-only controls; verified guardians retain access.
+- **Request:** gate the athlete-link query and dependent controls on a verified guardian relationship; add self and guardian coverage so the self page has no 404/error state while guardian behavior remains functional.
+- **Status:** runtime-confirmed by the QA role crawler; guardian journeys passed in the focused Chromium rerun.

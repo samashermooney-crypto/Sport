@@ -4,6 +4,7 @@ import { createDatabase } from '../../server/src/db/kysely';
 import { hashPassword } from '../../server/src/modules/auth/password';
 import { issueSession } from '../../server/src/modules/auth/sessions';
 import { createTestFactories } from '../../server/test/factories';
+import { e2eDatabaseUrl } from '../database';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
@@ -11,7 +12,7 @@ test('SEC-005: step-up reauthentication rotates the session token', async ({
   request,
 }) => {
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   const password = 'safe step-up sports password 38';
   const apiOrigin = `http://127.0.0.1:${String(3001 + offset)}`;

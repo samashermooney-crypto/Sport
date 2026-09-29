@@ -23,7 +23,9 @@ test('platform staff and portal notifications work accessibly', async ({
 }) => {
   const offset = Number(process.env.PORT_OFFSET ?? '0');
   const database = new pg.Client({
-    connectionString: `postgres://athlentry_admin@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    connectionString:
+      process.env.ATHLENTRY_E2E_DATABASE_ADMIN_URL ??
+      `postgres://athlentry_admin@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
   });
   await database.connect();
   const accountId = randomUUID();

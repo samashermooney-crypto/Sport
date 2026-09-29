@@ -10,11 +10,12 @@ import {
 } from '../server/src/modules/volunteers/service';
 import { createTestFactories } from '../server/test/factories';
 
-const offset = Number(process.env.PORT_OFFSET ?? '0');
+import { e2eDatabaseUrl } from './database';
+
 
 test('QA-ACC-039 / Track H: concurrent volunteer buyouts leave no payable orphan invoice', async () => {
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   try {
     const factories = createTestFactories(database);
@@ -79,12 +80,8 @@ test('QA-ACC-039 / Track H: concurrent volunteer buyouts leave no payable orphan
         ),
       ),
     );
-    expect(
-      attempts.filter((attempt) => attempt.status === 'fulfilled'),
-    ).toHaveLength(1);
-    expect(
-      attempts.filter((attempt) => attempt.status === 'rejected'),
-    ).toHaveLength(1);
+    const fulfilled = attempts.filter((attempt) => attempt.status === 'fulfilled');
+    const rejected = attempts.filter((attempt) => attempt.status === 'rejected');
 
     const persisted = await createWithOrg(database)(actor, async (trx) => ({
       buyouts: await trx
@@ -101,8 +98,12 @@ test('QA-ACC-039 / Track H: concurrent volunteer buyouts leave no payable orphan
         .where('kind', '=', 'volunteer_buyout')
         .execute(),
     }));
-    expect(persisted.buyouts).toHaveLength(1);
-    expect(persisted.invoiceLines).toHaveLength(1);
+    expect({
+      fulfilled: fulfilled.length,
+      rejected: rejected.length,
+      buyouts: persisted.buyouts.length,
+      invoiceLines: persisted.invoiceLines.length,
+    }).toEqual({ fulfilled: 1, rejected: 1, buyouts: 1, invoiceLines: 1 });
   } finally {
     await database.destroy();
   }

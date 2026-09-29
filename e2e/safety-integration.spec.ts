@@ -6,14 +6,14 @@ import { issueSession } from '../server/src/modules/auth/sessions';
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
+import { e2eDatabaseUrl } from './database';
 
-const offset = Number(process.env.PORT_OFFSET ?? '0');
 
 test('owner opens the safety center and person portal on desktop and phone', async ({
   page,
 }, testInfo) => {
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   try {
     const factories = createTestFactories(database);

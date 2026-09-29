@@ -6,6 +6,7 @@ import { createWithOrg } from '../../server/src/db/withOrg';
 import { issueSession } from '../../server/src/modules/auth/sessions';
 import type { ActorFixture } from '../../server/test/factories';
 import { createTestFactories } from '../../server/test/factories';
+import { e2eDatabaseUrl } from '../database';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
@@ -13,7 +14,7 @@ test('QA-SEC-012 / Track J: revoked roster sharing hides the league entry snapsh
   request,
 }) => {
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   const withOrg = createWithOrg(database);
   const apiBase = `http://127.0.0.1:${String(3001 + offset)}`;

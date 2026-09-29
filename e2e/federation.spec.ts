@@ -8,6 +8,7 @@ import type { ActorFixture } from '../server/test/factories';
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
+import { e2eDatabaseUrl } from './database';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
@@ -19,7 +20,7 @@ test('two member clubs complete a U12 inter-club season', async ({
 }, testInfo) => {
   test.setTimeout(180_000);
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   const withOrg = createWithOrg(database);
   const factories = createTestFactories(database);
@@ -338,9 +339,8 @@ test('two member clubs complete a U12 inter-club season', async ({
 test('QA-ACC-033 / Track C: federation is reachable from console navigation', async ({
   page,
 }, testInfo) => {
-  const offset = Number(process.env.PORT_OFFSET ?? '0');
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   const withOrg = createWithOrg(database);
   const factories = createTestFactories(database);

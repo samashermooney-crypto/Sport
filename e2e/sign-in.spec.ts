@@ -4,8 +4,7 @@ import type { APIRequestContext } from '@playwright/test';
 import { decodeBase32, totpCode } from '../server/src/modules/auth/totp';
 
 import { accessibilityViolations } from './axe';
-
-const mailpitApiPort = 8025 + Number(process.env.PORT_OFFSET ?? '0');
+import { e2eMailpitApiBaseUrl } from './database';
 
 async function previewLink(
   request: APIRequestContext,
@@ -16,7 +15,7 @@ async function previewLink(
   await expect
     .poll(async () => {
       const response = await request.get(
-        `http://127.0.0.1:${String(mailpitApiPort)}/api/v1/messages`,
+        `${e2eMailpitApiBaseUrl()}/api/v1/messages`,
       );
       const mailbox = (await response.json()) as {
         messages: Array<{ ID: string; To: Array<{ Address: string }> }>;
@@ -25,7 +24,7 @@ async function previewLink(
         if (!message.To.some((recipient) => recipient.Address === address))
           continue;
         const detailResponse = await request.get(
-          `http://127.0.0.1:${String(mailpitApiPort)}/api/v1/message/${message.ID}`,
+          `${e2eMailpitApiBaseUrl()}/api/v1/message/${message.ID}`,
         );
         const detail = (await detailResponse.json()) as { Text: string };
         link =

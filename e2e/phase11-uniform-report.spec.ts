@@ -19,7 +19,8 @@ import {
 } from '../server/src/modules/store/service';
 import { createTestFactories } from '../server/test/factories';
 
-const offset = Number(process.env.PORT_OFFSET ?? '0');
+import { e2eDatabaseUrl } from './database';
+
 
 async function signInBrowser(
   page: import('@playwright/test').Page,
@@ -58,7 +59,7 @@ test('QA-ACC-038 / Track H: family uniform orders appear under their registratio
   page,
 }, testInfo) => {
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   try {
     const factories = createTestFactories(database);

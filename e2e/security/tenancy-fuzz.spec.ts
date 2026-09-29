@@ -6,6 +6,7 @@ import { expect, test } from '@playwright/test';
 import { createDatabase } from '../../server/src/db/kysely';
 import { issueSession } from '../../server/src/modules/auth/sessions';
 import { createTestFactories } from '../../server/test/factories';
+import { e2eDatabaseUrl } from '../database';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 const tenantScopes = new Set(['org', 'organization', 'tenant']);
@@ -88,7 +89,7 @@ test('SEC-002 / Track C: fuzz every id-bearing organization GET, PATCH, and DELE
   expect(organizationOperations.length).toBeGreaterThan(0);
 
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   try {
     const factories = createTestFactories(database);

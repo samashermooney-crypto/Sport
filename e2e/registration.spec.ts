@@ -6,15 +6,15 @@ import { issueSession } from '../server/src/modules/auth/sessions';
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
+import { e2eDatabaseUrl } from './database';
 
-const offset = Number(process.env.PORT_OFFSET ?? '0');
 
 test('family registers two siblings together, signs waivers, and chooses uniform sizes', async ({
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   try {
     const factories = createTestFactories(database);
@@ -322,7 +322,7 @@ test('waitlist cancellation offers a spot, acceptance confirms, and expiry advan
 }, testInfo) => {
   test.setTimeout(120_000);
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   try {
     const factories = createTestFactories(database);

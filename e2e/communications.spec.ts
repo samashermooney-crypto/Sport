@@ -10,8 +10,8 @@ import { createConversation } from '../server/src/modules/chat/service';
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
+import { e2eDatabaseUrl } from './database';
 
-const offset = Number(process.env.PORT_OFFSET ?? '0');
 
 async function signInBrowser(
   page: import('@playwright/test').Page,
@@ -50,7 +50,7 @@ test('staff builds a bilingual campaign, reviews its audience, test-sends in-app
   page,
 }, testInfo) => {
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   try {
     const actor = await createTestFactories(database).actor();
@@ -126,10 +126,10 @@ test('family sends a chat message from the mobile portal with realtime controls 
   page,
 }, testInfo) => {
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   const admin = new pg.Client({
-    connectionString: `postgres://athlentry_admin@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    connectionString: e2eDatabaseUrl('admin'),
   });
   try {
     const actor = await createTestFactories(database).actor();

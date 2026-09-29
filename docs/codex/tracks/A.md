@@ -12,7 +12,9 @@ Blocked on: none
 
 ## Requests from QA
 
-- QA-SEC-005 — step-up session rotation is implemented in commit a72152a3, included in current Track A head 9e960af0. Integrate through the branch gate and verify the active cookie/bearer session-fixation regressions on trunk; the current trunk still elevates the same session. Details are in docs/codex/qa/DEFECTS.md.
+- QA-ACC-063 — the self-account medical view mounts a guardian-only athlete-link query, producing a 404 in the QA role crawler. Gate that query and its controls on a verified guardian relationship while preserving guardian access; see `docs/codex/qa/DEFECTS.md`.
+
+QA verified SEC-005 session rotation on trunk `d52e4c83`; the active cookie and bearer fixation regression passed.
 
 
 ## Requests from SEC

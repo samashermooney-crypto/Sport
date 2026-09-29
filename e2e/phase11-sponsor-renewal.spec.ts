@@ -10,11 +10,12 @@ import {
 } from '../server/src/modules/sponsors/service';
 import { createTestFactories } from '../server/test/factories';
 
-const offset = Number(process.env.PORT_OFFSET ?? '0');
+import { e2eDatabaseUrl } from './database';
+
 
 test('QA-ACC-045 / Tracks H and B: an upcoming sponsor contract notifies its finance owner', async () => {
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   try {
     const owner = await createTestFactories(database).actor();

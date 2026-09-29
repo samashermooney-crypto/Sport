@@ -7,13 +7,15 @@ import { issueSession } from '../server/src/modules/auth/sessions';
 import type { ActorFixture } from '../server/test/factories';
 import { createTestFactories } from '../server/test/factories';
 
+import { e2eDatabaseUrl } from './database';
+
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
 test('QA-ACC-046 / Track J: a rejected fee-invoice void leaves its assessment invoiced', async ({
   request,
 }) => {
   const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    e2eDatabaseUrl('app'),
   );
   const withOrg = createWithOrg(database);
   const apiBase = `http://127.0.0.1:${String(3001 + offset)}`;
@@ -123,7 +125,8 @@ test('QA-ACC-046 / Track J: a rejected fee-invoice void leaves its assessment in
         data: { action: 'void', reason: 'Active installment fixture' },
       },
     );
-    expect(voidResponse.status()).toBe(409);
+    const responseStatus = voidResponse.status();
+    const responseBody = await voidResponse.text();
 
     const state = await withOrg(league, (trx) =>
       trx
@@ -142,9 +145,18 @@ test('QA-ACC-046 / Track J: a rejected fee-invoice void leaves its assessment in
         .where('assessment.id', '=', assessment.id)
         .executeTakeFirstOrThrow(),
     );
-    expect(state.assessment_status).toBe('invoiced');
-    expect(state.invoice_status).not.toBe('void');
-    expect(state.balance_cents).toBe(2500);
+    expect({
+      responseStatus,
+      responseBody,
+      assessmentStatus: state.assessment_status,
+      invoiceStatus: state.invoice_status,
+      balanceCents: state.balance_cents,
+    }).toMatchObject({
+      responseStatus: 409,
+      assessmentStatus: 'invoiced',
+      invoiceStatus: 'open',
+      balanceCents: 2500,
+    });
   } finally {
     await database.destroy();
   }
