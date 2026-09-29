@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Local integration candidate: local `rebuild/trunk` at `519c8b4a` contains the Linux parity correction (`40fa19d2`). The Action Center bulk-reminder slice (`5e7c6d3b`, `78ea981e`) is included in the current local trunk integration; the merge gate passes typecheck, lint, full real-Postgres tests and Chromium. The updated OpenAPI document is generated. Hosted `origin/rebuild/trunk` remains at `5b4ad3c1` until Track C publishes local trunk.
+Local `rebuild/trunk` now includes the Linux parity correction (`40fa19d2`), Action Center bulk-reminder slice (`5e7c6d3b`, `78ea981e`), and this D slice's bounded JSON parser plus browser reminder coverage. The merged-tree gate passes typecheck, lint, the full real-Postgres suite (1,170 passed, 1 skipped), and Chromium (76 passed, 3 skipped). Hosted `origin/rebuild/trunk` remains at `5b4ad3c1` until Track C publishes local trunk.
 
 ## Current
 
@@ -39,6 +39,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - `web/src/marketing/LegalPage.test.tsx`: 10/10 pass, including the review watermark on all seven public legal drafts; changed-path ESLint passes.
 - `e2e/design/legal-drafts.spec.ts`: 6/6 Chromium/WebKit journeys pass; all seven legal routes are watermarked and axe-clean, landing/pricing are axe-clean, and the mobile preview scrolls with arrow keys.
 - `e2e/action-center.spec.ts`: 1/1 database-backed Chromium journey confirms the owner can keyboard-focus and activate mark-all-read with Enter; the submission updates and its Action Center card clears.
+- The Action Center journey now sends an overdue-invoice reminder twice, verifies one in-app notification and an unread duplicate skip, and checks the destination payload. Its first run caught the missing bounded JSON parser on the mutation router; after adding it and moving the fixture date seven days back, the browser journey passes.
 - The Action Center journey now keyboards through contact triage, the Registration pace preset and preview, report save, secure-link scheduling, and schedule pause/resume; Chromium and WebKit mobile pass 2/2. It exposed and verified fixes for the exports/reports routers' missing bounded JSON parsers and weekly `date_trunc` grouping.
 - New marketing route files pass full typecheck, lint, and production build. The prior run's downloaded CI actuals were compared pixel-for-pixel against all three corrected Linux references.
 - Lighthouse mobile: home 98/100/100; Programs 99/100/100; Schedule 99/100/100.
@@ -60,7 +61,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 ## Exact next steps
 
-1. The Linux parity fix is in local trunk at `519c8b4a`; the Action Center reminder changes are included in the current local trunk integration, whose typecheck, lint, full test suite and Chromium gate pass. Track C still needs to publish local trunk for hosted CI to verify the corrected Linux capture.
+1. Track C needs to publish local trunk so hosted CI can verify the corrected Linux parity captures and Action Center route fix; `origin/rebuild/trunk` is still at `5b4ad3c1`.
 2. Track A: extend the module router contract so the website module can register public `/site` SSR routes. Track C: mount the route, regenerate OpenAPI for the new website operation, expose host-root sitemap/robots aliases, resolve verified custom-domain hosts before the production SPA fallback, then rerun public-site Lighthouse against the actual app mount.
 3. Audit the remaining app screens against `web/src/ui` tokens/components and fix D-owned visual inconsistencies or record exact owner requests.
 4. Complete the documented manual keyboard journeys where roles/routes are available; preserve remaining cross-track failures as specific requests.
@@ -68,11 +69,12 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 ## Open requests and blockers
 
 - Track A: `server/src/lib/module-contract.ts` currently limits `extraRouters.path` to `/api/v1/*`; allow the website's public SSR router path without weakening API route typing.
-- Track C: mount `createSiteSsrRouter` at `/site` before the production SPA fallback, regenerate `docs/api/openapi.json` for the new website robots operation, expose sitemap and robots routes at each resolved site's host root, and route active verified custom-domain hosts to the org site with a tenant-safe resolver. Action Center/export/report API routes and scheduled jobs are already registry-wired.
+- Track C: mount `createSiteSsrRouter` at `/site` before the production SPA fallback, expose sitemap and robots routes at each resolved site's host root, and route active verified custom-domain hosts to the org site with a tenant-safe resolver. `docs/api/openapi.json` now includes the website robots and Action Center reminder operations. Action Center/export/report API routes and scheduled jobs are already registry-wired.
 - Track G: fix the WebKit-mobile schedule result checkbox journey at `e2e/schedule-meet.spec.ts:230`.
 - Track G: replace the separate `system-ui`/literal-color season-award print style in `web/src/console/schedule/ScheduleConsole.tsx` with the shared `PrintLayout` or the legacy font/color treatment.
 - Track A: investigate the WebKit-mobile recovery-code sign-in E2E failure in `e2e/sign-in.spec.ts:420`.
 - Cross-track Knip: Tracks F/I should wire or remove `web/src/console/evaluations/nav.ts` and `web/src/portal/evaluations/nav.ts`; the shared schema owner should consume or remove the 12 currently unused exports/types reported by `npm run knip` (`shared/src/schemas/{exports,reports,website}.ts`).
+- Post-sync Knip regression on K at `5d4116f0`: `npm run knip` reports the unused export `actionCenterBulkActionSchema` at `server/src/modules/action-center/schema.ts:10:14`, introduced by the D bulk-reminder slice. Please consume it in request validation or remove the unused export; K left D-owned code unchanged.
 - Manual 27-journey keyboard review and integrated-route Lighthouse recheck remain open.
 
 `COMPOSE_PROJECT_NAME=athlentry_d_finish`; `PORT_OFFSET=2000`.

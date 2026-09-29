@@ -10,7 +10,7 @@ import { accessibilityViolations } from './axe';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test('owner keyboard-operates the Action Center and report builder', async ({
+test('owner keyboard-operates Action Center reminders and the report builder', async ({
   page,
 }, testInfo) => {
   test.setTimeout(60_000);
@@ -18,9 +18,25 @@ test('owner keyboard-operates the Action Center and report builder', async ({
     `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
   );
   const contactId = newId();
+  const invoiceId = newId();
+  const invoiceLineId = newId();
+  const familyAccountId = newId();
+  const dueOn = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
   try {
     const actor = await createTestFactories(database).actor();
     const withOrg = createWithOrg(database);
+    await database
+      .insertInto('accounts')
+      .values({
+        id: familyAccountId,
+        email: `action-center-family-${familyAccountId}@example.invalid`,
+        first_name: 'Taylor',
+        last_name: 'Family',
+        date_of_birth: '1985-01-01',
+      })
+      .execute();
     await withOrg(actor, async (trx) => {
       await trx
         .updateTable('role_assignments')
@@ -38,6 +54,43 @@ test('owner keyboard-operates the Action Center and report builder', async ({
           subject: 'Schedule question',
           body: 'When does the season schedule publish?',
           status: 'new',
+        })
+        .execute();
+      await trx
+        .insertInto('org_memberships')
+        .values({
+          id: newId(),
+          org_id: actor.orgId,
+          account_id: familyAccountId,
+          status: 'active',
+          joined_at: new Date(),
+        })
+        .execute();
+      await trx
+        .insertInto('invoices')
+        .values({
+          id: invoiceId,
+          org_id: actor.orgId,
+          number: 1,
+          account_id: familyAccountId,
+          status: 'past_due',
+          source: 'staff',
+          subtotal_cents: 2500,
+          total_cents: 2500,
+          due_on: dueOn,
+        })
+        .execute();
+      await trx
+        .insertInto('invoice_lines')
+        .values({
+          id: invoiceLineId,
+          org_id: actor.orgId,
+          invoice_id: invoiceId,
+          kind: 'adjustment',
+          description: 'Action Center reminder test balance',
+          quantity: 1,
+          unit_amount_cents: 2500,
+          amount_cents: 2500,
         })
         .execute();
     });
@@ -74,7 +127,74 @@ test('owner keyboard-operates the Action Center and report builder', async ({
     await expect(
       page.getByRole('button', { name: 'Mark all read' }),
     ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Past-due unpaid balances' }),
+    ).toBeVisible();
     expect(await accessibilityViolations(page)).toEqual([]);
+
+    const sendReminders = page.getByRole('button', {
+      name: 'Send in-app reminders',
+    });
+    const firstReminder = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/actions/past-due-reminders'),
+    );
+    await sendReminders.focus();
+    await page.keyboard.press('Enter');
+    const firstReminderResponse = await firstReminder;
+    const firstReminderBody = await firstReminderResponse.text();
+    expect(
+      firstReminderResponse.ok(),
+      `past-due reminders returned ${String(firstReminderResponse.status())}: ${firstReminderBody}`,
+    ).toBe(true);
+    expect(JSON.parse(firstReminderBody)).toEqual({
+      sentCount: 1,
+      skippedCount: 0,
+    });
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: 'reminder notifications sent' }),
+    ).toContainText('1 reminder notifications sent to the app inbox');
+
+    const duplicateReminder = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/actions/past-due-reminders'),
+    );
+    await sendReminders.focus();
+    await page.keyboard.press('Enter');
+    const duplicateReminderResponse = await duplicateReminder;
+    expect(duplicateReminderResponse.ok()).toBe(true);
+    await expect(duplicateReminderResponse.json()).resolves.toEqual({
+      sentCount: 0,
+      skippedCount: 1,
+    });
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: 'reminder notifications sent' }),
+    ).toContainText(
+      '0 reminder notifications sent to the app inbox; 1 skipped',
+    );
+
+    const notification = await withOrg(actor, (trx) =>
+      trx
+        .selectFrom('notifications')
+        .select(['account_id', 'delivered_channels', 'payload'])
+        .where('org_id', '=', actor.orgId)
+        .where('account_id', '=', familyAccountId)
+        .where('type', '=', 'finance.payment_due')
+        .executeTakeFirstOrThrow(),
+    );
+    expect(notification.account_id).toBe(familyAccountId);
+    expect(notification.delivered_channels).toEqual(['in_app']);
+    expect(notification.payload).toMatchObject({
+      resourceType: 'invoice',
+      resourceId: invoiceId,
+      href: `/portal/orgs/${actor.orgId}/money/invoices`,
+    });
 
     const markedRead = page.waitForResponse(
       (response) =>
@@ -90,11 +210,11 @@ test('owner keyboard-operates the Action Center and report builder', async ({
       markReadResponse.ok(),
       `mark-read returned ${String(markReadResponse.status())}: ${await markReadResponse.text()}`,
     ).toBe(true);
-    await expect(page.getByRole('status')).toContainText(
-      '1 message marked as read.',
-    );
     await expect(
-      page.getByRole('heading', { name: 'Everything is up to date' }),
+      page.getByRole('status').filter({ hasText: 'message marked as read' }),
+    ).toContainText('1 message marked as read.');
+    await expect(
+      page.getByRole('heading', { name: 'Past-due unpaid balances' }),
     ).toBeVisible();
 
     const saved = await withOrg(actor, (trx) =>
