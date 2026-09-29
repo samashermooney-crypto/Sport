@@ -139,6 +139,7 @@ export function createWebsiteRouter(
   dependencies: AuthDependencies,
 ): express.Router {
   const router = express.Router();
+  router.use(express.json({ limit: '128kb' }));
   const withOrg = createWithOrg(dependencies.database);
 
   router.get(
