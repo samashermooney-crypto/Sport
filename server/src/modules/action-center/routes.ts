@@ -7,8 +7,11 @@ import type { OrgContext } from '../../db/withOrg';
 import type { AuthDependencies } from '../auth/routes';
 import { requireSession } from '../auth/routes';
 
-import { actionCenterResponseSchema } from './schema';
-import { loadActionCenter } from './service';
+import {
+  actionCenterMutationResponseSchema,
+  actionCenterResponseSchema,
+} from './schema';
+import { loadActionCenter, runActionCenterReminder } from './service';
 
 function requestContext(orgId: string, accountId: string): OrgContext {
   return { orgId, actor: { accountId } };
@@ -92,6 +95,48 @@ export function createActionCenterRouter(
       sendError(response, error);
     });
   });
+
+  function reminderHandler(
+    action:
+      | 'past_due_reminders'
+      | 'failed_installment_contacts'
+      | 'staff_compliance_reminders',
+  ) {
+    return (request: express.Request, response: express.Response) => {
+      void (async () => {
+        z.strictObject({}).parse(request.body);
+        const session = await requireSession(dependencies, request);
+        const context = requestContext(
+          z.uuid().parse(request.params.orgId),
+          session.accountId,
+        );
+        const result = await runActionCenterReminder(
+          context,
+          action,
+          withOrg,
+          dependencies.clock(),
+        );
+        response
+          .setHeader('Cache-Control', 'no-store')
+          .json(actionCenterMutationResponseSchema.parse(result));
+      })().catch((error: unknown) => {
+        sendError(response, error);
+      });
+    };
+  }
+
+  router.post(
+    '/orgs/:orgId/action-center/actions/past-due-reminders',
+    reminderHandler('past_due_reminders'),
+  );
+  router.post(
+    '/orgs/:orgId/action-center/actions/failed-installment-contacts',
+    reminderHandler('failed_installment_contacts'),
+  );
+  router.post(
+    '/orgs/:orgId/action-center/actions/staff-compliance-reminders',
+    reminderHandler('staff_compliance_reminders'),
+  );
 
   return router;
 }

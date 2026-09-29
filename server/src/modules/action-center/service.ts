@@ -1,13 +1,20 @@
 import { sql } from 'kysely';
 
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
+import type { NotificationType } from '../notifications/catalog';
+import { createNotification } from '../notifications/service';
 
-import type { ActionCenterCard, ActionCenterItem } from './schema';
+import {
+  actionCenterMutationResponseSchema,
+  type ActionCenterCard,
+  type ActionCenterItem,
+  type ActionCenterMutation,
+} from './schema';
 
 class ActionCenterError extends Error {
   constructor(
     readonly status: number,
-    readonly code: 'NOT_FOUND',
+    readonly code: 'NOT_FOUND' | 'FORBIDDEN',
     message: string,
   ) {
     super(message);
@@ -278,6 +285,7 @@ export async function loadActionCenter(
           title: 'Past-due unpaid balances',
           href: reportsHref,
           actionLabel: 'Review receivables',
+          bulkAction: 'past_due_reminders',
         },
         sql<ActionRow>`
           SELECT id::text AS item_id,
@@ -300,6 +308,7 @@ export async function loadActionCenter(
           id: 'failed-installments',
           title: 'Failed autopay installments in the last 7 days',
           href: `/console/orgs/${orgId}/money/billing`,
+          bulkAction: 'failed_installment_contacts',
         },
         sql<ActionRow>`
           SELECT id::text AS item_id,
@@ -380,6 +389,7 @@ export async function loadActionCenter(
           title: 'Staff waiting on compliance',
           href: `/console/safety/${orgId}`,
           actionLabel: 'Review compliance',
+          bulkAction: 'staff_compliance_reminders',
         },
         sql<ActionRow>`
           SELECT staff.id::text AS item_id,
@@ -821,5 +831,198 @@ export async function loadActionCenter(
     }
 
     return { cards };
+  });
+}
+
+interface ReminderTarget {
+  resourceId: string;
+  accountId: string;
+  personId?: string;
+  assignmentRole?: string;
+}
+
+function resourceIdFromPayload(payload: unknown): string | null {
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    Array.isArray(payload) ||
+    !('resourceId' in payload)
+  )
+    return null;
+  const resourceId = payload.resourceId;
+  return typeof resourceId === 'string' ? resourceId : null;
+}
+
+/**
+ * Deliver role-authorized in-app reminders from the Action Center. Notifications
+ * stay on the existing account inbox, avoid restricted details, and do not
+ * trigger payment retries or external messaging.
+ */
+export async function runActionCenterReminder(
+  context: OrgContext,
+  action: ActionCenterMutation,
+  withOrg: <T>(
+    context: OrgContext,
+    fn: (trx: OrgTransaction) => Promise<T>,
+  ) => Promise<T>,
+  now = new Date(),
+): Promise<{ sentCount: number; skippedCount: number }> {
+  return withOrg(context, async (trx) => {
+    const roles = await actorRoles(trx, context);
+    const requiredRole =
+      action === 'staff_compliance_reminders' ? 'compliance' : 'finance';
+    if (!hasRole(roles, [requiredRole]))
+      throw new ActionCenterError(
+        403,
+        'FORBIDDEN',
+        'This reminder action is not available for your role',
+      );
+
+    // Serialize reminders within one org so simultaneous clicks cannot create
+    // duplicate unread notifications for the same queue items.
+    await trx
+      .selectFrom('organizations')
+      .select('id')
+      .where('id', '=', context.orgId)
+      .forUpdate()
+      .executeTakeFirstOrThrow();
+
+    let notificationType: NotificationType;
+    let resourceType: string;
+    let href: string;
+    let targets: ReminderTarget[];
+
+    if (action === 'past_due_reminders') {
+      notificationType = 'finance.payment_due';
+      resourceType = 'invoice';
+      href = '/portal/orgs/' + context.orgId + '/money/invoices';
+      const today = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+      );
+      targets = await trx
+        .selectFrom('invoices as invoice')
+        .innerJoin('org_memberships as membership', (join) =>
+          join
+            .onRef('membership.org_id', '=', 'invoice.org_id')
+            .onRef('membership.account_id', '=', 'invoice.account_id'),
+        )
+        .select(['invoice.id as resourceId', 'invoice.account_id as accountId'])
+        .where('invoice.org_id', '=', context.orgId)
+        .where('membership.status', '=', 'active')
+        .where('invoice.balance_cents', '>', 0)
+        .where('invoice.due_on', '<', today)
+        .where('invoice.status', 'in', ['open', 'partially_paid', 'past_due'])
+        .orderBy('invoice.due_on', 'asc')
+        .limit(1000)
+        .execute();
+    } else if (action === 'failed_installment_contacts') {
+      notificationType = 'installment.failed';
+      resourceType = 'installment';
+      href = '/portal/orgs/' + context.orgId + '/money/installments';
+      const cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      targets = await trx
+        .selectFrom('installments as installment')
+        .innerJoin('invoices as invoice', (join) =>
+          join
+            .onRef('invoice.org_id', '=', 'installment.org_id')
+            .onRef('invoice.id', '=', 'installment.invoice_id'),
+        )
+        .innerJoin('org_memberships as membership', (join) =>
+          join
+            .onRef('membership.org_id', '=', 'invoice.org_id')
+            .onRef('membership.account_id', '=', 'invoice.account_id'),
+        )
+        .select([
+          'installment.id as resourceId',
+          'invoice.account_id as accountId',
+        ])
+        .where('installment.org_id', '=', context.orgId)
+        .where('membership.status', '=', 'active')
+        .where('installment.autopay', '=', true)
+        .where('installment.status', '=', 'failed')
+        .where('installment.updated_at', '>=', cutoff)
+        .orderBy('installment.updated_at', 'desc')
+        .limit(1000)
+        .execute();
+    } else {
+      notificationType = 'staff.pending_compliance';
+      resourceType = 'team_staff';
+      href = '/portal/orgs/' + context.orgId + '/safety';
+      targets = await trx
+        .selectFrom('team_staff as staff')
+        .innerJoin('person_account_links as link', (join) =>
+          join
+            .onRef('link.org_id', '=', 'staff.org_id')
+            .onRef('link.person_id', '=', 'staff.person_id'),
+        )
+        .innerJoin('org_memberships as membership', (join) =>
+          join
+            .onRef('membership.org_id', '=', 'link.org_id')
+            .onRef('membership.account_id', '=', 'link.account_id'),
+        )
+        .select([
+          'staff.id as resourceId',
+          'link.account_id as accountId',
+          'staff.person_id as personId',
+          'staff.role as assignmentRole',
+        ])
+        .where('staff.org_id', '=', context.orgId)
+        .where('staff.status', '=', 'pending_compliance')
+        .where('link.relationship', '=', 'self')
+        .where('link.verified_at', 'is not', null)
+        .where('link.revoked_at', 'is', null)
+        .where('membership.status', '=', 'active')
+        .orderBy('staff.created_at', 'asc')
+        .limit(1000)
+        .execute();
+    }
+
+    if (targets.length === 0)
+      return actionCenterMutationResponseSchema.parse({
+        sentCount: 0,
+        skippedCount: 0,
+      });
+
+    const accountIds = [...new Set(targets.map(({ accountId }) => accountId))];
+    const unreadNotifications = await trx
+      .selectFrom('notifications')
+      .select('payload')
+      .where('org_id', '=', context.orgId)
+      .where('account_id', 'in', accountIds)
+      .where('type', '=', notificationType)
+      .where('read_at', 'is', null)
+      .execute();
+    const unreadResourceIds = new Set(
+      unreadNotifications
+        .map(({ payload }) => resourceIdFromPayload(payload))
+        .filter((id): id is string => id !== null),
+    );
+
+    let sentCount = 0;
+    let skippedCount = 0;
+    for (const target of targets) {
+      if (unreadResourceIds.has(target.resourceId)) {
+        skippedCount += 1;
+        continue;
+      }
+      await createNotification(trx, context, {
+        accountId: target.accountId,
+        type: notificationType,
+        payload: {
+          resourceType,
+          resourceId: target.resourceId,
+          href,
+          ...(target.personId ? { personId: target.personId } : {}),
+          ...(target.assignmentRole ? { role: target.assignmentRole } : {}),
+        },
+      });
+      unreadResourceIds.add(target.resourceId);
+      sentCount += 1;
+    }
+
+    return actionCenterMutationResponseSchema.parse({
+      sentCount,
+      skippedCount,
+    });
   });
 }
