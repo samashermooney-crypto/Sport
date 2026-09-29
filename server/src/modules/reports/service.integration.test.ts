@@ -38,6 +38,10 @@ const priorDivisionId = randomUUID();
 const currentDivisionId = randomUUID();
 const priorOfferingId = randomUUID();
 const currentOfferingId = randomUUID();
+const evaluationEventId = randomUUID();
+const evaluationGroupId = randomUUID();
+const evaluationParticipantId = randomUUID();
+const evaluationResultId = randomUUID();
 let database: ReturnType<typeof createDatabase>;
 let withOrg: ReturnType<typeof createWithOrg>;
 
@@ -126,6 +130,28 @@ beforeAll(async () => {
         currentSeasonId,
         sportProfileId,
       ],
+    );
+    await admin.query(
+      "INSERT INTO evaluation_events(id,org_id,tryout_program_id,target_program_id,name,status) VALUES ($1,$2,$3,$4,'Fall assessments','results')",
+      [evaluationEventId, orgA, priorProgramId, currentProgramId],
+    );
+    await admin.query(
+      "INSERT INTO evaluation_groups(id,org_id,evaluation_event_id,name) VALUES ($1,$2,$3,'U14')",
+      [evaluationGroupId, orgA, evaluationEventId],
+    );
+    await admin.query(
+      'INSERT INTO evaluation_participants(id,org_id,evaluation_event_id,person_id,evaluation_group_id,bib_number) VALUES ($1,$2,$3,$4,$5,12)',
+      [
+        evaluationParticipantId,
+        orgA,
+        evaluationEventId,
+        personId,
+        evaluationGroupId,
+      ],
+    );
+    await admin.query(
+      "INSERT INTO evaluation_results(id,org_id,evaluation_event_id,evaluation_participant_id,normalized_scores,composite,rank_in_group,evaluator_count,missing_criteria) VALUES ($1,$2,$3,$4,'{}'::jsonb,9.25,1,2,'{}')",
+      [evaluationResultId, orgA, evaluationEventId, evaluationParticipantId],
     );
     await admin.query(
       "INSERT INTO divisions(id,org_id,program_id,name) VALUES ($1,$3,$4,'Prior division'),($2,$3,$5,'Current division')",
@@ -339,6 +365,34 @@ describe('report service', () => {
     );
 
     expect(cohorts.rows).toEqual([[2025, 2024, 2, 1, 50]]);
+  });
+
+  it('reports scored evaluation results only within the organization', async () => {
+    const results = await previewReport(
+      context(orgA, ownerId),
+      {
+        dataset: 'evaluation_results',
+        columns: [
+          'event_name',
+          'program_name',
+          'group_name',
+          'participant_name',
+          'rank_in_group',
+          'composite_score',
+        ],
+      },
+      withOrg,
+    );
+
+    expect(results.rows).toHaveLength(1);
+    expect(results.rows[0]?.slice(0, 5)).toEqual([
+      'Fall assessments',
+      'Current cohort',
+      'U14',
+      'Alex Athlete',
+      1,
+    ]);
+    expect(Number(results.rows[0]?.[5])).toBe(9.25);
   });
 
   it('shares reports by role, limits edits to the author or administrators, and checks versions', async () => {

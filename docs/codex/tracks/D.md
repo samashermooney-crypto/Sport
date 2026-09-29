@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `track/d-design`
-Ready for integration: the core D bundle and Phase 14 export/Lighthouse evidence are integrated on local `rebuild/trunk`; the complete merge gate passed. The current website SEO and export archive-verification slices pass their focused integration tests and are awaiting their merge gate. The orchestrator still needs to publish local trunk commits and rerun hosted CI.
+Ready for integration: the core D bundle and Phase 14 export/Lighthouse evidence are integrated on local `rebuild/trunk`; the complete merge gate passed. The current website SEO, export archive-verification, and evaluation-report slices pass their focused checks and are awaiting their merge gate. The orchestrator still needs to publish local trunk commits and rerun hosted CI.
 
 ## Current
 
@@ -22,7 +22,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - Queue 1–2: captured legacy references and published primitives in early batches.
 - Queue 3: DateInput, TimeInput, DateRange, MoneyInput, PhoneInput, Combobox, FileUpload, Avatar, Tag, DataList, Stepper, Drawer, Sheet, Pagination, Calendar views/resource view, Timeline, StatTile, Chart, RichTextEditor, SignaturePad, QRCode, PrintLayout, keyboard-accessible Board, Bracket, and Chat thread.
 - Queue 4–6: design parity suite, mobile bottom tab bar, command palette/global search shell, and shared auth controls.
-- Phase 14 reports: sensitive columns remain role-gated; previews cap at 200 rows; scheduled delivery uses local time and secure links where needed. Board PDF is aggregate-only and reuses report access checks.
+- Phase 14 reports: sensitive columns remain role-gated; evaluation results are available as a sensitive-tier standard report; previews cap at 200 rows; scheduled delivery uses local time and secure links where needed. Board PDF is aggregate-only and reuses report access checks.
 - Phase 14 privacy: access export is step-up gated; correction/deletion is reviewed; anonymization retains and pseudonymizes financial/waiver evidence; retention jobs are scoped and audited.
 - Phase 16 accessibility additions: screen-reader chart tables, calendar/board labels, keyboard board movement, keyboard-scrollable landing preview, accessibility statement, and English/Spanish completeness tests.
 - Phase 16 landing/documentation: landing contrast and mobile preview keyboard access are axe-verified; README now covers the product, architecture, local commands, environment/deployment references, and the complete D18 exclusions.
@@ -33,6 +33,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - `server/src/modules/website/service.integration.test.ts`: 10/10 pass after adding assertions for SSR font preloads.
 - `server/src/modules/website/contact.routes.integration.test.ts`: 1/1 pass for robots policy, sitemap generated-page URLs and noindex behavior, plus the existing public-contact workflow.
 - `server/src/modules/exports/service.integration.test.ts`: 5/5 pass; organization archive includes table CSVs, manifest.json, files/manifest.csv, and formula-neutralized people data.
+- `server/src/modules/reports/service.integration.test.ts` and `query.test.ts`: 18/18 pass with org-scoped evaluation-result rows and director-only dataset access; `ReportBuilder.test.tsx`: 1/1 pass for the Evaluation results preset and preview.
 - `web/src/marketing/LegalPage.test.tsx`: 10/10 pass, including the review watermark on all seven public legal drafts; changed-path ESLint passes.
 - `e2e/design/legal-drafts.spec.ts`: 6/6 Chromium/WebKit journeys pass; all seven legal routes are watermarked and axe-clean, landing/pricing are axe-clean, and the mobile preview scrolls with arrow keys.
 - `e2e/action-center.spec.ts`: 1/1 database-backed Chromium journey confirms the owner can keyboard-focus and activate mark-all-read with Enter; the submission updates and its Action Center card clears.
