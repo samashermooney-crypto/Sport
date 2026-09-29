@@ -173,6 +173,7 @@ export function WebsiteConsole({
           </Button>
           <Link to={`${navTo}/settings`}>Website settings</Link>
           <Link to={`${navTo}/news`}>{t('websiteNews.manageNews')}</Link>
+          <Link to={`${navTo}/contacts`}>Contact inbox</Link>
         </header>
         <div className="website-editor-layout">
           <Card>

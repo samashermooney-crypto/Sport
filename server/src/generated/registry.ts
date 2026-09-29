@@ -5,6 +5,7 @@ import { integrationConfig as pushConfig } from '../integrations/push/config';
 import { integrationConfig as smsConfig } from '../integrations/sms/config';
 import { integrationConfig as storageConfig } from '../integrations/storage/config';
 import type { IntegrationConfig, ServerModule } from '../lib/module-contract';
+import { moduleDefinition as actionCenterModule } from '../modules/action-center/module';
 import { moduleDefinition as attendanceModule } from '../modules/attendance/module';
 import { moduleDefinition as auditModule } from '../modules/audit/module';
 import { moduleDefinition as authModule } from '../modules/auth/module';
@@ -46,6 +47,7 @@ import { moduleDefinition as volunteersModule } from '../modules/volunteers/modu
 import { moduleDefinition as websiteModule } from '../modules/website/module';
 
 export const serverModules: readonly ServerModule[] = [
+  actionCenterModule,
   attendanceModule,
   auditModule,
   authModule,
