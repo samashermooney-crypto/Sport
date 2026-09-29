@@ -110,6 +110,21 @@ test('owner keyboard-operates the Action Center and report builder', async ({
     await expect(
       page.getByRole('heading', { name: 'Build a report' }),
     ).toBeVisible();
+    const evaluationResults = page.getByRole('button', {
+      name: 'Evaluation results',
+    });
+    await evaluationResults.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('status')).toContainText(
+      'Evaluation results preset loaded.',
+    );
+    const preview = page.getByRole('button', { name: 'Preview report' });
+    await preview.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('status')).toContainText(
+      'preview rows loaded.',
+    );
+
     const registrationPace = page.getByRole('button', {
       name: 'Registration pace',
     });
@@ -121,7 +136,6 @@ test('owner keyboard-operates the Action Center and report builder', async ({
         .getByRole('status')
         .filter({ hasText: 'Registration pace preset loaded.' }),
     ).toContainText('Registration pace preset loaded.');
-    const preview = page.getByRole('button', { name: 'Preview report' });
     await preview.focus();
     await page.keyboard.press('Enter');
     await expect(

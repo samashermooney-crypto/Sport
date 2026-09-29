@@ -42,7 +42,7 @@ beforeAll(async () => {
 afterAll(async () => database.destroy());
 
 describe('public website contact route', () => {
-  it('validates the challenge, stores only its digest, and emails the configured inbox', async () => {
+  it('serves SEO policy and validates public contact submissions', async () => {
     let captchaValid = true;
     const captcha = {
       verify: (token: string) =>
@@ -66,6 +66,54 @@ describe('public website contact route', () => {
       if (!address || typeof address === 'string')
         throw new Error('The test server did not open a TCP port');
       const origin = `http://127.0.0.1:${String(address.port)}`;
+      const robotsResponse = await fetch(
+        `${origin}/api/v1/website/public/${orgSlug}/robots.txt`,
+      );
+      expect(robotsResponse.status).toBe(200);
+      expect(robotsResponse.headers.get('content-type')).toContain(
+        'text/plain',
+      );
+      expect(await robotsResponse.text()).toBe(
+        [
+          'User-agent: *',
+          'Allow: /',
+          `Sitemap: https://${orgSlug}.athlentry.com/api/v1/website/public/${orgSlug}/sitemap.xml`,
+          '',
+        ].join('\n'),
+      );
+      const sitemap = await fetch(
+        `${origin}/api/v1/website/public/${orgSlug}/sitemap.xml`,
+      );
+      const sitemapXml = await sitemap.text();
+      expect(sitemap.status).toBe(200);
+      expect(sitemapXml).toContain(
+        `https://${orgSlug}.athlentry.com/site/${orgSlug}/programs`,
+      );
+      expect(sitemapXml).toContain(
+        `https://${orgSlug}.athlentry.com/site/${orgSlug}/schedule`,
+      );
+
+      const robotsAdmin = new pg.Client({
+        connectionString: process.env.TEST_DATABASE_URL,
+      });
+      await robotsAdmin.connect();
+      try {
+        await robotsAdmin.query(
+          "UPDATE website_settings SET robots_policy = 'noindex' WHERE org_id = $1",
+          [orgId],
+        );
+      } finally {
+        await robotsAdmin.end();
+      }
+      const noindexRobots = await fetch(
+        `${origin}/api/v1/website/public/${orgSlug}/robots.txt`,
+      );
+      expect(await noindexRobots.text()).toBe('User-agent: *\nDisallow: /\n');
+      const noindexSitemap = await fetch(
+        `${origin}/api/v1/website/public/${orgSlug}/sitemap.xml`,
+      );
+      expect(await noindexSitemap.text()).not.toContain('<url>');
+
       const challenge = 'test-contact-token';
       const response = await fetch(
         `${origin}/api/v1/website/public/${orgSlug}/contact`,
