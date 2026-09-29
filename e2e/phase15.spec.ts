@@ -383,6 +383,21 @@ test('demo profiles render populated shared and sport-specific console areas', a
   ): Promise<void> => {
     const orgId = stableDemoId(`demo-org-${profile.seed}`);
     const accountId = stableDemoId(`demo-admin-${profile.seed}`);
+    const organization = await withOrg({ orgId, actor: { accountId } }, (trx) =>
+      trx
+        .selectFrom('organizations')
+        .select('timezone')
+        .where('id', '=', orgId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(
+      () =>
+        new Intl.DateTimeFormat('en-US', {
+          timeZone: organization.timezone,
+        }),
+      `${profile.seed} demo timezone must be a valid IANA identifier`,
+    ).not.toThrow();
+
     const result = await withOrg({ orgId, actor: { accountId } }, (trx) =>
       sql<{
         people: number;

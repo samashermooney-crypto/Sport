@@ -75,6 +75,7 @@ Requests to other tracks: H installment failure/final-notice push/SMS fanout sti
 
 ## Requests from QA
 
+- **QA-QUAL-001 hosted CI follow-up:** run `36640228008` reports `static (knip)` RED on QA head `910e0b0c`, despite the latest C notes reporting a clean local Knip run. The shared CI summary has no itemized findings and QA's sandbox cannot reach GitHub; identify the exact current Knip list and coordinate each remaining code owner before claiming the gate green.
 - **QA-ACC-064:** Derive the optional AI client flag from `AI_PROVIDER` and key presence at build time without exposing the key; add configured and disabled state coverage using a fake provider. See `docs/codex/qa/DEFECTS.md`.
 - **QA-ACC-065:** Coordinate the public website route contract with A and SSR registration with D; mount `/site` and host-root SEO aliases through the shared app, with tenant-safe verified custom-domain resolution and an integrated smoke journey. See `docs/codex/qa/DEFECTS.md`.
 

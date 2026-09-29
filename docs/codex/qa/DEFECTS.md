@@ -746,3 +746,25 @@
 - **Expected:** published site pages, generated pages, and contact routes resolve through the shared app at the documented public path; sitemap/robots are available at each resolved site's host root, including an active verified custom domain, without tenant leakage. The role-aware crawler and public-site journey cover the mounted routes.
 - **Request:** extend the module router contract for a public non-API route, register D's SSR router, mount it before the SPA fallback, and add host-root SEO aliases plus tenant-safe verified custom-domain resolution. Add an integrated-app smoke journey for published pages and SEO routes.
 - **Status:** high-confidence Phase 14 integration gap on current trunk; direct SSR tests do not prove the shared application serves public sites.
+
+### QA-ACC-066 — Northstar demo seed uses an invalid IANA time zone
+
+- **Owner:** Track K (demo seed)
+- **Phase:** 15 demo profile; hosted acceptance CI
+- **Branch evidence:** current integrated trunk snapshot `5cdee29e`; hosted QA CI run `36640228008` on branch head `910e0b0c`.
+- **Evidence:** the hosted E2E summary reports `RangeError: Unrecognized time zone America/Minneapolis`. `db/seeds/demo.ts` assigns that value to the Northstar Gymnastics & Swim Academy profile at line 211; constructing an `Intl.DateTimeFormat` for the seeded organization fails because this is not a supported IANA zone identifier.
+- **Reproduce:** seed the Northstar demo profile and format any organization-local date using its stored `timezone` value.
+- **Expected:** every demo profile stores a valid IANA time zone matching its locale; Minneapolis uses `America/Chicago`. Add a seed validation regression so invalid zone identifiers fail clearly before they reach browser journeys.
+- **Request:** replace the invalid Northstar zone and validate every demo-profile time zone in a focused seed test. Keep the seeded city and profile unchanged.
+- **Status:** CI-reported failure with a direct source match; not yet verified after correction.
+
+### QA-ACC-067 — Hosted Chromium public-site shell parity exceeds the existing threshold
+
+- **Owner:** Track D (Linux parity baseline), coordinate Track A if the rendered shell itself changed
+- **Phase:** 16 §3 design parity
+- **Branch evidence:** hosted QA CI run `36640228008` on branch head `910e0b0c`.
+- **Evidence:** the hosted E2E summary reports `390px public-site shell mismatch: 9.63% of pixels differ`. `e2e/design/parity.spec.ts` measures this public-shell comparison against `public-site-home-390.png` and requires the mismatch to remain below the existing 6.5% limit.
+- **Reproduce:** run the `public site shell matches the legacy header and navigation at desktop and phone widths` journey in hosted Chromium and compare its 390px actual image with the committed reference.
+- **Expected:** the public header/navigation matches the approved reference within the existing 6.5% limit on the hosted Linux runner, with no tolerance increase.
+- **Request:** inspect the exact hosted actual/reference images, update only a proven stale Linux-specific reference or route a real shell regression to Track A, and rerun the same browser check. Preserve the 6.5% threshold and design tokens.
+- **Status:** hosted regression/freshness failure reported; D's prior note said this mismatch did not recur, so the current Linux artifact needs comparison before attribution is closed.

@@ -35,3 +35,4 @@ New-admin journey follow-up: the Phase 15 Playwright case now opens a fresh org'
 ## Requests from QA
 
 - **QA-ACC-064:** QA confirms the setup/help nav contributors and raw-upload OpenAPI body are now integrated on trunk. The remaining Phase 15 gap is the provider-enabled browser flag: coordinate with C to derive `VITE_AI_ENABLED` from configured provider/key without exposing the key, and retain fake-provider disabled/enabled coverage. See `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-066:** replace Northstar's invalid `America/Minneapolis` time zone with a valid IANA identifier and add a focused validation for every demo-profile zone; hosted E2E reports an `Intl.DateTimeFormat` RangeError from the seeded value. See `docs/codex/qa/DEFECTS.md`.
