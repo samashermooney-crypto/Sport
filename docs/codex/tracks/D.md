@@ -42,6 +42,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - Latest full `npm test`: 307 files passed, 1 skipped; 1,104 tests passed, 1 skipped.
 - Latest full E2E before the new privacy journey: 114 passed, 10 skipped, 2 cross-track failures — Track G WebKit-mobile schedule result checkbox at `e2e/schedule-meet.spec.ts:230`, and Track A WebKit-mobile recovery-code sign-in at `e2e/sign-in.spec.ts:420`. D parity and the Action Center journey pass.
 - New privacy deletion journey now passes on Chromium desktop and WebKit mobile (2/2). It verifies keyboard operation, axe cleanliness, request review/approval, and PII anonymization. The journey exposed a missing 64kb JSON parser on the exports router; the router now parses bounded JSON before validating request bodies.
+- The shared overlay keyboard check now opens dialog, drawer, and sheet with Enter, closes with Escape, and verifies focus returns to each trigger on Chromium desktop and WebKit mobile (2/2).
 
 ## Exact next steps
 
