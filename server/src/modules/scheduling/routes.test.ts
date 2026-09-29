@@ -123,6 +123,15 @@ describe('scheduling HTTP routes', () => {
     expect(mocks.requireSession).not.toHaveBeenCalled();
   });
 
+  it('rejects malformed calendar feed tokens before fetching private events', async () => {
+    const response = await fetch(
+      `${baseUrl}/orgs/${orgId}/feeds/not-a-valid-token.ics`,
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.getCalendarFeed).not.toHaveBeenCalled();
+  });
+
   it('rejects mutations from an unverified request origin before session lookup', async () => {
     const response = await fetch(`${baseUrl}/orgs/${orgId}/events`, {
       method: 'POST',
