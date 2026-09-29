@@ -284,11 +284,31 @@ export function Landing(): React.JSX.Element {
                 <ArrowUpRight size={17} />
               </Link>
             </div>
+            <p
+              id="marketing-product-preview-help"
+              className="ui-visually-hidden"
+            >
+              On narrow screens, use the Left and Right Arrow keys to scroll the
+              product preview.
+            </p>
             <div
               className="al-screen"
               role="region"
-              aria-label="Scrollable product preview"
+              aria-label="Product preview"
+              aria-describedby="marketing-product-preview-help"
               tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+                  return;
+                }
+                const preview = event.currentTarget;
+                if (preview.scrollWidth <= preview.clientWidth) return;
+                event.preventDefault();
+                preview.scrollBy({
+                  left: event.key === 'ArrowRight' ? 80 : -80,
+                  behavior: 'auto',
+                });
+              }}
             >
               <div className="al-screen-bar">
                 <span>

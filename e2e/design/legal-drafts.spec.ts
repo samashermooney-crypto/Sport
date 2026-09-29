@@ -69,3 +69,32 @@ test('every public legal page is marked as a draft pending review', async ({
     expect(await seriousAccessibilityViolations(page)).toEqual([]);
   }
 });
+
+test('the mobile product preview can be scrolled with the keyboard', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/welcome');
+  const preview = page.getByRole('region', {
+    name: 'Product preview',
+  });
+  await preview.scrollIntoViewIfNeeded();
+  await expect(
+    preview.getByRole('img', { name: /fictional demonstration data/ }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      preview.evaluate((element) => element.scrollWidth - element.clientWidth),
+    )
+    .toBeGreaterThan(0);
+
+  await preview.focus();
+  await expect(preview).toHaveAttribute(
+    'aria-describedby',
+    'marketing-product-preview-help',
+  );
+  await page.keyboard.press('ArrowRight');
+  await expect
+    .poll(() => preview.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(0);
+});

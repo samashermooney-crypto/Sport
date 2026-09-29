@@ -15,7 +15,7 @@ Phase 14 implementation includes curated report datasets, role-filtered builders
 
 Lighthouse 13.5.0 mobile-default audits used Playwright’s bundled Chromium, a synthetic published organization with one public program/event, and the direct `createSiteSsrRouter` mount. Results: home **98/100/100**, Programs **99/100/100**, Schedule **99/100/100** (Performance/Accessibility/SEO). The first run exposed a 0.239 CLS from late Open Sans subset loads; SSR now preconnects and preloads the existing Latin and Latin Extended files without changing the site CSS or typeface. Audit JSON was saved under `/private/tmp/athlentry-lighthouse/reports/`.
 
-Phase 16 §3: chart/report alternatives are semantic tables, calendars and boards are named, and boards expose a tested keyboard move alternative. English/Spanish completeness and email translation checks are automated. The accessibility statement appears on marketing and public-site footers. The marketing, pricing, and legal pages now have Chromium/WebKit axe journeys; the landing's low-contrast manifesto heading and demo chrome, and its mobile scroll region, were corrected without changing shared tokens or layout values (DEC-124). `docs/qa/ACCESSIBILITY.md` lists 27 manual keyboard journeys; the human keyboard pass remains open. Phase 16 §5 legal/trust pages are drafts, watermarked until `LEGAL_DOCS_APPROVED=true`; the Privacy draft names COPPA and qualifies the FERPA note. Phase 16 §6 landing, pricing, and README copy describes implemented behavior.
+Phase 16 §3: chart/report alternatives are semantic tables, calendars and boards are named, and boards expose a tested keyboard move alternative. English/Spanish completeness and email translation checks are automated. The accessibility statement appears on marketing and public-site footers. The marketing, pricing, and legal pages now have Chromium/WebKit axe journeys; the landing's low-contrast manifesto heading and demo chrome, and its mobile preview scrolling, were corrected without changing shared tokens or layout values (DEC-124). The preview now announces Left/Right arrow instructions and scrolls by keyboard. `docs/qa/ACCESSIBILITY.md` lists 27 manual keyboard journeys; the human keyboard pass remains open. Phase 16 §5 legal/trust pages are drafts, watermarked until `LEGAL_DOCS_APPROVED=true`; the Privacy draft names COPPA and qualifies the FERPA note. Phase 16 §6 landing, pricing, and README copy describes implemented behavior.
 
 ## Completed
 
@@ -24,7 +24,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - Queue 4–6: design parity suite, mobile bottom tab bar, command palette/global search shell, and shared auth controls.
 - Phase 14 reports: sensitive columns remain role-gated; previews cap at 200 rows; scheduled delivery uses local time and secure links where needed. Board PDF is aggregate-only and reuses report access checks.
 - Phase 14 privacy: access export is step-up gated; correction/deletion is reviewed; anonymization retains and pseudonymizes financial/waiver evidence; retention jobs are scoped and audited.
-- Phase 16 accessibility additions: screen-reader chart tables, calendar/board labels, keyboard board movement, accessibility statement, and English/Spanish completeness tests.
+- Phase 16 accessibility additions: screen-reader chart tables, calendar/board labels, keyboard board movement, keyboard-scrollable landing preview, accessibility statement, and English/Spanish completeness tests.
 - Phase 16 landing/documentation: landing contrast and mobile preview keyboard access are axe-verified; README now covers the product, architecture, local commands, environment/deployment references, and the complete D18 exclusions.
 - Linux parity references and runner provenance are on local `rebuild/trunk`; no tolerance or token-equality changes.
 
@@ -32,7 +32,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 - `server/src/modules/website/service.integration.test.ts`: 10/10 pass after adding assertions for SSR font preloads.
 - `web/src/marketing/LegalPage.test.tsx`: 10/10 pass, including the review watermark on all seven public legal drafts; changed-path ESLint passes.
-- `e2e/design/legal-drafts.spec.ts`: 2/2 Chromium journeys pass after registering `/welcome`, `/pricing`, and `/legal/:slug` through the generated web feature registry; all seven legal routes show the draft watermark and landing/pricing navigation reaches the sign-in entry point.
+- `e2e/design/legal-drafts.spec.ts`: 6/6 Chromium/WebKit journeys pass; all seven legal routes are watermarked and axe-clean, landing/pricing are axe-clean, and the mobile preview scrolls with arrow keys.
 - `e2e/action-center.spec.ts`: 1/1 database-backed Chromium journey confirms the owner can keyboard-focus and activate mark-all-read with Enter; the submission updates and its Action Center card clears.
 - The Action Center journey now keyboards through contact triage, the Registration pace preset and preview, report save, secure-link scheduling, and schedule pause/resume; Chromium and WebKit mobile pass 2/2. It exposed and verified fixes for the exports/reports routers' missing bounded JSON parsers and weekly `date_trunc` grouping.
 - New marketing route files pass full typecheck, lint, and production build. The prior run's downloaded CI actuals were compared pixel-for-pixel against all three corrected Linux references.
@@ -44,8 +44,9 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - Latest full E2E before the new privacy journey: 114 passed, 10 skipped, 2 cross-track failures — Track G WebKit-mobile schedule result checkbox at `e2e/schedule-meet.spec.ts:230`, and Track A WebKit-mobile recovery-code sign-in at `e2e/sign-in.spec.ts:420`. D parity and the Action Center journey pass.
 - New privacy deletion journey now passes on Chromium desktop and WebKit mobile (2/2). It verifies keyboard operation, axe cleanliness, request review/approval, and PII anonymization. The journey exposed a missing 64kb JSON parser on the exports router; the router now parses bounded JSON before validating request bodies.
 - The shared overlay keyboard check now opens dialog, drawer, and sheet with Enter, closes with Escape, and verifies focus returns to each trigger on Chromium desktop and WebKit mobile (2/2).
-- Landing, pricing, and all seven watermarked legal pages pass serious/critical axe checks on Chromium desktop and WebKit mobile (4/4 journeys); automated axe waits for the landing entrance animation to settle before measuring contrast.
+- Landing, pricing, and all seven watermarked legal pages pass serious/critical axe checks on Chromium desktop and WebKit mobile; the explicit mobile preview arrow-scroll journey also passes on both (6/6 journeys). Automated axe waits for the landing entrance animation to settle before measuring contrast.
 - Latest focused Phase 14 services: Action Center role isolation 4/4, report builder/service authorization and preview 7/7, and secure scheduled report delivery 2/2.
+- `npm run build` passes after the landing keyboard-scroll change; Vite reports its existing third-party annotation and large-chunk warnings.
 
 ## Exact next steps
 
