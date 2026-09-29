@@ -91,24 +91,57 @@ function importedSqlBindings(sourceFile) {
   return { named, namespaces };
 }
 
+function unwrapExpression(node) {
+  let expression = node;
+  while (
+    ts.isParenthesizedExpression(expression) ||
+    ts.isAsExpression(expression) ||
+    ts.isTypeAssertionExpression(expression) ||
+    ts.isNonNullExpression(expression) ||
+    ts.isSatisfiesExpression(expression)
+  ) {
+    expression = expression.expression;
+  }
+  return expression;
+}
+
+function staticMemberName(node) {
+  const expression = unwrapExpression(node);
+  if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
+  if (
+    ts.isElementAccessExpression(expression) &&
+    expression.argumentExpression &&
+    (ts.isStringLiteralLike(expression.argumentExpression) ||
+      ts.isNoSubstitutionTemplateLiteral(expression.argumentExpression))
+  ) {
+    return expression.argumentExpression.text;
+  }
+  return null;
+}
+
 function isSqlRawCall(node, bindings) {
-  if (
-    !ts.isCallExpression(node) ||
-    !ts.isPropertyAccessExpression(node.expression)
-  )
-    return false;
-  const access = node.expression;
-  if (access.name.text !== 'raw') return false;
-  if (
-    ts.isIdentifier(access.expression) &&
-    bindings.named.has(access.expression.text)
-  )
+  if (!ts.isCallExpression(node)) return false;
+  const access = unwrapExpression(node.expression);
+  if (staticMemberName(access) !== 'raw') return false;
+  const rawAccess =
+    ts.isPropertyAccessExpression(access) ||
+    ts.isElementAccessExpression(access)
+      ? access.expression
+      : access;
+  const sqlBinding = unwrapExpression(rawAccess);
+  if (ts.isIdentifier(sqlBinding) && bindings.named.has(sqlBinding.text))
     return true;
+  if (staticMemberName(sqlBinding) !== 'sql') return false;
+  const sqlAccess = unwrapExpression(sqlBinding);
+  const kyselyNamespace =
+    ts.isPropertyAccessExpression(sqlAccess) ||
+    ts.isElementAccessExpression(sqlAccess)
+      ? unwrapExpression(sqlAccess.expression)
+      : null;
   return (
-    ts.isPropertyAccessExpression(access.expression) &&
-    access.expression.name.text === 'sql' &&
-    ts.isIdentifier(access.expression.expression) &&
-    bindings.namespaces.has(access.expression.expression.text)
+    kyselyNamespace !== null &&
+    ts.isIdentifier(kyselyNamespace) &&
+    bindings.namespaces.has(kyselyNamespace.text)
   );
 }
 
@@ -195,12 +228,20 @@ function verifyGuardExamples() {
   const dynamicConcatenation = findUnsafeSqlRaw(
     "import { sql } from 'kysely'; sql.raw('SELECT ' + userValue);",
   );
+  const elementAccess = findUnsafeSqlRaw(
+    "import { sql as query } from 'kysely'; query['raw'](`SELECT ${userValue}`);",
+  );
+  const namespaceElementAccess = findUnsafeSqlRaw(
+    "import * as kysely from 'kysely'; kysely['sql']['raw'](column.source);",
+  );
   if (
     unsafe.length !== 1 ||
     staticValue.length ||
     reviewedValue.length ||
     staleReview.length !== 1 ||
-    dynamicConcatenation.length !== 1
+    dynamicConcatenation.length !== 1 ||
+    elementAccess.length !== 1 ||
+    namespaceElementAccess.length !== 1
   ) {
     throw new Error('SQL raw guard self-check failed');
   }
