@@ -746,7 +746,8 @@ export async function loadActionCenter(
         {
           id: 'unread-contacts',
           title: 'Unread website contact submissions',
-          href: websiteHref,
+          href: `${websiteHref}/contacts`,
+          actionLabel: 'Open contact inbox',
         },
         sql<ActionRow>`
           SELECT id::text AS item_id,

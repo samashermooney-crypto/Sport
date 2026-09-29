@@ -77,4 +77,37 @@ describe('action center', () => {
       ),
     ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
   });
+
+  it('links unread website submissions to the working contact inbox', async () => {
+    const submissionId = randomUUID();
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    try {
+      await admin.query(
+        `INSERT INTO contact_submissions(id,org_id,name,email,subject,body)
+         VALUES ($1,$2,'Jordan Parent','jordan@example.invalid','Question','Can you share the schedule?')`,
+        [submissionId, orgId],
+      );
+      const result = await loadActionCenter(
+        context(ownerId),
+        withOrg,
+        new Date('2026-09-28T12:00:00Z'),
+      );
+      expect(result.cards).toContainEqual(
+        expect.objectContaining({
+          id: 'unread-contacts',
+          count: 1,
+          href: `/console/orgs/${orgId}/website/contacts`,
+          actionLabel: 'Open contact inbox',
+        }),
+      );
+    } finally {
+      await admin.query('DELETE FROM contact_submissions WHERE id = $1', [
+        submissionId,
+      ]);
+      await admin.end();
+    }
+  });
 });
