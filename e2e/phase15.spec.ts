@@ -705,11 +705,21 @@ test('console and family help render localized articles without disabled AI call
     await expect(
       page.getByRole('heading', { name: 'Help center', exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Help', exact: true }).click();
-    await expect(
-      page.getByRole('link', { name: 'Help center', exact: true }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: 'Close navigation menu' }).click();
+    if (testInfo.project.name === 'webkit-mobile') {
+      await page.getByRole('button', { name: 'Search Athlentry' }).click();
+      const helpCenterLink = page.getByRole('link', {
+        name: 'Help center',
+        exact: true,
+      });
+      await expect(helpCenterLink).toBeVisible();
+      await page.keyboard.press('Escape');
+    } else {
+      await page.getByRole('button', { name: 'Help', exact: true }).click();
+      await expect(
+        page.getByRole('link', { name: 'Help center', exact: true }),
+      ).toBeVisible();
+      await page.getByRole('button', { name: 'Close navigation menu' }).click();
+    }
     await page.getByLabel('Language / Idioma').selectOption('es');
     await expect(
       page.getByRole('heading', { name: 'Centro de ayuda', exact: true }),
@@ -736,11 +746,19 @@ test('console and family help render localized articles without disabled AI call
     await expect(
       page.getByRole('heading', { name: 'Help center', exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Help', exact: true }).click();
-    await expect(
-      page.getByRole('link', { name: 'Help', exact: true }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: 'Close navigation menu' }).click();
+    if (testInfo.project.name === 'webkit-mobile') {
+      const familyHelpLink = page
+        .getByRole('navigation', { name: 'Mobile navigation' })
+        .getByRole('link', { name: 'Help', exact: true });
+      await expect(familyHelpLink).toHaveAttribute('aria-current', 'page');
+      await familyHelpLink.click();
+    } else {
+      await page.getByRole('button', { name: 'Help', exact: true }).click();
+      await expect(
+        page.getByRole('link', { name: 'Help', exact: true }),
+      ).toBeVisible();
+      await page.getByRole('button', { name: 'Close navigation menu' }).click();
+    }
     await page.getByLabel('Language / Idioma').selectOption('es');
     await expect(
       page.getByRole('heading', { name: 'Centro de ayuda', exact: true }),

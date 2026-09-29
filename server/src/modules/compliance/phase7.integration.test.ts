@@ -626,6 +626,36 @@ describe('Phase 7 safety and compliance integration', () => {
         expiresOn: '2026-10-10',
       }),
     ).rejects.toMatchObject({ code: 'UNDER_MINIMUM_AGE' });
+    await expect(
+      createComplianceOverride(dependencies(), ownerContext, {
+        personId: personA,
+        role: 'head_coach',
+        scopeType: 'program',
+        scopeId: null,
+        reason: 'Invalid scope shape.',
+        expiresOn: '2026-10-10',
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(
+      createComplianceOverride(dependencies(), ownerContext, {
+        personId: personA,
+        role: 'head_coach',
+        scopeType: 'program',
+        scopeId: randomUUID(),
+        reason: 'Unknown program.',
+        expiresOn: '2026-10-10',
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(
+      createComplianceOverride(dependencies(), ownerContext, {
+        personId: randomUUID(),
+        role: 'head_coach',
+        scopeType: 'org',
+        scopeId: null,
+        reason: 'Unknown person.',
+        expiresOn: '2026-10-10',
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('lets a linked guardian revoke a credential without deleting its audit history', async () => {
@@ -1294,6 +1324,73 @@ describe('Phase 7 safety and compliance integration', () => {
     );
     expect(sentAgain.delivered).toBe(true);
     expect(email.messages).toHaveLength(2);
+
+    // A worker can stop after the mail adapter accepts a notice but before
+    // the delivery marker commits. Retrying must use the same idempotency key
+    // and then persist the delivery marker and audit event.
+    await withOrg()(ownerContext, (trx) =>
+      trx
+        .updateTable('background_check_orders')
+        .set({ adverse_notice_delivered_at: null })
+        .where('id', '=', orderId)
+        .execute(),
+    );
+    await expect(
+      resendAdverseActionNotice(dependencies(), ownerContext, orderId),
+    ).resolves.toEqual({ id: orderId, delivered: true });
+    expect(email.messages).toHaveLength(3);
+    expect(email.messages[2]?.idempotencyKey).toBe(`fcra-adverse:${orderId}`);
+
+    await withOrg()(ownerContext, (trx) =>
+      trx
+        .updateTable('background_check_settings')
+        .set({ adverse_notice_text: '' })
+        .where('org_id', '=', orgA)
+        .execute(),
+    );
+    await expect(
+      resendAdverseActionNotice(dependencies(), ownerContext, orderId),
+    ).rejects.toMatchObject({ code: 'NOTICE_CONFIGURATION_REQUIRED' });
+    await withOrg()(ownerContext, (trx) =>
+      trx
+        .updateTable('background_check_settings')
+        .set({ adverse_notice_text: 'Final adverse decision notice.' })
+        .where('org_id', '=', orgA)
+        .execute(),
+    );
+
+    const orderWithoutPortalId = randomUUID();
+    await withOrg()(ownerContext, (trx) =>
+      trx
+        .insertInto('background_check_orders')
+        .values({
+          id: orderWithoutPortalId,
+          org_id: orgA,
+          person_id: underagePersonA,
+          provider: 'manual',
+          package: 'basic',
+          status: 'consider',
+          adjudication: 'ineligible',
+          pre_adverse_notice_at: clockNow,
+          adverse_notice_at: clockNow,
+          consent_signed_at: clockNow,
+          disclosure_version: '2026-01',
+          disclosure_text: 'Reviewed disclosure snapshot.',
+          authorization_version: '2026-01',
+          authorization_text: 'Reviewed authorization snapshot.',
+        })
+        .execute(),
+    );
+    await expect(
+      resendAdverseActionNotice(
+        dependencies(),
+        ownerContext,
+        orderWithoutPortalId,
+      ),
+    ).rejects.toMatchObject({ code: 'CANDIDATE_ACCOUNT_REQUIRED' });
+    await expect(
+      resendAdverseActionNotice(dependencies(), ownerContext, randomUUID()),
+    ).rejects.toMatchObject({ code: 'INVALID_STATE' });
   });
 
   it('rejects unsupported background-check options and enforces settings versions', async () => {
@@ -1373,6 +1470,30 @@ describe('Phase 7 safety and compliance integration', () => {
         active: true,
         version: input.version ?? 2,
       });
+
+    await expect(
+      submitCredential(dependencies(), ownerContext, {
+        personId: personA,
+        credentialTypeId,
+        issuedOn: '2026-03-02',
+        expiresOn: '2026-03-01',
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(
+      submitCredential(dependencies(), ownerContext, {
+        personId: randomUUID(),
+        credentialTypeId,
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(
+      updateCredentialSubmission(dependencies(), ownerContext, {
+        credentialId: randomUUID(),
+        issuedOn: '2026-03-02',
+        expiresOn: '2026-03-01',
+        fileId: null,
+        version: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
 
     await expect(
       updateType({ validity: { expires_on_month_day: '1-15' } }),
