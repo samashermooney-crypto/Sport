@@ -28,7 +28,12 @@ describe('marketing legal pages', () => {
     expect(
       screen.getByText(/children and family accounts/i).textContent,
     ).toMatch(/children and family accounts/i);
-    expect(screen.getByText(/FERPA/i).textContent).toContain('FERPA');
+    expect(
+      screen.getByText(/FERPA generally does not apply/i).textContent,
+    ).toContain('FERPA generally does not apply');
+    expect(screen.getByText(/COPPA/i).textContent).toContain(
+      'COPPA and other children’s privacy laws',
+    );
   });
 
   it('keeps the review watermark when approval is the string false', () => {
