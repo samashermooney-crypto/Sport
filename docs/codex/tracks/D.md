@@ -45,7 +45,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - Lighthouse mobile: home 98/100/100; Programs 99/100/100; Schedule 99/100/100.
 - Latest design parity browser run: 14 passed, 4 WebKit skips; desktop and mobile shell parity, axe, component screenshots, calendar interactions, board keyboard movement, and global search passed.
 - After the latest font/legal changes: full typecheck, full lint, and production build pass. Website SSR integration passes 10/10; Chromium parity and Action Center journeys pass 10/10.
-- On the current D branch, `npm run typecheck` passes after removing unused report/action-center exports and two empty nested nav files. `npm run knip` no longer reports D-owned files or exports; remaining findings are two evaluation nav files (Tracks F/I) and 12 exports/types in shared export/report/website schemas. No shared or evaluation files were changed.
+- On the latest integrated D branch, `npm run knip` exits clean after keeping the Action Center bulk-action enum internal; no D-owned unused exports or files remain.
 - The last dual-browser E2E run before the latest local trunk sync had 110 passed, 10 failed, and 10 skipped; all failures were WebKit-mobile journeys owned by Tracks A and G. The current trunk merge gate ran Chromium only; its 62 passed and 3 skipped. A full WebKit rerun on the newer integrated trunk remains open.
 - New privacy deletion journey now passes on Chromium desktop and WebKit mobile (2/2). It verifies keyboard operation, axe cleanliness, request review/approval, and PII anonymization. The journey exposed a missing 64kb JSON parser on the exports router; the router now parses bounded JSON before validating request bodies.
 - The shared overlay keyboard check now opens dialog, drawer, and sheet with Enter, closes with Escape, and verifies focus returns to each trigger on Chromium desktop and WebKit mobile (2/2).
@@ -73,8 +73,6 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - Track G: fix the WebKit-mobile schedule result checkbox journey at `e2e/schedule-meet.spec.ts:230`.
 - Track G: replace the separate `system-ui`/literal-color season-award print style in `web/src/console/schedule/ScheduleConsole.tsx` with the shared `PrintLayout` or the legacy font/color treatment.
 - Track A: investigate the WebKit-mobile recovery-code sign-in E2E failure in `e2e/sign-in.spec.ts:420`.
-- Cross-track Knip: Tracks F/I should wire or remove `web/src/console/evaluations/nav.ts` and `web/src/portal/evaluations/nav.ts`; the shared schema owner should consume or remove the 12 currently unused exports/types reported by `npm run knip` (`shared/src/schemas/{exports,reports,website}.ts`).
-- Post-sync Knip regression on K at `5d4116f0`: `npm run knip` reports the unused export `actionCenterBulkActionSchema` at `server/src/modules/action-center/schema.ts:10:14`, introduced by the D bulk-reminder slice. Please consume it in request validation or remove the unused export; K left D-owned code unchanged.
 - Manual 27-journey keyboard review and integrated-route Lighthouse recheck remain open.
 
 `COMPOSE_PROJECT_NAME=athlentry_d_finish`; `PORT_OFFSET=2000`.

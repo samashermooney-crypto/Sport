@@ -7,7 +7,7 @@ export const actionCenterItemSchema = z.strictObject({
   href: z.string().startsWith('/'),
 });
 
-export const actionCenterBulkActionSchema = z.enum([
+const actionCenterBulkActionSchema = z.enum([
   'mark_contacts_read',
   'past_due_reminders',
   'failed_installment_contacts',
