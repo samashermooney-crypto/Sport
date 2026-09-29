@@ -3,6 +3,7 @@ import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
 import { RouteLoading } from '../../ui/RouteLoading';
+import { PortalShell } from '../PortalShell';
 
 const FamilySchedule = lazy(() =>
   import('./FamilySchedule').then(({ FamilySchedule: Component }) => ({
@@ -57,13 +58,15 @@ function FamilyScheduleRoute(): React.JSX.Element {
     personId: string;
   }>();
   return orgId && teamSeasonId && personId ? (
-    loading(
-      <FamilySchedule
-        orgId={orgId}
-        teamSeasonId={teamSeasonId}
-        personId={personId}
-      />,
-    )
+    <PortalShell orgId={orgId}>
+      {loading(
+        <FamilySchedule
+          orgId={orgId}
+          teamSeasonId={teamSeasonId}
+          personId={personId}
+        />,
+      )}
+    </PortalShell>
   ) : (
     <main className="schedule-page">
       Choose a team and athlete to view this schedule.

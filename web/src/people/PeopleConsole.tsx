@@ -1,6 +1,6 @@
 import { householdListSchema } from '@shared/schemas/households';
-import { orgWorkspaceSchema } from '@shared/schemas/orgs';
 import {
+  peopleComplianceRoleSchema,
   peopleFilterOptionsSchema,
   peopleListSchema,
   personResponseSchema,
@@ -12,7 +12,10 @@ import type { z } from 'zod';
 
 import { apiGet, apiPatch, apiPost } from '../api/client';
 import { useImpersonationId } from '../platform/impersonation';
+import { ConsoleShell } from '../ui/ConsoleShell';
+import { useToast } from '../ui/app-feedback';
 import { AuthFrame, AuthLink, ErrorBox } from '../ui/auth';
+import { ConfirmDialog } from '../ui/overlays';
 import {
   Button,
   Card,
@@ -22,13 +25,23 @@ import {
   PageHeader,
   Select,
 } from '../ui/primitives';
-import { AppShell } from '../ui/shell';
 
 import { GuardianLinks } from './GuardianLinks';
 import { PersonClaim } from './PersonClaim';
 import { PersonPhoto } from './PersonPhoto';
 
 type Person = z.output<typeof personResponseSchema>;
+type ComplianceRole = z.output<typeof peopleComplianceRoleSchema>;
+const complianceRoleLabels: Record<ComplianceRole, string> = {
+  head_coach: 'Head coach',
+  assistant_coach: 'Assistant coach',
+  team_manager: 'Team manager',
+  trainer: 'Trainer',
+  treasurer: 'Treasurer',
+  official: 'Official',
+  volunteer: 'Volunteer',
+  evaluator: 'Evaluator',
+};
 type FormValues = {
   firstName: string;
   lastName: string;
@@ -53,7 +66,7 @@ const blank: FormValues = {
   mediaConsent: 'unknown',
 };
 
-function PersonForm({
+export function PersonForm({
   initial,
   submitLabel,
   onSubmit,
@@ -62,6 +75,7 @@ function PersonForm({
   submitLabel: string;
   onSubmit: (values: FormValues) => Promise<void>;
 }): React.JSX.Element {
+  const notify = useToast();
   const [values, setValues] = useState<FormValues>(
     initial
       ? {
@@ -92,6 +106,9 @@ function PersonForm({
         setBusy(true);
         setError('');
         void onSubmit(values)
+          .then(() => {
+            notify(initial ? 'Person saved.' : 'Person created.', 'success');
+          })
           .catch((cause: unknown) => {
             setError(
               cause instanceof Error
@@ -218,40 +235,7 @@ export function PeopleShell({
   orgId: string;
   children: React.ReactNode;
 }): React.JSX.Element {
-  const impersonationId = useImpersonationId();
-  const home = `/console/orgs/${orgId}`;
-  const people = `${home}/people`;
-  const workspace = useQuery({
-    queryKey: ['orgs', orgId, 'workspace'],
-    queryFn: () => apiGet(`/orgs/${orgId}/workspace`, orgWorkspaceSchema),
-    enabled: !impersonationId,
-  });
-  return (
-    <AppShell
-      orgName={workspace.data?.name ?? 'Athlentry'}
-      navigation={[
-        {
-          label: 'Manage',
-          items: [
-            ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
-            { label: 'People', to: people },
-            { label: 'Households', to: `${home}/households` },
-            { label: 'Imports', to: `${home}/imports` },
-            { label: 'Account', to: '/me' },
-          ],
-        },
-      ]}
-      mobileTabs={[
-        ...(!impersonationId ? [{ label: 'Home', to: home }] : []),
-        { label: 'People', to: people },
-        { label: 'Households', to: `${home}/households` },
-        { label: 'Imports', to: `${home}/imports` },
-        { label: 'Account', to: '/me' },
-      ]}
-    >
-      {children}
-    </AppShell>
-  );
+  return <ConsoleShell orgId={orgId}>{children}</ConsoleShell>;
 }
 
 function requestBody(values: FormValues) {
@@ -288,6 +272,7 @@ export function PeopleList(): React.JSX.Element {
   const [teamSearch, setTeamSearch] = useState('');
   const [teamSeasonId, setTeamSeasonId] = useState('');
   const [credentialStatus, setCredentialStatus] = useState('');
+  const [eligibilityRole, setEligibilityRole] = useState('');
   const [hasBalance, setHasBalance] = useState('');
   const programs = useQuery({
     queryKey: ['people-filter-programs', orgId, programSearch],
@@ -330,6 +315,7 @@ export function PeopleList(): React.JSX.Element {
       programId,
       teamSeasonId,
       credentialStatus,
+      eligibilityRole,
       hasBalance,
       cursor,
     ],
@@ -346,6 +332,7 @@ export function PeopleList(): React.JSX.Element {
           ...(programId ? { programId } : {}),
           ...(teamSeasonId ? { teamSeasonId } : {}),
           ...(credentialStatus ? { credentialStatus } : {}),
+          ...(eligibilityRole ? { eligibilityRole } : {}),
           ...(hasBalance ? { hasBalance } : {}),
           ...(cursor ? { cursor } : {}),
         })}`,
@@ -563,6 +550,27 @@ export function PeopleList(): React.JSX.Element {
               }}
             />
           </Field>
+          <Field label="Review role eligibility">
+            <Select
+              value={eligibilityRole}
+              options={[
+                { value: '', label: 'No role selected' },
+                ...Object.entries(complianceRoleLabels).map(
+                  ([value, label]) => ({ value, label }),
+                ),
+              ]}
+              onChange={(event) => {
+                setEligibilityRole(event.target.value);
+                setCursor(null);
+              }}
+            />
+          </Field>
+          {eligibilityRole && (
+            <p>
+              Eligibility uses active organization requirements. Choose a
+              program above to include program-specific rules.
+            </p>
+          )}
           {people.isPending && <p role="status">Loading people…</p>}
           {people.isError && <ErrorBox error="People could not be loaded." />}
           {people.data && (
@@ -577,6 +585,30 @@ export function PeopleList(): React.JSX.Element {
                     {' · Age '}
                     {person.age}
                     {person.grade ? ` · ${person.grade}` : ''}
+                    {person.roleEligibility && eligibilityRole ? (
+                      <p>
+                        <strong>
+                          {
+                            complianceRoleLabels[
+                              eligibilityRole as ComplianceRole
+                            ]
+                          }
+                          :{' '}
+                          {person.roleEligibility.eligible
+                            ? 'Eligible'
+                            : 'Needs review'}
+                        </strong>
+                        {person.roleEligibility.missing.length > 0
+                          ? ` — ${person.roleEligibility.missing.map(({ message }) => message).join(' ')}`
+                          : null}
+                        {person.roleEligibility.expiryDate
+                          ? ` Valid through ${person.roleEligibility.expiryDate}.`
+                          : null}
+                        {person.roleEligibility.overridden
+                          ? ' A temporary override is active.'
+                          : null}
+                      </p>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -637,6 +669,8 @@ export function PersonDetail(): React.JSX.Element {
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [archiveConfirmationOpen, setArchiveConfirmationOpen] = useState(false);
+  const notify = useToast();
   const person = useQuery({
     queryKey: ['people', orgId, personId],
     queryFn: () =>
@@ -666,6 +700,29 @@ export function PersonDetail(): React.JSX.Element {
       </AuthFrame>
     );
   const current = person.data;
+  const personName =
+    [current.firstName, current.lastName].filter(Boolean).join(' ') ||
+    'This person';
+  async function archivePerson(): Promise<void> {
+    setBusy(true);
+    setError('');
+    try {
+      await apiPost(
+        `/people/orgs/${String(orgId)}/${String(personId)}/archive`,
+        { expectedVersion: current.version },
+        personResponseSchema,
+      );
+      setArchiveConfirmationOpen(false);
+      await client.invalidateQueries({ queryKey: ['people', orgId] });
+      notify('Person archived. Their history remains available.', 'success');
+      void navigate(`/console/orgs/${String(orgId)}/people`);
+    } catch (cause) {
+      setArchiveConfirmationOpen(false);
+      setError(cause instanceof Error ? cause.message : 'Archive failed.');
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <PeopleShell orgId={orgId}>
       <main className="console-home">
@@ -716,7 +773,8 @@ export function PersonDetail(): React.JSX.Element {
             <PersonPhoto
               orgId={orgId}
               person={current}
-              onSaved={async () => {
+              onSaved={async (updated) => {
+                client.setQueryData(['people', orgId, personId], updated);
                 await client.invalidateQueries({ queryKey: ['people', orgId] });
               }}
             />
@@ -725,37 +783,7 @@ export function PersonDetail(): React.JSX.Element {
               secondary
               disabled={busy}
               onClick={() => {
-                if (
-                  !window.confirm(
-                    `Archive ${current.firstName} ${current.lastName}?`,
-                  )
-                )
-                  return;
-                setBusy(true);
-                setError('');
-                void apiPost(
-                  `/people/orgs/${orgId}/${personId}/archive`,
-                  {
-                    expectedVersion: current.version,
-                  },
-                  personResponseSchema,
-                )
-                  .then(async () => {
-                    await client.invalidateQueries({
-                      queryKey: ['people', orgId],
-                    });
-                    void navigate(`/console/orgs/${orgId}/people`);
-                  })
-                  .catch((cause: unknown) => {
-                    setError(
-                      cause instanceof Error
-                        ? cause.message
-                        : 'Archive failed.',
-                    );
-                  })
-                  .finally(() => {
-                    setBusy(false);
-                  });
+                setArchiveConfirmationOpen(true);
               }}
             >
               Archive person
@@ -785,6 +813,7 @@ export function PersonDetail(): React.JSX.Element {
                     await client.invalidateQueries({
                       queryKey: ['people', orgId],
                     });
+                    notify('Person restored.', 'success');
                   })
                   .catch((cause: unknown) => {
                     setError(
@@ -819,6 +848,21 @@ export function PersonDetail(): React.JSX.Element {
               profileEmail={current.email}
             />
           )}
+        <ConfirmDialog
+          title="Archive this person?"
+          open={archiveConfirmationOpen}
+          confirmLabel="Archive person"
+          busy={busy}
+          onCancel={() => {
+            setArchiveConfirmationOpen(false);
+          }}
+          onConfirm={() => {
+            void archivePerson();
+          }}
+        >
+          {personName} will no longer appear in active lists. Their
+          registrations, signatures, and audit history are retained.
+        </ConfirmDialog>
       </main>
     </PeopleShell>
   );

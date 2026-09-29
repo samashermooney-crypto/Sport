@@ -122,6 +122,7 @@ test('guardian RSVPs an athlete to a team event', async ({
     await page.goto(
       `/portal/orgs/${actor.orgId}/schedule/teams/${team.teamSeasonId}/people/${personId}`,
     );
+    await expect(page.locator('.ui-app-shell')).toHaveCount(1);
     await expect(
       page.getByRole('heading', { name: 'Upcoming events' }),
     ).toBeVisible();

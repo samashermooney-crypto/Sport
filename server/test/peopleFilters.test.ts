@@ -188,3 +188,77 @@ it('filters by the exact credential record status without implying role eligibil
     ).items.map((person) => person.id),
   ).toEqual([credentialedId]);
 });
+
+it('shows eligibility from the requirements configured for a selected role', async () => {
+  const factories = createTestFactories(database);
+  const actor = await factories.actor();
+  await factories.scoped(actor, (trx) =>
+    trx
+      .updateTable('role_assignments')
+      .set({ pending_mfa: false })
+      .where('org_id', '=', actor.orgId)
+      .where('account_id', '=', actor.accountId)
+      .execute()
+      .then(() => undefined),
+  );
+  const eligibleId = await factories.person(actor, {
+    firstName: 'Eligible',
+    dateOfBirth: '1980-01-01',
+  });
+  const underageId = await factories.person(actor, {
+    firstName: 'Underage',
+    dateOfBirth: '2011-01-01',
+  });
+  const credentialTypeId = newId();
+  await factories.row(actor, 'credential_types', {
+    id: credentialTypeId,
+    org_id: actor.orgId,
+    key: `eligibility_${newId().replaceAll('-', '_')}`,
+    name: 'Head coach safety training',
+    verification: 'manual_staff',
+    validity: {},
+    applies_to: { roles: ['head_coach'], minimumAge: 18 },
+    active: true,
+  });
+  await factories.row(actor, 'role_credential_requirements', {
+    id: newId(),
+    org_id: actor.orgId,
+    role: 'head_coach',
+    credential_type_id: credentialTypeId,
+    scope_type: 'org',
+    scope_id: null,
+    minimum_age: 18,
+  });
+  await factories.row(actor, 'person_credentials', {
+    id: newId(),
+    org_id: actor.orgId,
+    person_id: eligibleId,
+    credential_type_id: credentialTypeId,
+    status: 'verified',
+    issued_on: '2026-01-01',
+    expires_on: '2027-01-01',
+  });
+
+  const people = createPeopleRepository(database);
+  const result = await people.list(actor.orgId, actor.accountId, {
+    status: 'active',
+    eligibilityRole: 'head_coach',
+    limit: 30,
+  });
+  expect(
+    result.items.find(({ id }) => id === eligibleId)?.roleEligibility,
+  ).toMatchObject({
+    eligible: true,
+    missing: [],
+  });
+  const underageEligibility = result.items.find(
+    ({ id }) => id === underageId,
+  )?.roleEligibility;
+  expect(underageEligibility?.eligible).toBe(false);
+  expect(underageEligibility?.missing.map(({ code }) => code)).toContain(
+    'UNDER_MINIMUM_AGE',
+  );
+  expect(underageEligibility?.missing.map(({ code }) => code)).toContain(
+    'CREDENTIAL_MISSING',
+  );
+});

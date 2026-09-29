@@ -42,6 +42,11 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
       firstName: 'Mia',
       lastName: 'Rivera',
     });
+    const siblingId = await factories.person(staff, {
+      firstName: 'Ava',
+      lastName: 'Rivera',
+    });
+    let householdId = '';
     const guardianId = newId();
     const guardianEmail = `guardian-${randomUUID()}@example.invalid`;
     await database
@@ -55,8 +60,21 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
         email_verified_at: new Date(),
       })
       .execute();
+    await createWithOrg(database)(staff, async (trx) => {
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: newId(),
+          org_id: staff.orgId,
+          person_id: siblingId,
+          account_id: guardianId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute();
+    });
     const secondOrg = await factories.actor();
-    const secondChildId = await factories.person(secondOrg, {
+    const crossOrgChildId = await factories.person(secondOrg, {
       firstName: 'Zoe',
       lastName: 'Morgan',
     });
@@ -66,7 +84,7 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
         .values({
           id: newId(),
           org_id: secondOrg.orgId,
-          person_id: secondChildId,
+          person_id: crossOrgChildId,
           account_id: guardianId,
           relationship: 'guardian',
           verified_at: new Date(),
@@ -96,6 +114,35 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
         sameSite: 'Lax',
       },
     ]);
+    await page.goto(`/console/orgs/${staff.orgId}/households`);
+    await expect(
+      page.getByRole('heading', { name: 'Households', level: 1 }),
+    ).toBeVisible();
+    await page.getByLabel('Household name').fill('Rivera family');
+    await page.getByRole('button', { name: 'Create household' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Rivera family' }),
+    ).toBeVisible();
+    const householdMatch = /\/households\/([0-9a-f-]{36})$/.exec(
+      new URL(page.url()).pathname,
+    );
+    if (!householdMatch?.[1])
+      throw new Error('Created household ID is missing.');
+    householdId = householdMatch[1];
+    const addMemberForm = page
+      .locator('form')
+      .filter({ has: page.getByRole('button', { name: 'Add member' }) });
+    await addMemberForm.getByRole('combobox').nth(0).selectOption(childId);
+    await addMemberForm.getByLabel('Household role').selectOption('athlete');
+    await page.getByRole('button', { name: 'Add member' }).click();
+    await expect(page.getByRole('link', { name: 'Mia Rivera' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await addMemberForm.getByRole('combobox').nth(0).selectOption(siblingId);
+    await page.getByRole('button', { name: 'Add member' }).click();
+    await expect(page.getByRole('link', { name: 'Ava Rivera' })).toBeVisible({
+      timeout: 15_000,
+    });
     await page.goto(`/console/orgs/${staff.orgId}/people/${childId}`);
     await page
       .getByRole('textbox', { name: 'Existing verified adult account email' })
@@ -174,7 +221,23 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
       guardianPage.getByRole('heading', { name: 'Your family' }),
     ).toBeVisible();
     await expect(guardianPage.getByText('Mia Rivera')).toBeVisible();
+    await expect(guardianPage.getByText('Ava Rivera')).toBeVisible();
     await expect(guardianPage.getByText('Zoe Morgan')).toBeVisible();
+    expect(await accessibilityViolations(guardianPage)).toEqual([]);
+    await guardianPage.goto(`/me/family/${staff.orgId}/${childId}/profile`);
+    await expect(
+      guardianPage.getByRole('heading', { name: 'Mia Rivera' }),
+    ).toBeVisible();
+    await guardianPage
+      .getByRole('textbox', { name: 'Preferred name' })
+      .fill('Mimi');
+    await guardianPage.getByRole('button', { name: 'Save profile' }).click();
+    await expect(
+      guardianPage.getByRole('status').filter({ hasText: 'Profile saved.' }),
+    ).toBeVisible();
+    await expect(
+      guardianPage.getByRole('textbox', { name: 'Preferred name' }),
+    ).toHaveValue('Mimi');
     expect(await accessibilityViolations(guardianPage)).toEqual([]);
     await guardianPage.goto(`/me/family/${staff.orgId}/${childId}/medical`);
     await expect(
@@ -224,6 +287,33 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
     expect(links).toHaveLength(1);
     expect(links[0]?.account_id).toBe(guardianId);
     expect(links[0]?.verified_at).not.toBeNull();
+    const householdMembers = await createWithOrg(database)(staff, (trx) =>
+      trx
+        .selectFrom('household_members')
+        .select(['person_id', 'role'])
+        .where('org_id', '=', staff.orgId)
+        .where('household_id', '=', householdId)
+        .where('removed_at', 'is', null)
+        .execute(),
+    );
+    expect(
+      householdMembers
+        .filter((member) => member.role === 'athlete')
+        .map((member) => member.person_id)
+        .sort(),
+    ).toEqual([childId, siblingId].sort());
+    expect(householdMembers.some((member) => member.role === 'guardian')).toBe(
+      true,
+    );
+    const profile = await createWithOrg(database)(staff, (trx) =>
+      trx
+        .selectFrom('people')
+        .select('preferred_name')
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', childId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(profile.preferred_name).toBe('Mimi');
   } finally {
     await guardianContext.close();
     await database.destroy();
@@ -552,6 +642,17 @@ test('guardian invites a teen athlete who accepts a read-only view and is revoke
     ).toBeVisible();
     await expect(
       athletePage.getByRole('button', { name: 'Save medical profile' }),
+    ).toHaveCount(0);
+    expect(await accessibilityViolations(athletePage)).toEqual([]);
+    await athletePage.goto(`/me/family/${staff.orgId}/${childId}/profile`);
+    await expect(
+      athletePage.getByRole('heading', { name: 'Sam Rivera' }),
+    ).toBeVisible();
+    await expect(
+      athletePage.getByText('read-only for this account'),
+    ).toBeVisible();
+    await expect(
+      athletePage.getByRole('button', { name: 'Save profile' }),
     ).toHaveCount(0);
     expect(await accessibilityViolations(athletePage)).toEqual([]);
 

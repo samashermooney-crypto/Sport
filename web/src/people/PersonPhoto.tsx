@@ -30,10 +30,12 @@ export function PersonPhoto({
   orgId,
   person,
   onSaved,
+  familyManaged = false,
 }: {
   orgId: string;
   person: Person;
-  onSaved: () => Promise<void>;
+  onSaved: (updated: Person) => Promise<void>;
+  familyManaged?: boolean;
 }): React.JSX.Element {
   const [file, setFile] = useState<File | null>(null);
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
@@ -147,8 +149,8 @@ export function PersonPhoto({
           'X-Athlentry-Org': orgId,
         },
       );
-      await apiPost(
-        `/people/orgs/${orgId}/${person.id}/photo`,
+      const updated = await apiPost(
+        `/people/orgs/${orgId}/${person.id}/${familyManaged ? 'family-photo' : 'photo'}`,
         {
           expectedVersion: person.version,
           fileId: upload.fileId,
@@ -157,7 +159,7 @@ export function PersonPhoto({
       );
       setFile(null);
       setBitmap(null);
-      await onSaved();
+      await onSaved(updated);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : 'Photo could not be saved.',
@@ -171,15 +173,15 @@ export function PersonPhoto({
     setBusy(true);
     setError('');
     try {
-      await apiPost(
-        `/people/orgs/${orgId}/${person.id}/photo`,
+      const updated = await apiPost(
+        `/people/orgs/${orgId}/${person.id}/${familyManaged ? 'family-photo' : 'photo'}`,
         {
           expectedVersion: person.version,
           fileId: null,
         },
         personResponseSchema,
       );
-      await onSaved();
+      await onSaved(updated);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : 'Photo could not be removed.',

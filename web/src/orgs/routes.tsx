@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router';
 
+import { ConsoleRouteShell } from '../ui/ConsoleShell';
 import { RouteLoading } from '../ui/RouteLoading';
 
 const AcceptInvitation = lazy(() =>
@@ -40,9 +41,30 @@ function loading(element: React.ReactNode): React.JSX.Element {
 
 export const orgsRoutes: readonly RouteObject[] = [
   { path: '/start', element: loading(<Start />) },
-  { path: '/orgs/:orgId/credentials', element: loading(<Credentials />) },
-  { path: '/orgs/:orgId/profile', element: loading(<Profile />) },
-  { path: '/orgs/:orgId/staff', element: loading(<Staff />) },
+  {
+    path: '/orgs/:orgId/credentials',
+    element: loading(
+      <ConsoleRouteShell>
+        <Credentials />
+      </ConsoleRouteShell>,
+    ),
+  },
+  {
+    path: '/orgs/:orgId/profile',
+    element: loading(
+      <ConsoleRouteShell>
+        <Profile />
+      </ConsoleRouteShell>,
+    ),
+  },
+  {
+    path: '/orgs/:orgId/staff',
+    element: loading(
+      <ConsoleRouteShell>
+        <Staff />
+      </ConsoleRouteShell>,
+    ),
+  },
   {
     path: '/invitations/:orgId/:token',
     element: loading(<AcceptInvitation />),

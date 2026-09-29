@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 
 import type { Kysely } from 'kysely';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from '../../app';
 import { createDatabase } from '../../db/kysely';
@@ -43,6 +43,10 @@ beforeAll(() => {
     clock: () => now,
   }).listen(0);
   baseUrl = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/api/v1/auth`;
+});
+
+beforeEach(async () => {
+  await database.deleteFrom('rate_limit_points').execute();
 });
 
 afterAll(async () => {
@@ -239,26 +243,28 @@ describe('auth HTTP contract', () => {
       cookie,
     );
     expect(stepUp.status).toBe(200);
-    expect(await stepUp.json()).toEqual({ status: 'elevated' });
-    const rotatedCookie = authCookie(stepUp);
-    expect(rotatedCookie).not.toBe(cookie);
+    expect(await stepUp.json()).toEqual({
+      client: 'web',
+      status: 'elevated',
+    });
+    const steppedCookie = authCookie(stepUp);
+    expect(steppedCookie).not.toBe(cookie);
     expect(
-      (await fetch(`${baseUrl}/sessions`, { headers: { Cookie: cookie } }))
-        .status,
+      (await fetch(`${baseUrl}/me`, { headers: { Cookie: cookie } })).status,
     ).toBe(401);
     const sessions = await fetch(`${baseUrl}/sessions`, {
-      headers: { Cookie: rotatedCookie },
+      headers: { Cookie: steppedCookie },
     });
     expect(sessions.status).toBe(200);
     expect(
       ((await sessions.json()) as { sessions: unknown[] }).sessions,
     ).toHaveLength(2);
-    const signedOut = await post('/sign-out', {}, rotatedCookie);
+    const signedOut = await post('/sign-out', {}, steppedCookie);
     expect(signedOut.status).toBe(200);
     expect(
       (
         await fetch(`${baseUrl}/sessions`, {
-          headers: { Cookie: rotatedCookie },
+          headers: { Cookie: steppedCookie },
         })
       ).status,
     ).toBe(401);
@@ -311,14 +317,18 @@ describe('auth HTTP contract', () => {
       body: JSON.stringify({ method: 'password', password }),
     });
     expect(nativeStepUp.status).toBe(200);
-    expect(nativeStepUp.headers.get('set-cookie')).toBeNull();
-    expect(nativeStepUp.headers.get('cache-control')).toBe('no-store');
     const nativeStepUpBody = (await nativeStepUp.json()) as {
+      client: string;
       status: string;
       token: string;
+      absoluteExpiresAt: string;
     };
-    expect(nativeStepUpBody.status).toBe('elevated');
-    expect(nativeStepUpBody.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(nativeStepUpBody).toMatchObject({
+      client: 'ios',
+      status: 'elevated',
+    });
+    expect(nativeStepUp.headers.get('set-cookie')).toBeNull();
+    expect(nativeStepUp.headers.get('cache-control')).toBe('no-store');
     expect(nativeStepUpBody.token).not.toBe(bearer);
     expect(
       (
@@ -327,32 +337,14 @@ describe('auth HTTP contract', () => {
         })
       ).status,
     ).toBe(401);
+    const replacementBearer = nativeStepUpBody.token;
     const bearerHeaders = {
-      Authorization: `Bearer ${nativeStepUpBody.token}`,
+      Authorization: `Bearer ${replacementBearer}`,
       'X-Athlentry-Request': '1',
     };
     expect(
       (await fetch(`${baseUrl}/sessions`, { headers: bearerHeaders })).status,
     ).toBe(200);
-    let stepUpWasLimited = false;
-    for (let attempt = 0; attempt < 9 && !stepUpWasLimited; attempt += 1) {
-      const rejectedStepUp = await fetch(`${baseUrl}/step-up`, {
-        method: 'POST',
-        headers: {
-          ...bearerHeaders,
-          'Content-Type': 'application/json',
-          Origin: origin,
-        },
-        body: JSON.stringify({
-          method: 'password',
-          password: 'wrong password',
-        }),
-      });
-      if (rejectedStepUp.status === 429) stepUpWasLimited = true;
-      else expect(rejectedStepUp.status).toBe(401);
-    }
-    expect(stepUpWasLimited).toBe(true);
-
     const wrongOrigin = await fetch(`${baseUrl}/devices`, {
       method: 'POST',
       headers: {
@@ -423,6 +415,64 @@ describe('auth HTTP contract', () => {
       ((await webPushList.json()) as { devices: { id: string }[] }).devices,
     ).toEqual([expect.objectContaining({ id: webPushId })]);
 
+    const androidChallengeResponse = await fetch(`${baseUrl}/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Athlentry-Request': '1',
+      },
+      body: JSON.stringify({
+        email: input.email,
+        password,
+        client: 'android',
+      }),
+    });
+    expect(androidChallengeResponse.status).toBe(200);
+    const androidChallenge = (await androidChallengeResponse.json()) as {
+      status: string;
+      challengeToken: string;
+    };
+    expect(androidChallenge.status).toBe('mfa_required');
+    const androidMfa = await fetch(`${baseUrl}/token/mfa`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Athlentry-Request': '1',
+      },
+      body: JSON.stringify({
+        challengeToken: androidChallenge.challengeToken,
+        code: recoveryCodes[2],
+        method: 'recovery',
+        client: 'android',
+      }),
+    });
+    expect(androidMfa.status).toBe(200);
+    const androidBearer = ((await androidMfa.json()) as { token: string })
+      .token;
+    const fcm = await fetch(`${baseUrl}/devices`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${androidBearer}`,
+        'Content-Type': 'application/json',
+        'X-Athlentry-Request': '1',
+      },
+      body: JSON.stringify({ platform: 'fcm', token: 'f'.repeat(64) }),
+    });
+    expect(fcm.status).toBe(200);
+    const fcmDevice = (await fcm.json()) as { id: string; platform: string };
+    expect(fcmDevice.platform).toBe('fcm');
+    expect(fcmDevice).not.toHaveProperty('token');
+    const androidDevices = await fetch(`${baseUrl}/devices`, {
+      headers: { Authorization: `Bearer ${androidBearer}` },
+    });
+    expect(
+      ((await androidDevices.json()) as { devices: { id: string }[] }).devices,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: fcmDevice.id, platform: 'fcm' }),
+      ]),
+    );
+
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const requested = await post('/magic/request', {
         email: 'unknown@example.invalid',
@@ -441,5 +491,192 @@ describe('auth HTTP contract', () => {
     expect(await limited.json()).toMatchObject({
       error: { code: 'RATE_LIMITED' },
     });
+  });
+
+  it('routes recovery, credential changes, session revocation, and deletion requests', async () => {
+    const emailStart = email.messages.length;
+    const accountEmail = `recovery-${randomBytes(6).toString('hex')}@example.invalid`;
+    const input = {
+      email: accountEmail,
+      password,
+      firstName: 'Recovery',
+      lastName: 'Owner',
+      dateOfBirth: '1990-01-01',
+      termsAccepted: true,
+      privacyAccepted: true,
+      captchaToken: 'test-token',
+    };
+    expect((await post('/sign-up', input)).status).toBe(202);
+    expect(
+      (
+        await post('/verify-email', {
+          token: emailToken(emailStart, 'verify'),
+        })
+      ).status,
+    ).toBe(200);
+
+    expect((await post('/magic/request', { email: accountEmail })).status).toBe(
+      202,
+    );
+    const magicToken = emailToken(emailStart + 1, 'magic');
+    const magic = await post('/magic/redeem', { token: magicToken });
+    expect(magic.status).toBe(200);
+    const magicCookie = authCookie(magic);
+    expect(
+      (await fetch(`${baseUrl}/me`, { headers: { Cookie: magicCookie } }))
+        .status,
+    ).toBe(200);
+
+    expect(
+      (await post('/password/reset/request', { email: accountEmail })).status,
+    ).toBe(202);
+    const resetEmailIndex = email.messages.findIndex(
+      (message, index) =>
+        index >= emailStart && message.text.includes('/reset/'),
+    );
+    const nextPassword = 'Tall cedars and quiet rivers 82';
+    expect(
+      (
+        await post('/password/reset/confirm', {
+          token: emailToken(resetEmailIndex, 'reset'),
+          newPassword: nextPassword,
+        })
+      ).status,
+    ).toBe(200);
+
+    const signedIn = await post('/sign-in', {
+      email: accountEmail,
+      password: nextPassword,
+    });
+    expect(signedIn.status).toBe(200);
+    const signedInCookie = authCookie(signedIn);
+    const changedPassword = 'Red maple leaves and clear skies 83';
+    expect(
+      (
+        await post(
+          '/password/change',
+          { currentPassword: nextPassword, newPassword: changedPassword },
+          signedInCookie,
+        )
+      ).status,
+    ).toBe(200);
+    const elevated = await post(
+      '/step-up',
+      { method: 'password', password: changedPassword },
+      signedInCookie,
+    );
+    expect(elevated.status).toBe(200);
+    const elevatedCookie = authCookie(elevated);
+
+    const nextEmail = `updated-${randomBytes(6).toString('hex')}@example.invalid`;
+    expect(
+      (
+        await post(
+          '/email/change/request',
+          { email: nextEmail },
+          elevatedCookie,
+        )
+      ).status,
+    ).toBe(202);
+    const emailChangeIndex = email.messages.findIndex(
+      (message, index) =>
+        index >= emailStart && message.text.includes('/verify-email-change/'),
+    );
+    const emailChanged = await post('/email/change/confirm', {
+      token: emailToken(emailChangeIndex, 'verify-email-change'),
+    });
+    expect(emailChanged.status).toBe(200);
+    expect(emailChanged.headers.get('set-cookie')).toContain(
+      'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+    );
+
+    const restoredSession = await post('/sign-in', {
+      email: nextEmail,
+      password: changedPassword,
+    });
+    expect(restoredSession.status).toBe(200);
+    const restoredCookie = authCookie(restoredSession);
+    const restoredStepUp = await post(
+      '/step-up',
+      { method: 'password', password: changedPassword },
+      restoredCookie,
+    );
+    expect(restoredStepUp.status).toBe(200);
+    const deletionCookie = authCookie(restoredStepUp);
+
+    const deletion = await post(
+      '/account-deletion',
+      { reason: 'This account is no longer needed.' },
+      deletionCookie,
+    );
+    expect(deletion.status).toBe(202);
+    const deletionBody = (await deletion.json()) as { requestId: string };
+    expect(deletionBody.requestId).toEqual(expect.any(String));
+
+    const unknownDevice = await fetch(
+      `${baseUrl}/devices/00000000-0000-4000-8000-000000000001`,
+      {
+        method: 'DELETE',
+        headers: {
+          Cookie: deletionCookie,
+          Origin: origin,
+          'X-Athlentry-Request': '1',
+        },
+      },
+    );
+    expect(unknownDevice.status).toBe(404);
+
+    const sessions = await fetch(`${baseUrl}/sessions`, {
+      headers: { Cookie: deletionCookie },
+    });
+    const session = (
+      (await sessions.json()) as {
+        sessions: Array<{ id: string }>;
+      }
+    ).sessions[0];
+    const sessionId = session?.id;
+    if (!sessionId) throw new Error('Expected an active auth session');
+    let stepUpWasLimited = false;
+    for (let attempt = 0; attempt < 9 && !stepUpWasLimited; attempt += 1) {
+      const rejectedStepUp = await post(
+        '/step-up',
+        { method: 'password', password: 'wrong password' },
+        deletionCookie,
+      );
+      if (rejectedStepUp.status === 429) stepUpWasLimited = true;
+      else expect(rejectedStepUp.status).toBe(401);
+    }
+    expect(stepUpWasLimited).toBe(true);
+    const revoked = await fetch(`${baseUrl}/sessions/${sessionId}`, {
+      method: 'DELETE',
+      headers: {
+        Cookie: deletionCookie,
+        Origin: origin,
+        'X-Athlentry-Request': '1',
+      },
+    });
+    expect(revoked.status).toBe(200);
+    expect(revoked.headers.get('set-cookie')).toContain(
+      'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+    );
+
+    expect(
+      (
+        await post('/sign-in', {
+          email: accountEmail,
+          password: 'wrong password',
+        })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await post('/sign-up', {
+          ...input,
+          email: `underage-${randomBytes(6).toString('hex')}@example.invalid`,
+          dateOfBirth: '2015-01-01',
+        })
+      ).status,
+    ).toBe(422);
+    expect(magicCookie).not.toBe('');
   });
 });

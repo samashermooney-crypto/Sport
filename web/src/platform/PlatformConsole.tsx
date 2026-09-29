@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+
+import { i18n } from '../lib/i18n';
 
 import type { Impersonation } from './ImpersonationBanner';
 import { platformApi } from './api';
@@ -76,7 +79,11 @@ function useLoad<T>(
       })
       .catch((cause: unknown) => {
         if (live)
-          setError(cause instanceof Error ? cause.message : 'Request failed.');
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : i18n.t('requestFailed', { ns: 'platform' }),
+          );
       });
     return () => {
       live = false;
@@ -94,6 +101,9 @@ function Message({ text }: { text: string }): React.JSX.Element | null {
 }
 
 function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
+  const { t } = useTranslation('platform');
+  const statusLabel = (value: string) =>
+    t(`statuses.${value}`, { defaultValue: value });
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [cursor, setCursor] = useState<string | null>(null);
@@ -120,15 +130,15 @@ function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
         body: { status, expectedVersion: org.version },
       });
       setRevision((value) => value + 1);
-      setMessage('Organization status updated.');
+      setMessage(t('organizationStatusUpdated'));
     } catch (cause) {
-      setMessage(cause instanceof Error ? cause.message : 'Request failed.');
+      setMessage(cause instanceof Error ? cause.message : t('requestFailed'));
     }
   }
 
   return (
     <section>
-      <h2>Organizations</h2>
+      <h2>{t('organizations')}</h2>
       <form
         className="platform-console__row"
         onSubmit={(event) => {
@@ -137,7 +147,7 @@ function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
           setSearch(searchInput.trim());
         }}
       >
-        <label htmlFor="platform-org-search">Search</label>
+        <label htmlFor="platform-org-search">{t('search')}</label>
         <input
           id="platform-org-search"
           value={searchInput}
@@ -146,7 +156,7 @@ function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
           }}
           maxLength={100}
         />
-        <button type="submit">Search</button>
+        <button type="submit">{t('search')}</button>
       </form>
       <Message text={page.error || detail.error || message} />
       {page.data ? (
@@ -163,7 +173,8 @@ function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
                   {item.name}
                 </button>
                 <span>
-                  {item.slug} · {item.status} · {item.planName ?? 'No plan'}
+                  {item.slug} · {statusLabel(item.status)} ·{' '}
+                  {item.planName ?? t('noPlan')}
                 </span>
               </li>
             ))}
@@ -175,7 +186,7 @@ function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
                 setCursor(null);
               }}
             >
-              First page
+              {t('firstPage')}
             </button>
           )}
           {page.data.nextCursor && (
@@ -185,32 +196,38 @@ function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
                 setCursor(page.data?.nextCursor ?? null);
               }}
             >
-              Next page
+              {t('nextPage')}
             </button>
           )}
         </>
       ) : (
-        <p role="status">Loading organizations…</p>
+        <p role="status">{t('loadingOrganizations')}</p>
       )}
       {org && (
         <div className="platform-console__card">
           <h3>{org.name}</h3>
           <dl>
-            <dt>Status</dt>
-            <dd>{org.status}</dd>
-            <dt>Plan</dt>
-            <dd>{org.planName ?? 'None'}</dd>
-            <dt>Application fee</dt>
+            <dt>{t('status')}</dt>
+            <dd>{statusLabel(org.status)}</dd>
+            <dt>{t('plan')}</dt>
+            <dd>{org.planName ?? t('none')}</dd>
+            <dt>{t('applicationFee')}</dt>
             <dd>
-              {org.applicationFeeBps} basis points +{' '}
-              {org.applicationFeeFixedCents} cents
+              {t('applicationFeeFormat', {
+                bps: org.applicationFeeBps,
+                cents: org.applicationFeeFixedCents,
+              })}
             </dd>
-            <dt>Stripe</dt>
-            <dd>{org.stripe?.onboardingStatus ?? 'Not connected'}</dd>
-            <dt>Charges</dt>
-            <dd>{org.stripe?.chargesEnabled ? 'Enabled' : 'Disabled'}</dd>
-            <dt>Payouts</dt>
-            <dd>{org.stripe?.payoutsEnabled ? 'Enabled' : 'Disabled'}</dd>
+            <dt>{t('stripe')}</dt>
+            <dd>
+              {org.stripe
+                ? statusLabel(org.stripe.onboardingStatus)
+                : t('notConnected')}
+            </dd>
+            <dt>{t('charges')}</dt>
+            <dd>{org.stripe?.chargesEnabled ? t('enabled') : t('disabled')}</dd>
+            <dt>{t('payouts')}</dt>
+            <dd>{org.stripe?.payoutsEnabled ? t('enabled') : t('disabled')}</dd>
           </dl>
           {role === 'super_admin' && (
             <div className="platform-console__row">
@@ -219,7 +236,7 @@ function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
                   type="button"
                   onClick={() => void changeStatus('suspended')}
                 >
-                  Suspend
+                  {t('suspend')}
                 </button>
               )}
               {org.status === 'suspended' && (
@@ -227,10 +244,10 @@ function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
                   type="button"
                   onClick={() => void changeStatus('active')}
                 >
-                  Reactivate
+                  {t('reactivate')}
                 </button>
               )}
-              <label htmlFor="platform-org-plan">Plan</label>
+              <label htmlFor="platform-org-plan">{t('plan')}</label>
               <select
                 id="platform-org-plan"
                 value={org.planId ?? ''}
@@ -243,18 +260,18 @@ function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
                   })
                     .then(() => {
                       setRevision((value) => value + 1);
-                      setMessage('Plan updated.');
+                      setMessage(t('planUpdated'));
                     })
                     .catch((cause: unknown) => {
                       setMessage(
                         cause instanceof Error
                           ? cause.message
-                          : 'Request failed.',
+                          : t('requestFailed'),
                       );
                     });
                 }}
               >
-                <option value="">Choose a plan</option>
+                <option value="">{t('choosePlan')}</option>
                 {plans.data?.items
                   .filter((plan) => plan.active)
                   .map((plan) => (
@@ -281,7 +298,9 @@ function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
                     );
                     window.dispatchEvent(new Event('athlentry:impersonation'));
                     setMessage(
-                      `Read-only impersonation started until ${new Date(result.expiresAt).toLocaleString()}.`,
+                      t('impersonationStarted', {
+                        expiresAt: new Date(result.expiresAt).toLocaleString(),
+                      }),
                     );
                     setReason('');
                   })
@@ -289,13 +308,13 @@ function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
                     setMessage(
                       cause instanceof Error
                         ? cause.message
-                        : 'Request failed.',
+                        : t('requestFailed'),
                     );
                   });
               }}
             >
               <label htmlFor="platform-impersonation-reason">
-                Reason for read-only impersonation
+                {t('impersonationReason')}
               </label>
               <input
                 id="platform-impersonation-reason"
@@ -307,7 +326,7 @@ function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
                 maxLength={500}
                 required
               />
-              <button type="submit">Start read-only impersonation</button>
+              <button type="submit">{t('startReadOnlyImpersonation')}</button>
             </form>
           )}
         </div>
@@ -317,6 +336,7 @@ function OrganizationsPanel({ role }: { role: Role }): React.JSX.Element {
 }
 
 function PlansPanel(): React.JSX.Element {
+  const { t } = useTranslation('platform');
   const [revision, setRevision] = useState(0);
   const result = useLoad<{ items: Plan[] }>('/plans', revision);
   const [selected, setSelected] = useState<Plan | null>(null);
@@ -330,7 +350,7 @@ function PlansPanel(): React.JSX.Element {
   const [message, setMessage] = useState('');
   return (
     <section>
-      <h2>Plans</h2>
+      <h2>{t('plans')}</h2>
       <Message text={result.error || message} />
       <div className="platform-console__row">
         <button
@@ -346,7 +366,7 @@ function PlansPanel(): React.JSX.Element {
             setActive(true);
           }}
         >
-          New plan
+          {t('newPlan')}
         </button>
         {result.data?.items.map((plan) => (
           <button
@@ -388,20 +408,20 @@ function PlansPanel(): React.JSX.Element {
             })
               .then(() => {
                 setRevision((value) => value + 1);
-                setMessage('Plan saved.');
+                setMessage(t('planSaved'));
               })
               .catch((cause: unknown) => {
                 setMessage(
-                  cause instanceof Error ? cause.message : 'Request failed.',
+                  cause instanceof Error ? cause.message : t('requestFailed'),
                 );
               });
           } catch {
-            setMessage('Limits must be valid JSON.');
+            setMessage(t('limitsMustBeJson'));
           }
         }}
       >
         <label>
-          Key
+          {t('key')}
           <input
             value={key}
             onChange={(event) => {
@@ -411,7 +431,7 @@ function PlansPanel(): React.JSX.Element {
           />
         </label>
         <label>
-          Name
+          {t('name')}
           <input
             value={name}
             onChange={(event) => {
@@ -421,7 +441,7 @@ function PlansPanel(): React.JSX.Element {
           />
         </label>
         <label>
-          Monthly price (cents)
+          {t('monthlyPriceCents')}
           <input
             type="number"
             min="0"
@@ -434,7 +454,7 @@ function PlansPanel(): React.JSX.Element {
           />
         </label>
         <label>
-          Application fee (basis points)
+          {t('applicationFeeBps')}
           <input
             type="number"
             min="0"
@@ -448,7 +468,7 @@ function PlansPanel(): React.JSX.Element {
           />
         </label>
         <label>
-          Fixed application fee (cents)
+          {t('fixedApplicationFeeCents')}
           <input
             type="number"
             min="0"
@@ -461,7 +481,7 @@ function PlansPanel(): React.JSX.Element {
           />
         </label>
         <label>
-          Limits (JSON)
+          {t('limitsJson')}
           <textarea
             value={limits}
             onChange={(event) => {
@@ -477,15 +497,16 @@ function PlansPanel(): React.JSX.Element {
               setActive(event.target.checked);
             }}
           />{' '}
-          Active
+          {t('active')}
         </label>
-        <button type="submit">Save plan</button>
+        <button type="submit">{t('savePlan')}</button>
       </form>
     </section>
   );
 }
 
 function FlagsPanel(): React.JSX.Element {
+  const { t } = useTranslation('platform');
   const [revision, setRevision] = useState(0);
   const result = useLoad<{ items: Flag[] }>('/feature-flags', revision);
   const [selected, setSelected] = useState<Flag | null>(null);
@@ -496,7 +517,7 @@ function FlagsPanel(): React.JSX.Element {
   const [message, setMessage] = useState('');
   return (
     <section>
-      <h2>Feature flags</h2>
+      <h2>{t('featureFlags')}</h2>
       <Message text={result.error || message} />
       <div className="platform-console__row">
         <button
@@ -509,7 +530,7 @@ function FlagsPanel(): React.JSX.Element {
             setOverrides('{}');
           }}
         >
-          New flag
+          {t('newFlag')}
         </button>
         {result.data?.items.map((flag) => (
           <button
@@ -543,20 +564,20 @@ function FlagsPanel(): React.JSX.Element {
             })
               .then(() => {
                 setRevision((value) => value + 1);
-                setMessage('Feature flag saved.');
+                setMessage(t('featureFlagSaved'));
               })
               .catch((cause: unknown) => {
                 setMessage(
-                  cause instanceof Error ? cause.message : 'Request failed.',
+                  cause instanceof Error ? cause.message : t('requestFailed'),
                 );
               });
           } catch {
-            setMessage('Organization overrides must be valid JSON.');
+            setMessage(t('overridesMustBeJson'));
           }
         }}
       >
         <label>
-          Key
+          {t('key')}
           <input
             value={key}
             onChange={(event) => {
@@ -567,7 +588,7 @@ function FlagsPanel(): React.JSX.Element {
           />
         </label>
         <label>
-          Description
+          {t('description')}
           <input
             value={description}
             onChange={(event) => {
@@ -584,10 +605,10 @@ function FlagsPanel(): React.JSX.Element {
               setEnabled(event.target.checked);
             }}
           />{' '}
-          Enabled by default
+          {t('enabledByDefault')}
         </label>
         <label>
-          Organization overrides (JSON)
+          {t('organizationOverridesJson')}
           <textarea
             value={overrides}
             onChange={(event) => {
@@ -595,13 +616,14 @@ function FlagsPanel(): React.JSX.Element {
             }}
           />
         </label>
-        <button type="submit">Save feature flag</button>
+        <button type="submit">{t('saveFeatureFlag')}</button>
       </form>
     </section>
   );
 }
 
 function StaffPanel(): React.JSX.Element {
+  const { t } = useTranslation('platform');
   const [revision, setRevision] = useState(0);
   const result = useLoad<{ items: Staff[] }>('/staff', revision);
   const [accountId, setAccountId] = useState('');
@@ -610,7 +632,7 @@ function StaffPanel(): React.JSX.Element {
   const [message, setMessage] = useState('');
   return (
     <section>
-      <h2>Platform staff</h2>
+      <h2>{t('platformStaff')}</h2>
       <Message text={result.error || message} />
       <ul className="platform-console__list">
         {result.data?.items.map((person) => (
@@ -626,8 +648,8 @@ function StaffPanel(): React.JSX.Element {
               {person.name}
             </button>
             <span>
-              {person.email} · {person.role} ·{' '}
-              {person.active ? 'Active' : 'Inactive'}
+              {person.email} · {t(`roles.${person.role}`)} ·{' '}
+              {person.active ? t('active') : t('inactive')}
             </span>
           </li>
         ))}
@@ -642,17 +664,17 @@ function StaffPanel(): React.JSX.Element {
           })
             .then(() => {
               setRevision((value) => value + 1);
-              setMessage('Staff access saved.');
+              setMessage(t('staffAccessSaved'));
             })
             .catch((cause: unknown) => {
               setMessage(
-                cause instanceof Error ? cause.message : 'Request failed.',
+                cause instanceof Error ? cause.message : t('requestFailed'),
               );
             });
         }}
       >
         <label>
-          Existing account ID
+          {t('existingAccountId')}
           <input
             value={accountId}
             onChange={(event) => {
@@ -662,16 +684,16 @@ function StaffPanel(): React.JSX.Element {
           />
         </label>
         <label>
-          Role
+          {t('role')}
           <select
             value={role}
             onChange={(event) => {
               setRole(event.target.value as Role);
             }}
           >
-            <option value="support">Support</option>
-            <option value="finance_ops">Finance operations</option>
-            <option value="super_admin">Super admin</option>
+            <option value="support">{t('roles.support')}</option>
+            <option value="finance_ops">{t('roles.finance_ops')}</option>
+            <option value="super_admin">{t('roles.super_admin')}</option>
           </select>
         </label>
         <label>
@@ -682,45 +704,46 @@ function StaffPanel(): React.JSX.Element {
               setActive(event.target.checked);
             }}
           />{' '}
-          Active
+          {t('active')}
         </label>
-        <button type="submit">Save staff access</button>
+        <button type="submit">{t('saveStaffAccess')}</button>
       </form>
     </section>
   );
 }
 
 function HealthPanel(): React.JSX.Element {
+  const { t } = useTranslation('platform');
   const [revision, setRevision] = useState(0);
   const result = useLoad<Health>('/health', revision);
   return (
     <section>
-      <h2>System health</h2>
+      <h2>{t('systemHealth')}</h2>
       <button
         type="button"
         onClick={() => {
           setRevision((value) => value + 1);
         }}
       >
-        Refresh health
+        {t('refreshHealth')}
       </button>
       <Message text={result.error} />
       {result.data && (
         <>
           <dl>
-            <dt>Worker heartbeat</dt>
-            <dd>{result.data.workerHeartbeatAt ?? 'No active worker'}</dd>
-            <dt>Last Stripe webhook received</dt>
-            <dd>{result.data.lastStripeWebhookReceivedAt ?? 'None'}</dd>
-            <dt>Last Stripe webhook processed</dt>
-            <dd>{result.data.lastStripeWebhookProcessedAt ?? 'None'}</dd>
+            <dt>{t('workerHeartbeat')}</dt>
+            <dd>{result.data.workerHeartbeatAt ?? t('noActiveWorker')}</dd>
+            <dt>{t('lastStripeWebhookReceived')}</dt>
+            <dd>{result.data.lastStripeWebhookReceivedAt ?? t('none')}</dd>
+            <dt>{t('lastStripeWebhookProcessed')}</dt>
+            <dd>{result.data.lastStripeWebhookProcessedAt ?? t('none')}</dd>
           </dl>
           <table>
             <thead>
               <tr>
-                <th>Queue</th>
-                <th>Pending</th>
-                <th>Failed</th>
+                <th>{t('queue')}</th>
+                <th>{t('pending')}</th>
+                <th>{t('failed')}</th>
               </tr>
             </thead>
             <tbody>
@@ -735,13 +758,13 @@ function HealthPanel(): React.JSX.Element {
           </table>
           {result.data.failedJobs.length > 0 && (
             <>
-              <h3>Failed jobs</h3>
+              <h3>{t('failedJobs')}</h3>
               <table>
                 <thead>
                   <tr>
-                    <th>Queue</th>
-                    <th>Job ID</th>
-                    <th>Created</th>
+                    <th>{t('queue')}</th>
+                    <th>{t('jobId')}</th>
+                    <th>{t('created')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -763,6 +786,7 @@ function HealthPanel(): React.JSX.Element {
 }
 
 export function PlatformConsole(): React.JSX.Element {
+  const { t } = useTranslation('platform');
   const role = useLoad<StaffMe>('/me', 0);
   const [tab, setTab] = useState<
     'orgs' | 'plans' | 'flags' | 'staff' | 'health'
@@ -771,14 +795,14 @@ export function PlatformConsole(): React.JSX.Element {
   return (
     <main className="platform-console">
       <header>
-        <h1>Platform</h1>
-        <p>Organization operations and system health</p>
+        <h1>{t('platform')}</h1>
+        <p>{t('organizationOperations')}</p>
       </header>
       <Message text={role.error} />
       {staffRole ? (
         <>
           <nav
-            aria-label="Platform sections"
+            aria-label={t('platformSections')}
             className="platform-console__tabs"
           >
             {(['orgs', 'plans', 'flags', 'staff', 'health'] as const)
@@ -797,14 +821,14 @@ export function PlatformConsole(): React.JSX.Element {
                   }}
                 >
                   {item === 'orgs'
-                    ? 'Organizations'
+                    ? t('organizations')
                     : item === 'flags'
-                      ? 'Feature flags'
+                      ? t('featureFlags')
                       : item === 'staff'
-                        ? 'Staff'
+                        ? t('staff')
                         : item === 'health'
-                          ? 'Health'
-                          : 'Plans'}
+                          ? t('health')
+                          : t('plans')}
                 </button>
               ))}
           </nav>
@@ -815,7 +839,7 @@ export function PlatformConsole(): React.JSX.Element {
           {tab === 'health' && <HealthPanel />}
         </>
       ) : (
-        !role.error && <p role="status">Loading platform access…</p>
+        !role.error && <p role="status">{t('loadingPlatformAccess')}</p>
       )}
     </main>
   );

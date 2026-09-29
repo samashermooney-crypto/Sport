@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { createWaiversService } from '@server/modules/waivers/service';
 import { newId } from '@shared/ids';
 import type { Kysely } from 'kysely';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -254,6 +255,31 @@ it('moves registrations, memberships, credentials, responses, invoice lines and 
       verified_at: new Date(),
     });
   }
+  const waivers = createWaiversService(database);
+  const waiver = await waivers.create(staff, {
+    name: 'Merge preservation waiver',
+    bodyText: 'I understand and accept the participation safety terms.',
+    requires: 'guardian_if_minor',
+    renewal: 'annual_season',
+  });
+  await waivers.publish(staff, waiver.id, waiver.version);
+  const guardian = {
+    orgId: staff.orgId,
+    actor: { accountId: guardianId },
+  };
+  const signature = await waivers.sign(
+    guardian,
+    waiver.id,
+    {
+      participantPersonId: mergedId,
+      signerPersonId: null,
+      signerNameTyped: 'Guardian Shared',
+      method: 'online_typed',
+      signatureFileId: null,
+      registrationId: null,
+    },
+    { ip: null, userAgent: null },
+  );
 
   const result = await merges.merge(
     staff.orgId,
@@ -270,6 +296,17 @@ it('moves registrations, memberships, credentials, responses, invoice lines and 
   expect(result.summary.moved.emergency_contacts).toBe(1);
   expect(result.summary.moved.household_members).toBe(1);
   expect(result.summary.moved.household_members_deduplicated).toBe(1);
+
+  const preservedSignature = await waivers.listSignatures(guardian, survivorId);
+  expect(preservedSignature.items).toContainEqual(
+    expect.objectContaining({
+      id: signature.id,
+      participantPersonId: mergedId,
+      documentVersion: 1,
+    }),
+  );
+  const historicalPdf = await waivers.signedPdf(guardian, signature.id);
+  expect(Buffer.from(historicalPdf).subarray(0, 5).toString()).toBe('%PDF-');
 
   const state = await factories.scoped(staff, async (trx) => ({
     mergedPerson: await trx

@@ -7,6 +7,8 @@ import {
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { i18n } from '../lib/i18n';
+
 import { PlatformConsole } from './PlatformConsole';
 
 const orgId = '928e838a-464d-43df-aa27-1d5be28d8c45';
@@ -21,10 +23,11 @@ const baseOrg = {
   createdAt: '2026-09-01T00:00:00.000Z',
 };
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
   vi.unstubAllGlobals();
   sessionStorage.clear();
+  await i18n.changeLanguage('en');
 });
 
 describe('platform console', () => {
@@ -97,5 +100,47 @@ describe('platform console', () => {
     await screen.findByRole('heading', { name: 'Organizations' });
     expect(screen.queryByRole('button', { name: 'Plans' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Staff' })).toBeNull();
+  });
+
+  it('localizes platform operations in Spanish', async () => {
+    await i18n.changeLanguage('es');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string) => {
+        const body = input.endsWith('/me')
+          ? {
+              accountId: '82e8069b-3477-46a5-aeeb-15bdf0ee71b5',
+              role: 'support',
+            }
+          : input.includes('/orgs?')
+            ? { items: [], nextCursor: null }
+            : { items: [] };
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(body),
+        } as Response);
+      }),
+    );
+
+    render(<PlatformConsole />);
+
+    const platformHeading = await screen.findByRole('heading', {
+      name: 'Plataforma',
+      level: 1,
+    });
+    expect(platformHeading.textContent).toBe('Plataforma');
+    const organizationsHeading = await screen.findByRole('heading', {
+      name: 'Organizaciones',
+    });
+    expect(organizationsHeading.textContent).toBe('Organizaciones');
+    const sections = screen.getByRole('navigation', {
+      name: 'Secciones de la plataforma',
+    });
+    expect(sections.getAttribute('aria-label')).toBe(
+      'Secciones de la plataforma',
+    );
+    expect(screen.getByRole('button', { name: 'Buscar' }).textContent).toBe(
+      'Buscar',
+    );
   });
 });

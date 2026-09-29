@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
+import { ConsoleShell } from '../../ui/ConsoleShell';
 import { RouteLoading } from '../../ui/RouteLoading';
 
 const CoachGameDay = lazy(() =>
@@ -18,9 +19,11 @@ const ScheduleConsole = lazy(() =>
 function ScheduleRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
   return orgId ? (
-    <Suspense fallback={<RouteLoading label="Loading schedule…" />}>
-      <ScheduleConsole orgId={orgId} />
-    </Suspense>
+    <ConsoleShell orgId={orgId}>
+      <Suspense fallback={<RouteLoading label="Loading schedule…" />}>
+        <ScheduleConsole orgId={orgId} />
+      </Suspense>
+    </ConsoleShell>
   ) : (
     <main className="schedule-page">Organization not found.</main>
   );
@@ -29,9 +32,11 @@ function ScheduleRoute(): React.JSX.Element {
 function GameDayRoute(): React.JSX.Element {
   const { orgId, eventId } = useParams<{ orgId: string; eventId: string }>();
   return orgId && eventId ? (
-    <Suspense fallback={<RouteLoading label="Loading game day…" />}>
-      <CoachGameDay orgId={orgId} eventId={eventId} />
-    </Suspense>
+    <ConsoleShell orgId={orgId}>
+      <Suspense fallback={<RouteLoading label="Loading game day…" />}>
+        <CoachGameDay orgId={orgId} eventId={eventId} />
+      </Suspense>
+    </ConsoleShell>
   ) : (
     <main className="schedule-page">Game not found.</main>
   );
