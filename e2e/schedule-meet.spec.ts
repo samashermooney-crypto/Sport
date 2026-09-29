@@ -221,12 +221,7 @@ test('meet director seeds and finalizes six events for forty swimmers', async ({
       const finalizeResult = page.getByLabel(
         'Finalize result and update standings',
       );
-      // Tap the visible label on the mobile WebKit journey just as a coach
-      // would; targeting the tiny native checkbox can intermittently leave it
-      // unchecked after a touch click even though the label is a valid target.
-      await page
-        .getByText('Finalize result and update standings', { exact: true })
-        .click();
+      await finalizeResult.check();
       await expect(finalizeResult).toBeChecked();
       const resultResponse = page.waitForResponse(
         (response) =>
