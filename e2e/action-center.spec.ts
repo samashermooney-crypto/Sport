@@ -10,7 +10,7 @@ import { accessibilityViolations } from './axe';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test('owner marks unread website contacts read from the Action Center', async ({
+test('owner keyboard-operates the Action Center and report builder', async ({
   page,
 }, testInfo) => {
   test.setTimeout(60_000);
@@ -105,6 +105,26 @@ test('owner marks unread website contacts read from the Action Center', async ({
         .executeTakeFirstOrThrow(),
     );
     expect(saved.status).toBe('read');
+
+    await page.goto(`/console/orgs/${actor.orgId}/reports`);
+    await expect(
+      page.getByRole('heading', { name: 'Build a report' }),
+    ).toBeVisible();
+    const registrationPace = page.getByRole('button', {
+      name: 'Registration pace',
+    });
+    await registrationPace.focus();
+    await expect(registrationPace).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('status')).toContainText(
+      'Registration pace preset loaded.',
+    );
+    const preview = page.getByRole('button', { name: 'Preview report' });
+    await preview.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('status')).toContainText(
+      'preview rows loaded.',
+    );
   } finally {
     await database.destroy();
   }
