@@ -5,7 +5,17 @@ import { useTranslation } from 'react-i18next';
 import { apiGet } from '../../api/client';
 import { Button, Card, Link, PageHeader } from '../../ui/primitives';
 
-import { actionCenterResponseSchema } from './action-center-schema';
+import {
+  actionCenterMutationResponseSchema,
+  actionCenterResponseSchema,
+  type ActionCenterMutation,
+} from './action-center-schema';
+
+const actionCenterReminderPaths: Record<ActionCenterMutation, string> = {
+  past_due_reminders: 'past-due-reminders',
+  failed_installment_contacts: 'failed-installment-contacts',
+  staff_compliance_reminders: 'staff-compliance-reminders',
+};
 
 function formatMoney(cents: number): string {
   return new Intl.NumberFormat(undefined, {
@@ -33,6 +43,28 @@ async function markWebsiteContactsRead(orgId: string): Promise<number> {
   return websiteContactReadResponseSchema.parse(value).updatedCount;
 }
 
+async function sendActionCenterReminder(
+  orgId: string,
+  action: ActionCenterMutation,
+): Promise<{ sentCount: number; skippedCount: number }> {
+  const response = await fetch(
+    `/api/v1/action-center/orgs/${orgId}/action-center/actions/${actionCenterReminderPaths[action]}`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Athlentry-Request': '1',
+      },
+      body: '{}',
+    },
+  );
+  const value: unknown = await response.json().catch(() => null);
+  if (!response.ok)
+    throw new Error('Action Center reminders could not be sent.');
+  return actionCenterMutationResponseSchema.parse(value);
+}
+
 export function ActionCenter({ orgId }: { orgId: string }): React.JSX.Element {
   const { t } = useTranslation('platform');
   const queryClient = useQueryClient();
@@ -47,6 +79,15 @@ export function ActionCenter({ orgId }: { orgId: string }): React.JSX.Element {
           queryKey: ['orgs', orgId, 'website-contact-submissions'],
         }),
       ]);
+    },
+  });
+  const reminderMutation = useMutation({
+    mutationFn: (action: ActionCenterMutation) =>
+      sendActionCenterReminder(orgId, action),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['orgs', orgId, 'action-center'],
+      });
     },
   });
   const actionCenter = useQuery({
@@ -77,6 +118,13 @@ export function ActionCenter({ orgId }: { orgId: string }): React.JSX.Element {
           {t('websiteContacts.markedRead', {
             count: markContactsMutation.data,
           })}
+        </p>
+      ) : null}
+      {reminderMutation.isError ? (
+        <p role="alert">{t('actionCenter.reminderFailed')}</p>
+      ) : reminderMutation.isSuccess ? (
+        <p role="status" aria-live="polite">
+          {t('actionCenter.reminderResult', reminderMutation.data)}
         </p>
       ) : null}
       {actionCenter.data.cards.length === 0 ? (
@@ -118,20 +166,33 @@ export function ActionCenter({ orgId }: { orgId: string }): React.JSX.Element {
                 {card.actionLabel} <span aria-hidden="true">→</span>
               </Link>
               {card.bulkAction === 'mark_contacts_read' ? (
-                <>
-                  <Button
-                    type="button"
-                    secondary
-                    disabled={markContactsMutation.isPending}
-                    onClick={() => {
-                      markContactsMutation.mutate();
-                    }}
-                  >
-                    {markContactsMutation.isPending
-                      ? t('websiteContacts.markingRead')
-                      : t('websiteContacts.markAllRead')}
-                  </Button>
-                </>
+                <Button
+                  type="button"
+                  secondary
+                  disabled={markContactsMutation.isPending}
+                  onClick={() => {
+                    markContactsMutation.mutate();
+                  }}
+                >
+                  {markContactsMutation.isPending
+                    ? t('websiteContacts.markingRead')
+                    : t('websiteContacts.markAllRead')}
+                </Button>
+              ) : card.bulkAction ? (
+                <Button
+                  type="button"
+                  secondary
+                  disabled={reminderMutation.isPending}
+                  onClick={() => {
+                    reminderMutation.mutate(card.bulkAction as ActionCenterMutation);
+                  }}
+                >
+                  {reminderMutation.isPending
+                    ? t('actionCenter.sendingReminders')
+                    : card.bulkAction === 'failed_installment_contacts'
+                      ? t('actionCenter.contactFamilies')
+                      : t('actionCenter.sendReminders')}
+                </Button>
               ) : null}
             </Card>
           ))}
