@@ -36,6 +36,7 @@ export const actionCenterCardSchema = z.strictObject({
   title: z.string().min(1),
   count: z.number().int().positive(),
   amountCents: z.number().int().nonnegative().optional(),
+  bulkAction: z.enum(['mark_contacts_read']).optional(),
   actionLabel: z.string().min(1),
   href: z.string().startsWith('/'),
   items: z.array(actionCenterItemSchema).max(5),

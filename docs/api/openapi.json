@@ -4138,6 +4138,10 @@
                             "minimum": 0,
                             "maximum": 9007199254740991
                           },
+                          "bulkAction": {
+                            "type": "string",
+                            "enum": ["mark_contacts_read"]
+                          },
                           "actionLabel": { "type": "string", "minLength": 1 },
                           "href": { "type": "string", "pattern": "^\\/.*" },
                           "items": {

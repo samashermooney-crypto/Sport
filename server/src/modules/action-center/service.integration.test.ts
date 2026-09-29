@@ -101,6 +101,7 @@ describe('action center', () => {
           count: 1,
           href: `/console/orgs/${orgId}/website/contacts`,
           actionLabel: 'Open contact inbox',
+          bulkAction: 'mark_contacts_read',
         }),
       );
     } finally {

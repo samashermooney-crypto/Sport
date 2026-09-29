@@ -12,6 +12,7 @@ const cardSchema = z.strictObject({
   title: z.string(),
   count: z.number().int().positive(),
   amountCents: z.number().int().nonnegative().optional(),
+  bulkAction: z.enum(['mark_contacts_read']).optional(),
   actionLabel: z.string(),
   href: z.string().startsWith('/'),
   items: z.array(itemSchema).max(5),
