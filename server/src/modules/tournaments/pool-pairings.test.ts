@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { roundRobinPoolPairings } from './service';
+import { roundRobinPoolPairings, seedFromPools } from './service';
 
 describe('roundRobinPoolPairings', () => {
   it('uses the shared circle algorithm and keeps pools separate', () => {
@@ -60,5 +60,38 @@ describe('roundRobinPoolPairings', () => {
         },
       ]),
     ).toThrow(/duplicate team/i);
+  });
+
+  it('cross-seeds pool ranks and assigns consecutive bracket seeds', () => {
+    const seeded = seedFromPools(
+      [
+        { id: 'b2', seed: 1, pool: 'B', poolRank: 2 },
+        { id: 'a2', seed: 2, pool: 'A', poolRank: 2 },
+        { id: 'b1', seed: 3, pool: 'B', poolRank: 1 },
+        { id: 'a1', seed: 4, pool: 'A', poolRank: 1 },
+      ],
+      'cross_pool',
+    );
+
+    expect(seeded.map((entrant) => entrant.id)).toEqual([
+      'a1',
+      'b1',
+      'a2',
+      'b2',
+    ]);
+    expect(seeded.map((entrant) => entrant.seed)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('rejects cross-pool seeding unless there are exactly two balanced pools', () => {
+    expect(() =>
+      seedFromPools(
+        [
+          { id: 'a1', seed: 1, pool: 'A', poolRank: 1 },
+          { id: 'b1', seed: 2, pool: 'B', poolRank: 1 },
+          { id: 'c1', seed: 3, pool: 'C', poolRank: 1 },
+        ],
+        'cross_pool',
+      ),
+    ).toThrow('Cross-pool seeding requires two pools');
   });
 });

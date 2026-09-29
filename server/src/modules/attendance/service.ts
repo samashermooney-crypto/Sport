@@ -533,7 +533,11 @@ export async function saveLineup(
       throw new VersionConflictError(
         existing ?? { version: 0, contestId, teamSeasonId },
       );
-    const snapshot = entries as unknown as import('../../db/types').Json;
+    // node-postgres encodes JavaScript arrays as SQL arrays. Pass the JSON
+    // representation so JSONB receives the intended array of lineup entries.
+    const snapshot = JSON.stringify(
+      entries,
+    ) as unknown as import('../../db/types').Json;
     if (existing)
       return {
         kind: 'saved' as const,

@@ -109,6 +109,7 @@ async function contestBundle(
     .where('org_id', '=', orgId)
     .where('contest_id', '=', contestId)
     .orderBy('side')
+    .orderBy('person_id')
     .execute()) as ContestParticipant[];
   const results = await trx
     .selectFrom('contest_results')
