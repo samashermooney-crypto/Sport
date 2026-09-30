@@ -6,7 +6,11 @@ import type { DB } from '../../db/types';
 import { createWithOrg, withOrgInTransaction } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 import { appendAuditEvent } from '../audit/service';
-import { PostgresInvoiceRepository } from '../finance/invoice-repo';
+import {
+  InvoiceConflictError,
+  InvoiceNotFoundError,
+  PostgresInvoiceRepository,
+} from '../finance/invoice-repo';
 
 import {
   federationConflict,
@@ -17,6 +21,14 @@ import {
   assertActiveRelationship,
   getFederationAdminDatabase,
 } from './privileged';
+
+function rethrowInvoiceError(error: unknown): never {
+  if (error instanceof InvoiceConflictError)
+    throw federationConflict(error.message);
+  if (error instanceof InvoiceNotFoundError)
+    throw federationNotFound(error.message);
+  throw error;
+}
 
 export interface MemberPayerView {
   memberOrgId: string;
@@ -417,11 +429,15 @@ export async function voidFeeAssessment(
       },
     );
     if (assessment.invoice_id) {
-      await repository.voidInTransaction(trx, {
-        orgId: context.orgId,
-        invoiceId: assessment.invoice_id,
-        reason: `Federation fee assessment voided — ${reason}`,
-      });
+      try {
+        await repository.voidInTransaction(trx, {
+          orgId: context.orgId,
+          invoiceId: assessment.invoice_id,
+          reason: `Federation fee assessment voided — ${reason}`,
+        });
+      } catch (error) {
+        rethrowInvoiceError(error);
+      }
     }
     return withOrgInTransaction(trx, context, async (orgTrx) => {
       await appendAuditEvent(orgTrx, context, {
