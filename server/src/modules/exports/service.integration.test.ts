@@ -8,6 +8,7 @@ import { createDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 import { MemoryStorage } from '../../integrations/storage/storage';
+import type { Storage } from '../../integrations/storage/storage';
 import { encryptRestricted, parseEncryptionKeys } from '../../lib/crypto';
 
 import {
@@ -223,6 +224,175 @@ describe('organization data export', () => {
     await expect(
       downloadOrganizationExport('A'.repeat(43), database, storage, now),
     ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('deletes expired organization archives and preserves live downloads during retention', async () => {
+    const storage = new MemoryStorage();
+    const expiredAt = new Date('2026-09-01T18:00:00.000Z');
+    const liveAt = new Date('2026-09-10T08:00:00.000Z');
+    const sweepAt = new Date('2026-09-10T18:00:00.000Z');
+    const expiredRequest = await requestOrganizationExport(
+      context(ownerId),
+      true,
+      () => Promise.resolve(),
+      withOrg,
+    );
+    const liveRequest = await requestOrganizationExport(
+      context(ownerId),
+      true,
+      () => Promise.resolve(),
+      withOrg,
+    );
+    await buildOrganizationExport(
+      orgId,
+      expiredRequest.export.id,
+      database,
+      storage,
+      expiredAt,
+    );
+    await buildOrganizationExport(
+      orgId,
+      liveRequest.export.id,
+      database,
+      storage,
+      liveAt,
+    );
+    const expiredLink = await createOrganizationExportDownloadLink(
+      context(ownerId),
+      expiredRequest.export.id,
+      true,
+      'https://athlentry.example.test',
+      expiredAt,
+      withOrg,
+    );
+    const liveLink = await createOrganizationExportDownloadLink(
+      context(ownerId),
+      liveRequest.export.id,
+      true,
+      'https://athlentry.example.test',
+      liveAt,
+      withOrg,
+    );
+    const tokenFromLink = (url: string) =>
+      new URL(url).pathname.split('/').at(-1) ?? '';
+    const before = await withOrg(context(ownerId), async (trx) =>
+      trx
+        .selectFrom('org_data_exports')
+        .innerJoin('files', (join) =>
+          join
+            .onRef('files.org_id', '=', 'org_data_exports.org_id')
+            .onRef('files.id', '=', 'org_data_exports.file_id'),
+        )
+        .select([
+          'org_data_exports.id as export_id',
+          'files.storage_key as storage_key',
+        ])
+        .where('org_data_exports.org_id', '=', orgId)
+        .where('org_data_exports.id', 'in', [
+          expiredRequest.export.id,
+          liveRequest.export.id,
+        ])
+        .execute(),
+    );
+    const expiredStorageKey = before.find(
+      (row) => row.export_id === expiredRequest.export.id,
+    )?.storage_key;
+    const liveStorageKey = before.find(
+      (row) => row.export_id === liveRequest.export.id,
+    )?.storage_key;
+    expect(expiredStorageKey).toBeTruthy();
+    expect(liveStorageKey).toBeTruthy();
+    expect(await storage.get(expiredStorageKey ?? '')).not.toBeNull();
+    expect(await storage.get(liveStorageKey ?? '')).not.toBeNull();
+
+    const flakyStorage: Storage = {
+      put: (key, bytes, contentType) => storage.put(key, bytes, contentType),
+      get: (key) => storage.get(key),
+      delete: (key) =>
+        key === expiredStorageKey
+          ? Promise.reject(new Error('temporary storage failure'))
+          : storage.delete(key),
+      presignPut: (key, contentType, maxBytes, expiresSeconds) =>
+        storage.presignPut(key, contentType, maxBytes, expiresSeconds),
+      presignGet: (key, expiresSeconds, downloadName) =>
+        storage.presignGet(key, expiresSeconds, downloadName),
+    };
+    const firstSweep = await runRetentionSweepJob(
+      {},
+      sweepAt,
+      database,
+      withOrg,
+      flakyStorage,
+    );
+
+    expect(firstSweep.summaries[0]?.counts).toMatchObject({
+      organizationExportsExpired: 1,
+      organizationExportObjectsDeleted: 0,
+      organizationExportCleanupPending: 1,
+    });
+    expect(await storage.get(expiredStorageKey ?? '')).not.toBeNull();
+    await expect(
+      downloadOrganizationExport(
+        tokenFromLink(expiredLink.url),
+        database,
+        storage,
+        sweepAt,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      downloadOrganizationExport(
+        tokenFromLink(liveLink.url),
+        database,
+        storage,
+        sweepAt,
+      ),
+    ).resolves.toBeInstanceOf(Uint8Array);
+
+    const retry = await runRetentionSweepJob(
+      {},
+      sweepAt,
+      database,
+      withOrg,
+      storage,
+    );
+    expect(retry.summaries[0]?.counts).toMatchObject({
+      organizationExportsExpired: 0,
+      organizationExportObjectsDeleted: 1,
+      organizationExportCleanupPending: 0,
+    });
+    expect(await storage.get(expiredStorageKey ?? '')).toBeNull();
+    expect(await storage.get(liveStorageKey ?? '')).not.toBeNull();
+
+    const retired = await withOrg(context(ownerId), async (trx) =>
+      trx
+        .selectFrom('org_data_exports')
+        .innerJoin('files', (join) =>
+          join
+            .onRef('files.org_id', '=', 'org_data_exports.org_id')
+            .onRef('files.id', '=', 'org_data_exports.file_id'),
+        )
+        .select([
+          'org_data_exports.id as export_id',
+          'org_data_exports.status as status',
+          'files.deleted_at as deleted_at',
+        ])
+        .where('org_data_exports.org_id', '=', orgId)
+        .where('org_data_exports.id', 'in', [
+          expiredRequest.export.id,
+          liveRequest.export.id,
+        ])
+        .execute(),
+    );
+    const expiredMetadata = retired.find(
+      (row) => row.export_id === expiredRequest.export.id,
+    );
+    expect(expiredMetadata?.status).toBe('expired');
+    expect(expiredMetadata?.deleted_at).toBeInstanceOf(Date);
+    const liveMetadata = retired.find(
+      (row) => row.export_id === liveRequest.export.id,
+    );
+    expect(liveMetadata?.status).toBe('ready');
+    expect(liveMetadata?.deleted_at).toBeNull();
   });
 
   it('exports a subject data bundle with restricted fields decrypted and audited', async () => {

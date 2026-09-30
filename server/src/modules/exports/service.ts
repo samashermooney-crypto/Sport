@@ -221,12 +221,124 @@ function affectedRows(result: {
   return Number(result.numUpdatedRows ?? result.numDeletedRows ?? 0n);
 }
 
+async function expireOrganizationExportArtifacts(
+  orgId: string,
+  now: Date,
+  storage: Storage,
+  runWithOrg: RunWithOrg,
+) {
+  const context = workerContext(orgId);
+  const expired = await runWithOrg(context, (trx) =>
+    trx
+      .selectFrom('org_data_exports')
+      .leftJoin('files', (join) =>
+        join
+          .onRef('files.org_id', '=', 'org_data_exports.org_id')
+          .onRef('files.id', '=', 'org_data_exports.file_id'),
+      )
+      .select([
+        'org_data_exports.id as export_id',
+        'org_data_exports.status as export_status',
+        'org_data_exports.file_id as file_id',
+        'files.id as file_row_id',
+        'files.storage_key as storage_key',
+        'files.deleted_at as file_deleted_at',
+      ])
+      .where('org_data_exports.org_id', '=', orgId)
+      .where('org_data_exports.expires_at', '<=', now)
+      .where('org_data_exports.status', 'in', ['ready', 'expired'])
+      .where((eb) =>
+        eb.or([
+          eb('org_data_exports.status', '=', 'ready'),
+          eb.and([
+            eb('org_data_exports.status', '=', 'expired'),
+            eb('org_data_exports.file_id', 'is not', null),
+            eb('files.deleted_at', 'is', null),
+          ]),
+        ]),
+      )
+      .orderBy('org_data_exports.id')
+      .execute(),
+  );
+  const counts = {
+    organizationExportsExpired: 0,
+    organizationExportObjectsDeleted: 0,
+    organizationExportCleanupPending: 0,
+  };
+
+  for (const artifact of expired) {
+    const transitioned = await runWithOrg(context, async (trx) => {
+      const update = await trx
+        .updateTable('org_data_exports')
+        .set({ status: 'expired' })
+        .where('org_id', '=', orgId)
+        .where('id', '=', artifact.export_id)
+        .where('status', '=', 'ready')
+        .where('expires_at', '<=', now)
+        .executeTakeFirst();
+      await trx
+        .deleteFrom('export_download_tokens')
+        .where('org_id', '=', orgId)
+        .where('export_id', '=', artifact.export_id)
+        .execute();
+      const changed = affectedRows(update) > 0;
+      if (changed) {
+        await appendAuditEvent(trx, context, {
+          action: 'export.expired',
+          entityType: 'organization_export',
+          entityId: artifact.export_id,
+          changes: {
+            status: {
+              tier: 'internal',
+              before: artifact.export_status,
+              after: 'expired',
+            },
+          },
+        });
+      }
+      return changed;
+    });
+    if (transitioned) counts.organizationExportsExpired += 1;
+
+    if (artifact.file_id === null || artifact.file_deleted_at !== null)
+      continue;
+    if (artifact.file_row_id === null || artifact.storage_key === null) {
+      counts.organizationExportCleanupPending += 1;
+      continue;
+    }
+
+    try {
+      // Delete bytes first. If the following DB write fails, the retained key
+      // lets the next weekly sweep safely retry this idempotent deletion.
+      await storage.delete(artifact.storage_key);
+      const retired = await runWithOrg(context, (trx) =>
+        trx
+          .updateTable('files')
+          .set({ deleted_at: now })
+          .where('org_id', '=', orgId)
+          .where('id', '=', artifact.file_row_id)
+          .where('deleted_at', 'is', null)
+          .executeTakeFirst(),
+      );
+      if (affectedRows(retired) > 0)
+        counts.organizationExportObjectsDeleted += 1;
+    } catch {
+      // Keep file metadata active as a retry marker; expiry already blocks
+      // bearer downloads and the next sweep will retry storage cleanup.
+      counts.organizationExportCleanupPending += 1;
+    }
+  }
+
+  return counts;
+}
+
 /** Apply the retention schedule tenant by tenant while preserving legal records. */
 export async function runRetentionSweepJob(
   data: unknown = {},
   now = new Date(),
   database: Kysely<DB> = getDatabase(),
   runWithOrg: RunWithOrg = withOrg,
+  storage: Storage = new LocalDiskStorage('data/uploads'),
 ) {
   z.record(z.string(), z.unknown()).parse(data);
   const organizations = await database
@@ -246,6 +358,12 @@ export async function runRetentionSweepJob(
     const startedAt = new Date();
 
     try {
+      const exportExpiry = await expireOrganizationExportArtifacts(
+        orgId,
+        now,
+        storage,
+        runWithOrg,
+      );
       const counts = await runWithOrg(context, async (trx) => {
         const messageCutoff = yearsBefore(now, retentionRules.messagesYears);
         const backgroundCutoff = yearsBefore(
@@ -397,6 +515,7 @@ export async function runRetentionSweepJob(
           .executeTakeFirst();
 
         const counts = {
+          ...exportExpiry,
           chatMessagesRedacted: affectedRows(chat),
           messageDeliveriesRedacted: affectedRows(deliveries),
           messageCampaignsRedacted: affectedRows(campaigns),
