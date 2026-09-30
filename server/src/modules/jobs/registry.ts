@@ -1,10 +1,16 @@
-import type { ServerModule } from '../../lib/module-contract';
+import type {
+  JobRuntimeDependencies,
+  ServerModule,
+} from '../../lib/module-contract';
 
 import { runCredentialExpiry } from './credentials-expiry';
 
 export type RegisteredJob = {
   name: string;
-  run: (data: unknown) => Promise<unknown>;
+  run: (
+    data: unknown,
+    dependencies: JobRuntimeDependencies,
+  ) => Promise<unknown>;
   cron?: string;
 };
 

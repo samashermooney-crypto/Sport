@@ -11,6 +11,7 @@ import type { DB } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
 import { SharpImageProcessor } from '../../integrations/storage/image-processor';
 import { LocalDiskStorage } from '../../integrations/storage/storage';
+import type { Storage } from '../../integrations/storage/storage';
 import type { ServerModule } from '../../lib/module-contract';
 import { requireSession } from '../auth/routes';
 import type { AuthDependencies } from '../auth/routes';
@@ -395,13 +396,13 @@ export function createPublicSponsorLogoReader(
 }
 
 function createMountedFilesRouter(
-  dependencies: AuthDependencies,
+  dependencies: AuthDependencies & { storage?: Storage },
 ): express.Router {
   const router = express.Router();
   const scoped = createWithOrg(dependencies.database);
   const authorization = createFilesAuthorization(dependencies.database);
   const service = new FilesService(
-    new LocalDiskStorage('data/uploads'),
+    dependencies.storage ?? new LocalDiskStorage('data/uploads'),
     authorization,
     new SharpImageProcessor(),
     scoped,
