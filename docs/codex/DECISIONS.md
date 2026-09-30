@@ -1067,3 +1067,11 @@
 - **Decision:** Tombstone and clear person photo references in the anonymization transaction, then delete the photo object immediately. Keep a durable pending marker so the weekly retention sweep retries interrupted photo deletion. Tombstone credential attachments immediately to block access, retain their bytes through the credential's expiry plus one year, and purge them in the same sweep afterward. If expiry is absent, start the one-year period at verification, then issue date, then credential creation as a fallback.
 - **Why:** Photos stop being retained once the subject is anonymized; credential evidence remains private and inaccessible while it may still be needed to verify child-safety compliance, then is purged on a deterministic schedule.
 - **Consequences / follow-ups:** The retention sweep records the photo and credential purge counts and preserves file metadata tombstones. The one-year credential evidence period reuses the existing background-check validity-plus-one-year interval; storage deletion failures remain retryable.
+
+### DEC-142 — Add a focus-only skip link to public website pages
+- **Date:** 2026-09-30
+- **Phase / area:** Phase 16 §3 accessibility, Phase 14 public website
+- **Context:** Public website SSR and React routes rendered the organization navigation before the main content without a keyboard shortcut to skip those links.
+- **Decision:** Add an English/Spanish “Skip to content” link that remains offscreen until focused, then targets the existing main region. Keep the legacy page colors, typography, dimensions, and resting layout unchanged.
+- **Why:** Keyboard users can bypass repeated site navigation while the existing visual design and parity references remain intact.
+- **Consequences / follow-ups:** The generated and news SSR templates and React CMS/news shells share the same focus-only treatment; integration tests verify link and main target markup. No design tokens or parity thresholds change.

@@ -18,6 +18,8 @@ import {
   websitePageBodySchema,
   websitePageListSchema,
   websitePublicEmbedSchema,
+  websitePublicFacilitiesSchema,
+  websitePublicNewsPostSchema,
   websitePublicPageSchema,
   websitePublicNewsSchema,
   websiteSaveResponseSchema,
@@ -48,6 +50,13 @@ const routes = [
     public: true,
   },
   {
+    method: 'get',
+    path: '/api/v1/website/public/{orgSlug}/news/{newsSlug}',
+    summary: 'Get one currently published public organization news post',
+    response: websitePublicNewsPostSchema,
+    public: true,
+  },
+  {
     method: 'post',
     path: '/api/v1/website/public/{orgSlug}/contact',
     summary: 'Submit a Turnstile-verified organization website contact message',
@@ -61,6 +70,13 @@ const routes = [
     path: '/api/v1/website/public/{orgSlug}/pages/{pageSlug}',
     summary: 'Get a published public organization website page',
     response: websitePublicPageSchema,
+    public: true,
+  },
+  {
+    method: 'get',
+    path: '/api/v1/website/public/{orgSlug}/facilities',
+    summary: 'List explicitly public organization facilities',
+    response: websitePublicFacilitiesSchema,
     public: true,
   },
   {

@@ -178,6 +178,21 @@ test('public site shell matches the legacy header and navigation at desktop and 
   await expect(page.locator('#leagues')).toBeInViewport();
 });
 
+test('public organization site skip link moves keyboard focus to main content', async ({
+  page,
+}) => {
+  await page.goto('/site/fieldhouse-demo');
+  const skipLink = page.getByRole('link', { name: 'Skip to content' });
+  await expect(skipLink).toBeAttached();
+  await expect(skipLink).not.toBeInViewport();
+
+  await page.keyboard.press('Tab');
+  await expect(skipLink).toBeFocused();
+  await expect(skipLink).toBeInViewport();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#main-content')).toBeFocused();
+});
+
 test('console and public shells localize navigation and accessibility labels', async ({
   page,
 }) => {
