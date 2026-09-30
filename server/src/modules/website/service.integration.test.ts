@@ -24,6 +24,7 @@ import {
   getPublicWebsiteSchedule,
   getPublicWebsiteEmbed,
   getPublicWebsitePage,
+  getPublicWebsiteNewsPost,
   listWebsiteMenus,
   listWebsiteDomains,
   listWebsiteEmbeds,
@@ -666,7 +667,7 @@ describe('website page service', () => {
     });
   });
 
-  it('publishes plain-text news posts with tenant and version checks', async () => {
+  it('publishes plain-text news posts and hides scheduled posts', async () => {
     const draft = await saveWebsiteNews(
       context,
       undefined,
@@ -708,6 +709,20 @@ describe('website page service', () => {
       withOrg,
     );
     expect(published.post.version).toBe(draft.post.version + 1);
+    const scheduledSlug = 'scheduled-announcement';
+    await saveWebsiteNews(
+      context,
+      undefined,
+      {
+        slug: scheduledSlug,
+        title: 'Scheduled announcement',
+        excerpt: null,
+        bodyText: 'This should not appear before its publication time.',
+        status: 'published',
+      },
+      new Date(Date.now() + 24 * 60 * 60 * 1000),
+      withOrg,
+    );
     const publicNews = await listPublicWebsiteNews(database, orgSlug, withOrg);
     expect(publicNews).toMatchObject({
       organization: { slug: orgSlug, name: 'Website Test Club' },
@@ -721,6 +736,12 @@ describe('website page service', () => {
         },
       ],
     });
+    expect(publicNews?.posts.map((post) => post.slug)).toEqual([
+      'season-opener',
+    ]);
+    await expect(
+      getPublicWebsiteNewsPost(database, orgSlug, scheduledSlug, withOrg),
+    ).resolves.toBeNull();
     expect(publicNews?.navigation).toContainEqual({
       label: 'News',
       href: `/site/${orgSlug}/news`,
@@ -745,6 +766,7 @@ describe('website page service', () => {
       expect(html).not.toContain(
         'Join us &lt;captains&gt; at the community field.',
       );
+      expect(html).not.toContain('Scheduled announcement');
       const postResponse = await fetch(
         `http://127.0.0.1:${String(address.port)}/${orgSlug}/news/season-opener`,
       );
@@ -758,6 +780,10 @@ describe('website page service', () => {
         'Join us &lt;captains&gt; at the community field.',
       );
       expect(postHtml).not.toContain('<captains>');
+      const scheduledPostResponse = await fetch(
+        `http://127.0.0.1:${String(address.port)}/${orgSlug}/news/${scheduledSlug}`,
+      );
+      expect(scheduledPostResponse.status).toBe(404);
     } finally {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => {
