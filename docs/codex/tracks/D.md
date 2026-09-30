@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `fix/d`
-Working from the 10-hour integration plan. `fix/d` now includes integration head `a5f4e0dc`. The mounted report is stale at run `36689550628` on `468b01f5` and does not list the currently reported Phase 11 failures; the next hosted result must validate the current fixes. Linux references are generated and uploaded by hosted CI; macOS references, tolerances, and token equality remain unchanged. Reports and public website pages now lazy-load; the exact hosted size result is pending.
+Working from the 10-hour integration plan. `fix/d` is syncing integration head `caedbb6b`; Phase 11 fixes are committed as `b7c39d4a`. The current mounted report has run `36694004006` pending on `ca5c509c`; run `36690800467` predates C's `/site` proxy fix and still reports the skip-link journey and sign-in. Linux references are generated and uploaded by hosted CI; macOS references, tolerances, and token equality remain unchanged. Reports and public website pages now lazy-load; the exact hosted size result is pending.
 
 ## Current
 
@@ -133,4 +133,4 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 ## Requests from C
 
 - Reopened by the orchestrator: `e2e/phase11-uniform-report.spec.ts:57` and `e2e/phase11-buyout-race.spec.ts:15` are reported as remaining integration failures. Registration attribution fallback and invoice compensation are committed on `fix/d`; hosted confirmation is pending. The mounted `ci/integration.txt` report currently lists a different older failure set, so refresh it after this commit is promoted.
-- Reopened by C after run `36689550628` on `468b01f5`: the `e2e/design/parity.spec.ts:187` fixture sets the organization active, inserts a published `home` page and enables website settings; both organization and browser locale are pinned to English (`a0e0c44a`). The Playwright artifact’s rendered DOM is the SPA alert `Website page unavailable` / `This page is not published or could not be loaded`, before the expected `Accessible organization` heading. Please inspect which `/site/:orgSlug` route/API response is returning unavailable and fix the public-page data/render path without changing keyboard or visibility assertions. Static size passes. Run `36690800467` on `d0d69620` completed and repeats the same unavailable-page snapshot; no newer D code fix is integrated. The latest Playwright report is in the `playwright-report` artifact for that run.
+- Skip-link failure: C found Vite lacked a `/site` proxy and fixed it in integration commit `ca5c509c`, with an `app=1` bypass for interactive SPA routes. Verify the existing keyboard and visibility assertions on the next hosted result; run `36690800467` predates the fix.
