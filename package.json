@@ -27,7 +27,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:e2e": "npm run test:e2e:chromium -- --workers=2 && npm run test:e2e:webkit -- --workers=2",
+    "test:e2e": "npm run test:e2e:chromium && npm run test:e2e:webkit",
     "test:e2e:chromium": "playwright test --project=chromium-desktop",
     "test:e2e:webkit": "playwright test --project=webkit-mobile",
     "build": "tsc -b --pretty false && vite build",
