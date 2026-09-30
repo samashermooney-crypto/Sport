@@ -159,8 +159,8 @@ test('new account verifies its preview email and signs in', async ({
   const stubNotificationPermission =
     testInfo.project.name !== 'chromium-desktop';
   // The fake service worker/push provider prevents external delivery while
-  // Chromium exercises its granted Notification permission and the UI checks
-  // the test VAPID key passed to PushManager.
+  // Chromium exercises the notification permission granted by its project
+  // context and the UI checks the test VAPID key passed to PushManager.
   await page.addInitScript((stubPermission: boolean) => {
     let subscription: {
       endpoint: string;
@@ -224,12 +224,6 @@ test('new account verifies its preview email and signs in', async ({
       },
     });
   }, stubNotificationPermission);
-  if (!stubNotificationPermission) {
-    // This isolated Playwright context exists only for this test, so grant at
-    // context scope before navigation instead of relying on a project-level
-    // or origin-matched permission override.
-    await page.context().grantPermissions(['notifications']);
-  }
   await page.goto('/sign-up');
   if (!stubNotificationPermission) {
     expect(new URL(page.url()).origin).toBe(
