@@ -317,10 +317,7 @@ describe('organization data export', () => {
     };
     const firstSweep = await runRetentionSweepJob(
       {},
-      sweepAt,
-      database,
-      withOrg,
-      flakyStorage,
+      { now: sweepAt, database, runWithOrg: withOrg, storage: flakyStorage },
     );
 
     expect(firstSweep.summaries[0]?.counts).toMatchObject({
@@ -348,10 +345,7 @@ describe('organization data export', () => {
 
     const retry = await runRetentionSweepJob(
       {},
-      sweepAt,
-      database,
-      withOrg,
-      storage,
+      { now: sweepAt, database, runWithOrg: withOrg, storage },
     );
     expect(retry.summaries[0]?.counts).toMatchObject({
       organizationExportsExpired: 0,
@@ -722,10 +716,12 @@ describe('organization data export', () => {
     expect(await storage.get(credentialStorageKey)).not.toBeNull();
     const cleanupSweep = await runRetentionSweepJob(
       {},
-      new Date('2026-09-27T18:03:00.000Z'),
-      database,
-      withOrg,
-      storage,
+      {
+        now: new Date('2026-09-27T18:03:00.000Z'),
+        database,
+        runWithOrg: withOrg,
+        storage,
+      },
     );
     expect(cleanupSweep.summaries[0]?.counts).toMatchObject({
       privacyPhotoObjectsPurged: 1,
@@ -907,9 +903,11 @@ describe('organization data export', () => {
 
     const result = await runRetentionSweepJob(
       {},
-      new Date('2026-09-27T18:00:00.000Z'),
-      database,
-      withOrg,
+      {
+        now: new Date('2026-09-27T18:00:00.000Z'),
+        database,
+        runWithOrg: withOrg,
+      },
     );
     expect(result).toMatchObject({
       completedOrganizations: 1,

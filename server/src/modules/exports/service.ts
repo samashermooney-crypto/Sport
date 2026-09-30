@@ -425,12 +425,13 @@ async function purgeRetainedPersonFiles(
 /** Apply the retention schedule tenant by tenant while preserving legal records. */
 export async function runRetentionSweepJob(
   data: unknown = {},
-  now = new Date(),
-  database: Kysely<DB> = getDatabase(),
-  runWithOrg: RunWithOrg = withOrg,
-  storage: Storage = new LocalDiskStorage('data/uploads'),
+  dependencies: OrganizationExportJobDependencies = {},
 ) {
   z.record(z.string(), z.unknown()).parse(data);
+  const database = dependencies.database ?? getDatabase();
+  const now = dependencies.now ?? new Date();
+  const runWithOrg = dependencies.runWithOrg ?? createWithOrg(database);
+  const storage = dependencies.storage ?? new LocalDiskStorage('data/uploads');
   const organizations = await database
     .selectFrom('organizations')
     .select('id')
@@ -1963,6 +1964,7 @@ export interface OrganizationExportJobDependencies {
   database?: Kysely<DB>;
   storage?: Storage;
   now?: Date;
+  runWithOrg?: RunWithOrg;
 }
 
 export async function runOrganizationExportJob(
