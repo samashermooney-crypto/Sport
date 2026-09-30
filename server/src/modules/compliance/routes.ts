@@ -8,6 +8,7 @@ import {
   CheckrBackgroundCheckProvider,
   ManualBackgroundCheckProvider,
 } from '../../integrations/background-check/provider';
+import type { Storage } from '../../integrations/storage/storage';
 import type { AuthDependencies } from '../auth/routes';
 
 import {
@@ -76,7 +77,7 @@ import type { ComplianceDependencies } from './service';
 const pathId = (value: unknown) => z.uuid().parse(value);
 
 export function createComplianceRouter(
-  dependencies: AuthDependencies,
+  dependencies: AuthDependencies & { localStorage?: Pick<Storage, 'get'> },
 ): express.Router {
   const router = express.Router();
   const platformCheckrEnabled =
@@ -109,6 +110,9 @@ export function createComplianceRouter(
     encryption: dependencies.encryption,
     clock: dependencies.clock,
     appUrl: dependencies.appUrl,
+    ...(dependencies.localStorage
+      ? { localStorage: dependencies.localStorage }
+      : {}),
   };
 
   router.use((_request, response, next) => {

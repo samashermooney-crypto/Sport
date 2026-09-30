@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { createDatabase } from '../server/src/db/kysely';
+import { createWithOrg } from '../server/src/db/withOrg';
+import { issueSession } from '../server/src/modules/auth/sessions';
+import { createWaiversService } from '../server/src/modules/waivers/service';
+import { createTestFactories } from '../server/test/factories';
+
 import { accessibilityViolations } from './axe';
 
 const orgId = '11111111-1111-4111-8111-111111111111';
@@ -8,6 +14,7 @@ const formId = '33333333-3333-4333-8333-333333333333';
 const waiverId = '44444444-4444-4444-8444-444444444444';
 const signatureId = '55555555-5555-4555-8555-555555555555';
 const publishedAt = '2026-09-27T12:00:00.000Z';
+const offset = Number(process.env.PORT_OFFSET ?? '0');
 
 const form = {
   id: formId,
@@ -237,6 +244,98 @@ test('family member reviews, signs, and retrieves the signed waiver evidence', a
     'signed-waiver.pdf',
   );
   expect(await accessibilityViolations(page)).toEqual([]);
+});
+
+test('staff can retire a published waiver after confirmation and retain its history', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(60_000);
+  const database = createDatabase(
+    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+  );
+  try {
+    const factories = createTestFactories(database);
+    const owner = await factories.actor();
+    await createWithOrg(database)(owner, async (trx) => {
+      await trx
+        .updateTable('role_assignments')
+        .set({ pending_mfa: false })
+        .where('org_id', '=', owner.orgId)
+        .where('account_id', '=', owner.accountId)
+        .execute();
+    });
+    const waivers = createWaiversService(database);
+    const draft = await waivers.create(owner, {
+      name: 'Season safety agreement',
+      bodyText: 'I agree to follow the club safety rules this season.',
+      requires: 'guardian_if_minor',
+      renewal: 'annual_season',
+    });
+    await waivers.publish(owner, draft.id, draft.version);
+    const session = await database.transaction().execute((trx) =>
+      issueSession(
+        trx,
+        {
+          accountId: owner.actor.accountId,
+          kind: 'cookie',
+          client: 'web',
+          privileged: false,
+        },
+        new Date(),
+      ),
+    );
+    await page.context().addCookies([
+      {
+        name: '__Host-athlentry_session',
+        value: session.token,
+        url: String(testInfo.project.use.baseURL),
+        secure: true,
+        httpOnly: true,
+        sameSite: 'Lax',
+      },
+    ]);
+
+    await page.goto(`/console/orgs/${owner.orgId}/waivers`);
+    const waiverRow = page.getByRole('button', {
+      name: /Season safety agreement · v1 · Published/,
+    });
+    await expect(waiverRow).toBeVisible();
+    await waiverRow.click();
+    await page.getByRole('button', { name: 'Retire published waiver' }).click();
+    const confirmation = page.getByRole('dialog', {
+      name: 'Retire this published waiver?',
+    });
+    await expect(confirmation).toContainText(
+      'Existing signature records and signed PDFs will remain available.',
+    );
+    await confirmation.getByRole('button', { name: 'Cancel' }).click();
+    await expect(waiverRow).toContainText('Published');
+
+    await page.getByRole('button', { name: 'Retire published waiver' }).click();
+    const confirmedRetirement = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response
+          .url()
+          .includes(`/waivers/orgs/${owner.orgId}/${draft.id}/retire`),
+    );
+    await page
+      .getByRole('dialog', { name: 'Retire this published waiver?' })
+      .getByRole('button', { name: 'Retire waiver' })
+      .click();
+    expect((await confirmedRetirement).ok()).toBe(true);
+    await expect(
+      page.getByRole('button', {
+        name: /Season safety agreement · v1 · Retired/,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Retire published waiver' }),
+    ).toHaveCount(0);
+    expect(await accessibilityViolations(page)).toEqual([]);
+  } finally {
+    await database.destroy();
+  }
 });
 
 async function setupDualSignerWaiver(

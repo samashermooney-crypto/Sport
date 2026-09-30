@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext } from '@playwright/test';
+import { recoveryCodesResponseSchema } from '@shared/schemas/auth';
 
 import { decodeBase32, totpCode } from '../server/src/modules/auth/totp';
 
@@ -281,12 +282,23 @@ test('new account verifies its preview email and signs in', async ({
   await page.getByLabel(/^Password/).fill(password);
   await page.getByRole('button', { name: 'Confirm identity' }).click();
   await expect(page.getByRole('status')).toContainText('Identity confirmed');
+  const regeneratedCodesResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().endsWith('/api/v1/auth/mfa/recovery/regenerate'),
+  );
   await page.getByRole('button', { name: 'Regenerate recovery codes' }).click();
   await expect(page.locator('.recovery-codes li')).toHaveCount(10);
-  const recoveryCode =
-    (await page.locator('.recovery-codes li').first().textContent())?.trim() ??
-    '';
+  const regeneratedResponse = await regeneratedCodesResponse;
+  expect(regeneratedResponse.ok()).toBe(true);
+  const regeneratedCodes = recoveryCodesResponseSchema.parse(
+    await regeneratedResponse.json(),
+  );
+  const recoveryCode = regeneratedCodes.codes[0] ?? '';
   expect(recoveryCode).not.toBe('');
+  await expect(page.locator('.recovery-codes li').first()).toHaveText(
+    recoveryCode,
+  );
   await page.getByRole('button', { name: 'I saved these codes' }).click();
   await page
     .getByRole('button', { name: 'Enable browser notifications' })
@@ -503,6 +515,7 @@ test('new account verifies its preview email and signs in', async ({
   expect(await accessibilityViolations(page)).toEqual([]);
   await page.getByRole('button', { name: 'Confirm email' }).click();
   await expect(page.getByRole('status')).toContainText('Email changed');
+  await page.context().clearCookies();
   await page.getByRole('link', { name: 'Return to sign in' }).click();
   await page.getByRole('textbox', { name: /Email address/ }).fill(changedEmail);
   await page.getByLabel('Password').fill(password);

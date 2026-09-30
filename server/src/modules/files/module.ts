@@ -284,7 +284,7 @@ export function createFilesAuthorization(
     canDownload: async (context, file: FileRecord) => {
       const roles = await membershipRoles(context);
       if (file.sensitivity === 'restricted') {
-        // DEC-126 is the narrow family-portal exception to DEC-023's
+        // DEC-125 is the narrow family-portal exception to DEC-023's
         // owner/compliance-only access for other Restricted evidence.
         if (
           file.purpose === 'document' &&

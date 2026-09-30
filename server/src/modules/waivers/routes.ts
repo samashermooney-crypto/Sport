@@ -1,6 +1,7 @@
 import {
   waiverDocumentCreateSchema,
   waiverDocumentUpdateSchema,
+  waiverDocumentVersionActionSchema,
   waiverSignatureCreateSchema,
 } from '@shared/schemas/waivers';
 import express from 'express';
@@ -12,7 +13,6 @@ import { requireSession } from '../auth/routes';
 
 import { createWaiversService, WaiversError } from './service';
 
-const publishSchema = z.strictObject({ expectedVersion: z.int().positive() });
 const signaturesQuerySchema = z.strictObject({
   participantPersonId: z.uuid(),
 });
@@ -158,9 +158,32 @@ export function createWaiversRouter(
       const session = await requireSession(dependencies, request);
       if (requestImpersonation(request))
         throw new WaiversError(403, 'FORBIDDEN', 'Impersonation is read-only');
-      const input = publishSchema.parse(request.body);
+      const input = waiverDocumentVersionActionSchema.parse(request.body);
       response.json(
         await waivers.publish(
+          {
+            orgId: z.uuid().parse(request.params.orgId),
+            actor: { accountId: session.accountId },
+          },
+          z.uuid().parse(request.params.waiverId),
+          input.expectedVersion,
+        ),
+      );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.post('/orgs/:orgId/:waiverId/retire', async (request, response) => {
+    try {
+      if (!validWriteOrigin(request, dependencies.appUrl))
+        throw new WaiversError(403, 'FORBIDDEN', 'Invalid request origin');
+      const session = await requireSession(dependencies, request);
+      if (requestImpersonation(request))
+        throw new WaiversError(403, 'FORBIDDEN', 'Impersonation is read-only');
+      const input = waiverDocumentVersionActionSchema.parse(request.body);
+      response.json(
+        await waivers.retire(
           {
             orgId: z.uuid().parse(request.params.orgId),
             actor: { accountId: session.accountId },

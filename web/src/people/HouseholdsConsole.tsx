@@ -18,6 +18,7 @@ import {
   Card,
   Checkbox,
   EmptyState,
+  ErrorState,
   Field,
   Input,
   Link,
@@ -258,7 +259,16 @@ export function HouseholdsList(): React.JSX.Element {
             />
           </Field>
           {list.isPending && <p role="status">Loading households…</p>}
-          {list.isError && <ErrorBox error="Households could not be loaded." />}
+          {list.isError && (
+            <ErrorState
+              title="Households could not be loaded"
+              onRetry={() => {
+                void list.refetch();
+              }}
+            >
+              Your search is still set.
+            </ErrorState>
+          )}
           {list.data && (
             <>
               <ul>
@@ -415,15 +425,31 @@ export function HouseholdDetail(): React.JSX.Element {
     );
   if (household.isPending)
     return (
-      <AuthFrame>
-        <h1>Loading household…</h1>
-      </AuthFrame>
+      <PeopleShell orgId={orgId}>
+        <main className="console-home">
+          <PageHeader kicker="HOUSEHOLD" title="Household" />
+          <p role="status">Loading household…</p>
+        </main>
+      </PeopleShell>
     );
   if (household.isError)
     return (
-      <AuthFrame>
-        <h1>Household unavailable</h1>
-      </AuthFrame>
+      <PeopleShell orgId={orgId}>
+        <main className="console-home">
+          <PageHeader kicker="HOUSEHOLD" title="Household unavailable" />
+          <ErrorState
+            title="Household could not be loaded"
+            onRetry={() => {
+              void household.refetch();
+            }}
+          >
+            Check your access or return to the household list.
+          </ErrorState>
+          <Link to={`/console/orgs/${orgId}/households`}>
+            Back to households
+          </Link>
+        </main>
+      </PeopleShell>
     );
   const current = household.data;
   const shownAddress = address ??
@@ -482,7 +508,11 @@ export function HouseholdDetail(): React.JSX.Element {
               </li>
             ))}
           </ul>
-          {current.members.length === 0 && <p>No members yet.</p>}
+          {current.members.length === 0 && (
+            <EmptyState title="No members yet">
+              Add a person to connect this household with family records.
+            </EmptyState>
+          )}
         </Card>
         <Card>
           <h2>Registrations and balance</h2>
@@ -495,7 +525,9 @@ export function HouseholdDetail(): React.JSX.Element {
               })}
             </p>
           ))}
-          {current.balances.length === 0 && <p>No outstanding balance.</p>}
+          {current.balances.length === 0 && (
+            <EmptyState title="No outstanding balance" />
+          )}
           <ul>
             {current.registrations.map((registration) => (
               <li key={registration.id}>
@@ -506,7 +538,9 @@ export function HouseholdDetail(): React.JSX.Element {
               </li>
             ))}
           </ul>
-          {current.registrations.length === 0 && <p>No registrations yet.</p>}
+          {current.registrations.length === 0 && (
+            <EmptyState title="No registrations yet" />
+          )}
         </Card>
         {!impersonation && (
           <>
@@ -606,6 +640,24 @@ export function HouseholdDetail(): React.JSX.Element {
             </Card>
             <Card>
               <h2>Add member</h2>
+              {people.isPending && <p role="status">Loading people…</p>}
+              {people.isError && (
+                <ErrorState
+                  title="People could not be loaded"
+                  onRetry={() => {
+                    void people.refetch();
+                  }}
+                >
+                  The household is unchanged. Try again or search later.
+                </ErrorState>
+              )}
+              {people.data && available.length === 0 && (
+                <EmptyState title="No people available to add">
+                  {people.data.items.length === 0
+                    ? 'Create a person in the people directory first.'
+                    : 'Everyone in this result is already a household member.'}
+                </EmptyState>
+              )}
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
@@ -654,6 +706,11 @@ export function HouseholdDetail(): React.JSX.Element {
                 <Field label="Person" required>
                   <Select
                     required
+                    disabled={
+                      people.isPending ||
+                      people.isError ||
+                      available.length === 0
+                    }
                     value={personId}
                     options={[
                       { value: '', label: 'Choose a person' },

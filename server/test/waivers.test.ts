@@ -120,6 +120,12 @@ it('versions published waivers, authorizes signers, and renders immutable PDF ev
     requires: 'guardian_if_minor',
     renewal: 'annual_season',
   });
+  await expect(
+    waivers.retire(owner, draft.id, draft.version),
+  ).rejects.toMatchObject({
+    status: 409,
+    code: 'CONFLICT',
+  });
   await waivers.publish(owner, draft.id, draft.version);
   const linkedWaivers = await waivers.listForPerson(guardian, minorId);
   expect(linkedWaivers.items).toHaveLength(1);
@@ -365,6 +371,62 @@ it('versions published waivers, authorizes signers, and renders immutable PDF ev
         document.retiredAt === null,
     ),
   ).toBe(true);
+  expect(
+    (await waivers.listForPerson(guardian, minorId)).items.some(
+      (item) => item.id === v2.id && item.retiredAt === null,
+    ),
+  ).toBe(true);
+  await expect(waivers.retire(owner, v2.id, 1)).rejects.toMatchObject({
+    status: 409,
+    code: 'CONFLICT',
+  });
+  const v2Signature = await waivers.sign(
+    guardian,
+    v2.id,
+    {
+      participantPersonId: minorId,
+      signerPersonId: guardianPersonId,
+      signerNameTyped: 'Morgan Guardian',
+      method: 'online_typed',
+      signatureFileId: null,
+      registrationId: null,
+    },
+    { ip: null, userAgent: 'waiver retirement test' },
+  );
+  const manuallyRetired = await waivers.retire(owner, v2.id, v2.version);
+  expect(manuallyRetired).toMatchObject({
+    id: v2.id,
+    version: v2.version,
+  });
+  expect(typeof manuallyRetired.publishedAt).toBe('string');
+  expect(typeof manuallyRetired.retiredAt).toBe('string');
+  expect(
+    (await waivers.listForPerson(guardian, minorId)).items.some(
+      (item) => item.id === v2.id,
+    ),
+  ).toBe(false);
+  const preservedSignatures = await waivers.listSignatures(guardian, minorId);
+  expect(preservedSignatures.items.map((item) => item.id)).toContain(
+    v2Signature.id,
+  );
+  const preservedPdf = await PDFDocument.load(
+    await waivers.signedPdf(guardian, v2Signature.id),
+  );
+  expect(preservedPdf.getSubject()).toContain('Updated season terms apply.');
+  const retirementAudit = await factories.scoped(owner, (trx) =>
+    trx
+      .selectFrom('audit_log')
+      .select('action')
+      .where('org_id', '=', owner.orgId)
+      .where('entity_id', '=', v2.id)
+      .where('action', '=', 'waiver.retired')
+      .execute(),
+  );
+  expect(retirementAudit).toHaveLength(1);
+  await expect(waivers.retire(owner, v2.id, v2.version)).rejects.toMatchObject({
+    status: 409,
+    code: 'CONFLICT',
+  });
   await expect(waivers.signedPdf(outsider, signature.id)).rejects.toMatchObject(
     {
       status: 404,

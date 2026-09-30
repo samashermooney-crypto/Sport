@@ -3,6 +3,7 @@ import {
   waiverDocumentListSchema,
   waiverDocumentSchema,
   waiverDocumentUpdateSchema,
+  waiverDocumentVersionActionSchema,
   waiverSignatureCreateSchema,
   waiverSignatureListSchema,
   waiverSignatureSchema,
@@ -12,8 +13,6 @@ import { z } from 'zod';
 import type { ServerModule } from '../../lib/module-contract';
 
 import { createWaiversRouter } from './routes';
-
-const publishSchema = z.strictObject({ expectedVersion: z.int().positive() });
 
 export const moduleDefinition = {
   name: 'waivers',
@@ -60,7 +59,15 @@ export const moduleDefinition = {
       method: 'post',
       path: '/api/v1/waivers/orgs/{orgId}/{waiverId}/publish',
       summary: 'Publish a reviewed waiver version',
-      body: publishSchema,
+      body: waiverDocumentVersionActionSchema,
+      response: waiverDocumentSchema,
+      tags: ['waivers'],
+    },
+    {
+      method: 'post',
+      path: '/api/v1/waivers/orgs/{orgId}/{waiverId}/retire',
+      summary: 'Retire an active published waiver while preserving signatures',
+      body: waiverDocumentVersionActionSchema,
       response: waiverDocumentSchema,
       tags: ['waivers'],
     },
