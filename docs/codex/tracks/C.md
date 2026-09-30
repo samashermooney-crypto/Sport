@@ -1,9 +1,9 @@
 # Track C — files, adapters, and wiring
-Status: working — current local integration head is `2b1ceb68`; it includes C's repairs, Track A's requested fixes, and Track D's latest fixes. Hosted verification for this exact head is pending.
+Status: working — current local integration head is `b8cc4300`; it includes C's repairs, Track A's requested fixes, Track D's latest fixes, and a crawler data-readiness wait. Hosted verification for this exact head is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Base head for the current repair: `5fd88d47`; Track A and D are merged as `27f23b52` and `2b1ceb68`, with C's class-fixture correction at `a3ae2795`. Older integration notes below are retained as historical context.
-Hosted CI: latest run `36680223776` is in progress on pre-D head `a3ae2795`. Last completed run `36676094411` is RED on pre-fix head `41dc3f8f` in `e2e` only; its `test` and static jobs passed. The test-job failure reported on `390625cd` was cleared by the subsequent integration repair; no GREEN result is claimed for `2b1ceb68`.
-Open integration work: obtain hosted CI for `2b1ceb68`, resolve remaining failures without changing test assertions, and continue the launch-gate work below.
+Base head for the current repair: `5fd88d47`; Track A and D are merged as `27f23b52` and `2b1ceb68`, with C's class-fixture correction at `a3ae2795` and route-readiness change at `b8cc4300`. Older integration notes below are retained as historical context.
+Hosted CI: latest run `36680761860` is in progress on pre-crawler-wait head `2b1ceb68`. Last completed run `36679142175` is RED in `e2e` on `5fd88d47`; the report shows no current `test` job failure. The test-job failure reported on `390625cd` was cleared by the subsequent integration repair; no GREEN result is claimed for `b8cc4300`.
+Open integration work: obtain hosted CI for `b8cc4300`, resolve remaining failures without changing test assertions, and continue the launch-gate work below.
 
 ## Completed Track C work
 
@@ -184,4 +184,4 @@ Open integration work: obtain hosted CI for `2b1ceb68`, resolve remaining failur
 - `heavy.sh npm run typecheck` and `heavy.sh npm run lint` pass on the combined A/D tree; merge hooks also passed typecheck. No full test suite or Playwright run was started locally under CI-first rules.
 - The E2E determinism changes remain in `d1f93517` and `0fd83c1b`: route-crawl visits wait for all same-origin requests to settle plus 500 ms of quiet, crawler tests are serial, CI E2E uses one worker, and each browser-project startup resets and reseeds the E2E schema. Exact hosted verification is still required to confirm the moving route failures are resolved.
 - Route visits now also wait for visible `aria-busy="true"` data regions to clear before the idle check and link collection; the crawler still asserts on every same-origin HTTP/request failure, page error, and axe violation.
-- `ci/integration.txt` was last updated at 01:54: run `36680223776` is in progress on `a3ae2795`, before the D merge; the report has no result for `2b1ceb68` yet.
+- `ci/integration.txt` now reports run `36680761860` in progress on `2b1ceb68`, before the route-readiness commit; no hosted result exists yet for `b8cc4300`.
