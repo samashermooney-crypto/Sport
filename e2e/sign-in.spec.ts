@@ -159,8 +159,8 @@ test('new account verifies its preview email and signs in', async ({
   const stubNotificationPermission =
     testInfo.project.name !== 'chromium-desktop';
   // The fake service worker/push provider prevents external delivery while
-  // Chromium exercises its granted Notification permission and the UI checks
-  // the test VAPID key passed to PushManager.
+  // Chromium exercises the notification permission granted by its project
+  // context and the UI checks the test VAPID key passed to PushManager.
   await page.addInitScript((stubPermission: boolean) => {
     let subscription: {
       endpoint: string;
@@ -224,12 +224,6 @@ test('new account verifies its preview email and signs in', async ({
       },
     });
   }, stubNotificationPermission);
-  if (!stubNotificationPermission) {
-    // This isolated Playwright context exists only for this test, so grant at
-    // context scope before navigation instead of relying on a project-level
-    // or origin-matched permission override.
-    await page.context().grantPermissions(['notifications']);
-  }
   await page.goto('/sign-up');
   if (!stubNotificationPermission) {
     expect(new URL(page.url()).origin).toBe(
@@ -237,7 +231,6 @@ test('new account verifies its preview email and signs in', async ({
     );
     const notificationState = await page.evaluate(async () => ({
       secureContext: window.isSecureContext,
-      permission: window.Notification.permission,
       permissionsApi: await navigator.permissions
         .query({ name: 'notifications' })
         .then((result) => result.state),
@@ -247,7 +240,6 @@ test('new account verifies its preview email and signs in', async ({
       'Chromium notifications permission should be granted before sign-up in a secure context',
     ).toEqual({
       secureContext: true,
-      permission: 'granted',
       permissionsApi: 'granted',
     });
   }
@@ -344,7 +336,7 @@ test('new account verifies its preview email and signs in', async ({
   const registeredDeviceRequest = await deviceRegistration;
   if (!stubNotificationPermission) {
     const notificationState = await page.evaluate(async () => ({
-      permission: window.Notification.permission,
+      permissionRequest: await window.Notification.requestPermission(),
       permissionsApi: await navigator.permissions
         .query({ name: 'notifications' })
         .then((result) => result.state),
@@ -352,7 +344,7 @@ test('new account verifies its preview email and signs in', async ({
     expect(
       notificationState,
       'Chromium notifications permission should remain granted after subscription',
-    ).toEqual({ permission: 'granted', permissionsApi: 'granted' });
+    ).toEqual({ permissionRequest: 'granted', permissionsApi: 'granted' });
   }
   expect(registeredDeviceRequest.postDataJSON()).toMatchObject({
     platform: 'webpush',

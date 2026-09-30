@@ -24,6 +24,7 @@ export default defineConfig({
       name: 'chromium-desktop',
       use: {
         ...devices['Desktop Chrome'],
+        permissions: ['notifications'],
         viewport: { width: 1440, height: 900 },
       },
     },
