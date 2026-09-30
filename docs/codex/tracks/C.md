@@ -1,7 +1,7 @@
 # Track C — files, adapters, and wiring
-Status: working — `track/integration` is at `9284b6e6` with C’s federation fixes, D’s public-site split and locale-stable skip link, and A’s sanitized push-response test; integrating A’s notification-permission fix `85ab1b56` now.
+Status: working — integration head `468b01f5` includes C federation fixes, D’s public-site split and locale-stable skip link, and A’s first notification-permission fix; integrating A follow-up `55bdfc3b` now.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Hosted CI: run `36688318120` remains in progress on prior head `09f9b611`; the last completed run `36686479156` on `7108d04b` is RED in e2e and static size and predates the latest C/A/D fixes. No GREEN result is claimed for the current candidate.
+Hosted CI: run `36689550628` is in progress on `468b01f5`; the latest completed run `36688318120` on `09f9b611` failed only the skip-link and sign-in E2E checks, while static size passed. That run predates the latest D/A test fixes. No GREEN result is claimed for the current candidate.
 Open integration work: obtain hosted CI for the latest candidate; address any remaining C-owned federation/fee-void failures from the 01:03 split without changing assertions; wait for A/D branches to sync before further merges; continue launch-gate items below.
 
 ## Completed Track C work
@@ -223,3 +223,9 @@ Open integration work: obtain hosted CI for the latest candidate; address any re
 
 - Integrated A’s `85ab1b56` sign-in E2E fix. Chromium grants notification permission to its isolated test context; the test still uses a fake service worker and push provider, so it cannot deliver real notifications.
 - The available run `36688318120` is still in progress on `09f9b611` and does not include this change. Hosted confirmation is pending; local Playwright remains disabled by the CI-first rules.
+
+
+## A sign-in permission assertion follow-up — 2026-09-30 03:32 CDT
+
+- Integrated A’s `55bdfc3b` refinement: the Chromium test now asserts that notifications are granted after the user enables browser notifications and the fake device-registration request completes. The synthetic service-worker/push endpoint remains local to the test; no real notification is sent.
+- Run `36689550628` is still in progress on `468b01f5` and does not include this refinement. The latest completed run `36688318120` on `09f9b611` reports only skip-link and sign-in E2E failures; static size passes. Hosted verification is pending, and no local Playwright run was started.
