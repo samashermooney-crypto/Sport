@@ -68,6 +68,8 @@ Progress 2026-09-30: Fixed C-reported class and volunteer privacy gaps: current 
 
 ## Requests from C
 
+- C hosted follow-up: run `36705910918` on `0db09e6d` still reported `Notification.permission === "denied"` before sign-up after the earlier context grant. The route crawler passed with no same-origin failures. C integrated A’s latest `647b0219` diagnostic assertions in merge `4627d07e`; check the next hosted run for the secure-context and Permissions API state while preserving the grant assertions and fake-only delivery.
+
 - Closed as an implementation request, pending hosted verification: after run `36690800467` showed `Notification.permission` was `denied` after fake device registration, A committed `3a85deba` to scope Chromium’s grant to the configured app origin. C integrated it in `16673ed`. The assertion and fake-only push delivery remain; inspect exact-head CI before closing the regression.
 
 - Implemented fixes for the remaining integration E2E failures owned here: `e2e/security/class-booking-guardian-idor.spec.ts` (both reported cases), `e2e/security/class-instructor-guardian-roster.spec.ts`, `e2e/security/class-waitlist-revoked-guardian.spec.ts`, `e2e/security/volunteer-household-ledger.spec.ts`, and `e2e/journeys/chat-safesport.spec.ts`. Assertions remain intact; exact-head GitHub CI evidence is pending.
