@@ -40,7 +40,23 @@ async function requireMembership(
     .where('account_id', '=', context.actor.accountId)
     .where('status', '=', 'active')
     .executeTakeFirst();
-  if (!member) throw new NotificationAccessError('Inbox not found');
+  if (!member) {
+    const linkedPerson = await trx
+      .selectFrom('person_account_links as link')
+      .innerJoin('people as person', (join) =>
+        join
+          .onRef('person.org_id', '=', 'link.org_id')
+          .onRef('person.id', '=', 'link.person_id'),
+      )
+      .select('link.id')
+      .where('link.org_id', '=', context.orgId)
+      .where('link.account_id', '=', context.actor.accountId)
+      .where('link.verified_at', 'is not', null)
+      .where('link.revoked_at', 'is', null)
+      .where('person.status', '=', 'active')
+      .executeTakeFirst();
+    if (!linkedPerson) throw new NotificationAccessError('Inbox not found');
+  }
   const organization = await trx
     .selectFrom('organizations')
     .select('status')
