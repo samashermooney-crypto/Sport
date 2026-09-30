@@ -93672,6 +93672,9 @@
       "post": {
         "operationId": "post_api_v1_waivers_orgs_orgId_waiverId_retire",
         "summary": "Retire an active published waiver while preserving signatures",
+        "x-athlentry-permission": "waivers.manage",
+        "x-athlentry-resource": "waivers.retire",
+        "x-athlentry-scope": "organization",
         "tags": ["waivers"],
         "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
         "responses": {
