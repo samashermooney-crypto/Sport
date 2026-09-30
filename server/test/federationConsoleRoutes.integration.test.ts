@@ -3,6 +3,8 @@ import { once } from 'node:events';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
+import { federationCapabilitiesSchema } from '@shared/schemas/federation';
+import { federationBootstrapResources } from '@web/console/federation/access';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApp } from '../src/app';
@@ -119,6 +121,46 @@ afterAll(async () => {
 });
 
 describe('federation console API capabilities', () => {
+  it('lets every crawler role fetch only the federation resources allowed by its capabilities', async () => {
+    const crawlerRoles = [
+      'owner',
+      'admin',
+      'registrar',
+      'finance',
+      'scheduler',
+      'compliance',
+      'communications',
+      'director',
+      'evaluator',
+      'volunteer_coordinator',
+      'reporter',
+    ];
+
+    for (const role of crawlerRoles) {
+      const actor = await makeRole(role);
+      const response = await getFor(actor, 'capabilities');
+      expect(response.status, `${role} GET capabilities`).toBe(200);
+      const capabilities = federationCapabilitiesSchema.parse(
+        await response.json(),
+      );
+      const allowedResources = federationBootstrapResources.filter(
+        (resource) => capabilities[resource.capability],
+      );
+
+      const results = await Promise.all(
+        allowedResources.map(async ({ endpoint }) => ({
+          endpoint,
+          status: (await getFor(actor, endpoint)).status,
+        })),
+      );
+      for (const result of results)
+        expect(
+          result.status,
+          `${role} GET ${result.endpoint} allowed by capabilities`,
+        ).toBe(200);
+    }
+  }, 60_000);
+
   it('matches bootstrap API access to each actor role without widening protected reads', async () => {
     const finance = await makeRole('finance');
     const capabilityResponse = await getFor(finance, 'capabilities');
