@@ -12,7 +12,14 @@ import { localPorts } from '../scripts/ports.mjs';
 const { Client } = pg;
 const require = createRequire(import.meta.url);
 const { chromium } = require('@playwright/test');
-const ports = localPorts();
+const stackEnv = {
+  ...process.env,
+  COMPOSE_PROJECT_NAME: 'athlentry_d_lighthouse_ci',
+  PORT_OFFSET: process.env.LIGHTHOUSE_PORT_OFFSET ?? '2200',
+  NODE_ENV: 'development',
+  DELIVERY_MODE: 'preview',
+};
+const ports = localPorts(stackEnv);
 const orgId = '71000000-0000-7000-8000-000000000001';
 const sportProfileId = '71000000-0000-7000-8000-000000000002';
 const seasonId = '71000000-0000-7000-8000-000000000003';
@@ -27,11 +34,7 @@ const resultsDirectory = resolve(
 );
 const lighthouseCli = resolve('node_modules/lighthouse/cli/index.js');
 const server = spawn(process.execPath, ['scripts/dev.mjs'], {
-  env: {
-    ...process.env,
-    COMPOSE_PROJECT_NAME:
-      process.env.COMPOSE_PROJECT_NAME ?? 'athlentry_d_lighthouse_ci',
-  },
+  env: stackEnv,
   stdio: 'inherit',
 });
 const serverExited = once(server, 'exit');
@@ -60,10 +63,7 @@ async function waitForApi() {
 }
 
 async function seedPublicSite() {
-  const port = Number(process.env.ATHLENTRY_POSTGRES_PORT ?? ports.postgres);
-  const connectionString =
-    process.env.DATABASE_ADMIN_URL ??
-    `postgres://athlentry_admin@127.0.0.1:${String(port)}/athlentry_dev`;
+  const connectionString = `postgres://athlentry_admin@127.0.0.1:${String(ports.postgres)}/athlentry_dev`;
   const client = new Client({ connectionString });
   await client.connect();
   try {
