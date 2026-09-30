@@ -17,6 +17,7 @@ import { PostgresRegistrationCheckoutQuote } from './checkout-quote.js';
 import { PostgresRegistrationCheckoutStart } from './checkout-start.js';
 import {
   PostgresRegistrationLifecycle,
+  registrationCancelResponseSchema,
   waitlistEntrySchema,
 } from './lifecycle.js';
 import { PostgresCheckoutPolicyAcceptance } from './policy-acceptance.js';
@@ -1134,6 +1135,26 @@ describe('registration checkout start', () => {
         householdId,
       }),
     ).toEqual(waitlist);
+    const familyWaitlist = await fetch(`${baseUrl}/orgs/${orgId}/me/waitlist`, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(familyWaitlist.status).toBe(200);
+    expect(await familyWaitlist.json()).toMatchObject({
+      entries: [{ id: waitlist.id, personId, position: 1, status: 'waiting' }],
+    });
+    const staffWaitlist = await fetch(
+      `${baseUrl}/orgs/${orgId}/waitlist?offeringId=${secondOfferingId}`,
+      { headers: { Cookie: `__Host-athlentry_session=${staffToken}` } },
+    );
+    expect(staffWaitlist.status).toBe(200);
+    expect(await staffWaitlist.json()).toMatchObject({
+      entries: [{ id: waitlist.id, personId, position: 1, status: 'waiting' }],
+    });
+    const familyStaffWaitlist = await fetch(
+      `${baseUrl}/orgs/${orgId}/waitlist?offeringId=${secondOfferingId}`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(familyStaffWaitlist.status).toBe(403);
     await createWithOrg(database)(context, (trx) =>
       trx
         .updateTable('capacity_counters')
@@ -1409,5 +1430,207 @@ describe('registration checkout start', () => {
       (counter) => counter.subject_type === 'offering' && counter.held === 0,
     );
     expect(teamOfferingCounter).toMatchObject({ confirmed: 1, held: 0 });
+  });
+
+  it('limits cancellation previews by ownership and replays family and staff cancellations exactly', async () => {
+    const householdForCancellation = newId();
+    const familyPersonId = newId();
+    const staffPersonId = newId();
+    const familyRegistrationId = newId();
+    const staffRegistrationId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('households')
+        .values({
+          id: householdForCancellation,
+          org_id: orgId,
+          name: 'Cancellation household',
+        })
+        .execute();
+      await trx
+        .insertInto('people')
+        .values([
+          {
+            id: familyPersonId,
+            org_id: orgId,
+            first_name: 'Family',
+            last_name: 'Cancel',
+            date_of_birth: '2012-04-01',
+          },
+          {
+            id: staffPersonId,
+            org_id: orgId,
+            first_name: 'Staff',
+            last_name: 'Cancel',
+            date_of_birth: '2013-05-02',
+          },
+        ])
+        .execute();
+      await trx
+        .insertInto('household_members')
+        .values([
+          {
+            id: newId(),
+            org_id: orgId,
+            household_id: householdForCancellation,
+            person_id: familyPersonId,
+            role: 'athlete',
+          },
+          {
+            id: newId(),
+            org_id: orgId,
+            household_id: householdForCancellation,
+            person_id: staffPersonId,
+            role: 'athlete',
+          },
+        ])
+        .execute();
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: newId(),
+          org_id: orgId,
+          person_id: familyPersonId,
+          account_id: accountId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute();
+      await trx
+        .insertInto('registrations')
+        .values([
+          {
+            id: familyRegistrationId,
+            org_id: orgId,
+            program_id: programId,
+            division_id: divisionId,
+            offering_id: offeringId,
+            person_id: familyPersonId,
+            household_id: householdForCancellation,
+            registered_by_account_id: accountId,
+            source: 'online',
+            status: 'confirmed',
+          },
+          {
+            id: staffRegistrationId,
+            org_id: orgId,
+            program_id: programId,
+            division_id: divisionId,
+            offering_id: offeringId,
+            person_id: staffPersonId,
+            household_id: householdForCancellation,
+            registered_by_account_id: accountId,
+            source: 'staff',
+            status: 'confirmed',
+          },
+        ])
+        .execute();
+      await trx
+        .updateTable('capacity_counters')
+        .set({ confirmed: 2, held: 0, capacity: 20 })
+        .where('org_id', '=', orgId)
+        .where('subject_id', 'in', [programId, divisionId, offeringId])
+        .execute();
+    });
+
+    const familyPreview = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/registrations/${familyRegistrationId}/cancellation-preview`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(familyPreview.status).toBe(200);
+    expect(await familyPreview.json()).toBeNull();
+    const staffPreview = await fetch(
+      `${baseUrl}/orgs/${orgId}/registrations/${familyRegistrationId}/cancellation-preview`,
+      { headers: { Cookie: `__Host-athlentry_session=${staffToken}` } },
+    );
+    expect(staffPreview.status).toBe(200);
+    expect(await staffPreview.json()).toBeNull();
+    const unrelatedFamilyPreview = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/registrations/${familyRegistrationId}/cancellation-preview`,
+      { headers: { Cookie: `__Host-athlentry_session=${directorToken}` } },
+    );
+    expect(unrelatedFamilyPreview.status).toBe(403);
+    const unauthorizedStaffPreview = await fetch(
+      `${baseUrl}/orgs/${orgId}/registrations/${familyRegistrationId}/cancellation-preview`,
+      { headers: { Cookie: `__Host-athlentry_session=${directorToken}` } },
+    );
+    expect(unauthorizedStaffPreview.status).toBe(403);
+
+    const familyCancelHeaders = {
+      Cookie: `__Host-athlentry_session=${token}`,
+      Origin: 'http://127.0.0.1:5173',
+      'X-Athlentry-Request': '1',
+      'Idempotency-Key': randomUUID(),
+      'Content-Type': 'application/json',
+    };
+    const familyCancel = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/registrations/${familyRegistrationId}/cancel`,
+      {
+        method: 'POST',
+        headers: familyCancelHeaders,
+        body: JSON.stringify({ reason: 'Family schedule changed' }),
+      },
+    );
+    expect(familyCancel.status).toBe(200);
+    const familyResult = registrationCancelResponseSchema.parse(
+      await familyCancel.json(),
+    );
+    expect(familyResult).toEqual({ status: 'withdrawn', refundProposal: null });
+    const familyReplay = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/registrations/${familyRegistrationId}/cancel`,
+      {
+        method: 'POST',
+        headers: familyCancelHeaders,
+        body: JSON.stringify({ reason: 'Family schedule changed' }),
+      },
+    );
+    expect(familyReplay.status).toBe(200);
+    expect(
+      registrationCancelResponseSchema.parse(await familyReplay.json()),
+    ).toEqual(familyResult);
+    const changedFamilyReplay = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/registrations/${familyRegistrationId}/cancel`,
+      {
+        method: 'POST',
+        headers: { ...familyCancelHeaders, 'Idempotency-Key': randomUUID() },
+        body: JSON.stringify({ reason: 'Changed plans again' }),
+      },
+    );
+    expect(changedFamilyReplay.status).toBe(409);
+    expect(await changedFamilyReplay.json()).toMatchObject({
+      error: { code: 'CANCELLATION_ALREADY_RECORDED' },
+    });
+
+    const staffCancel = await fetch(
+      `${baseUrl}/orgs/${orgId}/registrations/${staffRegistrationId}/cancel`,
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${staffToken}`,
+          Origin: 'http://127.0.0.1:5173',
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': randomUUID(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason: 'Registrar correction' }),
+      },
+    );
+    expect(staffCancel.status).toBe(200);
+    expect(
+      registrationCancelResponseSchema.parse(await staffCancel.json()),
+    ).toEqual({
+      status: 'canceled',
+      refundProposal: null,
+    });
+    const balances = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('capacity_counters')
+        .select(['subject_type', 'confirmed', 'held'])
+        .where('org_id', '=', orgId)
+        .where('subject_id', 'in', [programId, divisionId, offeringId])
+        .execute(),
+    );
+    expect(balances).toHaveLength(3);
+    expect(balances.every((counter) => counter.confirmed === 0)).toBe(true);
   });
 });
