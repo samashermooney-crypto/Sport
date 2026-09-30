@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `fix/d`
-Working from the 10-hour integration plan. `fix/d` is syncing integration head `caedbb6b`; Phase 11 fixes are committed as `b7c39d4a`. The current mounted report has run `36694004006` pending on `ca5c509c`; run `36690800467` predates C's `/site` proxy fix and still reports the skip-link journey and sign-in. Linux references are generated and uploaded by hosted CI; macOS references, tolerances, and token equality remain unchanged. Reports and public website pages now lazy-load; the exact hosted size result is pending.
+Working from the 10-hour integration plan. `fix/d` includes integration head `caedbb6b`; Phase 11 fixes are committed as `b7c39d4a`. Run `36694004006` on `ca5c509c` still failed the public skip-link after adding the `/site` proxy. The root cause was its broad prefix also proxying `/site.css`, preventing Vite from serving the skip-link styles; `fix/d` now limits the proxy to `/site/`. Run `36694672770` on `16673ed0` is pending before this correction. Linux references are generated and uploaded by hosted CI; macOS references, tolerances, and token equality remain unchanged. Reports and public website pages now lazy-load; the exact hosted size result is pending.
 
 ## Current
 
@@ -133,4 +133,4 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 ## Requests from C
 
 - Reopened by the orchestrator: `e2e/phase11-uniform-report.spec.ts:57` and `e2e/phase11-buyout-race.spec.ts:15` are reported as remaining integration failures. Registration attribution fallback and invoice compensation are committed on `fix/d`; hosted confirmation is pending. The mounted `ci/integration.txt` report currently lists a different older failure set, so refresh it after this commit is promoted.
-- Skip-link failure: C found Vite lacked a `/site` proxy and fixed it in integration commit `ca5c509c`, with an `app=1` bypass for interactive SPA routes. Verify the existing keyboard and visibility assertions on the next hosted result; run `36690800467` predates the fix.
+- Skip-link failure: C added `/site` SSR proxying in `ca5c509c`, but Vite's prefix matcher also proxied `/site.css`; the browser consequently lacked the hidden-until-focus skip-link styling. `fix/d` narrows the matcher to `/site/` and preserves the `app=1` SPA bypass. Verify the existing keyboard and visibility assertions in hosted CI.
