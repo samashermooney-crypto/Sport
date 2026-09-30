@@ -1,9 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — current local integration candidate is `de95fbaa`; it includes C's repairs, Track A's requested fixes, Track D's committed fixes and StorePortal regression test, and the A notification-permission E2E fix. Hosted verification for this exact head is pending.
+Status: working — `track/integration` is at `0462ef15` with C’s federation fixes, D’s public-site route split, and A’s sanitized Web Push response regression; integrating D’s skip-link locale fix `a0e0c44a` now.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Base head for the current repair: `5fd88d47`; Track A and D fixes are merged as `27f23b52`, `2b1ceb68`, `df0020a0`, `e44bc4a5`, and `de95fbaa`, with C's class-fixture correction at `a3ae2795` and route-readiness change at `b8cc4300`. Older integration notes below are retained as historical context.
-Hosted CI: latest run `36681876874` is in progress on pre-D StorePortal/pre-latest-A head `df0020a0`. Its E2E job has reported failures in chat SafeSport, volunteer buyout, uniform ordering, Phase 13 fee void, and class-security journeys; the report has not completed. Last completed run `36680223776` is RED in `e2e` on `a3ae2795`; no current `test` job failure is listed. The test-job failure reported on `390625cd` was cleared by the subsequent integration repair; no GREEN result is claimed for `de95fbaa`.
-Open integration work: obtain hosted CI for `de95fbaa`, resolve remaining failures without changing test assertions, merge new A/D code commits when ready, and continue the launch-gate work below.
+Hosted CI: run `36687088431` is still in progress on prior head `8a15cacc`; the latest completed run `36685885745` on `12289a1f` is RED in e2e and static size and predates the latest C/A/D fixes. No GREEN result is claimed for the current candidate.
+Open integration work: obtain hosted CI for the latest candidate; address any remaining C-owned federation/fee-void failures from the 01:03 split without changing assertions; wait for A/D branches to sync before further merges; continue launch-gate items below.
 
 ## Completed Track C work
 
@@ -204,3 +203,17 @@ Open integration work: obtain hosted CI for `de95fbaa`, resolve remaining failur
 - The 01:03 owner-supplied E2E split separately names the C federation and sharing-revocation journeys, the A class/volunteer/chat journeys, and the D uniform/buyout journeys. The local report has since refreshed to a different head/failure set; no hosted result for the current candidate is available.
 - The permission-matrix failure was caused by two new website API operations present in OpenAPI but missing from the generated matrix: public news detail and public facilities. `npm run openapi` and `npm run registry` refreshed generated metadata, the security matrix, and route inventory. A structural comparison now finds all 812 OpenAPI operations represented exactly once with matching permission/scope and no extra rows; both added rows match `public.access`. `web/src/generated/registry.test.ts` passes 3/3.
 - C's mounted fee-void and roster-revocation API regressions pass in the focused real-Postgres file (4/4), and the Federation service test remains 21/21. The generated-route test passes 3/3; `heavy.sh npm run typecheck` and `heavy.sh npm run lint` pass after the generated-file refresh. No local Playwright/full test suite was started.
+
+
+## Integration update — 2026-09-30 03:15 CDT
+
+- Integrated D’s committed public website route splitting as `09f9b611`. `web/src/site/routes.test.ts` passes 5/5; guarded typecheck and lint pass. The hosted static size result is still pending.
+- Integrated A’s `3b2e914c` sanitized Web Push response contract regression without reverting D’s site route splitting. `server/src/modules/auth/routes.test.ts` passes 2/2 against the isolated real PostgreSQL stack (`COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500`, host port 5932). Its push adapter is fake; no external delivery occurs.
+- The latest checked-in CI report is still run `36687088431` in progress on `8a15cacc`; it predates `09f9b611` and A’s current auth test. The previous completed run on `12289a1f` fails only in e2e and static size, with details predating the latest fixes. Hosted verification for the current tree remains pending.
+- No full test suite or Playwright run was started locally; no assertions were skipped or weakened.
+
+
+## D skip-link determinism update — 2026-09-30 03:20 CDT
+
+- Integrated D’s `a0e0c44a` fixture correction, which explicitly sets the published organization and browser language to English before checking the English skip-link label. The assertion remains intact; `/Users/sammooney/athlentry-sprint/ci/integration.txt` still reports run `36687088431` in progress on `8a15cacc`, so hosted confirmation is pending.
+- `heavy.sh npm run typecheck` passes on this update. The exact browser journey remains for GitHub CI; no local Playwright run was started.
