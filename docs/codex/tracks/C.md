@@ -1,5 +1,5 @@
 # Track C — files, adapters, and wiring
-Status: working (C branch tip `960d5db0` includes the SQL-raw CI guard; exact hosted run `36645798688` passed test and all static jobs but is RED on two D-owned Linux parity assertions.)
+Status: working (C branch code tip `43a6aa57` adds Mailpit port environment coverage; exact hosted run `36645798688` verified the prior `960d5db0` tip, passed test/static jobs, and remains RED on two D-owned Linux parity assertions.)
 Branch: `track/c-adapters`
 Current: Track C contains local trunk through `5cdee29` plus C wiring and the committed SQL-raw CI guard. Exact C run `36645798688` verifies branch head `960d5db0d5370aa79a9625180d4bd7adee6bf16d`: test, typecheck, lint, build, size, Knip, SQL-raw, OpenAPI, registry, audit, and secret scan pass; e2e fails only on the same two D-owned Linux parity comparisons. C fixes trunk's deterministic-UUID and Knip failures, registers verified-site SSR/root SEO routing, and includes K's navigation, contextual Help, and AI-flag wiring.
 Ready for integration: No. Merge only after hosted CI reports GREEN for the exact branch SHA. Trunk run `36636307104` is red on one deterministic-UUID test, two D-owned parity assertions, and Knip; C contains the registration/Knip fixes. A's current head `c51245b7` completed run `36647507025` red: test and static checks passed except Knip (`actionCenterBulkActionSchema` remains exported); e2e repeats both D-owned parity failures. G (`9b00311e`), K (`ad768b51`), and D (`20cd591f`) still have no hosted result for their current heads; no queue branch is merge-eligible.
@@ -94,3 +94,9 @@ Requests to other tracks: D must resolve the Linux parity failures repeated in C
 - The isolated C Docker stack was stopped after the targeted Postgres test. No full suite or Playwright suite was run locally under the CI-first rules; no coverage was skipped or weakened.
 - Real-Postgres Files tenancy/RLS integration `server/src/modules/files/service.integration.test.ts` passes 10/10 on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500` (Postgres `127.0.0.1:5932`); the isolated stack was stopped afterward.
 - Mailpit configuration regression in `server/src/integrations/email/sender.test.ts` passes 6/6, including `ATHLENTRY_MAILPIT_SMTP_PORT` selection and its 1025 fallback; the same isolated stack was stopped afterward.
+
+## Integration repair update — 2026-09-30
+
+- On `/Users/sammooney/Sport-trunk`, `track/integration` now contains C’s route correction `647cfc32`, A’s sign-up-origin notification grant follow-up, and D’s `/site/` prefix fix; combined code head is `fc061f1e` before the latest status-only commit. CI is not yet available on this head, and no push was made.
+- Hosted run `36695956812` on pre-fix `0cd2dd5d` failed only E2E: crawler sponsors 500, skip-link home fixture rejected, fundraiser detail 404, and Chromium notification permission denied. The database/unit `test` job passed; the report has no unit failure to repair.
+- The new proxy sends only `/site/<org>` home requests to SSR; `/site.css`, nested routes, and `?app=1` remain with Vite. Typecheck and lint passed through `heavy.sh`. D’s malformed JSONB fixture and hosted verification on the merged head remain open.
