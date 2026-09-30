@@ -810,11 +810,12 @@ describe('academy classes integration', () => {
     });
     await admin.connect();
     try {
-      // Force the subscription to be due for billing.
+      // Make this month's billing period due without depending on the host's
+      // timezone or catching up from before the enrollment existed.
       await admin.query(
-        `UPDATE tuition_subscriptions SET next_bill_on = '2000-01-01'
+        `UPDATE tuition_subscriptions SET next_bill_on = $2::date
          WHERE org_id = $1 AND status = 'active'`,
-        [orgA],
+        [orgA, thisMonthRange().start],
       );
       const before = await admin.query<{ count: number }>(
         `SELECT count(*)::integer AS count FROM tuition_invoices WHERE org_id = $1`,

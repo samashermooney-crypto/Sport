@@ -82,6 +82,23 @@ function harness(initial: ConnectAccount | null = null) {
 }
 
 describe('Connect onboarding service', () => {
+  it('does not resolve the gateway when a reservation is already busy', async () => {
+    const { repository } = harness();
+    repository.reserve.mockResolvedValueOnce({ kind: 'busy' });
+    const gatewayFactory = vi.fn(() => {
+      throw new Error('Stripe test gateway is unavailable');
+    });
+    const service = new ConnectOnboardingService(repository, gatewayFactory, {
+      returnUrl: (org) => `https://app.example.test/${org}/stripe/return`,
+      refreshUrl: (org) => `https://app.example.test/${org}/stripe/refresh`,
+    });
+
+    await expect(service.create(orgId, 'finance@example.test')).rejects.toThrow(
+      'already in progress',
+    );
+    expect(gatewayFactory).not.toHaveBeenCalled();
+  });
+
   it('creates one Express account using an org-stable key and persists latest status', async () => {
     const { service, repository, gateway, getStored } = harness();
     await expect(

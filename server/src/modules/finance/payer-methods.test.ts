@@ -97,6 +97,19 @@ describe('payer method setup', () => {
     expect(gateway.createSetupIntent).not.toHaveBeenCalled();
   });
 
+  it('does not require the Stripe gateway when no payer Customer exists', async () => {
+    const { profiles, gateway } = harness();
+    const gatewayFactory = vi.fn(() => gateway);
+    const service = new PayerMethodsService(profiles, gatewayFactory);
+
+    await expect(service.list('account-1')).resolves.toEqual([]);
+    expect(gatewayFactory).not.toHaveBeenCalled();
+
+    await profiles.save('account-1', 'cus_test_1');
+    await service.list('account-1');
+    expect(gatewayFactory).toHaveBeenCalledOnce();
+  });
+
   it('lists only methods attached to the account Customer', async () => {
     const { service, gateway } = harness();
     await expect(service.list('account-1')).resolves.toEqual([]);

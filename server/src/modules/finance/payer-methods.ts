@@ -32,19 +32,26 @@ export interface SavedPaymentMethodRepository {
   findOwner(paymentMethodId: string): Promise<string | null>;
 }
 
+type PayerMethodsGateway = Pick<
+  PaymentsGateway,
+  | 'createCustomer'
+  | 'createSetupIntent'
+  | 'listPaymentMethods'
+  | 'detachPaymentMethod'
+  | 'setDefaultPaymentMethod'
+>;
+
 export class PayerMethodsService {
+  private readonly gatewayProvider: () => PayerMethodsGateway;
+
   constructor(
     private readonly profiles: PayerProfileRepository,
-    private readonly gateway: Pick<
-      PaymentsGateway,
-      | 'createCustomer'
-      | 'createSetupIntent'
-      | 'listPaymentMethods'
-      | 'detachPaymentMethod'
-      | 'setDefaultPaymentMethod'
-    >,
+    gateway: PayerMethodsGateway | (() => PayerMethodsGateway),
     private readonly methods?: SavedPaymentMethodRepository,
-  ) {}
+  ) {
+    this.gatewayProvider =
+      typeof gateway === 'function' ? gateway : () => gateway;
+  }
 
   async createSetupIntent(input: {
     accountId: string;
@@ -59,7 +66,7 @@ export class PayerMethodsService {
       throw new Error('Idempotency-Key must be a UUID');
     }
     const customerId = await this.ensureCustomer(input.accountId, input.email);
-    return this.gateway.createSetupIntent({
+    return this.gatewayProvider().createSetupIntent({
       customerId,
       idempotencyKey: `setup:${input.accountId}:${input.idempotencyKey}`,
     });
@@ -68,14 +75,14 @@ export class PayerMethodsService {
   async list(accountId: string): Promise<GatewayPaymentMethod[]> {
     const customerId = await this.profiles.load(accountId);
     if (!customerId) return [];
-    const methods = await this.gateway.listPaymentMethods(customerId);
+    const methods = await this.gatewayProvider().listPaymentMethods(customerId);
     await this.methods?.sync(accountId, methods);
     return methods;
   }
 
   async remove(accountId: string, paymentMethodId: string): Promise<void> {
     await this.requireOwnedMethod(accountId, paymentMethodId);
-    await this.gateway.detachPaymentMethod(paymentMethodId);
+    await this.gatewayProvider().detachPaymentMethod(paymentMethodId);
     await this.methods?.markDetached(accountId, paymentMethodId);
   }
 
@@ -84,7 +91,10 @@ export class PayerMethodsService {
       accountId,
       paymentMethodId,
     );
-    await this.gateway.setDefaultPaymentMethod(customerId, paymentMethodId);
+    await this.gatewayProvider().setDefaultPaymentMethod(
+      customerId,
+      paymentMethodId,
+    );
     await this.methods?.setDefault(accountId, paymentMethodId);
   }
 
@@ -95,7 +105,7 @@ export class PayerMethodsService {
     const customerId = await this.profiles.load(accountId);
     if (!customerId)
       throw new PayerMethodConflictError('Payer has no Stripe Customer');
-    const methods = await this.gateway.listPaymentMethods(customerId);
+    const methods = await this.gatewayProvider().listPaymentMethods(customerId);
     if (!methods.some((method) => method.id === paymentMethodId))
       throw new PayerMethodConflictError(
         'Payment method is not attached to this payer',
@@ -112,7 +122,7 @@ export class PayerMethodsService {
         'Stripe customer creation is already in progress',
       );
     }
-    const customer = await this.gateway.createCustomer({
+    const customer = await this.gatewayProvider().createCustomer({
       accountId,
       email,
       idempotencyKey: `payer:${accountId}`,
