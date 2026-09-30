@@ -8305,6 +8305,37 @@
         "platform_finance_ops"
       ]
     },
+    "get_api_v1_federation_organizations_orgId_capabilities": {
+      "permission": "federation.read",
+      "scope": "organization",
+      "allow": [
+        "owner",
+        "admin",
+        "finance",
+        "scheduler",
+        "compliance",
+        "director",
+        "reporter"
+      ],
+      "deny": [
+        "anonymous",
+        "registrar",
+        "communications",
+        "evaluator",
+        "volunteer_coordinator",
+        "guardian",
+        "self",
+        "head_coach",
+        "assistant_coach",
+        "team_manager",
+        "treasurer",
+        "official",
+        "volunteer",
+        "platform_super_admin",
+        "platform_support",
+        "platform_finance_ops"
+      ]
+    },
     "get_api_v1_federation_organizations_orgId_relationships": {
       "permission": "federation.read",
       "scope": "organization",

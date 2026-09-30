@@ -350,6 +350,12 @@ test('QA-ACC-033 / Track C: federation is reachable from console navigation', as
       league,
     );
     await page.goto(`/console/orgs/${league.orgId}`);
+    const operationsMenu = page.getByRole('button', {
+      name: 'Operations',
+      exact: true,
+    });
+    await operationsMenu.click();
+    await expect(operationsMenu).toHaveAttribute('aria-expanded', 'true');
     const federationLink = page.getByRole('link', {
       name: 'Federation',
       exact: true,
