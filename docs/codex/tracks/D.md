@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `fix/d`
-Working from the 10-hour integration plan. `fix/d` is synced through integration head `468b01f5`. The latest report is run `36689550628` on that exact head, still running; its last completed run `36688318120` on `09f9b611` failed on the skip-link journey and sign-in. That completed run predates D's locale-stable skip-link fixture (`a0e0c44a`, integrated at `9284b6e6`). The available failure list does not name either Phase 11 journey; their fixes are ancestors of both `fix/d` and integration through `2b1ceb68`. Hosted confirmation for the exact current head remains pending. Linux references are generated and uploaded by hosted CI; macOS references, tolerances, and token equality remain unchanged. Reports and public website pages now lazy-load; the exact hosted size result is pending.
+Working from the 10-hour integration plan. `fix/d` is synced through integration head `d0d69620`. The latest report is run `36689550628` against the previous head `468b01f5`, still running; its last completed run `36688937037` on `0462ef15` failed on the skip-link journey and sign-in. That completed run predates D's locale-stable skip-link fixture (`a0e0c44a`, integrated at `9284b6e6`). The available failure list does not name either Phase 11 journey; their fixes are ancestors of both `fix/d` and integration through `2b1ceb68`. Hosted confirmation for the exact current head remains pending. Linux references are generated and uploaded by hosted CI; macOS references, tolerances, and token equality remain unchanged. Reports and public website pages now lazy-load; the exact hosted size result is pending.
 
 ## Current
 
