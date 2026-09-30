@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — local integration candidate contains C’s Federation/fee-void repairs, D’s public-site route split and locale-pinned skip-link fixture, and A’s notification-permission follow-up `55bdfc3b`.
+Status: working — integration candidate includes C’s Vite `/site` SSR proxy fix `ca5c509c`, C’s Federation/fee-void repairs, D’s public-site route split and A’s notification-permission follow-up; exact-head hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Hosted CI: run `36690800467` on code head `d0d69620` completed with only two E2E failures; test, typecheck, lint, build, Knip, registry, OpenAPI, size, Lighthouse, audit, and secret scan passed. The skip-link artifact shows the SPA alert `Website page unavailable` / `This page is not published or could not be loaded` before the expected heading. The sign-in permission assertion still reads `denied` after device registration. Current local head `ccecb91d` contains diagnostics only and has not been run. No GREEN result is claimed.
-Open integration work: D must resolve the public-site data/render failure and A must resolve the notification permission-state mismatch without weakening assertions; rerun hosted CI on the resulting code head and continue checking launch-gate items below.
+Hosted CI: run `36690800467` on code head `d0d69620` completed with only two E2E failures; test, typecheck, lint, build, Knip, registry, OpenAPI, size, Lighthouse, audit, and secret scan passed. The skip-link artifact showed Vite’s SPA unavailable alert because `/site` was not proxied to SSR; C fixed that in `ca5c509c`. The sign-in permission assertion still reads `denied` after device registration. Exact-head hosted verification for local code head `ca5c509c` is pending; no GREEN result is claimed.
+Open integration work: obtain hosted CI on `ca5c509c` to verify D’s skip-link route now reaches SSR; A must resolve the remaining notification permission-state mismatch without weakening assertions; continue checking launch-gate items below.
 
 ## Completed Track C work
 
@@ -233,7 +233,7 @@ Open integration work: D must resolve the public-site data/render failure and A 
 
 ## Hosted E2E follow-up — 2026-09-30 03:45 CDT
 
-- Run `36690800467` on `d0d69620` completed with all jobs green except E2E. The public-site artifact again shows `Website page unavailable` / `This page is not published or could not be loaded`; the fixture's published data is not reaching the page. D's request records this precise state.
+- Run `36690800467` on `d0d69620` completed with all jobs green except E2E. The public-site artifact showed Vite's SPA fallback instead of the API's SSR page because `/site` was not proxied; C fixed this in `ca5c509c`, preserving Vite handling for `?app=1`. Exact-head hosted verification remains pending.
 - A's `55bdfc3b` moved the permission assertion after fake push registration, but `Notification.permission` still reads `denied` after the device-registration request. The Playwright artifact snapshot says `Browser notifications enabled on this device`; A is asked to resolve the browser permission-state mismatch while preserving the assertion and fake-only delivery.
-- Current local head `ccecb91d` adds only these diagnostic notes; it has not been pushed or run. No full suite or Playwright run was started locally.
+- Current code head `ca5c509c` includes the Vite route fix; it has not been pushed or run in hosted CI. No full suite or Playwright run was started locally.
 - The recent completed reports do not list C-owned Federation, fee-void, or sharing-revocation failures. Focused API/Postgres and navigation component regressions remain green; no CI-green claim is made for current head.
