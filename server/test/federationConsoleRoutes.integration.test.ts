@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -38,21 +38,61 @@ const factories = () => createTestFactories(database);
 type SignedInActor = ActorFixture & { token: string };
 
 async function makeRole(role: string): Promise<SignedInActor> {
-  const actor = await factories().actor();
-  await createWithOrg(database)(actor, (trx) =>
-    trx
-      .updateTable('role_assignments')
-      .set({ role, pending_mfa: false })
-      .where('org_id', '=', actor.orgId)
-      .where('account_id', '=', actor.accountId)
-      .execute()
-      .then(() => undefined),
-  );
+  const owner = await factories().actor();
+  await factories().program(owner);
+  let accountId = owner.accountId;
+  if (role === 'owner') {
+    await createWithOrg(database)(owner, (trx) =>
+      trx
+        .updateTable('role_assignments')
+        .set({ pending_mfa: false })
+        .where('org_id', '=', owner.orgId)
+        .where('account_id', '=', owner.accountId)
+        .execute()
+        .then(() => undefined),
+    );
+  } else {
+    accountId = randomUUID();
+    await database
+      .insertInto('accounts')
+      .values({
+        id: accountId,
+        email: `crawler-${role}-${randomUUID()}@example.invalid`,
+        first_name: 'Route',
+        last_name: 'Crawler',
+        date_of_birth: '1990-01-01',
+        email_verified_at: new Date(),
+      })
+      .execute();
+    await createWithOrg(database)(owner, async (trx) => {
+      await trx
+        .insertInto('org_memberships')
+        .values({
+          id: randomUUID(),
+          org_id: owner.orgId,
+          account_id: accountId,
+          status: 'active',
+          joined_at: new Date(),
+        })
+        .execute();
+      await trx
+        .insertInto('role_assignments')
+        .values({
+          id: randomUUID(),
+          org_id: owner.orgId,
+          account_id: accountId,
+          role,
+          scope_type: 'org',
+          pending_mfa: false,
+        })
+        .execute();
+    });
+  }
   const session = await database.transaction().execute((trx) =>
     issueSession(
       trx,
       {
-        accountId: actor.accountId,
+        accountId,
         kind: 'cookie',
         client: 'web',
         privileged: true,
@@ -61,7 +101,12 @@ async function makeRole(role: string): Promise<SignedInActor> {
       now,
     ),
   );
-  return { ...actor, token: session.token };
+  return {
+    ...owner,
+    accountId,
+    actor: { accountId },
+    token: session.token,
+  };
 }
 
 async function getFor(
