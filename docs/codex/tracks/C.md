@@ -2,7 +2,7 @@
 Status: working — local integration code head `74c43440` includes C’s Vite `/site` route correction, A’s Chromium-context notification permission setup, and D’s Phase 11, `/site.css`, and JSONB fixture fixes; exact-head hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
 Hosted CI: run `36698501721` on `ff0828f4` passed all jobs except E2E, with 113 passes and two failures: the malformed skip-link home fixture and Chromium notification permission. The crawler sponsor and fundraiser journeys passed, verifying C’s route fix. Run `36700407619` on `d485cb4f` is in progress; it includes A’s context grant but predates D’s JSON fixture fix. Neither run verifies local head `74c43440`; no GREEN result is claimed.
-Open integration work: obtain exact-head hosted verification after `74c43440`, especially for A’s context-level notification permission and D’s JSON fixture corrections. Continue checking launch-gate items below.
+Open integration work: obtain exact-head hosted verification after `74c43440`. A’s context-level notification permission and D’s JSON fixture fixes are merged; run `36700407619` on `d485cb4f` is still in progress and predates D’s fix. Continue checking launch-gate items below.
 
 ## Completed Track C work
 
@@ -251,3 +251,4 @@ Open integration work: obtain exact-head hosted verification after `74c43440`, e
 - The skip-link home failure was a separate fixture issue: `e2e/design/parity.spec.ts` inserted `blocks: []`; node-postgres sent the JS array as a PostgreSQL array literal, which PostgreSQL stored as JSONB `{}`. D fixed this with `JSON.stringify([]) as unknown as Json` in `17e54587`; all keyboard/focus assertions remain intact. The fix is included in local integration head `74c43440` and awaits hosted verification.
 - Run `36698501721` still reported Chromium notification permission `denied` under A’s earlier origin grant; A’s newer `596094e0` configures the permission at Chromium context creation and is included in `d485cb4f`. Run `36700407619` is checking that change.
 - `647cfc32` passed `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` and `/Users/sammooney/athlentry-sprint/heavy.sh npm run lint`. Full E2E remains hosted-only per CI-first rules. `36698501721` passed unit `test` and all static jobs; only the two documented E2E failures remained. A’s and D’s final fixes are merged locally at `74c43440`; run `36700407619` is on the immediately preceding A-only head `d485cb4f`.
+INTEGRATION READY 74c43440
