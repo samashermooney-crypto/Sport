@@ -9,6 +9,8 @@ import { ErrorBox } from '../ui/auth';
 import { Button, Card, Field, Input, PageHeader } from '../ui/primitives';
 import { AppShell } from '../ui/shell';
 
+import { useFamilyPerson } from './familyAccess';
+
 const uploadSchema = z.strictObject({
   fileId: z.uuid(),
   uploadUrl: z.string(),
@@ -30,6 +32,12 @@ function acceptedMime(file: File): string {
 
 export function FamilyDocuments(): React.JSX.Element {
   const { orgId = '', personId = '' } = useParams();
+  const family = useFamilyPerson(orgId || undefined, personId || undefined);
+  const person = family.person;
+  const canManage =
+    person?.relationship === 'guardian' ||
+    (person?.relationship === 'self' && person.age >= 18);
+  const readOnlySelf = person?.relationship === 'self' && person.age < 18;
   const documents = useQuery({
     queryKey: ['people', orgId, personId, 'family-documents'],
     queryFn: () =>
@@ -37,7 +45,7 @@ export function FamilyDocuments(): React.JSX.Element {
         `/people/orgs/${orgId}/${personId}/family-documents`,
         familyPersonDocumentsSchema,
       ),
-    enabled: Boolean(orgId && personId),
+    enabled: Boolean(orgId && personId && canManage),
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -137,41 +145,61 @@ export function FamilyDocuments(): React.JSX.Element {
           <RouterLink to="/me/family">Back to family</RouterLink>
         </p>
         <ErrorBox error={error} />
-        <Card>
-          <h2>Upload a document</h2>
-          <Field label="Choose a PDF, JPEG, or PNG file">
-            <Input
-              type="file"
-              accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
-              disabled={busy}
-              onChange={(event) => void upload(event.currentTarget.files?.[0])}
-            />
-          </Field>
-          {busy && <p role="status">Uploading document…</p>}
-        </Card>
-        <Card>
-          <h2>Saved documents</h2>
-          {documents.isPending && <p role="status">Loading documents…</p>}
-          {documents.isError && <p>Documents could not be loaded.</p>}
-          {documents.data?.items.length === 0 && (
-            <p>No documents have been added.</p>
-          )}
-          <ul>
-            {documents.data?.items.map((document) => (
-              <li key={document.id}>
-                {document.mime} · {Math.ceil(document.bytes / 1024)} KB ·{' '}
-                {new Date(document.uploadedAt).toLocaleDateString()} ·{' '}
-                <Button
-                  type="button"
-                  secondary
-                  onClick={() => void download(document.id)}
-                >
-                  Open document
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </Card>
+        {!family.isReady && !family.isError && (
+          <p role="status">Checking family access…</p>
+        )}
+        {(family.isError || (family.isReady && !person)) && (
+          <Card>
+            <p>Documents are unavailable for this family profile.</p>
+          </Card>
+        )}
+        {family.isReady && readOnlySelf && (
+          <Card>
+            <h2>Read-only access</h2>
+            <p>A verified guardian manages documents for this profile.</p>
+          </Card>
+        )}
+        {canManage && (
+          <>
+            <Card>
+              <h2>Upload a document</h2>
+              <Field label="Choose a PDF, JPEG, or PNG file">
+                <Input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
+                  disabled={busy}
+                  onChange={(event) =>
+                    void upload(event.currentTarget.files?.[0])
+                  }
+                />
+              </Field>
+              {busy && <p role="status">Uploading document…</p>}
+            </Card>
+            <Card>
+              <h2>Saved documents</h2>
+              {documents.isPending && <p role="status">Loading documents…</p>}
+              {documents.isError && <p>Documents could not be loaded.</p>}
+              {documents.data?.items.length === 0 && (
+                <p>No documents have been added.</p>
+              )}
+              <ul>
+                {documents.data?.items.map((document) => (
+                  <li key={document.id}>
+                    {document.mime} · {Math.ceil(document.bytes / 1024)} KB ·{' '}
+                    {new Date(document.uploadedAt).toLocaleDateString()} ·{' '}
+                    <Button
+                      type="button"
+                      secondary
+                      onClick={() => void download(document.id)}
+                    >
+                      Open document
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </>
+        )}
       </main>
     </AppShell>
   );
