@@ -1957,18 +1957,16 @@ export function createFinanceRouter(
         );
         return;
       }
-      const latest = await connected.service.refresh(
-        orgId,
-        stored.stripeAccountId,
-      );
+      // account.updated and onboarding persist the authoritative status; a
+      // page read should not require an outbound Stripe request.
       response.json(
         connectStatusResponseSchema.parse({
-          stripeAccountId: latest.stripeAccountId,
-          chargesEnabled: latest.chargesEnabled,
-          payoutsEnabled: latest.payoutsEnabled,
-          detailsSubmitted: latest.detailsSubmitted,
-          requirementsDue: latest.requirementsDue,
-          disabledReason: latest.disabledReason,
+          stripeAccountId: stored.stripeAccountId,
+          chargesEnabled: stored.chargesEnabled,
+          payoutsEnabled: stored.payoutsEnabled,
+          detailsSubmitted: stored.detailsSubmitted,
+          requirementsDue: stored.requirementsDue,
+          disabledReason: stored.disabledReason,
         }),
       );
     } catch (error) {
