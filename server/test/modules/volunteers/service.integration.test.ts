@@ -295,10 +295,17 @@ describe('volunteer requirements and signups', () => {
         .where('requirement_id', '=', requirement.id)
         .where('household_id', '=', householdId)
         .execute(),
-      invoiceLines: await trx
-        .selectFrom('invoice_lines')
-        .select('id')
-        .where('kind', '=', 'volunteer_buyout')
+      payableInvoiceLines: await trx
+        .selectFrom('invoice_lines as line')
+        .innerJoin('invoices as invoice', (join) =>
+          join
+            .onRef('invoice.org_id', '=', 'line.org_id')
+            .onRef('invoice.id', '=', 'line.invoice_id'),
+        )
+        .select('line.id')
+        .where('line.org_id', '=', actor.orgId)
+        .where('line.kind', '=', 'volunteer_buyout')
+        .where('invoice.status', 'in', ['open', 'partially_paid', 'past_due'])
         .execute(),
     }));
 
@@ -309,7 +316,7 @@ describe('volunteer requirements and signups', () => {
       attempts.filter((attempt) => attempt.status === 'rejected'),
     ).toHaveLength(1);
     expect(persisted.buyouts).toHaveLength(1);
-    expect(persisted.invoiceLines).toHaveLength(1);
+    expect(persisted.payableInvoiceLines).toHaveLength(1);
   });
 
   it('requires a verified household guardian before signing a child up', async () => {

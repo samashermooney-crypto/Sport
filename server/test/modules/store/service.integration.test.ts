@@ -202,7 +202,6 @@ describe('store inventory ledger', () => {
 
     const order = await placeStoreOrder(database, actor, {
       householdId,
-      registrationId,
       fulfillmentMethod: 'pickup',
       idempotencyKey: randomUUID(),
       lines: [{ variantId, quantity: 1, personId: athleteId }],
