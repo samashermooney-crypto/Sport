@@ -22,7 +22,10 @@ import {
 } from './lifecycle.js';
 import { PostgresCheckoutPolicyAcceptance } from './policy-acceptance.js';
 import { PostgresRegistrationReports } from './reports.js';
-import { waiverDocumentHash } from './requirements.js';
+import {
+  PostgresRegistrationRequirements,
+  waiverDocumentHash,
+} from './requirements.js';
 import { createRegistrationRouter } from './routes.js';
 import { teamEntrySchema } from './team-entries.js';
 
@@ -1632,5 +1635,224 @@ describe('registration checkout start', () => {
     );
     expect(balances).toHaveLength(3);
     expect(balances.every((counter) => counter.confirmed === 0)).toBe(true);
+  });
+
+  it('requires registrar approval before payment and honors its deadline and idempotency key', async () => {
+    const approvalProgramId = newId();
+    const approvalDivisionId = newId();
+    const approvalOfferingId = newId();
+    const lineId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      const source = await trx
+        .selectFrom('programs')
+        .select(['season_id', 'sport_profile_id'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', programId)
+        .executeTakeFirstOrThrow();
+      await trx
+        .insertInto('programs')
+        .values({
+          id: approvalProgramId,
+          org_id: orgId,
+          season_id: source.season_id,
+          sport_profile_id: source.sport_profile_id,
+          mode: 'league',
+          name: 'Approval registration',
+          slug: `approval-${randomUUID().slice(0, 8)}`,
+          status: 'registration_open',
+          visibility: 'public',
+          starts_on: '2026-09-01',
+          ends_on: '2026-12-01',
+          settings: { paymentDueHours: 48, approvalDecisionHours: 72 },
+        })
+        .execute();
+      await trx
+        .insertInto('divisions')
+        .values({
+          id: approvalDivisionId,
+          org_id: orgId,
+          program_id: approvalProgramId,
+          name: 'Approval group',
+        })
+        .execute();
+      await trx
+        .insertInto('registration_offerings')
+        .values({
+          id: approvalOfferingId,
+          org_id: orgId,
+          program_id: approvalProgramId,
+          division_id: approvalDivisionId,
+          name: 'Approval required player',
+          registrant_role: 'athlete',
+          price_cents: 2500,
+          visibility: 'public',
+          active: true,
+          capacity: 1,
+          requires_approval: true,
+        })
+        .execute();
+      await trx
+        .insertInto('capacity_counters')
+        .values([
+          {
+            id: newId(),
+            org_id: orgId,
+            subject_type: 'program',
+            subject_id: approvalProgramId,
+            capacity: 1,
+          },
+          {
+            id: newId(),
+            org_id: orgId,
+            subject_type: 'division',
+            subject_id: approvalDivisionId,
+            capacity: 1,
+          },
+          {
+            id: newId(),
+            org_id: orgId,
+            subject_type: 'offering',
+            subject_id: approvalOfferingId,
+            capacity: 1,
+          },
+        ])
+        .execute();
+    });
+
+    const started = await new PostgresRegistrationCheckoutStart(
+      database,
+      context,
+    ).start({
+      orgId,
+      creationKey: randomUUID(),
+      cart: {
+        offerings: [
+          { lineId, offeringId: approvalOfferingId, personId, householdId },
+        ],
+      },
+    });
+    const requirements = new PostgresRegistrationRequirements(
+      database,
+      context,
+      encryption,
+    );
+    await requirements.submit({
+      orgId,
+      checkoutId: started.checkoutId,
+      requirements: {
+        version: 1,
+        lines: [{ lineId, addOns: [], volunteer: 'none' }],
+        forms: [],
+        waivers: [],
+        discountCodes: [],
+        applyCreditCents: 0,
+        planTemplateId: null,
+        chargeOnApprovalMethodId: null,
+      },
+      userAgent: 'Vitest',
+      ip: null,
+    });
+    const policy = new PostgresCheckoutPolicyAcceptance(database, context);
+    const review = await policy.review(started.checkoutId);
+    await policy.accept(started.checkoutId, review.termsHash, 'Vitest');
+    const quote = await new PostgresRegistrationCheckoutQuote(
+      database,
+      context,
+      encryption,
+    ).quote({ orgId, checkoutId: started.checkoutId, quoteKey: randomUUID() });
+    expect(quote).toMatchObject({
+      totalCents: 2500,
+      pendingApproval: true,
+      paidInFull: false,
+    });
+
+    const registration = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('registrations')
+        .select(['id', 'status'])
+        .where('org_id', '=', orgId)
+        .where('checkout_id', '=', started.checkoutId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(registration.status).toBe('pending_approval');
+    const decisionKey = randomUUID();
+    const approvalUrl = `${baseUrl}/orgs/${orgId}/registrations/${registration.id}/approval`;
+    const postApproval = (sessionToken: string, note: string) =>
+      fetch(approvalUrl, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${sessionToken}`,
+          Origin: 'http://127.0.0.1:5173',
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': decisionKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ decision: 'approved', note }),
+      });
+    expect((await postApproval(token, 'Roster verified')).status).toBe(403);
+
+    const beforeApproval = Date.now();
+    const approved = await postApproval(staffToken, 'Roster verified');
+    expect(approved.status).toBe(200);
+    const approvalBody = (await approved.json()) as {
+      status: string;
+      paymentDueAt: string | null;
+    };
+    expect(approvalBody.status).toBe('pending_payment');
+    expect(approvalBody.paymentDueAt).toBeTruthy();
+    const expectedDueAt = new Date(
+      new Date(approvalBody.paymentDueAt ?? '').getTime(),
+    );
+    expect(expectedDueAt.getTime()).toBeGreaterThanOrEqual(
+      beforeApproval + 48 * 3_600_000,
+    );
+    expect(expectedDueAt.getTime()).toBeLessThanOrEqual(
+      Date.now() + 48 * 3_600_000,
+    );
+    const replay = await postApproval(staffToken, 'Roster verified');
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toEqual(approvalBody);
+    const changedReplay = await postApproval(
+      staffToken,
+      'Different decision note',
+    );
+    expect(changedReplay.status).toBe(409);
+    expect(await changedReplay.json()).toMatchObject({
+      error: { code: 'DECISION_ALREADY_RECORDED' },
+    });
+
+    const persisted = await createWithOrg(database)(context, async (trx) => ({
+      registration: await trx
+        .selectFrom('registrations')
+        .select(['status', 'approval_payment_due_at'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', registration.id)
+        .executeTakeFirstOrThrow(),
+      hold: await trx
+        .selectFrom('capacity_holds')
+        .select(['expires_at', 'released_at', 'converted_at'])
+        .where('org_id', '=', orgId)
+        .where('checkout_id', '=', started.checkoutId)
+        .executeTakeFirstOrThrow(),
+      counter: await trx
+        .selectFrom('capacity_counters')
+        .select(['held', 'confirmed'])
+        .where('org_id', '=', orgId)
+        .where('subject_type', '=', 'offering')
+        .where('subject_id', '=', approvalOfferingId)
+        .executeTakeFirstOrThrow(),
+    }));
+    expect(persisted.registration.status).toBe('pending_payment');
+    expect(persisted.registration.approval_payment_due_at?.toISOString()).toBe(
+      approvalBody.paymentDueAt,
+    );
+    expect(persisted.hold.expires_at.toISOString()).toBe(
+      approvalBody.paymentDueAt,
+    );
+    expect(persisted.hold).toMatchObject({
+      released_at: null,
+      converted_at: null,
+    });
+    expect(persisted.counter).toEqual({ held: 1, confirmed: 0 });
   });
 });
