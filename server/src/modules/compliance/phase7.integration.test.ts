@@ -573,6 +573,35 @@ describe('Phase 7 safety and compliance integration', () => {
         .executeTakeFirstOrThrow(),
     );
     expect(demoted.status).toBe('pending_compliance');
+    // The coach hears about every activation and demotion.
+    const notices = await withOrg()(ownerContext, (trx) =>
+      trx
+        .selectFrom('notifications')
+        .select(['type', 'payload'])
+        .where('org_id', '=', orgA)
+        .where('account_id', '=', accountA)
+        .where('type', 'in', [
+          'compliance.role_activated',
+          'compliance.role_demoted',
+        ])
+        .orderBy('created_at')
+        .execute(),
+    );
+    expect(notices.map((notice) => notice.type)).toEqual([
+      'compliance.role_activated',
+      'compliance.role_demoted',
+      'compliance.role_activated',
+      'compliance.role_demoted',
+    ]);
+    expect(notices[1]?.payload).toMatchObject({
+      personId: personA,
+      role: 'head_coach',
+      reason: 'required_credential_revoked',
+    });
+    expect(notices[0]?.payload).toMatchObject({
+      personId: personA,
+      role: 'head_coach',
+    });
   });
 
   it('applies bounded overrides and never overrides the minimum age', async () => {
