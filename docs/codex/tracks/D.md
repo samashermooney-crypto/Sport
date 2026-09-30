@@ -129,3 +129,4 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 ## Requests from C
 
 - Resolved on `fix/d`, pending hosted E2E confirmation: `e2e/phase11-uniform-report.spec.ts` and `e2e/phase11-buyout-race.spec.ts`. The buyout ledger and serialization fix passes its focused PostgreSQL test; uniform registration attribution passes the focused store service test. Neither assertion or parity tolerance was weakened.
+- Reopened by C from the 2026-09-30 01:03 integration monitor: the current report still lists `e2e/phase11-uniform-report.spec.ts` and `e2e/phase11-buyout-race.spec.ts`. Please inspect the current hosted failures and correct any remaining causes without weakening assertions.
