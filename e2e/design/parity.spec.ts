@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type TestInfo } from '@playwright/test';
 import sharp from 'sharp';
 
 const showcase = (label: string) =>
@@ -49,6 +49,29 @@ async function headerDifferenceRatio(
   return differentPixels / (width * height);
 }
 
+async function attachHeaderMismatch(
+  testInfo: TestInfo,
+  actual: Buffer,
+  referenceName: string,
+  width: number,
+  height: number,
+): Promise<void> {
+  const crop = { left: 0, top: 0, width, height };
+  const expected = await readFile(
+    resolve('e2e/visual-reference', referenceName),
+  );
+  await Promise.all([
+    testInfo.attach(`actual-${String(width)}px-${referenceName}`, {
+      body: await sharp(actual).extract(crop).png().toBuffer(),
+      contentType: 'image/png',
+    }),
+    testInfo.attach(`reference-${String(width)}px-${referenceName}`, {
+      body: await sharp(expected).extract(crop).png().toBuffer(),
+      contentType: 'image/png',
+    }),
+  ]);
+}
+
 function referenceForPlatform(referenceName: string): string {
   return process.platform === 'linux'
     ? referenceName.replace(/\.png$/, '-linux.png')
@@ -58,7 +81,7 @@ function referenceForPlatform(referenceName: string): string {
 test('shell chrome compares against the legacy captures at desktop and phone widths', async ({
   page,
   browserName,
-}) => {
+}, testInfo) => {
   test.skip(browserName === 'webkit', 'Reference captures use Chromium.');
   await page.goto('/__ui');
   await expect(
@@ -72,12 +95,22 @@ test('shell chrome compares against the legacy captures at desktop and phone wid
     const rendered = await page.locator('.ui-topbar').screenshot({
       animations: 'disabled',
     });
+    const referenceName = referenceForPlatform(reference);
     const difference = await headerDifferenceRatio(
       rendered,
-      referenceForPlatform(reference),
+      referenceName,
       width,
       height,
     );
+    if (difference >= 0.065) {
+      await attachHeaderMismatch(
+        testInfo,
+        rendered,
+        referenceName,
+        width,
+        height,
+      );
+    }
     expect(
       difference,
       `${String(width)}px legacy shell mismatch: ${(difference * 100).toFixed(
@@ -90,7 +123,7 @@ test('shell chrome compares against the legacy captures at desktop and phone wid
 test('public site shell matches the legacy header and navigation at desktop and phone widths', async ({
   page,
   browserName,
-}) => {
+}, testInfo) => {
   await page.goto('/__ui?surface=public');
   await expect(
     page.getByRole('heading', { name: 'Northstar Youth Sports' }).first(),
@@ -107,12 +140,22 @@ test('public site shell matches the legacy header and navigation at desktop and 
     await page.evaluate(() => document.fonts.ready);
     if (browserName !== 'webkit') {
       const rendered = await page.screenshot({ animations: 'disabled' });
+      const referenceName = referenceForPlatform(reference);
       const difference = await headerDifferenceRatio(
         rendered,
-        reference,
+        referenceName,
         width,
         height,
       );
+      if (difference >= 0.065) {
+        await attachHeaderMismatch(
+          testInfo,
+          rendered,
+          referenceName,
+          width,
+          height,
+        );
+      }
       expect(
         difference,
         `${String(width)}px public-site shell mismatch: ${(difference * 100).toFixed(2)}% of pixels differ`,
