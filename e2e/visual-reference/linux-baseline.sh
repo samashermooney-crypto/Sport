@@ -24,7 +24,10 @@ LEGACY_WEB_PID=''
 
 cleanup() {
   for pid in "$LEGACY_API_PID" "$LEGACY_WEB_PID"; do
-    if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || true; fi
+    if [ -n "$pid" ]; then
+      kill "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+    fi
   done
   rm -f legacy/node_modules legacy/src
   if [ -n "$LEGACY_VITE_CONFIG_DIR" ]; then rm -rf "$LEGACY_VITE_CONFIG_DIR"; fi
