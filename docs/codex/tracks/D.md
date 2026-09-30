@@ -34,6 +34,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 ## Recent checks
 
 - On `fix/d`, all six D-owned website/console Vitest files pass individually; the Linux parity changes are queued for integration CI validation, with the failure artifact now including the exact legacy captures and Playwright output.
+- CI run `36648564282` on the old D head reported a 9.63% Linux 390px public-shell mismatch and three component screenshot mismatches. The public-shell test had been reading the macOS reference on Linux; the CI capture now generates and selects a same-runner Linux legacy reference. The remaining component mismatches still need the uploaded expected/actual/diff artifacts to identify precisely.
 - `server/src/modules/website/service.integration.test.ts`: 10/10 pass after adding assertions for SSR font preloads.
 - `server/src/modules/website/contact.routes.integration.test.ts`: 1/1 pass for robots policy, sitemap generated-page URLs and noindex behavior, plus the existing public-contact workflow.
 - `server/src/modules/exports/service.integration.test.ts`: 5/5 pass; organization archive includes table CSVs, manifest.json, files/manifest.csv, and formula-neutralized people data.
