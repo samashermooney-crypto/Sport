@@ -23,6 +23,7 @@ import { PostgresCheckoutPolicyAcceptance } from './policy-acceptance.js';
 import { PostgresRegistrationReports } from './reports.js';
 import { waiverDocumentHash } from './requirements.js';
 import { createRegistrationRouter } from './routes.js';
+import { teamEntrySchema } from './team-entries.js';
 
 let database: Kysely<DB>;
 const accountId = newId();
@@ -1217,5 +1218,196 @@ describe('registration checkout start', () => {
     );
     expect(accepted.accepted_at).toBeTruthy();
     expect(accepted.status).toBe('offered');
+  });
+
+  it('routes adult team entry, captain invitations, and registrar approval through scoped HTTP endpoints', async () => {
+    const captainPersonId = newId();
+    const teamOfferingId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .updateTable('accounts')
+        .set({ email_verified_at: new Date() })
+        .where('id', '=', accountId)
+        .execute();
+      await trx
+        .insertInto('people')
+        .values({
+          id: captainPersonId,
+          org_id: orgId,
+          first_name: 'Jordan',
+          last_name: 'Captain',
+          date_of_birth: '1980-03-10',
+        })
+        .execute();
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: newId(),
+          org_id: orgId,
+          person_id: captainPersonId,
+          account_id: accountId,
+          relationship: 'self',
+          verified_at: new Date(),
+        })
+        .execute();
+      await trx
+        .updateTable('capacity_counters')
+        .set({ capacity: 20 })
+        .where('org_id', '=', orgId)
+        .where('subject_type', 'in', ['program', 'division'])
+        .execute();
+      await trx
+        .insertInto('registration_offerings')
+        .values({
+          id: teamOfferingId,
+          org_id: orgId,
+          program_id: programId,
+          division_id: divisionId,
+          name: 'Adult team entry',
+          registrant_role: 'team_entry',
+          price_cents: 0,
+          capacity: 20,
+          waitlist_enabled: false,
+          requires_approval: true,
+          visibility: 'public',
+          active: true,
+        })
+        .execute();
+      await trx
+        .insertInto('capacity_counters')
+        .values({
+          id: newId(),
+          org_id: orgId,
+          subject_type: 'offering',
+          subject_id: teamOfferingId,
+          capacity: 20,
+        })
+        .execute();
+    });
+
+    const familyHeaders = {
+      Cookie: `__Host-athlentry_session=${token}`,
+      Origin: 'http://127.0.0.1:5173',
+      'X-Athlentry-Request': '1',
+      'Content-Type': 'application/json',
+    };
+    const options = await fetch(`${baseUrl}/orgs/${orgId}/team-entry-options`, {
+      headers: { Cookie: familyHeaders.Cookie },
+    });
+    expect(options.status).toBe(200);
+    expect(await options.json()).toMatchObject({
+      offerings: [{ offeringId: teamOfferingId, requiresApproval: true }],
+      captains: [{ personId: captainPersonId, name: 'Jordan Captain' }],
+    });
+
+    const createBody = {
+      offeringId: teamOfferingId,
+      captainPersonId,
+      teamName: 'Northside Adult United',
+      clubName: 'Northside',
+      seedHint: 4,
+    };
+    const rejectedOrigin = await fetch(
+      `${baseUrl}/orgs/${orgId}/team-entries`,
+      {
+        method: 'POST',
+        headers: { ...familyHeaders, Origin: 'https://not-the-app.example' },
+        body: JSON.stringify(createBody),
+      },
+    );
+    expect(rejectedOrigin.status).toBe(403);
+    const created = await fetch(`${baseUrl}/orgs/${orgId}/team-entries`, {
+      method: 'POST',
+      headers: { ...familyHeaders, 'Idempotency-Key': randomUUID() },
+      body: JSON.stringify(createBody),
+    });
+    expect(created.status).toBe(201);
+    const team = teamEntrySchema.parse(await created.json());
+    expect(team).toMatchObject({
+      teamName: 'Northside Adult United',
+      status: 'pending_approval',
+      captainPersonId,
+    });
+
+    const inviteEmail = `adult-player-${randomUUID()}@example.invalid`;
+    const invited = await fetch(
+      `${baseUrl}/orgs/${orgId}/team-entries/${team.id}/invites`,
+      {
+        method: 'POST',
+        headers: { ...familyHeaders, 'Idempotency-Key': randomUUID() },
+        body: JSON.stringify({ emails: [inviteEmail] }),
+      },
+    );
+    expect(invited.status).toBe(201);
+    const invite = z
+      .strictObject({
+        invites: z.array(
+          z.strictObject({
+            id: z.uuid(),
+            email: z.email(),
+            expiresAt: z.iso.datetime(),
+            inviteUrl: z.url(),
+          }),
+        ),
+      })
+      .parse(await invited.json()).invites[0];
+    if (!invite) throw new Error('Team invitation was not returned');
+    expect(invite.email).toBe(inviteEmail);
+    expect(new URL(invite.inviteUrl).pathname).toContain(
+      `/portal/orgs/${orgId}/team-entry-invites/`,
+    );
+
+    const captainInvites = await fetch(
+      `${baseUrl}/orgs/${orgId}/team-entries/${team.id}/invites`,
+      { headers: { Cookie: familyHeaders.Cookie } },
+    );
+    expect(captainInvites.status).toBe(200);
+    expect(await captainInvites.json()).toMatchObject({
+      invites: [{ id: invite.id, email: inviteEmail, status: 'pending' }],
+    });
+    const staffList = await fetch(`${baseUrl}/orgs/${orgId}/team-entries`, {
+      headers: { Cookie: `__Host-athlentry_session=${staffToken}` },
+    });
+    expect(staffList.status).toBe(200);
+    expect(await staffList.json()).toMatchObject({
+      entries: [{ id: team.id, status: 'pending_approval' }],
+    });
+
+    const approval = await fetch(
+      `${baseUrl}/orgs/${orgId}/team-entries/${team.id}/approval`,
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${staffToken}`,
+          Origin: 'http://127.0.0.1:5173',
+          'X-Athlentry-Request': '1',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ decision: 'approved', note: 'Roster verified' }),
+      },
+    );
+    expect(approval.status).toBe(200);
+    expect(await approval.json()).toEqual({ status: 'accepted' });
+    const captainEntries = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/team-entries`,
+      { headers: { Cookie: familyHeaders.Cookie } },
+    );
+    expect(captainEntries.status).toBe(200);
+    expect(await captainEntries.json()).toMatchObject({
+      entries: [{ id: team.id, status: 'accepted', inviteCount: 1 }],
+    });
+    const counters = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('capacity_counters')
+        .select(['subject_type', 'confirmed', 'held'])
+        .where('org_id', '=', orgId)
+        .where('subject_id', 'in', [programId, divisionId, teamOfferingId])
+        .execute(),
+    );
+    expect(counters).toHaveLength(3);
+    const teamOfferingCounter = counters.find(
+      (counter) => counter.subject_type === 'offering' && counter.held === 0,
+    );
+    expect(teamOfferingCounter).toMatchObject({ confirmed: 1, held: 0 });
   });
 });
