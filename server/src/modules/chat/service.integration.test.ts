@@ -659,6 +659,23 @@ describe('chat SafeSport and permission rules', () => {
     );
     expect(closed.guardianCopied).toBe(true);
     expect(closed.muted).toBe(false);
+    const staffConversation = (
+      await listConversations(ownerContext, withOrg)
+    ).items.find((item) => item.id === closed.id);
+    expect(staffConversation).toMatchObject({
+      guardianCopied: true,
+      muted: false,
+    });
+    const guardianConversation = (
+      await listConversations(
+        { orgId, actor: { accountId: guardianId } },
+        withOrg,
+      )
+    ).items.find((item) => item.id === closed.id);
+    expect(guardianConversation).toMatchObject({
+      guardianCopied: true,
+      muted: false,
+    });
     let members = await withOrg(ownerContext, (trx) =>
       trx
         .selectFrom('conversation_members')
