@@ -131,3 +131,4 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 ## Requests from C
 
 - Closed: `e2e/phase11-uniform-report.spec.ts` and `e2e/phase11-buyout-race.spec.ts`. The service and component regressions pass; hosted runs through `36682986073` do not list either journey as failed. The old 01:03 monitor note was stale.
+- Reopened by C after completed run `36689550628` on `468b01f5`: `e2e/design/parity.spec.ts:187` still fails the public-site skip-link even with `a0e0c44a` setting both the published organization and browser preference to English. Static size passes after the route split. Please inspect the actual public-page render/API path and correct the failure without changing the keyboard or visibility assertions; current run `36690800467` on `d0d69620` is in progress and does not include a later D code fix.

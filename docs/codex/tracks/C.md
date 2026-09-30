@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — integration head `468b01f5` includes C federation fixes, D’s public-site split and locale-stable skip link, and A’s first notification-permission fix; integrating A follow-up `55bdfc3b` now.
+Status: working — local integration candidate contains C’s Federation/fee-void repairs, D’s public-site route split and locale-pinned skip-link fixture, and A’s notification-permission follow-up `55bdfc3b`.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Hosted CI: run `36689550628` is in progress on `468b01f5`; the latest completed run `36688318120` on `09f9b611` failed only the skip-link and sign-in E2E checks, while static size passed. That run predates the latest D/A test fixes. No GREEN result is claimed for the current candidate.
-Open integration work: obtain hosted CI for the latest candidate; address any remaining C-owned federation/fee-void failures from the 01:03 split without changing assertions; wait for A/D branches to sync before further merges; continue launch-gate items below.
+Hosted CI: run `36690800467` is in progress on code head `d0d69620`; latest completed run `36689550628` on `468b01f5` fails only the public-site skip-link and sign-in E2E checks. Static size passes. The sign-in follow-up is in the running head; the skip-link still failed after D’s locale fix and has been reopened in D.md. No GREEN result is claimed.
+Open integration work: obtain hosted CI for the current code head; have D resolve the remaining skip-link render failure without changing assertions; continue checking C-owned Federation/Phase 13 failures and launch-gate items below.
 
 ## Completed Track C work
 
@@ -229,3 +229,10 @@ Open integration work: obtain hosted CI for the latest candidate; address any re
 
 - Integrated A’s `55bdfc3b` refinement: the Chromium test now asserts that notifications are granted after the user enables browser notifications and the fake device-registration request completes. The synthetic service-worker/push endpoint remains local to the test; no real notification is sent.
 - Run `36689550628` is still in progress on `468b01f5` and does not include this refinement. The latest completed run `36688318120` on `09f9b611` reports only skip-link and sign-in E2E failures; static size passes. Hosted verification is pending, and no local Playwright run was started.
+
+
+## Hosted E2E follow-up — 2026-09-30 03:45 CDT
+
+- Completed run `36689550628` on `468b01f5` reports only the public-site skip-link and sign-in journeys; the static size job passes. It still fails the skip-link after D’s fixture pins both organization and browser locale to English (`a0e0c44a`), so C reopened the specific render failure in `docs/codex/tracks/D.md`.
+- A’s follow-up `55bdfc3b` moves the notification-permission assertion to after the fake subscription request; current run `36690800467` on `d0d69620` is testing it. No full suite or Playwright run was started locally.
+- The recent completed reports do not list C-owned Federation, fee-void, or sharing-revocation failures. Focused API/Postgres and navigation component regressions remain green; no CI-green claim is made for current head.
