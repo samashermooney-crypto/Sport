@@ -1,13 +1,23 @@
 import { orgWorkspaceSchema } from '@shared/schemas/orgs';
 import { useQuery } from '@tanstack/react-query';
+import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router';
 import { useParams } from 'react-router';
 
 import { apiGet } from '../../api/client';
+import { RouteLoading } from '../../ui/RouteLoading';
 import { AppShell } from '../../ui/shell';
 
-import { ReportBuilder } from './ReportBuilder';
-import { ReportsDashboard } from './ReportsDashboard';
+const ReportBuilder = lazy(() =>
+  import('./ReportBuilder').then(({ ReportBuilder: component }) => ({
+    default: component,
+  })),
+);
+const ReportsDashboard = lazy(() =>
+  import('./ReportsDashboard').then(({ ReportsDashboard: component }) => ({
+    default: component,
+  })),
+);
 
 function ReportsRoute(): React.JSX.Element {
   const { orgId } = useParams<{ orgId: string }>();
@@ -49,8 +59,10 @@ function ReportsRoute(): React.JSX.Element {
         { label: 'Account', to: '/me' },
       ]}
     >
-      <ReportsDashboard orgId={orgId} />
-      <ReportBuilder orgId={orgId} />
+      <Suspense fallback={<RouteLoading label="Loading reports…" />}>
+        <ReportsDashboard orgId={orgId} />
+        <ReportBuilder orgId={orgId} />
+      </Suspense>
     </AppShell>
   );
 }
