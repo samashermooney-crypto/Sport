@@ -69,3 +69,5 @@ Progress 2026-09-30: Fixed C-reported class and volunteer privacy gaps: current 
 ## Requests from C
 
 - Implemented fixes for the remaining integration E2E failures owned here: `e2e/security/class-booking-guardian-idor.spec.ts` (both reported cases), `e2e/security/class-instructor-guardian-roster.spec.ts`, `e2e/security/class-waitlist-revoked-guardian.spec.ts`, `e2e/security/volunteer-household-ledger.spec.ts`, and `e2e/journeys/chat-safesport.spec.ts`. Assertions remain intact; exact-head GitHub CI evidence is pending.
+
+Progress 2026-09-30: The sign-in Playwright journey now grants Chromium notification permission through its test browser context and exercises the Web Push UI with a deterministic service-worker/push double that validates `userVisibleOnly` and the 65-byte test VAPID key without external delivery. The WebKit project retains its permission stub; the auth HTTP integration test also covers test Web Push registration/listing. Typecheck and lint pass; Playwright verification is reserved for GitHub CI.

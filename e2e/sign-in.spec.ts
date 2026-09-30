@@ -156,9 +156,21 @@ test('new account verifies its preview email and signs in', async ({
   test.setTimeout(60_000);
   const email = `e2e-${testInfo.project.name}-${Date.now().toString()}@example.test`;
   const password = 'Pinecones!7348Ridge';
-  // The service-worker/provider doubles keep this local, while the assertion
-  // below verifies the VAPID key passed to PushManager.
-  await page.addInitScript(() => {
+  const stubNotificationPermission =
+    testInfo.project.name !== 'chromium-desktop';
+  if (!stubNotificationPermission) {
+    const baseURL = testInfo.project.use.baseURL;
+    if (typeof baseURL !== 'string') {
+      throw new Error('The Chromium notification test requires a base URL.');
+    }
+    await page.context().grantPermissions(['notifications'], {
+      origin: new URL(baseURL).origin,
+    });
+  }
+  // The fake service worker/push provider prevents external delivery while
+  // Chromium exercises its granted Notification permission and the UI checks
+  // the test VAPID key passed to PushManager.
+  await page.addInitScript((stubPermission: boolean) => {
     let subscription: {
       endpoint: string;
       toJSON: () => object;
@@ -202,14 +214,16 @@ test('new account verifies its preview email and signs in', async ({
         },
       },
     };
-    Object.defineProperty(window, 'PushManager', {
-      configurable: true,
-      value: Symbol('PushManager'),
-    });
-    Object.defineProperty(window, 'Notification', {
-      configurable: true,
-      value: { requestPermission: () => Promise.resolve('granted') },
-    });
+    if (stubPermission) {
+      Object.defineProperty(window, 'PushManager', {
+        configurable: true,
+        value: Symbol('PushManager'),
+      });
+      Object.defineProperty(window, 'Notification', {
+        configurable: true,
+        value: { requestPermission: () => Promise.resolve('granted') },
+      });
+    }
     Object.defineProperty(navigator, 'serviceWorker', {
       configurable: true,
       value: {
@@ -218,7 +232,7 @@ test('new account verifies its preview email and signs in', async ({
         getRegistration: () => Promise.resolve(registration),
       },
     });
-  });
+  }, stubNotificationPermission);
   await page.goto('/sign-up');
   await expect(
     page.getByRole('heading', { name: 'Create your account' }),
