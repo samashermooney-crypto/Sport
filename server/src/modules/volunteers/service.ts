@@ -5,6 +5,7 @@ import { sql } from 'kysely';
 
 import type { DB } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
+import { withOrgInTransaction } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 import { appendAuditEvent } from '../audit/service';
 import { assertEligibleForRole } from '../compliance/policy';
@@ -691,68 +692,59 @@ export async function householdVolunteerLedger(
   context: OrgContext,
   householdId: string,
   now = new Date(),
+  transaction?: OrgTransaction,
 ) {
-  return createWithOrg(database)(context, (trx) =>
-    householdVolunteerLedgerInTransaction(trx, context, householdId, now),
-  );
-}
-
-async function householdVolunteerLedgerInTransaction(
-  trx: OrgTransaction,
-  context: OrgContext,
-  householdId: string,
-  now: Date,
-) {
-  const access = await trx
-    .selectFrom('households as household')
-    .select('household.id')
-    .where('household.org_id', '=', context.orgId)
-    .where('household.id', '=', householdId)
-    .where((eb) =>
-      eb.or([
-        eb.exists(
-          eb
-            .selectFrom('org_memberships as membership')
-            .innerJoin('role_assignments as role', (join) =>
-              join
-                .onRef('role.org_id', '=', 'membership.org_id')
-                .onRef('role.account_id', '=', 'membership.account_id'),
-            )
-            .select('membership.id')
-            .whereRef('membership.org_id', '=', 'household.org_id')
-            .where('membership.account_id', '=', context.actor.accountId)
-            .where('membership.status', '=', 'active')
-            .where('role.role', 'in', [
-              'owner',
-              'admin',
-              'volunteer_coordinator',
-            ])
-            .where('role.scope_type', '=', 'org')
-            .where('role.pending_mfa', '=', false)
-            .where('role.revoked_at', 'is', null),
-        ),
-        eb.exists(
-          eb
-            .selectFrom('household_members as member')
-            .innerJoin('person_account_links as link', (join) =>
-              join
-                .onRef('link.org_id', '=', 'member.org_id')
-                .onRef('link.person_id', '=', 'member.person_id'),
-            )
-            .select('link.id')
-            .whereRef('member.org_id', '=', 'household.org_id')
-            .whereRef('member.household_id', '=', 'household.id')
-            .where('member.removed_at', 'is', null)
-            .where('link.account_id', '=', context.actor.accountId)
-            .where('link.relationship', '=', 'guardian')
-            .where('link.verified_at', 'is not', null)
-            .where('link.revoked_at', 'is', null),
-        ),
-      ]),
-    )
-    .executeTakeFirst();
-  if (!access) throw new VolunteerNotFoundError('Household not found');
-  const requirements = await sql<RequirementRow>`
+  const readLedger = async (trx: OrgTransaction) => {
+    const access = await trx
+      .selectFrom('households as household')
+      .select('household.id')
+      .where('household.org_id', '=', context.orgId)
+      .where('household.id', '=', householdId)
+      .where((eb) =>
+        eb.or([
+          eb.exists(
+            eb
+              .selectFrom('org_memberships as membership')
+              .innerJoin('role_assignments as role', (join) =>
+                join
+                  .onRef('role.org_id', '=', 'membership.org_id')
+                  .onRef('role.account_id', '=', 'membership.account_id'),
+              )
+              .select('membership.id')
+              .whereRef('membership.org_id', '=', 'household.org_id')
+              .where('membership.account_id', '=', context.actor.accountId)
+              .where('membership.status', '=', 'active')
+              .where('role.role', 'in', [
+                'owner',
+                'admin',
+                'volunteer_coordinator',
+              ])
+              .where('role.scope_type', '=', 'org')
+              .where('role.pending_mfa', '=', false)
+              .where('role.revoked_at', 'is', null),
+          ),
+          eb.exists(
+            eb
+              .selectFrom('household_members as member')
+              .innerJoin('person_account_links as link', (join) =>
+                join
+                  .onRef('link.org_id', '=', 'member.org_id')
+                  .onRef('link.person_id', '=', 'member.person_id'),
+              )
+              .select('link.id')
+              .whereRef('member.org_id', '=', 'household.org_id')
+              .whereRef('member.household_id', '=', 'household.id')
+              .where('member.removed_at', 'is', null)
+              .where('link.account_id', '=', context.actor.accountId)
+              .where('link.relationship', '=', 'guardian')
+              .where('link.verified_at', 'is not', null)
+              .where('link.revoked_at', 'is', null),
+          ),
+        ]),
+      )
+      .executeTakeFirst();
+    if (!access) throw new VolunteerNotFoundError('Household not found');
+    const requirements = await sql<RequirementRow>`
       SELECT DISTINCT req.id AS requirement_id,
         COALESCE(req.program_id, req.season_id) AS scope_id,
         COALESCE(program.name, season.name) AS scope_name,
@@ -781,14 +773,16 @@ async function householdVolunteerLedgerInTransaction(
           OR (req.season_id IS NOT NULL AND req.season_id = season.id))
       ORDER BY req.id, member.person_id
     `.execute(trx);
-  const reqRows = requirements.rows;
-  const requirementIds = [...new Set(reqRows.map((row) => row.requirement_id))];
-  if (!requirementIds.length) return { householdId, items: [] };
-  const credits = await sql<{
-    requirement_id: string;
-    person_id: string | null;
-    completed: string | number;
-  }>`
+    const reqRows = requirements.rows;
+    const requirementIds = [
+      ...new Set(reqRows.map((row) => row.requirement_id)),
+    ];
+    if (!requirementIds.length) return { householdId, items: [] };
+    const credits = await sql<{
+      requirement_id: string;
+      person_id: string | null;
+      completed: string | number;
+    }>`
       SELECT requirement.id AS requirement_id,
         CASE WHEN requirement.amount_per_athlete IS NOT NULL THEN signup.person_id ELSE NULL END AS person_id,
         COALESCE(sum(CASE WHEN signup.status = 'completed' THEN
@@ -805,17 +799,17 @@ async function householdVolunteerLedgerInTransaction(
       GROUP BY requirement.id, signup.org_id, signup.household_id,
         CASE WHEN requirement.amount_per_athlete IS NOT NULL THEN signup.person_id ELSE NULL END
     `.execute(trx);
-  const creditMap = new Map(
-    credits.rows.map((row) => [
-      `${row.requirement_id}:${row.person_id ?? 'household'}`,
-      { completed: Number(row.completed), boughtOut: 0 },
-    ]),
-  );
-  const buyouts = await sql<{
-    requirement_id: string;
-    person_id: string | null;
-    units: string | number;
-  }>`
+    const creditMap = new Map(
+      credits.rows.map((row) => [
+        `${row.requirement_id}:${row.person_id ?? 'household'}`,
+        { completed: Number(row.completed), boughtOut: 0 },
+      ]),
+    );
+    const buyouts = await sql<{
+      requirement_id: string;
+      person_id: string | null;
+      units: string | number;
+    }>`
       SELECT requirement_id, person_id, sum(units) AS units
       FROM volunteer_buyouts
       WHERE org_id = ${context.orgId}::uuid
@@ -823,72 +817,76 @@ async function householdVolunteerLedgerInTransaction(
         AND requirement_id = ANY(${requirementIds}::uuid[])
       GROUP BY requirement_id, person_id
     `.execute(trx);
-  for (const row of buyouts.rows) {
-    const key = `${row.requirement_id}:${row.person_id ?? 'household'}`;
-    const current = creditMap.get(key);
-    creditMap.set(key, {
-      completed: current?.completed ?? 0,
-      boughtOut: Number(row.units),
-    });
-  }
-  const rowsByRequirement = new Map<string, RequirementRow[]>();
-  for (const row of reqRows) {
-    const rows = rowsByRequirement.get(row.requirement_id) ?? [];
-    rows.push(row);
-    rowsByRequirement.set(row.requirement_id, rows);
-  }
-  const items = [...rowsByRequirement.entries()].flatMap(([id, rows]) => {
-    const first = rows[0];
-    if (!first) return [];
-    const today = orgToday(
-      first.timezone,
-      Temporal.Instant.fromEpochMilliseconds(now.getTime()),
-    );
-    const deadline = dateOnly(first.deadline);
-    const targetPersonIds =
-      first.athlete_amount === null
-        ? [null]
-        : [...new Map(rows.map((row) => [row.person_id, row])).values()].map(
-            (row) => row.person_id,
-          );
-    return targetPersonIds.map((personId) => {
-      const required = Number(
-        first.household_amount ?? first.athlete_amount ?? 0,
+    for (const row of buyouts.rows) {
+      const key = `${row.requirement_id}:${row.person_id ?? 'household'}`;
+      const current = creditMap.get(key);
+      creditMap.set(key, {
+        completed: current?.completed ?? 0,
+        boughtOut: Number(row.units),
+      });
+    }
+    const rowsByRequirement = new Map<string, RequirementRow[]>();
+    for (const row of reqRows) {
+      const rows = rowsByRequirement.get(row.requirement_id) ?? [];
+      rows.push(row);
+      rowsByRequirement.set(row.requirement_id, rows);
+    }
+    const items = [...rowsByRequirement.entries()].flatMap(([id, rows]) => {
+      const first = rows[0];
+      if (!first) return [];
+      const today = orgToday(
+        first.timezone,
+        Temporal.Instant.fromEpochMilliseconds(now.getTime()),
       );
-      const perPerson = personId
-        ? (creditMap.get(`${id}:${personId}`) ?? {
-            completed: 0,
-            boughtOut: 0,
-          })
-        : null;
-      const allCredits = personId
-        ? perPerson
-        : (creditMap.get(`${id}:household`) ?? {
-            completed: 0,
-            boughtOut: 0,
-          });
-      const completed = allCredits?.completed ?? 0;
-      const boughtOut = allCredits?.boughtOut ?? 0;
-      const remaining = Math.max(0, required - completed - boughtOut);
-      const price = first.buyout_price_cents;
-      return {
-        requirementId: id,
-        scopeId: first.scope_id,
-        scopeName: first.scope_name,
-        unit: first.unit,
-        subjectPersonId: personId,
-        required,
-        completed,
-        boughtOut,
-        remaining,
-        deadline,
-        buyoutPriceCents: price,
-        buyoutAvailable:
-          price !== null && price > 0 && deadline >= today && remaining > 0,
-      };
+      const deadline = dateOnly(first.deadline);
+      const targetPersonIds =
+        first.athlete_amount === null
+          ? [null]
+          : [...new Map(rows.map((row) => [row.person_id, row])).values()].map(
+              (row) => row.person_id,
+            );
+      return targetPersonIds.map((personId) => {
+        const required = Number(
+          first.household_amount ?? first.athlete_amount ?? 0,
+        );
+        const perPerson = personId
+          ? (creditMap.get(`${id}:${personId}`) ?? {
+              completed: 0,
+              boughtOut: 0,
+            })
+          : null;
+        const allCredits = personId
+          ? perPerson
+          : (creditMap.get(`${id}:household`) ?? {
+              completed: 0,
+              boughtOut: 0,
+            });
+        const completed = allCredits?.completed ?? 0;
+        const boughtOut = allCredits?.boughtOut ?? 0;
+        const remaining = Math.max(0, required - completed - boughtOut);
+        const price = first.buyout_price_cents;
+        return {
+          requirementId: id,
+          scopeId: first.scope_id,
+          scopeName: first.scope_name,
+          unit: first.unit,
+          subjectPersonId: personId,
+          required,
+          completed,
+          boughtOut,
+          remaining,
+          deadline,
+          buyoutPriceCents: price,
+          buyoutAvailable:
+            price !== null && price > 0 && deadline >= today && remaining > 0,
+        };
+      });
     });
-  });
-  return { householdId, items };
+    return { householdId, items };
+  };
+  return transaction
+    ? withOrgInTransaction(transaction, context, readLedger)
+    : createWithOrg(database)(context, readLedger);
 }
 
 export async function buyOutVolunteerRequirement(
@@ -1038,11 +1036,12 @@ async function issueVolunteerBuyout(
         .forUpdate()
         .executeTakeFirst();
       if (!current) throw new VolunteerNotFoundError('Requirement not found');
-      const currentLedger = await householdVolunteerLedgerInTransaction(
-        trx,
+      const currentLedger = await householdVolunteerLedger(
+        database,
         context,
         input.householdId,
         now,
+        trx,
       );
       const latest = currentLedger.items.find(
         (candidate) =>
