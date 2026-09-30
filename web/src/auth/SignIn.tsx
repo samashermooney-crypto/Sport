@@ -1,10 +1,14 @@
-import { authSignInResponseSchema } from '@shared/schemas/auth';
-import { useState } from 'react';
+import {
+  authMeResponseSchema,
+  authSignInResponseSchema,
+} from '@shared/schemas/auth';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
-import { apiPost } from '../api/client';
+import { apiGet, apiPost } from '../api/client';
 import {
   AuthFrame,
   AuthLink,
@@ -23,6 +27,15 @@ export function SignIn(): React.JSX.Element {
   const navigate = useNavigate();
   const { t } = useTranslation('auth');
   const [error, setError] = useState('');
+  // Someone already signed in goes to their account home, not this form.
+  const session = useQuery({
+    queryKey: ['auth', 'me'],
+    queryFn: () => apiGet('/auth/me', authMeResponseSchema),
+    retry: false,
+  });
+  useEffect(() => {
+    if (session.data) void navigate('/me', { replace: true });
+  }, [session.data, navigate]);
   const {
     register,
     handleSubmit,

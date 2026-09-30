@@ -3,6 +3,7 @@ import {
   authMeResponseSchema,
   authStatusResponseSchema,
 } from '@shared/schemas/auth';
+import { myOrganizationsSchema } from '@shared/schemas/orgs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -20,6 +21,12 @@ export function AccountHome(): React.JSX.Element {
   const account = useQuery({
     queryKey: ['auth', 'me'],
     queryFn: () => apiGet('/auth/me', authMeResponseSchema),
+    retry: false,
+  });
+  const organizations = useQuery({
+    queryKey: ['orgs', 'mine'],
+    queryFn: () => apiGet('/orgs/mine', myOrganizationsSchema),
+    enabled: account.isSuccess,
     retry: false,
   });
   const [error, setError] = useState('');
@@ -88,6 +95,18 @@ export function AccountHome(): React.JSX.Element {
       <h1>{t('welcomeAccount', { name: account.data.firstName })}</h1>
       <p>{t('signedInAs', { email: account.data.email })}</p>
       <ErrorBox error={error} />
+      {organizations.data?.length ? (
+        <nav aria-label={t('yourOrganizations')}>
+          <h2>{t('yourOrganizations')}</h2>
+          {organizations.data.map((organization) => (
+            <p className="auth-secondary" key={organization.id}>
+              <AuthLink to={`/console/orgs/${organization.id}`}>
+                {t('openOrganizationConsole', { name: organization.name })}
+              </AuthLink>
+            </p>
+          ))}
+        </nav>
+      ) : null}
       <p className="auth-secondary">
         <AuthLink to="/me/security">{t('accountSecurity')}</AuthLink>
       </p>

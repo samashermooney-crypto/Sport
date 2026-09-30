@@ -17,6 +17,15 @@ export type ShellNavGroup = {
   items: ShellNavItem[];
 };
 
+/** The logo returns to the current workspace home, never the sign-in page. */
+function workspaceHome(pathname: string): string {
+  const workspace = /^\/(console|portal)\/orgs\/([^/]+)/.exec(pathname);
+  if (workspace)
+    return `/${workspace[1] ?? 'console'}/orgs/${workspace[2] ?? ''}`;
+  if (pathname.startsWith('/platform')) return '/platform';
+  return '/me';
+}
+
 export function AppShell({
   orgName,
   orgSwitcher,
@@ -100,7 +109,11 @@ export function AppShell({
       className={`ui-app-shell${mobileTabs?.length ? ' ui-shell-has-tabs' : ''}`}
     >
       <header className="topbar ui-topbar">
-        <Link to="/" className="brand-mark" aria-label={t('brandHome')}>
+        <Link
+          to={workspaceHome(location.pathname)}
+          className="brand-mark"
+          aria-label={t('brandHome')}
+        >
           <span>A</span>
         </Link>
         {orgSwitcher ?? <span className="org-name">{orgName}</span>}
