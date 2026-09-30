@@ -1,5 +1,5 @@
 # Track C — files, adapters, and wiring
-Status: working — federation crawler API requests are covered for all 11 organization roles, and fix/a (`31700147`) plus fix/d (`6212934`) are merged into `track/integration`. C's storage adapter is now injected into web routes and worker jobs; focused tests, typecheck, and lint pass. Hosted verification for the combined head is pending.
+Status: working — federation crawler API requests are covered for all 11 organization roles; fix/a (`31700147`) and fix/d (`6212934`) plus D follow-ups are merged into `track/integration`. C's storage adapter is injected into web routes and worker jobs. Route inventory, timezone validation, and verified-family notification/class portal access fixes are in progress or committed; hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
 Base head for this update: `e5b6e7a3` (`track/integration`). Older integration notes below are retained as historical context.
 Hosted CI: run `36660653200` completed RED on base `e5b6e7a3`. Its e2e log does not show federation bootstrap API failures; QA-ACC-033 instead timed out waiting for the Operations navigation button. The new test and mapping changes await a hosted run; no GREEN result is claimed.
@@ -107,7 +107,7 @@ Open integration work: verify the current combined head in hosted CI, resolve re
 - **QA-QUAL-001 hosted CI follow-up:** run `36640228008` reports Knip RED on QA head `910e0b0c`; retrieve the exact current Knip list and assign any remaining findings before claiming the gate green.
 - **QA-ACC-064:** derive the optional AI client flag from `AI_PROVIDER` and key presence at build time without exposing the key; the C branch implements this and includes configured/disabled state coverage.
 - **QA-ACC-065:** integrate the public website route contract through the shared app, including `/site` SSR and tenant-safe verified custom-domain resolution; verify after the D branch is merged.
-- **QA-ACC-053:** complete the dynamic detail-route inventory with record-derived fixtures for coach/team staff, officials, and volunteers; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-053:** C now generates all registered route patterns with actor-context and synthetic fixture-key expectations, covered by a registration parity test. QA must consume the catalog in its crawler and seed the documented coach/team-staff, assigned-official, and volunteer records; see `docs/codex/qa/DEFECTS.md`.
 - **QA-SEC-001 / QA-SEC-016:** generated operation metadata and same/foreign-tenant fixtures are implemented on C; confirm full current matrix method coverage in the integration CI.
 - **QA-SEC-019:** verify route-level allowed/denied roles and scoped-role boundaries against declared permission-matrix predictions; see `docs/codex/qa/DEFECTS.md`.
 - **QA-ACC-050:** refresh launch-gate evidence against the integration candidate after QA crawler results and hosted CI are available; keep item 10 failed until the all-role route results are current.
@@ -131,6 +131,17 @@ Open integration work: verify the current combined head in hosted CI, resolve re
 - The crawler's non-owner fixtures create a separate active org member with an org-scoped role assignment. `server/test/federationConsoleRoutes.integration.test.ts` now uses that same fixture shape (and seeds the actor's program) when checking the capability-filtered bootstrap API set for all 11 organization roles.
 - The focused real-Postgres test passes 2/2 with `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500` (Postgres `127.0.0.1:5932`); `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` passes. The local fix does not run Playwright.
 - The capability-filtering UI change is already on this branch at `0e6d9ac8`. The supplied `/Users/sammooney/athlentry-sprint/ci/integration.txt` was last updated at 22:00 and reports the prior `e5b6e7a3` run / pending `4b7870fe`, so it does not contain the cited `1f6468e3` / `3dfefb49` crawler failure details or verification for current `d8b1e4dc`. Hosted verification remains pending; no GREEN result is claimed.
+
+## Integration route inventory — 2026-09-29
+
+- `scripts/registry.mjs` now generates a lightweight inventory for all 121 registered web route patterns, including dynamic parameter names, synthetic fixture kinds, source route files, and expected actor contexts. This gives QA a route catalog for unreachable detail pages without importing page components into the crawler.
+- `web/src/generated/registry.test.ts` checks both directions against the registered React Router routes and verifies linked-guardian, coach/team-manager, treasurer, assigned-official, volunteer and platform-staff contexts plus fixture keys. Focused test passes 3/3; guarded typecheck and lint pass. No full suite or Playwright run was started locally.
+- D's public standings embed fix (`835746b3`) was merged in `390625cd`; A has no code commits ahead, only sync merges.
+- D's public sponsor/fundraiser routes and generated-page sitemap updates (`8b48fa19`, `4410b60c`) were merged in `e1e282fc`; generated website coverage awaits hosted CI.
+- The CI-reported Northstar seed zone `America/Minneapolis` is invalid; C changed it to `America/Chicago` and added `validateDemoTimezones()` before seeding. `server/test/demoSeeds.test.ts` passes 2/2, including a failure-message regression for invalid zones; hosted verification is pending.
+- The family `/portal/.../notifications` crawler failure was caused by staff-only membership gating despite the portal route serving verified linked guardians. Notification inbox/preferences now admit a verified active person link in that organization while retaining account-only rows and foreign-org 404 concealment. The real-Postgres `server/src/modules/notifications/routes.test.ts` passes 5/5.
+- The family `/me/orgs/:orgId/classes` route failure was caused by class portal APIs requiring organization membership even for verified linked guardians. Class portal access now accepts active verified self/guardian links, and browse requests verify any person filter belongs to the account. `server/src/modules/classes/classes.integration.test.ts` passes 20/20 against real Postgres, including a guardian with no organization membership, own-child access, and foreign/unlinked denial.
+- Latest integration CI `36670075707` is running on `95faf321`; the last completed run `36668726068` on `30555e56` is RED in e2e for two family classes pages and the invalid Northstar timezone. The timezone correction is included in the current running run; class/notification and D website changes are newer and still await hosted verification.
 
 ## Current integration follow-up — 2026-09-29
 

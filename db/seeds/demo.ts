@@ -208,7 +208,7 @@ const ORGS: OrgSpec[] = [
     slug: 'northstar-gymnastics-swim',
     name: 'Northstar Gymnastics & Swim Academy',
     kind: 'academy',
-    timezone: 'America/Minneapolis',
+    timezone: 'America/Chicago',
     city: 'Minneapolis',
     state: 'MN',
     sports: ['gymnastics', 'swimming'],
@@ -760,7 +760,22 @@ async function seedFederationMembers(
   }
 }
 
+export function validateDemoTimezones(
+  orgs: readonly Pick<OrgSpec, 'slug' | 'timezone'>[] = ORGS,
+): void {
+  for (const org of orgs) {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: org.timezone });
+    } catch {
+      throw new Error(
+        `Invalid IANA time zone "${org.timezone}" for demo organization ${org.slug}`,
+      );
+    }
+  }
+}
+
 export async function seedDemo(database: Kysely<DB>): Promise<void> {
+  validateDemoTimezones();
   const passwordHash = await hashPassword('Athlentry-Demo-2026!');
   const withOrg = createWithOrg(database);
 
