@@ -76,7 +76,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 1. Have C merge the committed `fix/d` changes into `track/integration`; then inspect the next CI run and confirm `ui-team-1440` passes with the exact hosted Linux snapshot.
 2. Fix any newly reported D-owned console/website failures; run `36656899590` contains no D-owned Phase 14 failure, and all six website console/embed test files pass individually on `fix/d`.
 3. Finish the remaining D-owned Phase 14 QA requests for export expiry, privacy photo cleanup, stored-XSS coverage, and configured shared storage; the shared `/site` mount and custom-domain route are present on integration, pending hosted validation.
-4. Rerun public-site Lighthouse against the shared `createApp` mount under CI, then complete the documented manual keyboard journeys where routes are available.
+4. Add the requested Lighthouse dependency when available, then rerun public-site Lighthouse against the shared `createApp` mount under CI; complete the documented manual keyboard journeys where routes are available.
 
 ## Open requests and blockers
 
@@ -98,3 +98,4 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 - QA-ACC-065: implementation is present on `track/integration` (`website.moduleDefinition.publicRouter` is mounted by `createApp`); the website integration regression now uses the shared app and verifies a published site, verified custom domain, host-root SEO aliases, and pending-domain rejection. Await hosted validation and repeat Lighthouse against this mount; the currently committed scores use the direct router.
 - QA-ACC-067: the 390px legacy-shell mismatch from run `36640228008` does not appear in runs `36653551397` or `36656899590`; the latest hosted run has no legacy-shell or public-site shell failure. Its `ui-team-1440` mismatch is the stale integration baseline: both retry actuals match the replacement Linux image committed as `ea9b9c7d`. The earlier missing `ui-core-1440` Linux snapshot is present on integration `2ec7c9a2`. Keep tolerances and design tokens unchanged. See `docs/codex/qa/DEFECTS.md`.
+- Phase 14 Lighthouse repeat needs the exact dev dependency `lighthouse@13.5.0`. `npm install --save-dev --save-exact lighthouse@13.5.0` could not resolve `registry.npmjs.org` (`ENOTFOUND`); offline install has no cached package metadata (`ENOTCACHED`). No package files were changed. Owner: install the exact dependency when registry access is available; D will add the shared-app audit and commit its CI results.
