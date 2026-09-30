@@ -14,5 +14,18 @@
   "newsPostUnavailableDescription": "No se pudo cargar esta noticia publicada.",
   "newsBackToList": "Todas las noticias",
   "administratorSignIn": "Iniciar sesión como administrador",
-  "accessibilityStatement": "Declaración de accesibilidad"
+  "accessibilityStatement": "Declaración de accesibilidad",
+  "teamsEyebrow": "Programas y equipos",
+  "teamsTitle": "Equipos",
+  "teamsHeading": "Equipos públicos",
+  "teamsEmpty": "Todavía no hay equipos públicos.",
+  "teamsUnavailableDescription": "No se pudieron cargar los equipos públicos.",
+  "loadingTeams": "Cargando equipos públicos…",
+  "teamUnavailable": "Equipo no disponible",
+  "teamUnavailableDescription": "Este equipo no está publicado o no se pudo cargar.",
+  "teamDetails": "Detalles del equipo",
+  "teamProgram": "Programa",
+  "teamDivision": "División",
+  "teamSeason": "Temporada",
+  "allTeams": "Todos los equipos"
 }

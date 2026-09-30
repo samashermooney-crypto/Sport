@@ -699,7 +699,7 @@ export async function saveWebsitePage(
 ) {
   const body = websitePageBodySchema.parse(bodyInput);
   if (
-    ['news', 'programs', 'schedule'].some(
+    ['news', 'programs', 'schedule', 'teams'].some(
       (reserved) =>
         body.slug === reserved || body.slug.startsWith(`${reserved}/`),
     )
@@ -955,6 +955,10 @@ export async function getPublicWebsiteChrome(
         href: `/site/${organization.slug}/programs`,
       },
       {
+        label: locale === 'es' ? 'Equipos' : 'Teams',
+        href: `/site/${organization.slug}/teams`,
+      },
+      {
         label: locale === 'es' ? 'Calendario' : 'Schedule',
         href: `/site/${organization.slug}/schedule`,
       },
@@ -1086,6 +1090,114 @@ export async function getPublicWebsitePrograms(
       endsOn: publicProgramDate(program.ends_on),
       seasonName: program.seasonName,
     })),
+  };
+}
+
+function publicWebsiteTeamsQuery(trx: OrgTransaction, orgId: string) {
+  return trx
+    .selectFrom('team_seasons as ts')
+    .innerJoin('teams as team', (join) =>
+      join
+        .onRef('team.org_id', '=', 'ts.org_id')
+        .onRef('team.id', '=', 'ts.team_id'),
+    )
+    .innerJoin('programs as program', (join) =>
+      join
+        .onRef('program.org_id', '=', 'ts.org_id')
+        .onRef('program.id', '=', 'ts.program_id'),
+    )
+    .innerJoin('seasons as season', (join) =>
+      join
+        .onRef('season.org_id', '=', 'program.org_id')
+        .onRef('season.id', '=', 'program.season_id'),
+    )
+    .innerJoin('divisions as division', (join) =>
+      join
+        .onRef('division.org_id', '=', 'ts.org_id')
+        .onRef('division.id', '=', 'ts.division_id')
+        .onRef('division.program_id', '=', 'program.id'),
+    )
+    .select([
+      'ts.id',
+      sql<string>`coalesce(nullif(ts.display_name, ''), nullif(team.short_name, ''), team.name)`.as(
+        'name',
+      ),
+      'program.slug as programSlug',
+      'program.name as programName',
+      'season.name as seasonName',
+      'division.name as divisionName',
+      sql<string | null>`coalesce(division.age_label, team.age_label)`.as(
+        'ageLabel',
+      ),
+      'ts.status as status',
+    ])
+    .where('ts.org_id', '=', orgId)
+    .where('program.visibility', '=', 'public')
+    .where('program.status', 'in', publicProgramStatuses)
+    .where('team.status', '=', 'active')
+    .where('ts.status', 'in', ['active', 'completed']);
+}
+
+/** Lists only public team-season labels; roster and staff identities stay private. */
+export async function getPublicWebsiteTeams(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const site = await getPublicWebsiteChrome(database, orgSlug, runWithOrg);
+  if (!site) return null;
+  const teams = await runWithOrg(
+    { orgId: site.organization.id, actor: { accountId: publicActor } },
+    (trx) =>
+      publicWebsiteTeamsQuery(trx, site.organization.id)
+        .orderBy('program.starts_on', 'asc')
+        .orderBy('division.name', 'asc')
+        .orderBy('name', 'asc')
+        .limit(200)
+        .execute(),
+  );
+  return {
+    organization: {
+      name: site.organization.name,
+      slug: site.organization.slug,
+      locale: site.organization.locale,
+    },
+    theme: site.theme,
+    robotsPolicy: site.robotsPolicy,
+    navigation: site.navigation,
+    footerNavigation: site.footerNavigation,
+    teams,
+  };
+}
+
+/** Resolves a roster-free public team-season detail page. */
+export async function getPublicWebsiteTeam(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  teamSeasonId: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const site = await getPublicWebsiteChrome(database, orgSlug, runWithOrg);
+  if (!site) return null;
+  const team = await runWithOrg(
+    { orgId: site.organization.id, actor: { accountId: publicActor } },
+    (trx) =>
+      publicWebsiteTeamsQuery(trx, site.organization.id)
+        .where('ts.id', '=', teamSeasonId)
+        .executeTakeFirst(),
+  );
+  if (!team) return null;
+  return {
+    organization: {
+      name: site.organization.name,
+      slug: site.organization.slug,
+      locale: site.organization.locale,
+    },
+    theme: site.theme,
+    robotsPolicy: site.robotsPolicy,
+    navigation: site.navigation,
+    footerNavigation: site.footerNavigation,
+    team,
   };
 }
 

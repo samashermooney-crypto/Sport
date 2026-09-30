@@ -10,6 +10,7 @@ import express from 'express';
 import { createElement } from 'react';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { z } from 'zod';
 
 import { createWithOrg } from '../../db/withOrg';
 import type { AuthDependencies } from '../auth/routes';
@@ -21,6 +22,8 @@ import {
   getPublicWebsiteChrome,
   getPublicWebsiteFacilities,
   getPublicWebsiteFundraisers,
+  getPublicWebsiteTeam,
+  getPublicWebsiteTeams,
   getPublicWebsiteRobotsPolicy,
   getPublicWebsiteProgram,
   getPublicWebsitePrograms,
@@ -94,7 +97,7 @@ function normalizedSiteHostname(hostname: string | undefined): string | null {
 }
 
 function isInteractiveGeneratedSitePath(path: string): boolean {
-  return /^(?:standings|brackets|facilities)\/[^/]+$/.test(path);
+  return /^(?:standings|brackets|facilities|teams)\/[^/]+$/.test(path);
 }
 
 async function resolveSiteSlug(
@@ -126,6 +129,7 @@ function publicSiteSitemap(
   facilities: NonNullable<
     Awaited<ReturnType<typeof getPublicWebsiteFacilities>>
   >,
+  teams: NonNullable<Awaited<ReturnType<typeof getPublicWebsiteTeams>>>,
 ): string {
   const origin = `https://${hostname}`;
   const shouldIndex = news.robotsPolicy === 'index';
@@ -142,12 +146,16 @@ function publicSiteSitemap(
         `${origin}/sponsors`,
         `${origin}/facilities`,
         `${origin}/fundraisers`,
+        `${origin}/teams`,
         ...programs.programs.map(
           (program) => `${origin}/programs/${encodeURIComponent(program.slug)}`,
         ),
         ...facilities.facilities.map(
           (facility) =>
             `${origin}/facilities/${encodeURIComponent(facility.id)}`,
+        ),
+        ...teams.teams.map(
+          (team) => `${origin}/teams/${encodeURIComponent(team.id)}`,
         ),
         ...news.posts.map(
           (post) => `${origin}/news/${encodeURIComponent(post.slug)}`,
@@ -242,7 +250,7 @@ function createSiteHostRouter(
               .send(publicSiteRobots(hostname, robots.robotsPolicy));
             return;
           }
-          const [pages, news, programs, fundraisers, facilities] =
+          const [pages, news, programs, fundraisers, facilities, teams] =
             await Promise.all([
               listPublicWebsitePages(dependencies.database, orgSlug, withOrg),
               listPublicWebsiteNews(dependencies.database, orgSlug, withOrg),
@@ -257,8 +265,16 @@ function createSiteHostRouter(
                 orgSlug,
                 withOrg,
               ),
+              getPublicWebsiteTeams(dependencies.database, orgSlug, withOrg),
             ]);
-          if (!pages || !news || !programs || !fundraisers || !facilities) {
+          if (
+            !pages ||
+            !news ||
+            !programs ||
+            !fundraisers ||
+            !facilities ||
+            !teams
+          ) {
             response.sendStatus(404);
             return;
           }
@@ -273,6 +289,7 @@ function createSiteHostRouter(
                 programs,
                 fundraisers,
                 facilities,
+                teams,
               ),
             );
           return;
@@ -1348,6 +1365,126 @@ function renderPublicFacilitiesDocument(
   });
 }
 
+function renderPublicTeamsDocument(
+  site: NonNullable<Awaited<ReturnType<typeof getPublicWebsiteTeams>>>,
+  address: SiteAddress,
+) {
+  const spanish = site.organization.locale === 'es';
+  const title = `${spanish ? 'Equipos' : 'Teams'} · ${site.organization.name}`;
+  const description = spanish
+    ? `Equipos de programas públicos de ${site.organization.name}.`
+    : `Teams from public programs at ${site.organization.name}.`;
+  const listItems = site.teams.map((team) =>
+    createElement(
+      'li',
+      { key: team.id },
+      createElement(
+        'a',
+        {
+          href: `/site/${site.organization.slug}/teams/${encodeURIComponent(team.id)}`,
+        },
+        team.name,
+      ),
+      createElement(
+        'p',
+        null,
+        `${team.programName} · ${team.divisionName}${team.ageLabel ? ` · ${team.ageLabel}` : ''} · ${team.seasonName}`,
+      ),
+    ),
+  );
+  return renderGeneratedSitePage(site, address, {
+    title,
+    description,
+    canonicalPath: `/site/${site.organization.slug}/teams`,
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: title,
+      description,
+      url: `https://${site.organization.slug}.athlentry.com/site/${site.organization.slug}/teams`,
+      mainEntity: {
+        '@type': 'ItemList',
+        itemListElement: site.teams.map((team, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          item: {
+            '@type': 'SportsTeam',
+            name: team.name,
+            sport: team.programName,
+          },
+        })),
+      },
+    },
+    main: createElement(
+      'main',
+      { id: 'main-content', className: 'public-site-main' },
+      createElement('h1', null, spanish ? 'Equipos' : 'Teams'),
+      site.teams.length
+        ? createElement('ul', null, ...listItems)
+        : createElement(
+            'p',
+            null,
+            spanish
+              ? 'Todavía no hay equipos públicos.'
+              : 'There are no public teams listed yet.',
+          ),
+    ),
+  });
+}
+
+function renderPublicTeamDocument(
+  site: NonNullable<Awaited<ReturnType<typeof getPublicWebsiteTeam>>>,
+  address: SiteAddress,
+) {
+  const spanish = site.organization.locale === 'es';
+  const title = `${site.team.name} · ${site.organization.name}`;
+  const description = spanish
+    ? `${site.team.programName}, ${site.team.divisionName}, ${site.team.seasonName}.`
+    : `${site.team.programName}, ${site.team.divisionName}, ${site.team.seasonName}.`;
+  const canonicalPath = `/site/${site.organization.slug}/teams/${encodeURIComponent(site.team.id)}`;
+  return renderGeneratedSitePage(site, address, {
+    title,
+    description,
+    canonicalPath,
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'SportsTeam',
+      name: site.team.name,
+      sport: site.team.programName,
+      url: `https://${site.organization.slug}.athlentry.com${canonicalPath}`,
+    },
+    main: createElement(
+      'main',
+      { id: 'main-content', className: 'public-site-main' },
+      createElement('p', null, spanish ? 'Programa público' : 'Public program'),
+      createElement('h1', null, site.team.name),
+      createElement(
+        'dl',
+        null,
+        createElement('dt', null, spanish ? 'Programa' : 'Program'),
+        createElement('dd', null, site.team.programName),
+        createElement('dt', null, spanish ? 'División' : 'Division'),
+        createElement(
+          'dd',
+          null,
+          `${site.team.divisionName}${site.team.ageLabel ? ` · ${site.team.ageLabel}` : ''}`,
+        ),
+        createElement('dt', null, spanish ? 'Temporada' : 'Season'),
+        createElement('dd', null, site.team.seasonName),
+      ),
+      createElement(
+        'p',
+        null,
+        createElement(
+          'a',
+          { href: `/site/${site.organization.slug}/teams` },
+          spanish ? 'Todos los equipos' : 'All teams',
+        ),
+      ),
+    ),
+  });
+}
+
 function fundraiserDescription(descriptionHtml: string): string {
   return descriptionHtml
     .replace(/<[^>]*>/g, ' ')
@@ -1650,6 +1787,73 @@ export function createSiteSsrRouter(
 ): express.Router {
   const router = express.Router();
   const withOrg = createWithOrg(dependencies.database);
+  router.get('/:orgSlug/teams/:teamSeasonId', (request, response, next) => {
+    if (request.query.app === '1') {
+      next();
+      return;
+    }
+    const orgSlug = orgSlugSchema.safeParse(request.params.orgSlug);
+    const teamSeasonId = z.uuid().safeParse(request.params.teamSeasonId);
+    if (!orgSlug.success || !teamSeasonId.success) {
+      response.sendStatus(404);
+      return;
+    }
+    void getPublicWebsiteTeam(
+      dependencies.database,
+      orgSlug.data,
+      teamSeasonId.data,
+      withOrg,
+    )
+      .then((site) => {
+        if (!site) {
+          response.sendStatus(404);
+          return;
+        }
+        response
+          .setHeader(
+            'Cache-Control',
+            'public, max-age=60, stale-while-revalidate=300',
+          )
+          .type('html')
+          .send(
+            renderPublicTeamDocument(site, siteAddress(response, orgSlug.data)),
+          );
+      })
+      .catch(() => response.sendStatus(500));
+  });
+  router.get('/:orgSlug/teams', (request, response, next) => {
+    if (request.query.app === '1') {
+      next();
+      return;
+    }
+    const orgSlug = orgSlugSchema.safeParse(request.params.orgSlug);
+    if (!orgSlug.success) {
+      response.sendStatus(404);
+      return;
+    }
+    void getPublicWebsiteTeams(dependencies.database, orgSlug.data, withOrg)
+      .then((site) => {
+        if (!site) {
+          response.sendStatus(404);
+          return;
+        }
+        response
+          .setHeader(
+            'Cache-Control',
+            'public, max-age=60, stale-while-revalidate=300',
+          )
+          .type('html')
+          .send(
+            renderPublicTeamsDocument(
+              site,
+              siteAddress(response, orgSlug.data),
+            ),
+          );
+      })
+      .catch((error: unknown) => {
+        next(error);
+      });
+  });
   router.get('/:orgSlug/facilities', (request, response, next) => {
     if (request.query.app === '1') {
       next();
