@@ -10,6 +10,7 @@ import {
   productionAuthConfig,
 } from './config';
 import { TurnstileCaptcha } from './integrations/captcha/provider';
+import { S3Storage } from './integrations/storage/storage';
 
 describe('local VAPID key storage', () => {
   it('creates a fresh key once and exposes only its public half', async () => {
@@ -57,6 +58,11 @@ describe('production auth configuration', () => {
       TURNSTILE_SITE_KEY: 'test-site-key',
       TURNSTILE_SECRET_KEY: 'test-secret-key',
       VAPID_PUBLIC_KEY: 'test-public-key',
+      S3_ENDPOINT: 'https://objects.example.test',
+      S3_REGION: 'auto',
+      S3_BUCKET: 'private-athlentry-test',
+      S3_ACCESS_KEY_ID: 'test-access-key',
+      S3_SECRET_ACCESS_KEY: 'test-secret-key',
     });
     try {
       const dependencies = await createLocalAuthDependencies();
@@ -65,6 +71,7 @@ describe('production auth configuration', () => {
         mode: 'turnstile',
         siteKey: 'test-site-key',
       });
+      expect(dependencies.storage).toBeInstanceOf(S3Storage);
       await dependencies.rateLimits.close();
       await dependencies.database.destroy();
     } finally {

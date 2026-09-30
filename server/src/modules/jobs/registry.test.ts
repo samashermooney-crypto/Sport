@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { serverModules } from '../../generated/registry';
-import type { ServerModule } from '../../lib/module-contract';
+import type {
+  JobRuntimeDependencies,
+  ServerModule,
+} from '../../lib/module-contract';
 
 import {
   processCredentialExpiryForOrganizations,
@@ -37,7 +40,9 @@ describe('job registry', () => {
       'jobs.probe',
       'ops.alert-check',
     ]);
-    await expect(jobs[0]?.run({})).resolves.toEqual({ healthy: true });
+    await expect(
+      jobs[0]?.run({}, {} as JobRuntimeDependencies),
+    ).resolves.toEqual({ healthy: true });
   });
 
   it('rejects missing handlers, duplicate names and malformed schedules', () => {

@@ -1,9 +1,9 @@
 # Track C — files, adapters, and wiring
-Status: working — federation bootstrap requests now share one capability map with the all-role API regression test. Focused real-Postgres verification (2/2), typecheck, and lint pass; hosted verification for this change is pending.
+Status: working — federation crawler API requests are covered for all 11 organization roles, and fix/a (`31700147`) plus fix/d (`6212934`) are merged into `track/integration`. C's storage adapter is now injected into web routes and worker jobs; focused tests, typecheck, and lint pass. Hosted verification for the combined head is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
 Base head for this update: `e5b6e7a3` (`track/integration`). Older integration notes below are retained as historical context.
 Hosted CI: run `36660653200` completed RED on base `e5b6e7a3`. Its e2e log does not show federation bootstrap API failures; QA-ACC-033 instead timed out waiting for the Operations navigation button. The new test and mapping changes await a hosted run; no GREEN result is claimed.
-Open integration work: verify this exact update in hosted CI and continue resolving the remaining launch-gate and cross-track failures below.
+Open integration work: verify the current combined head in hosted CI, resolve remaining owned failures, and continue the launch-gate work below.
 
 ## Completed Track C work
 
@@ -131,3 +131,10 @@ Open integration work: verify this exact update in hosted CI and continue resolv
 - The crawler's non-owner fixtures create a separate active org member with an org-scoped role assignment. `server/test/federationConsoleRoutes.integration.test.ts` now uses that same fixture shape (and seeds the actor's program) when checking the capability-filtered bootstrap API set for all 11 organization roles.
 - The focused real-Postgres test passes 2/2 with `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500` (Postgres `127.0.0.1:5932`); `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` passes. The local fix does not run Playwright.
 - The capability-filtering UI change is already on this branch at `0e6d9ac8`. The supplied `/Users/sammooney/athlentry-sprint/ci/integration.txt` was last updated at 22:00 and reports the prior `e5b6e7a3` run / pending `4b7870fe`, so it does not contain the cited `1f6468e3` / `3dfefb49` crawler failure details or verification for current `d8b1e4dc`. Hosted verification remains pending; no GREEN result is claimed.
+
+## Current integration follow-up — 2026-09-29
+
+- The focused real-Postgres federation API test passes 2/2 on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500` (Postgres `127.0.0.1:5932`). It sends the same capability-approved bootstrap requests as the console for all 11 crawler roles; every allowed request returns 200 and protected resources remain concealed. The capability filter is committed at `0e6d9ac8`, with crawler-shaped membership fixtures at `4d15f738`.
+- The current checked CI snapshot was run `36663830530` on `4d15f738`; its remaining e2e errors are family documents, classes, and invalid `America/Minneapolis` timezone data. It shows no Federation API failures. The family/class fixes are now integrated from A and D at `31700147` and `6212934`; hosted verification of those merge commits is pending.
+- Track D's storage-adapter wiring request is implemented across production web and worker startup. Environment-selected private S3 storage reaches mounted Files and Exports routes and registered jobs; jobs receive the configured storage, database, clock, and `withOrg` runner. Local development retains local disk and tests can select memory storage.
+- Targeted checks pass: storage adapter (9/9), production config (3/3), worker runtime injection (1/1), job registry (4/4), and Federation API (2/2). `heavy.sh npm run typecheck` and `heavy.sh npm run lint` pass. The merge hooks also passed typecheck after both A and D integrations. Full suites and Playwright remain for hosted CI.

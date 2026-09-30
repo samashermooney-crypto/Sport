@@ -14,6 +14,11 @@ import {
   createMailpitEmailSender,
   createResendEmailSender,
 } from './integrations/email/sender';
+import {
+  createStorageAdapter,
+  storageConfigFromEnvironment,
+} from './integrations/storage/config';
+import type { Storage } from './integrations/storage/storage';
 import { parseEncryptionKeys } from './lib/crypto';
 import type { EncryptionKeys } from './lib/crypto';
 import { createAuthRateLimits } from './modules/auth/rate-limits';
@@ -124,7 +129,11 @@ export function productionAuthConfig(
   return result.data;
 }
 
-export async function createLocalAuthDependencies(): Promise<AuthDependencies> {
+export async function createLocalAuthDependencies(): Promise<
+  AuthDependencies & { storage: Storage }
+> {
+  const storageConfig = storageConfigFromEnvironment(process.env);
+  const storage = createStorageAdapter(storageConfig);
   const localIntegrationConfig: Record<string, unknown> = {
     'background-check': { mode: 'manual' },
     email: {
@@ -135,7 +144,7 @@ export async function createLocalAuthDependencies(): Promise<AuthDependencies> {
     geocoder: { mode: 'none' },
     push: { mode: 'preview' },
     sms: { mode: 'preview' },
-    storage: { mode: 'local', directory: 'data/uploads' },
+    storage: storageConfig,
   };
   for (const integration of integrationConfigs) {
     integration.schema.parse(localIntegrationConfig[integration.name]);
@@ -166,6 +175,7 @@ export async function createLocalAuthDependencies(): Promise<AuthDependencies> {
     const config = productionAuthConfig(process.env);
     return {
       database: getDatabase(),
+      storage,
       rateLimits: createAuthRateLimits(config.databaseUrl),
       email: createResendEmailSender({
         apiKey: config.resendApiKey,
@@ -197,6 +207,7 @@ export async function createLocalAuthDependencies(): Promise<AuthDependencies> {
       : await localEncryptionKeys();
   return {
     database: getDatabase(),
+    storage,
     rateLimits: createAuthRateLimits(
       process.env.DATABASE_URL ??
         'postgres://athlentry_app@127.0.0.1:5432/athlentry_dev',

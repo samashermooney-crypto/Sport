@@ -4,7 +4,57 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { LocalDiskStorage, MemoryStorage, createStorageKey } from './storage';
+import { createStorageAdapter, storageConfigFromEnvironment } from './config';
+import {
+  LocalDiskStorage,
+  MemoryStorage,
+  S3Storage,
+  createStorageKey,
+} from './storage';
+
+describe('storage configuration', () => {
+  it('uses local storage in development and supports an explicit directory', () => {
+    const config = storageConfigFromEnvironment({
+      NODE_ENV: 'development',
+      ATHLENTRY_STORAGE_DIRECTORY: '/tmp/athlentry-uploads',
+    });
+    expect(config).toEqual({
+      mode: 'local',
+      directory: '/tmp/athlentry-uploads',
+    });
+    expect(createStorageAdapter(config)).toBeInstanceOf(LocalDiskStorage);
+  });
+
+  it('requires complete private S3 configuration in production', () => {
+    expect(() =>
+      storageConfigFromEnvironment({ NODE_ENV: 'production' }),
+    ).toThrow('Production requires private S3-compatible storage');
+    expect(() =>
+      storageConfigFromEnvironment({
+        S3_ENDPOINT: 'https://objects.example.test',
+      }),
+    ).toThrow('S3 storage configuration is incomplete');
+  });
+
+  it('creates the S3 adapter from the configured private endpoint', () => {
+    const config = storageConfigFromEnvironment({
+      NODE_ENV: 'production',
+      S3_ENDPOINT: 'https://objects.example.test',
+      S3_REGION: 'auto',
+      S3_BUCKET: 'private-athlentry-test',
+      S3_ACCESS_KEY_ID: 'test-access-key',
+      S3_SECRET_ACCESS_KEY: 'test-secret-key',
+    });
+    expect(config.mode).toBe('s3');
+    expect(createStorageAdapter(config)).toBeInstanceOf(S3Storage);
+  });
+
+  it('keeps memory storage available for isolated tests', () => {
+    expect(createStorageAdapter({ mode: 'memory' })).toBeInstanceOf(
+      MemoryStorage,
+    );
+  });
+});
 
 describe('storage adapters', () => {
   it('roundtrips bytes in memory storage', async () => {
