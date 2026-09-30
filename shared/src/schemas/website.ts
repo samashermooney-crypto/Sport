@@ -139,6 +139,49 @@ export const websitePublicFacilitiesSchema = z.strictObject({
   ),
 });
 
+const websitePublicTeamSummarySchema = z.strictObject({
+  id: z.uuid(),
+  name: z.string(),
+  programSlug: z.string(),
+  programName: z.string(),
+  seasonName: z.string(),
+  divisionName: z.string(),
+  ageLabel: z.string().nullable(),
+  status: z.enum(['active', 'completed']),
+});
+
+export const websitePublicTeamsSchema = z.strictObject({
+  organization: z.strictObject({
+    name: z.string(),
+    slug: z.string(),
+    locale: z.enum(['en', 'es']),
+  }),
+  theme: z.strictObject({
+    primary: z.string().regex(/^#[0-9a-f]{6}$/i),
+    secondary: z.string().regex(/^#[0-9a-f]{6}$/i),
+  }),
+  robotsPolicy: z.enum(['index', 'noindex']),
+  navigation: z.array(websiteMenuItemSchema),
+  footerNavigation: z.array(websiteMenuItemSchema),
+  teams: z.array(websitePublicTeamSummarySchema),
+});
+
+export const websitePublicTeamSchema = z.strictObject({
+  organization: z.strictObject({
+    name: z.string(),
+    slug: z.string(),
+    locale: z.enum(['en', 'es']),
+  }),
+  theme: z.strictObject({
+    primary: z.string().regex(/^#[0-9a-f]{6}$/i),
+    secondary: z.string().regex(/^#[0-9a-f]{6}$/i),
+  }),
+  robotsPolicy: z.enum(['index', 'noindex']),
+  navigation: z.array(websiteMenuItemSchema),
+  footerNavigation: z.array(websiteMenuItemSchema),
+  team: websitePublicTeamSummarySchema,
+});
+
 export const websiteNewsSlugSchema = z
   .string()
   .trim()

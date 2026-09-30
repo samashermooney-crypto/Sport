@@ -14,5 +14,18 @@
   "newsPostUnavailableDescription": "This published news post could not be loaded.",
   "newsBackToList": "All news",
   "administratorSignIn": "Administrator sign in",
-  "accessibilityStatement": "Accessibility statement"
+  "accessibilityStatement": "Accessibility statement",
+  "teamsEyebrow": "Programs and teams",
+  "teamsTitle": "Teams",
+  "teamsHeading": "Public teams",
+  "teamsEmpty": "There are no public teams listed yet.",
+  "teamsUnavailableDescription": "Public teams could not be loaded.",
+  "loadingTeams": "Loading public teams…",
+  "teamUnavailable": "Team unavailable",
+  "teamUnavailableDescription": "This team is not published or could not be loaded.",
+  "teamDetails": "Team details",
+  "teamProgram": "Program",
+  "teamDivision": "Division",
+  "teamSeason": "Season",
+  "allTeams": "All teams"
 }

@@ -7103,6 +7103,22 @@ export const apiRouteMetadata = [
     scope: 'public',
   },
   {
+    operationId: 'get_api_v1_website_public_orgSlug_teams',
+    method: 'get',
+    path: '/api/v1/website/public/{orgSlug}/teams',
+    permission: 'public.access',
+    resource: 'website.website.public',
+    scope: 'public',
+  },
+  {
+    operationId: 'get_api_v1_website_public_orgSlug_teams_teamSeasonId',
+    method: 'get',
+    path: '/api/v1/website/public/{orgSlug}/teams/{teamSeasonId}',
+    permission: 'public.access',
+    resource: 'website.website.public',
+    scope: 'public',
+  },
+  {
     operationId: 'get_api_v1_website_public_orgSlug_embeds_publicKey',
     method: 'get',
     path: '/api/v1/website/public/{orgSlug}/embeds/{publicKey}',

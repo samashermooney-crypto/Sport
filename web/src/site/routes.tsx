@@ -23,6 +23,16 @@ const PublicSiteFacilitiesPage = lazy(() =>
     ({ PublicSiteFacilitiesPage: component }) => ({ default: component }),
   ),
 );
+const PublicTeamsPage = lazy(() =>
+  import('./PublicTeamsPage').then(({ PublicTeamsPage: component }) => ({
+    default: component,
+  })),
+);
+const PublicTeamPage = lazy(() =>
+  import('./PublicTeamsPage').then(({ PublicTeamPage: component }) => ({
+    default: component,
+  })),
+);
 const PublicSiteNewsPostPage = lazy(() =>
   import('./PublicSiteNewsPostPage').then(
     ({ PublicSiteNewsPostPage: component }) => ({ default: component }),
@@ -94,6 +104,22 @@ export const siteRoutes: readonly RouteObject[] = [
     element: (
       <SiteRouteSuspense>
         <SitePage />
+      </SiteRouteSuspense>
+    ),
+  },
+  {
+    path: '/site/:orgSlug/teams/:teamSeasonId',
+    element: (
+      <SiteRouteSuspense>
+        <PublicTeamPage />
+      </SiteRouteSuspense>
+    ),
+  },
+  {
+    path: '/site/:orgSlug/teams',
+    element: (
+      <SiteRouteSuspense>
+        <PublicTeamsPage />
       </SiteRouteSuspense>
     ),
   },

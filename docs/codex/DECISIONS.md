@@ -1075,3 +1075,11 @@
 - **Decision:** Add an English/Spanish “Skip to content” link that remains offscreen until focused, then targets the existing main region. Keep the legacy page colors, typography, dimensions, and resting layout unchanged.
 - **Why:** Keyboard users can bypass repeated site navigation while the existing visual design and parity references remain intact.
 - **Consequences / follow-ups:** The generated and news SSR templates and React CMS/news shells share the same focus-only treatment; integration tests verify link and main target markup. No design tokens or parity thresholds change.
+
+### DEC-143 — Keep public team pages roster-free until consent contracts exist
+- **Date:** 2026-09-30
+- **Phase / area:** Phase 14 public website
+- **Context:** The public website needs generated team-season index and detail pages, while the team roster visibility and child media-consent contract is still owned by Track B.
+- **Decision:** Publish team-season labels only when their program is public and in an eligible public lifecycle status, the team is active, and the team-season is active or completed. Include the program, season, division, and age labels; do not return roster, staff, person identifiers, photos, or location details.
+- **Why:** The public program setting supports discoverability while avoiding publication of children or staff before their visibility and consent rules are available.
+- **Consequences / follow-ups:** Keep roster and staff data off these pages. Add any people only after Track B supplies the roster-visibility and media-consent API contract; staff directory publication also requires Track A's explicit opt-in contract.

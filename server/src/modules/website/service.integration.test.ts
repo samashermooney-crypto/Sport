@@ -21,6 +21,8 @@ import {
   markWebsiteContactSubmissionsRead,
   getPublicWebsiteProgram,
   getPublicWebsitePrograms,
+  getPublicWebsiteTeam,
+  getPublicWebsiteTeams,
   getPublicWebsiteSchedule,
   getPublicWebsiteEmbed,
   getPublicWebsitePage,
@@ -1092,6 +1094,12 @@ describe('website page service', () => {
     const sportProfileId = randomUUID();
     const publicProgramId = randomUUID();
     const privateProgramId = randomUUID();
+    const publicDivisionId = randomUUID();
+    const privateDivisionId = randomUUID();
+    const publicTeamId = randomUUID();
+    const privateTeamId = randomUUID();
+    const publicTeamSeasonId = randomUUID();
+    const privateTeamSeasonId = randomUUID();
     const publicOfferingId = randomUUID();
     const publicEventId = randomUUID();
     const privateEventId = randomUUID();
@@ -1133,6 +1141,39 @@ describe('website page service', () => {
         `INSERT INTO registration_offerings (id, org_id, program_id, name, registrant_role, visibility, active)
          VALUES ($1, $2, $3, 'Player registration', 'athlete', 'public', true)`,
         [publicOfferingId, orgId, publicProgramId],
+      );
+      await admin.query(
+        `INSERT INTO divisions (id, org_id, program_id, name, age_label)
+         VALUES ($1, $2, $3, 'Open', 'U12'), ($4, $2, $5, 'Private', 'U16')`,
+        [
+          publicDivisionId,
+          orgId,
+          publicProgramId,
+          privateDivisionId,
+          privateProgramId,
+        ],
+      );
+      await admin.query(
+        `INSERT INTO teams (id, org_id, name, sport_profile_id, status)
+         VALUES ($1, $2, 'Open Soccer Blue', $3, 'active'),
+                ($4, $2, 'Private Coaching Red', $3, 'active')`,
+        [publicTeamId, orgId, sportProfileId, privateTeamId],
+      );
+      await admin.query(
+        `INSERT INTO team_seasons (id, org_id, team_id, program_id, division_id, status)
+         VALUES ($1, $2, $3, $4, $5, 'active'),
+                ($6, $2, $7, $8, $9, 'active')`,
+        [
+          publicTeamSeasonId,
+          orgId,
+          publicTeamId,
+          publicProgramId,
+          publicDivisionId,
+          privateTeamSeasonId,
+          privateTeamId,
+          privateProgramId,
+          privateDivisionId,
+        ],
       );
       await admin.query(
         `INSERT INTO events (id, org_id, program_id, kind, title, starts_at, ends_at, timezone, location_text, published)
@@ -1215,6 +1256,26 @@ describe('website page service', () => {
           seasonName: 'Fall 2026',
         }),
       ]);
+      const teams = await getPublicWebsiteTeams(database, orgSlug, withOrg);
+      expect(teams?.teams).toEqual([
+        expect.objectContaining({
+          id: publicTeamSeasonId,
+          name: 'Open Soccer Blue',
+          programName: 'Open Soccer',
+          divisionName: 'Open',
+          ageLabel: 'U12',
+          seasonName: 'Fall 2026',
+          status: 'active',
+        }),
+      ]);
+      await expect(
+        getPublicWebsiteTeam(database, orgSlug, publicTeamSeasonId, withOrg),
+      ).resolves.toMatchObject({
+        team: { id: publicTeamSeasonId, name: 'Open Soccer Blue' },
+      });
+      await expect(
+        getPublicWebsiteTeam(database, orgSlug, privateTeamSeasonId, withOrg),
+      ).resolves.toBeNull();
       await expect(
         getPublicWebsiteProgram(database, orgSlug, publicProgramSlug, withOrg),
       ).resolves.toMatchObject({
@@ -1279,6 +1340,21 @@ describe('website page service', () => {
         expect(programsHtml).not.toContain('private-coaching-');
         expect(programsHtml).toContain('/schedule');
 
+        const teamsResponse = await fetch(`${origin}/${orgSlug}/teams`);
+        const teamsHtml = await teamsResponse.text();
+        expect(teamsResponse.status).toBe(200);
+        expect(teamsHtml).toContain('Open Soccer Blue');
+        expect(teamsHtml).not.toContain('Private Coaching Red');
+
+        const teamResponse = await fetch(
+          `${origin}/${orgSlug}/teams/${publicTeamSeasonId}`,
+        );
+        const teamHtml = await teamResponse.text();
+        expect(teamResponse.status).toBe(200);
+        expect(teamHtml).toContain('SportsTeam');
+        expect(teamHtml).toContain('Open Soccer Blue');
+        expect(teamHtml).not.toContain('Private Coaching');
+
         const detailResponse = await fetch(
           `${origin}/${orgSlug}/programs/${publicProgramSlug}`,
         );
@@ -1317,6 +1393,18 @@ describe('website page service', () => {
       );
       await admin.query('DELETE FROM registration_offerings WHERE id = $1', [
         publicOfferingId,
+      ]);
+      await admin.query(
+        'DELETE FROM team_ledgers WHERE team_season_id IN ($1, $2)',
+        [publicTeamSeasonId, privateTeamSeasonId],
+      );
+      await admin.query('DELETE FROM team_seasons WHERE id IN ($1, $2)', [
+        publicTeamSeasonId,
+        privateTeamSeasonId,
+      ]);
+      await admin.query('DELETE FROM teams WHERE id IN ($1, $2)', [
+        publicTeamId,
+        privateTeamId,
       ]);
       await admin.query('DELETE FROM divisions WHERE program_id IN ($1, $2)', [
         publicProgramId,
