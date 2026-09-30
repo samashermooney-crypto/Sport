@@ -11,6 +11,7 @@ import { createSchedulingRouter } from './routes';
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
   listEvents: vi.fn(),
+  getCalendarFeed: vi.fn(),
 }));
 
 vi.mock('../auth/routes', () => ({
@@ -19,6 +20,7 @@ vi.mock('../auth/routes', () => ({
 
 vi.mock('./events', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./events')>()),
+  getCalendarFeed: mocks.getCalendarFeed,
   listEvents: mocks.listEvents,
 }));
 
@@ -34,6 +36,10 @@ beforeEach(async () => {
   mocks.requireSession.mockResolvedValue({ accountId });
   mocks.listEvents.mockReset();
   mocks.listEvents.mockResolvedValue([{ id: eventId }]);
+  mocks.getCalendarFeed.mockReset();
+  mocks.getCalendarFeed.mockResolvedValue(
+    'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n',
+  );
 
   const app = express();
   app.use(
@@ -97,6 +103,33 @@ describe('scheduling HTTP routes', () => {
         includeDrafts: true,
       },
     );
+  });
+
+  it('serves private calendar feeds without cache or referrer leakage', async () => {
+    const token = 'a'.repeat(43);
+    const response = await fetch(`${baseUrl}/orgs/${orgId}/feeds/${token}.ics`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/calendar');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+    await expect(response.text()).resolves.toBe(
+      'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n',
+    );
+    expect(mocks.getCalendarFeed).toHaveBeenCalledWith(
+      { orgId, actor: { accountId: '00000000-0000-7000-8000-000000000000' } },
+      token,
+    );
+    expect(mocks.requireSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed calendar feed tokens before fetching private events', async () => {
+    const response = await fetch(
+      `${baseUrl}/orgs/${orgId}/feeds/not-a-valid-token.ics`,
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.getCalendarFeed).not.toHaveBeenCalled();
   });
 
   it('rejects mutations from an unverified request origin before session lookup', async () => {
