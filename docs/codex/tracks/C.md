@@ -1,9 +1,10 @@
 # Track C — files, adapters, and wiring
-Status: working (C branch tip `960d5db0` includes the SQL-raw CI guard; exact hosted run `36645798688` passed test and all static jobs but is RED on two D-owned Linux parity assertions.)
-Branch: `track/c-adapters`
-Current: Track C contains local trunk through `5cdee29` plus C wiring and the committed SQL-raw CI guard. Exact C run `36645798688` verifies branch head `960d5db0d5370aa79a9625180d4bd7adee6bf16d`: test, typecheck, lint, build, size, Knip, SQL-raw, OpenAPI, registry, audit, and secret scan pass; e2e fails only on the same two D-owned Linux parity comparisons. C fixes trunk's deterministic-UUID and Knip failures, registers verified-site SSR/root SEO routing, and includes K's navigation, contextual Help, and AI-flag wiring.
-Ready for integration: No. Merge only after hosted CI reports GREEN for the exact branch SHA. Trunk run `36636307104` is red on one deterministic-UUID test, two D-owned parity assertions, and Knip; C contains the registration/Knip fixes. A's current head `c51245b7` completed run `36647507025` red: test and static checks passed except Knip (`actionCenterBulkActionSchema` remains exported); e2e repeats both D-owned parity failures. G (`9b00311e`), K (`ad768b51`), and D (`20cd591f`) still have no hosted result for their current heads; no queue branch is merge-eligible.
-Requests to other tracks: D must resolve the Linux parity failures repeated in C run `36645798688` and A run `36645814799` (exact captures and safe reference-generation request below). H installment failure/final-notice push/SMS fanout still needs a shared consent-aware durable delivery contract. F offer checkout remains dependent on E's persisted offer-checkout operation.
+Status: working — the requested branches are integrated on `track/integration`; hosted full-suite CI is pending for the current candidate.
+Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
+INTEGRATION READY 4113aed191bcb96ef7a92cc989c6e24b7ac3fe7a
+Current: integration base `rebuild/trunk` `5cdee29e`, with C `98b590f7`, A `e1f2507d`, QA `370ff21a`, K `037530e1`, G `b3a43502`, I `1e5f523b`, and D `7f5523a6`; generated waiver-retirement permission metadata/OpenAPI were committed at the ready SHA above. The C branch's Mailpit environment-port regression commit `43a6aa57` is included. Registry/OpenAPI/codegen were regenerated after merging; registry reports 45 server modules, 6 integrations, and 9 web features. `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` and `... npm run lint` both pass on the combined tree. Full test, Knip, and browser results are for hosted CI only.
+Hosted CI: `/Users/sammooney/athlentry-sprint/ci/integration.txt` last reported run `36649713095` on earlier checkpoint `e1f2507d` in progress and the current `4113aed1` pending; no GREEN result is claimed for the ready SHA.
+Open integration work: use exact hosted failures to fix C-owned server tests, Knip, and wiring; merge D/A fixes into this branch as their `fix/d` and `fix/a` branches appear, about every 15 minutes. F offer-checkout still needs E's persisted operation; H installment failure/final-notice SMS/push fanout still needs the shared consent-aware durable delivery contract.
 
 ## Completed Track C work
 
@@ -17,12 +18,12 @@ Requests to other tracks: D must resolve the Linux parity failures repeated in C
 - Track H provider IDs: email, SMS, and push adapters return provider message IDs when supplied; fake adapters return stable IDs. Mailpit SMTP reads `ATHLENTRY_MAILPIT_SMTP_PORT` (default 1025).
 - Track F evaluator-photo authorization: sensitive person photos are readable only by an evaluator actively assigned to a session containing that participant, while both the event participant's consent and the person's current consent/photo link remain valid; authorized reads are audited.
 - Track B season rollover composition: optional `SeasonRolloverExtras` contributions are collected in registered-module order and passed to the seasons router.
-- Track K Phase 15 integration: the upload OpenAPI body and console/portal route navigation are merged at `934f9180`; the active C checkout now derives `VITE_AI_ENABLED` from the provider/key, but that config is not yet on `rebuild/trunk` at `519c8b4a`.
+- Track K Phase 15 integration is included in `track/integration`: provider/key-derived `VITE_AI_ENABLED`, all four raw-upload OpenAPI media types, contextual Help navigation, and `ConsoleShell` wrapping for onboarding/import routes. The current integration browser assertions cover desktop/mobile import Help and disabled-AI behavior; hosted verification is pending.
 - Public sponsor logo OpenAPI: documents the active placement image route with its accepted image MIME types and required surface parameters.
 - Existing adapter wiring: raw Stripe webhook ingress and worker registration, finance module and routes, generated registry/OpenAPI and nested route discovery. Stripe remains test-mode only.
 - SEC-SSRF-C-001: implemented in the Web Push adapter with provider-host validation, public-address checks for every DNS answer, and a pinned HTTPS agent to prevent DNS rebinding; regression tests reject unsafe hosts/addresses and verify the pinned lookup.
-- Trunk CI repair on C's branch: exact hosted run `36640223338` verifies the deterministic-UUID registration test and Knip repair; its only failing job is D-owned e2e parity.
-- Phase 15 remains owned by Track K. C removed merge `63871e0` after the corrected full PostgreSQL gate found two schema failures in migration `8500_phase15_growth.sql`; K must carry and resolve that work on its branch.
+- Trunk CI repair is included in the combined integration candidate: C carries the zero-byte-safe deterministic UUID and private Action Center schema changes; the current hosted test/Knip result is pending for the integrated tree.
+- Phase 15 remains owned by Track K; K's migration, onboarding/import routing, AI flag, Help journey, and raw-upload contract are now merged into `track/integration` at `037530e1` and await hosted verification on the combined tree.
 
 ## Wiring queue
 
