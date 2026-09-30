@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `fix/d`
-Working from the 10-hour integration plan. `fix/d` is synced through integration head `8a15cacc`. The checked-in integration report is stale: its latest run is still pending on `7108d04b`, and the last completed run is `36685292605` on `eff51c36`, with parity skip-link, chat SafeSport, permission matrix, and static size failures. It does not list either Phase 11 journey after their fixes were merged at `2b1ceb68`. The public-route lazy split (`7d11bc20`) is committed on `fix/d` and still awaits integration. Linux references are generated and uploaded by hosted CI; macOS references, tolerances, and token equality remain unchanged. Reports and public website pages now lazy-load; the exact hosted size result is pending.
+Working from the 10-hour integration plan. `fix/d` is synced through integration head `0462ef15`. The checked-in integration report is stale: its published local head is `09f9b611`, the latest run is pending on `8a15cacc`, and its last completed run `36685885745` on `12289a1f` failed on the skip-link, chat SafeSport, permission matrix, sign-in, and static size checks. It does not list either Phase 11 journey after their fixes were merged at `2b1ceb68`. The public-route lazy split (`7d11bc20`) was integrated at `09f9b611`. The deterministic English skip-link fixture (`a0e0c44a`) has not yet been exercised by hosted CI. Linux references are generated and uploaded by hosted CI; macOS references, tolerances, and token equality remain unchanged. Reports and public website pages now lazy-load; the exact hosted size result is pending.
 
 ## Current
 
