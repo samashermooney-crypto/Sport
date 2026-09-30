@@ -224,6 +224,11 @@ test('new account verifies its preview email and signs in', async ({
       },
     });
   }, stubNotificationPermission);
+  if (!stubNotificationPermission) {
+    await page.context().grantPermissions(['notifications'], {
+      origin: new URL(String(testInfo.project.use.baseURL)).origin,
+    });
+  }
   await page.goto('/sign-up');
   if (!stubNotificationPermission) {
     expect(
