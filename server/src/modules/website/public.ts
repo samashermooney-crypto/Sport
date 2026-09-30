@@ -2,7 +2,10 @@ import { isIP } from 'node:net';
 import { domainToASCII } from 'node:url';
 
 import { orgSlugSchema } from '@shared/schemas/orgs';
-import { websitePageSlugSchema } from '@shared/schemas/website';
+import {
+  websiteNewsSlugSchema,
+  websitePageSlugSchema,
+} from '@shared/schemas/website';
 import express from 'express';
 import { createElement } from 'react';
 import type { ReactNode } from 'react';
@@ -16,12 +19,14 @@ import { publicSponsorPlacements } from '../sponsors/service';
 import {
   getPublicWebsiteContactPage,
   getPublicWebsiteChrome,
+  getPublicWebsiteFacilities,
   getPublicWebsiteFundraisers,
   getPublicWebsiteRobotsPolicy,
   getPublicWebsiteProgram,
   getPublicWebsitePrograms,
   getPublicWebsiteSchedule,
   getPublicWebsitePage,
+  getPublicWebsiteNewsPost,
   listPublicWebsitePages,
   listPublicWebsiteNews,
   resolveVerifiedWebsiteHost,
@@ -88,6 +93,10 @@ function normalizedSiteHostname(hostname: string | undefined): string | null {
   return ascii;
 }
 
+function isInteractiveGeneratedSitePath(path: string): boolean {
+  return /^(?:standings|brackets|facilities)\/[^/]+$/.test(path);
+}
+
 async function resolveSiteSlug(
   database: AuthDependencies['database'],
   hostname: string,
@@ -114,6 +123,9 @@ function publicSiteSitemap(
   fundraisers: NonNullable<
     Awaited<ReturnType<typeof getPublicWebsiteFundraisers>>
   >,
+  facilities: NonNullable<
+    Awaited<ReturnType<typeof getPublicWebsiteFacilities>>
+  >,
 ): string {
   const origin = `https://${hostname}`;
   const shouldIndex = news.robotsPolicy === 'index';
@@ -128,8 +140,17 @@ function publicSiteSitemap(
         `${origin}/programs`,
         `${origin}/schedule`,
         `${origin}/sponsors`,
+        `${origin}/facilities`,
+        `${origin}/fundraisers`,
         ...programs.programs.map(
           (program) => `${origin}/programs/${encodeURIComponent(program.slug)}`,
+        ),
+        ...facilities.facilities.map(
+          (facility) =>
+            `${origin}/facilities/${encodeURIComponent(facility.id)}`,
+        ),
+        ...news.posts.map(
+          (post) => `${origin}/news/${encodeURIComponent(post.slug)}`,
         ),
         ...fundraisers.fundraisers.map(
           ({ slug }) => `${origin}/fundraisers/${encodeURIComponent(slug)}`,
@@ -221,17 +242,23 @@ function createSiteHostRouter(
               .send(publicSiteRobots(hostname, robots.robotsPolicy));
             return;
           }
-          const [pages, news, programs, fundraisers] = await Promise.all([
-            listPublicWebsitePages(dependencies.database, orgSlug, withOrg),
-            listPublicWebsiteNews(dependencies.database, orgSlug, withOrg),
-            getPublicWebsitePrograms(dependencies.database, orgSlug, withOrg),
-            getPublicWebsiteFundraisers(
-              dependencies.database,
-              orgSlug,
-              withOrg,
-            ),
-          ]);
-          if (!pages || !news || !programs || !fundraisers) {
+          const [pages, news, programs, fundraisers, facilities] =
+            await Promise.all([
+              listPublicWebsitePages(dependencies.database, orgSlug, withOrg),
+              listPublicWebsiteNews(dependencies.database, orgSlug, withOrg),
+              getPublicWebsitePrograms(dependencies.database, orgSlug, withOrg),
+              getPublicWebsiteFundraisers(
+                dependencies.database,
+                orgSlug,
+                withOrg,
+              ),
+              getPublicWebsiteFacilities(
+                dependencies.database,
+                orgSlug,
+                withOrg,
+              ),
+            ]);
+          if (!pages || !news || !programs || !fundraisers || !facilities) {
             response.sendStatus(404);
             return;
           }
@@ -239,7 +266,14 @@ function createSiteHostRouter(
             .setHeader('Cache-Control', 'public, max-age=300')
             .type('application/xml')
             .send(
-              publicSiteSitemap(hostname, pages, news, programs, fundraisers),
+              publicSiteSitemap(
+                hostname,
+                pages,
+                news,
+                programs,
+                fundraisers,
+                facilities,
+              ),
             );
           return;
         }
@@ -322,12 +356,14 @@ function renderDocument(
   const copy =
     organization.locale === 'es'
       ? {
+          skipToContent: 'Saltar al contenido',
           navigation: 'Navegación del sitio web',
           footerNavigation: 'Navegación del pie de página',
           signIn: 'Iniciar sesión como administrador',
           accessibility: 'Declaración de accesibilidad',
         }
       : {
+          skipToContent: 'Skip to content',
           navigation: 'Website navigation',
           footerNavigation: 'Website footer navigation',
           signIn: 'Administrator sign in',
@@ -423,6 +459,11 @@ function renderDocument(
           },
         },
         createElement(
+          'a',
+          { className: 'public-site-skip-link', href: '#main-content' },
+          copy.skipToContent,
+        ),
+        createElement(
           'header',
           { className: 'public-site-header' },
           createElement(
@@ -457,7 +498,11 @@ function renderDocument(
         ),
         createElement(
           'main',
-          { id: 'main-content', className: 'public-site-main' },
+          {
+            id: 'main-content',
+            className: 'public-site-main',
+            tabIndex: -1,
+          },
           createElement('h1', null, page.title),
           ...blocks,
         ),
@@ -498,6 +543,7 @@ function renderNewsDocument(
       ? {
           title: 'Noticias',
           description: `Actualizaciones y anuncios de ${organization.name}.`,
+          skipToContent: 'Saltar al contenido',
           navigation: 'Navegación del sitio web',
           footerNavigation: 'Navegación del pie de página',
           signIn: 'Iniciar sesión como administrador',
@@ -507,6 +553,7 @@ function renderNewsDocument(
       : {
           title: 'News',
           description: `Updates and announcements from ${organization.name}.`,
+          skipToContent: 'Skip to content',
           navigation: 'Website navigation',
           footerNavigation: 'Website footer navigation',
           signIn: 'Administrator sign in',
@@ -530,6 +577,7 @@ function renderNewsDocument(
               '@type': 'NewsArticle',
               headline: post.title,
               datePublished: post.publishedAt,
+              url: `https://${organization.slug}.athlentry.com/site/${organization.slug}/news/${encodeURIComponent(post.slug)}`,
             },
           })),
         },
@@ -542,7 +590,17 @@ function renderNewsDocument(
     createElement(
       'article',
       { key: post.slug },
-      createElement('h2', null, post.title),
+      createElement(
+        'h2',
+        null,
+        createElement(
+          'a',
+          {
+            href: `/site/${organization.slug}/news/${encodeURIComponent(post.slug)}`,
+          },
+          post.title,
+        ),
+      ),
       post.publishedAt
         ? createElement(
             'time',
@@ -553,8 +611,12 @@ function renderNewsDocument(
             }).format(new Date(post.publishedAt)),
           )
         : null,
-      post.excerpt ? createElement('p', null, post.excerpt) : null,
-      createElement('p', null, post.bodyText),
+      createElement(
+        'p',
+        null,
+        post.excerpt ||
+          `${post.bodyText.slice(0, 240)}${post.bodyText.length > 240 ? '…' : ''}`,
+      ),
     ),
   );
   const document = createElement(
@@ -582,7 +644,11 @@ function renderNewsDocument(
       }),
       createElement('link', {
         rel: 'canonical',
-        href: `https://${organization.slug}.athlentry.com/site/${organization.slug}/news`,
+        href: rebasePublicSiteUrl(
+          `https://${organization.slug}.athlentry.com/site/${organization.slug}/news`,
+          organization.slug,
+          address,
+        ),
       }),
       createElement('script', {
         type: 'application/ld+json',
@@ -601,6 +667,11 @@ function renderNewsDocument(
             '--site-secondary': site.theme.secondary,
           },
         },
+        createElement(
+          'a',
+          { className: 'public-site-skip-link', href: '#main-content' },
+          copy.skipToContent,
+        ),
         createElement(
           'header',
           { className: 'public-site-header' },
@@ -636,7 +707,11 @@ function renderNewsDocument(
         ),
         createElement(
           'main',
-          { id: 'main-content', className: 'public-site-main' },
+          {
+            id: 'main-content',
+            className: 'public-site-main',
+            tabIndex: -1,
+          },
           createElement('h1', null, copy.title),
           site.posts.length === 0
             ? createElement('p', null, copy.empty)
@@ -674,7 +749,7 @@ function renderNewsDocument(
 }
 
 type GeneratedSiteChrome = {
-  organization: { id: string; name: string; slug: string; locale: string };
+  organization: { name: string; slug: string; locale: string };
   theme: { primary: string; secondary: string };
   robotsPolicy: string;
   contactEnabled?: boolean;
@@ -749,6 +824,14 @@ function renderGeneratedSitePage(
             '--site-secondary': site.theme.secondary,
           },
         },
+        createElement(
+          'a',
+          {
+            className: 'public-site-skip-link',
+            href: '#main-content',
+          },
+          spanish ? 'Saltar al contenido' : 'Skip to content',
+        ),
         createElement(
           'header',
           { className: 'public-site-header' },
@@ -921,6 +1004,61 @@ function renderProgramsDocument(
               ? 'Aún no hay programas públicos disponibles.'
               : 'There are no public programs available yet.',
           ),
+    ),
+  });
+}
+
+function renderNewsPostDocument(
+  site: NonNullable<Awaited<ReturnType<typeof getPublicWebsiteNewsPost>>>,
+  address: SiteAddress,
+) {
+  const spanish = site.organization.locale === 'es';
+  const title = `${site.post.title} · ${site.organization.name}`;
+  const description =
+    site.post.excerpt ||
+    fundraiserDescription(site.post.bodyText).slice(0, 160);
+  return renderGeneratedSitePage(site, address, {
+    title,
+    description,
+    canonicalPath: `/site/${site.organization.slug}/news/${encodeURIComponent(site.post.slug)}`,
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'NewsArticle',
+      headline: site.post.title,
+      datePublished: site.post.publishedAt,
+      description,
+      url: `https://${site.organization.slug}.athlentry.com/site/${site.organization.slug}/news/${encodeURIComponent(site.post.slug)}`,
+      publisher: {
+        '@type': 'SportsOrganization',
+        name: site.organization.name,
+      },
+    },
+    main: createElement(
+      'main',
+      { id: 'main-content', className: 'public-site-main' },
+      createElement('p', null, spanish ? 'Noticias' : 'News'),
+      createElement('h1', null, site.post.title),
+      site.post.publishedAt
+        ? createElement(
+            'time',
+            { dateTime: site.post.publishedAt },
+            new Intl.DateTimeFormat(site.organization.locale, {
+              dateStyle: 'long',
+              timeZone: 'UTC',
+            }).format(new Date(site.post.publishedAt)),
+          )
+        : null,
+      site.post.excerpt ? createElement('p', null, site.post.excerpt) : null,
+      createElement('p', null, site.post.bodyText),
+      createElement(
+        'p',
+        null,
+        createElement(
+          'a',
+          { href: `/site/${site.organization.slug}/news` },
+          spanish ? 'Todas las noticias' : 'All news',
+        ),
+      ),
     ),
   });
 }
@@ -1126,6 +1264,85 @@ function renderPublicFundraisersDocument(
             spanish
               ? 'Aún no hay campañas públicas.'
               : 'There are no public campaigns yet.',
+          ),
+    ),
+  });
+}
+
+function renderPublicFacilitiesDocument(
+  site: NonNullable<Awaited<ReturnType<typeof getPublicWebsiteFacilities>>>,
+  address: SiteAddress,
+) {
+  const spanish = site.organization.locale === 'es';
+  const title = `${spanish ? 'Instalaciones' : 'Facilities'} · ${site.organization.name}`;
+  const description = spanish
+    ? `Instalaciones deportivas públicas de ${site.organization.name}.`
+    : `Public sports facilities from ${site.organization.name}.`;
+  const facilities = site.facilities.map((facility) => {
+    const location = Object.values(facility.address ?? {})
+      .filter((value) => value.trim().length > 0)
+      .join(', ');
+    const detailPath = `/site/${site.organization.slug}/facilities/${encodeURIComponent(facility.id)}`;
+    const mapUrl = safeSponsorWebsiteUrl(facility.mapUrl);
+    return {
+      facility,
+      location,
+      detailPath,
+      mapUrl,
+    };
+  });
+  return renderGeneratedSitePage(site, address, {
+    title,
+    description,
+    canonicalPath: `/site/${site.organization.slug}/facilities`,
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: title,
+      description,
+      url: `https://${site.organization.slug}.athlentry.com/site/${site.organization.slug}/facilities`,
+      mainEntity: {
+        '@type': 'ItemList',
+        itemListElement: facilities.map(({ facility }, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          item: {
+            '@type': 'SportsActivityLocation',
+            name: facility.name,
+          },
+        })),
+      },
+    },
+    main: createElement(
+      'main',
+      { id: 'main-content', className: 'public-site-main' },
+      createElement('h1', null, spanish ? 'Instalaciones' : 'Facilities'),
+      facilities.length
+        ? createElement(
+            'ul',
+            null,
+            ...facilities.map(({ facility, location, detailPath, mapUrl }) =>
+              createElement(
+                'li',
+                { key: facility.id },
+                createElement('a', { href: detailPath }, facility.name),
+                location ? createElement('p', null, location) : null,
+                mapUrl
+                  ? createElement(
+                      'a',
+                      { href: mapUrl, rel: 'noopener noreferrer' },
+                      spanish ? 'Cómo llegar' : 'Directions',
+                    )
+                  : null,
+              ),
+            ),
+          )
+        : createElement(
+            'p',
+            null,
+            spanish
+              ? 'No hay instalaciones públicas disponibles.'
+              : 'There are no public facilities listed.',
           ),
     ),
   });
@@ -1433,6 +1650,41 @@ export function createSiteSsrRouter(
 ): express.Router {
   const router = express.Router();
   const withOrg = createWithOrg(dependencies.database);
+  router.get('/:orgSlug/facilities', (request, response, next) => {
+    if (request.query.app === '1') {
+      next();
+      return;
+    }
+    const orgSlug = orgSlugSchema.safeParse(request.params.orgSlug);
+    if (!orgSlug.success) {
+      response.sendStatus(404);
+      return;
+    }
+    void getPublicWebsiteFacilities(
+      dependencies.database,
+      orgSlug.data,
+      withOrg,
+    )
+      .then((site) => {
+        if (!site) {
+          response.sendStatus(404);
+          return;
+        }
+        response
+          .setHeader(
+            'Cache-Control',
+            'public, max-age=60, stale-while-revalidate=300',
+          )
+          .type('html')
+          .send(
+            renderPublicFacilitiesDocument(
+              site,
+              siteAddress(response, orgSlug.data),
+            ),
+          );
+      })
+      .catch(() => response.sendStatus(500));
+  });
   router.get('/:orgSlug/sponsors', (request, response, next) => {
     if (request.query.app === '1') {
       next();
@@ -1675,6 +1927,40 @@ export function createSiteSsrRouter(
       })
       .catch(() => response.sendStatus(500));
   });
+  router.get('/:orgSlug/news/:newsSlug', (request, response, next) => {
+    if (request.query.app === '1') {
+      next();
+      return;
+    }
+    const orgSlug = orgSlugSchema.safeParse(request.params.orgSlug);
+    const newsSlug = websiteNewsSlugSchema.safeParse(request.params.newsSlug);
+    if (!orgSlug.success || !newsSlug.success) {
+      response.sendStatus(404);
+      return;
+    }
+    void getPublicWebsiteNewsPost(
+      dependencies.database,
+      orgSlug.data,
+      newsSlug.data,
+      withOrg,
+    )
+      .then((site) => {
+        if (!site) {
+          response.sendStatus(404);
+          return;
+        }
+        response
+          .setHeader(
+            'Cache-Control',
+            'public, max-age=60, stale-while-revalidate=300',
+          )
+          .type('html')
+          .send(
+            renderNewsPostDocument(site, siteAddress(response, orgSlug.data)),
+          );
+      })
+      .catch(() => response.sendStatus(500));
+  });
   router.get('/:orgSlug/news', (request, response) => {
     const orgSlug = orgSlugSchema.safeParse(request.params.orgSlug);
     if (!orgSlug.success) {
@@ -1708,7 +1994,8 @@ export function createSiteSsrRouter(
       if (
         request.query.app === '1' &&
         (requestedPage === 'sponsors' ||
-          /^fundraisers\/[^/]+$/.test(requestedPage))
+          /^fundraisers\/[^/]+$/.test(requestedPage) ||
+          isInteractiveGeneratedSitePath(requestedPage))
       ) {
         next();
         return;
@@ -1717,6 +2004,29 @@ export function createSiteSsrRouter(
       const slug = websitePageSlugSchema.safeParse(requestedPage);
       if (!orgSlug.success || !slug.success) {
         response.sendStatus(404);
+        return;
+      }
+      if (isInteractiveGeneratedSitePath(requestedPage)) {
+        void getPublicWebsiteChrome(
+          dependencies.database,
+          orgSlug.data,
+          withOrg,
+        )
+          .then((site) => {
+            if (!site) {
+              response.sendStatus(404);
+              return;
+            }
+            if (siteAddress(response, orgSlug.data).basePath === '') {
+              response.redirect(
+                302,
+                `/site/${orgSlug.data}/${requestedPage}?app=1`,
+              );
+              return;
+            }
+            next();
+          })
+          .catch(() => response.sendStatus(500));
         return;
       }
       void getPublicWebsitePage(

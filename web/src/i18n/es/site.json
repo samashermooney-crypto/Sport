@@ -1,6 +1,7 @@
 {
   "websiteNavigation": "Navegación del sitio web",
   "websiteFooterNavigation": "Navegación del pie de página",
+  "skipToContent": "Saltar al contenido",
   "loadingWebsite": "Cargando sitio web…",
   "websitePageUnavailable": "La página no está disponible",
   "websitePageUnavailableDescription": "Esta página no está publicada o no se pudo cargar.",
@@ -9,6 +10,9 @@
   "newsTitle": "Noticias",
   "newsDescription": "Novedades y anuncios de {{organizationName}}.",
   "noNewsPosts": "Todavía no hay noticias publicadas.",
+  "newsPostUnavailable": "Noticia no disponible",
+  "newsPostUnavailableDescription": "No se pudo cargar esta noticia publicada.",
+  "newsBackToList": "Todas las noticias",
   "administratorSignIn": "Iniciar sesión como administrador",
   "accessibilityStatement": "Declaración de accesibilidad"
 }

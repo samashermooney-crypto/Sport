@@ -83,6 +83,9 @@ export function SitePage(): React.JSX.Element {
         } as React.CSSProperties
       }
     >
+      <a className="public-site-skip-link" href="#main-content">
+        {t('skipToContent')}
+      </a>
       <header className="public-site-header">
         <Link
           className="public-site-brand"
@@ -104,7 +107,7 @@ export function SitePage(): React.JSX.Element {
           ))}
         </ul>
       </nav>
-      <main className="public-site-main">
+      <main className="public-site-main" id="main-content" tabIndex={-1}>
         <h1>{site.page.title}</h1>
         {site.page.blocks.map((block, index) => {
           if (block.type === 'heading') {

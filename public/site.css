@@ -31,6 +31,19 @@ textarea {
 .public-site a {
   color: var(--site-primary);
 }
+.public-site-skip-link {
+  position: absolute;
+  z-index: 50;
+  top: 0;
+  left: 8px;
+  transform: translateY(-150%);
+  padding: 8px 12px;
+  background: #fff;
+  color: var(--site-secondary) !important;
+}
+.public-site-skip-link:focus-visible {
+  transform: translateY(8px);
+}
 .public-site-header {
   max-width: 1180px;
   padding: 30px 24px;

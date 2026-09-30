@@ -24,6 +24,7 @@ import {
   getPublicWebsiteSchedule,
   getPublicWebsiteEmbed,
   getPublicWebsitePage,
+  getPublicWebsiteNewsPost,
   listWebsiteMenus,
   listWebsiteDomains,
   listWebsiteEmbeds,
@@ -97,7 +98,11 @@ describe('website page service', () => {
   it('renders public sponsors and fundraiser SEO while preserving donation interactivity', async () => {
     const sponsorId = randomUUID();
     const campaignId = randomUUID();
+    const facilityId = randomUUID();
+    const privateFacilityId = randomUUID();
+    const newsId = randomUUID();
     const campaignSlug = `fall-fundraiser-${campaignId.slice(0, 8)}`;
+    const newsSlug = `community-update-${newsId.slice(0, 8)}`;
     const admin = new pg.Client({
       connectionString: process.env.TEST_DATABASE_URL,
     });
@@ -120,6 +125,22 @@ describe('website page service', () => {
          VALUES ($1, $2, 'Fall team fundraiser', $3, 100000, '2026-01-01T00:00:00Z', '2027-01-01T00:00:00Z', '<p>Support our fall season.</p>', 'published', true, $4)`,
         [campaignId, orgId, campaignSlug, ownerId],
       );
+      await admin.query(
+        `INSERT INTO facilities (id, org_id, name, ownership, address, map_url, public)
+         VALUES ($1, $3, 'Community Sports Center', 'owned', $4::jsonb, 'https://maps.example.invalid/center', true),
+                ($2, $3, 'Staff Operations Building', 'owned', $4::jsonb, NULL, false)`,
+        [
+          facilityId,
+          privateFacilityId,
+          orgId,
+          JSON.stringify({ city: 'Madison', state: 'WI' }),
+        ],
+      );
+      await admin.query(
+        `INSERT INTO news_posts (id, org_id, slug, title, body_html, status, published_at, author_account_id)
+         VALUES ($1, $2, $3, 'Community update', '<p>Public news.</p>', 'published', now(), $4)`,
+        [newsId, orgId, newsSlug, ownerId],
+      );
 
       const app = express();
       app.use(createWebsitePublicRouter({ database }));
@@ -131,30 +152,36 @@ describe('website page service', () => {
         throw new Error('The test server did not open a TCP port');
       const origin = `http://127.0.0.1:${String(address.port)}`;
       const getWithHost = (path: string, host: string) =>
-        new Promise<{ statusCode: number | undefined; body: string }>(
-          (resolve, reject) => {
-            const request = httpRequest(
-              {
-                hostname: '127.0.0.1',
-                port: address.port,
-                path,
-                headers: { host },
-              },
-              (response) => {
-                response.setEncoding('utf8');
-                let body = '';
-                response.on('data', (chunk: string) => {
-                  body += chunk;
+        new Promise<{
+          statusCode: number | undefined;
+          body: string;
+          location: string | undefined;
+        }>((resolve, reject) => {
+          const request = httpRequest(
+            {
+              hostname: '127.0.0.1',
+              port: address.port,
+              path,
+              headers: { host },
+            },
+            (response) => {
+              response.setEncoding('utf8');
+              let body = '';
+              response.on('data', (chunk: string) => {
+                body += chunk;
+              });
+              response.on('end', () => {
+                resolve({
+                  statusCode: response.statusCode,
+                  body,
+                  location: response.headers.location,
                 });
-                response.on('end', () => {
-                  resolve({ statusCode: response.statusCode, body });
-                });
-              },
-            );
-            request.on('error', reject);
-            request.end();
-          },
-        );
+              });
+            },
+          );
+          request.on('error', reject);
+          request.end();
+        });
 
       const sponsorsResponse = await fetch(
         `${origin}/site/${orgSlug}/sponsors`,
@@ -190,6 +217,28 @@ describe('website page service', () => {
       );
       expect(fundraiserIndexHtml).toContain(`/site/${orgSlug}/sponsors`);
 
+      const newsPostResponse = await fetch(
+        `${origin}/site/${orgSlug}/news/${newsSlug}`,
+      );
+      const newsPostHtml = await newsPostResponse.text();
+      expect(newsPostResponse.status).toBe(200);
+      expect(newsPostHtml).toContain('<title>Community update ·');
+      expect(newsPostHtml).toContain('Public news.');
+      expect(newsPostHtml).toContain(`/site/${orgSlug}/news`);
+
+      const facilitiesResponse = await fetch(
+        `${origin}/site/${orgSlug}/facilities`,
+      );
+      const facilitiesHtml = await facilitiesResponse.text();
+      expect(facilitiesResponse.status).toBe(200);
+      expect(facilitiesHtml).toContain('Community Sports Center');
+      expect(facilitiesHtml).toContain('Madison, WI');
+      expect(facilitiesHtml).toContain(
+        `/site/${orgSlug}/facilities/${facilityId}`,
+      );
+      expect(facilitiesHtml).toContain('https://maps.example.invalid/center');
+      expect(facilitiesHtml).not.toContain('Staff Operations Building');
+
       const sitemapResponse = await getWithHost(
         '/sitemap.xml',
         `${orgSlug}.athlentry.com`,
@@ -197,8 +246,26 @@ describe('website page service', () => {
       const sitemap = sitemapResponse.body;
       expect(sitemapResponse.statusCode).toBe(200);
       expect(sitemap).toContain(`https://${orgSlug}.athlentry.com/sponsors`);
+      expect(sitemap).toContain(`https://${orgSlug}.athlentry.com/fundraisers`);
       expect(sitemap).toContain(
         `https://${orgSlug}.athlentry.com/fundraisers/${campaignSlug}`,
+      );
+      expect(sitemap).toContain(
+        `https://${orgSlug}.athlentry.com/facilities/${facilityId}`,
+      );
+      expect(sitemap).not.toContain(privateFacilityId);
+      expect(sitemap).toContain(`https://${orgSlug}.athlentry.com/news`);
+      expect(sitemap).toContain(
+        `https://${orgSlug}.athlentry.com/news/${newsSlug}`,
+      );
+
+      const hostedNewsIndex = await getWithHost(
+        '/news',
+        `${orgSlug}.athlentry.com`,
+      );
+      expect(hostedNewsIndex.statusCode).toBe(200);
+      expect(hostedNewsIndex.body).toContain(
+        `<link rel="canonical" href="https://${orgSlug}.athlentry.com/news"/>`,
       );
 
       const interactiveResponse = await getWithHost(
@@ -207,6 +274,22 @@ describe('website page service', () => {
       );
       expect(interactiveResponse.statusCode).toBe(200);
       expect(interactiveResponse.body).toBe('SPA shell');
+
+      const customSubdomainHost = `${orgSlug}.athlentry.com`;
+      const facilityRedirect = await getWithHost(
+        `/facilities/${facilityId}`,
+        customSubdomainHost,
+      );
+      expect(facilityRedirect.statusCode).toBe(302);
+      expect(facilityRedirect.location).toBe(
+        `/site/${orgSlug}/facilities/${facilityId}?app=1`,
+      );
+      const facilityAppResponse = await getWithHost(
+        `/site/${orgSlug}/facilities/${facilityId}?app=1`,
+        customSubdomainHost,
+      );
+      expect(facilityAppResponse.statusCode).toBe(200);
+      expect(facilityAppResponse.body).toBe('SPA shell');
     } finally {
       if (server)
         await new Promise<void>((resolve, reject) =>
@@ -217,6 +300,10 @@ describe('website page service', () => {
         );
       await admin.query('DELETE FROM fundraising_campaigns WHERE id = $1', [
         campaignId,
+      ]);
+      await admin.query('DELETE FROM news_posts WHERE id = $1', [newsId]);
+      await admin.query('DELETE FROM facilities WHERE id = ANY($1::uuid[])', [
+        [facilityId, privateFacilityId],
       ]);
       await admin.query('DELETE FROM sponsors WHERE id = $1', [sponsorId]);
       await admin.end();
@@ -589,7 +676,7 @@ describe('website page service', () => {
     });
   });
 
-  it('publishes plain-text news posts with tenant and version checks', async () => {
+  it('publishes plain-text news posts and hides scheduled posts', async () => {
     const draft = await saveWebsiteNews(
       context,
       undefined,
@@ -631,6 +718,20 @@ describe('website page service', () => {
       withOrg,
     );
     expect(published.post.version).toBe(draft.post.version + 1);
+    const scheduledSlug = 'scheduled-announcement';
+    await saveWebsiteNews(
+      context,
+      undefined,
+      {
+        slug: scheduledSlug,
+        title: 'Scheduled announcement',
+        excerpt: null,
+        bodyText: 'This should not appear before its publication time.',
+        status: 'published',
+      },
+      new Date(Date.now() + 24 * 60 * 60 * 1000),
+      withOrg,
+    );
     const publicNews = await listPublicWebsiteNews(database, orgSlug, withOrg);
     expect(publicNews).toMatchObject({
       organization: { slug: orgSlug, name: 'Website Test Club' },
@@ -644,6 +745,12 @@ describe('website page service', () => {
         },
       ],
     });
+    expect(publicNews?.posts.map((post) => post.slug)).toEqual([
+      'season-opener',
+    ]);
+    await expect(
+      getPublicWebsiteNewsPost(database, orgSlug, scheduledSlug, withOrg),
+    ).resolves.toBeNull();
     expect(publicNews?.navigation).toContainEqual({
       label: 'News',
       href: `/site/${orgSlug}/news`,
@@ -663,11 +770,36 @@ describe('website page service', () => {
       const html = await response.text();
       expect(response.status).toBe(200);
       expect(html).toContain('<title>News · Website Test Club</title>');
-      expect(html).toContain('<article>');
       expect(html).toContain(
+        'class="public-site-skip-link" href="#main-content"',
+      );
+      expect(html).toContain('id="main-content" class="public-site-main"');
+      expect(html).toContain('<article>');
+      expect(html).toContain('Registration starts next week.');
+      expect(html).not.toContain(
         'Join us &lt;captains&gt; at the community field.',
       );
-      expect(html).not.toContain('<captains>');
+      expect(html).not.toContain('Scheduled announcement');
+      const postResponse = await fetch(
+        `http://127.0.0.1:${String(address.port)}/${orgSlug}/news/season-opener`,
+      );
+      const postHtml = await postResponse.text();
+      expect(postResponse.status).toBe(200);
+      expect(postHtml).toContain(
+        '<title>Season opener announced · Website Test Club</title>',
+      );
+      expect(postHtml).toContain(
+        'class="public-site-skip-link" href="#main-content"',
+      );
+      expect(html).toContain('/site/' + orgSlug + '/news/season-opener');
+      expect(postHtml).toContain(
+        'Join us &lt;captains&gt; at the community field.',
+      );
+      expect(postHtml).not.toContain('<captains>');
+      const scheduledPostResponse = await fetch(
+        `http://127.0.0.1:${String(address.port)}/${orgSlug}/news/${scheduledSlug}`,
+      );
+      expect(scheduledPostResponse.status).toBe(404);
     } finally {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => {

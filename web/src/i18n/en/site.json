@@ -1,6 +1,7 @@
 {
   "websiteNavigation": "Website navigation",
   "websiteFooterNavigation": "Website footer navigation",
+  "skipToContent": "Skip to content",
   "loadingWebsite": "Loading website…",
   "websitePageUnavailable": "Website page unavailable",
   "websitePageUnavailableDescription": "This page is not published or could not be loaded.",
@@ -9,6 +10,9 @@
   "newsTitle": "News",
   "newsDescription": "Updates and announcements from {{organizationName}}.",
   "noNewsPosts": "There are no published news posts yet.",
+  "newsPostUnavailable": "News post unavailable",
+  "newsPostUnavailableDescription": "This published news post could not be loaded.",
+  "newsBackToList": "All news",
   "administratorSignIn": "Administrator sign in",
   "accessibilityStatement": "Accessibility statement"
 }

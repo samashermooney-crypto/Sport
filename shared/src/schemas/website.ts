@@ -111,7 +111,35 @@ export const websitePublicPageSchema = z.strictObject({
   footerNavigation: z.array(websiteMenuItemSchema),
 });
 
-const websiteNewsSlugSchema = z
+export const websitePublicFacilitiesSchema = z.strictObject({
+  organization: z.strictObject({
+    name: z.string(),
+    slug: z.string(),
+    locale: z.enum(['en', 'es']),
+  }),
+  theme: z.strictObject({
+    primary: z.string().regex(/^#[0-9a-f]{6}$/i),
+    secondary: z.string().regex(/^#[0-9a-f]{6}$/i),
+  }),
+  robotsPolicy: z.enum(['index', 'noindex']),
+  navigation: z.array(websiteMenuItemSchema),
+  footerNavigation: z.array(websiteMenuItemSchema),
+  facilities: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      name: z.string(),
+      address: z.record(z.string(), z.string()).nullable(),
+      mapUrl: z
+        .url()
+        .refine((value) =>
+          ['http:', 'https:'].includes(new URL(value).protocol),
+        )
+        .nullable(),
+    }),
+  ),
+});
+
+export const websiteNewsSlugSchema = z
   .string()
   .trim()
   .min(1)
@@ -169,6 +197,28 @@ export const websitePublicNewsSchema = z.strictObject({
       publishedAt: true,
     }),
   ),
+});
+
+export const websitePublicNewsPostSchema = z.strictObject({
+  organization: z.strictObject({
+    name: z.string(),
+    slug: z.string(),
+    locale: z.enum(['en', 'es']),
+  }),
+  theme: z.strictObject({
+    primary: z.string().regex(/^#[0-9a-f]{6}$/i),
+    secondary: z.string().regex(/^#[0-9a-f]{6}$/i),
+  }),
+  robotsPolicy: z.enum(['index', 'noindex']),
+  navigation: z.array(websiteMenuItemSchema),
+  footerNavigation: z.array(websiteMenuItemSchema),
+  post: websiteNewsPostSchema.pick({
+    slug: true,
+    title: true,
+    excerpt: true,
+    bodyText: true,
+    publishedAt: true,
+  }),
 });
 
 export const websiteSettingsBodySchema = z.strictObject({

@@ -94434,6 +94434,159 @@
         ]
       }
     },
+    "/api/v1/website/public/{orgSlug}/news/{newsSlug}": {
+      "get": {
+        "operationId": "get_api_v1_website_public_orgSlug_news_newsSlug",
+        "summary": "Get one currently published public organization news post",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "website.website.public",
+        "x-athlentry-scope": "public",
+        "tags": ["website"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "organization": {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string" },
+                        "slug": { "type": "string" },
+                        "locale": { "type": "string", "enum": ["en", "es"] }
+                      },
+                      "required": ["name", "slug", "locale"],
+                      "additionalProperties": false
+                    },
+                    "theme": {
+                      "type": "object",
+                      "properties": {
+                        "primary": {
+                          "type": "string",
+                          "pattern": "^#[0-9a-f]{6}$"
+                        },
+                        "secondary": {
+                          "type": "string",
+                          "pattern": "^#[0-9a-f]{6}$"
+                        }
+                      },
+                      "required": ["primary", "secondary"],
+                      "additionalProperties": false
+                    },
+                    "robotsPolicy": {
+                      "type": "string",
+                      "enum": ["index", "noindex"]
+                    },
+                    "navigation": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "href": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": ["label", "href"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "footerNavigation": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "href": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": ["label", "href"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "post": {
+                      "type": "object",
+                      "properties": {
+                        "slug": { "type": "string" },
+                        "title": { "type": "string" },
+                        "excerpt": { "type": ["string", "null"] },
+                        "bodyText": { "type": "string" },
+                        "publishedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                            },
+                            { "type": "null" }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "slug",
+                        "title",
+                        "excerpt",
+                        "bodyText",
+                        "publishedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "organization",
+                    "theme",
+                    "robotsPolicy",
+                    "navigation",
+                    "footerNavigation",
+                    "post"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgSlug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "newsSlug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ]
+      }
+    },
     "/api/v1/website/public/{orgSlug}/contact": {
       "post": {
         "operationId": "post_api_v1_website_public_orgSlug_contact",
@@ -94743,6 +94896,158 @@
           },
           {
             "name": "pageSlug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ]
+      }
+    },
+    "/api/v1/website/public/{orgSlug}/facilities": {
+      "get": {
+        "operationId": "get_api_v1_website_public_orgSlug_facilities",
+        "summary": "List explicitly public organization facilities",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "website.website.public",
+        "x-athlentry-scope": "public",
+        "tags": ["website"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "organization": {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string" },
+                        "slug": { "type": "string" },
+                        "locale": { "type": "string", "enum": ["en", "es"] }
+                      },
+                      "required": ["name", "slug", "locale"],
+                      "additionalProperties": false
+                    },
+                    "theme": {
+                      "type": "object",
+                      "properties": {
+                        "primary": {
+                          "type": "string",
+                          "pattern": "^#[0-9a-f]{6}$"
+                        },
+                        "secondary": {
+                          "type": "string",
+                          "pattern": "^#[0-9a-f]{6}$"
+                        }
+                      },
+                      "required": ["primary", "secondary"],
+                      "additionalProperties": false
+                    },
+                    "robotsPolicy": {
+                      "type": "string",
+                      "enum": ["index", "noindex"]
+                    },
+                    "navigation": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "href": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": ["label", "href"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "footerNavigation": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "href": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": ["label", "href"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "facilities": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "name": { "type": "string" },
+                          "address": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "propertyNames": { "type": "string" },
+                                "additionalProperties": { "type": "string" }
+                              },
+                              { "type": "null" }
+                            ]
+                          },
+                          "mapUrl": {
+                            "anyOf": [
+                              { "type": "string", "format": "uri" },
+                              { "type": "null" }
+                            ]
+                          }
+                        },
+                        "required": ["id", "name", "address", "mapUrl"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "organization",
+                    "theme",
+                    "robotsPolicy",
+                    "navigation",
+                    "footerNavigation",
+                    "facilities"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgSlug",
             "in": "path",
             "required": true,
             "schema": { "type": "string" }

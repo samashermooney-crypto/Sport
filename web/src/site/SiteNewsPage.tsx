@@ -110,6 +110,9 @@ export function SiteNewsPage(): React.JSX.Element {
         } as React.CSSProperties
       }
     >
+      <a className="public-site-skip-link" href="#main-content">
+        {t('skipToContent')}
+      </a>
       <header className="public-site-header">
         <Link
           className="public-site-brand"
@@ -131,7 +134,7 @@ export function SiteNewsPage(): React.JSX.Element {
           ))}
         </ul>
       </nav>
-      <main className="public-site-main">
+      <main className="public-site-main" id="main-content" tabIndex={-1}>
         <h1>{t('newsTitle')}</h1>
         {site.posts.length === 0 ? (
           <p>{t('noNewsPosts')}</p>
@@ -139,7 +142,13 @@ export function SiteNewsPage(): React.JSX.Element {
           <div className="public-site-news-list">
             {site.posts.map((post) => (
               <article key={post.slug}>
-                <h2>{post.title}</h2>
+                <h2>
+                  <Link
+                    to={`/site/${site.organization.slug}/news/${encodeURIComponent(post.slug)}`}
+                  >
+                    {post.title}
+                  </Link>
+                </h2>
                 {post.publishedAt ? (
                   <time dateTime={post.publishedAt}>
                     {new Intl.DateTimeFormat(site.organization.locale, {
@@ -148,8 +157,10 @@ export function SiteNewsPage(): React.JSX.Element {
                     }).format(new Date(post.publishedAt))}
                   </time>
                 ) : null}
-                {post.excerpt ? <p>{post.excerpt}</p> : null}
-                <p>{post.bodyText}</p>
+                <p>
+                  {post.excerpt ||
+                    `${post.bodyText.slice(0, 240)}${post.bodyText.length > 240 ? '…' : ''}`}
+                </p>
               </article>
             ))}
           </div>

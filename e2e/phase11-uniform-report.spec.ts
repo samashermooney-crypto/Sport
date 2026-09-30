@@ -144,7 +144,8 @@ test('QA-ACC-038 / Track H: family uniform orders appear under their registratio
     await expect(
       page.getByRole('heading', { name: 'Uniforms and spirit wear' }),
     ).toBeVisible();
-    await page.getByLabel('Household member').selectOption(athleteId);
+    await page.getByLabel('Order for').selectOption(athleteId);
+    await expect(page.getByLabel('Registration')).toHaveValue(registrationId);
     await page.getByLabel(`${productName} size`).selectOption(variantId);
     await page.getByLabel('Quantity').fill('1');
     await page
