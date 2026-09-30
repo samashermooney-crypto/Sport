@@ -835,7 +835,7 @@ describe('organization data export', () => {
     );
     expect(result.credential).toEqual({
       file_id: null,
-      expires_on: new Date('2035-01-01T00:00:00.000Z'),
+      expires_on: new Date(2035, 0, 1),
     });
     expect(result.household).toMatchObject({
       name: 'Deleted Household',
