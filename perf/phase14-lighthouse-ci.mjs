@@ -1,17 +1,17 @@
 import { spawn } from 'node:child_process';
 import { createServer, request as httpRequest } from 'node:http';
-import { createRequire } from 'node:module';
 import { once } from 'node:events';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+import { chromium } from '@playwright/test';
+import * as chromeLauncher from 'chrome-launcher';
+import lighthouse from 'lighthouse';
 import pg from 'pg';
 
 import { localPorts } from '../scripts/ports.mjs';
 
 const { Client } = pg;
-const require = createRequire(import.meta.url);
-const { chromium } = require('@playwright/test');
 const stackEnv = {
   ...process.env,
   COMPOSE_PROJECT_NAME: 'athlentry_d_lighthouse_ci',
@@ -32,7 +32,6 @@ const apiOrigin = `http://127.0.0.1:${String(ports.api)}`;
 const resultsDirectory = resolve(
   process.env.LIGHTHOUSE_RESULTS_DIR ?? 'perf/results/phase14-shared-app',
 );
-const lighthouseCli = resolve('node_modules/lighthouse/cli/index.js');
 const server = spawn(process.execPath, ['scripts/dev.mjs'], {
   env: stackEnv,
   stdio: 'inherit',
@@ -165,10 +164,22 @@ async function createSiteProxy() {
         },
       },
       (upstreamResponse) => {
-        response.writeHead(
-          upstreamResponse.statusCode ?? 502,
-          upstreamResponse.headers,
+        const hopByHopHeaders = new Set([
+          'connection',
+          'keep-alive',
+          'proxy-authenticate',
+          'proxy-authorization',
+          'te',
+          'trailer',
+          'transfer-encoding',
+          'upgrade',
+        ]);
+        const responseHeaders = Object.fromEntries(
+          Object.entries(upstreamResponse.headers).filter(
+            ([name]) => !hopByHopHeaders.has(name),
+          ),
         );
+        response.writeHead(upstreamResponse.statusCode ?? 502, responseHeaders);
         upstreamResponse.pipe(response);
       },
     );
@@ -188,29 +199,27 @@ async function createSiteProxy() {
 
 async function auditRoute(origin, name, route) {
   const outputPath = resolve(resultsDirectory, `${name}.json`);
-  const cli = spawn(
-    process.execPath,
-    [
-      lighthouseCli,
-      `${origin}${route}`,
-      '--output=json',
-      `--output-path=${outputPath}`,
-      '--only-categories=performance,accessibility,seo',
-      '--form-factor=mobile',
-      '--throttling-method=simulate',
-      '--chrome-flags=--headless --no-sandbox --disable-dev-shm-usage',
-      '--quiet',
-    ],
-    {
-      env: { ...process.env, CHROME_PATH: chromium.executablePath() },
-      stdio: 'inherit',
-    },
-  );
-  const [code] = await once(cli, 'exit');
-  if (code !== 0)
-    throw new Error(`Lighthouse failed for ${route} with code ${String(code)}`);
-
-  const result = JSON.parse(await readFile(outputPath, 'utf8'));
+  const chrome = await chromeLauncher.launch({
+    chromePath: chromium.executablePath(),
+    chromeFlags: ['--headless', '--no-sandbox', '--disable-dev-shm-usage'],
+  });
+  let result;
+  try {
+    const runnerResult = await lighthouse(`${origin}${route}`, {
+      logLevel: 'error',
+      output: 'json',
+      onlyCategories: ['performance', 'accessibility', 'seo'],
+      formFactor: 'mobile',
+      throttlingMethod: 'simulate',
+      port: chrome.port,
+    });
+    if (!runnerResult)
+      throw new Error(`Lighthouse returned no result for ${route}`);
+    result = runnerResult.lhr;
+    await writeFile(outputPath, JSON.stringify(result, null, 2));
+  } finally {
+    chrome.kill();
+  }
   const scores = {
     performance: Math.round((result.categories.performance.score ?? 0) * 100),
     accessibility: Math.round(
@@ -230,7 +239,13 @@ async function auditRoute(origin, name, route) {
       `${route} missed Lighthouse targets: ${failures.map(([category, target]) => `${category} ${String(scores[category])}/${String(target)}`).join(', ')}`,
     );
   }
-  return { name, route, scores, targets };
+  return {
+    name,
+    route,
+    scores,
+    targets,
+    lighthouseVersion: result.lighthouseVersion,
+  };
 }
 
 async function main() {
@@ -260,7 +275,7 @@ async function main() {
   const summary = [
     '# Phase 14 shared-app Lighthouse results',
     '',
-    `Captured ${new Date().toISOString()} with Lighthouse 13.5.0 and Playwright Chromium.`,
+    `Captured ${new Date().toISOString()} with Lighthouse ${audits[0]?.lighthouseVersion ?? 'unknown'} and Playwright Chromium.`,
     '',
     'Each route is served by the registered public website router in `createApp`; the local proxy serves the same `public/site.css` asset and forwards all page and SEO requests to the app.',
     '',
