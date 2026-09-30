@@ -234,6 +234,9 @@ test('new account verifies its preview email and signs in', async ({
     });
   }, stubNotificationPermission);
   await page.goto('/sign-up');
+  if (!stubNotificationPermission) {
+    expect(await page.evaluate(() => Notification.permission)).toBe('granted');
+  }
   await expect(
     page.getByRole('heading', { name: 'Create your account' }),
   ).toBeVisible();
