@@ -20535,8 +20535,7 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 9007199254740991
-                    },
-                    "required": ["email", "sms", "push", "in_app"]
+                    }
                   }
                 },
                 "required": ["expectedVersion"],
@@ -95326,6 +95325,101 @@
                         "status"
                       ],
                       "additionalProperties": false
+                    },
+                    "schedule": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "title": { "type": "string" },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "game",
+                              "match",
+                              "tournament_game",
+                              "meet",
+                              "bout_session"
+                            ]
+                          },
+                          "startsAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "endsAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "timezone": { "type": "string" },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "scheduled",
+                              "postponed",
+                              "canceled",
+                              "completed"
+                            ]
+                          },
+                          "statusReason": { "type": ["string", "null"] },
+                          "side": {
+                            "type": "string",
+                            "enum": ["home", "away", "none"]
+                          },
+                          "opponent": { "type": ["string", "null"] },
+                          "location": { "type": ["string", "null"] },
+                          "result": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "teamScore": { "type": ["number", "null"] },
+                                  "opponentScore": {
+                                    "type": ["number", "null"]
+                                  },
+                                  "outcome": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": ["win", "loss", "tie"]
+                                      },
+                                      { "type": "null" }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "teamScore",
+                                  "opponentScore",
+                                  "outcome"
+                                ],
+                                "additionalProperties": false
+                              },
+                              { "type": "null" }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "kind",
+                          "startsAt",
+                          "endsAt",
+                          "timezone",
+                          "status",
+                          "statusReason",
+                          "side",
+                          "opponent",
+                          "location",
+                          "result"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -95334,7 +95428,8 @@
                     "robotsPolicy",
                     "navigation",
                     "footerNavigation",
-                    "team"
+                    "team",
+                    "schedule"
                   ],
                   "additionalProperties": false
                 }

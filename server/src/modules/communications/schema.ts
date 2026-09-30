@@ -93,7 +93,7 @@ export const sendCampaignSchema = z.strictObject({
   expectedVersion: z.number().int().positive(),
   confirmEmergency: z.literal(true).optional(),
   confirmRecipientCounts: z
-    .record(deliveryChannelSchema, z.number().int().nonnegative())
+    .partialRecord(deliveryChannelSchema, z.number().int().nonnegative())
     .optional(),
 });
 export const smsConsentSchema = z.strictObject({
