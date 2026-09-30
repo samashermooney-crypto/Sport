@@ -22,6 +22,11 @@ import {
   startedCheckoutSchema,
 } from './checkout-start.js';
 import {
+  addFamilyParticipant,
+  familyParticipantInputSchema,
+  familyParticipantSchema,
+} from './family-participants.js';
+import {
   approveBodySchema,
   cancelBodySchema,
   myRegistrationListSchema,
@@ -237,9 +242,14 @@ function sendError(response: express.Response, error: unknown): void {
           ? 'VALIDATION_ERROR'
           : error instanceof RegistrationCheckoutError
             ? error.code
-            : status === 401
-              ? 'UNAUTHENTICATED'
-              : 'INTERNAL_ERROR',
+            : status !== 500 &&
+                error instanceof Error &&
+                'code' in error &&
+                typeof error.code === 'string'
+              ? error.code
+              : status === 401
+                ? 'UNAUTHENTICATED'
+                : 'INTERNAL_ERROR',
       message:
         status === 500
           ? 'The request could not be completed'
@@ -485,6 +495,33 @@ export function createRegistrationRouter(
           })),
         }),
       );
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  router.post('/orgs/:orgId/participants', async (request, response) => {
+    try {
+      if (
+        !validWriteOrigin(request, dependencies.appUrl) ||
+        requestImpersonation(request)
+      )
+        throw new RegistrationCheckoutError(
+          403,
+          'FORBIDDEN',
+          'Adding family members is unavailable',
+        );
+      const session = await requireSession(dependencies, request);
+      const orgId = z.uuid().parse(request.params.orgId);
+      const result = await addFamilyParticipant(
+        dependencies.database,
+        orgId,
+        session.accountId,
+        familyParticipantInputSchema.parse(request.body),
+      );
+      response
+        .status(result.created ? 201 : 200)
+        .json(familyParticipantSchema.parse(result));
     } catch (error) {
       sendError(response, error);
     }

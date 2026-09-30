@@ -9,6 +9,10 @@ import {
   startedCheckoutSchema,
 } from './checkout-start.js';
 import {
+  familyParticipantInputSchema,
+  familyParticipantSchema,
+} from './family-participants.js';
+import {
   approveBodySchema,
   cancelBodySchema,
   myRegistrationListSchema,
@@ -97,6 +101,13 @@ export const moduleDefinition = {
       path: '/api/v1/registration/orgs/{orgId}/participants',
       summary: 'List directly linked family participants for a cart',
       response: registrationParticipantsSchema,
+    },
+    {
+      method: 'post',
+      path: '/api/v1/registration/orgs/{orgId}/participants',
+      summary: "Add the signed-in guardian's child to the organization",
+      body: familyParticipantInputSchema,
+      response: familyParticipantSchema,
     },
     {
       method: 'post',

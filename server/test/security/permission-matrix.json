@@ -16253,6 +16253,33 @@
         "platform_finance_ops"
       ]
     },
+    "post_api_v1_registration_orgs_orgId_participants": {
+      "permission": "registration.manage",
+      "scope": "organization",
+      "allow": ["owner", "admin", "registrar"],
+      "deny": [
+        "anonymous",
+        "finance",
+        "scheduler",
+        "compliance",
+        "communications",
+        "director",
+        "evaluator",
+        "volunteer_coordinator",
+        "reporter",
+        "guardian",
+        "self",
+        "head_coach",
+        "assistant_coach",
+        "team_manager",
+        "treasurer",
+        "official",
+        "volunteer",
+        "platform_super_admin",
+        "platform_support",
+        "platform_finance_ops"
+      ]
+    },
     "post_api_v1_registration_orgs_orgId_checkouts": {
       "permission": "registration.manage",
       "scope": "organization",

@@ -5152,6 +5152,14 @@ export const apiRouteMetadata = [
     tenancyFixture: { body: {} },
   },
   {
+    operationId: 'post_api_v1_registration_orgs_orgId_participants',
+    method: 'post',
+    path: '/api/v1/registration/orgs/{orgId}/participants',
+    permission: 'registration.manage',
+    resource: 'registration.participants',
+    scope: 'organization',
+  },
+  {
     operationId: 'post_api_v1_registration_orgs_orgId_checkouts',
     method: 'post',
     path: '/api/v1/registration/orgs/{orgId}/checkouts',

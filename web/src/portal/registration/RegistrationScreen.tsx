@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { z } from 'zod';
 
 import { apiGet, apiPost } from '../../api/client';
-import { Link, PageHeader } from '../../ui/primitives';
+import { Button, Field, Input, Link, PageHeader } from '../../ui/primitives';
 import { PortalShell } from '../PortalShell';
 
 import '../money/money.css';
@@ -50,6 +50,12 @@ const participantsSchema = z.strictObject({
       householdName: z.string(),
     }),
   ),
+});
+const addedParticipantSchema = z.strictObject({
+  personId: z.uuid(),
+  householdId: z.uuid(),
+  name: z.string(),
+  created: z.boolean(),
 });
 const startedSchema = z.strictObject({
   checkoutId: z.uuid(),
@@ -102,6 +108,14 @@ export function RegistrationScreen({
     Record<string, number>
   >({});
   const [error, setError] = useState('');
+  const [child, setChild] = useState({
+    firstName: '',
+    lastName: '',
+    dateOfBirth: '',
+  });
+  const [addingChild, setAddingChild] = useState(false);
+  const [childMessage, setChildMessage] = useState('');
+  const [childError, setChildError] = useState('');
   const base = `/registration/orgs/${encodeURIComponent(orgId)}`;
   const catalog = useQuery({
     queryKey: ['registration', orgId, 'catalog'],
@@ -111,6 +125,38 @@ export function RegistrationScreen({
     queryKey: ['registration', orgId, 'participants'],
     queryFn: () => apiGet(`${base}/participants`, participantsSchema),
   });
+  const addChild = async (event: React.SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (addingChild) return;
+    setAddingChild(true);
+    setChildError('');
+    setChildMessage('');
+    try {
+      const added = await apiPost(
+        `${base}/participants`,
+        {
+          firstName: child.firstName,
+          lastName: child.lastName,
+          dateOfBirth: child.dateOfBirth,
+        },
+        addedParticipantSchema,
+      );
+      await Promise.all([participants.refetch(), catalog.refetch()]);
+      setEligibleHouseholdMember(`${added.personId}:${added.householdId}`);
+      setChild({ firstName: '', lastName: '', dateOfBirth: '' });
+      setChildMessage(
+        added.created
+          ? `${added.name} was added to your family.`
+          : `${added.name} is already in your family.`,
+      );
+    } catch (cause) {
+      setChildError(
+        cause instanceof Error ? cause.message : 'Could not add your child.',
+      );
+    } finally {
+      setAddingChild(false);
+    }
+  };
   const sports = useMemo(
     () =>
       [...new Set(catalog.data?.items.map((item) => item.sport) ?? [])].sort(),
@@ -267,6 +313,58 @@ export function RegistrationScreen({
           {' · '}
           <Link to={`/portal/orgs/${orgId}/team-entry`}>Register a team</Link>
         </p>
+        {participants.data && (
+          <section className="money-panel" aria-labelledby="add-child-heading">
+            <h2 id="add-child-heading">
+              {participants.data.people.length
+                ? 'Add another child'
+                : 'Add your child to get started'}
+            </h2>
+            <form onSubmit={(event) => void addChild(event)}>
+              <Field label="First name" required>
+                <Input
+                  value={child.firstName}
+                  autoComplete="off"
+                  required
+                  maxLength={80}
+                  onChange={(event) => {
+                    setChild({ ...child, firstName: event.target.value });
+                  }}
+                />
+              </Field>
+              <Field label="Last name" required>
+                <Input
+                  value={child.lastName}
+                  autoComplete="off"
+                  required
+                  maxLength={80}
+                  onChange={(event) => {
+                    setChild({ ...child, lastName: event.target.value });
+                  }}
+                />
+              </Field>
+              <Field label="Date of birth" required>
+                <Input
+                  type="date"
+                  value={child.dateOfBirth}
+                  required
+                  onChange={(event) => {
+                    setChild({ ...child, dateOfBirth: event.target.value });
+                  }}
+                />
+              </Field>
+              <Button type="submit" disabled={addingChild}>
+                {addingChild ? 'Adding…' : 'Add child'}
+              </Button>
+            </form>
+            {childMessage && <p role="status">{childMessage}</p>}
+            {childError && (
+              <p role="alert" className="money-error">
+                {childError}
+              </p>
+            )}
+          </section>
+        )}
         {(catalog.isLoading || participants.isLoading) && (
           <p role="status">Loading programs…</p>
         )}

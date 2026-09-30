@@ -126,7 +126,13 @@ export async function runHoldExpiryJob(): Promise<number> {
     WHERE expires_at <= ${now} AND released_at IS NULL AND converted_at IS NULL
   `.execute(getPlatformAdminDatabase());
   let released = 0;
-  for (const row of orgs.rows)
-    released += await releaseExpiredHolds(getDatabase(), row.org_id, now);
+  for (const row of orgs.rows) {
+    // Short transactions of 500; keep going until this org is drained.
+    for (let batch = 0; batch < 40; batch += 1) {
+      const count = await releaseExpiredHolds(getDatabase(), row.org_id, now);
+      released += count;
+      if (count < 500) break;
+    }
+  }
   return released;
 }

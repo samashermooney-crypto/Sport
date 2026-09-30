@@ -1131,3 +1131,11 @@
 - **Decision:** The `checkout.release-expired-holds` job runs every minute. For each organization with expired, unreleased, unconverted holds it releases up to 500 per run (skip-locked), decrements `held` on the counters in reservation lock order, and marks past-deadline `open` checkouts `expired`. Holds of checkouts awaiting payment are kept for 24 hours past expiry, because payment confirmation honors processing holds; after that they are released too, and a late confirmation of a released hold is refused as expired (refund path).
 - **Why:** Capacity must reflect real registrations; no family may be told a program is full because of another family's abandoned cart, and in-flight payments must never lose their place.
 - **Consequences / follow-ups:** Payment methods that can settle after more than a day must extend their holds while processing.
+
+### DEC-150 — Families add their own children during registration
+- **Date:** 2026-09-30
+- **Phase / area:** Phase 5 registration (new-family journey, `11 §Phase 5` acceptance)
+- **Context:** Registration listed only people already linked to the signed-in account, and only staff could create people, so a family new to an organization could not register anyone.
+- **Decision:** `POST /api/v1/registration/orgs/:orgId/participants` lets a verified adult account add a child (under 18, birth date not in the future) to an onboarding or active organization. Per C3 the adult gets their own person, `self` link and household (as primary contact, financially responsible), the child joins that household, and the adult becomes the child's verified guardian; everything is audited (`person.family_added`). Re-adding the same name and birth date returns the existing child; an account may add at most 12 children before contacting the organization. The registration screen shows an "Add your child" form using existing design-system fields.
+- **Why:** New families are the core registration audience; guardianship stays single-sourced in `person_account_links` and staff keep full visibility through the audit log and people directory.
+- **Consequences / follow-ups:** Duplicate detection across accounts (two guardians each adding the same child) remains a staff merge task through the existing duplicate review. Adults registering themselves continue through their own account.
