@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — integration candidate `fcff3e5b` regenerates the permission matrix for Track D’s two public-team API operations; exact-head hosted verification is pending.
+Status: working — local integration head `b0dab9da`; exact-head hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Hosted CI: Run `36712719317` on `0324ee66` passed the unit test job and all static jobs; Chromium E2E passed 114/115 tests. The route crawler passed in 7.4 minutes without same-origin request failures, and the household fixture and sign-in journey passed. The sole E2E failure was the permission-matrix completeness assertion, which exposed two missing rows for public-team operations; commit `fcff3e5b` regenerates those rows, and hosted verification is pending.
-Open integration work: exact-head hosted verification of `fcff3e5b` is pending. The household real-Postgres fixture passes locally (1/1); the current hosted unit job is green. The crawler’s strict HTTP/request checks passed in four consecutive hosted runs and again on `36712719317`; no crawler assertion or threshold was changed.
+Hosted CI: Run `36758736522` on `6e29b07c` was fully green. Newer run `36771537477` on `034afeb8` has every static job green, the unit-test job failed, and E2E remains in progress; exact failure details are not available until the workflow completes.
+Open integration work: inspect the completed unit failure and newest E2E results, then verify local candidate `b0dab9da`. C’s owned Federation service and API integration files pass 22/22 and 4/4 against isolated real Postgres; no full suite or local Playwright run was started.
 
 ## Completed Track C work
 
@@ -286,7 +286,7 @@ Open integration work: exact-head hosted verification of `fcff3e5b` is pending. 
 - Commit `fcff3e5b` contains the generated matrix correction. Commit hooks passed typecheck and Prettier. The attempted focused Vitest startup was blocked by sandbox `EPERM` writing Vite’s temporary config under `Sport-trunk/node_modules`; no local Playwright or full suite was run. Hosted verification of `fcff3e5b` is pending.
 - The crawler passed on the failing run in 7.4 minutes, with no same-origin HTTP/request failures; the earlier household fixture and Chromium notification journey also passed.
 
-INTEGRATION READY fcff3e5b
+Prior candidate `fcff3e5b` was marked ready; later integration changes need exact-head hosted verification.
 
 ## Current integration CI repair — 2026-09-30
 
@@ -294,3 +294,11 @@ INTEGRATION READY fcff3e5b
 - Current run `36765929800` on `4318b73f` exposed two newer failures: registration checkout fixtures inserted program/division/offering capacity counters a second time after migration 8503's triggers created them, and the Phase 15 demo-profile journey got an organization-profile validation error because demo org addresses omitted required `country: "US"`.
 - Added the documented conflict-key upsert to both manual counter fixtures in `server/src/modules/registration/checkout-start.test.ts`; the focused real-Postgres file passes 9/9. Added a shared country-complete demo organization address for normal and load seeds plus a schema-contract regression; `server/test/demoSeeds.test.ts` passes 3/3. The hosted error context confirmed the fundraising page then showed “No campaigns yet” because its parallel profile request failed and discarded the campaign response.
 - `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` and `/Users/sammooney/athlentry-sprint/heavy.sh npm run lint` pass. No full suite or local Playwright was run. The performance-file edits already present in the integration worktree remain unstaged and untouched; exact-head hosted verification is pending.
+
+
+## Orchestrator E2E allocation and current checks — 2026-09-30
+
+- C owns `e2e/federation.spec.ts`, `e2e/phase13-fee-void-atomicity.spec.ts`, and `e2e/security/federation-sharing-revocation.spec.ts`. A and D assignments are recorded in their `Requests from C` sections. Their `fix/a` and `fix/d` refs are already ancestors of local `track/integration` head `b0dab9da`; neither branch has commits missing from that head.
+- C's real-Postgres Federation service file passes 22/22 and mounted Federation API integration file passes 4/4 on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500` (Postgres port 5932). These cover sharing revocation and the fee-void atomicity contract. The Playwright journeys remain for hosted CI.
+- Run `36771537477` on pushed head `034afeb8` has static jobs green, unit tests failed, and E2E in progress. The owner-supplied earlier E2E list is not enough to infer the current failure set; review the exact hosted failure report after that run completes.
+- Commit `eb59c4ee` fixes the duplicate capacity-counter test fixtures and supplies the required `country: "US"` in normal/load demo org addresses. Exact-head hosted verification is pending; no live providers or browser runs were used.
