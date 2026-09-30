@@ -90,6 +90,8 @@ async function requireSessionInstructor(
           .onRef('link.person_id', '=', 'instructor.person_id')
           .on('link.org_id', '=', context.orgId)
           .on('link.account_id', '=', context.actor.accountId)
+          .on('link.relationship', '=', 'self')
+          .on('link.verified_at', 'is not', null)
           .on('link.revoked_at', 'is', null),
       )
       .select('session.id')
@@ -104,6 +106,8 @@ async function requireSessionInstructor(
           .onRef('link.person_id', '=', 'session.substitute_person_id')
           .on('link.org_id', '=', context.orgId)
           .on('link.account_id', '=', context.actor.accountId)
+          .on('link.relationship', '=', 'self')
+          .on('link.verified_at', 'is not', null)
           .on('link.revoked_at', 'is', null),
       )
       .select('session.id')

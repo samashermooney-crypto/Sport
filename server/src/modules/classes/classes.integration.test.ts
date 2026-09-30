@@ -17,6 +17,7 @@ import {
   requireGuardian,
   requireLinkedPerson,
   requireMember,
+  requireSessionStaffOrInstructor,
 } from './access';
 import { PostgresClassAttendance } from './attendance';
 import { PostgresClassBookings } from './bookings';
@@ -691,7 +692,7 @@ describe('academy classes integration', () => {
     const entries = await enrollments.waitlist(tiny.id);
     expect(entries).toHaveLength(1);
     expect(must(entries[0]).personId).toBe(childA3);
-    expect(await enrollments.waitlistForAccount(ownerA)).toHaveLength(1);
+    expect(await enrollments.waitlistForAccount(ownerA)).toHaveLength(0);
     expect(await enrollments.waitlistForAccount(guardianA)).toHaveLength(0);
     await expect(
       services(memberContext).enrollments.acceptWaitlistOffer(
@@ -1088,6 +1089,21 @@ describe('academy classes integration', () => {
     );
     expect(booked.status).toBe('booked');
     expect(booked.invoiceId).toBeTruthy();
+    await expect(
+      services(memberContext).bookings.cancelBooking(
+        booked.bookingId,
+        memberOnly,
+      ),
+    ).rejects.toBeInstanceOf(ClassesNotFoundError);
+    const unchangedBooking = await withOrg()(ownerContext, (trx) =>
+      trx
+        .selectFrom('class_session_bookings')
+        .select('status')
+        .where('org_id', '=', orgA)
+        .where('id', '=', booked.bookingId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(unchangedBooking.status).toBe('booked');
 
     const punch = await offerings.create({
       ...offeringBody,
@@ -1141,6 +1157,37 @@ describe('academy classes integration', () => {
     expect(punchBooked.status).toBe('booked');
     const cards = await bookings.listPunchCards({ personId: childA3 });
     expect(must(cards[0]).remainingUses).toBe(4);
+    await expect(
+      services(memberContext).bookings.bookPunchCard(
+        must(punchTarget).id,
+        purchased.punchCardId,
+        memberOnly,
+      ),
+    ).rejects.toBeInstanceOf(ClassesNotFoundError);
+  });
+
+  it('does not treat a guardian link as an instructor identity', async () => {
+    await withOrg()(ownerContext, async (trx) => {
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: randomUUID(),
+          org_id: orgA,
+          person_id: instructorPersonA,
+          account_id: guardianA,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute();
+    });
+
+    await expect(
+      requireSessionStaffOrInstructor(
+        database,
+        guardianContext,
+        firstSessionId,
+      ),
+    ).rejects.toBeInstanceOf(ClassesAccessError);
   });
 
   it('does not leak data across tenants', async () => {

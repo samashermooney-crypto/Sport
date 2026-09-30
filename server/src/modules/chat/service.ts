@@ -166,6 +166,7 @@ async function safeSportGraph(
         .select(['person_id', 'account_id', 'relationship'])
         .where('org_id', '=', orgId)
         .where('account_id', 'in', uniqueAccounts)
+        .where('verified_at', 'is not', null)
         .where('revoked_at', 'is', null)
         .execute()
     : [];
@@ -182,6 +183,7 @@ async function safeSportGraph(
         .where('org_id', '=', orgId)
         .where('person_id', 'in', allPeopleIds)
         .where('relationship', '=', 'self')
+        .where('verified_at', 'is not', null)
         .where('revoked_at', 'is', null)
         .execute()
     : [];
@@ -195,6 +197,7 @@ async function safeSportGraph(
         .where('org_id', '=', orgId)
         .where('person_id', 'in', allPeopleIds)
         .where('relationship', '=', 'guardian')
+        .where('verified_at', 'is not', null)
         .where('revoked_at', 'is', null)
         .execute()
     : [];
@@ -221,6 +224,7 @@ async function safeSportGraph(
         .where('staff.org_id', '=', orgId)
         .where('staff.status', '=', 'active')
         .where('link.relationship', '=', 'self')
+        .where('link.verified_at', 'is not', null)
         .where('link.revoked_at', 'is', null)
         .where('link.account_id', 'in', uniqueAccounts)
         .execute()
@@ -237,6 +241,7 @@ async function safeSportGraph(
         .where('assignment.org_id', '=', orgId)
         .where('assignment.status', 'not in', ['canceled', 'declined'])
         .where('link.relationship', '=', 'self')
+        .where('link.verified_at', 'is not', null)
         .where('link.revoked_at', 'is', null)
         .where('link.account_id', 'in', uniqueAccounts)
         .execute()
@@ -495,6 +500,7 @@ export async function createConversation(
               staff.map((row) => row.person_id),
             )
             .where('relationship', '=', 'self')
+            .where('verified_at', 'is not', null)
             .where('revoked_at', 'is', null)
             .execute()
         : [];
@@ -659,6 +665,7 @@ export async function ensureTeamConversation(
           .where('org_id', '=', context.orgId)
           .where('person_id', 'in', personIds)
           .where('relationship', '=', 'self')
+          .where('verified_at', 'is not', null)
           .where('revoked_at', 'is', null)
           .execute()
       : [];
@@ -694,6 +701,7 @@ export async function ensureTeamConversation(
       .where('account_id', '=', context.actor.accountId)
       .where('person_id', 'in', athleteIds)
       .where('relationship', '=', 'guardian')
+      .where('verified_at', 'is not', null)
       .where('revoked_at', 'is', null)
       .executeTakeFirst();
     if (
@@ -804,6 +812,7 @@ export async function ensureTeamStaffConversation(
           .where('org_id', '=', context.orgId)
           .where('person_id', 'in', personIds)
           .where('relationship', '=', 'self')
+          .where('verified_at', 'is not', null)
           .where('revoked_at', 'is', null)
           .execute()
       : [];
@@ -1033,6 +1042,7 @@ export async function listAvailableTeams(
       .where('org_id', '=', context.orgId)
       .where('account_id', '=', context.actor.accountId)
       .where('relationship', '=', 'self')
+      .where('verified_at', 'is not', null)
       .where('revoked_at', 'is', null)
       .execute();
     const guardianLinks = await trx
@@ -1041,6 +1051,7 @@ export async function listAvailableTeams(
       .where('org_id', '=', context.orgId)
       .where('account_id', '=', context.actor.accountId)
       .where('relationship', '=', 'guardian')
+      .where('verified_at', 'is not', null)
       .where('revoked_at', 'is', null)
       .execute();
     const personIds = [

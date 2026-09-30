@@ -518,6 +518,7 @@ export class PostgresClassBookings {
   async bookPunchCard(
     classSessionId: string,
     punchCardId: string,
+    portalAccountId?: string,
   ): Promise<BookingResult> {
     return this.withOrg(this.context, async (trx) => {
       const card = await trx
@@ -528,6 +529,21 @@ export class PostgresClassBookings {
         .forUpdate()
         .executeTakeFirst();
       if (!card || card.status !== 'active')
+        throw new ClassesNotFoundError('Punch card not found');
+      if (
+        portalAccountId &&
+        (card.account_id !== portalAccountId ||
+          !(await trx
+            .selectFrom('person_account_links')
+            .select('id')
+            .where('org_id', '=', this.context.orgId)
+            .where('person_id', '=', card.person_id)
+            .where('account_id', '=', portalAccountId)
+            .where('relationship', 'in', ['self', 'guardian'])
+            .where('verified_at', 'is not', null)
+            .where('revoked_at', 'is', null)
+            .executeTakeFirst()))
+      )
         throw new ClassesNotFoundError('Punch card not found');
       if (card.remaining_uses < 1)
         throw new ClassesConflictError(
@@ -585,7 +601,10 @@ export class PostgresClassBookings {
     });
   }
 
-  async cancelBooking(bookingId: string): Promise<void> {
+  async cancelBooking(
+    bookingId: string,
+    portalAccountId?: string,
+  ): Promise<void> {
     return this.withOrg(this.context, async (trx) => {
       const booking = await trx
         .selectFrom('class_session_bookings')
@@ -595,6 +614,21 @@ export class PostgresClassBookings {
         .forUpdate()
         .executeTakeFirst();
       if (!booking || booking.status !== 'booked')
+        throw new ClassesNotFoundError('Booking not found');
+      if (
+        portalAccountId &&
+        (booking.account_id !== portalAccountId ||
+          !(await trx
+            .selectFrom('person_account_links')
+            .select('id')
+            .where('org_id', '=', this.context.orgId)
+            .where('person_id', '=', booking.person_id)
+            .where('account_id', '=', portalAccountId)
+            .where('relationship', 'in', ['self', 'guardian'])
+            .where('verified_at', 'is not', null)
+            .where('revoked_at', 'is', null)
+            .executeTakeFirst()))
+      )
         throw new ClassesNotFoundError('Booking not found');
       await trx
         .updateTable('class_session_bookings')
@@ -727,6 +761,19 @@ export class PostgresClassBookings {
         WHERE card.org_id = ${this.context.orgId}::uuid
           ${input.personId ? sql`AND card.person_id = ${input.personId}::uuid` : sql``}
           ${input.accountId ? sql`AND card.account_id = ${input.accountId}::uuid` : sql``}
+          ${
+            input.accountId
+              ? sql`AND EXISTS (
+            SELECT 1 FROM person_account_links link
+            WHERE link.org_id = card.org_id
+              AND link.person_id = card.person_id
+              AND link.account_id = ${input.accountId}::uuid
+              AND link.relationship IN ('self', 'guardian')
+              AND link.verified_at IS NOT NULL
+              AND link.revoked_at IS NULL
+          )`
+              : sql``
+          }
         ORDER BY card.created_at DESC
         LIMIT 200
       `.execute(trx);
