@@ -332,6 +332,96 @@ async function expireOrganizationExportArtifacts(
   return counts;
 }
 
+async function purgeRetainedPersonFiles(
+  orgId: string,
+  now: Date,
+  storage: Storage,
+  runWithOrg: RunWithOrg,
+) {
+  const context = workerContext(orgId);
+  const pendingPhotos = await runWithOrg(context, (trx) =>
+    trx
+      .selectFrom('files')
+      .select(['id', 'storage_key'])
+      .where('org_id', '=', orgId)
+      .where('owner_type', '=', 'privacy_photo_purge_pending')
+      .where('deleted_at', 'is not', null)
+      .orderBy('id')
+      .execute(),
+  );
+  const expiredCredentialIds = (trx: OrgTransaction) =>
+    trx
+      .selectFrom('person_credentials as credentials')
+      .select('credentials.id')
+      .where('credentials.org_id', '=', orgId)
+      .where(
+        sql<boolean>`COALESCE(
+          credentials.expires_on,
+          credentials.verified_at::date,
+          credentials.issued_on,
+          credentials.created_at::date
+        ) <= (
+          ${now}::date - ${retentionRules.backgroundCheckValidityPlusYears} * interval '1 year'
+        )::date`,
+      );
+  const expiredCredentialFiles = await runWithOrg(context, (trx) =>
+    trx
+      .selectFrom('files')
+      .select(['id', 'storage_key'])
+      .where('org_id', '=', orgId)
+      .where('owner_type', '=', 'credential_evidence_retained')
+      .where('deleted_at', 'is not', null)
+      .where('owner_id', 'in', expiredCredentialIds(trx))
+      .orderBy('id')
+      .execute(),
+  );
+  const counts = {
+    privacyPhotoObjectsPurged: 0,
+    credentialEvidenceObjectsPurged: 0,
+    personFileCleanupPending: 0,
+  };
+
+  for (const file of pendingPhotos) {
+    try {
+      await storage.delete(file.storage_key);
+      const retired = await runWithOrg(context, (trx) =>
+        trx
+          .updateTable('files')
+          .set({ owner_type: 'privacy_photo_purged' })
+          .where('org_id', '=', orgId)
+          .where('id', '=', file.id)
+          .where('owner_type', '=', 'privacy_photo_purge_pending')
+          .where('deleted_at', 'is not', null)
+          .executeTakeFirst(),
+      );
+      counts.privacyPhotoObjectsPurged += affectedRows(retired);
+    } catch {
+      counts.personFileCleanupPending += 1;
+    }
+  }
+
+  for (const file of expiredCredentialFiles) {
+    try {
+      await storage.delete(file.storage_key);
+      const retired = await runWithOrg(context, (trx) =>
+        trx
+          .updateTable('files')
+          .set({ owner_type: 'credential_evidence_purged' })
+          .where('org_id', '=', orgId)
+          .where('id', '=', file.id)
+          .where('owner_type', '=', 'credential_evidence_retained')
+          .where('deleted_at', 'is not', null)
+          .executeTakeFirst(),
+      );
+      counts.credentialEvidenceObjectsPurged += affectedRows(retired);
+    } catch {
+      counts.personFileCleanupPending += 1;
+    }
+  }
+
+  return counts;
+}
+
 /** Apply the retention schedule tenant by tenant while preserving legal records. */
 export async function runRetentionSweepJob(
   data: unknown = {},
@@ -359,6 +449,12 @@ export async function runRetentionSweepJob(
 
     try {
       const exportExpiry = await expireOrganizationExportArtifacts(
+        orgId,
+        now,
+        storage,
+        runWithOrg,
+      );
+      const personFileCleanup = await purgeRetainedPersonFiles(
         orgId,
         now,
         storage,
@@ -516,6 +612,7 @@ export async function runRetentionSweepJob(
 
         const counts = {
           ...exportExpiry,
+          ...personFileCleanup,
           chatMessagesRedacted: affectedRows(chat),
           messageDeliveriesRedacted: affectedRows(deliveries),
           messageCampaignsRedacted: affectedRows(campaigns),
@@ -751,12 +848,22 @@ export async function createOrganizationPrivacyRequest(
   });
 }
 
+interface PrivacyPhotoCleanup {
+  id: string;
+  storageKey: string;
+}
+
+interface PersonAnonymizationResult {
+  redactedFormResponseCount: number;
+  photoFile: PrivacyPhotoCleanup | null;
+}
+
 async function anonymizePerson(
   trx: OrgTransaction,
   context: OrgContext,
   personId: string,
   now: Date,
-): Promise<number> {
+): Promise<PersonAnonymizationResult> {
   const person = await trx
     .selectFrom('people')
     .select(['id', 'photo_file_id'])
@@ -778,7 +885,7 @@ async function anonymizePerson(
     .execute();
   const credentialFiles = await trx
     .selectFrom('person_credentials')
-    .select('file_id')
+    .select(['id', 'file_id'])
     .where('org_id', '=', context.orgId)
     .where('person_id', '=', personId)
     .where('file_id', 'is not', null)
@@ -887,19 +994,33 @@ async function anonymizePerson(
     .where('org_id', '=', context.orgId)
     .where('person_id', '=', personId)
     .execute();
-  const fileIds = [
-    ...credentialFiles.flatMap(({ file_id }) => (file_id ? [file_id] : [])),
-    ...(person.photo_file_id ? [person.photo_file_id] : []),
-  ];
-  if (fileIds.length > 0) {
+  const credentialFileIds = credentialFiles.flatMap(({ file_id }) =>
+    file_id ? [file_id] : [],
+  );
+  if (credentialFileIds.length > 0)
     await trx
       .updateTable('files')
-      .set({ deleted_at: now })
+      .set({
+        deleted_at: now,
+        owner_type: 'credential_evidence_retained',
+      })
       .where('org_id', '=', context.orgId)
-      .where('id', 'in', fileIds)
+      .where('id', 'in', credentialFileIds)
       .where('deleted_at', 'is', null)
       .execute();
-  }
+  const photoFile = person.photo_file_id
+    ? await trx
+        .updateTable('files')
+        .set({
+          deleted_at: now,
+          owner_type: 'privacy_photo_purge_pending',
+        })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', person.photo_file_id)
+        .where('deleted_at', 'is', null)
+        .returning(['id', 'storage_key'])
+        .executeTakeFirst()
+    : undefined;
 
   const redactedAnswers = await sql<{ redacted_count: number }>`
     SELECT privacy_redact_person_form_responses(
@@ -932,7 +1053,12 @@ async function anonymizePerson(
         .execute();
     }
   }
-  return redactedAnswers.rows[0]?.redacted_count ?? 0;
+  return {
+    redactedFormResponseCount: redactedAnswers.rows[0]?.redacted_count ?? 0,
+    photoFile: photoFile
+      ? { id: photoFile.id, storageKey: photoFile.storage_key }
+      : null,
+  };
 }
 
 export async function updateOrganizationPrivacyRequest(
@@ -942,6 +1068,7 @@ export async function updateOrganizationPrivacyRequest(
   stepUpAuthenticated: boolean,
   now = new Date(),
   runWithOrg: RunWithOrg = withOrg,
+  storage: Storage = new LocalDiskStorage('data/uploads'),
 ) {
   if (!stepUpAuthenticated)
     throw new OrganizationExportError(
@@ -949,7 +1076,7 @@ export async function updateOrganizationPrivacyRequest(
       'REAUTH_REQUIRED',
       'Re-authenticate before updating a privacy request',
     );
-  return runWithOrg(context, async (trx) => {
+  const result = await runWithOrg(context, async (trx) => {
     await requireExportManager(trx, context);
     const current = await trx
       .selectFrom('org_privacy_requests')
@@ -992,16 +1119,19 @@ export async function updateOrganizationPrivacyRequest(
 
     const deletionNoticeAccounts = new Set<string>();
     let redactedFormResponseCount = 0;
+    const photoFiles: PrivacyPhotoCleanup[] = [];
     if (input.status === 'completed' && current.kind === 'deletion') {
       let subjectPersonIds: string[];
       if (current.subject_type === 'person') {
         subjectPersonIds = [current.subject_id];
-        redactedFormResponseCount = await anonymizePerson(
+        const anonymized = await anonymizePerson(
           trx,
           context,
           current.subject_id,
           now,
         );
+        redactedFormResponseCount = anonymized.redactedFormResponseCount;
+        if (anonymized.photoFile) photoFiles.push(anonymized.photoFile);
       } else {
         const memberRows = await trx
           .selectFrom('household_members')
@@ -1021,13 +1151,11 @@ export async function updateOrganizationPrivacyRequest(
           for (const { account_id: accountId } of links)
             deletionNoticeAccounts.add(accountId);
         }
-        for (const { person_id: personId } of memberRows)
-          redactedFormResponseCount += await anonymizePerson(
-            trx,
-            context,
-            personId,
-            now,
-          );
+        for (const { person_id: personId } of memberRows) {
+          const anonymized = await anonymizePerson(trx, context, personId, now);
+          redactedFormResponseCount += anonymized.redactedFormResponseCount;
+          if (anonymized.photoFile) photoFiles.push(anonymized.photoFile);
+        }
         await trx
           .updateTable('households')
           .set({ name: 'Deleted Household', address: null, status: 'archived' })
@@ -1112,8 +1240,26 @@ export async function updateOrganizationPrivacyRequest(
         });
       }
     }
-    return privacyRequestSummary(row);
+    return { summary: privacyRequestSummary(row), photoFiles };
   });
+  for (const photo of result.photoFiles) {
+    try {
+      await storage.delete(photo.storageKey);
+      await runWithOrg(context, (trx) =>
+        trx
+          .updateTable('files')
+          .set({ owner_type: 'privacy_photo_purged' })
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', photo.id)
+          .where('owner_type', '=', 'privacy_photo_purge_pending')
+          .where('deleted_at', 'is not', null)
+          .executeTakeFirst(),
+      );
+    } catch {
+      // The retention sweep retries rows that still have the pending marker.
+    }
+  }
+  return result.summary;
 }
 
 export async function createPrivacySubjectExport(
