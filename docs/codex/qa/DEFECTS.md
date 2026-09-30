@@ -457,31 +457,31 @@
 
 - **Owner:** Track D
 - **Phase:** 16 §3.1
-- **Evidence:** `docs/qa/ACCESSIBILITY.md` is absent; no accessibility manual-pass script is present under `docs/`.
-- **Reproduce:** search the docs tree for an accessibility keyboard-only pass script; no match exists.
-- **Expected:** `docs/qa/ACCESSIBILITY.md` documents keyboard-only checks across all journeys in `30 §3` (currently 27 entries; Phase 16 §3.1 says 25), including dialogs, menus, calendar/drag alternatives, and focus behavior.
-- **Request:** add the manual accessibility pass script and record its completion evidence.
-- **Status:** open accessibility acceptance gap.
+- **Evidence:** `docs/qa/ACCESSIBILITY.md` now documents all 27 journeys in `30 §3`, including dialogs, menus, calendar/board alternatives, and focus behavior. No completed human keyboard-pass record has been added yet.
+- **Reproduce:** review the keyboard-only instructions and journey checklist in `docs/qa/ACCESSIBILITY.md`; the checklist is present, but its record section has not been completed by a human reviewer.
+- **Expected:** `docs/qa/ACCESSIBILITY.md` documents keyboard-only checks across all 27 journeys in `30 §3`, including dialogs, menus, calendar/drag alternatives, and focus behavior; the human reviewer records the completed pass.
+- **Request:** perform the documented keyboard-only review on desktop and iPhone 13 viewports, then add its acceptance record and blocking controls.
+- **Status:** script criterion met on `fix/d`; human keyboard execution and the acceptance record remain open.
 
 ### QA-ACC-031 — CI has no English-to-Spanish completeness check
 
 - **Owner:** Track D
 - **Phase:** 16 §3.3
-- **Evidence:** no locale/i18n/translation completeness script or workflow check is present under `scripts/` or `.github/`. The three current English/Spanish JSON pairs (`auth`, `platform`, and `portal`) have matching keys, but no automated gate checks them and `site`/`email` namespaces are not present.
-- **Reproduce:** search `scripts/` and `.github/` for locale, i18n, translation, or Spanish completeness checks; no match exists.
+- **Evidence:** `web/src/lib/i18n-completeness.test.ts` checks every English UI catalog (`auth`, `console`, `platform`, `portal`, `public`, `shell`, and `site`) for non-empty Spanish values, and `server/src/integrations/email/templates/auth.test.ts` checks matching, non-empty English/Spanish email subjects and bodies. Vitest runs these checks in the CI `test` job. The web regression also verifies that absent and blank nested translations are detected.
+- **Reproduce:** run `npx vitest run web/src/lib/i18n-completeness.test.ts`; the CI `test` job also runs the server email catalog test.
 - **Expected:** CI fails when any English key in the portal, site, auth, or email namespaces has no Spanish value.
-- **Request:** add the completeness checker, a missing-key regression fixture, and the CI step.
-- **Status:** open internationalization acceptance gap.
+- **Request:** keep the completeness regressions in the hosted Vitest `test` job and confirm them on the exact integration head.
+- **Status:** implementation present on `fix/d`; the focused web test passes 2/2. Hosted exact-head CI confirmation is pending.
 
 ### QA-ACC-032 — Accessibility statements are absent from public site surfaces
 
 - **Owner:** Track D
 - **Phase:** 16 §3.4
-- **Evidence:** no accessibility statement page or footer link exists in `web/src` or `server/src`; the public marketing/org-site surfaces are also not present on the current trunk snapshot.
-- **Reproduce:** search the source tree for an accessibility statement page or link; no match exists.
+- **Evidence:** the statement page is present at `/legal/accessibility` and linked from the marketing site and organization-site footer; the public legal-route browser journey includes axe checks.
+- **Reproduce:** inspect `web/src/marketing/LegalPage.tsx`, the marketing footer, and `web/src/site/SitePage.tsx`; run the hosted `e2e/design/legal-drafts.spec.ts` journey.
 - **Expected:** a public accessibility statement is linked from the marketing site and each organization-site footer when those surfaces land.
-- **Request:** include the statement page and footer links in the public-site integration, then add browser coverage.
-- **Status:** open launch acceptance dependency; no current public-site route is available to test.
+- **Request:** retain the public statement links and legal-route browser coverage as site routes evolve.
+- **Status:** implemented on `fix/d`: the accessibility statement is linked from the marketing site and organization-site footer; public legal routes have browser coverage. Latest integration CI has no D-owned accessibility-page failure.
 
 ### QA-ACC-047 — Family registration journey does not cover sibling discount, ACH or bilingual confirmation
 
@@ -592,7 +592,7 @@
 - **Reproduce:** seed a non-revoked credential with `status = 'verified'` and `expires_on` before the report's as-of date, then render the credential compliance chart before the expiry job changes its status. The chart includes it in the “Verified” numerator, while the compliance policy rejects it.
 - **Expected:** the compliance percentage counts only credentials valid on the report's as-of date as compliant, using the policy's inclusive `expires_on` boundary; expired verified rows remain in the denominator as needing attention. Add a deterministic report/query or dashboard regression covering an overdue-but-not-yet-swept verified credential and a still-valid credential.
 - **Request:** include expiry validity in the compliance aggregation (with a documented as-of date and `expires_on` null/valid handling) or derive a policy-backed compliant value, and assert the percentage before the expiry sweep runs. Keep the existing revoked exclusion and role access rules.
-- **Status:** high-confidence static reporting defect on current trunk; the credential-compliance query groups by status only and the chart counts every `verified` row without expiry validity. Runtime regression remains unverified on QA's exact integrated head.
+- **Status:** fixed on `fix/d`; expired verified credentials are excluded from the compliant numerator while remaining in the denominator. The deterministic dashboard regression passed in the hosted `test` job for run `36662938527`.
 
 ### QA-ACC-056 — Expired organization export archives remain in storage
 
@@ -603,7 +603,7 @@
 - **Reproduce:** create a completed export, advance the clock beyond its `expires_at`, and run the registered `retention.sweep`; verify the link is denied but the ZIP remains in storage and the file record remains active.
 - **Expected:** the seven-day export expiry ends both link access and retention of the sensitive archive bytes. The sweep removes the expired object and safely retires its file/export metadata while preserving required audit evidence.
 - **Request:** add storage-aware expiry cleanup for export ZIPs, make deletion and metadata updates safe across partial failures, and add a fake-storage regression proving an expired archive is deleted while a live one and its link remain usable.
-- **Status:** high-confidence static sensitive-data retention gap on current trunk; the registered retention sweep does not select expired organization exports or delete their objects. Runtime regression remains unverified on QA's exact integrated head.
+- **Status:** fixed on `fix/d`; expired export objects and metadata are retired through the retention sweep with retryable storage cleanup. The database-backed regression passed in the hosted `test` job for run `36662938527`.
 
 ### QA-ACC-057 — Person photo bytes persist after deletion anonymization
 
@@ -614,7 +614,7 @@
 - **Reproduce:** create a person photo in fake storage, complete an approved deletion/anonymization request, and inspect the storage object; the database row is tombstoned but the photo bytes remain.
 - **Expected:** approved anonymization erases or cryptographically destroys the person's photo bytes while retaining the required file/audit tombstones. Credential evidence follows its explicit legal/compliance retention rule rather than being blindly deleted or retained forever.
 - **Request:** make the privacy deletion path storage-aware for photos, with retryable cleanup for database/storage partial failure, and add fake-storage coverage proving the photo is removed and unrelated files remain. Explicitly define the credential-attachment retention treatment.
-- **Status:** high-confidence static photo-retention gap on current trunk; anonymization tombstones file rows and clears references without deleting photo bytes from storage. Runtime regression remains unverified on QA's exact integrated head.
+- **Status:** fixed on `fix/d`; approved anonymization removes photo bytes after commit with a retry marker and retains credential evidence through its defined retention period. The database-backed regression passed in the hosted `test` job for run `36662938527`.
 
 ### QA-SEC-017 — Public website SSR lacks a stored-XSS regression
 
@@ -625,7 +625,7 @@
 - **Reproduce:** persist a synthetic payload such as `</script><script>window.__xss=1</script><img src=x onerror=...>` in a published news title/body and an organization name, request the SSR document, and inspect parsed DOM/execution. Current positive fixtures cover ordinary text but not hostile stored values.
 - **Expected:** no attacker-controlled script, event handler, or executable URL is created; text remains escaped and JSON-LD remains a single inert script node.
 - **Request:** add a deterministic stored-XSS SSR regression for organization identity and published news/page content, asserting parsed DOM has no injected active elements or handler attributes. The current implementation appears defensive; this is a test-quality gap, not a confirmed exploit.
-- **Status:** SSR rendering appears escaped by static inspection, but hostile persisted values are still absent from the website SSR regression suite on current trunk. This is a security coverage gap, not a confirmed exploit.
+- **Status:** fixed on `fix/d`; hostile organization identity, news, and page content are exercised through actual SSR responses, and the database-backed regression passed in the hosted `test` job for run `36662938527`. No exploit was confirmed.
 
 ### QA-SEC-018 — Key rotation omits three encrypted data fields
 
@@ -658,7 +658,7 @@
 - **Reproduce:** run the export job on the worker's local filesystem, then issue its signed download URL through a web instance with a different filesystem; the export row and token exist, but that instance cannot read the ZIP object.
 - **Expected:** export creation and download use the same configured durable, private `Storage` adapter across worker and web processes; tests prove a ZIP written by the job can be downloaded through the shared adapter.
 - **Request:** inject configured storage through the generated module/app and worker dependencies instead of constructing `LocalDiskStorage` in the export module, and add a fake/shared-storage integration test covering build-to-download across separate service instances.
-- **Status:** high-confidence static production integration defect on current trunk; export worker and HTTP router still default to local-disk adapter instances. Multi-process behavior remains unverified by a shared-storage test.
+- **Status:** D's export router and build/retention handlers accept an injected `Storage`, and the build/download/cleanup regression uses a shared fake adapter. Production wiring is still open: Track C must pass the configured adapter to the router and worker handlers before this can close.
 
 ### QA-QUAL-002 — Program status mutation silently strips unknown request fields
 
@@ -741,11 +741,11 @@
 - **Owner:** Tracks A and C (coordinate Track D)
 - **Phase:** 14 public website, Phase 16 launch gate
 - **Branch evidence:** current integrated `rebuild/trunk` snapshot `5cdee29e`.
-- **Evidence:** `server/src/modules/website/public.ts` exports `createSiteSsrRouter`, and D tests it by mounting the router directly. The website module does not register it as an app router; `ServerModule.extraRouters.path` is restricted to `/api/v1/*`, and `server/src/app.ts` mounts registered feature routers inside the authenticated `/api/v1` section. D's current track note confirms the public SSR router is not mounted by the shared app. Thus published SSR routes, host-root sitemap/robots aliases, and verified custom-domain serving are absent from the integrated application path.
-- **Reproduce:** request `/site/<published-org-slug>` against the shared app and compare with the direct-router integration test; the app has no registered public SSR mount. The robots/sitemap API endpoints under `/api/v1/website/public/:orgSlug` do not substitute for public site pages or host-root aliases.
+- **Evidence:** this was a confirmed gap on the older `5cdee29e` trunk snapshot. D added `website.moduleDefinition.publicRouter`, mounted before the tenant API guards and SPA fallback; its shared-app regression now covers published pages, verified custom domains, host-root sitemap/robots aliases, and pending-domain rejection.
+- **Reproduce:** request `/site/<published-org-slug>` and host-root SEO files against the shared app; compare the returned SSR document and aliases with the database fixtures in the website integration regression.
 - **Expected:** published site pages, generated pages, and contact routes resolve through the shared app at the documented public path; sitemap/robots are available at each resolved site's host root, including an active verified custom domain, without tenant leakage. The role-aware crawler and public-site journey cover the mounted routes.
-- **Request:** extend the module router contract for a public non-API route, register D's SSR router, mount it before the SPA fallback, and add host-root SEO aliases plus tenant-safe verified custom-domain resolution. Add an integrated-app smoke journey for published pages and SEO routes.
-- **Status:** high-confidence Phase 14 integration gap on current trunk; direct SSR tests do not prove the shared application serves public sites.
+- **Request:** keep the public router registered before API guards and the SPA fallback, and retain the integrated-app smoke coverage for published pages and SEO routes.
+- **Status:** fixed on `track/integration` at `4b7870fe`; the shared-app SSR regression passed in hosted run `36662938527`, including published sites, verified custom domains, host-root SEO aliases, and pending-domain rejection.
 
 ### QA-ACC-066 — Northstar demo seed uses an invalid IANA time zone
 
@@ -767,4 +767,4 @@
 - **Reproduce:** run the `public site shell matches the legacy header and navigation at desktop and phone widths` journey in hosted Chromium and compare its 390px actual image with the committed reference.
 - **Expected:** the public header/navigation matches the approved reference within the existing 6.5% limit on the hosted Linux runner, with no tolerance increase.
 - **Request:** inspect the exact hosted actual/reference images, update only a proven stale Linux-specific reference or route a real shell regression to Track A, and rerun the same browser check. Preserve the 6.5% threshold and design tokens.
-- **Status:** hosted regression/freshness failure reported; D's prior note said this mismatch did not recur, so the current Linux artifact needs comparison before attribution is closed.
+- **Status:** fixed on `track/integration`; the same-runner Linux shell references pass in hosted runs `36662938527` and `36663830530`, with no 390px shell mismatch, missing baseline, or component parity failure. The 6.5% threshold, macOS references, design tokens, and token-equality check are unchanged.
