@@ -16,6 +16,7 @@ import { publicSponsorPlacements } from '../sponsors/service';
 import {
   getPublicWebsiteContactPage,
   getPublicWebsiteChrome,
+  getPublicWebsiteFundraisers,
   getPublicWebsiteRobotsPolicy,
   getPublicWebsiteProgram,
   getPublicWebsitePrograms,
@@ -110,6 +111,9 @@ function publicSiteSitemap(
   pages: NonNullable<Awaited<ReturnType<typeof listPublicWebsitePages>>>,
   news: NonNullable<Awaited<ReturnType<typeof listPublicWebsiteNews>>>,
   programs: NonNullable<Awaited<ReturnType<typeof getPublicWebsitePrograms>>>,
+  fundraisers: NonNullable<
+    Awaited<ReturnType<typeof getPublicWebsiteFundraisers>>
+  >,
 ): string {
   const origin = `https://${hostname}`;
   const shouldIndex = news.robotsPolicy === 'index';
@@ -123,8 +127,12 @@ function publicSiteSitemap(
     ? [
         `${origin}/programs`,
         `${origin}/schedule`,
+        `${origin}/sponsors`,
         ...programs.programs.map(
           (program) => `${origin}/programs/${encodeURIComponent(program.slug)}`,
+        ),
+        ...fundraisers.fundraisers.map(
+          (slug) => `${origin}/fundraisers/${encodeURIComponent(slug)}`,
         ),
       ]
         .map((url) => `<url><loc>${url}</loc></url>`)
@@ -213,19 +221,26 @@ function createSiteHostRouter(
               .send(publicSiteRobots(hostname, robots.robotsPolicy));
             return;
           }
-          const [pages, news, programs] = await Promise.all([
+          const [pages, news, programs, fundraisers] = await Promise.all([
             listPublicWebsitePages(dependencies.database, orgSlug, withOrg),
             listPublicWebsiteNews(dependencies.database, orgSlug, withOrg),
             getPublicWebsitePrograms(dependencies.database, orgSlug, withOrg),
+            getPublicWebsiteFundraisers(
+              dependencies.database,
+              orgSlug,
+              withOrg,
+            ),
           ]);
-          if (!pages || !news || !programs) {
+          if (!pages || !news || !programs || !fundraisers) {
             response.sendStatus(404);
             return;
           }
           response
             .setHeader('Cache-Control', 'public, max-age=300')
             .type('application/xml')
-            .send(publicSiteSitemap(hostname, pages, news, programs));
+            .send(
+              publicSiteSitemap(hostname, pages, news, programs, fundraisers),
+            );
           return;
         }
         const originalUrl = request.url;

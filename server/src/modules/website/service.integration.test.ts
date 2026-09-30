@@ -130,6 +130,31 @@ describe('website page service', () => {
       if (!address || typeof address === 'string')
         throw new Error('The test server did not open a TCP port');
       const origin = `http://127.0.0.1:${String(address.port)}`;
+      const getWithHost = (path: string, host: string) =>
+        new Promise<{ statusCode: number | undefined; body: string }>(
+          (resolve, reject) => {
+            const request = httpRequest(
+              {
+                hostname: '127.0.0.1',
+                port: address.port,
+                path,
+                headers: { host },
+              },
+              (response) => {
+                response.setEncoding('utf8');
+                let body = '';
+                response.on('data', (chunk: string) => {
+                  body += chunk;
+                });
+                response.on('end', () => {
+                  resolve({ statusCode: response.statusCode, body });
+                });
+              },
+            );
+            request.on('error', reject);
+            request.end();
+          },
+        );
 
       const sponsorsResponse = await fetch(
         `${origin}/site/${orgSlug}/sponsors`,
@@ -154,12 +179,23 @@ describe('website page service', () => {
         `/site/${orgSlug}/fundraisers/${campaignSlug}?app=1`,
       );
 
-      const interactiveResponse = await fetch(
-        `${origin}/site/${orgSlug}/fundraisers/${campaignSlug}?app=1`,
-        { headers: { host: 'custom-site.example.invalid' } },
+      const sitemapResponse = await getWithHost(
+        '/sitemap.xml',
+        `${orgSlug}.athlentry.com`,
       );
-      expect(interactiveResponse.status).toBe(200);
-      expect(await interactiveResponse.text()).toBe('SPA shell');
+      const sitemap = sitemapResponse.body;
+      expect(sitemapResponse.statusCode).toBe(200);
+      expect(sitemap).toContain(`https://${orgSlug}.athlentry.com/sponsors`);
+      expect(sitemap).toContain(
+        `https://${orgSlug}.athlentry.com/fundraisers/${campaignSlug}`,
+      );
+
+      const interactiveResponse = await getWithHost(
+        `/site/${orgSlug}/fundraisers/${campaignSlug}?app=1`,
+        'custom-site.example.invalid',
+      );
+      expect(interactiveResponse.statusCode).toBe(200);
+      expect(interactiveResponse.body).toBe('SPA shell');
     } finally {
       if (server)
         await new Promise<void>((resolve, reject) =>
