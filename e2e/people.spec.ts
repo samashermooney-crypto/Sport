@@ -206,6 +206,18 @@ test('owner creates, edits and archives a person from the console', async ({
         .where('org_id', '=', actor.orgId)
         .where('id', '=', invoiceId)
         .execute();
+      await trx
+        .insertInto('invoice_lines')
+        .values({
+          id: newId(),
+          org_id: actor.orgId,
+          invoice_id: invoiceId,
+          kind: 'team_fee',
+          description: 'Household balance fixture',
+          unit_amount_cents: 7_500,
+          amount_cents: 7_500,
+        })
+        .execute();
     });
     await factories.row(actor, 'roster_entries', {
       id: newId(),
