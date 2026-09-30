@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — integration code head `16673ed` includes C’s Vite `/site` SSR proxy fix, C’s Federation/fee-void repairs, D’s public-site route split, and A’s origin-scoped notification permission fix; exact-head hosted verification is pending.
+Status: working — integration code head `647cfc32` includes C’s Vite `/site` development proxy correction, C’s Federation/fee-void repairs, D’s Phase 11 fixes, and A’s origin-scoped notification permission change; hosted verification of the latest integration head is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Hosted CI: run `36690800467` on code head `d0d69620` completed with only two E2E failures; test, typecheck, lint, build, Knip, registry, OpenAPI, size, Lighthouse, audit, and secret scan passed. The skip-link artifact showed Vite’s SPA unavailable alert because `/site` was not proxied to SSR; C fixed that in `ca5c509c`. The sign-in permission assertion still reads `denied` after device registration. Exact-head hosted verification for local code head `ca5c509c` is pending; no GREEN result is claimed.
-Open integration work: obtain hosted CI on `16673ed` to verify the SSR skip-link route and A’s origin-scoped notification permission fix; continue checking launch-gate items below.
+Hosted CI: run `36694672770` on `16673ed` completed with the unit `test` job green and four E2E failures: crawler `/site/qa-crawler/sponsors` 500, public-site skip-link home missing, fundraiser detail 404, and Chromium notification permission `denied`. Run `36695956812` on `0cd2dd5d` is in progress and predates `647cfc32`. No GREEN result is claimed.
+Open integration work: get hosted verification after `647cfc32`; D must correct the skip-link E2E fixture’s JSONB `blocks` value, and A must diagnose why the explicit app-origin permission grant still reads `denied` in hosted Chromium. Continue checking launch-gate items below.
 
 ## Completed Track C work
 
@@ -244,3 +244,10 @@ Open integration work: obtain hosted CI on `16673ed` to verify the SSR skip-link
 - Merged A’s `fix/a` branch as `16673ed`, including `3a85deba` which scopes Chromium’s notification permission grant to the configured app origin, and A’s Phase 2 import acceptance fixture. Merge hooks passed ESLint, Prettier, and typecheck.
 - The last hosted run `36690800467` on `d0d69620` predates both the `/site` proxy fix `ca5c509c` and A’s origin-scoped permission change. Its test, static, and Knip jobs passed; E2E failed on the unavailable public-site SPA fallback and denied permission read. The exact `16673ed` hosted result is pending.
 - No local Playwright or full suite was run; no assertion was weakened and no push was made.
+
+## Integration CI repair — 2026-09-30
+
+- Run `36694672770` failed E2E consistently across all three retries; this is not crawler timing noise. C narrowed the dev proxy in `647cfc32`: only `/site/<org>` uses API SSR; `/site.css`, `?app=1`, and nested site journeys stay in Vite so Playwright’s deterministic API mocks are honored.
+- The skip-link home failure is a separate fixture issue: `e2e/design/parity.spec.ts` inserts `blocks: []`; node-postgres sends the JS array as a PostgreSQL array literal, which PostgreSQL stores as JSONB `{}`. The API correctly rejects this because `page.blocks` must be an array. D owns that E2E path and should persist valid JSON (for example `JSON.stringify([]) as unknown as Json`) while preserving every keyboard/focus assertion.
+- A’s explicit notification grant from `3a85deba` still reads `denied` in run `36694672770`; the exact finding is in `docs/codex/tracks/A.md`.
+- `647cfc32` passed `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` and `/Users/sammooney/athlentry-sprint/heavy.sh npm run lint`. Full E2E remains hosted-only per CI-first rules. Run `36695956812` is on pre-fix head `0cd2dd5d`.
