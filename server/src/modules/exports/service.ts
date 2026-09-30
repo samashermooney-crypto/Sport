@@ -1959,13 +1959,26 @@ export async function buildOrganizationExport(
   }
 }
 
+export interface OrganizationExportJobDependencies {
+  database?: Kysely<DB>;
+  storage?: Storage;
+  now?: Date;
+}
+
 export async function runOrganizationExportJob(
   input: unknown,
+  dependencies: OrganizationExportJobDependencies = {},
 ): Promise<{ status: 'ready' | 'already_ready'; bytes: number | null }> {
   const { orgId, exportId } = z
     .strictObject({ orgId: z.uuid(), exportId: z.uuid() })
     .parse(input);
-  return buildOrganizationExport(orgId, exportId);
+  return buildOrganizationExport(
+    orgId,
+    exportId,
+    dependencies.database ?? getDatabase(),
+    dependencies.storage ?? new LocalDiskStorage('data/uploads'),
+    dependencies.now ?? new Date(),
+  );
 }
 
 export async function downloadOrganizationExport(

@@ -20,6 +20,7 @@ import {
   listOrganizationExports,
   OrganizationExportError,
   requestOrganizationExport,
+  runOrganizationExportJob,
   runRetentionSweepJob,
   updateOrganizationPrivacyRequest,
 } from './service';
@@ -175,12 +176,9 @@ describe('organization data export', () => {
     const storage = new MemoryStorage();
     const now = new Date('2026-09-27T18:00:00.000Z');
     await expect(
-      buildOrganizationExport(
-        orgId,
-        requested.export.id,
-        database,
-        storage,
-        now,
+      runOrganizationExportJob(
+        { orgId, exportId: requested.export.id },
+        { database, storage, now },
       ),
     ).resolves.toMatchObject({ status: 'ready' });
     const listed = await listOrganizationExports(context(ownerId), withOrg);
