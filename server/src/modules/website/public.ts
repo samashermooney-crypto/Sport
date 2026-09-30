@@ -356,12 +356,14 @@ function renderDocument(
   const copy =
     organization.locale === 'es'
       ? {
+          skipToContent: 'Saltar al contenido',
           navigation: 'Navegación del sitio web',
           footerNavigation: 'Navegación del pie de página',
           signIn: 'Iniciar sesión como administrador',
           accessibility: 'Declaración de accesibilidad',
         }
       : {
+          skipToContent: 'Skip to content',
           navigation: 'Website navigation',
           footerNavigation: 'Website footer navigation',
           signIn: 'Administrator sign in',
@@ -457,6 +459,11 @@ function renderDocument(
           },
         },
         createElement(
+          'a',
+          { className: 'public-site-skip-link', href: '#main-content' },
+          copy.skipToContent,
+        ),
+        createElement(
           'header',
           { className: 'public-site-header' },
           createElement(
@@ -491,7 +498,11 @@ function renderDocument(
         ),
         createElement(
           'main',
-          { id: 'main-content', className: 'public-site-main' },
+          {
+            id: 'main-content',
+            className: 'public-site-main',
+            tabIndex: -1,
+          },
           createElement('h1', null, page.title),
           ...blocks,
         ),
@@ -532,6 +543,7 @@ function renderNewsDocument(
       ? {
           title: 'Noticias',
           description: `Actualizaciones y anuncios de ${organization.name}.`,
+          skipToContent: 'Saltar al contenido',
           navigation: 'Navegación del sitio web',
           footerNavigation: 'Navegación del pie de página',
           signIn: 'Iniciar sesión como administrador',
@@ -541,6 +553,7 @@ function renderNewsDocument(
       : {
           title: 'News',
           description: `Updates and announcements from ${organization.name}.`,
+          skipToContent: 'Skip to content',
           navigation: 'Website navigation',
           footerNavigation: 'Website footer navigation',
           signIn: 'Administrator sign in',
@@ -651,6 +664,11 @@ function renderNewsDocument(
           },
         },
         createElement(
+          'a',
+          { className: 'public-site-skip-link', href: '#main-content' },
+          copy.skipToContent,
+        ),
+        createElement(
           'header',
           { className: 'public-site-header' },
           createElement(
@@ -685,7 +703,11 @@ function renderNewsDocument(
         ),
         createElement(
           'main',
-          { id: 'main-content', className: 'public-site-main' },
+          {
+            id: 'main-content',
+            className: 'public-site-main',
+            tabIndex: -1,
+          },
           createElement('h1', null, copy.title),
           site.posts.length === 0
             ? createElement('p', null, copy.empty)
@@ -798,6 +820,14 @@ function renderGeneratedSitePage(
             '--site-secondary': site.theme.secondary,
           },
         },
+        createElement(
+          'a',
+          {
+            className: 'public-site-skip-link',
+            href: '#main-content',
+          },
+          spanish ? 'Saltar al contenido' : 'Skip to content',
+        ),
         createElement(
           'header',
           { className: 'public-site-header' },

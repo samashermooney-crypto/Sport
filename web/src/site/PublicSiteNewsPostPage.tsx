@@ -104,6 +104,9 @@ export function PublicSiteNewsPostPage(): React.JSX.Element {
         } as React.CSSProperties
       }
     >
+      <a className="public-site-skip-link" href="#main-content">
+        {t('skipToContent')}
+      </a>
       <header className="public-site-header">
         <Link className="public-site-brand" to={`/site/${organization.slug}`}>
           <span className="public-site-mark" aria-hidden="true">
@@ -122,7 +125,7 @@ export function PublicSiteNewsPostPage(): React.JSX.Element {
           ))}
         </ul>
       </nav>
-      <main className="public-site-main">
+      <main className="public-site-main" id="main-content" tabIndex={-1}>
         <p>{t('newsTitle')}</p>
         <h1>{post.title}</h1>
         {publishedDate ? (

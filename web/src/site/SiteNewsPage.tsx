@@ -110,6 +110,9 @@ export function SiteNewsPage(): React.JSX.Element {
         } as React.CSSProperties
       }
     >
+      <a className="public-site-skip-link" href="#main-content">
+        {t('skipToContent')}
+      </a>
       <header className="public-site-header">
         <Link
           className="public-site-brand"
@@ -131,7 +134,7 @@ export function SiteNewsPage(): React.JSX.Element {
           ))}
         </ul>
       </nav>
-      <main className="public-site-main">
+      <main className="public-site-main" id="main-content" tabIndex={-1}>
         <h1>{t('newsTitle')}</h1>
         {site.posts.length === 0 ? (
           <p>{t('noNewsPosts')}</p>

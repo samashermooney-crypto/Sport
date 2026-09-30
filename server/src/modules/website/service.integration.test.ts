@@ -761,6 +761,10 @@ describe('website page service', () => {
       const html = await response.text();
       expect(response.status).toBe(200);
       expect(html).toContain('<title>News · Website Test Club</title>');
+      expect(html).toContain(
+        'class="public-site-skip-link" href="#main-content"',
+      );
+      expect(html).toContain('id="main-content" class="public-site-main"');
       expect(html).toContain('<article>');
       expect(html).toContain('Registration starts next week.');
       expect(html).not.toContain(
@@ -774,6 +778,9 @@ describe('website page service', () => {
       expect(postResponse.status).toBe(200);
       expect(postHtml).toContain(
         '<title>Season opener announced · Website Test Club</title>',
+      );
+      expect(postHtml).toContain(
+        'class="public-site-skip-link" href="#main-content"',
       );
       expect(html).toContain('/site/' + orgSlug + '/news/season-opener');
       expect(postHtml).toContain(

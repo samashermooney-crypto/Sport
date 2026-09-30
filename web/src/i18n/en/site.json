@@ -1,6 +1,7 @@
 {
   "websiteNavigation": "Website navigation",
   "websiteFooterNavigation": "Website footer navigation",
+  "skipToContent": "Skip to content",
   "loadingWebsite": "Loading website…",
   "websitePageUnavailable": "Website page unavailable",
   "websitePageUnavailableDescription": "This page is not published or could not be loaded.",
