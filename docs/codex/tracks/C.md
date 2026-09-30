@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — local integration code head `cb977581` includes A/D merges, the buyout transaction repair, and balanced household invoice fixtures in both household tests; exact-head hosted verification is pending.
+Status: working — integration candidate `fcff3e5b` regenerates the permission matrix for Track D’s two public-team API operations; exact-head hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Hosted CI: Runs `36707770132`, `36708389157`, and `36709011269` all have green unit tests; static jobs passed on the latest completed run. E2E on `36709011269` passed 114 tests, including the route crawler in 6.7 minutes and both Phase 11 buyout journeys. Its only failure was A’s sign-in permission assertion: secure context and Permissions API report granted, while `Notification.permission` reports denied.
-Open integration work: A’s browser permission mismatch remains open with the diagnostic recorded in A.md. The unit job on `36710839932` passed the household database fixture in `51c9ef3d`; that run’s E2E job was still active before the follow-up E2E fixture correction in `cb977581`. Hosted verification of `cb977581` is pending. The route crawler has passed its same-origin HTTP/request assertions in the latest three completed E2E jobs.
+Hosted CI: Run `36712719317` on `0324ee66` passed the unit test job and all static jobs; Chromium E2E passed 114/115 tests. The route crawler passed in 7.4 minutes without same-origin request failures, and the household fixture and sign-in journey passed. The sole E2E failure was the permission-matrix completeness assertion, which exposed two missing rows for public-team operations; commit `fcff3e5b` regenerates those rows, and hosted verification is pending.
+Open integration work: exact-head hosted verification of `fcff3e5b` is pending. The household real-Postgres fixture passes locally (1/1); the current hosted unit job is green. The crawler’s strict HTTP/request checks passed in four consecutive hosted runs and again on `36712719317`; no crawler assertion or threshold was changed.
 
 ## Completed Track C work
 
@@ -279,4 +279,11 @@ Open integration work: A’s browser permission mismatch remains open with the d
 - The same issue existed in A’s new `e2e/people.spec.ts` household-balance fixture: its open invoice header also lacked a line. Commit `cb977581` adds the matching line within the same tenant transaction. No local Playwright run was used; the `36710839932` E2E job is still running on `51c9ef3d`, so exact candidate verification is pending.
 - Existing CI confirms D’s buyout E2E cases and the route crawler pass; latest crawler evidence is run `36709011269` (6.7m, no same-origin failures). A’s Chromium permission mismatch remains the only previously observed E2E failure: secure context and Permissions API report granted while `Notification.permission` reports denied.
 
-INTEGRATION READY cb977581
+## Public-team permission matrix follow-up — 2026-09-30
+
+- Hosted run `36712719317` on `0324ee66` passed the unit job and all static jobs. Chromium E2E passed 114/115 tests; the only failure was SEC-002 coverage missing `get_api_v1_website_public_orgSlug_teams` and `get_api_v1_website_public_orgSlug_teams_teamSeasonId` after D added them to OpenAPI.
+- Ran `npm run registry`, which generated both `public.access`/`public` rows without changing the role matrix or weakening `e2e/security/permission-matrix.spec.ts`. A structural consistency check now matches all 814 OpenAPI operations and all 23 roles.
+- Commit `fcff3e5b` contains the generated matrix correction. Commit hooks passed typecheck and Prettier. The attempted focused Vitest startup was blocked by sandbox `EPERM` writing Vite’s temporary config under `Sport-trunk/node_modules`; no local Playwright or full suite was run. Hosted verification of `fcff3e5b` is pending.
+- The crawler passed on the failing run in 7.4 minutes, with no same-origin HTTP/request failures; the earlier household fixture and Chromium notification journey also passed.
+
+INTEGRATION READY fcff3e5b
