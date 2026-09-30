@@ -1,3 +1,4 @@
+import { federationCapabilitiesSchema } from '@shared/schemas/federation';
 import { householdListSchema } from '@shared/schemas/households';
 import {
   myOrganizationsSchema,
@@ -36,6 +37,16 @@ export function ConsoleShell({
     queryFn: () => apiGet('/orgs/mine', myOrganizationsSchema),
     enabled: !impersonationId,
   });
+  const federationCapabilities = useQuery({
+    queryKey: ['federation', orgId, 'capabilities'],
+    queryFn: () =>
+      apiGet(
+        `/federation/organizations/${encodeURIComponent(orgId)}/capabilities`,
+        federationCapabilitiesSchema,
+      ),
+    enabled: Boolean(orgId) && workspace.isSuccess && !impersonationId,
+    retry: false,
+  });
   const peopleSearch = useQuery({
     queryKey: ['people', orgId, 'global-search', searchQuery],
     queryFn: () =>
@@ -57,6 +68,10 @@ export function ConsoleShell({
   const mobileHelpTab = contextualHelpMobileTab(
     location.pathname,
     i18n.resolvedLanguage ?? i18n.language,
+  );
+  const canOpenFederation = Boolean(
+    federationCapabilities.data &&
+    Object.values(federationCapabilities.data).some(Boolean),
   );
   const globalSearchResults = [
     ...(peopleSearch.data?.items.map((person) => ({
@@ -152,7 +167,7 @@ export function ConsoleShell({
             item('Messages'),
             item('Safety'),
             item('Classes'),
-            item('Federation'),
+            ...(canOpenFederation ? [item('Federation')] : []),
           ],
         },
         {
