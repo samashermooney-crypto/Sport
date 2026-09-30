@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 import { createApp } from '../src/app';
 import { createDatabase } from '../src/db/kysely';
+import { createWithOrg } from '../src/db/withOrg';
 import { FakeEmailSender } from '../src/integrations/email/sender';
 import { MemoryStorage } from '../src/integrations/storage/storage';
 import { parseEncryptionKeys } from '../src/lib/crypto';
@@ -67,7 +68,23 @@ afterAll(async () => {
 
 describe('new-family registration API wiring', () => {
   it('allows a signed-in unlinked guardian to bootstrap family registration only', async () => {
-    const organization = await createTestFactories(database).actor();
+    const factories = createTestFactories(database);
+    const organization = await factories.actor();
+    const program = await factories.program(organization);
+    await createWithOrg(database)(organization, async (trx) => {
+      await trx
+        .updateTable('programs')
+        .set({ status: 'registration_open', visibility: 'public' })
+        .where('org_id', '=', organization.orgId)
+        .where('id', '=', program.programId)
+        .execute();
+      await trx
+        .updateTable('registration_offerings')
+        .set({ active: true, visibility: 'public' })
+        .where('org_id', '=', organization.orgId)
+        .where('id', '=', program.offeringId)
+        .execute();
+    });
     const accountId = randomUUID();
     await database
       .insertInto('accounts')
@@ -111,11 +128,38 @@ describe('new-family registration API wiring', () => {
     );
     expect(unauthenticatedParticipants.status).toBe(401);
 
+    const unrelatedOrganization = await factories.actor();
+    const unrelatedPath = `/api/v1/registration/orgs/${unrelatedOrganization.orgId}`;
+    const unrelatedCatalog = await fetch(`${baseUrl}${unrelatedPath}/catalog`, {
+      headers: readHeaders,
+    });
+    expect(unrelatedCatalog.status).toBe(404);
+    const unrelatedParticipants = await fetch(
+      `${baseUrl}${unrelatedPath}/participants`,
+      { headers: readHeaders },
+    );
+    expect(unrelatedParticipants.status).toBe(404);
+    const unrelatedWrite = await fetch(
+      `${baseUrl}${unrelatedPath}/participants`,
+      {
+        method: 'POST',
+        headers: writeHeaders,
+        body: JSON.stringify({
+          firstName: 'Mateo',
+          lastName: 'Ortega',
+          dateOfBirth: '2016-05-10',
+        }),
+      },
+    );
+    expect(unrelatedWrite.status).toBe(404);
+
     const catalog = await fetch(`${baseUrl}${registrationPath}/catalog`, {
       headers: readHeaders,
     });
     expect(catalog.status).toBe(200);
-    expect(await catalog.json()).toMatchObject({ items: [] });
+    expect(await catalog.json()).toMatchObject({
+      items: [{ programName: 'Fixture League' }],
+    });
 
     const participants = await fetch(
       `${baseUrl}${registrationPath}/participants`,

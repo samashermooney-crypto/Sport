@@ -26,8 +26,8 @@ import { requireSession } from './modules/auth/routes';
 const organizationPath =
   /(?:^|\/)orgs\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i;
 // A signed-in family new to an organization may browse its public programs and
-// add their first child; routes still require a session and scope every read
-// to the caller. Adding a child creates the relationship other routes require.
+// add their first child only when the organization has a public offering. The
+// relationship check below keeps arbitrary organization IDs indistinguishable.
 const familyRegistrationEntryPath =
   /^\/registration\/orgs\/[0-9a-f-]{36}\/(catalog|participants)$/i;
 const invitationAcceptancePath =
@@ -54,7 +54,6 @@ function organizationRelationshipGuard(
     if (
       request.path.startsWith('/platform') ||
       invitationAcceptancePath.test(request.path) ||
-      selfServiceFamilyRegistration ||
       requestImpersonation(request)
     ) {
       next();
@@ -67,6 +66,37 @@ function organizationRelationshipGuard(
     }
     try {
       const session = await requireSession(dependencies, request);
+      if (selfServiceFamilyRegistration) {
+        const hasPublicOffering = await withOrg(
+          { orgId, actor: { accountId: session.accountId } },
+          async (trx) => {
+            const offering = await trx
+              .selectFrom('registration_offerings as offering')
+              .innerJoin('programs as program', (join) =>
+                join
+                  .onRef('program.id', '=', 'offering.program_id')
+                  .onRef('program.org_id', '=', 'offering.org_id'),
+              )
+              .select('offering.id')
+              .where('offering.org_id', '=', orgId)
+              .where('offering.active', '=', true)
+              .where('offering.registrant_role', '=', 'athlete')
+              .where('offering.visibility', '=', 'public')
+              .where('program.visibility', '=', 'public')
+              .where('program.status', 'in', [
+                'published',
+                'registration_open',
+                'registration_closed',
+              ])
+              .executeTakeFirst();
+            return Boolean(offering);
+          },
+        );
+        if (hasPublicOffering) {
+          next();
+          return;
+        }
+      }
       const hasRelationship = await withOrg(
         { orgId, actor: { accountId: session.accountId } },
         async (trx) => {

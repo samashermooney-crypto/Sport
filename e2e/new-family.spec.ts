@@ -97,7 +97,13 @@ test('a new family adds two children on a phone and puts both in the cart', asyn
 
     const participantPicker = page.getByLabel('Participant');
     for (const name of ['Mateo Ortega', 'Lucia Ortega']) {
-      await participantPicker.selectOption({ label: name });
+      const option = participantPicker.locator('option').filter({
+        hasText: name,
+      });
+      await expect(option).toHaveCount(1);
+      const optionValue = await option.getAttribute('value');
+      expect(optionValue).toBeTruthy();
+      await participantPicker.selectOption(optionValue);
       await page.getByRole('button', { name: 'Add to cart' }).click();
     }
     const cart = page.locator('[aria-labelledby="cart-title"]');
