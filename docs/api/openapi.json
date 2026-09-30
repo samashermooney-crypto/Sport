@@ -31766,6 +31766,68 @@
         ]
       }
     },
+    "/api/v1/federation/organizations/{orgId}/capabilities": {
+      "get": {
+        "operationId": "get_api_v1_federation_organizations_orgId_capabilities",
+        "summary": "Read this member’s federation console capabilities",
+        "x-athlentry-permission": "federation.read",
+        "x-athlentry-resource": "federation.capabilities",
+        "x-athlentry-scope": "organization",
+        "tags": ["federation"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "relationships": { "type": "boolean" },
+                    "manageRelationships": { "type": "boolean" },
+                    "directory": { "type": "boolean" },
+                    "submitEntries": { "type": "boolean" },
+                    "schedule": { "type": "boolean" },
+                    "discipline": { "type": "boolean" },
+                    "referees": { "type": "boolean" },
+                    "finance": { "type": "boolean" }
+                  },
+                  "required": [
+                    "relationships",
+                    "manageRelationships",
+                    "directory",
+                    "submitEntries",
+                    "schedule",
+                    "discipline",
+                    "referees",
+                    "finance"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "x-athlentry-tenancy-fixture": { "body": {} },
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
+      }
+    },
     "/api/v1/federation/organizations/{orgId}/relationships": {
       "get": {
         "operationId": "get_api_v1_federation_organizations_orgId_relationships",

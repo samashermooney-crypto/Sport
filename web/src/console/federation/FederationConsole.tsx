@@ -1,4 +1,8 @@
 import { Temporal } from '@js-temporal/polyfill';
+import {
+  federationCapabilitiesSchema,
+  type FederationCapabilities,
+} from '@shared/schemas/federation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { z } from 'zod';
@@ -303,6 +307,8 @@ async function putJson(path: string, body: unknown): Promise<unknown> {
 export function FederationConsole(): React.JSX.Element {
   const { orgId = '' } = useParams<{ orgId: string }>();
   const [view, setView] = useState<View>('Overview');
+  const [capabilities, setCapabilities] =
+    useState<FederationCapabilities | null>(null);
   const [data, setData] = useState<ViewData>(blankData);
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -403,7 +409,20 @@ export function FederationConsole(): React.JSX.Element {
 
   const reload = useCallback(async () => {
     if (!orgId) return;
-    const requests: [keyof ViewData, string][] = [
+    let access: FederationCapabilities;
+    try {
+      access = await apiGet(
+        `${base}/capabilities`,
+        federationCapabilitiesSchema,
+      );
+      setCapabilities(access);
+    } catch {
+      setData(blankData);
+      setCapabilities(null);
+      setLoadErrors(['Federation access could not be loaded.']);
+      return;
+    }
+    const allRequests: [keyof ViewData, string][] = [
       ['relationships', `${base}/relationships`],
       ['programs', `${base}/programs`],
       ['members', `${base}/members`],
@@ -422,6 +441,30 @@ export function FederationConsole(): React.JSX.Element {
       ['scheduleRuns', `${base}/schedule-runs`],
       ['overview', `${base}/dashboard`],
     ];
+    const canLoad = (key: keyof ViewData): boolean => {
+      if (key === 'relationships') return access.relationships;
+      if (
+        key === 'programs' ||
+        key === 'members' ||
+        key === 'entries' ||
+        key === 'memberDiscipline' ||
+        key === 'overview'
+      )
+        return access.directory;
+      if (
+        key === 'submissions' ||
+        key === 'teams' ||
+        key === 'spaces' ||
+        key === 'hostedGames' ||
+        key === 'contributions'
+      )
+        return access.submitEntries;
+      if (key === 'scheduleRuns') return access.schedule;
+      if (key === 'referees' || key === 'assignments') return access.referees;
+      if (key === 'fees' || key === 'payers') return access.finance;
+      return access.discipline;
+    };
+    const requests = allRequests.filter(([key]) => canLoad(key));
     const settled = await Promise.all(
       requests.map(async ([key, path]) => {
         try {
@@ -475,6 +518,32 @@ export function FederationConsole(): React.JSX.Element {
     setData(next);
     setLoadErrors([...new Set(issues)]);
   }, [base, orgId]);
+
+  const visibleViews = useMemo(() => {
+    if (!capabilities) return ['Overview'] as View[];
+    return views.filter((item) => {
+      if (item === 'Overview') return capabilities.directory;
+      if (item === 'Relationships') return capabilities.relationships;
+      if (item === 'Competition')
+        return (
+          capabilities.directory ||
+          capabilities.submitEntries ||
+          capabilities.schedule
+        );
+      return (
+        capabilities.submitEntries ||
+        capabilities.schedule ||
+        capabilities.discipline ||
+        capabilities.referees ||
+        capabilities.finance
+      );
+    });
+  }, [capabilities]);
+
+  useEffect(() => {
+    if (!visibleViews.includes(view) && visibleViews[0])
+      setView(visibleViews[0]);
+  }, [view, visibleViews]);
 
   useEffect(() => {
     void reload();
@@ -569,7 +638,7 @@ export function FederationConsole(): React.JSX.Element {
           league ? `${base}/programs/${program}/standings` : contestsPath,
           unknownSchema,
         ),
-        league
+        league && capabilities?.schedule
           ? apiGet(
               `${base}/schedule-runs?programId=${encodeURIComponent(program)}`,
               unknownSchema,
@@ -704,21 +773,27 @@ export function FederationConsole(): React.JSX.Element {
             </ul>
           </details>
         )}
-        <nav className="federation-tabs" aria-label="Federation sections">
-          {views.map((item) => (
-            <Button
-              key={item}
-              type="button"
-              secondary={view !== item}
-              aria-current={view === item ? 'page' : undefined}
-              onClick={() => {
-                setView(item);
-              }}
-            >
-              {item}
-            </Button>
-          ))}
-        </nav>
+        {capabilities && !visibleViews.length ? (
+          <p className="federation-notice" role="status">
+            Federation tools are not available to your organization role.
+          </p>
+        ) : (
+          <nav className="federation-tabs" aria-label="Federation sections">
+            {visibleViews.map((item) => (
+              <Button
+                key={item}
+                type="button"
+                secondary={view !== item}
+                aria-current={view === item ? 'page' : undefined}
+                onClick={() => {
+                  setView(item);
+                }}
+              >
+                {item}
+              </Button>
+            ))}
+          </nav>
+        )}
 
         {view === 'Overview' && (
           <>

@@ -2648,6 +2648,15 @@ export const apiRouteMetadata = [
     tenancyFixture: { body: {} },
   },
   {
+    operationId: 'get_api_v1_federation_organizations_orgId_capabilities',
+    method: 'get',
+    path: '/api/v1/federation/organizations/{orgId}/capabilities',
+    permission: 'federation.read',
+    resource: 'federation.capabilities',
+    scope: 'organization',
+    tenancyFixture: { body: {} },
+  },
+  {
     operationId: 'get_api_v1_federation_organizations_orgId_relationships',
     method: 'get',
     path: '/api/v1/federation/organizations/{orgId}/relationships',
