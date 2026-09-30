@@ -135,7 +135,8 @@ Open integration work: verify the current combined head in hosted CI, resolve re
 ## Integration route inventory — 2026-09-29
 
 - `scripts/registry.mjs` now generates a lightweight inventory for all 121 registered web route patterns, including dynamic parameter names, synthetic fixture kinds, source route files, and expected actor contexts. This gives QA a route catalog for unreachable detail pages without importing page components into the crawler.
-- `web/src/generated/registry.test.ts` checks both directions against the registered React Router routes and verifies guardian-document and assigned-official contexts. Focused test passes 3/3; guarded typecheck and lint pass. No full suite or Playwright run was started locally.
+- `web/src/generated/registry.test.ts` checks both directions against the registered React Router routes and verifies linked-guardian, coach/team-manager, treasurer, assigned-official, volunteer and platform-staff contexts plus fixture keys. Focused test passes 3/3; guarded typecheck and lint pass. No full suite or Playwright run was started locally.
+- D's public standings embed fix (`835746b3`) was merged in `390625cd`; A has no code commits ahead, only sync merges.
 - Latest integration CI `36668726068` is running for `30555e56`; the preceding completed run `36668269168` on `807faf13` is RED in e2e, with crawler failures on console money-connect and portal notifications plus the seeded `America/Minneapolis` timezone. The new inventory commit has not yet been checked by hosted CI.
 
 ## Current integration follow-up — 2026-09-29

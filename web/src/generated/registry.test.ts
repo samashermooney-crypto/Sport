@@ -107,5 +107,37 @@ describe('generated web feature registry', () => {
       ({ path }) => path === '/portal/orgs/:orgId/schedule/officials',
     );
     expect(officialSchedule?.actorContexts).toContain('official');
+
+    const coachPracticeSlots = webRouteInventory.find(
+      ({ path }) =>
+        path ===
+        '/portal/orgs/:orgId/schedule/teams/:teamSeasonId/practice-slots',
+    );
+    expect(coachPracticeSlots?.actorContexts).toEqual(
+      expect.arrayContaining(['head_coach', 'assistant_coach', 'team_manager']),
+    );
+    expect(coachPracticeSlots?.fixtures).toEqual(
+      expect.arrayContaining(['organization', 'team-season']),
+    );
+
+    expect(
+      webRouteInventory.find(
+        ({ path }) => path === '/me/orgs/:orgId/team-finance',
+      )?.actorContexts,
+    ).toEqual(expect.arrayContaining(['treasurer', 'team_manager']));
+    expect(
+      webRouteInventory.find(
+        ({ path }) => path === '/me/orgs/:orgId/volunteers',
+      )?.actorContexts,
+    ).toContain('volunteer');
+    expect(
+      webRouteInventory.find(({ path }) => path === '/platform')?.actorContexts,
+    ).toEqual(
+      expect.arrayContaining([
+        'platform_super_admin',
+        'platform_support',
+        'platform_finance_ops',
+      ]),
+    );
   });
 });
