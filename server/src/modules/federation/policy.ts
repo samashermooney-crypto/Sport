@@ -40,6 +40,10 @@ export const FEDERATION_READ_ROLES = [
   'finance',
   'reporter',
 ] as const;
+/** Roles that need relationship names to reach a league entry workflow. */
+export const FEDERATION_RELATIONSHIP_ROLES = [
+  ...new Set([...FEDERATION_READ_ROLES, ...FEDERATION_SUBMIT_ROLES]),
+] as const;
 /** League-side roles that may manage the referee pool. */
 export const FEDERATION_REFEREE_ROLES = [
   'owner',
@@ -53,4 +57,23 @@ export function requireFederationRole(
   allowed: readonly string[],
 ): void {
   requireAnyRole(roles, allowed);
+}
+
+export function federationCapabilities(roles: readonly string[]) {
+  return {
+    relationships: FEDERATION_RELATIONSHIP_ROLES.some((role) =>
+      roles.includes(role),
+    ),
+    manageRelationships: FEDERATION_ADMIN_ROLES.some((role) =>
+      roles.includes(role),
+    ),
+    directory: FEDERATION_READ_ROLES.some((role) => roles.includes(role)),
+    submitEntries: FEDERATION_SUBMIT_ROLES.some((role) => roles.includes(role)),
+    schedule: FEDERATION_SCHEDULE_ROLES.some((role) => roles.includes(role)),
+    discipline: FEDERATION_DISCIPLINE_ROLES.some((role) =>
+      roles.includes(role),
+    ),
+    referees: FEDERATION_REFEREE_ROLES.some((role) => roles.includes(role)),
+    finance: FEDERATION_FINANCE_ROLES.some((role) => roles.includes(role)),
+  };
 }

@@ -89,11 +89,13 @@ import {
   FEDERATION_ADMIN_ROLES,
   FEDERATION_DISCIPLINE_ROLES,
   FEDERATION_FINANCE_ROLES,
+  FEDERATION_RELATIONSHIP_ROLES,
   FEDERATION_READ_ROLES,
   FEDERATION_REFEREE_ROLES,
   FEDERATION_SCHEDULE_ROLES,
   FEDERATION_SUBMIT_ROLES,
   requireFederationRole,
+  federationCapabilities,
 } from './policy';
 import {
   acceptRelationship,
@@ -183,9 +185,17 @@ export function createFederationRouter(
   // ---- Relationships -----------------------------------------------------
 
   router.get(
+    '/organizations/:orgId/capabilities',
+    endpoint(async (request, response) => {
+      const actor = await orgActor(dependencies, request);
+      response.json(federationCapabilities(actor.roles));
+    }),
+  );
+
+  router.get(
     '/organizations/:orgId/relationships',
     endpoint(async (request, response) => {
-      const actor = await actorFor(request, FEDERATION_READ_ROLES);
+      const actor = await actorFor(request, FEDERATION_RELATIONSHIP_ROLES);
       response.json({
         items: await listRelationships(dependencies.database, actor.context),
       });

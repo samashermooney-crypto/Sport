@@ -1,11 +1,10 @@
-import { federationRelationshipSchema } from '@shared/schemas/federation';
+import { federationCapabilitiesSchema } from '@shared/schemas/federation';
 import {
   myOrganizationsSchema,
   orgWorkspaceSchema,
 } from '@shared/schemas/orgs';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router';
-import { z } from 'zod';
 
 import { apiGet } from '../api/client';
 import { AuthFrame, AuthLink, ErrorBox } from '../ui/auth';
@@ -28,13 +27,13 @@ export function ConsoleHome(): React.JSX.Element {
     queryFn: () => apiGet('/orgs/mine', myOrganizationsSchema),
   });
   const federation = useQuery({
-    queryKey: ['federation', orgId, 'relationships'],
+    queryKey: ['federation', orgId, 'capabilities'],
     queryFn: () =>
       apiGet(
-        `/federation/organizations/${String(orgId)}/relationships`,
-        z.strictObject({ items: z.array(federationRelationshipSchema) }),
+        `/federation/organizations/${String(orgId)}/capabilities`,
+        federationCapabilitiesSchema,
       ),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && workspace.isSuccess,
     retry: false,
   });
   if (workspace.isPending) {
@@ -125,7 +124,7 @@ export function ConsoleHome(): React.JSX.Element {
         ]
       : []),
     ...(workspace.data.canAudit && manageActions[7] ? [manageActions[7]] : []),
-    ...(federation.isSuccess
+    ...(federation.data?.relationships
       ? [
           {
             label: 'Open federation',

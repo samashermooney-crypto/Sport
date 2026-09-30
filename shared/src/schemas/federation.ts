@@ -73,6 +73,21 @@ export type FederationRelationship = z.infer<
   typeof federationRelationshipSchema
 >;
 
+/** Caller-specific access flags for the federation console. */
+export const federationCapabilitiesSchema = z.strictObject({
+  relationships: z.boolean(),
+  manageRelationships: z.boolean(),
+  directory: z.boolean(),
+  submitEntries: z.boolean(),
+  schedule: z.boolean(),
+  discipline: z.boolean(),
+  referees: z.boolean(),
+  finance: z.boolean(),
+});
+export type FederationCapabilities = z.infer<
+  typeof federationCapabilitiesSchema
+>;
+
 export const createRelationshipBodySchema = z.strictObject({
   direction: z.enum(['invite', 'request']),
   organizationId: z.uuid(),

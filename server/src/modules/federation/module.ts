@@ -15,6 +15,7 @@ import {
   submitEntryBodySchema,
   reviewEntryBodySchema,
   assignmentUpdateSchema,
+  federationCapabilitiesSchema,
 } from '@shared/schemas/federation';
 import { z } from 'zod';
 
@@ -40,6 +41,13 @@ export const moduleDefinition = {
     'FEDERATION_UNAVAILABLE',
   ],
   openapiRoutes: [
+    {
+      method: 'get',
+      path: `${base}/capabilities`,
+      summary: 'Read this member’s federation console capabilities',
+      response: federationCapabilitiesSchema,
+      tags: ['federation'],
+    },
     {
       method: 'get',
       path: `${base}/relationships`,
