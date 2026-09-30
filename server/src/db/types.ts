@@ -971,6 +971,15 @@ export interface DeviceTokens {
   updated_at: Generated<Timestamp>;
 }
 
+export interface DisciplineGamesServed {
+  contest_id: string;
+  created_at: Generated<Timestamp>;
+  discipline_record_id: string;
+  id: string;
+  org_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface DisciplineRecords {
   contest_id: string | null;
   created_at: Generated<Timestamp>;
@@ -4344,6 +4353,7 @@ export interface DB {
   credential_types: CredentialTypes;
   credits: Credits;
   device_tokens: DeviceTokens;
+  discipline_games_served: DisciplineGamesServed;
   discipline_records: DisciplineRecords;
   discount_code_reservations: DiscountCodeReservations;
   discount_codes: DiscountCodes;

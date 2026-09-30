@@ -381,3 +381,194 @@ export async function assertNotSuspendedForLineup(
     );
   }
 }
+
+/**
+ * Records a card entered with a finalized contest result. Runs inside the
+ * contest transaction after results authorization; the carded player must be
+ * rostered on a team in that contest. Re-finalizing a corrected result does
+ * not duplicate the same card.
+ */
+export async function createFromContestResult(
+  trx: OrgTransaction,
+  context: OrgContext,
+  input: {
+    contestId: string;
+    personId: string;
+    type: string;
+    description: string;
+    suspensionGames: number;
+  },
+) {
+  const roster = await trx
+    .selectFrom('contest_participants as participant')
+    .innerJoin('roster_entries as roster', (join) =>
+      join
+        .onRef('roster.org_id', '=', 'participant.org_id')
+        .onRef('roster.team_season_id', '=', 'participant.team_season_id'),
+    )
+    .select('participant.team_season_id')
+    .where('participant.org_id', '=', context.orgId)
+    .where('participant.contest_id', '=', input.contestId)
+    .where('roster.person_id', '=', input.personId)
+    .where('roster.status', 'in', ['active', 'injured', 'suspended'])
+    .executeTakeFirst();
+  if (!roster?.team_season_id)
+    throw new ComplianceServiceError(
+      409,
+      'NOT_ON_TEAM',
+      'A carded player must be on a team in this contest',
+    );
+  const type = input.suspensionGames > 0 ? 'send_off' : 'caution';
+  const description = input.description.trim();
+  const existing = await trx
+    .selectFrom('discipline_records')
+    .select(['id', 'status', 'version'])
+    .where('org_id', '=', context.orgId)
+    .where('contest_id', '=', input.contestId)
+    .where('person_id', '=', input.personId)
+    .where('type', '=', type)
+    .where('description', '=', description)
+    .executeTakeFirst();
+  if (existing) return existing;
+  const id = newId();
+  await trx
+    .insertInto('discipline_records')
+    .values({
+      id,
+      org_id: context.orgId,
+      person_id: input.personId,
+      team_season_id: roster.team_season_id,
+      contest_id: input.contestId,
+      type,
+      description,
+      suspension_games:
+        input.suspensionGames > 0 ? input.suspensionGames : null,
+      issued_by: context.actor.accountId,
+      games_served: 0,
+      status: 'active',
+    })
+    .execute();
+  await trx
+    .insertInto('audit_log')
+    .values({
+      id: newId(),
+      org_id: context.orgId,
+      actor_account_id: context.actor.accountId,
+      action: 'discipline_record.created',
+      entity_type: 'discipline_record',
+      entity_id: id,
+      changes: {
+        personId: input.personId,
+        teamSeasonId: roster.team_season_id,
+        contestId: input.contestId,
+        type,
+        cardType: input.type,
+        description: '[redacted]',
+        suspensionGames:
+          input.suspensionGames > 0 ? input.suspensionGames : null,
+        source: 'contest_result',
+      },
+    })
+    .execute();
+  return { id, status: 'active', version: 1 };
+}
+
+/**
+ * Counts a finalized contest as one game served for every active game
+ * suspension of a player rostered on a participating team, when the
+ * suspension was issued before this contest started. Each record/contest pair
+ * counts once, so corrected results never double-count.
+ */
+export async function recordGamesServedForContest(
+  trx: OrgTransaction,
+  context: OrgContext,
+  contestId: string,
+) {
+  const contest = await trx
+    .selectFrom('contests as contest')
+    .innerJoin('events as event', (join) =>
+      join
+        .onRef('event.org_id', '=', 'contest.org_id')
+        .onRef('event.id', '=', 'contest.event_id'),
+    )
+    .select(['contest.id', 'event.starts_at'])
+    .where('contest.org_id', '=', context.orgId)
+    .where('contest.id', '=', contestId)
+    .executeTakeFirst();
+  if (!contest) return [];
+  const due = await sql<{
+    id: string;
+    suspension_games: number;
+    games_served: number;
+  }>`
+    SELECT record.id, record.suspension_games, record.games_served
+    FROM discipline_records record
+    LEFT JOIN contests origin
+      ON origin.org_id = record.org_id AND origin.id = record.contest_id
+    LEFT JOIN events origin_event
+      ON origin_event.org_id = origin.org_id AND origin_event.id = origin.event_id
+    WHERE record.org_id = ${context.orgId}::uuid
+      AND record.status = 'active'
+      AND record.suspension_games IS NOT NULL
+      AND record.games_served < record.suspension_games
+      AND (record.contest_id IS NULL OR record.contest_id <> ${contestId}::uuid)
+      AND coalesce(origin_event.starts_at, record.created_at) < ${contest.starts_at}
+      AND EXISTS (
+        SELECT 1
+        FROM contest_participants participant
+        JOIN roster_entries roster
+          ON roster.org_id = participant.org_id
+          AND roster.team_season_id = participant.team_season_id
+        WHERE participant.org_id = record.org_id
+          AND participant.contest_id = ${contestId}::uuid
+          AND roster.person_id = record.person_id
+          AND (record.team_season_id IS NULL
+            OR record.team_season_id = participant.team_season_id)
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM discipline_games_served served
+        WHERE served.org_id = record.org_id
+          AND served.discipline_record_id = record.id
+          AND served.contest_id = ${contestId}::uuid
+      )
+    FOR UPDATE OF record
+  `.execute(trx);
+  const served = [];
+  for (const record of due.rows) {
+    const gamesServed = record.games_served + 1;
+    const status = gamesServed >= record.suspension_games ? 'served' : 'active';
+    await trx
+      .insertInto('discipline_games_served')
+      .values({
+        id: newId(),
+        org_id: context.orgId,
+        discipline_record_id: record.id,
+        contest_id: contestId,
+      })
+      .execute();
+    await trx
+      .updateTable('discipline_records')
+      .set({
+        games_served: gamesServed,
+        status,
+        version: sql<number>`version + 1`,
+      })
+      .where('org_id', '=', context.orgId)
+      .where('id', '=', record.id)
+      .execute();
+    await trx
+      .insertInto('audit_log')
+      .values({
+        id: newId(),
+        org_id: context.orgId,
+        actor_account_id: context.actor.accountId,
+        action: 'discipline_record.game_served',
+        entity_type: 'discipline_record',
+        entity_id: record.id,
+        changes: { contestId, gamesServed, status },
+      })
+      .execute();
+    served.push({ id: record.id, gamesServed, status });
+  }
+  return served;
+}

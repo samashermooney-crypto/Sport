@@ -18,6 +18,10 @@ import { withOrg } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 import { VersionConflictError } from '../../lib/version-check';
 import { appendAuditEvent } from '../audit/service';
+import {
+  createFromContestResult,
+  recordGamesServedForContest,
+} from '../discipline/service';
 import { assertSchedulePermission } from '../scheduling/access';
 import { scopeForEvent, SchedulingRuleError } from '../scheduling/events';
 
@@ -1165,6 +1169,7 @@ export async function submitContestResult(
         input.result.cards ?? [],
         bundle.profile,
       );
+      await recordGamesServedForContest(trx, context, contestId);
     }
     return {
       id: contestId,
@@ -1216,41 +1221,11 @@ async function createDisciplineRecordsForCards(
   cards: NonNullable<ResultInput['cards']>,
   profile: SportProfile,
 ): Promise<void> {
-  if (!cards.length) return;
-  const disciplineServicePath: string = '../discipline/service';
-  let discipline: {
-    createFromContestResult: (
-      trx: OrgTransaction,
-      context: OrgContext,
-      input: {
-        contestId: string;
-        personId: string;
-        type: string;
-        description: string;
-        suspensionGames: number;
-      },
-    ) => Promise<unknown>;
-  };
-  try {
-    discipline = (await import(disciplineServicePath)) as typeof discipline;
-  } catch {
-    throw new SchedulingRuleError(
-      'Discipline cards cannot be finalized because the discipline service is unavailable.',
-      503,
-      'SCHEDULE_CONFLICT',
-    );
-  }
-  if (typeof discipline.createFromContestResult !== 'function')
-    throw new SchedulingRuleError(
-      'Discipline cards cannot be finalized because the discipline service does not expose its contest-result integration yet.',
-      503,
-      'SCHEDULE_CONFLICT',
-    );
   for (const card of cards) {
     const rule = profile.disciplineTypes.find((item) => item.key === card.type);
     if (!rule)
       throw new SchedulingRuleError(`Unknown discipline type: ${card.type}`);
-    await discipline.createFromContestResult(trx, context, {
+    await createFromContestResult(trx, context, {
       contestId,
       personId: card.personId,
       type: card.type,

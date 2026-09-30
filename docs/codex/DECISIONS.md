@@ -1115,3 +1115,11 @@
 - **Decision:** Query the `issues` array with JSONB containment for an object whose `level` is `error`.
 - **Why:** Importers must be able to find and resolve rows that validation rejected; the structural predicate does not depend on JSON text formatting.
 - **Consequences / follow-ups:** Keep the real PostgreSQL integration test for the error filter as part of Phase 15 import coverage.
+
+### DEC-148 — Cards from finalized results create discipline records and later games serve suspensions
+- **Date:** 2026-09-30
+- **Phase / area:** Phase 9 game day / discipline
+- **Context:** Result entry accepted sport-profile cards, but finalizing a result with any card failed with 503 because the discipline module never exposed its contest-result integration, and suspensions could only be served manually.
+- **Decision:** A card on a finalized result creates one discipline record for the carded player's team in that contest (`send_off` with the profile's default suspension games when above zero, otherwise `caution`); the player must be rostered on a participating team, and re-finalizing a corrected result does not duplicate the card. Each finalized contest counts as one game served for every active game suspension of a player rostered on a participating team when the suspension was issued before that contest started; the append-only `discipline_games_served` ledger (migration 8504) guarantees one count per record and contest, and the record becomes `served` when complete. Every change is audited.
+- **Why:** Coaches and officials must be able to finalize games with cards, and eligibility (lineup blocking) must release automatically after the suspension is served without double counting corrections.
+- **Consequences / follow-ups:** Manual `serve_games` remains for games outside the platform. Suspensions scoped to a team are served only by that team's games.
