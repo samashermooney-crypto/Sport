@@ -644,7 +644,11 @@ function renderNewsDocument(
       }),
       createElement('link', {
         rel: 'canonical',
-        href: `https://${organization.slug}.athlentry.com/site/${organization.slug}/news`,
+        href: rebasePublicSiteUrl(
+          `https://${organization.slug}.athlentry.com/site/${organization.slug}/news`,
+          organization.slug,
+          address,
+        ),
       }),
       createElement('script', {
         type: 'application/ld+json',

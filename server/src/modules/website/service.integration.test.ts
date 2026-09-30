@@ -259,6 +259,15 @@ describe('website page service', () => {
         `https://${orgSlug}.athlentry.com/news/${newsSlug}`,
       );
 
+      const hostedNewsIndex = await getWithHost(
+        '/news',
+        `${orgSlug}.athlentry.com`,
+      );
+      expect(hostedNewsIndex.statusCode).toBe(200);
+      expect(hostedNewsIndex.body).toContain(
+        `<link rel="canonical" href="https://${orgSlug}.athlentry.com/news"/>`,
+      );
+
       const interactiveResponse = await getWithHost(
         `/site/${orgSlug}/fundraisers/${campaignSlug}?app=1`,
         'custom-site.example.invalid',
