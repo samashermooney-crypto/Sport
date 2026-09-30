@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — integration candidate includes C’s Vite `/site` SSR proxy fix `ca5c509c`, C’s Federation/fee-void repairs, D’s public-site route split and A’s notification-permission follow-up; exact-head hosted verification is pending.
+Status: working — integration code head `16673ed` includes C’s Vite `/site` SSR proxy fix, C’s Federation/fee-void repairs, D’s public-site route split, and A’s origin-scoped notification permission fix; exact-head hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
 Hosted CI: run `36690800467` on code head `d0d69620` completed with only two E2E failures; test, typecheck, lint, build, Knip, registry, OpenAPI, size, Lighthouse, audit, and secret scan passed. The skip-link artifact showed Vite’s SPA unavailable alert because `/site` was not proxied to SSR; C fixed that in `ca5c509c`. The sign-in permission assertion still reads `denied` after device registration. Exact-head hosted verification for local code head `ca5c509c` is pending; no GREEN result is claimed.
-Open integration work: obtain hosted CI on `ca5c509c` to verify D’s skip-link route now reaches SSR; A must resolve the remaining notification permission-state mismatch without weakening assertions; continue checking launch-gate items below.
+Open integration work: obtain hosted CI on `16673ed` to verify the SSR skip-link route and A’s origin-scoped notification permission fix; continue checking launch-gate items below.
 
 ## Completed Track C work
 
@@ -237,3 +237,10 @@ Open integration work: obtain hosted CI on `ca5c509c` to verify D’s skip-link 
 - A's `55bdfc3b` moved the permission assertion after fake push registration, but `Notification.permission` still reads `denied` after the device-registration request. The Playwright artifact snapshot says `Browser notifications enabled on this device`; A is asked to resolve the browser permission-state mismatch while preserving the assertion and fake-only delivery.
 - Current code head `ca5c509c` includes the Vite route fix; it has not been pushed or run in hosted CI. No full suite or Playwright run was started locally.
 - The recent completed reports do not list C-owned Federation, fee-void, or sharing-revocation failures. Focused API/Postgres and navigation component regressions remain green; no CI-green claim is made for current head.
+
+
+## Integration update — 2026-09-30 04:12 CDT
+
+- Merged A’s `fix/a` branch as `16673ed`, including `3a85deba` which scopes Chromium’s notification permission grant to the configured app origin, and A’s Phase 2 import acceptance fixture. Merge hooks passed ESLint, Prettier, and typecheck.
+- The last hosted run `36690800467` on `d0d69620` predates both the `/site` proxy fix `ca5c509c` and A’s origin-scoped permission change. Its test, static, and Knip jobs passed; E2E failed on the unavailable public-site SPA fallback and denied permission read. The exact `16673ed` hosted result is pending.
+- No local Playwright or full suite was run; no assertion was weakened and no push was made.
