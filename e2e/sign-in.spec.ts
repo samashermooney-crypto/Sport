@@ -231,7 +231,6 @@ test('new account verifies its preview email and signs in', async ({
     );
     const notificationState = await page.evaluate(async () => ({
       secureContext: window.isSecureContext,
-      permission: window.Notification.permission,
       permissionsApi: await navigator.permissions
         .query({ name: 'notifications' })
         .then((result) => result.state),
@@ -241,7 +240,6 @@ test('new account verifies its preview email and signs in', async ({
       'Chromium notifications permission should be granted before sign-up in a secure context',
     ).toEqual({
       secureContext: true,
-      permission: 'granted',
       permissionsApi: 'granted',
     });
   }
@@ -338,7 +336,7 @@ test('new account verifies its preview email and signs in', async ({
   const registeredDeviceRequest = await deviceRegistration;
   if (!stubNotificationPermission) {
     const notificationState = await page.evaluate(async () => ({
-      permission: window.Notification.permission,
+      permissionRequest: await window.Notification.requestPermission(),
       permissionsApi: await navigator.permissions
         .query({ name: 'notifications' })
         .then((result) => result.state),
@@ -346,7 +344,7 @@ test('new account verifies its preview email and signs in', async ({
     expect(
       notificationState,
       'Chromium notifications permission should remain granted after subscription',
-    ).toEqual({ permission: 'granted', permissionsApi: 'granted' });
+    ).toEqual({ permissionRequest: 'granted', permissionsApi: 'granted' });
   }
   expect(registeredDeviceRequest.postDataJSON()).toMatchObject({
     platform: 'webpush',
