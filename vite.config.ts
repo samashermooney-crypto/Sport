@@ -39,6 +39,8 @@ export default defineConfig(({ mode }) => {
         // Production renders published organization pages through the API's
         // SSR router. Mirror that in development; explicit app=1 requests are
         // the interactive SPA routes and must remain with Vite.
+        // Keep this slash boundary so `/site.css` continues to be served by
+        // Vite's public directory instead of reaching the SSR API router.
         '/site/': {
           target: `http://127.0.0.1:${process.env.ATHLENTRY_API_PORT ?? '3001'}`,
           bypass: (request) => {
