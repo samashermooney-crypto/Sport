@@ -4,6 +4,9 @@
 # are never rewritten by this script.
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO_ROOT"
+
 if [ "$(uname -s)" != 'Linux' ] || [ "$(uname -m)" != 'x86_64' ]; then
   echo 'Linux parity references require an x86_64 GitHub Actions runner.' >&2
   exit 1
@@ -24,7 +27,10 @@ LEGACY_WEB_PID=''
 
 cleanup() {
   for pid in "$LEGACY_API_PID" "$LEGACY_WEB_PID"; do
-    if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || true; fi
+    if [ -n "$pid" ]; then
+      kill "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+    fi
   done
   rm -f legacy/node_modules legacy/src
   if [ -n "$LEGACY_VITE_CONFIG_DIR" ]; then rm -rf "$LEGACY_VITE_CONFIG_DIR"; fi
@@ -51,8 +57,8 @@ ln -sfn web legacy/src
 DATABASE_PATH=/tmp/legacy-parity.db PORT=3001 node legacy/server/index.mjs &
 LEGACY_API_PID=$!
 (
-  cd legacy
-  exec node "$PWD/../node_modules/vite/bin/vite.js" \
+  cd "$REPO_ROOT/legacy"
+  exec "$REPO_ROOT/node_modules/.bin/vite" \
     --config "$LEGACY_VITE_CONFIG_DIR/vite.config.mjs" \
     --port 5173 --strictPort
 ) &

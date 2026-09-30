@@ -112,7 +112,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci
+      - run: npm ci --include=dev
       - run: npx playwright install --with-deps chromium webkit
       - name: Capture Linux legacy parity references
         run: bash e2e/visual-reference/linux-baseline.sh
