@@ -918,6 +918,14 @@ export async function getPublicWebsiteChrome(
         label: locale === 'es' ? 'Noticias' : 'News',
         href: `/site/${organization.slug}/news`,
       },
+      {
+        label: locale === 'es' ? 'Patrocinadores' : 'Sponsors',
+        href: `/site/${organization.slug}/sponsors`,
+      },
+      {
+        label: locale === 'es' ? 'Recaudación' : 'Fundraisers',
+        href: `/site/${organization.slug}/fundraisers`,
+      },
     ];
     if (settings.contact_inbox_email)
       generatedNavigation.push({
@@ -1046,7 +1054,7 @@ export async function getPublicWebsiteFundraisers(
     (trx) =>
       trx
         .selectFrom('fundraising_campaigns')
-        .select('slug')
+        .select(['slug', 'name'])
         .where('org_id', '=', site.organization.id)
         .where('status', '=', 'published')
         .where('starts_at', '<=', now)
@@ -1061,7 +1069,10 @@ export async function getPublicWebsiteFundraisers(
         .limit(200)
         .execute(),
   );
-  return { ...site, fundraisers: fundraisers.map(({ slug }) => slug) };
+  return {
+    ...site,
+    fundraisers: fundraisers.map(({ slug, name }) => ({ slug, name })),
+  };
 }
 
 export async function getPublicWebsiteProgram(

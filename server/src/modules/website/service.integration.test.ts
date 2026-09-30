@@ -179,6 +179,17 @@ describe('website page service', () => {
         `/site/${orgSlug}/fundraisers/${campaignSlug}?app=1`,
       );
 
+      const fundraiserIndexResponse = await fetch(
+        `${origin}/site/${orgSlug}/fundraisers`,
+      );
+      const fundraiserIndexHtml = await fundraiserIndexResponse.text();
+      expect(fundraiserIndexResponse.status).toBe(200);
+      expect(fundraiserIndexHtml).toContain('Fall team fundraiser');
+      expect(fundraiserIndexHtml).toContain(
+        `/site/${orgSlug}/fundraisers/${campaignSlug}`,
+      );
+      expect(fundraiserIndexHtml).toContain(`/site/${orgSlug}/sponsors`);
+
       const sitemapResponse = await getWithHost(
         '/sitemap.xml',
         `${orgSlug}.athlentry.com`,

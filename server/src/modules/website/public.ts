@@ -132,7 +132,7 @@ function publicSiteSitemap(
           (program) => `${origin}/programs/${encodeURIComponent(program.slug)}`,
         ),
         ...fundraisers.fundraisers.map(
-          (slug) => `${origin}/fundraisers/${encodeURIComponent(slug)}`,
+          ({ slug }) => `${origin}/fundraisers/${encodeURIComponent(slug)}`,
         ),
       ]
         .map((url) => `<url><loc>${url}</loc></url>`)
@@ -1069,6 +1069,68 @@ function safeSponsorWebsiteUrl(value: string | null): string | null {
   }
 }
 
+function renderPublicFundraisersDocument(
+  site: NonNullable<Awaited<ReturnType<typeof getPublicWebsiteFundraisers>>>,
+  address: SiteAddress,
+) {
+  const spanish = site.organization.locale === 'es';
+  const title = `${spanish ? 'Recaudación' : 'Fundraisers'} · ${site.organization.name}`;
+  const description = spanish
+    ? `Campañas comunitarias publicadas por ${site.organization.name}.`
+    : `Published community campaigns from ${site.organization.name}.`;
+  const rows = site.fundraisers.map((fundraiser) =>
+    createElement(
+      'li',
+      { key: fundraiser.slug },
+      createElement(
+        'a',
+        {
+          href: `/site/${site.organization.slug}/fundraisers/${encodeURIComponent(fundraiser.slug)}`,
+        },
+        fundraiser.name,
+      ),
+    ),
+  );
+  return renderGeneratedSitePage(site, address, {
+    title,
+    description,
+    canonicalPath: `/site/${site.organization.slug}/fundraisers`,
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: title,
+      description,
+      url: `https://${site.organization.slug}.athlentry.com/site/${site.organization.slug}/fundraisers`,
+      mainEntity: {
+        '@type': 'ItemList',
+        itemListElement: site.fundraisers.map((fundraiser, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          item: {
+            '@type': 'DonateAction',
+            name: fundraiser.name,
+            url: `https://${site.organization.slug}.athlentry.com/site/${site.organization.slug}/fundraisers/${encodeURIComponent(fundraiser.slug)}`,
+          },
+        })),
+      },
+    },
+    main: createElement(
+      'main',
+      { id: 'main-content', className: 'public-site-main' },
+      createElement('h1', null, spanish ? 'Recaudación' : 'Fundraisers'),
+      site.fundraisers.length
+        ? createElement('ul', null, ...rows)
+        : createElement(
+            'p',
+            null,
+            spanish
+              ? 'Aún no hay campañas públicas.'
+              : 'There are no public campaigns yet.',
+          ),
+    ),
+  });
+}
+
 function fundraiserDescription(descriptionHtml: string): string {
   return descriptionHtml
     .replace(/<[^>]*>/g, ' ')
@@ -1404,6 +1466,37 @@ export function createSiteSsrRouter(
             renderPublicSponsorsDocument(
               site,
               sponsors,
+              siteAddress(response, orgSlug.data),
+            ),
+          );
+      })
+      .catch(() => response.sendStatus(500));
+  });
+  router.get('/:orgSlug/fundraisers', (request, response) => {
+    const orgSlug = orgSlugSchema.safeParse(request.params.orgSlug);
+    if (!orgSlug.success) {
+      response.sendStatus(404);
+      return;
+    }
+    void getPublicWebsiteFundraisers(
+      dependencies.database,
+      orgSlug.data,
+      withOrg,
+    )
+      .then((site) => {
+        if (!site) {
+          response.sendStatus(404);
+          return;
+        }
+        response
+          .setHeader(
+            'Cache-Control',
+            'public, max-age=60, stale-while-revalidate=300',
+          )
+          .type('html')
+          .send(
+            renderPublicFundraisersDocument(
+              site,
               siteAddress(response, orgSlug.data),
             ),
           );
