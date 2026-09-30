@@ -1,9 +1,9 @@
 # Track C — files, adapters, and wiring
-Status: working — crawler/database integration fixes committed locally through `0e3d73fb` on `track/integration`; hosted verification is pending.
+Status: working — latest C repair commits are `bf8b84f2` and `0fd83c1b` on `track/integration`; hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
 Base head for this repair: `758a22fe`; Track A and D syncs are merged as `111d0b2e` and `758a22fe`. Older integration notes below are retained as historical context.
-Hosted CI: run `36671455807` completed RED on pre-fix head `758a22fe` in `test` and `e2e`; Knip and the other static jobs passed. The repair commits have not been pushed, so no GREEN result is claimed.
-Open integration work: verify the current combined head in hosted CI, resolve remaining owned failures, and continue the launch-gate work below.
+Hosted CI: run `36676094411` completed RED on pre-fix head `41dc3f8f` in `e2e` only; the `test` job and static jobs passed. The repair commits have not been pushed, so no GREEN result is claimed.
+Open integration work: verify the current combined head in hosted CI, resolve any remaining owned failures, and continue the launch-gate work below.
 
 ## Completed Track C work
 
@@ -164,3 +164,14 @@ Open integration work: verify the current combined head in hosted CI, resolve re
 - Commits: `6f832444 fix(test): stabilize database integration seams`; `d1f93517 fix(e2e): wait for crawler network idle`; `0e3d73fb fix(finance): serve connect status from synced state`. `knip` was green on the pre-fix CI run. No full suite or Playwright run was started locally under CI-first rules; no tests were skipped or weakened.
 - D's Phase 14 Lighthouse CI request is implemented in `.github/workflows/ci.yml`: an independent Ubuntu 24.04 job installs Chromium, runs `npm run perf:lighthouse:website`, and uploads `perf/results/phase14-shared-app/` with `if: always()`. Score evidence awaits the hosted run.
 - Local Postgres stack: `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500`, host port 5932. The current hosted CI report is stale and still describes the pre-fix head; the exact committed candidate awaits hosted CI. No push was performed.
+
+## E2E determinism and integration repair — 2026-09-30
+
+- Run `36676094411` on pre-fix head `41dc3f8f` completed with `test` and static jobs passing; only E2E was red. C fixed the federation navigation spec to exercise the shared console shell that owns the asserted Operations navigation.
+- Federation roster counts and submitted snapshots are now returned only while the active member relationship grants `rosters`. The list, detail, and member-team responses hide snapshot/count metadata as soon as the member revokes that permission; the console omits the count when it is not shared.
+- Federation fee void now updates the assessment, invoice, and audits in one caller-owned Postgres transaction. A blocked invoice void (active installment) leaves the assessment invoiced and the invoice open. `PostgresInvoiceRepository.voidInTransaction` supports this atomic composition.
+- Playwright starts each browser-project run from a fresh e2e schema and seed. The opt-in `db:seed --profile e2e --reset` recreates `public` and `pgboss`, reapplies app-role grants, then migrates/seeds; ordinary seed invocation remains non-destructive. CI runs tests with one worker so shared fixtures do not race.
+- Commits: `bf8b84f2 fix(federation): enforce roster revocation and atomic fee voids`; `0fd83c1b test(e2e): reset seeded state between browser runs`.
+- Verification: `server/test/federation.test.ts` passes 21/21 against real Postgres on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500`; e2e schema reset completed all migrations and seed, followed by an app-role seed read. `heavy.sh npm run typecheck` and `heavy.sh npm run lint` pass. The isolated stack is stopped; no local Playwright/full suite was run.
+- A's `Requests from C` note assigns class-security, volunteer-ledger, and chat-safesport E2E failures. D's note assigns uniform-report and buyout-race E2E failures. Those other-track fixes remain outstanding; C has not edited their implementation paths.
+- Hosted verification for `bf8b84f2` and `0fd83c1b` is pending; neither commit was pushed, and no all-green status is claimed.
