@@ -2,6 +2,8 @@
   "entry": [
     "scripts/stripe-smoke.ts",
     "scripts/create-platform-admin.ts",
+    "scripts/backup.ts",
+    "scripts/restore-drill.ts",
     "e2e/**/*.spec.ts"
   ],
   "project": [
@@ -19,7 +21,7 @@
     "server/src/integrations/storage/sharp.d.ts",
     "web/src/ui/vite-env.d.ts"
   ],
-  "ignoreDependencies": ["kysely-codegen", "web-push"],
+  "ignoreDependencies": ["@sentry/node", "kysely-codegen", "web-push"],
   "ignoreExportsUsedInFile": {
     "type": true,
     "interface": true

@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto';
+
 import { ageOnDate, orgToday } from '@shared/dates';
+import { apiErrorSchema } from '@shared/schemas/errors';
 import express from 'express';
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
@@ -11,6 +14,7 @@ import { LocalDiskStorage } from '../../integrations/storage/storage';
 import type { ServerModule } from '../../lib/module-contract';
 import { requireSession } from '../auth/routes';
 import type { AuthDependencies } from '../auth/routes';
+import { publicSponsorPlacements } from '../sponsors/service';
 
 import { createFilesRouter } from './routes';
 import { FilePermissionError, FilesService } from './service';
@@ -148,6 +152,44 @@ export function createFilesAuthorization(
       return Boolean(await query.executeTakeFirst());
     });
 
+  const isAssignedEvaluatorForConsentedPhoto = async (
+    context: { orgId: string; actor: { accountId: string } },
+    file: FileRecord,
+  ): Promise<boolean> => {
+    if (
+      file.purpose !== 'image' ||
+      file.ownerType !== 'person' ||
+      !file.ownerId
+    )
+      return false;
+    return scoped(context, async (trx) => {
+      const assignment = await sql<{ id: string }>`
+        SELECT 1 AS id
+        FROM evaluation_participants AS participant
+        JOIN evaluation_sessions AS session
+          ON session.org_id = participant.org_id
+          AND session.id = participant.evaluation_session_id
+          AND session.evaluation_event_id = participant.evaluation_event_id
+        JOIN evaluation_session_evaluators AS evaluator
+          ON evaluator.org_id = session.org_id
+          AND evaluator.evaluation_session_id = session.id
+        JOIN people AS person
+          ON person.org_id = participant.org_id
+          AND person.id = participant.person_id
+        WHERE participant.org_id = ${context.orgId}
+          AND participant.person_id = ${file.ownerId}
+          AND participant.photo_file_id = ${file.id}
+          AND participant.media_consent IS TRUE
+          AND evaluator.account_id = ${context.actor.accountId}
+          AND evaluator.revoked_at IS NULL
+          AND person.media_consent = 'granted'
+          AND person.photo_file_id = ${file.id}
+        LIMIT 1
+      `.execute(trx);
+      return Boolean(assignment.rows[0]);
+    });
+  };
+
   // The chat portal uploads before it creates the message. For those unscoped
   // uploads, bind download permission to the live message reference instead.
   const isApprovedChatFile = (file: FileRecord): boolean =>
@@ -274,16 +316,81 @@ export function createFilesAuthorization(
         isApprovedChatFile(file) &&
         (await isChatAttachment(context, file.id, false));
       if (referencedByChat) return isChatAttachment(context, file.id, true);
-      if (file.sensitivity === 'sensitive')
-        return (
-          (file.ownerType === 'person' &&
-            file.purpose === 'image' &&
-            Boolean(file.ownerId) &&
-            (await canManageFamilyPerson(context, file.ownerId ?? '', true))) ||
+      if (file.sensitivity === 'sensitive') {
+        if (
           roles.some((role) => ['owner', 'admin', 'registrar'].includes(role))
-        );
+        )
+          return true;
+        if (
+          file.ownerType === 'person' &&
+          file.purpose === 'image' &&
+          file.ownerId &&
+          (await canManageFamilyPerson(context, file.ownerId, true))
+        )
+          return true;
+        if (roles.includes('evaluator'))
+          return isAssignedEvaluatorForConsentedPhoto(context, file);
+        return false;
+      }
       return roles.length > 0;
     },
+  };
+}
+
+export function createPublicFacilityLayoutReader(
+  database: Kysely<DB>,
+  files: FilesService,
+) {
+  return async (orgSlug: string, facilityId: string) => {
+    const organization = await database
+      .selectFrom('organizations')
+      .select(['id', 'status'])
+      .where('slug', '=', orgSlug)
+      .where('status', '=', 'active')
+      .executeTakeFirst();
+    if (!organization) return null;
+    return files.readPublicFacilityLayout(
+      {
+        orgId: organization.id,
+        actor: { accountId: randomUUID() },
+      },
+      facilityId,
+    );
+  };
+}
+
+export function createPublicSponsorLogoReader(
+  database: Kysely<DB>,
+  files: FilesService,
+  clock: () => Date = () => new Date(),
+) {
+  return async (
+    orgSlug: string,
+    sponsorId: string,
+    surface: 'website_home' | 'program_page' | 'team_page' | 'email_footer',
+    targetId?: string,
+  ) => {
+    const organization = await database
+      .selectFrom('organizations')
+      .select(['id', 'status'])
+      .where('slug', '=', orgSlug)
+      .where('status', '=', 'active')
+      .executeTakeFirst();
+    if (!organization) return null;
+    const placements = await publicSponsorPlacements(
+      database,
+      orgSlug,
+      surface,
+      targetId,
+      clock(),
+    );
+    const sponsor = placements.find((placement) => placement.id === sponsorId);
+    if (!sponsor?.logoFileId) return null;
+    return files.readPublicSponsorLogo(
+      { orgId: organization.id, actor: { accountId: randomUUID() } },
+      sponsor.id,
+      sponsor.logoFileId,
+    );
   };
 }
 
@@ -312,10 +419,14 @@ function createMountedFilesRouter(
         (request.get('Origin') !== new URL(dependencies.appUrl).origin &&
           !(bearer && !request.get('Origin'))))
     ) {
-      response.status(403).json({
-        error: 'FORBIDDEN',
-        message: 'Request origin could not be verified',
-      });
+      response.status(403).json(
+        apiErrorSchema.parse({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Request origin could not be verified',
+          },
+        }),
+      );
       return;
     }
     next();
@@ -323,6 +434,14 @@ function createMountedFilesRouter(
   router.use(
     createFilesRouter({
       files: service,
+      publicFacilityLayout: createPublicFacilityLayoutReader(
+        dependencies.database,
+        service,
+      ),
+      publicSponsorLogo: createPublicSponsorLogoReader(
+        dependencies.database,
+        service,
+      ),
       context: async (request) => {
         let accountId: string;
         try {
@@ -366,7 +485,7 @@ export const moduleDefinition = {
   path: '/api/v1/files',
   router: createMountedFilesRouter,
   permissions: [],
-  errorCodes: [],
+  errorCodes: ['FILE_INVALID'],
 } satisfies ServerModule;
 
 export { createFilesRouter };

@@ -1,3 +1,6 @@
+import { isIP } from 'node:net';
+import { domainToASCII } from 'node:url';
+
 import { orgSlugSchema } from '@shared/schemas/orgs';
 import { websitePageSlugSchema } from '@shared/schemas/website';
 import express from 'express';
@@ -10,12 +13,242 @@ import type { AuthDependencies } from '../auth/routes';
 
 import {
   getPublicWebsiteContactPage,
+  getPublicWebsiteRobotsPolicy,
   getPublicWebsiteProgram,
   getPublicWebsitePrograms,
   getPublicWebsiteSchedule,
   getPublicWebsitePage,
+  listPublicWebsitePages,
   listPublicWebsiteNews,
+  resolveVerifiedWebsiteHost,
 } from './service';
+
+type SiteAddress = { origin: string; basePath: string };
+
+function siteAddress(response: express.Response, orgSlug: string): SiteAddress {
+  return {
+    origin:
+      typeof response.locals.publicSiteOrigin === 'string'
+        ? response.locals.publicSiteOrigin
+        : `https://${orgSlug}.athlentry.com`,
+    basePath:
+      typeof response.locals.publicSiteBasePath === 'string'
+        ? response.locals.publicSiteBasePath
+        : `/site/${orgSlug}`,
+  };
+}
+
+function rebasePublicSiteUrl(
+  value: string,
+  orgSlug: string,
+  address: SiteAddress,
+): string {
+  const platformOrigin = `https://${orgSlug}.athlentry.com`;
+  const platformSiteBase = `${platformOrigin}/site/${orgSlug}`;
+  return value
+    .replaceAll(platformSiteBase, `${address.origin}${address.basePath}`)
+    .replaceAll(platformOrigin, address.origin);
+}
+
+function rebaseJsonLd(
+  value: unknown,
+  orgSlug: string,
+  address: SiteAddress,
+): unknown {
+  if (typeof value === 'string')
+    return rebasePublicSiteUrl(value, orgSlug, address);
+  if (Array.isArray(value))
+    return value.map((entry) => rebaseJsonLd(entry, orgSlug, address));
+  if (typeof value === 'object' && value !== null)
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        rebaseJsonLd(entry, orgSlug, address),
+      ]),
+    );
+  return value;
+}
+
+function normalizedSiteHostname(hostname: string | undefined): string | null {
+  if (!hostname) return null;
+  const ascii = domainToASCII(hostname.trim().replace(/\.$/, '')).toLowerCase();
+  if (
+    !ascii ||
+    ascii.length > 253 ||
+    isIP(ascii) ||
+    !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(
+      ascii,
+    )
+  )
+    return null;
+  return ascii;
+}
+
+async function resolveSiteSlug(
+  database: AuthDependencies['database'],
+  hostname: string,
+): Promise<string | null> {
+  const platformSuffix = '.athlentry.com';
+  if (hostname.endsWith(platformSuffix)) {
+    const subdomain = hostname.slice(0, -platformSuffix.length);
+    const parsed = orgSlugSchema.safeParse(subdomain);
+    if (parsed.success && !parsed.data.includes('.')) return parsed.data;
+  }
+  return resolveVerifiedWebsiteHost(database, hostname);
+}
+
+function publicSiteRobots(hostname: string, robotsPolicy: string): string {
+  if (robotsPolicy === 'noindex') return 'User-agent: *\nDisallow: /\n';
+  return `User-agent: *\nAllow: /\nSitemap: https://${hostname}/sitemap.xml\n`;
+}
+
+function publicSiteSitemap(
+  hostname: string,
+  pages: NonNullable<Awaited<ReturnType<typeof listPublicWebsitePages>>>,
+  news: NonNullable<Awaited<ReturnType<typeof listPublicWebsiteNews>>>,
+  programs: NonNullable<Awaited<ReturnType<typeof getPublicWebsitePrograms>>>,
+): string {
+  const origin = `https://${hostname}`;
+  const shouldIndex = news.robotsPolicy === 'index';
+  const pageEntries = (shouldIndex ? pages : [])
+    .map(
+      ({ slug, updated_at }) =>
+        `<url><loc>${origin}${slug === 'home' ? '/' : `/${slug.split('/').map(encodeURIComponent).join('/')}`}</loc><lastmod>${updated_at.toISOString()}</lastmod></url>`,
+    )
+    .join('');
+  const generatedEntries = shouldIndex
+    ? [
+        `${origin}/programs`,
+        `${origin}/schedule`,
+        ...programs.programs.map(
+          (program) => `${origin}/programs/${encodeURIComponent(program.slug)}`,
+        ),
+      ]
+        .map((url) => `<url><loc>${url}</loc></url>`)
+        .join('')
+    : '';
+  const newsEntry =
+    shouldIndex && news.posts.length
+      ? `<url><loc>${origin}/news</loc></url>`
+      : '';
+  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pageEntries}${generatedEntries}${newsEntry}</urlset>`;
+}
+
+function createSiteHostRouter(
+  dependencies: Pick<AuthDependencies, 'database'> &
+    Partial<Pick<AuthDependencies, 'captchaWidget'>>,
+): express.Router {
+  const router = express.Router();
+  const siteSsrRouter = createSiteSsrRouter(dependencies);
+  const withOrg = createWithOrg(dependencies.database);
+  router.use((request, response, next) => {
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      next();
+      return;
+    }
+    const hostname = normalizedSiteHostname(request.hostname);
+    if (!hostname) {
+      next();
+      return;
+    }
+    const pathname = request.path;
+    if (
+      pathname.startsWith('/api/') ||
+      pathname.startsWith('/.well-known/') ||
+      pathname.startsWith('/assets/') ||
+      pathname === '/site.css' ||
+      pathname === '/favicon.ico'
+    ) {
+      next();
+      return;
+    }
+    const isSeoFile = pathname === '/robots.txt' || pathname === '/sitemap.xml';
+    if (!isSeoFile && !request.accepts('html')) {
+      next();
+      return;
+    }
+    void resolveSiteSlug(dependencies.database, hostname)
+      .then(async (orgSlug) => {
+        if (!orgSlug) {
+          const isCustomHostname =
+            hostname !== 'localhost' &&
+            hostname !== 'athlentry.com' &&
+            !hostname.endsWith('.athlentry.com');
+          if (
+            isCustomHostname &&
+            (pathname === '/site' || pathname.startsWith('/site/'))
+          ) {
+            response.sendStatus(404);
+            return;
+          }
+          next();
+          return;
+        }
+        response.locals.publicSiteOrigin = `https://${hostname}`;
+        response.locals.publicSiteBasePath = '';
+        if (isSeoFile) {
+          const robots = await getPublicWebsiteRobotsPolicy(
+            dependencies.database,
+            orgSlug,
+            withOrg,
+          );
+          if (!robots) {
+            response.sendStatus(404);
+            return;
+          }
+          if (pathname === '/robots.txt') {
+            response
+              .setHeader('Cache-Control', 'public, max-age=300')
+              .type('text/plain')
+              .send(publicSiteRobots(hostname, robots.robotsPolicy));
+            return;
+          }
+          const [pages, news, programs] = await Promise.all([
+            listPublicWebsitePages(dependencies.database, orgSlug, withOrg),
+            listPublicWebsiteNews(dependencies.database, orgSlug, withOrg),
+            getPublicWebsitePrograms(dependencies.database, orgSlug, withOrg),
+          ]);
+          if (!pages || !news || !programs) {
+            response.sendStatus(404);
+            return;
+          }
+          response
+            .setHeader('Cache-Control', 'public, max-age=300')
+            .type('application/xml')
+            .send(publicSiteSitemap(hostname, pages, news, programs));
+          return;
+        }
+        const originalUrl = request.url;
+        const sitePrefix = `/site/${encodeURIComponent(orgSlug)}`;
+        let sitePath = pathname;
+        if (pathname === sitePrefix || pathname.startsWith(`${sitePrefix}/`)) {
+          sitePath = pathname.slice(sitePrefix.length) || '/';
+        } else if (pathname === '/site' || pathname.startsWith('/site/')) {
+          response.sendStatus(404);
+          return;
+        }
+        const queryIndex = originalUrl.indexOf('?');
+        const query = queryIndex < 0 ? '' : originalUrl.slice(queryIndex);
+        request.url = `/${encodeURIComponent(orgSlug)}${sitePath === '/' ? '' : sitePath}${query}`;
+        siteSsrRouter(request, response, (error: unknown) => {
+          request.url = originalUrl;
+          next(error);
+        });
+      })
+      .catch(next);
+  });
+  return router;
+}
+
+export function createWebsitePublicRouter(
+  dependencies: Pick<AuthDependencies, 'database'> &
+    Partial<Pick<AuthDependencies, 'captchaWidget'>>,
+): express.Router {
+  const router = express.Router();
+  router.use(createSiteHostRouter(dependencies));
+  router.use('/site', createSiteSsrRouter(dependencies));
+  return router;
+}
 
 function safeJsonLd(value: unknown): string {
   return JSON.stringify(value)
@@ -58,6 +291,7 @@ function siteFontPreloads(): ReactNode[] {
 
 function renderDocument(
   site: NonNullable<Awaited<ReturnType<typeof getPublicWebsitePage>>>,
+  address: SiteAddress,
 ) {
   const { organization, page } = site;
   const copy =
@@ -77,7 +311,11 @@ function renderDocument(
   const title = page.seo.title || `${page.title} · ${organization.name}`;
   const description = page.seo.description;
   const canonical = page.seo.canonicalPath
-    ? `https://${organization.slug}.athlentry.com${page.seo.canonicalPath}`
+    ? rebasePublicSiteUrl(
+        `https://${organization.slug}.athlentry.com${page.seo.canonicalPath}`,
+        organization.slug,
+        address,
+      )
     : undefined;
   const blocks = page.blocks.map((block, index) => {
     if (block.type === 'heading')
@@ -94,12 +332,18 @@ function renderDocument(
       );
     return createElement('p', { key: index }, block.text);
   });
-  const jsonLd = safeJsonLd({
-    '@context': 'https://schema.org',
-    '@type': 'SportsOrganization',
-    name: organization.name,
-    url: `https://${organization.slug}.athlentry.com`,
-  });
+  const jsonLd = safeJsonLd(
+    rebaseJsonLd(
+      {
+        '@context': 'https://schema.org',
+        '@type': 'SportsOrganization',
+        name: organization.name,
+        url: `https://${organization.slug}.athlentry.com`,
+      },
+      organization.slug,
+      address,
+    ),
+  );
   const document = createElement(
     'html',
     { lang: organization.locale },
@@ -221,6 +465,7 @@ function renderDocument(
 
 function renderNewsDocument(
   site: NonNullable<Awaited<ReturnType<typeof listPublicWebsiteNews>>>,
+  address: SiteAddress,
 ) {
   const { organization } = site;
   const copy =
@@ -244,24 +489,30 @@ function renderNewsDocument(
           empty: 'There are no published news posts yet.',
         };
   const title = `${copy.title} · ${organization.name}`;
-  const jsonLd = safeJsonLd({
-    '@context': 'https://schema.org',
-    '@type': 'CollectionPage',
-    name: title,
-    url: `https://${organization.slug}.athlentry.com/site/${organization.slug}/news`,
-    mainEntity: {
-      '@type': 'ItemList',
-      itemListElement: site.posts.map((post, index) => ({
-        '@type': 'ListItem',
-        position: index + 1,
-        item: {
-          '@type': 'NewsArticle',
-          headline: post.title,
-          datePublished: post.publishedAt,
+  const jsonLd = safeJsonLd(
+    rebaseJsonLd(
+      {
+        '@context': 'https://schema.org',
+        '@type': 'CollectionPage',
+        name: title,
+        url: `https://${organization.slug}.athlentry.com/site/${organization.slug}/news`,
+        mainEntity: {
+          '@type': 'ItemList',
+          itemListElement: site.posts.map((post, index) => ({
+            '@type': 'ListItem',
+            position: index + 1,
+            item: {
+              '@type': 'NewsArticle',
+              headline: post.title,
+              datePublished: post.publishedAt,
+            },
+          })),
         },
-      })),
-    },
-  });
+      },
+      organization.slug,
+      address,
+    ),
+  );
   const articles = site.posts.map((post) =>
     createElement(
       'article',
@@ -408,6 +659,7 @@ type GeneratedSiteChrome = {
 
 function renderGeneratedSitePage(
   site: GeneratedSiteChrome,
+  address: SiteAddress,
   options: {
     title: string;
     description: string;
@@ -445,11 +697,19 @@ function renderGeneratedSitePage(
       }),
       createElement('link', {
         rel: 'canonical',
-        href: `https://${site.organization.slug}.athlentry.com${options.canonicalPath}`,
+        href: rebasePublicSiteUrl(
+          `https://${site.organization.slug}.athlentry.com${options.canonicalPath}`,
+          site.organization.slug,
+          address,
+        ),
       }),
       createElement('script', {
         type: 'application/ld+json',
-        dangerouslySetInnerHTML: { __html: safeJsonLd(options.jsonLd) },
+        dangerouslySetInnerHTML: {
+          __html: safeJsonLd(
+            rebaseJsonLd(options.jsonLd, site.organization.slug, address),
+          ),
+        },
       }),
     ),
     createElement(
@@ -566,6 +826,7 @@ function programStatusLabel(status: string, locale: string) {
 
 function renderProgramsDocument(
   site: NonNullable<Awaited<ReturnType<typeof getPublicWebsitePrograms>>>,
+  address: SiteAddress,
 ) {
   const spanish = site.organization.locale === 'es';
   const title = `${spanish ? 'Programas' : 'Programs'} · ${site.organization.name}`;
@@ -617,7 +878,7 @@ function renderProgramsDocument(
       ),
     ),
   );
-  return renderGeneratedSitePage(site, {
+  return renderGeneratedSitePage(site, address, {
     title,
     description,
     canonicalPath: `/site/${site.organization.slug}/programs`,
@@ -641,6 +902,7 @@ function renderProgramsDocument(
 
 function renderProgramDocument(
   site: NonNullable<Awaited<ReturnType<typeof getPublicWebsiteProgram>>>,
+  address: SiteAddress,
 ) {
   const spanish = site.organization.locale === 'es';
   const { program } = site;
@@ -660,7 +922,7 @@ function renderProgramDocument(
       url: `https://${site.organization.slug}.athlentry.com`,
     },
   };
-  return renderGeneratedSitePage(site, {
+  return renderGeneratedSitePage(site, address, {
     title,
     description,
     canonicalPath: `/site/${site.organization.slug}/programs/${program.slug}`,
@@ -724,6 +986,7 @@ function formatEventDateTime(value: string, timezone: string, locale: string) {
 
 function renderScheduleDocument(
   site: NonNullable<Awaited<ReturnType<typeof getPublicWebsiteSchedule>>>,
+  address: SiteAddress,
 ) {
   const spanish = site.organization.locale === 'es';
   const title = `${spanish ? 'Calendario' : 'Schedule'} · ${site.organization.name}`;
@@ -780,7 +1043,7 @@ function renderScheduleDocument(
         : null,
     ),
   );
-  return renderGeneratedSitePage(site, {
+  return renderGeneratedSitePage(site, address, {
     title,
     description,
     canonicalPath: `/site/${site.organization.slug}/schedule`,
@@ -805,6 +1068,7 @@ function renderScheduleDocument(
 function renderContactDocument(
   site: NonNullable<Awaited<ReturnType<typeof getPublicWebsiteContactPage>>>,
   options: { siteKey?: string; sent: boolean },
+  address: SiteAddress,
 ) {
   const spanish = site.organization.locale === 'es';
   const title = `${spanish ? 'Contacto' : 'Contact'} · ${site.organization.name}`;
@@ -899,7 +1163,7 @@ function renderContactDocument(
       name: site.organization.name,
     },
   };
-  return renderGeneratedSitePage(site, {
+  return renderGeneratedSitePage(site, address, {
     title,
     description,
     canonicalPath: `/site/${site.organization.slug}/contact`,
@@ -954,7 +1218,9 @@ export function createSiteSsrRouter(
             'public, max-age=60, stale-while-revalidate=300',
           )
           .type('html')
-          .send(renderProgramDocument(site));
+          .send(
+            renderProgramDocument(site, siteAddress(response, orgSlug.data)),
+          );
       })
       .catch(() => response.sendStatus(500));
   });
@@ -976,7 +1242,9 @@ export function createSiteSsrRouter(
             'public, max-age=60, stale-while-revalidate=300',
           )
           .type('html')
-          .send(renderProgramsDocument(site));
+          .send(
+            renderProgramsDocument(site, siteAddress(response, orgSlug.data)),
+          );
       })
       .catch(() => response.sendStatus(500));
   });
@@ -1003,7 +1271,9 @@ export function createSiteSsrRouter(
             'public, max-age=60, stale-while-revalidate=300',
           )
           .type('html')
-          .send(renderScheduleDocument(site));
+          .send(
+            renderScheduleDocument(site, siteAddress(response, orgSlug.data)),
+          );
       })
       .catch(() => response.sendStatus(500));
   });
@@ -1030,12 +1300,16 @@ export function createSiteSsrRouter(
           )
           .type('html')
           .send(
-            renderContactDocument(site, {
-              ...(dependencies.captchaWidget?.mode === 'turnstile'
-                ? { siteKey: dependencies.captchaWidget.siteKey }
-                : {}),
-              sent: request.query.sent === '1',
-            }),
+            renderContactDocument(
+              site,
+              {
+                ...(dependencies.captchaWidget?.mode === 'turnstile'
+                  ? { siteKey: dependencies.captchaWidget.siteKey }
+                  : {}),
+                sent: request.query.sent === '1',
+              },
+              siteAddress(response, orgSlug.data),
+            ),
           );
       })
       .catch(() => response.sendStatus(500));
@@ -1058,7 +1332,7 @@ export function createSiteSsrRouter(
             'public, max-age=60, stale-while-revalidate=300',
           )
           .type('html')
-          .send(renderNewsDocument(site));
+          .send(renderNewsDocument(site, siteAddress(response, orgSlug.data)));
       })
       .catch(() => response.sendStatus(500));
   });
@@ -1088,7 +1362,7 @@ export function createSiteSsrRouter(
               'public, max-age=60, stale-while-revalidate=300',
             )
             .type('html')
-            .send(renderDocument(site));
+            .send(renderDocument(site, siteAddress(response, orgSlug.data)));
         })
         .catch(() => response.sendStatus(500));
     };

@@ -1,5 +1,5 @@
 import { newId } from '@shared/ids';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { createDatabase } from '../src/db/kysely';
@@ -39,7 +39,6 @@ it('filters people by active program registration and current team roster', asyn
     personId,
     householdId,
   );
-  const rosterDate = '2026-09-27';
   const rosterId = newId();
   await factories.row(actor, 'roster_entries', {
     id: rosterId,
@@ -47,7 +46,6 @@ it('filters people by active program registration and current team roster', asyn
     team_season_id: team.teamSeasonId,
     person_id: personId,
     registration_id: registrationId,
-    joined_on: rosterDate,
   });
   const people = createPeopleRepository(database);
   expect(
@@ -93,7 +91,7 @@ it('filters people by active program registration and current team roster', asyn
       .execute();
     await trx
       .updateTable('roster_entries')
-      .set({ status: 'released', left_on: rosterDate })
+      .set({ status: 'released', left_on: sql`joined_on` })
       .where('id', '=', rosterId)
       .execute();
   });

@@ -184,7 +184,9 @@ export function ActionCenter({ orgId }: { orgId: string }): React.JSX.Element {
                   secondary
                   disabled={reminderMutation.isPending}
                   onClick={() => {
-                    reminderMutation.mutate(card.bulkAction as ActionCenterMutation);
+                    reminderMutation.mutate(
+                      card.bulkAction as ActionCenterMutation,
+                    );
                   }}
                 >
                   {reminderMutation.isPending

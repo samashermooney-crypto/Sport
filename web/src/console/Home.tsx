@@ -1,9 +1,11 @@
+import { federationRelationshipSchema } from '@shared/schemas/federation';
 import {
   myOrganizationsSchema,
   orgWorkspaceSchema,
 } from '@shared/schemas/orgs';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router';
+import { z } from 'zod';
 
 import { apiGet } from '../api/client';
 import { AuthFrame, AuthLink, ErrorBox } from '../ui/auth';
@@ -24,6 +26,16 @@ export function ConsoleHome(): React.JSX.Element {
   const organizations = useQuery({
     queryKey: ['orgs', 'mine'],
     queryFn: () => apiGet('/orgs/mine', myOrganizationsSchema),
+  });
+  const federation = useQuery({
+    queryKey: ['federation', orgId, 'relationships'],
+    queryFn: () =>
+      apiGet(
+        `/federation/organizations/${String(orgId)}/relationships`,
+        z.strictObject({ items: z.array(federationRelationshipSchema) }),
+      ),
+    enabled: Boolean(orgId),
+    retry: false,
   });
   if (workspace.isPending) {
     return (
@@ -51,6 +63,11 @@ export function ConsoleHome(): React.JSX.Element {
       label: 'Manage households',
       description: 'Create households and link people to them.',
       to: `/console/orgs/${orgId}/households`,
+    },
+    {
+      label: 'Manage schedule',
+      description: 'Review team schedules and event assignments.',
+      to: `/console/orgs/${orgId}/schedule`,
     },
     {
       label: 'Review safety requirements',
@@ -93,8 +110,8 @@ export function ConsoleHome(): React.JSX.Element {
               'Finish the steps that prepare your organization to launch.',
             to: `/console/orgs/${orgId}/onboarding`,
           },
-          ...manageActions.slice(0, 6),
-          ...(manageActions[7] ? [manageActions[7]] : []),
+          ...manageActions.slice(0, 7),
+          ...(manageActions[8] ? [manageActions[8]] : []),
           {
             label: 'Manage payment processing',
             description: 'Connect your organization to accept online payments.',
@@ -107,7 +124,17 @@ export function ConsoleHome(): React.JSX.Element {
           },
         ]
       : []),
-    ...(workspace.data.canAudit && manageActions[6] ? [manageActions[6]] : []),
+    ...(workspace.data.canAudit && manageActions[7] ? [manageActions[7]] : []),
+    ...(federation.isSuccess
+      ? [
+          {
+            label: 'Open federation',
+            description:
+              'View member relationships, competition, shared schedules and officials.',
+            to: `/console/federation/${orgId}`,
+          },
+        ]
+      : []),
   ];
   const navigation = [
     {

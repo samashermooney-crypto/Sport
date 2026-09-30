@@ -14,6 +14,7 @@ export const helpOpenApiRoutes = [
     method: 'get',
     path: '/api/v1/help/articles',
     summary: 'List organization help articles',
+    tenancyFixture: { tenantHeader: true },
     query: {
       locale: z.enum(['en', 'es']).optional(),
       audience: z.enum(['all', 'staff', 'family']).optional(),
@@ -27,6 +28,7 @@ export const helpOpenApiRoutes = [
     method: 'get',
     path: '/api/v1/help/articles/{slug}',
     summary: 'Read an organization help article',
+    tenancyFixture: { tenantHeader: true },
     query: { locale: z.enum(['en', 'es']).optional() },
     response: articleSummarySchema.extend({ body: z.string() }),
   },
@@ -34,6 +36,7 @@ export const helpOpenApiRoutes = [
     method: 'get',
     path: '/api/v1/help/search',
     summary: 'Search organization help articles',
+    tenancyFixture: { tenantHeader: true },
     query: {
       q: z.string().optional(),
       locale: z.enum(['en', 'es']).optional(),
@@ -44,6 +47,14 @@ export const helpOpenApiRoutes = [
     method: 'post',
     path: '/api/v1/help/support-requests',
     summary: 'Send an in-app support or import concierge request',
+    tenancyFixture: {
+      body: {
+        kind: 'support',
+        subject: 'Security regression',
+        body: 'Foreign organization request',
+      },
+      tenantHeader: true,
+    },
     body: z.object({
       kind: z.enum(['support', 'concierge_import']).default('support'),
       subject: z.string().trim().min(1).max(200),

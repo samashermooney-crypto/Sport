@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createMailpitEmailSender,
@@ -20,6 +20,10 @@ vi.mock('nodemailer', () => ({
 }));
 
 describe('email adapters', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('keeps FakeEmailSender behavior and retains rich message fields', async () => {
     const sender = new FakeEmailSender();
     const message = {
@@ -39,6 +43,24 @@ describe('email adapters', () => {
     expect(mailpitSmtpPort('2525')).toBe(2525);
     expect(mailpitSmtpPort(undefined)).toBe(1025);
     expect(() => mailpitSmtpPort('70000')).toThrow('valid TCP port');
+  });
+  it('reads the Mailpit SMTP port from the environment and defaults to 1025', () => {
+    smtp.createTransport.mockReturnValue({ sendMail: smtp.sendMail });
+    vi.stubEnv('ATHLENTRY_MAILPIT_SMTP_PORT', '2526');
+    createMailpitEmailSender();
+    expect(smtp.createTransport).toHaveBeenLastCalledWith({
+      host: '127.0.0.1',
+      port: 2526,
+      secure: false,
+    });
+
+    vi.stubEnv('ATHLENTRY_MAILPIT_SMTP_PORT', '');
+    createMailpitEmailSender();
+    expect(smtp.createTransport).toHaveBeenLastCalledWith({
+      host: '127.0.0.1',
+      port: 1025,
+      secure: false,
+    });
   });
   it('returns the Mailpit SMTP message ID', async () => {
     smtp.createTransport.mockReturnValue({ sendMail: smtp.sendMail });

@@ -96,10 +96,21 @@ const errors = [
     moduleDefinitions.flatMap((definition) => definition.errorCodes ?? []),
   ),
 ].sort();
+const { apiRouteMetadata } = await import(
+  pathToFileURL(resolve('server/src/generated/api-route-metadata.ts')).href
+);
 const permissions = [
-  ...new Set(
-    moduleDefinitions.flatMap((definition) => definition.permissions ?? []),
-  ),
+  ...new Set([
+    ...moduleDefinitions.flatMap((definition) => definition.permissions ?? []),
+    ...apiRouteMetadata
+      .map((operation) => operation.permission)
+      .filter(
+        (permission) =>
+          permission !== 'public.access' &&
+          permission !== 'account.self' &&
+          permission !== 'platform.staff',
+      ),
+  ]),
 ].sort();
 const serverImports = [
   ...integrationNames.map(
@@ -139,6 +150,7 @@ await writeGenerated(
 
 export const serverModules: readonly ServerModule[] = [${serverNames.map((name) => `${identifier(name)}Module`).join(', ')}];
 export const integrationConfigs: readonly IntegrationConfig[] = [${integrationNames.map((name) => `${identifier(name)}Config`).join(', ')}];
+export { apiRouteMetadata } from './api-route-metadata';
 `,
 );
 
@@ -176,6 +188,260 @@ await writeGenerated(
   'shared/src/generated/permissions.ts',
   `export const modulePermissions = ${JSON.stringify(permissions)} as const;\n`,
 );
+
+const securityRoles = [
+  'anonymous',
+  'owner',
+  'admin',
+  'registrar',
+  'finance',
+  'scheduler',
+  'compliance',
+  'communications',
+  'director',
+  'evaluator',
+  'volunteer_coordinator',
+  'reporter',
+  'guardian',
+  'self',
+  'head_coach',
+  'assistant_coach',
+  'team_manager',
+  'treasurer',
+  'official',
+  'volunteer',
+  'platform_super_admin',
+  'platform_support',
+  'platform_finance_ops',
+];
+const platformRoles = [
+  'platform_super_admin',
+  'platform_support',
+  'platform_finance_ops',
+];
+const organizationRoles = securityRoles.filter(
+  (role) => role !== 'anonymous' && !platformRoles.includes(role),
+);
+const permissionRoles = {
+  'public.access': securityRoles,
+  'account.self': securityRoles.filter((role) => role !== 'anonymous'),
+  'platform.staff': platformRoles,
+  'ai.read': organizationRoles,
+  'ai.manage': [
+    'owner',
+    'admin',
+    'registrar',
+    'treasurer',
+    'head_coach',
+    'assistant_coach',
+    'team_manager',
+  ],
+  'ai.conversations.read': [
+    'owner',
+    'admin',
+    'registrar',
+    'treasurer',
+    'head_coach',
+    'assistant_coach',
+    'team_manager',
+  ],
+  'action-center.read': [
+    'owner',
+    'admin',
+    'registrar',
+    'director',
+    'finance',
+    'compliance',
+    'scheduler',
+    'volunteer_coordinator',
+    'communications',
+  ],
+  'action-center.manage': ['owner', 'admin', 'finance', 'compliance'],
+  'exports.read': ['owner', 'admin'],
+  'exports.manage': ['owner', 'admin'],
+  'orgs.read': organizationRoles,
+  'orgs.manage': ['owner', 'admin'],
+  'notifications.read': organizationRoles,
+  'notifications.manage': organizationRoles,
+  'files.read': organizationRoles,
+  'files.manage': organizationRoles,
+  'classes.read': [
+    'owner',
+    'admin',
+    'registrar',
+    'scheduler',
+    'director',
+    'guardian',
+    'self',
+    'head_coach',
+    'assistant_coach',
+    'team_manager',
+    'volunteer',
+  ],
+  'classes.manage': ['owner', 'admin', 'director'],
+  'federation.read': [
+    'owner',
+    'admin',
+    'director',
+    'compliance',
+    'scheduler',
+    'finance',
+    'reporter',
+  ],
+  'federation.manage': ['owner', 'admin', 'director'],
+  'audit.read': ['owner', 'admin', 'compliance', 'reporter'],
+  'chat.read': organizationRoles,
+  'chat.send': organizationRoles,
+  'chat.moderate': ['owner', 'admin', 'compliance'],
+  'communications.read': [
+    'owner',
+    'admin',
+    'communications',
+    'director',
+    'registrar',
+    'compliance',
+  ],
+  'communications.manage': ['owner', 'admin', 'communications', 'director'],
+  'compliance.read': ['owner', 'admin', 'compliance'],
+  'compliance.manage': ['owner', 'admin', 'compliance'],
+  'discipline.read': ['owner', 'admin', 'compliance', 'director', 'head_coach'],
+  'discipline.manage': ['owner', 'admin', 'compliance', 'director'],
+  'attendance.read': ['owner', 'admin', 'scheduler', 'director', 'reporter'],
+  'attendance.manage': ['owner', 'admin', 'scheduler', 'director'],
+  'attendance.rsvp': ['guardian', 'self'],
+  'evaluations.read': ['owner', 'admin', 'registrar', 'scheduler', 'director'],
+  'evaluations.manage': [
+    'owner',
+    'admin',
+    'registrar',
+    'scheduler',
+    'director',
+  ],
+  'evaluations.score': ['owner', 'admin', 'director', 'evaluator'],
+  'facilities.read': ['owner', 'admin', 'scheduler'],
+  'facilities.manage': ['owner', 'admin', 'scheduler'],
+  'contests.read': ['owner', 'admin', 'scheduler', 'director', 'reporter'],
+  'contests.manage': ['owner', 'admin', 'scheduler'],
+  'finance.manage': ['owner', 'admin', 'finance', 'treasurer'],
+  'fundraising.read': ['owner', 'admin', 'finance'],
+  'fundraising.manage': ['owner', 'admin', 'finance'],
+  'imports.read': ['owner', 'admin', 'registrar'],
+  'imports.manage': ['owner', 'admin', 'registrar'],
+  'forms.read': [
+    'owner',
+    'admin',
+    'registrar',
+    'compliance',
+    'reporter',
+    'guardian',
+    'self',
+  ],
+  'forms.manage': ['owner', 'admin', 'registrar'],
+  'forms.person.read': ['guardian', 'self'],
+  'forms.responses.read': [
+    'owner',
+    'admin',
+    'registrar',
+    'compliance',
+    'reporter',
+    'guardian',
+    'self',
+  ],
+  'forms.submit': ['owner', 'admin', 'registrar', 'guardian', 'self'],
+  'help.read': organizationRoles,
+  'help.manage': organizationRoles,
+  'onboarding.read': organizationRoles,
+  'onboarding.manage': organizationRoles,
+  'waivers.read': ['owner', 'admin', 'registrar', 'guardian', 'self'],
+  'waivers.manage': ['owner', 'admin', 'registrar'],
+  'waivers.person.read': ['guardian', 'self'],
+  'waivers.signature.read': ['owner', 'admin', 'registrar', 'guardian', 'self'],
+  'waivers.sign': ['owner', 'admin', 'registrar', 'guardian', 'self'],
+  'offerings.read': ['owner', 'admin', 'registrar'],
+  'offerings.manage': ['owner', 'admin', 'registrar'],
+  'officials.read': ['owner', 'admin', 'scheduler', 'official'],
+  'officials.manage': ['owner', 'admin', 'scheduler'],
+  'people.read': [
+    'owner',
+    'admin',
+    'registrar',
+    'compliance',
+    'director',
+    'head_coach',
+    'assistant_coach',
+    'team_manager',
+  ],
+  'people.manage': ['owner', 'admin', 'registrar'],
+  'programs.read': ['owner', 'admin', 'registrar'],
+  'programs.manage': ['owner', 'admin', 'registrar'],
+  'registration.read': ['owner', 'admin', 'registrar'],
+  'registration.manage': ['owner', 'admin', 'registrar'],
+  'rosters.read': ['owner', 'admin', 'registrar', 'director'],
+  'rosters.manage': ['owner', 'admin', 'registrar', 'director'],
+  'reports.read': organizationRoles,
+  'reports.manage': [
+    'owner',
+    'admin',
+    'registrar',
+    'finance',
+    'scheduler',
+    'compliance',
+    'communications',
+    'director',
+    'evaluator',
+    'volunteer_coordinator',
+  ],
+  'safety.read': ['owner', 'admin', 'compliance'],
+  'safety.manage': ['owner', 'admin', 'compliance'],
+  'scheduling.read': ['owner', 'admin', 'scheduler', 'director', 'reporter'],
+  'scheduling.manage': ['owner', 'admin', 'scheduler'],
+  'seasons.read': ['owner', 'admin', 'registrar'],
+  'seasons.manage': ['owner', 'admin', 'registrar'],
+  'sponsors.read': ['owner', 'admin', 'finance'],
+  'sponsors.manage': ['owner', 'admin', 'finance'],
+  'sports.read': ['owner', 'admin'],
+  'sports.manage': ['owner', 'admin'],
+  'standings.read': ['owner', 'admin', 'scheduler', 'director', 'reporter'],
+  'standings.manage': ['owner', 'admin', 'scheduler'],
+  'store.read': ['owner', 'admin', 'finance', 'store_manager'],
+  'store.manage': ['owner', 'admin', 'finance', 'store_manager'],
+  'team-finance.read': ['owner', 'admin', 'finance'],
+  'team-finance.manage': ['owner', 'admin', 'finance'],
+  'teams.read': ['owner', 'admin', 'director'],
+  'teams.manage': ['owner', 'admin', 'director'],
+  'tournaments.read': ['owner', 'admin', 'scheduler', 'director', 'reporter'],
+  'tournaments.manage': ['owner', 'admin', 'scheduler'],
+  'volunteers.read': ['owner', 'admin', 'volunteer_coordinator'],
+  'volunteers.manage': ['owner', 'admin', 'volunteer_coordinator'],
+  'website.read': ['owner', 'admin', 'communications', 'director'],
+  'website.manage': ['owner', 'admin', 'communications', 'director'],
+};
+const operations = Object.fromEntries(
+  apiRouteMetadata.map((operation) => {
+    const allowed = permissionRoles[operation.permission];
+    if (!allowed)
+      throw new Error(
+        `Permission matrix has no role family for ${operation.permission}`,
+      );
+    return [
+      operation.operationId,
+      {
+        permission: operation.permission,
+        scope: operation.scope,
+        allow: securityRoles.filter((role) => allowed.includes(role)),
+        deny: securityRoles.filter((role) => !allowed.includes(role)),
+      },
+    ];
+  }),
+);
+const permissionMatrix = await prettier.format(
+  JSON.stringify({ formatVersion: 1, roles: securityRoles, operations }),
+  { parser: 'json', printWidth: 80 },
+);
+const matrixPath = resolve('server/test/security/permission-matrix.json');
+const currentMatrix = await readFile(matrixPath, 'utf8').catch(() => '');
+if (currentMatrix !== permissionMatrix)
+  await writeFile(matrixPath, permissionMatrix);
 
 process.stdout.write(
   `Registry generated: ${String(serverNames.length)} server modules, ${String(integrationNames.length)} integrations, ${String(webRouteNames.length)} web features\n`,

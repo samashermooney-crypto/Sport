@@ -21,6 +21,8 @@ import {
   createConversation,
   getChatAttachmentCapabilities,
   ensureTeamConversation,
+  listConversations,
+  listPersonMessageHistory,
   listHouseholdMessageHistory,
   listChatMemberOptions,
   listMessages,
@@ -751,6 +753,29 @@ describe('chat SafeSport and permission rules', () => {
     ).rejects.toBeInstanceOf(ChatAccessError);
     await expect(
       listHouseholdMessageHistory(ownerContext, foreignHouseholdId, withOrg),
+    ).rejects.toBeInstanceOf(ChatAccessError);
+  });
+
+  it('hides person and household message history from nonmembers with 404 semantics', async () => {
+    const nonmemberContext = {
+      orgId: foreignOrgId,
+      actor: { accountId: ownerId },
+    };
+    await expect(
+      listPersonMessageHistory(nonmemberContext, linkedPersonId, withOrg),
+    ).rejects.toBeInstanceOf(ChatAccessError);
+    await expect(
+      listHouseholdMessageHistory(
+        nonmemberContext,
+        foreignHouseholdId,
+        withOrg,
+      ),
+    ).rejects.toBeInstanceOf(ChatAccessError);
+    await expect(
+      listConversations(nonmemberContext, withOrg),
+    ).rejects.toBeInstanceOf(ChatAccessError);
+    await expect(
+      moderationReports(nonmemberContext, withOrg),
     ).rejects.toBeInstanceOf(ChatAccessError);
   });
 });

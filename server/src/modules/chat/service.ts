@@ -91,6 +91,7 @@ async function requireModerationRole(
   trx: OrgTransaction,
   context: OrgContext,
 ): Promise<void> {
+  await requireActiveOrgActor(trx, context);
   const roles = await activeOrgRoles(trx, context);
   if (!roles.some((role) => ['owner', 'admin', 'compliance'].includes(role)))
     throw new ChatPermissionError('Chat moderation access is required');
@@ -879,6 +880,7 @@ export async function listConversations(
   runWithOrg: typeof withOrg = withOrg,
 ) {
   return runWithOrg(context, async (trx) => {
+    await requireActiveOrgActor(trx, context);
     const memberships = await trx
       .selectFrom('conversation_members')
       .select(['conversation_id', 'last_read_at'])
@@ -1759,6 +1761,7 @@ export async function listPersonMessageHistory(
   runWithOrg: typeof withOrg = withOrg,
 ) {
   return runWithOrg(context, async (trx) => {
+    await requireActiveOrgActor(trx, context);
     const roles = await activeOrgRoles(trx, context);
     if (
       !roles.some((role) =>
@@ -1819,6 +1822,7 @@ export async function listHouseholdMessageHistory(
   runWithOrg: typeof withOrg = withOrg,
 ) {
   return runWithOrg(context, async (trx) => {
+    await requireActiveOrgActor(trx, context);
     const roles = await activeOrgRoles(trx, context);
     if (
       !roles.some((role) =>

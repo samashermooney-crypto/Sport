@@ -21,6 +21,16 @@ export function getPlatformAdminDatabase(): Kysely<DB> {
   return platformAdminDatabase;
 }
 
+export function initializePlatformAdminDatabase(): void {
+  void getPlatformAdminDatabase();
+}
+
+export async function closePlatformAdminDatabase(): Promise<void> {
+  const database = platformAdminDatabase;
+  platformAdminDatabase = undefined;
+  await database?.destroy();
+}
+
 function requireSuperAdmin(actor: PlatformStaff): void {
   if (actor.role !== 'super_admin')
     throw new PlatformAccessError('Platform admin required');

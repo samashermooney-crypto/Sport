@@ -91,6 +91,7 @@ export const moduleDefinition = {
       response: z.string(),
       contentType: 'application/octet-stream',
       binary: true,
+      public: true,
     },
   ],
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };

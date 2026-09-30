@@ -15,6 +15,7 @@ export const phase15ImportOpenApiRoutes = [
     summary: 'Download a generic CSV import template',
     response: z.string(),
     contentType: 'text/csv',
+    public: true,
   },
   {
     method: 'get',

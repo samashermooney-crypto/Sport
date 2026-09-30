@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
-test('application responses include the required security headers', async ({
+test('SEC-001 / Track C: application responses include the required security headers', async ({
   request,
 }) => {
   await expect

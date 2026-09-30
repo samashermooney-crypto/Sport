@@ -906,10 +906,7 @@ export async function runActionCenterReminder(
             .onRef('membership.org_id', '=', 'invoice.org_id')
             .onRef('membership.account_id', '=', 'invoice.account_id'),
         )
-        .select([
-          'invoice.id as resourceId',
-          'invoice.account_id as accountId',
-        ])
+        .select(['invoice.id as resourceId', 'invoice.account_id as accountId'])
         .where('invoice.org_id', '=', context.orgId)
         .where('membership.status', '=', 'active')
         .where('invoice.balance_cents', '>', 0)

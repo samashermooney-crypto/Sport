@@ -1028,6 +1028,22 @@
 - **Why:** Makes the original light-on-dark section treatment legible and lets keyboard and Safari users reach the existing horizontal preview without changing the broader design system.
 - **Consequences / follow-ups:** Automated axe checks cover the landing, pricing, and legal routes; the parity suite continues to guard the shared tokens and existing visual references.
 
+### DEC-139 — Keep API role metadata descriptive and resource checks authoritative
+- **Date:** 2026-09-27
+- **Phase / area:** Phase 16 security metadata
+- **Context:** OpenAPI needs one permission and scope label for each operation, while many permissions depend on active membership, linked-guardian status, conversation membership, resource ownership and sensitivity.
+- **Decision:** Generate the complete operation/role matrix from each operation's metadata and a conservative role-family map. Treat it as an auditable reference and completeness check; runtime route and service guards remain authoritative for tenant membership, ownership, consent, sensitivity and resource state. Return 404 when the caller is outside the addressed organization, retaining 403 for an active member denied by a role policy.
+- **Why:** A compact role matrix cannot express every resource-level condition. Separating route intent from live ownership checks avoids letting a broad role label grant child, finance, chat or Restricted-file access.
+- **Consequences / follow-ups:** New permissions must be added to the generated role-family map. Integration and browser tests continue to exercise the actual resource-level rules.
+
+### DEC-140 — Resolve custom website hosts through an exact-host public RLS policy
+- **Date:** 2026-09-29
+- **Phase / area:** Phase 14 website host routing
+- **Context:** A custom host must map to its published organization before the SPA fallback, while a global scan of tenant `site_domains` rows would bypass tenant isolation.
+- **Decision:** Permit the app role to see a `site_domains` row only when a transaction-local request host exactly matches an active, verified custom domain. Select only the active organization's public slug, then fetch all site content through its existing public `withOrg` reads. Emit host-root robots and sitemap URLs with the request's verified origin.
+- **Why:** Custom host routing needs a narrowly scoped global lookup; exact-host RLS exposes no other organization's domains or private verification tokens.
+- **Consequences / follow-ups:** Every routing lookup must set `app.public_site_host` transaction-locally. Database tests verify active verified hosts route, and pending/unverified hosts do not.
+
 ### DEC-125 — Keep calendar feed scopes explicit and family links verified
 - **Date:** 2026-09-29
 - **Phase / area:** Phase 8 ICS subscriptions

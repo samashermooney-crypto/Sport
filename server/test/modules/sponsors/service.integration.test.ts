@@ -36,14 +36,14 @@ describe('sponsor contracts and public placements', () => {
         .where('id', '=', owner.orgId)
         .execute(),
     );
-    const now = new Date();
-    const organization = await createWithOrg(database)(owner, (trx) =>
+    const organization = await createWithOrg(database)(owner, async (trx) =>
       trx
         .selectFrom('organizations')
-        .select('timezone')
+        .select(['slug', 'timezone'])
         .where('id', '=', owner.orgId)
         .executeTakeFirstOrThrow(),
     );
+    const now = new Date();
     const start = orgToday(
       organization.timezone,
       Temporal.Instant.fromEpochMilliseconds(now.getTime()),
@@ -75,16 +75,9 @@ describe('sponsor contracts and public placements', () => {
       expectedVersion: prospect.version,
     });
 
-    const slug = await createWithOrg(database)(owner, async (trx) =>
-      trx
-        .selectFrom('organizations')
-        .select('slug')
-        .where('id', '=', owner.orgId)
-        .executeTakeFirstOrThrow(),
-    );
     const placements = await publicSponsorPlacements(
       database,
-      slug.slug,
+      organization.slug,
       'website_home',
       undefined,
       now,

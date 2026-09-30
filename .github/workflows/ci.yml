@@ -28,7 +28,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        check: [typecheck, lint, build, size, knip, openapi, registry, audit]
+        check:
+          [
+            typecheck,
+            lint,
+            build,
+            size,
+            knip,
+            sql-raw,
+            openapi,
+            registry,
+            audit,
+          ]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,6 +55,7 @@ jobs:
             build) npm run build ;;
             size) npm run build && npm run size ;;
             knip) npm run knip ;;
+            sql-raw) npm run check:sql-raw ;;
             openapi) npm run openapi && git diff --exit-code -- docs/api/openapi.json ;;
             registry) npm run registry && git diff --exit-code -- server/src/generated/registry.ts web/src/generated/registry.ts web/src/generated/nested-routes.ts shared/src/generated/errors.ts shared/src/generated/permissions.ts ;;
             audit) npm audit --omit=dev --audit-level=high ;;

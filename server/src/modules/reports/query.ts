@@ -396,8 +396,10 @@ export function reportUsesRestrictedColumns(
 
 function columnExpression(column: DatasetColumn): RawBuilder<unknown> {
   if (column.type === 'money')
-    return sql`(${sql.raw(column.source)})::numeric / 100`;
-  return sql.raw(column.source);
+    return sql`(${/* @sql-raw-safe: static report dataset column source. */ sql.raw(column.source)})::numeric / 100`;
+  return /* @sql-raw-safe: static report dataset column source. */ sql.raw(
+    column.source,
+  );
 }
 
 function groupExpression(
@@ -542,13 +544,17 @@ export async function runDatasetQuery(
           : tierCheck(visible, dataset, aggregate.column, 'aggregate');
       const key = `${aggregate.fn}_${aggregate.column}`;
       const expr = target
-        ? AGGREGATE_SQL[aggregate.fn](
-            sql.raw(
+        ? (() => {
+            const targetSource =
+              /* @sql-raw-safe: authorized static dataset column. */ sql.raw(
+                target.source,
+              );
+            const aggregateInput =
               target.type === 'money' && aggregate.fn !== 'count'
-                ? `(${target.source})::numeric / 100`
-                : target.source,
-            ),
-          )
+                ? sql`(${targetSource})::numeric / 100`
+                : targetSource;
+            return AGGREGATE_SQL[aggregate.fn](aggregateInput);
+          })()
         : sql`count(*)`;
       selectParts.push(sql`${expr} AS ${sql.id(key)}`);
       outputColumns.push({
@@ -570,10 +576,10 @@ export async function runDatasetQuery(
     }
   }
 
-  const joins = dataset.joins.map(
-    (join) =>
-      sql`${sql.raw(join.kind === 'left' ? 'LEFT JOIN' : 'JOIN')} ${sql.table(join.table)} ${sql.raw('AS')} ${sql.id(join.alias)} ON (${sql.raw(join.on)}) AND ${sql.id(join.alias, 'org_id')} = t.org_id`,
-  );
+  const joins = dataset.joins.map((join) => {
+    const joinKeyword = join.kind === 'left' ? sql`LEFT JOIN` : sql`JOIN`;
+    return sql`${joinKeyword} ${sql.table(join.table)} AS ${sql.id(join.alias)} ON (${/* @sql-raw-safe: join predicate is fixed in the server-owned dataset definition. */ sql.raw(join.on)}) AND ${sql.id(join.alias, 'org_id')} = t.org_id`;
+  });
   const whereParts = [sql`t.org_id = ${orgId}`];
   for (const [index, filter] of definition.filters.entries()) {
     const column = filterColumns[index];
@@ -590,7 +596,9 @@ export async function runDatasetQuery(
         'VALIDATION_ERROR',
         `Cannot sort by "${sort.column}"`,
       );
-    return sql`${sql.id(sort.column)} ${sql.raw(sort.direction === 'desc' ? 'DESC' : 'ASC')} NULLS LAST`;
+    return sort.direction === 'desc'
+      ? sql`${sql.id(sort.column)} DESC NULLS LAST`
+      : sql`${sql.id(sort.column)} ASC NULLS LAST`;
   });
 
   const limit = Math.min(definition.limit ?? 200, 50_000);

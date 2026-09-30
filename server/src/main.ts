@@ -6,7 +6,12 @@ import {
   captureRedactedException,
   initSentry,
 } from './lib/observability/sentry';
+import { initializeFederationAdminDatabase } from './modules/federation/privileged';
 import { closeFederationAdminDatabase } from './modules/federation/privileged';
+import {
+  closePlatformAdminDatabase,
+  initializePlatformAdminDatabase,
+} from './modules/platform/admin';
 
 async function main(): Promise<void> {
   const port = Number(process.env.PORT ?? 3001);
@@ -14,6 +19,11 @@ async function main(): Promise<void> {
   initSentry();
   writeStructuredLog('info', 'api.starting');
   const auth = await createLocalAuthDependencies();
+  if ((process.env.ATHLENTRY_PROCESS_TYPE ?? 'web') === 'web') {
+    initializeFederationAdminDatabase();
+    initializePlatformAdminDatabase();
+    delete process.env.DATABASE_ADMIN_URL;
+  }
   const stripeWebhookRuntime = await createStripeWebhookRuntime();
   const server = createApp(auth, stripeWebhookRuntime?.dependencies).listen(
     port,
@@ -31,6 +41,7 @@ async function main(): Promise<void> {
         void Promise.all([
           stripeWebhookRuntime?.stop() ?? Promise.resolve(),
           closeFederationAdminDatabase(),
+          closePlatformAdminDatabase(),
         ]).then(
           () => process.exit(0),
           (error: unknown) => {

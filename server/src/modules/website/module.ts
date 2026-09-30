@@ -28,6 +28,7 @@ import { z } from 'zod';
 
 import type { ServerModule } from '../../lib/module-contract';
 
+import { createWebsitePublicRouter } from './public';
 import { createWebsiteRouter } from './routes';
 import { publicPlansSchema } from './schema';
 
@@ -230,5 +231,6 @@ export const moduleDefinition = {
   name: 'website',
   path: '/api/v1/website',
   router: createWebsiteRouter,
+  publicRouter: createWebsitePublicRouter,
   openapiRoutes: routes,
 } satisfies ServerModule & { openapiRoutes: readonly unknown[] };

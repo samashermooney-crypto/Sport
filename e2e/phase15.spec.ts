@@ -705,11 +705,35 @@ test('console and family help render localized articles without disabled AI call
     await expect(
       page.getByRole('heading', { name: 'Help center', exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Help', exact: true }).click();
-    await expect(
-      page.getByRole('link', { name: 'Help center', exact: true }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: 'Close navigation menu' }).click();
+    if (testInfo.project.name === 'webkit-mobile') {
+      await page.goto(`/console/orgs/${actor.orgId}/onboarding/imports`);
+      const from = `/console/orgs/${actor.orgId}/onboarding/imports`;
+      const helpTab = page.getByRole('link', { name: 'Help', exact: true });
+      await expect(helpTab).toHaveAttribute(
+        'href',
+        `/console/orgs/${actor.orgId}/help?article=importing-data&kind=concierge_import&locale=en&from=${encodeURIComponent(from)}`,
+      );
+      await helpTab.click();
+      await expect(
+        page.getByRole('heading', { name: 'Importing data safely' }),
+      ).toBeVisible();
+      await expect(page.getByLabel('Request type')).toHaveValue(
+        'concierge_import',
+      );
+      await expect(
+        page.getByRole('heading', { name: 'Contact support' }),
+      ).toBeVisible();
+      await page.goto(`/console/orgs/${actor.orgId}/help`);
+      await expect(
+        page.getByRole('heading', { name: 'Help center', exact: true }),
+      ).toBeVisible();
+    } else {
+      await page.getByRole('button', { name: 'Help', exact: true }).click();
+      await expect(
+        page.getByRole('link', { name: 'Help center', exact: true }),
+      ).toBeVisible();
+      await page.getByRole('button', { name: 'Close navigation menu' }).click();
+    }
     await page.getByLabel('Language / Idioma').selectOption('es');
     await expect(
       page.getByRole('heading', { name: 'Centro de ayuda', exact: true }),
@@ -736,11 +760,17 @@ test('console and family help render localized articles without disabled AI call
     await expect(
       page.getByRole('heading', { name: 'Help center', exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Help', exact: true }).click();
-    await expect(
-      page.getByRole('link', { name: 'Help', exact: true }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: 'Close navigation menu' }).click();
+    if (testInfo.project.name === 'webkit-mobile') {
+      await expect(
+        page.getByRole('link', { name: 'Help', exact: true }),
+      ).toHaveAttribute('href', `/portal/orgs/${actor.orgId}/help`);
+    } else {
+      await page.getByRole('button', { name: 'Help', exact: true }).click();
+      await expect(
+        page.getByRole('link', { name: 'Help', exact: true }),
+      ).toBeVisible();
+      await page.getByRole('button', { name: 'Close navigation menu' }).click();
+    }
     await page.getByLabel('Language / Idioma').selectOption('es');
     await expect(
       page.getByRole('heading', { name: 'Centro de ayuda', exact: true }),

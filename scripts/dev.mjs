@@ -65,6 +65,23 @@ function done(child) {
   });
 }
 
+async function waitForApiReady(api, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  const url = `http://127.0.0.1:${String(ports.api)}/readyz`;
+  while (Date.now() < deadline) {
+    if (!children.has(api))
+      throw new Error('API process exited before becoming ready');
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(1_000) });
+      if (response.ok) return;
+    } catch {
+      // The listener or its database connection may still be starting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`API did not become ready at ${url}`);
+}
+
 async function stop(code = 0) {
   if (stopping) return;
   stopping = true;
@@ -129,9 +146,15 @@ try {
       ...(e2e ? ['--', '--profile', 'e2e'] : []),
     ]),
   );
-  run('api', 'node_modules/.bin/tsx', ['watch', 'server/src/main.ts'], {
-    longRunning: true,
-  });
+  const api = run(
+    'api',
+    'node_modules/.bin/tsx',
+    ['watch', 'server/src/main.ts'],
+    {
+      longRunning: true,
+    },
+  );
+  await waitForApiReady(api);
   run('worker', 'node_modules/.bin/tsx', ['watch', 'server/src/worker.ts'], {
     longRunning: true,
   });

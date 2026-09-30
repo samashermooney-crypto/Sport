@@ -1,3 +1,10 @@
+import { apiErrorSchema } from '@shared/schemas/errors';
+import {
+  fileDownloadLinkSchema,
+  fileRecordResponseSchema,
+  fileUploadRequestSchema,
+  fileUploadResultSchema,
+} from '@shared/schemas/files';
 import express from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -10,36 +17,135 @@ import {
   FilesService,
 } from './service';
 
-export const uploadBody = z.strictObject({
-  purpose: z.enum(['image', 'document', 'import', 'website_asset']),
-  mime: z.string().min(1).max(200),
-  bytes: z.number().int().positive(),
-  ownerType: z.string().max(80).optional(),
-  ownerId: z.uuid().optional(),
-  sensitivity: z
-    .enum(['public', 'internal', 'sensitive', 'restricted'])
-    .optional(),
-});
+const uploadBody = fileUploadRequestSchema;
 export interface FilesRoutesDependencies {
   files: FilesService;
   context(request: Request): Promise<OrgContext>;
+  publicFacilityLayout(
+    orgSlug: string,
+    facilityId: string,
+  ): Promise<{ bytes: Uint8Array; mime: 'image/webp' | 'image/jpeg' } | null>;
+  publicSponsorLogo(
+    orgSlug: string,
+    sponsorId: string,
+    surface: 'website_home' | 'program_page' | 'team_page' | 'email_footer',
+    targetId?: string,
+  ): Promise<{
+    bytes: Uint8Array;
+    mime: 'image/webp' | 'image/jpeg' | 'image/png';
+  } | null>;
 }
 
 export function createFilesRouter(dependencies: FilesRoutesDependencies) {
   const router = express.Router();
   router.use(express.json({ limit: '32kb' }));
+  router.get(
+    '/public/orgs/:orgSlug/facilities/:facilityId/layout',
+    async (request, response, next) => {
+      const orgSlug = z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .safeParse(request.params.orgSlug);
+      const facilityId = z.uuid().safeParse(request.params.facilityId);
+      if (!orgSlug.success || !facilityId.success) {
+        response.status(404).end();
+        return;
+      }
+      try {
+        const content = await dependencies.publicFacilityLayout(
+          orgSlug.data,
+          facilityId.data,
+        );
+        if (!content) {
+          response.status(404).end();
+          return;
+        }
+        response
+          .type(content.mime)
+          .set({
+            'Cache-Control': 'no-store',
+            'Content-Disposition': 'inline',
+            'X-Content-Type-Options': 'nosniff',
+          })
+          .send(Buffer.from(content.bytes));
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+  router.get(
+    '/public/orgs/:orgSlug/sponsors/:sponsorId/logo',
+    async (request, response, next) => {
+      const orgSlug = z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .safeParse(request.params.orgSlug);
+      const sponsorId = z.uuid().safeParse(request.params.sponsorId);
+      const query = z
+        .strictObject({
+          surface: z.enum([
+            'website_home',
+            'program_page',
+            'team_page',
+            'email_footer',
+          ]),
+          targetId: z.uuid().optional(),
+        })
+        .safeParse(request.query);
+      if (
+        !orgSlug.success ||
+        !sponsorId.success ||
+        !query.success ||
+        (['website_home', 'email_footer'].includes(query.data.surface) &&
+          query.data.targetId) ||
+        (['program_page', 'team_page'].includes(query.data.surface) &&
+          !query.data.targetId)
+      ) {
+        response.status(404).end();
+        return;
+      }
+      try {
+        const content = await dependencies.publicSponsorLogo(
+          orgSlug.data,
+          sponsorId.data,
+          query.data.surface,
+          query.data.targetId,
+        );
+        if (!content) {
+          response.status(404).end();
+          return;
+        }
+        response
+          .type(content.mime)
+          .set({
+            'Cache-Control': 'no-store',
+            'Content-Disposition': 'inline',
+            'X-Content-Type-Options': 'nosniff',
+          })
+          .send(Buffer.from(content.bytes));
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
   router.post('/uploads', async (request, response, next) => {
     try {
       const body = uploadBody.parse(request.body);
-      const result = await dependencies.files.beginUpload({
-        context: await dependencies.context(request),
-        purpose: body.purpose,
-        mime: body.mime,
-        bytes: body.bytes,
-        ...(body.ownerType ? { ownerType: body.ownerType } : {}),
-        ...(body.ownerId ? { ownerId: body.ownerId } : {}),
-        ...(body.sensitivity ? { sensitivity: body.sensitivity } : {}),
-      });
+      const result = fileUploadResultSchema.parse(
+        await dependencies.files.beginUpload({
+          context: await dependencies.context(request),
+          purpose: body.purpose,
+          mime: body.mime,
+          bytes: body.bytes,
+          ...(body.ownerType ? { ownerType: body.ownerType } : {}),
+          ...(body.ownerId ? { ownerId: body.ownerId } : {}),
+          ...(body.sensitivity ? { sensitivity: body.sensitivity } : {}),
+        }),
+      );
       response.status(201).json(result);
     } catch (error) {
       next(error);
@@ -47,10 +153,24 @@ export function createFilesRouter(dependencies: FilesRoutesDependencies) {
   });
   router.post('/uploads/:id/complete', async (request, response, next) => {
     try {
-      const result = await dependencies.files.completeUpload(
+      const completed = await dependencies.files.completeUpload(
         await dependencies.context(request),
         z.uuid().parse(request.params.id),
       );
+      const result = fileRecordResponseSchema.parse({
+        id: completed.id,
+        orgId: completed.orgId,
+        purpose: completed.purpose,
+        ownerType: completed.ownerType,
+        ownerId: completed.ownerId,
+        mime: completed.mime,
+        bytes: completed.bytes,
+        sha256: completed.sha256,
+        width: completed.width,
+        height: completed.height,
+        sensitivity: completed.sensitivity,
+        uploadState: completed.uploadState,
+      });
       response.json(result);
     } catch (error) {
       next(error);
@@ -76,11 +196,14 @@ export function createFilesRouter(dependencies: FilesRoutesDependencies) {
   );
   router.get('/:id/download', async (request, response, next) => {
     try {
-      const url = await dependencies.files.download(
-        await dependencies.context(request),
-        z.uuid().parse(request.params.id),
-      );
-      response.json({ url, expiresInSeconds: 300 });
+      const link = fileDownloadLinkSchema.parse({
+        url: await dependencies.files.download(
+          await dependencies.context(request),
+          z.uuid().parse(request.params.id),
+        ),
+        expiresInSeconds: 300,
+      });
+      response.json(link);
     } catch (error) {
       next(error);
     }
@@ -107,21 +230,40 @@ export function createFilesRouter(dependencies: FilesRoutesDependencies) {
       next: express.NextFunction,
     ) => {
       if (error instanceof FilePermissionError) {
-        response
-          .status(403)
-          .json({ error: 'FORBIDDEN', message: error.message });
+        response.status(403).json(
+          apiErrorSchema.parse({
+            error: { code: 'FORBIDDEN', message: error.message },
+          }),
+        );
         return;
       }
       if (error instanceof FileValidationError) {
-        response
-          .status(error.message === 'File not found' ? 404 : 400)
-          .json({ error: 'FILE_INVALID', message: error.message });
+        const notFound = error.message === 'File not found';
+        response.status(notFound ? 404 : 400).json(
+          apiErrorSchema.parse({
+            error: {
+              code: notFound ? 'NOT_FOUND' : 'FILE_INVALID',
+              message: error.message,
+            },
+          }),
+        );
         return;
       }
       if (error instanceof z.ZodError) {
-        response
-          .status(400)
-          .json({ error: 'VALIDATION_ERROR', issues: error.issues });
+        const fields = Object.fromEntries(
+          error.issues.flatMap((issue) =>
+            issue.path.length ? [[issue.path.join('.'), issue.message]] : [],
+          ),
+        );
+        response.status(400).json(
+          apiErrorSchema.parse({
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Request validation failed',
+              ...(Object.keys(fields).length ? { fields } : {}),
+            },
+          }),
+        );
         return;
       }
       next(error);

@@ -12,7 +12,11 @@ import { bindFixtureInvoice } from '../checkout/test-fixtures.js';
 import { PostgresInvoiceRepository } from './invoice-repo.js';
 import { PostgresOfflinePayments } from './offline-payments.js';
 import { PostgresPaymentRecordStore } from './payment-repo.js';
-import { FinanceAccessError, requireFinanceStaff } from './staff-access.js';
+import {
+  FinanceAccessError,
+  FinanceResourceNotFoundError,
+  requireFinanceStaff,
+} from './staff-access.js';
 
 let database: Kysely<DB>;
 let context: OrgContext;
@@ -114,6 +118,15 @@ describe('offline payments', () => {
         .where('id', '=', roleId)
         .execute(),
     );
+  });
+
+  it('conceals finance access for accounts without an organization membership', async () => {
+    await expect(
+      requireFinanceStaff(database, {
+        orgId: context.orgId,
+        actor: { accountId: newId() },
+      }),
+    ).rejects.toBeInstanceOf(FinanceResourceNotFoundError);
   });
   it('allocates a receipt, replays the exact request, and prevents concurrent overpayment', async () => {
     const repo = new PostgresOfflinePayments(database, context);

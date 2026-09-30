@@ -106,6 +106,8 @@ export function PublicFacilityPage({
           <img
             src={`/api/v1/files/public/orgs/${encodeURIComponent(slug)}/facilities/${encodeURIComponent(facilityId)}/layout`}
             alt={`${data.facility.name} facility layout`}
+            loading="lazy"
+            decoding="async"
             onError={(event) => {
               event.currentTarget.parentElement?.setAttribute('hidden', '');
             }}

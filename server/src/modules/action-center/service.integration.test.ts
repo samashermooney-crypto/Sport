@@ -87,7 +87,13 @@ describe('action center', () => {
     try {
       await admin.query(
         'INSERT INTO accounts(id,email,first_name,last_name,date_of_birth) VALUES ($1,$2,$3,$4,$5)',
-        [communicationsId, `${communicationsId}@example.invalid`, 'Casey', 'Comms', '1980-01-01'],
+        [
+          communicationsId,
+          `${communicationsId}@example.invalid`,
+          'Casey',
+          'Comms',
+          '1980-01-01',
+        ],
       );
       await admin.query(
         'INSERT INTO org_memberships(id,org_id,account_id,status) VALUES ($1,$2,$3,$4)',
@@ -235,7 +241,13 @@ describe('action center', () => {
     try {
       await admin.query(
         'INSERT INTO accounts(id,email,first_name,last_name,date_of_birth) VALUES ($1,$2,$3,$4,$5)',
-        [accountId, `${accountId}@example.invalid`, 'Taylor', 'Family', '1985-01-01'],
+        [
+          accountId,
+          `${accountId}@example.invalid`,
+          'Taylor',
+          'Family',
+          '1985-01-01',
+        ],
       );
       await admin.query(
         'INSERT INTO org_memberships(id,org_id,account_id,status) VALUES ($1,$2,$3,$4)',
@@ -307,7 +319,13 @@ describe('action center', () => {
     try {
       await admin.query(
         'INSERT INTO accounts(id,email,first_name,last_name,date_of_birth) VALUES ($1,$2,$3,$4,$5)',
-        [accountId, `${accountId}@example.invalid`, 'Jordan', 'Family', '1985-01-01'],
+        [
+          accountId,
+          `${accountId}@example.invalid`,
+          'Jordan',
+          'Family',
+          '1985-01-01',
+        ],
       );
       await admin.query(
         'INSERT INTO org_memberships(id,org_id,account_id,status) VALUES ($1,$2,$3,$4)',
@@ -394,7 +412,13 @@ describe('action center', () => {
       await admin.query(
         `INSERT INTO programs(id,org_id,season_id,sport_profile_id,mode,name,slug,starts_on,ends_on)
          VALUES ($1,$2,$3,$4,'league','Reminder Program',$5,'2026-03-01','2026-11-30')`,
-        [programId, orgId, seasonId, sportProfileId, `reminder-${programId.slice(0, 8)}`],
+        [
+          programId,
+          orgId,
+          seasonId,
+          sportProfileId,
+          `reminder-${programId.slice(0, 8)}`,
+        ],
       );
       await admin.query(
         'INSERT INTO divisions(id,org_id,program_id,name) VALUES ($1,$2,$3,$4)',
@@ -415,7 +439,13 @@ describe('action center', () => {
       for (const accountId of [staffAccountId, guardianAccountId]) {
         await admin.query(
           'INSERT INTO accounts(id,email,first_name,last_name,date_of_birth) VALUES ($1,$2,$3,$4,$5)',
-          [accountId, `${accountId}@example.invalid`, 'Morgan', 'Coach', '1985-01-01'],
+          [
+            accountId,
+            `${accountId}@example.invalid`,
+            'Morgan',
+            'Coach',
+            '1985-01-01',
+          ],
         );
         await admin.query(
           'INSERT INTO org_memberships(id,org_id,account_id,status) VALUES ($1,$2,$3,$4)',
@@ -425,7 +455,14 @@ describe('action center', () => {
       await admin.query(
         `INSERT INTO person_account_links(id,org_id,person_id,account_id,relationship,verified_at)
          VALUES ($1,$2,$3,$4,'self',now()),($5,$2,$3,$6,'guardian',now())`,
-        [randomUUID(), orgId, personId, staffAccountId, randomUUID(), guardianAccountId],
+        [
+          randomUUID(),
+          orgId,
+          personId,
+          staffAccountId,
+          randomUUID(),
+          guardianAccountId,
+        ],
       );
       await admin.query(
         `INSERT INTO team_staff(id,org_id,team_season_id,person_id,role,status,added_by)
@@ -459,7 +496,11 @@ describe('action center', () => {
         role: 'head_coach',
         href: `/portal/orgs/${orgId}/safety`,
       });
-      expect(notifications.rows.some(({ account_id }) => account_id === guardianAccountId)).toBe(false);
+      expect(
+        notifications.rows.some(
+          ({ account_id }) => account_id === guardianAccountId,
+        ),
+      ).toBe(false);
     } finally {
       await admin.end();
     }

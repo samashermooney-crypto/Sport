@@ -44,6 +44,9 @@ it('localizes the organization shell navigation and search in Spanish', async ()
       .getByRole('navigation', { name: 'Navegación móvil' })
       .getAttribute('aria-label'),
   ).toBe('Navegación móvil');
+  expect(screen.getByRole('link', { name: 'Ayuda' }).getAttribute('href')).toBe(
+    '/console/orgs/test-org/help?article=support&kind=support&locale=es&from=%2Fconsole%2Forgs%2Ftest-org',
+  );
   expect(
     screen
       .getByRole('button', { name: 'Buscar en Athlentry' })

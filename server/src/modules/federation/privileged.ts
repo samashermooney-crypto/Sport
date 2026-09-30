@@ -29,13 +29,19 @@ let federationAdminDatabase: Kysely<DB> | undefined;
  * queries.
  */
 export function getFederationAdminDatabase(): Kysely<DB> {
+  if (federationAdminDatabase) return federationAdminDatabase;
   const url = process.env.DATABASE_ADMIN_URL;
   if (!url)
     throw federationUnavailable(
       'Federation access requires DATABASE_ADMIN_URL',
     );
-  federationAdminDatabase ??= createDatabase(url);
+  federationAdminDatabase = createDatabase(url);
   return federationAdminDatabase;
+}
+
+/** Capture the privileged pool before the web process scrubs its DB URL. */
+export function initializeFederationAdminDatabase(): void {
+  if (process.env.DATABASE_ADMIN_URL) void getFederationAdminDatabase();
 }
 
 export function resetFederationAdminDatabase(): void {
