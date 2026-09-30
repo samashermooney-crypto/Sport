@@ -24,6 +24,8 @@ import {
   websitePageSlugSchema,
   websitePublicEmbedSchema,
   websitePublicFacilitiesSchema,
+  websitePublicTeamSchema,
+  websitePublicTeamsSchema,
   websitePublicPageSchema,
   websiteSaveResponseSchema,
   websiteSettingsBodySchema,
@@ -50,6 +52,8 @@ import {
   getPublicWebsitePage,
   getPublicWebsiteNewsPost,
   getPublicWebsitePrograms,
+  getPublicWebsiteTeam,
+  getPublicWebsiteTeams,
   getPublicWebsiteRobotsPolicy,
   getWebsiteSettings,
   listPublicWebsitePlans,
@@ -315,6 +319,52 @@ export function createWebsiteRouter(
   );
 
   router.get(
+    '/public/:orgSlug/teams/:teamSeasonId',
+    route(async (request, response) => {
+      const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
+      const teamSeasonId = z.uuid().parse(request.params.teamSeasonId);
+      const result = await getPublicWebsiteTeam(
+        dependencies.database,
+        orgSlug,
+        teamSeasonId,
+        withOrg,
+      );
+      if (!result) {
+        response.sendStatus(404);
+        return;
+      }
+      response
+        .setHeader(
+          'Cache-Control',
+          'public, max-age=60, stale-while-revalidate=300',
+        )
+        .json(websitePublicTeamSchema.parse(result));
+    }),
+  );
+
+  router.get(
+    '/public/:orgSlug/teams',
+    route(async (request, response) => {
+      const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
+      const result = await getPublicWebsiteTeams(
+        dependencies.database,
+        orgSlug,
+        withOrg,
+      );
+      if (!result) {
+        response.sendStatus(404);
+        return;
+      }
+      response
+        .setHeader(
+          'Cache-Control',
+          'public, max-age=60, stale-while-revalidate=300',
+        )
+        .json(websitePublicTeamsSchema.parse(result));
+    }),
+  );
+
+  router.get(
     '/public/:orgSlug/embeds/:publicKey',
     route(async (request, response) => {
       const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
@@ -372,7 +422,7 @@ export function createWebsiteRouter(
     '/public/:orgSlug/sitemap.xml',
     route(async (request, response) => {
       const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
-      const [pages, news, programs, fundraisers, facilities] =
+      const [pages, news, programs, fundraisers, facilities, teams] =
         await Promise.all([
           listPublicWebsitePages(dependencies.database, orgSlug, withOrg),
           listPublicWebsiteNews(
@@ -384,8 +434,16 @@ export function createWebsiteRouter(
           getPublicWebsitePrograms(dependencies.database, orgSlug, withOrg),
           getPublicWebsiteFundraisers(dependencies.database, orgSlug, withOrg),
           getPublicWebsiteFacilities(dependencies.database, orgSlug, withOrg),
+          getPublicWebsiteTeams(dependencies.database, orgSlug, withOrg),
         ]);
-      if (!pages || !news || !programs || !fundraisers || !facilities) {
+      if (
+        !pages ||
+        !news ||
+        !programs ||
+        !fundraisers ||
+        !facilities ||
+        !teams
+      ) {
         response.sendStatus(404);
         return;
       }
@@ -404,6 +462,7 @@ export function createWebsiteRouter(
             `${host}/site/${encodeURIComponent(orgSlug)}/sponsors`,
             `${host}/site/${encodeURIComponent(orgSlug)}/facilities`,
             `${host}/site/${encodeURIComponent(orgSlug)}/fundraisers`,
+            `${host}/site/${encodeURIComponent(orgSlug)}/teams`,
             ...programs.programs.map(
               (program) =>
                 `${host}/site/${encodeURIComponent(orgSlug)}/programs/${encodeURIComponent(program.slug)}`,
@@ -411,6 +470,10 @@ export function createWebsiteRouter(
             ...facilities.facilities.map(
               (facility) =>
                 `${host}/site/${encodeURIComponent(orgSlug)}/facilities/${encodeURIComponent(facility.id)}`,
+            ),
+            ...teams.teams.map(
+              (team) =>
+                `${host}/site/${encodeURIComponent(orgSlug)}/teams/${encodeURIComponent(team.id)}`,
             ),
             ...fundraisers.fundraisers.map(
               (fundraiser) =>

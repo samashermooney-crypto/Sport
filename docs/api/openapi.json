@@ -95055,6 +95055,317 @@
         ]
       }
     },
+    "/api/v1/website/public/{orgSlug}/teams": {
+      "get": {
+        "operationId": "get_api_v1_website_public_orgSlug_teams",
+        "summary": "List team-season labels for public programs without roster data",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "website.website.public",
+        "x-athlentry-scope": "public",
+        "tags": ["website"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "organization": {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string" },
+                        "slug": { "type": "string" },
+                        "locale": { "type": "string", "enum": ["en", "es"] }
+                      },
+                      "required": ["name", "slug", "locale"],
+                      "additionalProperties": false
+                    },
+                    "theme": {
+                      "type": "object",
+                      "properties": {
+                        "primary": {
+                          "type": "string",
+                          "pattern": "^#[0-9a-f]{6}$"
+                        },
+                        "secondary": {
+                          "type": "string",
+                          "pattern": "^#[0-9a-f]{6}$"
+                        }
+                      },
+                      "required": ["primary", "secondary"],
+                      "additionalProperties": false
+                    },
+                    "robotsPolicy": {
+                      "type": "string",
+                      "enum": ["index", "noindex"]
+                    },
+                    "navigation": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "href": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": ["label", "href"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "footerNavigation": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "href": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": ["label", "href"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "teams": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "name": { "type": "string" },
+                          "programSlug": { "type": "string" },
+                          "programName": { "type": "string" },
+                          "seasonName": { "type": "string" },
+                          "divisionName": { "type": "string" },
+                          "ageLabel": { "type": ["string", "null"] },
+                          "status": {
+                            "type": "string",
+                            "enum": ["active", "completed"]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "programSlug",
+                          "programName",
+                          "seasonName",
+                          "divisionName",
+                          "ageLabel",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "organization",
+                    "theme",
+                    "robotsPolicy",
+                    "navigation",
+                    "footerNavigation",
+                    "teams"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgSlug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ]
+      }
+    },
+    "/api/v1/website/public/{orgSlug}/teams/{teamSeasonId}": {
+      "get": {
+        "operationId": "get_api_v1_website_public_orgSlug_teams_teamSeasonId",
+        "summary": "Get one public-program team-season page without roster data",
+        "x-athlentry-permission": "public.access",
+        "x-athlentry-resource": "website.website.public",
+        "x-athlentry-scope": "public",
+        "tags": ["website"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "organization": {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string" },
+                        "slug": { "type": "string" },
+                        "locale": { "type": "string", "enum": ["en", "es"] }
+                      },
+                      "required": ["name", "slug", "locale"],
+                      "additionalProperties": false
+                    },
+                    "theme": {
+                      "type": "object",
+                      "properties": {
+                        "primary": {
+                          "type": "string",
+                          "pattern": "^#[0-9a-f]{6}$"
+                        },
+                        "secondary": {
+                          "type": "string",
+                          "pattern": "^#[0-9a-f]{6}$"
+                        }
+                      },
+                      "required": ["primary", "secondary"],
+                      "additionalProperties": false
+                    },
+                    "robotsPolicy": {
+                      "type": "string",
+                      "enum": ["index", "noindex"]
+                    },
+                    "navigation": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "href": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": ["label", "href"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "footerNavigation": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "href": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": ["label", "href"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "team": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "name": { "type": "string" },
+                        "programSlug": { "type": "string" },
+                        "programName": { "type": "string" },
+                        "seasonName": { "type": "string" },
+                        "divisionName": { "type": "string" },
+                        "ageLabel": { "type": ["string", "null"] },
+                        "status": {
+                          "type": "string",
+                          "enum": ["active", "completed"]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "programSlug",
+                        "programName",
+                        "seasonName",
+                        "divisionName",
+                        "ageLabel",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "organization",
+                    "theme",
+                    "robotsPolicy",
+                    "navigation",
+                    "footerNavigation",
+                    "team"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/BusinessRule" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        },
+        "parameters": [
+          {
+            "name": "orgSlug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "teamSeasonId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ]
+      }
+    },
     "/api/v1/website/public/{orgSlug}/embeds/{publicKey}": {
       "get": {
         "operationId": "get_api_v1_website_public_orgSlug_embeds_publicKey",

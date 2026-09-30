@@ -858,6 +858,20 @@ export const webRouteInventory = [
     fixtures: ['published-organization', 'program'],
   },
   {
+    path: '/site/:orgSlug/teams',
+    source: 'web/src/site/routes.tsx',
+    actorContexts: ['anonymous'],
+    dynamicParameters: ['orgSlug'],
+    fixtures: ['published-organization'],
+  },
+  {
+    path: '/site/:orgSlug/teams/:teamSeasonId',
+    source: 'web/src/site/routes.tsx',
+    actorContexts: ['anonymous'],
+    dynamicParameters: ['orgSlug', 'teamSeasonId'],
+    fixtures: ['published-organization', 'team-season'],
+  },
+  {
     path: '/start',
     source: 'web/src/orgs/routes.tsx',
     actorContexts: ['anonymous'],

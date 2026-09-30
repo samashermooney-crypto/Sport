@@ -8,6 +8,8 @@ describe('generated public site routes', () => {
     ['/site/club/standings/program-id', '/site/:orgSlug/standings/:programId'],
     ['/site/club/brackets/bracket-id', '/site/:orgSlug/brackets/:bracketId'],
     ['/site/club/facilities', '/site/:orgSlug/facilities'],
+    ['/site/club/teams', '/site/:orgSlug/teams'],
+    ['/site/club/teams/team-season-id', '/site/:orgSlug/teams/:teamSeasonId'],
     ['/site/club/news/season-update', '/site/:orgSlug/news/:newsSlug'],
     [
       '/site/club/facilities/facility-id',
