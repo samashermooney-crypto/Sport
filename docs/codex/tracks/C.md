@@ -1,7 +1,7 @@
 # Track C — files, adapters, and wiring
-Status: working — `track/integration` is at `0462ef15` with C’s federation fixes, D’s public-site route split, and A’s sanitized Web Push response regression; integrating D’s skip-link locale fix `a0e0c44a` now.
+Status: working — `track/integration` is at `9284b6e6` with C’s federation fixes, D’s public-site split and locale-stable skip link, and A’s sanitized push-response test; integrating A’s notification-permission fix `85ab1b56` now.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Hosted CI: run `36687088431` is still in progress on prior head `8a15cacc`; the latest completed run `36685885745` on `12289a1f` is RED in e2e and static size and predates the latest C/A/D fixes. No GREEN result is claimed for the current candidate.
+Hosted CI: run `36688318120` remains in progress on prior head `09f9b611`; the last completed run `36686479156` on `7108d04b` is RED in e2e and static size and predates the latest C/A/D fixes. No GREEN result is claimed for the current candidate.
 Open integration work: obtain hosted CI for the latest candidate; address any remaining C-owned federation/fee-void failures from the 01:03 split without changing assertions; wait for A/D branches to sync before further merges; continue launch-gate items below.
 
 ## Completed Track C work
@@ -217,3 +217,9 @@ Open integration work: obtain hosted CI for the latest candidate; address any re
 
 - Integrated D’s `a0e0c44a` fixture correction, which explicitly sets the published organization and browser language to English before checking the English skip-link label. The assertion remains intact; `/Users/sammooney/athlentry-sprint/ci/integration.txt` still reports run `36687088431` in progress on `8a15cacc`, so hosted confirmation is pending.
 - `heavy.sh npm run typecheck` passes on this update. The exact browser journey remains for GitHub CI; no local Playwright run was started.
+
+
+## A notification-permission fix — 2026-09-30 03:21 CDT
+
+- Integrated A’s `85ab1b56` sign-in E2E fix. Chromium grants notification permission to its isolated test context; the test still uses a fake service worker and push provider, so it cannot deliver real notifications.
+- The available run `36688318120` is still in progress on `09f9b611` and does not include this change. Hosted confirmation is pending; local Playwright remains disabled by the CI-first rules.
