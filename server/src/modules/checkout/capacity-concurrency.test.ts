@@ -52,6 +52,15 @@ beforeAll(async () => {
         subject_id: subjectId,
         capacity: 100,
       })
+      .onConflict((oc) =>
+        oc
+          .columns(['org_id', 'subject_type', 'subject_id'])
+          .doUpdateSet((eb) => ({
+            capacity: eb.ref('excluded.capacity'),
+            confirmed: eb.ref('excluded.confirmed'),
+            held: eb.ref('excluded.held'),
+          })),
+      )
       .execute();
     await trx
       .insertInto('checkouts')
@@ -127,6 +136,15 @@ describe('300 simultaneous capacity requests', () => {
           subject_id: expiringSubjectId,
           capacity: 1,
         })
+        .onConflict((oc) =>
+          oc
+            .columns(['org_id', 'subject_type', 'subject_id'])
+            .doUpdateSet((eb) => ({
+              capacity: eb.ref('excluded.capacity'),
+              confirmed: eb.ref('excluded.confirmed'),
+              held: eb.ref('excluded.held'),
+            })),
+        )
         .execute();
       await trx
         .insertInto('checkouts')

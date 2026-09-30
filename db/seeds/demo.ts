@@ -2282,7 +2282,9 @@ export async function seedLoad(database: Kysely<DB>): Promise<void> {
         await trx
           .insertInto('capacity_counters')
           .values(capacityCounterValues)
-          .onConflict((oc) => oc.column('id').doNothing())
+          .onConflict((oc) =>
+            oc.columns(['org_id', 'subject_type', 'subject_id']).doNothing(),
+          )
           .execute();
 
         const teamSeasonRows = sql.join(

@@ -183,6 +183,95 @@ describe('Phase 3 structure and rollover', () => {
     ).rejects.toMatchObject({ status: 409, code: 'VERSION_CONFLICT' });
   });
 
+  it('gives every program, division and offering a capacity counter so family checkout can hold places', async () => {
+    const seasons = new SeasonsService(database, context);
+    const programs = new ProgramsService(database, context);
+    const offerings = new OfferingsService(database, context);
+    const season = await seasons.create({
+      name: 'Counter season',
+      startsOn: '2027-01-01',
+      endsOn: '2027-06-30',
+    });
+    const program = await programs.create({
+      seasonId: season.id,
+      sportProfileId: profileId,
+      mode: 'league',
+      name: 'Counter league',
+      slug: `counter-${randomUUID().slice(0, 8)}`,
+      startsOn: '2027-02-01',
+      endsOn: '2027-05-01',
+    });
+    const division = await programs.addDivision(program.id, {
+      name: 'U10 girls',
+      capacityPlayers: 12,
+    });
+    const offering = await offerings.create({
+      programId: program.id,
+      divisionId: division.id,
+      name: 'U10 girls registration',
+      registrantRole: 'athlete',
+      priceCents: 0,
+      capacity: 10,
+    });
+    const counters = () =>
+      createWithOrg(database)(context, (trx) =>
+        trx
+          .selectFrom('capacity_counters')
+          .select(['subject_type', 'subject_id', 'capacity', 'held'])
+          .where('org_id', '=', context.orgId)
+          .where('subject_id', 'in', [program.id, division.id, offering.id])
+          .orderBy('subject_type')
+          .execute(),
+      );
+    expect(await counters()).toEqual([
+      {
+        subject_type: 'division',
+        subject_id: division.id,
+        capacity: 12,
+        held: 0,
+      },
+      {
+        subject_type: 'offering',
+        subject_id: offering.id,
+        capacity: 10,
+        held: 0,
+      },
+      {
+        subject_type: 'program',
+        subject_id: program.id,
+        capacity: null,
+        held: 0,
+      },
+    ]);
+
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .updateTable('capacity_counters')
+        .set({ held: 5 })
+        .where('org_id', '=', context.orgId)
+        .where('subject_type', '=', 'division')
+        .where('subject_id', '=', division.id)
+        .execute();
+      await trx
+        .updateTable('divisions')
+        .set({ capacity_players: 8 })
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', division.id)
+        .execute();
+    });
+    expect((await counters())[0]).toMatchObject({ capacity: 8, held: 5 });
+    await expect(
+      createWithOrg(database)(context, (trx) =>
+        trx
+          .updateTable('divisions')
+          .set({ capacity_players: 4 })
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', division.id)
+          .execute(),
+      ),
+    ).rejects.toThrow('Capacity cannot fall below confirmed and held places');
+  });
+
   it('creates default division, 18 soccer divisions, offering, teams and one clean season copy', async () => {
     const seasons = new SeasonsService(database, context);
     const programs = new ProgramsService(database, context);

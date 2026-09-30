@@ -233,6 +233,11 @@ export class OfferingsService {
           subject_id: id,
           capacity: value.capacity,
         })
+        .onConflict((oc) =>
+          oc
+            .columns(['org_id', 'subject_type', 'subject_id'])
+            .doUpdateSet({ capacity: value.capacity }),
+        )
         .execute();
       return row;
     });

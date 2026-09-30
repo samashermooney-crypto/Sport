@@ -280,6 +280,15 @@ beforeAll(async () => {
           capacity: 1,
         },
       ])
+      .onConflict((oc) =>
+        oc
+          .columns(['org_id', 'subject_type', 'subject_id'])
+          .doUpdateSet((eb) => ({
+            capacity: eb.ref('excluded.capacity'),
+            confirmed: eb.ref('excluded.confirmed'),
+            held: eb.ref('excluded.held'),
+          })),
+      )
       .execute();
   });
   token = randomBytes(32).toString('base64url');
@@ -462,6 +471,7 @@ describe('registration checkout start', () => {
         .selectFrom('capacity_counters')
         .select(['held', 'confirmed'])
         .where('org_id', '=', orgId)
+        .where('subject_id', 'in', [programId, divisionId, offeringId])
         .execute(),
     );
     expect(counters).toHaveLength(3);
@@ -866,6 +876,15 @@ describe('registration checkout start', () => {
           subject_id: secondOfferingId,
           capacity: 1,
         })
+        .onConflict((oc) =>
+          oc
+            .columns(['org_id', 'subject_type', 'subject_id'])
+            .doUpdateSet((eb) => ({
+              capacity: eb.ref('excluded.capacity'),
+              confirmed: eb.ref('excluded.confirmed'),
+              held: eb.ref('excluded.held'),
+            })),
+        )
         .execute();
       await trx
         .insertInto('capacity_counters')
@@ -885,6 +904,15 @@ describe('registration checkout start', () => {
             capacity: 1,
           },
         ])
+        .onConflict((oc) =>
+          oc
+            .columns(['org_id', 'subject_type', 'subject_id'])
+            .doUpdateSet((eb) => ({
+              capacity: eb.ref('excluded.capacity'),
+              confirmed: eb.ref('excluded.confirmed'),
+              held: eb.ref('excluded.held'),
+            })),
+        )
         .execute();
     });
     const secondCart = {

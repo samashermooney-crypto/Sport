@@ -1091,3 +1091,11 @@
 - **Decision:** Replace that one Linux WebKit baseline with the deterministic CI rendering. The parity tolerance and token-equality checks are unchanged.
 - **Why:** The difference is glyph rasterization in the CI WebKit build, not a design change; a stale baseline would block every merge without protecting the design.
 - **Consequences / follow-ups:** Regenerate Linux baselines in the CI container whenever the Playwright/WebKit version changes.
+
+### DEC-145 — Capacity counters are created with their program, division and offering
+- **Date:** 2026-09-30
+- **Phase / area:** Phase 3/4 registration capacity (found by the Phase 16 registration-open load fixture)
+- **Context:** Family checkout locks the program, division and offering capacity counters together, but only offerings created through `OfferingsService` received a counter. Programs, divisions (including the trigger-created default division) and season-copied offerings had none, so every real family checkout failed with "Capacity counter is missing". Unit and E2E fixtures inserted the counters by hand, hiding the gap.
+- **Decision:** Migration 8503 adds insert triggers that create a counter for every program (unlimited), division (`capacity_players`) and offering (`capacity`), keeps the division counter in step with `capacity_players` (refusing a value below confirmed plus held places), removes an unused division counter when a division is deleted, and backfills missing counters from confirmed registrations. Code and fixtures that insert counters now upsert on `(org_id, subject_type, subject_id)`.
+- **Why:** Registration must work for every program an admin creates, and a database invariant covers every creation path (service, default division, season copy, seeds and imports) instead of relying on each caller.
+- **Consequences / follow-ups:** New tables that create capacity subjects must add the same trigger. Fixtures that set capacities must upsert rather than insert.

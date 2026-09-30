@@ -341,6 +341,15 @@ describe('registration reminder scheduling', () => {
           capacity: 1,
           held: 1,
         })
+        .onConflict((oc) =>
+          oc
+            .columns(['org_id', 'subject_type', 'subject_id'])
+            .doUpdateSet((eb) => ({
+              capacity: eb.ref('excluded.capacity'),
+              confirmed: eb.ref('excluded.confirmed'),
+              held: eb.ref('excluded.held'),
+            })),
+        )
         .execute();
       await trx
         .insertInto('capacity_holds')

@@ -152,6 +152,15 @@ test('family re-registers two returning siblings, signs waivers, and chooses uni
             capacity: 100,
           })),
         )
+        .onConflict((oc) =>
+          oc
+            .columns(['org_id', 'subject_type', 'subject_id'])
+            .doUpdateSet((eb) => ({
+              capacity: eb.ref('excluded.capacity'),
+              confirmed: eb.ref('excluded.confirmed'),
+              held: eb.ref('excluded.held'),
+            })),
+        )
         .execute();
     });
     for (const participant of participants.slice(0, 2))
@@ -455,6 +464,15 @@ test('waitlist cancellation offers a spot, acceptance confirms, and expiry advan
             capacity: registeredPersonIds.length,
             confirmed: registeredPersonIds.length,
           })),
+        )
+        .onConflict((oc) =>
+          oc
+            .columns(['org_id', 'subject_type', 'subject_id'])
+            .doUpdateSet((eb) => ({
+              capacity: eb.ref('excluded.capacity'),
+              confirmed: eb.ref('excluded.confirmed'),
+              held: eb.ref('excluded.held'),
+            })),
         )
         .execute();
     });
