@@ -767,28 +767,17 @@ export async function householdVolunteerLedger(
       requirement_id: string;
       person_id: string | null;
       completed: string | number;
-      bought_out: string | number;
     }>`
       SELECT requirement.id AS requirement_id,
         CASE WHEN requirement.amount_per_athlete IS NOT NULL THEN signup.person_id ELSE NULL END AS person_id,
         COALESCE(sum(CASE WHEN signup.status = 'completed' THEN
           CASE WHEN requirement.unit = 'hours' THEN signup.hours_credited ELSE 1 END
-          ELSE 0 END), 0) AS completed,
-        COALESCE(max(buyout.units), 0) AS bought_out
+          ELSE 0 END), 0) AS completed
       FROM volunteer_signups signup
       JOIN volunteer_shifts shift
         ON shift.org_id = signup.org_id AND shift.id = signup.volunteer_shift_id
       JOIN volunteer_requirements requirement
         ON requirement.org_id = shift.org_id AND requirement.id = shift.requirement_id
-      LEFT JOIN (
-        SELECT org_id, requirement_id, household_id, person_id, sum(units) AS units
-        FROM volunteer_buyouts
-        GROUP BY org_id, requirement_id, household_id, person_id
-      ) buyout
-        ON buyout.org_id = signup.org_id
-       AND buyout.requirement_id = requirement.id
-       AND buyout.household_id = signup.household_id
-       AND buyout.person_id IS NOT DISTINCT FROM CASE WHEN requirement.amount_per_athlete IS NOT NULL THEN signup.person_id ELSE NULL END
       WHERE signup.org_id = ${context.orgId}::uuid
         AND signup.household_id = ${householdId}::uuid
         AND requirement.id = ANY(${requirementIds}::uuid[])
@@ -798,9 +787,29 @@ export async function householdVolunteerLedger(
     const creditMap = new Map(
       credits.rows.map((row) => [
         `${row.requirement_id}:${row.person_id ?? 'household'}`,
-        { completed: Number(row.completed), boughtOut: Number(row.bought_out) },
+        { completed: Number(row.completed), boughtOut: 0 },
       ]),
     );
+    const buyouts = await sql<{
+      requirement_id: string;
+      person_id: string | null;
+      units: string | number;
+    }>`
+      SELECT requirement_id, person_id, sum(units) AS units
+      FROM volunteer_buyouts
+      WHERE org_id = ${context.orgId}::uuid
+        AND household_id = ${householdId}::uuid
+        AND requirement_id = ANY(${requirementIds}::uuid[])
+      GROUP BY requirement_id, person_id
+    `.execute(trx);
+    for (const row of buyouts.rows) {
+      const key = `${row.requirement_id}:${row.person_id ?? 'household'}`;
+      const current = creditMap.get(key);
+      creditMap.set(key, {
+        completed: current?.completed ?? 0,
+        boughtOut: Number(row.units),
+      });
+    }
     const rowsByRequirement = new Map<string, RequirementRow[]>();
     for (const row of reqRows) {
       const rows = rowsByRequirement.get(row.requirement_id) ?? [];
@@ -873,6 +882,39 @@ export async function buyOutVolunteerRequirement(
     creationKey: string;
   },
   now = new Date(),
+) {
+  const lockKey = [
+    'volunteer-buyout',
+    context.orgId,
+    input.requirementId,
+    input.householdId,
+    input.personId ?? 'household',
+  ].join(':');
+  return database.connection().execute(async (connection) => {
+    await sql`SELECT pg_advisory_lock(hashtextextended(${lockKey}, 0))`.execute(
+      connection,
+    );
+    try {
+      return await issueVolunteerBuyout(database, context, input, now);
+    } finally {
+      await sql`SELECT pg_advisory_unlock(hashtextextended(${lockKey}, 0))`.execute(
+        connection,
+      );
+    }
+  });
+}
+
+async function issueVolunteerBuyout(
+  database: Kysely<DB>,
+  context: OrgContext,
+  input: {
+    householdId: string;
+    personId?: string | null | undefined;
+    requirementId: string;
+    units: number;
+    creationKey: string;
+  },
+  now: Date,
 ) {
   const scoped = createWithOrg(database);
   const existing = await scoped(context, async (trx) =>
