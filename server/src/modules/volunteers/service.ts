@@ -1017,55 +1017,72 @@ async function issueVolunteerBuyout(
       },
     ],
   });
-  const row = await scoped(context, async (trx) => {
-    const current = await trx
-      .selectFrom('volunteer_requirements')
-      .select(['buyout_price_cents', 'deadline'])
-      .where('org_id', '=', context.orgId)
-      .where('id', '=', input.requirementId)
-      .forUpdate()
-      .executeTakeFirst();
-    if (!current) throw new VolunteerNotFoundError('Requirement not found');
-    const currentLedger = await householdVolunteerLedger(
-      database,
-      context,
-      input.householdId,
-      now,
-    );
-    const latest = currentLedger.items.find(
-      (candidate) =>
-        candidate.requirementId === input.requirementId &&
-        candidate.subjectPersonId === (input.personId ?? null),
-    );
-    if (!latest || input.units > latest.remaining)
-      throw new VolunteerConflictError(
-        'Requirement changed before buyout was recorded',
+  let row: { id: string };
+  try {
+    row = await scoped(context, async (trx) => {
+      const current = await trx
+        .selectFrom('volunteer_requirements')
+        .select(['buyout_price_cents', 'deadline'])
+        .where('org_id', '=', context.orgId)
+        .where('id', '=', input.requirementId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!current) throw new VolunteerNotFoundError('Requirement not found');
+      const currentLedger = await householdVolunteerLedger(
+        database,
+        context,
+        input.householdId,
+        now,
       );
-    const buyout = await trx
-      .insertInto('volunteer_buyouts')
-      .values({
-        org_id: context.orgId,
-        requirement_id: input.requirementId,
-        household_id: input.householdId,
-        person_id: input.personId ?? null,
-        units: input.units,
-        amount_cents: amountCents,
-        invoice_id: invoice.id,
-        creation_key: input.creationKey,
-        created_by: context.actor.accountId,
-      })
-      .returning('id')
-      .executeTakeFirstOrThrow();
-    await appendAuditEvent(trx, context, {
-      action: 'volunteer_requirement.buyout_issued',
-      entityType: 'volunteer_buyout',
-      entityId: buyout.id,
-      changes: {
-        units: { tier: 'internal', after: input.units },
-        amountCents: { tier: 'internal', after: amountCents },
-      },
+      const latest = currentLedger.items.find(
+        (candidate) =>
+          candidate.requirementId === input.requirementId &&
+          candidate.subjectPersonId === (input.personId ?? null),
+      );
+      if (!latest || input.units > latest.remaining)
+        throw new VolunteerConflictError(
+          'Requirement changed before buyout was recorded',
+        );
+      const buyout = await trx
+        .insertInto('volunteer_buyouts')
+        .values({
+          org_id: context.orgId,
+          requirement_id: input.requirementId,
+          household_id: input.householdId,
+          person_id: input.personId ?? null,
+          units: input.units,
+          amount_cents: amountCents,
+          invoice_id: invoice.id,
+          creation_key: input.creationKey,
+          created_by: context.actor.accountId,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await appendAuditEvent(trx, context, {
+        action: 'volunteer_requirement.buyout_issued',
+        entityType: 'volunteer_buyout',
+        entityId: buyout.id,
+        changes: {
+          units: { tier: 'internal', after: input.units },
+          amountCents: { tier: 'internal', after: amountCents },
+        },
+      });
+      return buyout;
     });
-    return buyout;
-  });
+  } catch (cause) {
+    try {
+      await new PostgresInvoiceRepository(database, context).void({
+        orgId: context.orgId,
+        invoiceId: invoice.id,
+        reason: 'Volunteer buyout could not be recorded',
+      });
+    } catch (voidError) {
+      throw new AggregateError(
+        [cause, voidError],
+        'Volunteer buyout failed and its invoice could not be voided',
+      );
+    }
+    throw cause;
+  }
   return { id: row.id, invoiceId: invoice.id, amountCents, units: input.units };
 }

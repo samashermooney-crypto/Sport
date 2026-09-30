@@ -743,7 +743,7 @@ export async function placeStoreOrder(
         .executeTakeFirst();
       if (!account)
         throw new StoreAccessError('A signed-in purchaser is required');
-      const selectedRegistrationId = input.registrationId ?? null;
+      let selectedRegistrationId = input.registrationId ?? null;
       let selectedTeamSeasonId = input.teamSeasonId ?? null;
       if (input.householdId) {
         const membership = await sql<{ allowed: boolean }>`
@@ -761,12 +761,57 @@ export async function placeStoreOrder(
         if (!membership.rows[0]?.allowed)
           throw new StoreAccessError('Household not available to purchaser');
       }
-      if (input.registrationId) {
+      // The family UI sends a selected registration explicitly. Older clients
+      // can still be attributed when their participant has one unambiguous
+      // active registration in this household.
+      if (!selectedRegistrationId && input.householdId) {
+        const participantIds = [
+          ...new Set(
+            input.lines
+              .map((line) => line.personId)
+              .filter((personId): personId is string => Boolean(personId)),
+          ),
+        ];
+        const participantId = participantIds.at(0);
+        if (participantId && participantIds.length === 1) {
+          const registrations = await trx
+            .selectFrom('registrations')
+            .innerJoin('person_account_links as link', (join) =>
+              join
+                .onRef('link.org_id', '=', 'registrations.org_id')
+                .onRef('link.person_id', '=', 'registrations.person_id'),
+            )
+            .select('registrations.id')
+            .distinct()
+            .where('registrations.org_id', '=', context.orgId)
+            .where('registrations.household_id', '=', input.householdId)
+            .where('registrations.person_id', '=', participantId)
+            .where('registrations.status', 'in', [
+              'confirmed',
+              'pending_payment',
+            ])
+            .where('link.account_id', '=', context.actor.accountId)
+            .where('link.relationship', 'in', ['self', 'guardian'])
+            .where('link.revoked_at', 'is', null)
+            .where((eb) =>
+              eb.or([
+                eb('link.relationship', '!=', 'guardian'),
+                eb('link.verified_at', 'is not', null),
+              ]),
+            )
+            .limit(2)
+            .execute();
+          const registration = registrations.at(0);
+          if (registrations.length === 1 && registration)
+            selectedRegistrationId = registration.id;
+        }
+      }
+      if (selectedRegistrationId) {
         const registration = await trx
           .selectFrom('registrations')
           .select(['id', 'person_id', 'team_season_id'])
           .where('org_id', '=', context.orgId)
-          .where('id', '=', input.registrationId)
+          .where('id', '=', selectedRegistrationId)
           .where('household_id', '=', input.householdId ?? null)
           .where('status', 'in', ['confirmed', 'pending_payment'])
           .executeTakeFirst();

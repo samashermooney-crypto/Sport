@@ -92,19 +92,30 @@ test('QA-ACC-039 / Track H: concurrent volunteer buyouts leave no payable orphan
         .where('requirement_id', '=', requirement.id)
         .where('household_id', '=', householdId)
         .execute(),
-      invoiceLines: await trx
-        .selectFrom('invoice_lines')
-        .select('id')
-        .where('org_id', '=', actor.orgId)
-        .where('kind', '=', 'volunteer_buyout')
+      payableInvoiceLines: await trx
+        .selectFrom('invoice_lines as line')
+        .innerJoin('invoices as invoice', (join) =>
+          join
+            .onRef('invoice.org_id', '=', 'line.org_id')
+            .onRef('invoice.id', '=', 'line.invoice_id'),
+        )
+        .select('line.id')
+        .where('line.org_id', '=', actor.orgId)
+        .where('line.kind', '=', 'volunteer_buyout')
+        .where('invoice.status', 'in', ['open', 'partially_paid', 'past_due'])
         .execute(),
     }));
     expect({
       fulfilled: fulfilled.length,
       rejected: rejected.length,
       buyouts: persisted.buyouts.length,
-      invoiceLines: persisted.invoiceLines.length,
-    }).toEqual({ fulfilled: 1, rejected: 1, buyouts: 1, invoiceLines: 1 });
+      payableInvoiceLines: persisted.payableInvoiceLines.length,
+    }).toEqual({
+      fulfilled: 1,
+      rejected: 1,
+      buyouts: 1,
+      payableInvoiceLines: 1,
+    });
   } finally {
     await database.destroy();
   }
