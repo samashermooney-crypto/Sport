@@ -1,7 +1,7 @@
 # Track C — files, adapters, and wiring
 Status: working — local integration candidate contains C’s Federation/fee-void repairs, D’s public-site route split and locale-pinned skip-link fixture, and A’s notification-permission follow-up `55bdfc3b`.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Hosted CI: run `36690800467` is in progress on code head `d0d69620`; latest completed run `36689550628` on `468b01f5` fails only the public-site skip-link and sign-in E2E checks. Static size passes. The sign-in follow-up is in the running head; the skip-link still failed after D’s locale fix and has been reopened in D.md. No GREEN result is claimed.
+Hosted CI: run `36690800467` is in progress on code head `d0d69620`; latest completed run `36689550628` on `468b01f5` fails only the public-site skip-link and sign-in E2E checks. Static size passes. The Playwright artifact shows the skip-link fixture landing on the SPA alert `Website page unavailable` / `This page is not published or could not be loaded` before the expected heading. A’s sign-in follow-up is in the running head. No GREEN result is claimed.
 Open integration work: obtain hosted CI for the current code head; have D resolve the remaining skip-link render failure without changing assertions; continue checking C-owned Federation/Phase 13 failures and launch-gate items below.
 
 ## Completed Track C work
@@ -233,6 +233,6 @@ Open integration work: obtain hosted CI for the current code head; have D resolv
 
 ## Hosted E2E follow-up — 2026-09-30 03:45 CDT
 
-- Completed run `36689550628` on `468b01f5` reports only the public-site skip-link and sign-in journeys; the static size job passes. It still fails the skip-link after D’s fixture pins both organization and browser locale to English (`a0e0c44a`), so C reopened the specific render failure in `docs/codex/tracks/D.md`.
+- Completed run `36689550628` on `468b01f5` reports only the public-site skip-link and sign-in journeys; static size passes. Its Playwright artifact shows the fixture reached the SPA alert `Website page unavailable` / `This page is not published or could not be loaded`, so the seeded public site data or route/API path is not resolving (not a locale or focus assertion issue). D has the exact artifact diagnosis in `docs/codex/tracks/D.md`. The sign-in failure on this older head was the pre-request `Notification.permission` check returning `denied`; A’s `55bdfc3b` moves it after the user action, and run `36690800467` is testing that change.
 - A’s follow-up `55bdfc3b` moves the notification-permission assertion to after the fake subscription request; current run `36690800467` on `d0d69620` is testing it. No full suite or Playwright run was started locally.
 - The recent completed reports do not list C-owned Federation, fee-void, or sharing-revocation failures. Focused API/Postgres and navigation component regressions remain green; no CI-green claim is made for current head.
