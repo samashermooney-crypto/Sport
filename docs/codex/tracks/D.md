@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `fix/d`
-Working from the 10-hour integration plan. `track/integration` is at `e5b6e7a3`; hosted run `36660653200` is running on that head. Run `36660193860` tested `b4bd4c01` and failed E2E plus Knip. Its only D-owned E2E failure was `ui-communication-1440`: all three retries produced SHA-256 `d2f410994082f395e17ed1f5b35cbb25989d961f94a9332e3eab8ed51694bbc4`, while the expected Linux snapshot hashed to `f47d5aae40ba169269bcaf5983ca86f7f937b30e94fc14bbc2ecd2792d7a49ed`. The 39 thresholded pixels are confined to the undo/redo glyphs; no 390px shell mismatch was reported in that run. The Linux-only reference now matches the exact hosted-runner actual. The macOS reference and tolerances are unchanged. D's baseline and Knip follow-up are on `fix/d`, awaiting C's merge and a confirming hosted run. The old per-track trunk merge notes below are historical.
+Working from the 10-hour integration plan. `fix/d` is fast-forwarded to `track/integration` at `d8b1e4dc`. D's Linux communication reference and Knip follow-up are present in that history; earlier hosted artifacts isolated the 39-pixel `ui-communication-1440` drift to undo/redo glyph rasterization, with identical actual hashes across retries. The 390px shell matched in those runs. The latest report in `/Users/sammooney/athlentry-sprint/ci/integration.txt` is stale: it lists run `36660653200` at `e5b6e7a3` and no result for `d8b1e4dc`. The exact D baseline still needs confirmation from CI on the newer head. macOS references, tolerances, and the token-equality test are unchanged. The old per-track trunk merge notes below are historical.
 
 ## Current
 
@@ -73,10 +73,10 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 ## Exact next steps
 
-1. Have C merge the current `fix/d` head into `track/integration`; inspect the next CI run and confirm Linux component parity, shell parity, and Knip pass.
-2. Fix any newly reported D-owned console/website failures. The six website console/embed tests, Action Center, organization data/privacy, report builder, ReportsDashboard, and ConsoleShell focused tests pass individually on the current `fix/d` tree.
-3. Finish the remaining D-owned Phase 14 QA requests for export expiry, privacy photo cleanup, stored-XSS coverage, and configured shared storage; the shared `/site` mount and custom-domain route are present on integration, pending hosted validation.
-4. Add the requested Lighthouse dependency when available, then rerun public-site Lighthouse against the shared `createApp` mount under CI; complete the documented manual keyboard journeys where routes are available.
+1. Commit the shared-app Lighthouse runner and dependency changes, then have C merge the latest `fix/d` commits into `track/integration`; inspect CI on that exact head for Linux component parity, shell parity, and Knip.
+2. Fix any newly reported D-owned parity or console/website failures. The focused website console/embed tests, Action Center, organization data/privacy, report builder, ReportsDashboard, and ConsoleShell tests passed individually on the preceding integration tree.
+3. Ask C to add the Lighthouse runner to CI and upload `perf/results/phase14-shared-app/`; review exact shared-app scores before recording Phase 14 Lighthouse acceptance.
+4. Close the remaining D-owned QA requests for configured shared storage and the documented manual keyboard review; keep cross-track requests in the section below.
 
 ## Open requests and blockers
 
@@ -98,4 +98,4 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 - QA-ACC-065: implementation is present on `track/integration` (`website.moduleDefinition.publicRouter` is mounted by `createApp`); the website integration regression now uses the shared app and verifies a published site, verified custom domain, host-root SEO aliases, and pending-domain rejection. Await hosted validation and repeat Lighthouse against this mount; the currently committed scores use the direct router.
 - QA-ACC-067: run `36660193860` reports no 390px shell mismatch. Its sole parity failure is `ui-communication-1440`, with 39 thresholded pixels confined to undo/redo glyph rasterization; three actual retries have the same SHA-256. The Linux-only snapshot now matches that exact hosted actual. The earlier `ui-team-1440` runner drift is corrected in `ea9b9c7d`, and the `ui-core-1440` Linux snapshot is present. The fresh run `36660653200` does not include the new communication snapshot yet. Keep tolerances and design tokens unchanged. See `docs/codex/qa/DEFECTS.md`.
-- Phase 14 Lighthouse repeat needs the exact dev dependency `lighthouse@13.5.0`. `npm install --save-dev --save-exact lighthouse@13.5.0` could not resolve `registry.npmjs.org` (`ENOTFOUND`); offline install has no cached package metadata (`ENOTCACHED`). No package files were changed. Owner: install the exact dependency when registry access is available; D will add the shared-app audit and commit its CI results.
+- Phase 14 Lighthouse: the exact dev dependency `lighthouse@13.5.0` is installed in `package.json`/`package-lock.json`. `perf/phase14-lighthouse-ci.mjs` starts the app with a fresh database, seeds a synthetic published website, and audits the registered shared-app home, Programs, and Schedule SSR routes at Performance ≥ 90, Accessibility 100, and SEO ≥ 95. CI ownership request: C should run `npm run perf:lighthouse:website` on `ubuntu-24.04` after browser installation and upload `perf/results/phase14-shared-app/` even when the E2E job is red. The runner has not yet been executed in CI; no shared-app scores are claimed.
