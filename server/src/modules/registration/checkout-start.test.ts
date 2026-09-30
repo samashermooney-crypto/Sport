@@ -17,12 +17,17 @@ import { PostgresRegistrationCheckoutQuote } from './checkout-quote.js';
 import { PostgresRegistrationCheckoutStart } from './checkout-start.js';
 import {
   PostgresRegistrationLifecycle,
+  registrationCancelResponseSchema,
   waitlistEntrySchema,
 } from './lifecycle.js';
 import { PostgresCheckoutPolicyAcceptance } from './policy-acceptance.js';
 import { PostgresRegistrationReports } from './reports.js';
-import { waiverDocumentHash } from './requirements.js';
+import {
+  PostgresRegistrationRequirements,
+  waiverDocumentHash,
+} from './requirements.js';
 import { createRegistrationRouter } from './routes.js';
+import { teamEntrySchema } from './team-entries.js';
 
 let database: Kysely<DB>;
 const accountId = newId();
@@ -1161,6 +1166,26 @@ describe('registration checkout start', () => {
         householdId,
       }),
     ).toEqual(waitlist);
+    const familyWaitlist = await fetch(`${baseUrl}/orgs/${orgId}/me/waitlist`, {
+      headers: { Cookie: `__Host-athlentry_session=${token}` },
+    });
+    expect(familyWaitlist.status).toBe(200);
+    expect(await familyWaitlist.json()).toMatchObject({
+      entries: [{ id: waitlist.id, personId, position: 1, status: 'waiting' }],
+    });
+    const staffWaitlist = await fetch(
+      `${baseUrl}/orgs/${orgId}/waitlist?offeringId=${secondOfferingId}`,
+      { headers: { Cookie: `__Host-athlentry_session=${staffToken}` } },
+    );
+    expect(staffWaitlist.status).toBe(200);
+    expect(await staffWaitlist.json()).toMatchObject({
+      entries: [{ id: waitlist.id, personId, position: 1, status: 'waiting' }],
+    });
+    const familyStaffWaitlist = await fetch(
+      `${baseUrl}/orgs/${orgId}/waitlist?offeringId=${secondOfferingId}`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(familyStaffWaitlist.status).toBe(403);
     await createWithOrg(database)(context, (trx) =>
       trx
         .updateTable('capacity_counters')
@@ -1245,5 +1270,617 @@ describe('registration checkout start', () => {
     );
     expect(accepted.accepted_at).toBeTruthy();
     expect(accepted.status).toBe('offered');
+  });
+
+  it('routes adult team entry, captain invitations, and registrar approval through scoped HTTP endpoints', async () => {
+    const captainPersonId = newId();
+    const teamOfferingId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .updateTable('accounts')
+        .set({ email_verified_at: new Date() })
+        .where('id', '=', accountId)
+        .execute();
+      await trx
+        .insertInto('people')
+        .values({
+          id: captainPersonId,
+          org_id: orgId,
+          first_name: 'Jordan',
+          last_name: 'Captain',
+          date_of_birth: '1980-03-10',
+        })
+        .execute();
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: newId(),
+          org_id: orgId,
+          person_id: captainPersonId,
+          account_id: accountId,
+          relationship: 'self',
+          verified_at: new Date(),
+        })
+        .execute();
+      await trx
+        .updateTable('capacity_counters')
+        .set({ capacity: 20 })
+        .where('org_id', '=', orgId)
+        .where('subject_type', 'in', ['program', 'division'])
+        .execute();
+      await trx
+        .insertInto('registration_offerings')
+        .values({
+          id: teamOfferingId,
+          org_id: orgId,
+          program_id: programId,
+          division_id: divisionId,
+          name: 'Adult team entry',
+          registrant_role: 'team_entry',
+          price_cents: 0,
+          capacity: 20,
+          waitlist_enabled: false,
+          requires_approval: true,
+          visibility: 'public',
+          active: true,
+        })
+        .execute();
+      await trx
+        .insertInto('capacity_counters')
+        .values({
+          id: newId(),
+          org_id: orgId,
+          subject_type: 'offering',
+          subject_id: teamOfferingId,
+          capacity: 20,
+        })
+        .execute();
+    });
+
+    const familyHeaders = {
+      Cookie: `__Host-athlentry_session=${token}`,
+      Origin: 'http://127.0.0.1:5173',
+      'X-Athlentry-Request': '1',
+      'Content-Type': 'application/json',
+    };
+    const options = await fetch(`${baseUrl}/orgs/${orgId}/team-entry-options`, {
+      headers: { Cookie: familyHeaders.Cookie },
+    });
+    expect(options.status).toBe(200);
+    expect(await options.json()).toMatchObject({
+      offerings: [{ offeringId: teamOfferingId, requiresApproval: true }],
+      captains: [{ personId: captainPersonId, name: 'Jordan Captain' }],
+    });
+
+    const createBody = {
+      offeringId: teamOfferingId,
+      captainPersonId,
+      teamName: 'Northside Adult United',
+      clubName: 'Northside',
+      seedHint: 4,
+    };
+    const rejectedOrigin = await fetch(
+      `${baseUrl}/orgs/${orgId}/team-entries`,
+      {
+        method: 'POST',
+        headers: { ...familyHeaders, Origin: 'https://not-the-app.example' },
+        body: JSON.stringify(createBody),
+      },
+    );
+    expect(rejectedOrigin.status).toBe(403);
+    const created = await fetch(`${baseUrl}/orgs/${orgId}/team-entries`, {
+      method: 'POST',
+      headers: { ...familyHeaders, 'Idempotency-Key': randomUUID() },
+      body: JSON.stringify(createBody),
+    });
+    expect(created.status).toBe(201);
+    const team = teamEntrySchema.parse(await created.json());
+    expect(team).toMatchObject({
+      teamName: 'Northside Adult United',
+      status: 'pending_approval',
+      captainPersonId,
+    });
+
+    const inviteEmail = `adult-player-${randomUUID()}@example.invalid`;
+    const invited = await fetch(
+      `${baseUrl}/orgs/${orgId}/team-entries/${team.id}/invites`,
+      {
+        method: 'POST',
+        headers: { ...familyHeaders, 'Idempotency-Key': randomUUID() },
+        body: JSON.stringify({ emails: [inviteEmail] }),
+      },
+    );
+    expect(invited.status).toBe(201);
+    const invite = z
+      .strictObject({
+        invites: z.array(
+          z.strictObject({
+            id: z.uuid(),
+            email: z.email(),
+            expiresAt: z.iso.datetime(),
+            inviteUrl: z.url(),
+          }),
+        ),
+      })
+      .parse(await invited.json()).invites[0];
+    if (!invite) throw new Error('Team invitation was not returned');
+    expect(invite.email).toBe(inviteEmail);
+    expect(new URL(invite.inviteUrl).pathname).toContain(
+      `/portal/orgs/${orgId}/team-entry-invites/`,
+    );
+
+    const captainInvites = await fetch(
+      `${baseUrl}/orgs/${orgId}/team-entries/${team.id}/invites`,
+      { headers: { Cookie: familyHeaders.Cookie } },
+    );
+    expect(captainInvites.status).toBe(200);
+    expect(await captainInvites.json()).toMatchObject({
+      invites: [{ id: invite.id, email: inviteEmail, status: 'pending' }],
+    });
+    const staffList = await fetch(`${baseUrl}/orgs/${orgId}/team-entries`, {
+      headers: { Cookie: `__Host-athlentry_session=${staffToken}` },
+    });
+    expect(staffList.status).toBe(200);
+    expect(await staffList.json()).toMatchObject({
+      entries: [{ id: team.id, status: 'pending_approval' }],
+    });
+
+    const approval = await fetch(
+      `${baseUrl}/orgs/${orgId}/team-entries/${team.id}/approval`,
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${staffToken}`,
+          Origin: 'http://127.0.0.1:5173',
+          'X-Athlentry-Request': '1',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ decision: 'approved', note: 'Roster verified' }),
+      },
+    );
+    expect(approval.status).toBe(200);
+    expect(await approval.json()).toEqual({ status: 'accepted' });
+    const captainEntries = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/team-entries`,
+      { headers: { Cookie: familyHeaders.Cookie } },
+    );
+    expect(captainEntries.status).toBe(200);
+    expect(await captainEntries.json()).toMatchObject({
+      entries: [{ id: team.id, status: 'accepted', inviteCount: 1 }],
+    });
+    const counters = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('capacity_counters')
+        .select(['subject_type', 'confirmed', 'held'])
+        .where('org_id', '=', orgId)
+        .where('subject_id', 'in', [programId, divisionId, teamOfferingId])
+        .execute(),
+    );
+    expect(counters).toHaveLength(3);
+    const teamOfferingCounter = counters.find(
+      (counter) => counter.subject_type === 'offering' && counter.held === 0,
+    );
+    expect(teamOfferingCounter).toMatchObject({ confirmed: 1, held: 0 });
+  });
+
+  it('limits cancellation previews by ownership and replays family and staff cancellations exactly', async () => {
+    const householdForCancellation = newId();
+    const familyPersonId = newId();
+    const staffPersonId = newId();
+    const familyRegistrationId = newId();
+    const staffRegistrationId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      await trx
+        .insertInto('households')
+        .values({
+          id: householdForCancellation,
+          org_id: orgId,
+          name: 'Cancellation household',
+        })
+        .execute();
+      await trx
+        .insertInto('people')
+        .values([
+          {
+            id: familyPersonId,
+            org_id: orgId,
+            first_name: 'Family',
+            last_name: 'Cancel',
+            date_of_birth: '2012-04-01',
+          },
+          {
+            id: staffPersonId,
+            org_id: orgId,
+            first_name: 'Staff',
+            last_name: 'Cancel',
+            date_of_birth: '2013-05-02',
+          },
+        ])
+        .execute();
+      await trx
+        .insertInto('household_members')
+        .values([
+          {
+            id: newId(),
+            org_id: orgId,
+            household_id: householdForCancellation,
+            person_id: familyPersonId,
+            role: 'athlete',
+          },
+          {
+            id: newId(),
+            org_id: orgId,
+            household_id: householdForCancellation,
+            person_id: staffPersonId,
+            role: 'athlete',
+          },
+        ])
+        .execute();
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: newId(),
+          org_id: orgId,
+          person_id: familyPersonId,
+          account_id: accountId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute();
+      await trx
+        .insertInto('registrations')
+        .values([
+          {
+            id: familyRegistrationId,
+            org_id: orgId,
+            program_id: programId,
+            division_id: divisionId,
+            offering_id: offeringId,
+            person_id: familyPersonId,
+            household_id: householdForCancellation,
+            registered_by_account_id: accountId,
+            source: 'online',
+            status: 'confirmed',
+          },
+          {
+            id: staffRegistrationId,
+            org_id: orgId,
+            program_id: programId,
+            division_id: divisionId,
+            offering_id: offeringId,
+            person_id: staffPersonId,
+            household_id: householdForCancellation,
+            registered_by_account_id: accountId,
+            source: 'staff',
+            status: 'confirmed',
+          },
+        ])
+        .execute();
+      await trx
+        .updateTable('capacity_counters')
+        .set({ confirmed: 2, held: 0, capacity: 20 })
+        .where('org_id', '=', orgId)
+        .where('subject_id', 'in', [programId, divisionId, offeringId])
+        .execute();
+    });
+
+    const familyPreview = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/registrations/${familyRegistrationId}/cancellation-preview`,
+      { headers: { Cookie: `__Host-athlentry_session=${token}` } },
+    );
+    expect(familyPreview.status).toBe(200);
+    expect(await familyPreview.json()).toBeNull();
+    const staffPreview = await fetch(
+      `${baseUrl}/orgs/${orgId}/registrations/${familyRegistrationId}/cancellation-preview`,
+      { headers: { Cookie: `__Host-athlentry_session=${staffToken}` } },
+    );
+    expect(staffPreview.status).toBe(200);
+    expect(await staffPreview.json()).toBeNull();
+    const unrelatedFamilyPreview = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/registrations/${familyRegistrationId}/cancellation-preview`,
+      { headers: { Cookie: `__Host-athlentry_session=${directorToken}` } },
+    );
+    expect(unrelatedFamilyPreview.status).toBe(403);
+    const unauthorizedStaffPreview = await fetch(
+      `${baseUrl}/orgs/${orgId}/registrations/${familyRegistrationId}/cancellation-preview`,
+      { headers: { Cookie: `__Host-athlentry_session=${directorToken}` } },
+    );
+    expect(unauthorizedStaffPreview.status).toBe(403);
+
+    const familyCancelHeaders = {
+      Cookie: `__Host-athlentry_session=${token}`,
+      Origin: 'http://127.0.0.1:5173',
+      'X-Athlentry-Request': '1',
+      'Idempotency-Key': randomUUID(),
+      'Content-Type': 'application/json',
+    };
+    const familyCancel = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/registrations/${familyRegistrationId}/cancel`,
+      {
+        method: 'POST',
+        headers: familyCancelHeaders,
+        body: JSON.stringify({ reason: 'Family schedule changed' }),
+      },
+    );
+    expect(familyCancel.status).toBe(200);
+    const familyResult = registrationCancelResponseSchema.parse(
+      await familyCancel.json(),
+    );
+    expect(familyResult).toEqual({ status: 'withdrawn', refundProposal: null });
+    const familyReplay = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/registrations/${familyRegistrationId}/cancel`,
+      {
+        method: 'POST',
+        headers: familyCancelHeaders,
+        body: JSON.stringify({ reason: 'Family schedule changed' }),
+      },
+    );
+    expect(familyReplay.status).toBe(200);
+    expect(
+      registrationCancelResponseSchema.parse(await familyReplay.json()),
+    ).toEqual(familyResult);
+    const changedFamilyReplay = await fetch(
+      `${baseUrl}/orgs/${orgId}/me/registrations/${familyRegistrationId}/cancel`,
+      {
+        method: 'POST',
+        headers: { ...familyCancelHeaders, 'Idempotency-Key': randomUUID() },
+        body: JSON.stringify({ reason: 'Changed plans again' }),
+      },
+    );
+    expect(changedFamilyReplay.status).toBe(409);
+    expect(await changedFamilyReplay.json()).toMatchObject({
+      error: { code: 'CANCELLATION_ALREADY_RECORDED' },
+    });
+
+    const staffCancel = await fetch(
+      `${baseUrl}/orgs/${orgId}/registrations/${staffRegistrationId}/cancel`,
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${staffToken}`,
+          Origin: 'http://127.0.0.1:5173',
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': randomUUID(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason: 'Registrar correction' }),
+      },
+    );
+    expect(staffCancel.status).toBe(200);
+    expect(
+      registrationCancelResponseSchema.parse(await staffCancel.json()),
+    ).toEqual({
+      status: 'canceled',
+      refundProposal: null,
+    });
+    const balances = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('capacity_counters')
+        .select(['subject_type', 'confirmed', 'held'])
+        .where('org_id', '=', orgId)
+        .where('subject_id', 'in', [programId, divisionId, offeringId])
+        .execute(),
+    );
+    expect(balances).toHaveLength(3);
+    expect(balances.every((counter) => counter.confirmed === 0)).toBe(true);
+  });
+
+  it('requires registrar approval before payment and honors its deadline and idempotency key', async () => {
+    const approvalProgramId = newId();
+    const approvalDivisionId = newId();
+    const approvalOfferingId = newId();
+    const lineId = newId();
+    await createWithOrg(database)(context, async (trx) => {
+      const source = await trx
+        .selectFrom('programs')
+        .select(['season_id', 'sport_profile_id'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', programId)
+        .executeTakeFirstOrThrow();
+      await trx
+        .insertInto('programs')
+        .values({
+          id: approvalProgramId,
+          org_id: orgId,
+          season_id: source.season_id,
+          sport_profile_id: source.sport_profile_id,
+          mode: 'league',
+          name: 'Approval registration',
+          slug: `approval-${randomUUID().slice(0, 8)}`,
+          status: 'registration_open',
+          visibility: 'public',
+          starts_on: '2026-09-01',
+          ends_on: '2026-12-01',
+          settings: { paymentDueHours: 48, approvalDecisionHours: 72 },
+        })
+        .execute();
+      await trx
+        .insertInto('divisions')
+        .values({
+          id: approvalDivisionId,
+          org_id: orgId,
+          program_id: approvalProgramId,
+          name: 'Approval group',
+        })
+        .execute();
+      await trx
+        .insertInto('registration_offerings')
+        .values({
+          id: approvalOfferingId,
+          org_id: orgId,
+          program_id: approvalProgramId,
+          division_id: approvalDivisionId,
+          name: 'Approval required player',
+          registrant_role: 'athlete',
+          price_cents: 2500,
+          visibility: 'public',
+          active: true,
+          capacity: 1,
+          requires_approval: true,
+        })
+        .execute();
+      await trx
+        .insertInto('capacity_counters')
+        .values([
+          {
+            id: newId(),
+            org_id: orgId,
+            subject_type: 'program',
+            subject_id: approvalProgramId,
+            capacity: 1,
+          },
+          {
+            id: newId(),
+            org_id: orgId,
+            subject_type: 'division',
+            subject_id: approvalDivisionId,
+            capacity: 1,
+          },
+          {
+            id: newId(),
+            org_id: orgId,
+            subject_type: 'offering',
+            subject_id: approvalOfferingId,
+            capacity: 1,
+          },
+        ])
+        .execute();
+    });
+
+    const started = await new PostgresRegistrationCheckoutStart(
+      database,
+      context,
+    ).start({
+      orgId,
+      creationKey: randomUUID(),
+      cart: {
+        offerings: [
+          { lineId, offeringId: approvalOfferingId, personId, householdId },
+        ],
+      },
+    });
+    const requirements = new PostgresRegistrationRequirements(
+      database,
+      context,
+      encryption,
+    );
+    await requirements.submit({
+      orgId,
+      checkoutId: started.checkoutId,
+      requirements: {
+        version: 1,
+        lines: [{ lineId, addOns: [], volunteer: 'none' }],
+        forms: [],
+        waivers: [],
+        discountCodes: [],
+        applyCreditCents: 0,
+        planTemplateId: null,
+        chargeOnApprovalMethodId: null,
+      },
+      userAgent: 'Vitest',
+      ip: null,
+    });
+    const policy = new PostgresCheckoutPolicyAcceptance(database, context);
+    const review = await policy.review(started.checkoutId);
+    await policy.accept(started.checkoutId, review.termsHash, 'Vitest');
+    const quote = await new PostgresRegistrationCheckoutQuote(
+      database,
+      context,
+      encryption,
+    ).quote({ orgId, checkoutId: started.checkoutId, quoteKey: randomUUID() });
+    expect(quote).toMatchObject({
+      totalCents: 2500,
+      pendingApproval: true,
+      paidInFull: false,
+    });
+
+    const registration = await createWithOrg(database)(context, (trx) =>
+      trx
+        .selectFrom('registrations')
+        .select(['id', 'status'])
+        .where('org_id', '=', orgId)
+        .where('checkout_id', '=', started.checkoutId)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(registration.status).toBe('pending_approval');
+    const decisionKey = randomUUID();
+    const approvalUrl = `${baseUrl}/orgs/${orgId}/registrations/${registration.id}/approval`;
+    const postApproval = (sessionToken: string, note: string) =>
+      fetch(approvalUrl, {
+        method: 'POST',
+        headers: {
+          Cookie: `__Host-athlentry_session=${sessionToken}`,
+          Origin: 'http://127.0.0.1:5173',
+          'X-Athlentry-Request': '1',
+          'Idempotency-Key': decisionKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ decision: 'approved', note }),
+      });
+    expect((await postApproval(token, 'Roster verified')).status).toBe(403);
+
+    const beforeApproval = Date.now();
+    const approved = await postApproval(staffToken, 'Roster verified');
+    expect(approved.status).toBe(200);
+    const approvalBody = (await approved.json()) as {
+      status: string;
+      paymentDueAt: string | null;
+    };
+    expect(approvalBody.status).toBe('pending_payment');
+    expect(approvalBody.paymentDueAt).toBeTruthy();
+    const expectedDueAt = new Date(
+      new Date(approvalBody.paymentDueAt ?? '').getTime(),
+    );
+    expect(expectedDueAt.getTime()).toBeGreaterThanOrEqual(
+      beforeApproval + 48 * 3_600_000,
+    );
+    expect(expectedDueAt.getTime()).toBeLessThanOrEqual(
+      Date.now() + 48 * 3_600_000,
+    );
+    const replay = await postApproval(staffToken, 'Roster verified');
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toEqual(approvalBody);
+    const changedReplay = await postApproval(
+      staffToken,
+      'Different decision note',
+    );
+    expect(changedReplay.status).toBe(409);
+    expect(await changedReplay.json()).toMatchObject({
+      error: { code: 'DECISION_ALREADY_RECORDED' },
+    });
+
+    const persisted = await createWithOrg(database)(context, async (trx) => ({
+      registration: await trx
+        .selectFrom('registrations')
+        .select(['status', 'approval_payment_due_at'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', registration.id)
+        .executeTakeFirstOrThrow(),
+      hold: await trx
+        .selectFrom('capacity_holds')
+        .select(['expires_at', 'released_at', 'converted_at'])
+        .where('org_id', '=', orgId)
+        .where('checkout_id', '=', started.checkoutId)
+        .executeTakeFirstOrThrow(),
+      counter: await trx
+        .selectFrom('capacity_counters')
+        .select(['held', 'confirmed'])
+        .where('org_id', '=', orgId)
+        .where('subject_type', '=', 'offering')
+        .where('subject_id', '=', approvalOfferingId)
+        .executeTakeFirstOrThrow(),
+    }));
+    expect(persisted.registration.status).toBe('pending_payment');
+    expect(persisted.registration.approval_payment_due_at?.toISOString()).toBe(
+      approvalBody.paymentDueAt,
+    );
+    expect(persisted.hold.expires_at.toISOString()).toBe(
+      approvalBody.paymentDueAt,
+    );
+    expect(persisted.hold).toMatchObject({
+      released_at: null,
+      converted_at: null,
+    });
+    expect(persisted.counter).toEqual({ held: 1, confirmed: 0 });
   });
 });
