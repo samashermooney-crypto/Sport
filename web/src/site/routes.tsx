@@ -1,26 +1,81 @@
+import { lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import type { RouteObject } from 'react-router';
 
-import { PublicFacilityPage } from '../portal/schedule/PublicFacilityPage';
-import { PublicStandingsPage } from '../portal/schedule/PublicStandingsPage';
-import { PublicTournamentPage } from '../portal/schedule/PublicTournamentPage';
-
-import { PublicSiteFacilitiesPage } from './PublicFacilitiesPage';
-import { PublicSiteNewsPostPage } from './PublicSiteNewsPostPage';
-import { SiteNewsPage } from './SiteNewsPage';
-import { SitePage } from './SitePage';
-import { WebsiteEmbedPage } from './WebsiteEmbedPage';
+const PublicFacilityPage = lazy(() =>
+  import('../portal/schedule/PublicFacilityPage').then(
+    ({ PublicFacilityPage: component }) => ({ default: component }),
+  ),
+);
+const PublicStandingsPage = lazy(() =>
+  import('../portal/schedule/PublicStandingsPage').then(
+    ({ PublicStandingsPage: component }) => ({ default: component }),
+  ),
+);
+const PublicTournamentPage = lazy(() =>
+  import('../portal/schedule/PublicTournamentPage').then(
+    ({ PublicTournamentPage: component }) => ({ default: component }),
+  ),
+);
+const PublicSiteFacilitiesPage = lazy(() =>
+  import('./PublicFacilitiesPage').then(
+    ({ PublicSiteFacilitiesPage: component }) => ({ default: component }),
+  ),
+);
+const PublicSiteNewsPostPage = lazy(() =>
+  import('./PublicSiteNewsPostPage').then(
+    ({ PublicSiteNewsPostPage: component }) => ({ default: component }),
+  ),
+);
+const SiteNewsPage = lazy(() =>
+  import('./SiteNewsPage').then(({ SiteNewsPage: component }) => ({
+    default: component,
+  })),
+);
+const SitePage = lazy(() =>
+  import('./SitePage').then(({ SitePage: component }) => ({
+    default: component,
+  })),
+);
+const WebsiteEmbedPage = lazy(() =>
+  import('./WebsiteEmbedPage').then(({ WebsiteEmbedPage: component }) => ({
+    default: component,
+  })),
+);
 
 export const siteRoutes: readonly RouteObject[] = [
-  { path: '/embed/:orgSlug/:publicKey', element: <WebsiteEmbedPage /> },
-  { path: '/site/:orgSlug/news', element: <SiteNewsPage /> },
+  {
+    path: '/embed/:orgSlug/:publicKey',
+    element: (
+      <SiteRouteSuspense>
+        <WebsiteEmbedPage />
+      </SiteRouteSuspense>
+    ),
+  },
+  {
+    path: '/site/:orgSlug/news',
+    element: (
+      <SiteRouteSuspense>
+        <SiteNewsPage />
+      </SiteRouteSuspense>
+    ),
+  },
   {
     path: '/site/:orgSlug/news/:newsSlug',
-    element: <PublicSiteNewsPostPage />,
+    element: (
+      <SiteRouteSuspense>
+        <PublicSiteNewsPostPage />
+      </SiteRouteSuspense>
+    ),
   },
   {
     path: '/site/:orgSlug/facilities',
-    element: <PublicSiteFacilitiesPage />,
+    element: (
+      <SiteRouteSuspense>
+        <PublicSiteFacilitiesPage />
+      </SiteRouteSuspense>
+    ),
   },
   {
     path: '/site/:orgSlug/standings/:programId',
@@ -34,9 +89,42 @@ export const siteRoutes: readonly RouteObject[] = [
     path: '/site/:orgSlug/facilities/:facilityId',
     element: <PublicSiteFacilityPage />,
   },
-  { path: '/site/:orgSlug', element: <SitePage /> },
-  { path: '/site/:orgSlug/*', element: <SitePage /> },
+  {
+    path: '/site/:orgSlug',
+    element: (
+      <SiteRouteSuspense>
+        <SitePage />
+      </SiteRouteSuspense>
+    ),
+  },
+  {
+    path: '/site/:orgSlug/*',
+    element: (
+      <SiteRouteSuspense>
+        <SitePage />
+      </SiteRouteSuspense>
+    ),
+  },
 ];
+
+function SiteRouteSuspense({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.JSX.Element {
+  const { t } = useTranslation('site');
+  return (
+    <Suspense
+      fallback={
+        <main className="public-site-main" role="status">
+          {t('loadingWebsite')}
+        </main>
+      }
+    >
+      {children}
+    </Suspense>
+  );
+}
 
 function PublicSiteStandingsPage(): React.JSX.Element {
   const { orgSlug, programId } = useParams<{
@@ -44,11 +132,13 @@ function PublicSiteStandingsPage(): React.JSX.Element {
     programId: string;
   }>();
   return orgSlug && programId ? (
-    <PublicStandingsPage
-      slug={orgSlug}
-      scopeType="program"
-      scopeId={programId}
-    />
+    <SiteRouteSuspense>
+      <PublicStandingsPage
+        slug={orgSlug}
+        scopeType="program"
+        scopeId={programId}
+      />
+    </SiteRouteSuspense>
   ) : (
     <main role="alert">Standings not found.</main>
   );
@@ -60,7 +150,9 @@ function PublicSiteTournamentPage(): React.JSX.Element {
     bracketId: string;
   }>();
   return orgSlug && bracketId ? (
-    <PublicTournamentPage slug={orgSlug} bracketId={bracketId} />
+    <SiteRouteSuspense>
+      <PublicTournamentPage slug={orgSlug} bracketId={bracketId} />
+    </SiteRouteSuspense>
   ) : (
     <main role="alert">Tournament not found.</main>
   );
@@ -72,7 +164,9 @@ function PublicSiteFacilityPage(): React.JSX.Element {
     facilityId: string;
   }>();
   return orgSlug && facilityId ? (
-    <PublicFacilityPage slug={orgSlug} facilityId={facilityId} />
+    <SiteRouteSuspense>
+      <PublicFacilityPage slug={orgSlug} facilityId={facilityId} />
+    </SiteRouteSuspense>
   ) : (
     <main role="alert">Facility not found.</main>
   );
