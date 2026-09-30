@@ -159,7 +159,13 @@ test('new account verifies its preview email and signs in', async ({
   const stubNotificationPermission =
     testInfo.project.name !== 'chromium-desktop';
   if (!stubNotificationPermission) {
-    await page.context().grantPermissions(['notifications']);
+    const baseURL = testInfo.project.use.baseURL;
+    if (typeof baseURL !== 'string') {
+      throw new Error('The Chromium notification test requires a base URL.');
+    }
+    await page.context().grantPermissions(['notifications'], {
+      origin: new URL(baseURL).origin,
+    });
   }
   // The fake service worker/push provider prevents external delivery while
   // Chromium exercises its granted Notification permission and the UI checks
