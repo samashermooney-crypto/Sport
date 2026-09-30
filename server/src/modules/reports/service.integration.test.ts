@@ -42,6 +42,12 @@ const evaluationEventId = randomUUID();
 const evaluationGroupId = randomUUID();
 const evaluationParticipantId = randomUUID();
 const evaluationResultId = randomUUID();
+const complianceCredentialTypeId = randomUUID();
+const expiredCredentialId = randomUUID();
+const todayCredentialId = randomUUID();
+const nonExpiringCredentialId = randomUUID();
+const pendingCredentialId = randomUUID();
+const revokedCredentialId = randomUUID();
 let database: ReturnType<typeof createDatabase>;
 let withOrg: ReturnType<typeof createWithOrg>;
 
@@ -200,6 +206,33 @@ beforeAll(async () => {
       "INSERT INTO people(id,org_id,first_name,last_name,date_of_birth) SELECT gen_random_uuid(), $1, 'Roster', 'Member ' || i::text, '2012-01-01'::date FROM generate_series(1,205) AS i",
       [orgA],
     );
+    await admin.query(
+      `INSERT INTO credential_types
+        (id,org_id,key,name,verification,validity,applies_to)
+       VALUES ($1,$2,'report_compliance','Report compliance','manual_staff','{"never":true}'::jsonb,'{}'::jsonb)`,
+      [complianceCredentialTypeId, orgA],
+    );
+    await admin.query(
+      `INSERT INTO person_credentials
+        (id,org_id,person_id,credential_type_id,status,expires_on,verified_by,verified_at)
+       VALUES
+        ($1,$2,$3,$4,'verified',CURRENT_DATE - 1,$5,now()),
+        ($6,$2,$3,$4,'verified',CURRENT_DATE,$5,now()),
+        ($7,$2,$3,$4,'verified',NULL,$5,now()),
+        ($8,$2,$3,$4,'pending_review',NULL,NULL,NULL),
+        ($9,$2,$3,$4,'revoked',NULL,NULL,NULL)`,
+      [
+        expiredCredentialId,
+        orgA,
+        personId,
+        complianceCredentialTypeId,
+        ownerId,
+        todayCredentialId,
+        nonExpiringCredentialId,
+        pendingCredentialId,
+        revokedCredentialId,
+      ],
+    );
   } finally {
     await admin.end();
   }
@@ -219,6 +252,27 @@ const definition = {
 } as const;
 
 describe('report service', () => {
+  it('treats an expired verified credential as needing attention before the expiry sweep', async () => {
+    const preview = await previewReport(
+      context(orgA, complianceId),
+      {
+        dataset: 'credentials',
+        columns: ['compliance_status'],
+        filters: [{ column: 'status', op: 'ne', value: 'revoked' }],
+        groupBy: ['compliance_status'],
+        aggregates: [{ fn: 'count', column: 'id' }],
+        sort: [{ column: 'compliance_status', direction: 'asc' }],
+      },
+      withOrg,
+    );
+
+    expect(preview.rows).toEqual([
+      ['expired', 1],
+      ['pending_review', 1],
+      ['verified', 2],
+    ]);
+  });
+
   it('assembles a one-page board PDF and preserves the financial step-up gate', async () => {
     const now = new Date('2026-09-28T12:00:00.000Z');
     const registrarPdf = await buildBoardSeasonReportPdf(

@@ -92,6 +92,7 @@ test('shell chrome compares against the legacy captures at desktop and phone wid
     [390, 52, 'dashboard-390.png'],
   ] as const) {
     await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(() => document.fonts.ready);
     const rendered = await page.locator('.ui-topbar').screenshot({
       animations: 'disabled',
     });

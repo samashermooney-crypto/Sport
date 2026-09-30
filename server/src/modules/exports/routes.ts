@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 import { LocalDiskStorage } from '../../integrations/storage/storage';
+import type { Storage } from '../../integrations/storage/storage';
 import type { AuthDependencies } from '../auth/routes';
 import { requireSession } from '../auth/routes';
 import { hasStepUp } from '../auth/sessions';
@@ -134,11 +135,11 @@ function requireMutationOrigin(
 }
 
 export function createExportsRouter(
-  dependencies: AuthDependencies,
+  dependencies: AuthDependencies & { storage?: Storage },
 ): express.Router {
   const router = express.Router();
   const withOrg = createWithOrg(dependencies.database);
-  const storage = new LocalDiskStorage('data/uploads');
+  const storage = dependencies.storage ?? new LocalDiskStorage('data/uploads');
 
   router.use(express.json({ limit: '64kb' }));
 
@@ -194,6 +195,7 @@ export function createExportsRouter(
         hasStepUp(session, dependencies.clock()),
         dependencies.clock(),
         withOrg,
+        storage,
       );
       response
         .setHeader('Cache-Control', 'no-store')
