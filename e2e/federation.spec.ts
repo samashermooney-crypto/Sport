@@ -351,19 +351,37 @@ test('QA-ACC-033 / Track C: federation is reachable from console navigation', as
     );
     // Federation is grouped under Operations in the shared console shell;
     // the organization home has a single Manage menu with a different IA.
+    // Phone widths hide the top menu bar; there the command palette is the
+    // navigation surface and lists every console destination.
     await page.goto(`/console/orgs/${league.orgId}/people`);
-    const operationsMenu = page.getByRole('button', {
-      name: 'Operations',
-      exact: true,
-    });
-    await operationsMenu.click();
-    await expect(operationsMenu).toHaveAttribute('aria-expanded', 'true');
-    const federationLink = page.getByRole('link', {
-      name: 'Federation',
-      exact: true,
-    });
-    await expect(federationLink).toBeVisible();
-    await federationLink.click();
+    if (testInfo.project.name.includes('mobile')) {
+      await page.getByRole('button', { name: 'Search Athlentry' }).click();
+      const commandPalette = page.getByRole('dialog', {
+        name: 'Command palette',
+      });
+      await commandPalette
+        .getByRole('searchbox', { name: 'Search Athlentry' })
+        .fill('Federation');
+      const federationLink = commandPalette.getByRole('link', {
+        name: 'Federation',
+        exact: true,
+      });
+      await expect(federationLink).toBeVisible();
+      await federationLink.click();
+    } else {
+      const operationsMenu = page.getByRole('button', {
+        name: 'Operations',
+        exact: true,
+      });
+      await operationsMenu.click();
+      await expect(operationsMenu).toHaveAttribute('aria-expanded', 'true');
+      const federationLink = page.getByRole('link', {
+        name: 'Federation',
+        exact: true,
+      });
+      await expect(federationLink).toBeVisible();
+      await federationLink.click();
+    }
     await expect(page).toHaveURL(`/console/federation/${league.orgId}`);
     await expect(
       page.getByRole('heading', { name: 'League and association' }),
