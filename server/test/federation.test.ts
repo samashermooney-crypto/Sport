@@ -548,6 +548,44 @@ describe('privileged member directory reads', () => {
   });
 });
 
+describe('ending a federation relationship', () => {
+  it('stops the league reading member teams and rosters immediately', async () => {
+    const { league, program } = await leagueWithProgram();
+    const club = await factory.actor();
+    const { team } = await clubTeam(club);
+    const relationship = await federate(league, club);
+    const entry = await submitEntry(ctx(club), {
+      leagueOrgId: league.orgId,
+      programId: program.programId,
+      divisionId: program.divisionId,
+      teamSeasonId: team.teamSeasonId,
+    });
+    await reviewEntry(database, ctx(league), entry.id, {
+      action: 'accept',
+      version: entry.version,
+    });
+    expect(
+      (await readMemberTeams(ctx(league), club.orgId)).teams,
+    ).not.toHaveLength(0);
+
+    await endRelationship(
+      ctx(club),
+      relationship.id,
+      'Left the league',
+      relationship.version,
+    );
+    await expect(
+      readMemberTeams(ctx(league), club.orgId),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      readMemberRoster(ctx(league), club.orgId, team.teamSeasonId),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(await auditActions(club.orgId)).toContain(
+      'federation.relationship.ended',
+    );
+  });
+});
+
 describe('team entries and roster snapshots', () => {
   it('hides roster snapshots immediately when the member revokes roster sharing', async () => {
     const { league, program } = await leagueWithProgram();
