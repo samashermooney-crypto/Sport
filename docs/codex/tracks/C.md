@@ -97,6 +97,6 @@ Requests to other tracks: D must resolve the Linux parity failures repeated in C
 
 ## Integration repair update — 2026-09-30
 
-- On `/Users/sammooney/Sport-trunk`, `track/integration` now contains C’s route correction `647cfc32`, A’s sign-up-origin notification grant follow-up, and D’s `/site/` prefix fix; combined code head is `fc061f1e` before the latest status-only commit. CI is not yet available on this head, and no push was made.
-- Hosted run `36695956812` on pre-fix `0cd2dd5d` failed only E2E: crawler sponsors 500, skip-link home fixture rejected, fundraiser detail 404, and Chromium notification permission denied. The database/unit `test` job passed; the report has no unit failure to repair.
-- The new proxy sends only `/site/<org>` home requests to SSR; `/site.css`, nested routes, and `?app=1` remain with Vite. Typecheck and lint passed through `heavy.sh`. D’s malformed JSONB fixture and hosted verification on the merged head remain open.
+- On `/Users/sammooney/Sport-trunk`, local `track/integration` code head `74c43440` contains C’s nested-site routing correction, A’s Chromium-context notification permission, and D’s `/site/` prefix plus JSONB fixture fixes. The integration C.md carries `INTEGRATION READY 74c43440`; the orchestrator is expected to publish it for exact-head CI. C did not push.
+- Hosted run `36698501721` on pre-final `ff0828f4` passed 113 E2E tests and failed only the skip-link fixture and Chromium notification permission. The crawler sponsor and fundraiser journeys passed, verifying C’s proxy correction. The database/unit `test` job and static checks passed.
+- Run `36700407619` on `d485cb4f` is still in progress; it includes A’s context-level grant but predates D’s fixture serialization. The exact merged head `74c43440` still needs hosted verification.
