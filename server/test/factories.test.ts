@@ -37,11 +37,12 @@ describe('spine test factories', () => {
       eventId,
       program.sportProfileId,
     );
+    const counterSubjectId = newId();
     await factory.row(orgA, 'capacity_counters', {
       id: newId(),
       org_id: orgA.orgId,
-      subject_type: 'offering',
-      subject_id: program.offeringId,
+      subject_type: 'class_session',
+      subject_id: counterSubjectId,
     });
     expect(createdTeam.teamSeasonId).toBeTruthy();
     expect(registrationId).toBeTruthy();
@@ -69,8 +70,8 @@ describe('spine test factories', () => {
       factory.row(orgB, 'capacity_counters', {
         id: newId(),
         org_id: orgA.orgId,
-        subject_type: 'offering',
-        subject_id: program.offeringId,
+        subject_type: 'class_session',
+        subject_id: counterSubjectId,
       }),
     ).rejects.toThrow('different organization');
   });

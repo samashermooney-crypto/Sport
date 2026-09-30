@@ -111,6 +111,15 @@ async function fixture(options: { requiresApproval?: boolean } = {}) {
           capacity: 20,
         },
       ])
+      .onConflict((oc) =>
+        oc
+          .columns(['org_id', 'subject_type', 'subject_id'])
+          .doUpdateSet((eb) => ({
+            capacity: eb.ref('excluded.capacity'),
+            confirmed: eb.ref('excluded.confirmed'),
+            held: eb.ref('excluded.held'),
+          })),
+      )
       .execute();
   });
   return {
