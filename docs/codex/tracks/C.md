@@ -1,9 +1,9 @@
 # Track C — files, adapters, and wiring
-Status: working — current local integration head is `b8cc4300`; it includes C's repairs, Track A's requested fixes, Track D's latest fixes, and a crawler data-readiness wait. Hosted verification for this exact head is pending.
+Status: working — current local integration candidate is `de95fbaa`; it includes C's repairs, Track A's requested fixes, Track D's committed fixes and StorePortal regression test, and the A notification-permission E2E fix. Hosted verification for this exact head is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Base head for the current repair: `5fd88d47`; Track A and D are merged as `27f23b52` and `2b1ceb68`, with C's class-fixture correction at `a3ae2795` and route-readiness change at `b8cc4300`. Older integration notes below are retained as historical context.
-Hosted CI: latest run `36680761860` is in progress on pre-crawler-wait head `2b1ceb68`. Last completed run `36679142175` is RED in `e2e` on `5fd88d47`; the report shows no current `test` job failure. The test-job failure reported on `390625cd` was cleared by the subsequent integration repair; no GREEN result is claimed for `b8cc4300`.
-Open integration work: obtain hosted CI for `b8cc4300`, resolve remaining failures without changing test assertions, and continue the launch-gate work below.
+Base head for the current repair: `5fd88d47`; Track A and D fixes are merged as `27f23b52`, `2b1ceb68`, `df0020a0`, `e44bc4a5`, and `de95fbaa`, with C's class-fixture correction at `a3ae2795` and route-readiness change at `b8cc4300`. Older integration notes below are retained as historical context.
+Hosted CI: latest run `36681876874` is in progress on pre-D StorePortal/pre-latest-A head `df0020a0`. Its E2E job has reported failures in chat SafeSport, volunteer buyout, uniform ordering, Phase 13 fee void, and class-security journeys; the report has not completed. Last completed run `36680223776` is RED in `e2e` on `a3ae2795`; no current `test` job failure is listed. The test-job failure reported on `390625cd` was cleared by the subsequent integration repair; no GREEN result is claimed for `de95fbaa`.
+Open integration work: obtain hosted CI for `de95fbaa`, resolve remaining failures without changing test assertions, merge new A/D code commits when ready, and continue the launch-gate work below.
 
 ## Completed Track C work
 
@@ -180,8 +180,10 @@ Open integration work: obtain hosted CI for `b8cc4300`, resolve remaining failur
 
 - Track A merge `27f23b52` brings the requested class, volunteer-ledger, and SafeSport authorization fixes. The real-Postgres class regression initially hit a duplicate active instructor fixture; `a3ae2795` removes that duplicate insertion while preserving the guardian-denial assertion.
 - Track D merge `2b1ceb68` brings the requested family-uniform registration association and concurrent volunteer-buyout repairs. The merged volunteer service retains both A's scoped-ledger authorization and D's separated buyout aggregation/advisory lock.
-- Focused real-Postgres checks on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500` pass: classes 21/21, chat service 12/12, volunteers 3/3, store 8/8, and website service 13/13. The isolated Docker stack is stopped.
+- Focused real-Postgres checks on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500` pass: classes 21/21, chat service 12/12, volunteers 4/4, store 8/8, and website service 13/13. The isolated Docker stack is stopped.
 - `heavy.sh npm run typecheck` and `heavy.sh npm run lint` pass on the combined A/D tree; merge hooks also passed typecheck. No full test suite or Playwright run was started locally under CI-first rules.
+- Track D's `StorePortal.test.tsx` passes 2/2 on the current integration candidate.
+- Track A's sign-in E2E commit `0300bdc5` grants Chromium's notification permission while keeping fake service-worker/push providers; the browser assertion awaits hosted CI, and no real delivery is used.
 - The E2E determinism changes remain in `d1f93517` and `0fd83c1b`: route-crawl visits wait for all same-origin requests to settle plus 500 ms of quiet, crawler tests are serial, CI E2E uses one worker, and each browser-project startup resets and reseeds the E2E schema. Exact hosted verification is still required to confirm the moving route failures are resolved.
 - Route visits now also wait for visible `aria-busy="true"` data regions to clear before the idle check and link collection; the crawler still asserts on every same-origin HTTP/request failure, page error, and axe violation.
-- `ci/integration.txt` now reports run `36680761860` in progress on `2b1ceb68`, before the route-readiness commit; no hosted result exists yet for `b8cc4300`.
+- `ci/integration.txt` reports run `36681876874` in progress on `df0020a0`, before D's StorePortal test and A's notification fix; no hosted result exists yet for `de95fbaa`.
