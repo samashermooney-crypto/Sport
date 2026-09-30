@@ -407,13 +407,37 @@ describe('auth HTTP contract', () => {
       secondCookie,
     );
     expect(webPush.status).toBe(200);
-    const webPushId = ((await webPush.json()) as { id: string }).id;
+    const webPushBody = (await webPush.json()) as {
+      id: string;
+      platform: string;
+      lastSeenAt: string;
+    };
+    const webPushId = webPushBody.id;
+    expect(Object.keys(webPushBody).sort()).toEqual([
+      'id',
+      'lastSeenAt',
+      'platform',
+    ]);
+    expect(webPushBody).toMatchObject({ id: webPushId, platform: 'webpush' });
+    expect(Number.isNaN(Date.parse(webPushBody.lastSeenAt))).toBe(false);
     const webPushList = await fetch(`${baseUrl}/devices`, {
       headers: { Cookie: secondCookie },
     });
-    expect(
-      ((await webPushList.json()) as { devices: { id: string }[] }).devices,
-    ).toEqual([expect.objectContaining({ id: webPushId })]);
+    const webPushListBody = (await webPushList.json()) as {
+      devices: { id: string; platform: string; lastSeenAt: string }[];
+    };
+    expect(webPushListBody.devices).toHaveLength(1);
+    const [listedWebPush] = webPushListBody.devices;
+    expect(listedWebPush).toBeDefined();
+    if (!listedWebPush)
+      throw new Error('Registered Web Push device was not listed');
+    expect(Object.keys(listedWebPush).sort()).toEqual([
+      'id',
+      'lastSeenAt',
+      'platform',
+    ]);
+    expect(listedWebPush).toMatchObject({ id: webPushId, platform: 'webpush' });
+    expect(Number.isNaN(Date.parse(listedWebPush.lastSeenAt))).toBe(false);
 
     const androidChallengeResponse = await fetch(`${baseUrl}/token`, {
       method: 'POST',
