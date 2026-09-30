@@ -92,7 +92,7 @@ type Team = {
   displayName: string;
   programName: string;
   divisionName: string | null;
-  rosterSize: number;
+  rosterSize?: number;
 };
 type Space = {
   spaceId: string;
@@ -337,7 +337,7 @@ export function FederationConsole(): React.JSX.Element {
       teamSeasonId: string;
       displayName: string;
       programName: string;
-      rosterSize: number;
+      rosterSize?: number;
     }[];
   } | null>(null);
   const [memberRoster, setMemberRoster] = useState<{
@@ -883,8 +883,9 @@ export function FederationConsole(): React.JSX.Element {
                         <span>
                           <strong>{team.displayName}</strong>
                           <small>
-                            {team.programName} · {team.rosterSize} rostered
-                            players
+                            {team.programName}
+                            {team.rosterSize !== undefined &&
+                              ` · ${String(team.rosterSize)} rostered players`}
                           </small>
                         </span>
                         {selectedMember?.dataSharing.rosters && (

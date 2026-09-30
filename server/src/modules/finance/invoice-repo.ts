@@ -8,6 +8,7 @@ import {
   createWithOrg,
   type OrgContext,
   type OrgTransaction,
+  withOrgInTransaction,
 } from '../../db/withOrg.js';
 import { appendAuditEvent } from '../audit/service.js';
 
@@ -177,12 +178,27 @@ export class PostgresInvoiceRepository {
     reason: string;
     expectedVersion?: number;
   }): Promise<void> {
+    await this.withOrg(this.context, (trx) =>
+      this.voidInTransaction(trx, input),
+    );
+  }
+
+  /** Voids an invoice inside a caller-owned transaction. */
+  async voidInTransaction(
+    trx: OrgTransaction,
+    input: {
+      orgId: string;
+      invoiceId: string;
+      reason: string;
+      expectedVersion?: number;
+    },
+  ): Promise<void> {
     if (input.orgId !== this.context.orgId)
       throw new Error('Invoice organization mismatch');
     if (!input.reason.trim())
       throw new Error('Invoice void reason is required');
-    await this.withOrg(this.context, async (trx) => {
-      const invoice = await trx
+    await withOrgInTransaction(trx, this.context, async (orgTrx) => {
+      const invoice = await orgTrx
         .selectFrom('invoices')
         .select([
           'id',
@@ -228,12 +244,12 @@ export class PostgresInvoiceRepository {
         WHERE pa.org_id = ${input.orgId}::uuid
           AND pa.invoice_id = ${input.invoiceId}::uuid
           AND p.status IN ('requires_action', 'processing')
-      `.execute(trx);
+      `.execute(orgTrx);
       if ((unsettled.rows[0]?.count ?? 0) > 0)
         throw new InvoiceConflictError(
           'Cannot void invoice with unsettled payment',
         );
-      const installments = await trx
+      const installments = await orgTrx
         .selectFrom('installments')
         .select('id')
         .where('org_id', '=', input.orgId)
@@ -253,7 +269,7 @@ export class PostgresInvoiceRepository {
         confirmed: true,
         voided: true,
       });
-      await trx
+      await orgTrx
         .updateTable('invoices')
         .set({
           status: 'void',
@@ -264,7 +280,7 @@ export class PostgresInvoiceRepository {
         .where('org_id', '=', input.orgId)
         .where('id', '=', input.invoiceId)
         .execute();
-      await appendAuditEvent(trx, this.context, {
+      await appendAuditEvent(orgTrx, this.context, {
         action: 'invoice.voided',
         entityType: 'invoice',
         entityId: input.invoiceId,

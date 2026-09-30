@@ -28,6 +28,7 @@ import {
   freezeRosters,
   getLeagueEntry,
   listClubEntries,
+  listLeagueEntries,
   resubmitRoster,
   reviewEntry,
   setRosterWindow,
@@ -358,7 +359,7 @@ describe('privileged member directory reads', () => {
   it('enforces the sharing allow-list and audits both orgs', async () => {
     const { league, program } = await leagueWithProgram();
     const club = await factory.actor();
-    const { team, people, program: clubProgram } = await clubTeam(club);
+    const { team, program: clubProgram } = await clubTeam(club);
     const privateTeam = await factory.team(club, clubProgram);
 
     // Relationship grants only team_entries — roster reads must be denied.
@@ -386,7 +387,7 @@ describe('privileged member directory reads', () => {
     expect(teams.teams.map((row) => row.teamSeasonId)).not.toContain(
       privateTeam.teamSeasonId,
     );
-    expect(teams.teams[0]?.rosterSize).toBe(people.length);
+    expect(teams.teams[0]).not.toHaveProperty('rosterSize');
 
     // Dual-org audit: the cross-org read lands in BOTH audit logs.
     const leagueAudit = await auditActions(league.orgId);
@@ -411,11 +412,15 @@ describe('privileged member directory reads', () => {
     const club = await factory.actor();
     const { team } = await clubTeam(club);
     await federate(league, club);
-    await submitEntry(ctx(club), {
+    const entry = await submitEntry(ctx(club), {
       leagueOrgId: league.orgId,
       programId: program.programId,
       divisionId: program.divisionId,
       teamSeasonId: team.teamSeasonId,
+    });
+    await reviewEntry(database, ctx(league), entry.id, {
+      action: 'accept',
+      version: entry.version,
     });
 
     const roster = await readMemberRoster(
@@ -424,6 +429,8 @@ describe('privileged member directory reads', () => {
       team.teamSeasonId,
     );
     expect(roster.players).toHaveLength(3);
+    const teams = await readMemberTeams(ctx(league), club.orgId);
+    expect(teams.teams[0]?.rosterSize).toBe(3);
     const player = roster.players[0];
     expect(player).toBeDefined();
     expect(Object.keys(player ?? {}).sort()).toEqual(
@@ -542,6 +549,45 @@ describe('privileged member directory reads', () => {
 });
 
 describe('team entries and roster snapshots', () => {
+  it('hides roster snapshots immediately when the member revokes roster sharing', async () => {
+    const { league, program } = await leagueWithProgram();
+    const club = await factory.actor();
+    const { team } = await clubTeam(club, 2);
+    const relationship = await federate(league, club);
+    const entry = await submitEntry(ctx(club), {
+      leagueOrgId: league.orgId,
+      programId: program.programId,
+      divisionId: program.divisionId,
+      teamSeasonId: team.teamSeasonId,
+    });
+    await reviewEntry(database, ctx(league), entry.id, {
+      action: 'accept',
+      version: entry.version,
+    });
+
+    const sharedDetail = await getLeagueEntry(database, ctx(league), entry.id);
+    expect(sharedDetail.snapshot?.playerCount).toBe(2);
+    expect(sharedDetail.roster?.players).toHaveLength(2);
+
+    await proposeSharing(
+      ctx(club),
+      relationship.id,
+      { team_entries: true },
+      relationship.version,
+    );
+
+    const listed = await listLeagueEntries(database, ctx(league));
+    const listedEntry = listed.find((candidate) => candidate.id === entry.id);
+    expect(listedEntry).toBeDefined();
+    expect(listedEntry?.snapshot).toBeNull();
+    const detail = await getLeagueEntry(database, ctx(league), entry.id);
+    expect(detail.snapshot).toBeNull();
+    expect(detail.roster).toBeNull();
+    const teams = await readMemberTeams(ctx(league), club.orgId);
+    expect(teams.teams).toHaveLength(1);
+    expect(teams.teams[0]).not.toHaveProperty('rosterSize');
+  });
+
   it('submits an entry with an immutable allow-listed roster snapshot', async () => {
     const { league, program } = await leagueWithProgram();
     const club = await factory.actor();
@@ -1131,6 +1177,65 @@ describe('league fees and member payers', () => {
         .executeTakeFirstOrThrow(),
     );
     expect(invoice.status).toBe('void');
+  });
+
+  it('keeps an assessment invoiced when an active installment blocks invoice void', async () => {
+    const { league, program } = await leagueWithProgram();
+    const club = await factory.actor();
+    await federate(league, club);
+    const assessment = await createFeeAssessment(database, ctx(league), {
+      memberOrgId: club.orgId,
+      programId: program.programId,
+      description: 'Fee with an active installment',
+      amountCents: 2500,
+    });
+    await setMemberPayer(ctx(club), {
+      leagueOrgId: league.orgId,
+      billingAccountId: club.accountId,
+    });
+    const issued = await issueFeeInvoice(database, ctx(league), assessment.id);
+    await factory.scoped(league, (trx) =>
+      trx
+        .insertInto('installments')
+        .values({
+          id: newId(),
+          org_id: league.orgId,
+          invoice_id: issued.invoiceId,
+          sequence: 1,
+          due_on: '2026-12-01',
+          amount_cents: 2500,
+          status: 'scheduled',
+        })
+        .execute()
+        .then(() => undefined),
+    );
+
+    await expect(
+      voidFeeAssessment(database, ctx(league), assessment.id, 'Blocked void'),
+    ).rejects.toMatchObject({ status: 409 });
+
+    const state = await factory.scoped(league, (trx) =>
+      trx
+        .selectFrom('federation_fee_assessments as assessment')
+        .innerJoin('invoices', (join) =>
+          join
+            .onRef('invoices.org_id', '=', 'assessment.org_id')
+            .onRef('invoices.id', '=', 'assessment.invoice_id'),
+        )
+        .select([
+          'assessment.status as assessmentStatus',
+          'invoices.status as invoiceStatus',
+          'invoices.balance_cents as balanceCents',
+        ])
+        .where('assessment.org_id', '=', league.orgId)
+        .where('assessment.id', '=', assessment.id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(state).toEqual({
+      assessmentStatus: 'invoiced',
+      invoiceStatus: 'open',
+      balanceCents: 2500,
+    });
   });
 });
 
