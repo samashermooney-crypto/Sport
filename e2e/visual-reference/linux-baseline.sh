@@ -4,6 +4,9 @@
 # are never rewritten by this script.
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO_ROOT"
+
 if [ "$(uname -s)" != 'Linux' ] || [ "$(uname -m)" != 'x86_64' ]; then
   echo 'Linux parity references require an x86_64 GitHub Actions runner.' >&2
   exit 1
@@ -51,8 +54,8 @@ ln -sfn web legacy/src
 DATABASE_PATH=/tmp/legacy-parity.db PORT=3001 node legacy/server/index.mjs &
 LEGACY_API_PID=$!
 (
-  cd legacy
-  exec node "$PWD/../node_modules/vite/bin/vite.js" \
+  cd "$REPO_ROOT/legacy"
+  exec "$REPO_ROOT/node_modules/.bin/vite" \
     --config "$LEGACY_VITE_CONFIG_DIR/vite.config.mjs" \
     --port 5173 --strictPort
 ) &
