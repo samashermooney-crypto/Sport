@@ -17,7 +17,7 @@ Requests to other tracks: D must resolve the Linux parity failures repeated in C
 - Track H provider IDs: email, SMS, and push adapters return provider message IDs when supplied; fake adapters return stable IDs. Mailpit SMTP reads `ATHLENTRY_MAILPIT_SMTP_PORT` (default 1025).
 - Track F evaluator-photo authorization: sensitive person photos are readable only by an evaluator actively assigned to a session containing that participant, while both the event participant's consent and the person's current consent/photo link remain valid; authorized reads are audited.
 - Track B season rollover composition: optional `SeasonRolloverExtras` contributions are collected in registered-module order and passed to the seasons router.
-- Track K AI configuration and raw uploads: Vite enables AI only when `AI_PROVIDER=anthropic` and a nonblank `ANTHROPIC_API_KEY` are configured; OpenAPI supports all four Phase 15 raw upload media types when K's route is registered.
+- Track K Phase 15 integration: the upload OpenAPI body and console/portal route navigation are merged at `934f9180`; the active C checkout now derives `VITE_AI_ENABLED` from the provider/key, but that config is not yet on `rebuild/trunk` at `519c8b4a`.
 - Public sponsor logo OpenAPI: documents the active placement image route with its accepted image MIME types and required surface parameters.
 - Existing adapter wiring: raw Stripe webhook ingress and worker registration, finance module and routes, generated registry/OpenAPI and nested route discovery. Stripe remains test-mode only.
 - SEC-SSRF-C-001: implemented in the Web Push adapter with provider-host validation, public-address checks for every DNS answer, and a pinned HTTPS agent to prevent DNS rebinding; regression tests reject unsafe hosts/addresses and verify the pinned lookup.
@@ -50,10 +50,11 @@ Requests to other tracks: D must resolve the Linux parity failures repeated in C
 
 ## Requests from K
 
-- Provider-derived `VITE_AI_ENABLED`: implemented on C's branch; it is true only for configured Anthropic provider plus a nonblank key.
+- Provider-derived `VITE_AI_ENABLED`: implemented; it is true only for configured Anthropic provider plus a nonblank key, with configured/disabled state coverage.
 - Phase 15 raw-upload OpenAPI body: implemented for `application/octet-stream`, `text/csv`, `application/zip`, and XLSX without changing request limits or response contracts.
-- Console/portal Help and onboarding navigation: implemented on C's branch; localized mobile Help preserves article, request kind, locale, and encoded source path, and onboarding routes use the existing `ConsoleShell`.
-- Focused generated-registry and ConsoleShell tests pass. Phase 15 browser acceptance is included in C's hosted run; its only e2e failures are the D-owned parity snapshots listed below.
+- Console/portal Help and onboarding navigation: implemented; localized contextual Help preserves article, request kind, locale, and encoded source path. The current K branch also wraps onboarding/import screens in the existing `ConsoleShell`; no design tokens or styles changed.
+- Public website robots-policy operation: K's branch carries the regenerated `text/plain` OpenAPI operation for `/api/v1/website/public/{orgSlug}/robots.txt`; generated output is refreshed after all requested branches merge.
+- The merged Phase 15 journey covers contextual import Help from desktop and mobile, verifies Concierge import remains selected, and checks mobile Help discovery. Focused registry and shell tests are recorded above.
 
 ## Verification and environment
 

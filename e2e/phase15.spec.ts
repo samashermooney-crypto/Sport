@@ -720,34 +720,57 @@ test('console and family help render localized articles without disabled AI call
     await expect(
       page.getByRole('heading', { name: 'Help center', exact: true }),
     ).toBeVisible();
+    await page.getByLabel('Language / Idioma').selectOption('en');
+    await expect(
+      page.getByRole('heading', { name: 'Contact support', exact: true }),
+    ).toBeVisible();
+
+    const importPath = `/console/orgs/${actor.orgId}/onboarding/imports`;
+    const contextualImportHelp = `/console/orgs/${actor.orgId}/help?article=importing-data&kind=concierge_import&locale=en&from=${encodeURIComponent(importPath)}`;
+    await page.goto(importPath);
+    await expect(
+      page.getByRole('heading', { name: 'Imports', exact: true }),
+    ).toBeVisible();
     if (testInfo.project.name === 'webkit-mobile') {
-      await page.goto(`/console/orgs/${actor.orgId}/onboarding/imports`);
-      const from = `/console/orgs/${actor.orgId}/onboarding/imports`;
-      const helpTab = page.getByRole('link', { name: 'Help', exact: true });
-      await expect(helpTab).toHaveAttribute(
-        'href',
-        `/console/orgs/${actor.orgId}/help?article=importing-data&kind=concierge_import&locale=en&from=${encodeURIComponent(from)}`,
-      );
-      await helpTab.click();
-      await expect(
-        page.getByRole('heading', { name: 'Importing data safely' }),
-      ).toBeVisible();
-      await expect(page.getByLabel('Request type')).toHaveValue(
-        'concierge_import',
-      );
-      await expect(
-        page.getByRole('heading', { name: 'Contact support' }),
-      ).toBeVisible();
-      await page.goto(`/console/orgs/${actor.orgId}/help`);
-      await expect(
-        page.getByRole('heading', { name: 'Help center', exact: true }),
-      ).toBeVisible();
-      await page.getByRole('button', { name: 'Search Athlentry' }).click();
-      const helpCenterLink = page.getByRole('link', {
+      const helpLink = page
+        .getByRole('navigation', { name: 'Mobile navigation' })
+        .getByRole('link', { name: 'Help', exact: true });
+      await expect(helpLink).toBeVisible();
+      await expect(helpLink).toHaveAttribute('href', contextualImportHelp);
+      await helpLink.click();
+    } else {
+      await page.getByRole('button', { name: 'Help', exact: true }).click();
+      const importGuide = page.getByRole('link', {
+        name: 'Import guide',
+        exact: true,
+      });
+      await expect(importGuide).toHaveAttribute('href', contextualImportHelp);
+      await importGuide.click();
+    }
+    await expect(
+      page.getByRole('heading', { name: /Importing data safely/ }),
+    ).toBeVisible();
+    await expect(page.getByLabel('Request type')).toHaveValue(
+      'concierge_import',
+    );
+    await expect(
+      page.getByRole('heading', { name: 'Contact support', exact: true }),
+    ).toBeVisible();
+
+    await page.goto(`/console/orgs/${actor.orgId}/help`);
+    await expect(
+      page.getByRole('heading', { name: 'Help center', exact: true }),
+    ).toBeVisible();
+    if (testInfo.project.name === 'webkit-mobile') {
+      const helpCenterSearchButton = page.getByRole('button', {
+        name: 'Search Athlentry',
+      });
+      await helpCenterSearchButton.click();
+      const helpCenterSearchLink = page.getByRole('link', {
         name: 'Help center',
         exact: true,
       });
-      await expect(helpCenterLink).toBeVisible();
+      await expect(helpCenterSearchLink).toBeVisible();
       await page.keyboard.press('Escape');
     } else {
       await page.getByRole('button', { name: 'Help', exact: true }).click();
@@ -786,6 +809,7 @@ test('console and family help render localized articles without disabled AI call
       const familyHelpLink = page
         .getByRole('navigation', { name: 'Mobile navigation' })
         .getByRole('link', { name: 'Help', exact: true });
+      await expect(familyHelpLink).toBeVisible();
       await expect(familyHelpLink).toHaveAttribute(
         'href',
         `/portal/orgs/${actor.orgId}/help`,
