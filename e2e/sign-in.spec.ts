@@ -316,9 +316,21 @@ test('new account verifies its preview email and signs in', async ({
     recoveryCode,
   );
   await page.getByRole('button', { name: 'I saved these codes' }).click();
+  const deviceRegistration = page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === '/api/v1/auth/devices',
+  );
   await page
     .getByRole('button', { name: 'Enable browser notifications' })
     .click();
+  expect((await deviceRegistration).postDataJSON()).toMatchObject({
+    platform: 'webpush',
+    subscription: {
+      endpoint: expect.stringMatching(/^https:\/\/push\.example\.test\//),
+      keys: { p256dh: 'test-public-key', auth: 'test-auth-key' },
+    },
+  });
   await expect(
     page.getByText('Browser notifications enabled on this device.'),
   ).toBeVisible();
