@@ -12,7 +12,7 @@ import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 import type { AuthDependencies } from '../auth/routes';
 
-import { createSiteSsrRouter } from './public';
+import { createSiteSsrRouter, createWebsitePublicRouter } from './public';
 import {
   getWebsiteSettings,
   createPublicWebsiteContactSubmission,
@@ -94,6 +94,88 @@ beforeAll(async () => {
 afterAll(async () => database.destroy());
 
 describe('website page service', () => {
+  it('renders public sponsors and fundraiser SEO while preserving donation interactivity', async () => {
+    const sponsorId = randomUUID();
+    const campaignId = randomUUID();
+    const campaignSlug = `fall-fundraiser-${campaignId.slice(0, 8)}`;
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    let server: ReturnType<express.Express['listen']> | undefined;
+    try {
+      await admin.query(
+        `INSERT INTO sponsors (id, org_id, name, contact, website_url, tier, amount_cents, contract_start, contract_end, placements, status, created_by)
+         VALUES ($1, $2, 'Community Sponsor', $3::jsonb, 'https://sponsor.example.invalid', 'Community', 123456, '2026-01-01', '2027-01-01', $4::jsonb, 'active', $5)`,
+        [
+          sponsorId,
+          orgId,
+          JSON.stringify({ email: 'private-sponsor-contact@example.invalid' }),
+          JSON.stringify([{ surface: 'website_home' }]),
+          ownerId,
+        ],
+      );
+      await admin.query(
+        `INSERT INTO fundraising_campaigns (id, org_id, name, slug, goal_cents, starts_at, ends_at, description_html, status, show_donor_names, created_by)
+         VALUES ($1, $2, 'Fall team fundraiser', $3, 100000, '2026-01-01T00:00:00Z', '2027-01-01T00:00:00Z', '<p>Support our fall season.</p>', 'published', true, $4)`,
+        [campaignId, orgId, campaignSlug, ownerId],
+      );
+
+      const app = express();
+      app.use(createWebsitePublicRouter({ database }));
+      app.use((_request, response) => response.type('html').send('SPA shell'));
+      server = app.listen(0);
+      await new Promise<void>((resolve) => server?.once('listening', resolve));
+      const address = server.address();
+      if (!address || typeof address === 'string')
+        throw new Error('The test server did not open a TCP port');
+      const origin = `http://127.0.0.1:${String(address.port)}`;
+
+      const sponsorsResponse = await fetch(
+        `${origin}/site/${orgSlug}/sponsors`,
+      );
+      const sponsorsHtml = await sponsorsResponse.text();
+      expect(sponsorsResponse.status).toBe(200);
+      expect(sponsorsHtml).toContain('Community Sponsor');
+      expect(sponsorsHtml).toContain('https://sponsor.example.invalid/');
+      expect(sponsorsHtml).not.toContain('123456');
+      expect(sponsorsHtml).not.toContain(
+        'private-sponsor-contact@example.invalid',
+      );
+
+      const fundraiserResponse = await fetch(
+        `${origin}/site/${orgSlug}/fundraisers/${campaignSlug}`,
+      );
+      const fundraiserHtml = await fundraiserResponse.text();
+      expect(fundraiserResponse.status).toBe(200);
+      expect(fundraiserHtml).toContain('Fall team fundraiser');
+      expect(fundraiserHtml).toContain('Support our fall season.');
+      expect(fundraiserHtml).toContain(
+        `/site/${orgSlug}/fundraisers/${campaignSlug}?app=1`,
+      );
+
+      const interactiveResponse = await fetch(
+        `${origin}/site/${orgSlug}/fundraisers/${campaignSlug}?app=1`,
+        { headers: { host: 'custom-site.example.invalid' } },
+      );
+      expect(interactiveResponse.status).toBe(200);
+      expect(await interactiveResponse.text()).toBe('SPA shell');
+    } finally {
+      if (server)
+        await new Promise<void>((resolve, reject) =>
+          server?.close((error) => {
+            if (error) reject(error);
+            else resolve();
+          }),
+        );
+      await admin.query('DELETE FROM fundraising_campaigns WHERE id = $1', [
+        campaignId,
+      ]);
+      await admin.query('DELETE FROM sponsors WHERE id = $1', [sponsorId]);
+      await admin.end();
+    }
+  });
+
   it('routes verified contact submissions to the protected organization inbox', async () => {
     const now = new Date('2026-09-28T18:00:00.000Z');
     const inboxEmail = `website-inbox-${orgId.slice(0, 8)}@example.invalid`;

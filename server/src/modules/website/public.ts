@@ -10,9 +10,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import { createWithOrg } from '../../db/withOrg';
 import type { AuthDependencies } from '../auth/routes';
+import { publicCampaign } from '../fundraising/service';
+import { publicSponsorPlacements } from '../sponsors/service';
 
 import {
   getPublicWebsiteContactPage,
+  getPublicWebsiteChrome,
   getPublicWebsiteRobotsPolicy,
   getPublicWebsiteProgram,
   getPublicWebsitePrograms,
@@ -164,6 +167,13 @@ function createSiteHostRouter(
     }
     const isSeoFile = pathname === '/robots.txt' || pathname === '/sitemap.xml';
     if (!isSeoFile && !request.accepts('html')) {
+      next();
+      return;
+    }
+    if (
+      pathname.startsWith('/site/') &&
+      new URLSearchParams(request.url.split('?')[1] ?? '').get('app') === '1'
+    ) {
       next();
       return;
     }
@@ -968,6 +978,160 @@ function renderProgramDocument(
   });
 }
 
+function renderPublicSponsorsDocument(
+  site: NonNullable<Awaited<ReturnType<typeof getPublicWebsiteChrome>>>,
+  sponsors: Awaited<ReturnType<typeof publicSponsorPlacements>>,
+  address: SiteAddress,
+) {
+  const spanish = site.organization.locale === 'es';
+  const title = `${spanish ? 'Patrocinadores' : 'Sponsors'} · ${site.organization.name}`;
+  const description = spanish
+    ? `Organizaciones que apoyan a ${site.organization.name}.`
+    : `Organizations that support ${site.organization.name}.`;
+  const safeSponsors = sponsors.map((sponsor) => ({
+    sponsor,
+    websiteUrl: safeSponsorWebsiteUrl(sponsor.websiteUrl),
+  }));
+  const rows = safeSponsors.map(({ sponsor, websiteUrl }) =>
+    createElement(
+      'li',
+      { key: sponsor.id },
+      websiteUrl
+        ? createElement(
+            'a',
+            { href: websiteUrl, rel: 'noopener noreferrer' },
+            sponsor.name,
+          )
+        : sponsor.name,
+      createElement('span', null, sponsor.tier),
+    ),
+  );
+  return renderGeneratedSitePage(site, address, {
+    title,
+    description,
+    canonicalPath: `/site/${site.organization.slug}/sponsors`,
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: title,
+      description,
+      url: `https://${site.organization.slug}.athlentry.com/site/${site.organization.slug}/sponsors`,
+      mainEntity: {
+        '@type': 'ItemList',
+        itemListElement: sponsors.map((sponsor, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          item: { '@type': 'Organization', name: sponsor.name },
+        })),
+      },
+    },
+    main: createElement(
+      'main',
+      { id: 'main-content', className: 'public-site-main' },
+      createElement('h1', null, spanish ? 'Patrocinadores' : 'Sponsors'),
+      sponsors.length
+        ? createElement('ul', null, ...rows)
+        : createElement(
+            'p',
+            null,
+            spanish
+              ? 'Aún no hay patrocinadores públicos.'
+              : 'There are no public sponsors yet.',
+          ),
+    ),
+  });
+}
+
+function safeSponsorWebsiteUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:'
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function fundraiserDescription(descriptionHtml: string): string {
+  return descriptionHtml
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 500);
+}
+
+function renderFundraiserDocument(
+  site: NonNullable<Awaited<ReturnType<typeof getPublicWebsiteChrome>>>,
+  campaign: Awaited<ReturnType<typeof publicCampaign>>,
+  address: SiteAddress,
+) {
+  const spanish = site.organization.locale === 'es';
+  const title = `${campaign.name} · ${site.organization.name}`;
+  const campaignDescription = fundraiserDescription(campaign.descriptionHtml);
+  const description =
+    campaignDescription ||
+    (spanish
+      ? `Apoya a ${site.organization.name} con esta campaña comunitaria.`
+      : `Support ${site.organization.name} through this community fundraiser.`);
+  const donateHref = `/site/${site.organization.slug}/fundraisers/${encodeURIComponent(campaign.slug)}?app=1`;
+  const formatter = new Intl.NumberFormat(spanish ? 'es-US' : 'en-US', {
+    style: 'currency',
+    currency: 'USD',
+  });
+  const raised = formatter.format(campaign.totalRaisedCents / 100);
+  const goal = formatter.format(campaign.goalCents / 100);
+  return renderGeneratedSitePage(site, address, {
+    title,
+    description,
+    canonicalPath: `/site/${site.organization.slug}/fundraisers/${encodeURIComponent(campaign.slug)}`,
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'DonateAction',
+      name: title,
+      description,
+      recipient: {
+        '@type': 'SportsOrganization',
+        name: site.organization.name,
+      },
+      target: `https://${site.organization.slug}.athlentry.com${address.basePath}/fundraisers/${encodeURIComponent(campaign.slug)}`,
+    },
+    main: createElement(
+      'main',
+      { id: 'main-content', className: 'public-site-main' },
+      createElement(
+        'p',
+        null,
+        spanish ? 'Campaña comunitaria' : 'Community fundraiser',
+      ),
+      createElement('h1', null, campaign.name),
+      campaignDescription
+        ? createElement('p', null, campaignDescription)
+        : null,
+      createElement(
+        'p',
+        null,
+        `${spanish ? 'Recaudado' : 'Raised'} ${raised} / ${goal}`,
+      ),
+      createElement(
+        'p',
+        null,
+        `${String(campaign.donorCount)} ${spanish ? 'donantes' : 'donors'}`,
+      ),
+      createElement(
+        'p',
+        null,
+        createElement(
+          'a',
+          { href: donateHref },
+          spanish ? 'Hacer una donación' : 'Make a donation',
+        ),
+      ),
+    ),
+  });
+}
+
 function formatEventDateTime(value: string, timezone: string, locale: string) {
   try {
     return new Intl.DateTimeFormat(locale, {
@@ -1192,6 +1356,95 @@ export function createSiteSsrRouter(
 ): express.Router {
   const router = express.Router();
   const withOrg = createWithOrg(dependencies.database);
+  router.get('/:orgSlug/sponsors', (request, response, next) => {
+    if (request.query.app === '1') {
+      next();
+      return;
+    }
+    const orgSlug = orgSlugSchema.safeParse(request.params.orgSlug);
+    if (!orgSlug.success) {
+      response.sendStatus(404);
+      return;
+    }
+    void Promise.all([
+      getPublicWebsiteChrome(dependencies.database, orgSlug.data, withOrg),
+      publicSponsorPlacements(
+        dependencies.database,
+        orgSlug.data,
+        'website_home',
+      ),
+    ])
+      .then(([site, sponsors]) => {
+        if (!site) {
+          response.sendStatus(404);
+          return;
+        }
+        response
+          .setHeader(
+            'Cache-Control',
+            'public, max-age=60, stale-while-revalidate=300',
+          )
+          .type('html')
+          .send(
+            renderPublicSponsorsDocument(
+              site,
+              sponsors,
+              siteAddress(response, orgSlug.data),
+            ),
+          );
+      })
+      .catch(() => response.sendStatus(500));
+  });
+  router.get(
+    '/:orgSlug/fundraisers/:campaignSlug',
+    (request, response, next) => {
+      if (request.query.app === '1') {
+        next();
+        return;
+      }
+      const orgSlug = orgSlugSchema.safeParse(request.params.orgSlug);
+      const campaignSlug = websitePageSlugSchema.safeParse(
+        request.params.campaignSlug,
+      );
+      if (!orgSlug.success || !campaignSlug.success) {
+        response.sendStatus(404);
+        return;
+      }
+      void Promise.all([
+        getPublicWebsiteChrome(dependencies.database, orgSlug.data, withOrg),
+        publicCampaign(dependencies.database, orgSlug.data, campaignSlug.data),
+      ])
+        .then(([site, campaign]) => {
+          if (!site) {
+            response.sendStatus(404);
+            return;
+          }
+          response
+            .setHeader(
+              'Cache-Control',
+              'public, max-age=60, stale-while-revalidate=300',
+            )
+            .type('html')
+            .send(
+              renderFundraiserDocument(
+                site,
+                campaign,
+                siteAddress(response, orgSlug.data),
+              ),
+            );
+        })
+        .catch((error: unknown) => {
+          response.sendStatus(
+            typeof error === 'object' &&
+              error !== null &&
+              'status' in error &&
+              error.status === 404
+              ? 404
+              : 500,
+          );
+        });
+    },
+  );
   router.get('/:orgSlug/programs/:programSlug', (request, response) => {
     const orgSlug = orgSlugSchema.safeParse(request.params.orgSlug);
     const programSlug = websitePageSlugSchema.safeParse(
@@ -1338,9 +1591,22 @@ export function createSiteSsrRouter(
   });
   const render =
     (pageSlug: (request: express.Request) => string) =>
-    (request: express.Request, response: express.Response) => {
+    (
+      request: express.Request,
+      response: express.Response,
+      next: express.NextFunction,
+    ) => {
+      const requestedPage = pageSlug(request);
+      if (
+        request.query.app === '1' &&
+        (requestedPage === 'sponsors' ||
+          /^fundraisers\/[^/]+$/.test(requestedPage))
+      ) {
+        next();
+        return;
+      }
       const orgSlug = orgSlugSchema.safeParse(request.params.orgSlug);
-      const slug = websitePageSlugSchema.safeParse(pageSlug(request));
+      const slug = websitePageSlugSchema.safeParse(requestedPage);
       if (!orgSlug.success || !slug.success) {
         response.sendStatus(404);
         return;

@@ -872,7 +872,7 @@ function readTheme(value: Json): { primary: string; secondary: string } {
   };
 }
 
-async function getPublicWebsiteChrome(
+export async function getPublicWebsiteChrome(
   database: WebsiteDatabase,
   orgSlug: string,
   runWithOrg: typeof withOrg,
