@@ -226,9 +226,6 @@ test('new account verifies its preview email and signs in', async ({
   }, stubNotificationPermission);
   await page.goto('/sign-up');
   if (!stubNotificationPermission) {
-    await page.context().grantPermissions(['notifications'], {
-      origin: new URL(page.url()).origin,
-    });
     expect(
       await page.evaluate(() => Notification.permission),
       'Chromium notifications permission should be granted before sign-up',
