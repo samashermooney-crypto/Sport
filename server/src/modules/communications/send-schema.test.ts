@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { sendCampaignSchema } from './schema';
+import { campaignStatsSchema, sendCampaignSchema } from './schema';
 
 describe('sendCampaignSchema', () => {
   it('accepts the preview counts of a single-channel campaign', () => {
@@ -24,5 +24,19 @@ describe('sendCampaignSchema', () => {
       { expectedVersion: 0 },
     ])
       expect(sendCampaignSchema.safeParse(body).success).toBe(false);
+  });
+});
+
+describe('campaignStatsSchema', () => {
+  it('reports only the channels a campaign uses', () => {
+    const stats = {
+      id: '01a0f3a5-3522-7075-a935-8e88a949dcb0',
+      status: 'sent',
+      counts: { email: { sent: 20_000, failed: 0 } },
+    };
+    expect(campaignStatsSchema.parse(stats)).toEqual(stats);
+    expect(
+      campaignStatsSchema.safeParse({ ...stats, counts: { fax: {} } }).success,
+    ).toBe(false);
   });
 });

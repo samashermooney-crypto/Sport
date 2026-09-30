@@ -171,7 +171,7 @@ export const campaignAudiencePreviewSchema = z
 export const campaignStatsSchema = z.strictObject({
   id: z.uuid(),
   status: campaignSummarySchema.shape.status,
-  counts: z.record(
+  counts: z.partialRecord(
     deliveryChannelSchema,
     z.record(z.string(), z.number().int().nonnegative()),
   ),
