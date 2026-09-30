@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { sendConcurrency } from './delivery';
 import { campaignStatsSchema, sendCampaignSchema } from './schema';
 
 describe('sendCampaignSchema', () => {
@@ -38,5 +39,16 @@ describe('campaignStatsSchema', () => {
     expect(
       campaignStatsSchema.safeParse({ ...stats, counts: { fax: {} } }).success,
     ).toBe(false);
+  });
+});
+
+describe('sendConcurrency', () => {
+  it('defaults to four parallel sends and bounds overrides', () => {
+    expect(sendConcurrency(undefined)).toBe(4);
+    expect(sendConcurrency('12')).toBe(12);
+    for (const value of ['0', '33', '1.5'])
+      expect(() => sendConcurrency(value)).toThrow(
+        'COMMUNICATIONS_SEND_CONCURRENCY must be an integer from 1 to 32',
+      );
   });
 });

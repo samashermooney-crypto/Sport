@@ -1176,6 +1176,37 @@ export async function deliverDueCampaigns(
   return results;
 }
 
+/** Parallel provider sends per drain run; each delivery is claimed atomically. */
+export function sendConcurrency(
+  value = process.env.COMMUNICATIONS_SEND_CONCURRENCY,
+): number {
+  if (value === undefined || value === '') return 4;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 32)
+    throw new RangeError(
+      'COMMUNICATIONS_SEND_CONCURRENCY must be an integer from 1 to 32',
+    );
+  return parsed;
+}
+
+async function forEachConcurrently<T>(
+  items: readonly T[],
+  limit: number,
+  run: (item: T) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const item = items[next];
+      next += 1;
+      if (item !== undefined) await run(item);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker),
+  );
+}
+
 export async function retryCampaign(
   context: OrgContext,
   campaignId: string,
@@ -1205,9 +1236,9 @@ export async function retryCampaign(
       .execute(trx)
       .then((result) => result.rows),
   );
-  for (const delivery of pending) {
+  await forEachConcurrently(pending, sendConcurrency(), async (delivery) => {
     const recipient = recipientById.get(delivery.recipient_account_id);
-    if (!recipient) continue;
+    if (!recipient) return;
     const claimed = await runWithOrg(context, async (trx) => {
       const result = await trx.executeQuery<{ id: string }>(
         sql<{ id: string }>`
@@ -1218,7 +1249,7 @@ export async function retryCampaign(
       );
       return result.rows[0];
     });
-    if (!claimed) continue;
+    if (!claimed) return;
     const outcome = await deliverOne(
       context,
       campaign,
@@ -1229,7 +1260,7 @@ export async function retryCampaign(
       runWithOrg,
     );
     await transitionDelivery(context, delivery.id, outcome, now, runWithOrg);
-  }
+  });
   const remaining = await runWithOrg(context, async (trx) =>
     sql<{ id: string }>`
     SELECT id FROM message_deliveries WHERE org_id = ${context.orgId} AND campaign_id = ${campaignId}
