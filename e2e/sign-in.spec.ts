@@ -225,12 +225,16 @@ test('new account verifies its preview email and signs in', async ({
     });
   }, stubNotificationPermission);
   if (!stubNotificationPermission) {
-    await page.context().grantPermissions(['notifications'], {
-      origin: new URL(String(testInfo.project.use.baseURL)).origin,
-    });
+    // This isolated Playwright context exists only for this test, so grant at
+    // context scope before navigation instead of relying on a project-level
+    // or origin-matched permission override.
+    await page.context().grantPermissions(['notifications']);
   }
   await page.goto('/sign-up');
   if (!stubNotificationPermission) {
+    expect(new URL(page.url()).origin).toBe(
+      new URL(String(testInfo.project.use.baseURL)).origin,
+    );
     expect(
       await page.evaluate(() => Notification.permission),
       'Chromium notifications permission should be granted before sign-up',
