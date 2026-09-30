@@ -1,4 +1,5 @@
 import { serverModules } from './generated/registry';
+import { createStorageAdapterFromEnvironment } from './integrations/storage/config';
 import { writeStructuredLog } from './lib/observability/logging';
 import { startOperationalAlerts } from './lib/observability/monitor';
 import {
@@ -14,7 +15,11 @@ async function main(): Promise<void> {
     throw new Error('DATABASE_URL is required for the worker');
 
   writeStructuredLog('info', 'worker.starting');
-  const worker = await startRegisteredWorker(serverModules, connectionString);
+  const worker = await startRegisteredWorker(
+    serverModules,
+    connectionString,
+    createStorageAdapterFromEnvironment(),
+  );
   const alerts = startOperationalAlerts(connectionString);
   writeStructuredLog('info', 'worker.ready', {
     operation: worker.id,

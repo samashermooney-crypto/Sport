@@ -11,6 +11,7 @@ import { sql } from 'kysely';
 import { getDatabase } from './db/kysely';
 import { createWithOrg } from './db/withOrg';
 import { apiRouteMetadata, serverModules } from './generated/registry';
+import type { Storage } from './integrations/storage/storage';
 import { createStripeWebhookRouter } from './integrations/stripe/webhook-routes';
 import type { StripeWebhookDependencies } from './integrations/stripe/webhook-routes';
 import type { ServerModule } from './lib/module-contract';
@@ -126,7 +127,7 @@ async function workerReady(): Promise<boolean> {
 }
 
 export function createApp(
-  auth?: AuthDependencies,
+  auth?: AuthDependencies & { storage?: Storage },
   stripeWebhooks?: StripeWebhookDependencies,
   health: OperationalHealthDependencies = { databaseReady, workerReady },
 ): express.Express {

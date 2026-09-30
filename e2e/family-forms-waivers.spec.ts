@@ -532,6 +532,27 @@ test('family member uploads a restricted document on a phone', async ({
       },
     }),
   );
+  await page.route('**/api/v1/people/me/family', (route) =>
+    route.fulfill({
+      json: {
+        organizations: [
+          {
+            orgId,
+            orgName: 'Northstar',
+            people: [
+              {
+                personId,
+                firstName: 'Avery',
+                lastName: 'Athlete',
+                age: 14,
+                relationship: 'guardian',
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
   await page.route(
     `**/api/v1/people/orgs/${orgId}/${personId}/family-documents`,
     (route) =>
