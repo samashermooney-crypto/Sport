@@ -228,9 +228,6 @@ test('new account verifies its preview email and signs in', async ({
     });
   }, stubNotificationPermission);
   await page.goto('/sign-up');
-  if (!stubNotificationPermission) {
-    expect(await page.evaluate(() => Notification.permission)).toBe('granted');
-  }
   await expect(
     page.getByRole('heading', { name: 'Create your account' }),
   ).toBeVisible();
@@ -318,7 +315,11 @@ test('new account verifies its preview email and signs in', async ({
   await page
     .getByRole('button', { name: 'Enable browser notifications' })
     .click();
-  expect((await deviceRegistration).postDataJSON()).toMatchObject({
+  const registeredDeviceRequest = await deviceRegistration;
+  if (!stubNotificationPermission) {
+    expect(await page.evaluate(() => Notification.permission)).toBe('granted');
+  }
+  expect(registeredDeviceRequest.postDataJSON()).toMatchObject({
     platform: 'webpush',
     subscription: {
       endpoint: expect.stringMatching(/^https:\/\/push\.example\.test\//),
