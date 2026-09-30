@@ -1059,3 +1059,11 @@
 - **Decision:** Keep route-authorization, permission-matrix, and tenancy-fuzz assertions active. Report missing contracts as concrete acceptance failures; do not infer policy from path names or treat arbitrary 404s as proof of tenant isolation.
 - **Why:** Security coverage must stay visible in CI without turning unsupported assumptions into false authorization guarantees.
 - **Consequences / follow-ups:** Track C owns generated route metadata, valid same-tenant and foreign-tenant resource fixtures, and the reviewed allow/deny matrix. QA regressions remain active until those contracts and runtime authorization checks are complete.
+
+### DEC-141 — Purge person photos promptly and retain credential evidence for validity plus one year
+- **Date:** 2026-09-29
+- **Phase / area:** Phase 14 privacy deletion and retention
+- **Context:** An approved anonymization must remove identifiable photo bytes, while credential attachments may contain child-safety evidence that must remain available for a bounded audit period.
+- **Decision:** Tombstone and clear person photo references in the anonymization transaction, then delete the photo object immediately. Keep a durable pending marker so the weekly retention sweep retries interrupted photo deletion. Tombstone credential attachments immediately to block access, retain their bytes through the credential's expiry plus one year, and purge them in the same sweep afterward. If expiry is absent, start the one-year period at verification, then issue date, then credential creation as a fallback.
+- **Why:** Photos stop being retained once the subject is anonymized; credential evidence remains private and inaccessible while it may still be needed to verify child-safety compliance, then is purged on a deterministic schedule.
+- **Consequences / follow-ups:** The retention sweep records the photo and credential purge counts and preserves file metadata tombstones. The one-year credential evidence period reuses the existing background-check validity-plus-one-year interval; storage deletion failures remain retryable.

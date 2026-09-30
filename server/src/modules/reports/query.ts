@@ -22,6 +22,20 @@ const receivablesAging: DatasetColumn = {
   END`,
 };
 
+const credentialComplianceStatus: DatasetColumn = {
+  key: 'compliance_status',
+  label: 'Compliance status as of report date',
+  type: 'enum',
+  tier: 'internal',
+  source: `CASE
+    WHEN t.status = 'verified'
+      AND (t.expires_on IS NULL OR t.expires_on >= CURRENT_DATE)
+      THEN 'verified'
+    WHEN t.status = 'verified' THEN 'expired'
+    ELSE t.status
+  END`,
+};
+
 const payoutDataset: Dataset = {
   key: 'payouts',
   label: 'Payouts',
@@ -171,11 +185,18 @@ const evaluationResultsDataset: Dataset = {
 };
 
 export const reportDatasetCatalog: readonly Dataset[] = [
-  ...REPORT_DATASETS.map((dataset) =>
-    dataset.key === 'invoices'
-      ? { ...dataset, columns: [...dataset.columns, receivablesAging] }
-      : dataset,
-  ),
+  ...REPORT_DATASETS.map((dataset) => {
+    if (dataset.key === 'invoices')
+      return { ...dataset, columns: [...dataset.columns, receivablesAging] };
+    if (dataset.key === 'credentials')
+      return {
+        ...dataset,
+        description:
+          'Staff credential status; verified expiry is evaluated against the report date.',
+        columns: [...dataset.columns, credentialComplianceStatus],
+      };
+    return dataset;
+  }),
   payoutDataset,
   evaluationResultsDataset,
 ];

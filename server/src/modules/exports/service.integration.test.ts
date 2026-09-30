@@ -8,6 +8,7 @@ import { createDatabase } from '../../db/kysely';
 import { createWithOrg } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 import { MemoryStorage } from '../../integrations/storage/storage';
+import type { Storage } from '../../integrations/storage/storage';
 import { encryptRestricted, parseEncryptionKeys } from '../../lib/crypto';
 
 import {
@@ -19,6 +20,7 @@ import {
   listOrganizationExports,
   OrganizationExportError,
   requestOrganizationExport,
+  runOrganizationExportJob,
   runRetentionSweepJob,
   updateOrganizationPrivacyRequest,
 } from './service';
@@ -174,12 +176,9 @@ describe('organization data export', () => {
     const storage = new MemoryStorage();
     const now = new Date('2026-09-27T18:00:00.000Z');
     await expect(
-      buildOrganizationExport(
-        orgId,
-        requested.export.id,
-        database,
-        storage,
-        now,
+      runOrganizationExportJob(
+        { orgId, exportId: requested.export.id },
+        { database, storage, now },
       ),
     ).resolves.toMatchObject({ status: 'ready' });
     const listed = await listOrganizationExports(context(ownerId), withOrg);
@@ -223,6 +222,169 @@ describe('organization data export', () => {
     await expect(
       downloadOrganizationExport('A'.repeat(43), database, storage, now),
     ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('deletes expired organization archives and preserves live downloads during retention', async () => {
+    const storage = new MemoryStorage();
+    const expiredAt = new Date('2026-09-01T18:00:00.000Z');
+    const liveAt = new Date('2026-09-10T08:00:00.000Z');
+    const sweepAt = new Date('2026-09-10T18:00:00.000Z');
+    const expiredRequest = await requestOrganizationExport(
+      context(ownerId),
+      true,
+      () => Promise.resolve(),
+      withOrg,
+    );
+    const liveRequest = await requestOrganizationExport(
+      context(ownerId),
+      true,
+      () => Promise.resolve(),
+      withOrg,
+    );
+    await buildOrganizationExport(
+      orgId,
+      expiredRequest.export.id,
+      database,
+      storage,
+      expiredAt,
+    );
+    await buildOrganizationExport(
+      orgId,
+      liveRequest.export.id,
+      database,
+      storage,
+      liveAt,
+    );
+    const expiredLink = await createOrganizationExportDownloadLink(
+      context(ownerId),
+      expiredRequest.export.id,
+      true,
+      'https://athlentry.example.test',
+      expiredAt,
+      withOrg,
+    );
+    const liveLink = await createOrganizationExportDownloadLink(
+      context(ownerId),
+      liveRequest.export.id,
+      true,
+      'https://athlentry.example.test',
+      liveAt,
+      withOrg,
+    );
+    const tokenFromLink = (url: string) =>
+      new URL(url).pathname.split('/').at(-1) ?? '';
+    const before = await withOrg(context(ownerId), async (trx) =>
+      trx
+        .selectFrom('org_data_exports')
+        .innerJoin('files', (join) =>
+          join
+            .onRef('files.org_id', '=', 'org_data_exports.org_id')
+            .onRef('files.id', '=', 'org_data_exports.file_id'),
+        )
+        .select([
+          'org_data_exports.id as export_id',
+          'files.storage_key as storage_key',
+        ])
+        .where('org_data_exports.org_id', '=', orgId)
+        .where('org_data_exports.id', 'in', [
+          expiredRequest.export.id,
+          liveRequest.export.id,
+        ])
+        .execute(),
+    );
+    const expiredStorageKey = before.find(
+      (row) => row.export_id === expiredRequest.export.id,
+    )?.storage_key;
+    const liveStorageKey = before.find(
+      (row) => row.export_id === liveRequest.export.id,
+    )?.storage_key;
+    expect(expiredStorageKey).toBeTruthy();
+    expect(liveStorageKey).toBeTruthy();
+    expect(await storage.get(expiredStorageKey ?? '')).not.toBeNull();
+    expect(await storage.get(liveStorageKey ?? '')).not.toBeNull();
+
+    const flakyStorage: Storage = {
+      put: (key, bytes, contentType) => storage.put(key, bytes, contentType),
+      get: (key) => storage.get(key),
+      delete: (key) =>
+        key === expiredStorageKey
+          ? Promise.reject(new Error('temporary storage failure'))
+          : storage.delete(key),
+      presignPut: (key, contentType, maxBytes, expiresSeconds) =>
+        storage.presignPut(key, contentType, maxBytes, expiresSeconds),
+      presignGet: (key, expiresSeconds, downloadName) =>
+        storage.presignGet(key, expiresSeconds, downloadName),
+    };
+    const firstSweep = await runRetentionSweepJob(
+      {},
+      { now: sweepAt, database, runWithOrg: withOrg, storage: flakyStorage },
+    );
+
+    expect(firstSweep.summaries[0]?.counts).toMatchObject({
+      organizationExportsExpired: 1,
+      organizationExportObjectsDeleted: 0,
+      organizationExportCleanupPending: 1,
+    });
+    expect(await storage.get(expiredStorageKey ?? '')).not.toBeNull();
+    await expect(
+      downloadOrganizationExport(
+        tokenFromLink(expiredLink.url),
+        database,
+        storage,
+        sweepAt,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      downloadOrganizationExport(
+        tokenFromLink(liveLink.url),
+        database,
+        storage,
+        sweepAt,
+      ),
+    ).resolves.toBeInstanceOf(Uint8Array);
+
+    const retry = await runRetentionSweepJob(
+      {},
+      { now: sweepAt, database, runWithOrg: withOrg, storage },
+    );
+    expect(retry.summaries[0]?.counts).toMatchObject({
+      organizationExportsExpired: 0,
+      organizationExportObjectsDeleted: 1,
+      organizationExportCleanupPending: 0,
+    });
+    expect(await storage.get(expiredStorageKey ?? '')).toBeNull();
+    expect(await storage.get(liveStorageKey ?? '')).not.toBeNull();
+
+    const retired = await withOrg(context(ownerId), async (trx) =>
+      trx
+        .selectFrom('org_data_exports')
+        .innerJoin('files', (join) =>
+          join
+            .onRef('files.org_id', '=', 'org_data_exports.org_id')
+            .onRef('files.id', '=', 'org_data_exports.file_id'),
+        )
+        .select([
+          'org_data_exports.id as export_id',
+          'org_data_exports.status as status',
+          'files.deleted_at as deleted_at',
+        ])
+        .where('org_data_exports.org_id', '=', orgId)
+        .where('org_data_exports.id', 'in', [
+          expiredRequest.export.id,
+          liveRequest.export.id,
+        ])
+        .execute(),
+    );
+    const expiredMetadata = retired.find(
+      (row) => row.export_id === expiredRequest.export.id,
+    );
+    expect(expiredMetadata?.status).toBe('expired');
+    expect(expiredMetadata?.deleted_at).toBeInstanceOf(Date);
+    const liveMetadata = retired.find(
+      (row) => row.export_id === liveRequest.export.id,
+    );
+    expect(liveMetadata?.status).toBe('ready');
+    expect(liveMetadata?.deleted_at).toBeNull();
   });
 
   it('exports a subject data bundle with restricted fields decrypted and audited', async () => {
@@ -344,6 +506,15 @@ describe('organization data export', () => {
     });
     const deletionPersonId = randomUUID();
     const photoFileId = randomUUID();
+    const credentialTypeId = randomUUID();
+    const credentialId = randomUUID();
+    const credentialFileId = randomUUID();
+    const expiredCredentialId = randomUUID();
+    const expiredCredentialFileId = randomUUID();
+    const photoStorageKey = `privacy-test/${photoFileId}.png`;
+    const credentialStorageKey = `privacy-test/${credentialFileId}.pdf`;
+    const expiredCredentialStorageKey = `privacy-test/${expiredCredentialFileId}.pdf`;
+    const storage = new MemoryStorage();
     const householdId = randomUUID();
     const formDefinitionId = randomUUID();
     const waiverDocumentId = randomUUID();
@@ -359,11 +530,50 @@ describe('organization data export', () => {
       await admin.query(
         `INSERT INTO files(id,org_id,purpose,owner_type,owner_id,storage_key,mime,bytes,sensitivity,created_by,upload_state,expires_at)
          VALUES ($1,$2,'image','person',$3,$4,'image/png',512,'sensitive',$5,'complete',now()+interval '1 day')`,
+        [photoFileId, orgId, deletionPersonId, photoStorageKey, ownerId],
+      );
+      await admin.query(
+        `INSERT INTO credential_types(id,org_id,key,name,verification,validity,applies_to)
+         VALUES ($1,$2,'privacy_test','Privacy test credential','document_upload','{"never":true}'::jsonb,'{}'::jsonb)`,
+        [credentialTypeId, orgId],
+      );
+      await admin.query(
+        `INSERT INTO files(id,org_id,purpose,owner_type,owner_id,storage_key,mime,bytes,sensitivity,created_by,upload_state,expires_at)
+         VALUES ($1,$2,'document','person_credential',$3,$4,'application/pdf',512,'restricted',$5,'complete',now()+interval '1 day')`,
+        [credentialFileId, orgId, credentialId, credentialStorageKey, ownerId],
+      );
+      await admin.query(
+        `INSERT INTO files(id,org_id,purpose,owner_type,owner_id,storage_key,mime,bytes,sensitivity,created_by,upload_state,expires_at)
+         VALUES ($1,$2,'document','person_credential',$3,$4,'application/pdf',512,'restricted',$5,'complete',now()+interval '1 day')`,
         [
-          photoFileId,
+          expiredCredentialFileId,
+          orgId,
+          expiredCredentialId,
+          expiredCredentialStorageKey,
+          ownerId,
+        ],
+      );
+      await admin.query(
+        `INSERT INTO person_credentials(id,org_id,person_id,credential_type_id,status,issued_on,expires_on,file_id,verified_by,verified_at)
+         VALUES ($1,$2,$3,$4,'verified','2025-01-01','2035-01-01',$5,$6,'2025-01-01')`,
+        [
+          credentialId,
           orgId,
           deletionPersonId,
-          `privacy-test/${photoFileId}.png`,
+          credentialTypeId,
+          credentialFileId,
+          ownerId,
+        ],
+      );
+      await admin.query(
+        `INSERT INTO person_credentials(id,org_id,person_id,credential_type_id,status,issued_on,expires_on,file_id,verified_by,verified_at)
+         VALUES ($1,$2,$3,$4,'expired','2022-01-01','2024-01-01',$5,$6,'2022-01-01')`,
+        [
+          expiredCredentialId,
+          orgId,
+          deletionPersonId,
+          credentialTypeId,
+          expiredCredentialFileId,
           ownerId,
         ],
       );
@@ -442,6 +652,17 @@ describe('organization data export', () => {
     } finally {
       await admin.end();
     }
+    await storage.put(photoStorageKey, new Uint8Array([1, 2, 3]), 'image/png');
+    await storage.put(
+      credentialStorageKey,
+      new Uint8Array([4, 5, 6]),
+      'application/pdf',
+    );
+    await storage.put(
+      expiredCredentialStorageKey,
+      new Uint8Array([7, 8, 9]),
+      'application/pdf',
+    );
 
     const created = await createOrganizationPrivacyRequest(
       context(ownerId),
@@ -465,6 +686,18 @@ describe('organization data export', () => {
       new Date('2026-09-27T18:01:00.000Z'),
       withOrg,
     );
+    const failingStorage: Storage = {
+      put: (key, bytes, contentType) => storage.put(key, bytes, contentType),
+      get: (key) => storage.get(key),
+      delete: (key) =>
+        key === photoStorageKey
+          ? Promise.reject(new Error('temporary storage failure'))
+          : storage.delete(key),
+      presignPut: (key, contentType, maxBytes, expiresSeconds) =>
+        storage.presignPut(key, contentType, maxBytes, expiresSeconds),
+      presignGet: (key, expiresSeconds, downloadName) =>
+        storage.presignGet(key, expiresSeconds, downloadName),
+    };
     await updateOrganizationPrivacyRequest(
       context(ownerId),
       created.id,
@@ -476,7 +709,28 @@ describe('organization data export', () => {
       true,
       new Date('2026-09-27T18:02:00.000Z'),
       withOrg,
+      failingStorage,
     );
+
+    expect(await storage.get(photoStorageKey)).not.toBeNull();
+    expect(await storage.get(credentialStorageKey)).not.toBeNull();
+    const cleanupSweep = await runRetentionSweepJob(
+      {},
+      {
+        now: new Date('2026-09-27T18:03:00.000Z'),
+        database,
+        runWithOrg: withOrg,
+        storage,
+      },
+    );
+    expect(cleanupSweep.summaries[0]?.counts).toMatchObject({
+      privacyPhotoObjectsPurged: 1,
+      credentialEvidenceObjectsPurged: 1,
+      personFileCleanupPending: 0,
+    });
+    expect(await storage.get(photoStorageKey)).toBeNull();
+    expect(await storage.get(credentialStorageKey)).not.toBeNull();
+    expect(await storage.get(expiredCredentialStorageKey)).toBeNull();
 
     const result = await withOrg(context(ownerId), async (trx) => ({
       person: await trx
@@ -494,9 +748,27 @@ describe('organization data export', () => {
         .executeTakeFirstOrThrow(),
       photoFile: await trx
         .selectFrom('files')
-        .select('deleted_at')
+        .select(['deleted_at', 'owner_type'])
         .where('org_id', '=', orgId)
         .where('id', '=', photoFileId)
+        .executeTakeFirstOrThrow(),
+      credentialFile: await trx
+        .selectFrom('files')
+        .select(['deleted_at', 'owner_type'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', credentialFileId)
+        .executeTakeFirstOrThrow(),
+      expiredCredentialFile: await trx
+        .selectFrom('files')
+        .select(['deleted_at', 'owner_type'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', expiredCredentialFileId)
+        .executeTakeFirstOrThrow(),
+      credential: await trx
+        .selectFrom('person_credentials')
+        .select(['file_id', 'expires_on'])
+        .where('org_id', '=', orgId)
+        .where('id', '=', credentialId)
         .executeTakeFirstOrThrow(),
       household: await trx
         .selectFrom('households')
@@ -552,6 +824,19 @@ describe('organization data export', () => {
       status: 'anonymized',
     });
     expect(result.photoFile.deleted_at).toBeInstanceOf(Date);
+    expect(result.photoFile.owner_type).toBe('privacy_photo_purged');
+    expect(result.credentialFile.deleted_at).toBeInstanceOf(Date);
+    expect(result.credentialFile.owner_type).toBe(
+      'credential_evidence_retained',
+    );
+    expect(result.expiredCredentialFile.deleted_at).toBeInstanceOf(Date);
+    expect(result.expiredCredentialFile.owner_type).toBe(
+      'credential_evidence_purged',
+    );
+    expect(result.credential).toEqual({
+      file_id: null,
+      expires_on: new Date('2035-01-01T00:00:00.000Z'),
+    });
     expect(result.household).toMatchObject({
       name: 'Deleted Household',
       address: null,
@@ -618,9 +903,11 @@ describe('organization data export', () => {
 
     const result = await runRetentionSweepJob(
       {},
-      new Date('2026-09-27T18:00:00.000Z'),
-      database,
-      withOrg,
+      {
+        now: new Date('2026-09-27T18:00:00.000Z'),
+        database,
+        runWithOrg: withOrg,
+      },
     );
     expect(result).toMatchObject({
       completedOrganizations: 1,

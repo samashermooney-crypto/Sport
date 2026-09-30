@@ -131,6 +131,12 @@ it('renders role-permitted organization visuals with accessible value tables', a
                   type: 'enum',
                   tier: 'internal',
                 },
+                {
+                  key: 'compliance_status',
+                  label: 'Compliance status as of today',
+                  type: 'enum',
+                  tier: 'internal',
+                },
               ],
             },
           ],
@@ -175,12 +181,17 @@ it('renders role-permitted organization visuals with accessible value tables', a
         } else if (definition.definition.dataset === 'credentials') {
           result = {
             columns: [
-              { key: 'status', label: 'Status', type: 'enum' },
+              {
+                key: 'compliance_status',
+                label: 'Compliance status as of today',
+                type: 'enum',
+              },
               { key: 'count_id', label: 'Credentials', type: 'number' },
             ],
             rows: [
-              ['verified', 3],
+              ['expired', 1],
               ['pending_review', 1],
+              ['verified', 2],
             ],
             truncated: false,
           };
@@ -249,11 +260,11 @@ it('renders role-permitted organization visuals with accessible value tables', a
     name: 'Credential compliance data',
   });
   expect(
-    within(complianceTable).getByRole('cell', { name: '75.0%' }),
+    within(complianceTable).getByRole('rowheader', { name: 'Compliant' }),
   ).toBeTruthy();
   expect(
-    within(complianceTable).getByRole('cell', { name: '25.0%' }),
-  ).toBeTruthy();
+    within(complianceTable).getAllByRole('cell', { name: '50.0%' }),
+  ).toHaveLength(2);
   expect(
     screen.queryByRole('heading', { name: 'Revenue by program' }),
   ).toBeNull();

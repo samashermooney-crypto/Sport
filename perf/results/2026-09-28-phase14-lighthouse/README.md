@@ -2,9 +2,12 @@
 
 Captured September 28, 2026 at 20:22 CDT with Lighthouse 13.5.0 against a
 published synthetic organization containing a home page, public program, and
-upcoming event. The route was served by `createSiteSsrRouter` directly; the
-shared production app does not yet mount `/site`, so these scores must be
-repeated after Track A/C complete the router and verified-domain wiring.
+upcoming event. The route was served by `createSiteSsrRouter` directly. The
+website `publicRouter` is now registered on `track/integration` and mounted by
+`createApp`; its integration test covers platform subdomains, verified custom
+domains, and host-root sitemap/robots routes. These reports are historical
+direct-router results and must be repeated against the shared-app mount before
+Phase 14 Lighthouse sign-off.
 
 Lighthouse used its mobile preset (412×823, 1.75 device scale, simulated 4×
 CPU slowdown and 150 ms RTT). The bundled headless Chromium was 153.0.8010.12.

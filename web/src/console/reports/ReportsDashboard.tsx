@@ -123,11 +123,11 @@ const summaries: readonly ReportSummary[] = [
     views: ['organization', 'compliance'],
     definition: reportDefinitionSchema.parse({
       dataset: 'credentials',
-      columns: ['status'],
+      columns: ['compliance_status'],
       filters: [{ column: 'status', op: 'ne', value: 'revoked' }],
-      groupBy: ['status'],
+      groupBy: ['compliance_status'],
       aggregates: [{ fn: 'count', column: 'id' }],
-      sort: [{ column: 'status', direction: 'asc' }],
+      sort: [{ column: 'compliance_status', direction: 'asc' }],
       limit: 12,
     }),
   },
@@ -283,7 +283,7 @@ function chartValues(
 ): { label: string; value: number }[] {
   if (summary.key === 'credential-compliance') {
     const statusIndex = preview.columns.findIndex(
-      (column) => column.key === 'status',
+      (column) => column.key === 'compliance_status',
     );
     const countIndex = preview.columns.findIndex(
       (column) => column.key === 'count_id',
@@ -302,7 +302,7 @@ function chartValues(
       counts.find((item) => item.status === 'verified')?.count ?? 0;
     const verifiedPercent = (verified / total) * 100;
     return [
-      { label: 'Verified', value: verifiedPercent },
+      { label: 'Compliant', value: verifiedPercent },
       { label: 'Needs attention', value: 100 - verifiedPercent },
     ];
   }
@@ -567,7 +567,7 @@ export function ReportsDashboard({
             : activeView === 'registration'
               ? 'Registration pace, enrollment by program, and year-over-year participant retention.'
               : activeView === 'compliance'
-                ? 'Credential status and the portion of active credentials that are verified.'
+                ? 'Credential status and the portion valid as of today.'
                 : activeView === 'academy'
                   ? 'Class enrollment and attendance summaries without participant-level details.'
                   : 'Registration pace, finances, credential compliance, and participant retention.'}
