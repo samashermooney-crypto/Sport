@@ -792,6 +792,12 @@ export async function seedDemo(database: Kysely<DB>): Promise<void> {
         kind: spec.kind,
         timezone: spec.timezone,
         email: `hello@${spec.slug}.example.test`,
+        address: {
+          line1: '100 Demo Way',
+          city: spec.city,
+          region: spec.state,
+          postalCode: '00000',
+        },
         status: 'active',
         nonprofit: spec.kind === 'league' || spec.kind === 'association',
       })
@@ -1826,6 +1832,12 @@ export async function seedLoad(database: Kysely<DB>): Promise<void> {
         kind: 'league',
         timezone: 'America/Chicago',
         email: `hello+${org.slug}@load.example.test`,
+        address: {
+          line1: '100 Load Test Way',
+          city: 'Chicago',
+          region: 'IL',
+          postalCode: '60601',
+        },
         status: 'active',
         nonprofit: true,
       })),

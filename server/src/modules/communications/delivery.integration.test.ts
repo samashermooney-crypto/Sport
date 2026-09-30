@@ -185,6 +185,67 @@ describe('communications delivery lifecycle', () => {
     expect(receipt.delivery_id).toBe(delivery.id);
   });
 
+  it('refuses to queue email until the organization has a mailing address', async () => {
+    const campaign = await createCampaign(
+      context,
+      campaignDraft('email'),
+      'https://athlentry.test',
+      withOrg,
+    );
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    const emailSender = new FakeEmailSender();
+    try {
+      await admin.query(
+        "UPDATE organizations SET address = '{}'::jsonb WHERE id = $1",
+        [orgId],
+      );
+      await expect(
+        sendCampaign(
+          context,
+          campaign.id,
+          campaign.version,
+          {
+            email: emailSender,
+            sms: new FakeSmsSender(),
+            push: { send: () => Promise.resolve({ status: 'sent' as const }) },
+            appUrl: 'https://athlentry.test',
+          },
+          { now: new Date('2026-09-28T14:00:00Z'), runWithOrg: withOrg },
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        message:
+          "Add your organization's mailing address in Settings before sending email.",
+      });
+    } finally {
+      await admin.query(
+        'UPDATE organizations SET address = $2::jsonb WHERE id = $1',
+        [
+          orgId,
+          JSON.stringify({
+            line1: '100 Test Way',
+            city: 'Chicago',
+            region: 'IL',
+            postalCode: '60601',
+          }),
+        ],
+      );
+      await admin.end();
+    }
+    expect(emailSender.messages).toHaveLength(0);
+    const queued = await withOrg(context, (trx) =>
+      trx
+        .selectFrom('message_deliveries')
+        .select('id')
+        .where('campaign_id', '=', campaign.id)
+        .execute(),
+    );
+    expect(queued).toEqual([]);
+  });
+
   it('schedules opted-in SMS at 22:00 recipient time and sends at 08:00', async () => {
     const draft = campaignDraft('sms');
     const campaign = await createCampaign(

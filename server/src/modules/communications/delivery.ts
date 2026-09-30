@@ -33,6 +33,7 @@ import { audienceSpecSchema, localeContentSchema } from './schema';
 import type { CampaignRow } from './service';
 import {
   CommunicationsAccessError,
+  CommunicationsConflictError,
   getCampaignForDelivery,
   markCampaignFinished,
   markCampaignSending,
@@ -767,6 +768,14 @@ export async function sendCampaign(
   if (campaign.category === 'emergency' && !options.confirmEmergency)
     throw new CommunicationsAccessError(
       'Emergency send requires explicit confirmation',
+    );
+  // Refuse before queueing: every email would otherwise fail delivery.
+  if (
+    campaign.channels.includes('email') &&
+    !(await orgBranding(context, runWithOrg)).physicalAddress
+  )
+    throw new CommunicationsConflictError(
+      "Add your organization's mailing address in Settings before sending email.",
     );
   const parsedAudience = audienceSpecSchema.parse(campaign.audience);
   const recipients = await resolveAudience(
