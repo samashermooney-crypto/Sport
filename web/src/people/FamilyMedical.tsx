@@ -1,5 +1,6 @@
 import { medicalResponseSchema } from '@shared/schemas/medical';
 import type { MedicalUpdate } from '@shared/schemas/medical';
+import { familyResponseSchema } from '@shared/schemas/people';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link as RouterLink, useLocation, useParams } from 'react-router';
@@ -151,6 +152,14 @@ export function FamilyMedical(): React.JSX.Element {
     },
     enabled: Boolean(orgId && personId),
   });
+  const family = useQuery({
+    queryKey: ['people', 'me', 'family'],
+    queryFn: () => apiGet('/people/me/family', familyResponseSchema),
+    enabled: !staffView && Boolean(orgId && personId),
+  });
+  const relationship = family.data?.organizations
+    .find((organization) => organization.orgId === orgId)
+    ?.people.find((person) => person.personId === personId)?.relationship;
   const current = saved ?? profile.data;
   return (
     <AppShell
@@ -208,9 +217,11 @@ export function FamilyMedical(): React.JSX.Element {
         {current && orgId && personId && (
           <EmergencyContacts orgId={orgId} personId={personId} />
         )}
-        {current && !staffView && orgId && personId && (
-          <AthleteAccess orgId={orgId} personId={personId} />
-        )}
+        {current &&
+          !staffView &&
+          relationship === 'guardian' &&
+          orgId &&
+          personId && <AthleteAccess orgId={orgId} personId={personId} />}
       </main>
     </AppShell>
   );
