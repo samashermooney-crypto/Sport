@@ -252,6 +252,18 @@ it('scopes household members and preserves primary contact, version and audit', 
           total_cents: amount,
         })
         .execute();
+      await trx
+        .insertInto('invoice_lines')
+        .values({
+          id: newId(),
+          org_id: owner.orgId,
+          invoice_id: id,
+          kind: 'team_fee',
+          description: `Household balance fixture ${String(index + 1)}`,
+          unit_amount_cents: amount,
+          amount_cents: amount,
+        })
+        .execute();
     }
   });
   const populatedHousehold = await repo.get(
