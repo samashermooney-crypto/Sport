@@ -658,6 +658,7 @@ describe('chat SafeSport and permission rules', () => {
       withOrg,
     );
     expect(closed.guardianCopied).toBe(true);
+    expect(closed.muted).toBe(false);
     let members = await withOrg(ownerContext, (trx) =>
       trx
         .selectFrom('conversation_members')
@@ -684,6 +685,7 @@ describe('chat SafeSport and permission rules', () => {
       withOrg,
     );
     expect(opened.id).toBe(closed.id);
+    expect(opened.muted).toBe(false);
     members = await withOrg(ownerContext, (trx) =>
       trx
         .selectFrom('conversation_members')

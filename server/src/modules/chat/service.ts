@@ -764,12 +764,21 @@ export async function ensureTeamConversation(
       'team',
       teamSeasonId,
     );
+    const actorMembership = await trx
+      .selectFrom('conversation_members')
+      .select('muted')
+      .where('org_id', '=', context.orgId)
+      .where('conversation_id', '=', conversation.id)
+      .where('account_id', '=', context.actor.accountId)
+      .where('revoked_at', 'is', null)
+      .executeTakeFirstOrThrow();
     return {
       id: conversation.id,
       kind: conversation.kind,
       title: conversation.title,
       teamSeasonId: conversation.team_season_id,
       guardianCopied: safe.result.guardianCopied,
+      muted: actorMembership.muted,
       unreadCount: 0,
       lastMessageAt: null,
     };
@@ -871,13 +880,21 @@ export async function ensureTeamStaffConversation(
       'team_staff',
       teamSeasonId,
     );
+    const actorMembership = await trx
+      .selectFrom('conversation_members')
+      .select('muted')
+      .where('org_id', '=', context.orgId)
+      .where('conversation_id', '=', conversation.id)
+      .where('account_id', '=', context.actor.accountId)
+      .where('revoked_at', 'is', null)
+      .executeTakeFirstOrThrow();
     return {
       id: conversation.id,
       kind: conversation.kind,
       title: conversation.title,
       teamSeasonId: conversation.team_season_id,
       guardianCopied: guardianIds.size > 0,
-      muted: false,
+      muted: actorMembership.muted,
       unreadCount: 0,
       lastMessageAt: null,
     };
