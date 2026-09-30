@@ -24,6 +24,8 @@ import {
   visitPath,
 } from './visit';
 
+test.describe.configure({ mode: 'serial' });
+
 const appUrl = e2eDatabaseUrl('app');
 const adminUrl = e2eDatabaseUrl('admin');
 const publicSiteOrgId = '33333333-3333-4333-8333-333333333333';

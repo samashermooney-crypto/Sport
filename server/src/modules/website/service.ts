@@ -2094,7 +2094,12 @@ export async function getPublicWebsiteEmbed(
     if (!publicProgram) return null;
     program = { slug: publicProgram.slug, name: publicProgram.name };
     const standings = publicEmbedStandingsSchema.parse(
-      await getStandings(context, { programId: publicProgram.id }, true),
+      await getStandings(
+        context,
+        { programId: publicProgram.id },
+        true,
+        runWithOrg,
+      ),
     );
     items = standings.rows.map((row) => ({
       label: `${String(row.rank)}. ${standings.teamNames[row.teamId] ?? 'Team'}`,

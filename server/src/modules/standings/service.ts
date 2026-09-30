@@ -524,8 +524,9 @@ export async function getStandings(
   context: OrgContext,
   scope: ConfigScope,
   publicRequest = false,
+  runWithOrg: typeof withOrg = withOrg,
 ) {
-  return withOrg(context, async (trx) => {
+  return runWithOrg(context, async (trx) => {
     const resolved = await scopeConfig(trx, context.orgId, scope);
     if (!resolved.config)
       throw new SchedulingRuleError(UNCONFIGURED_MESSAGE, 409, 'CONFLICT');
