@@ -192,6 +192,21 @@ test('owner creates, edits and archives a person from the console', async ({
       personId,
       householdUrl.split('/').at(-1) ?? '',
     );
+    const householdId = householdUrl.split('/').at(-1) ?? '';
+    const invoiceId = await factories.invoice(actor, 901);
+    await createWithOrg(database)(actor, async (trx) => {
+      await trx
+        .updateTable('invoices')
+        .set({
+          household_id: householdId,
+          status: 'open',
+          subtotal_cents: 7_500,
+          total_cents: 7_500,
+        })
+        .where('org_id', '=', actor.orgId)
+        .where('id', '=', invoiceId)
+        .execute();
+    });
     await factories.row(actor, 'roster_entries', {
       id: newId(),
       org_id: actor.orgId,
@@ -288,6 +303,51 @@ test('owner creates, edits and archives a person from the console', async ({
     await expect(
       page.getByRole('heading', { name: 'Rivera household' }),
     ).toBeVisible();
+    await expect(
+      page.getByText('Alex · confirmed', { exact: true }),
+    ).toBeVisible();
+    const householdBalance = page.getByText(/^Outstanding balance:/);
+    await expect(householdBalance).toBeVisible();
+    await expect(householdBalance).toContainText('75.00');
+
+    await page
+      .getByRole('textbox', { name: 'Household name' })
+      .fill('Rivera family');
+    await page
+      .getByRole('textbox', { name: 'Street address' })
+      .fill('14 Oak Street');
+    await page.getByRole('textbox', { name: 'City' }).fill('Madison');
+    await page.getByRole('textbox', { name: 'State or region' }).fill('WI');
+    await page.getByRole('textbox', { name: 'Postal code' }).fill('53703');
+    const savedHousehold = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        response
+          .url()
+          .includes(`/people/households/orgs/${actor.orgId}/${householdId}`),
+    );
+    await page.getByRole('button', { name: 'Save household' }).click();
+    expect((await savedHousehold).ok()).toBe(true);
+    await expect(
+      page.getByRole('heading', { name: 'Rivera family' }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(
+      page.getByRole('textbox', { name: 'Household name' }),
+    ).toHaveValue('Rivera family');
+    await expect(
+      page.getByRole('textbox', { name: 'Street address' }),
+    ).toHaveValue('14 Oak Street');
+    await expect(page.getByRole('textbox', { name: 'City' })).toHaveValue(
+      'Madison',
+    );
+    await expect(
+      page.getByRole('textbox', { name: 'State or region' }),
+    ).toHaveValue('WI');
+    await expect(
+      page.getByRole('textbox', { name: 'Postal code' }),
+    ).toHaveValue('53703');
+
     await page.getByText('Edit Alex Rivera').click();
     const memberEditor = page
       .locator('details')
