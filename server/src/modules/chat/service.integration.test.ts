@@ -599,6 +599,55 @@ describe('chat SafeSport and permission rules', () => {
     ).rejects.toBeInstanceOf(ChatPermissionError);
   });
 
+  it("re-copies a minor athlete's guardian when a coach messages after the guardian left", async () => {
+    const conversation = await createConversation(
+      ownerContext,
+      { kind: 'group', title: 'Keeper training', accountIds: [minorId] },
+      new Date('2026-09-27T18:00:00Z'),
+      withOrg,
+    );
+    expect(conversation.guardianCopied).toBe(true);
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    try {
+      await admin.query(
+        'UPDATE conversation_members SET revoked_at = now() WHERE conversation_id = $1 AND account_id = $2',
+        [conversation.id, guardianId],
+      );
+    } finally {
+      await admin.end();
+    }
+    const notified: string[] = [];
+    await sendChatMessage(
+      ownerContext,
+      conversation.id,
+      { body: 'Bring gloves tomorrow.', attachments: [] },
+      {
+        encryption: { activeKid: 'test', keys: new Map() },
+        notifications: ({ accountId }) => {
+          notified.push(accountId);
+          return Promise.resolve();
+        },
+      },
+      new Date('2026-09-27T18:05:00Z'),
+      withOrg,
+    );
+    const guardian = await withOrg(ownerContext, (trx) =>
+      trx
+        .selectFrom('conversation_members')
+        .select(['guardian_copied', 'revoked_at'])
+        .where('org_id', '=', orgId)
+        .where('conversation_id', '=', conversation.id)
+        .where('account_id', '=', guardianId)
+        .where('revoked_at', 'is', null)
+        .executeTakeFirst(),
+    );
+    expect(guardian).toMatchObject({ guardian_copied: true, revoked_at: null });
+    expect(notified).toEqual(expect.arrayContaining([minorId, guardianId]));
+  });
+
   it('creates read-only announcement channels and copies guardians for minors', async () => {
     const conversation = await createConversation(
       ownerContext,
