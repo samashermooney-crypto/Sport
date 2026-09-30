@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — integration head `468b01f5` includes C federation fixes, D’s public-site split and locale-stable skip link, and A’s first notification-permission fix; integrating A follow-up `55bdfc3b` now.
+Status: working — local integration candidate contains C’s Federation/fee-void repairs, D’s public-site route split and locale-pinned skip-link fixture, and A’s notification-permission follow-up `55bdfc3b`.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Hosted CI: run `36689550628` is in progress on `468b01f5`; the latest completed run `36688318120` on `09f9b611` failed only the skip-link and sign-in E2E checks, while static size passed. That run predates the latest D/A test fixes. No GREEN result is claimed for the current candidate.
-Open integration work: obtain hosted CI for the latest candidate; address any remaining C-owned federation/fee-void failures from the 01:03 split without changing assertions; wait for A/D branches to sync before further merges; continue launch-gate items below.
+Hosted CI: run `36690800467` on code head `d0d69620` completed with only two E2E failures; test, typecheck, lint, build, Knip, registry, OpenAPI, size, Lighthouse, audit, and secret scan passed. The skip-link artifact shows the SPA alert `Website page unavailable` / `This page is not published or could not be loaded` before the expected heading. The sign-in permission assertion still reads `denied` after device registration. Current local head `ccecb91d` contains diagnostics only and has not been run. No GREEN result is claimed.
+Open integration work: D must resolve the public-site data/render failure and A must resolve the notification permission-state mismatch without weakening assertions; rerun hosted CI on the resulting code head and continue checking launch-gate items below.
 
 ## Completed Track C work
 
@@ -229,3 +229,11 @@ Open integration work: obtain hosted CI for the latest candidate; address any re
 
 - Integrated A’s `55bdfc3b` refinement: the Chromium test now asserts that notifications are granted after the user enables browser notifications and the fake device-registration request completes. The synthetic service-worker/push endpoint remains local to the test; no real notification is sent.
 - Run `36689550628` is still in progress on `468b01f5` and does not include this refinement. The latest completed run `36688318120` on `09f9b611` reports only skip-link and sign-in E2E failures; static size passes. Hosted verification is pending, and no local Playwright run was started.
+
+
+## Hosted E2E follow-up — 2026-09-30 03:45 CDT
+
+- Run `36690800467` on `d0d69620` completed with all jobs green except E2E. The public-site artifact again shows `Website page unavailable` / `This page is not published or could not be loaded`; the fixture's published data is not reaching the page. D's request records this precise state.
+- A's `55bdfc3b` moved the permission assertion after fake push registration, but `Notification.permission` still reads `denied` after the device-registration request. The Playwright artifact snapshot says `Browser notifications enabled on this device`; A is asked to resolve the browser permission-state mismatch while preserving the assertion and fake-only delivery.
+- Current local head `ccecb91d` adds only these diagnostic notes; it has not been pushed or run. No full suite or Playwright run was started locally.
+- The recent completed reports do not list C-owned Federation, fee-void, or sharing-revocation failures. Focused API/Postgres and navigation component regressions remain green; no CI-green claim is made for current head.
