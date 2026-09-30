@@ -44,8 +44,16 @@ export default defineConfig(({ mode }) => {
         '/site/': {
           target: `http://127.0.0.1:${process.env.ATHLENTRY_API_PORT ?? '3001'}`,
           bypass: (request) => {
-            const query = new URLSearchParams(request.url?.split('?')[1] ?? '');
-            if (query.get('app') === '1') return request.url;
+            const url = new URL(request.url ?? '/', 'http://localhost');
+            const pathSegments = url.pathname.split('/').filter(Boolean);
+            // The API renders only the public organization home in this dev
+            // proxy. Nested content routes stay in Vite's SPA router, where
+            // crawler journeys can exercise the same interactive pages.
+            if (
+              url.searchParams.get('app') === '1' ||
+              pathSegments.length !== 2
+            )
+              return request.url;
           },
         },
       },

@@ -275,6 +275,15 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
       .getByRole('button', { name: 'Add emergency contact' })
       .click();
     await expect(guardianPage.getByText('Jordan Rivera')).toBeVisible();
+    await guardianPage.reload();
+    await expect(
+      guardianPage.getByRole('heading', { name: 'Medical profile' }),
+    ).toBeVisible();
+    const emergencyContact = guardianPage
+      .getByRole('list')
+      .filter({ hasText: 'Jordan Rivera' });
+    await expect(emergencyContact).toContainText('Parent');
+    await expect(emergencyContact).toContainText('+15555550123');
     expect(await accessibilityViolations(guardianPage)).toEqual([]);
     const links = await createWithOrg(database)(staff, (trx) =>
       trx
