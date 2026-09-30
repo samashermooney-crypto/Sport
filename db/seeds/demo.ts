@@ -20,6 +20,15 @@ function stableId(seed: string): string {
   return `${digest.slice(0, 8)}-${digest.slice(8, 12)}-7${digest.slice(13, 16)}-8${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
 }
 
+export function demoOrganizationAddress(address: {
+  line1: string;
+  city: string;
+  region: string;
+  postalCode: string;
+}) {
+  return { ...address, country: 'US' as const };
+}
+
 function valueAt<T>(values: readonly T[], index: number, label: string): T {
   const value = values[index];
   if (value === undefined)
@@ -792,12 +801,12 @@ export async function seedDemo(database: Kysely<DB>): Promise<void> {
         kind: spec.kind,
         timezone: spec.timezone,
         email: `hello@${spec.slug}.example.test`,
-        address: {
+        address: demoOrganizationAddress({
           line1: '100 Demo Way',
           city: spec.city,
           region: spec.state,
           postalCode: '00000',
-        },
+        }),
         status: 'active',
         nonprofit: spec.kind === 'league' || spec.kind === 'association',
       })
@@ -1832,12 +1841,12 @@ export async function seedLoad(database: Kysely<DB>): Promise<void> {
         kind: 'league',
         timezone: 'America/Chicago',
         email: `hello+${org.slug}@load.example.test`,
-        address: {
+        address: demoOrganizationAddress({
           line1: '100 Load Test Way',
           city: 'Chicago',
           region: 'IL',
           postalCode: '60601',
-        },
+        }),
         status: 'active',
         nonprofit: true,
       })),

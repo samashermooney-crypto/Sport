@@ -287,3 +287,10 @@ Open integration work: exact-head hosted verification of `fcff3e5b` is pending. 
 - The crawler passed on the failing run in 7.4 minutes, with no same-origin HTTP/request failures; the earlier household fixture and Chromium notification journey also passed.
 
 INTEGRATION READY fcff3e5b
+
+## Current integration CI repair — 2026-09-30
+
+- The owner-supplied failure list for `6f832444` is superseded by hosted run `36758736522` on `6e29b07c`: every CI job passed, including E2E. This covers the C federation/Phase 13/sharing-revocation cases and the A/D cases assigned in the 01:03 split; those earlier failures are not present on that verified tree. `fix/a` and `fix/d` are already ancestors of `track/integration`.
+- Current run `36765929800` on `4318b73f` exposed two newer failures: registration checkout fixtures inserted program/division/offering capacity counters a second time after migration 8503's triggers created them, and the Phase 15 demo-profile journey got an organization-profile validation error because demo org addresses omitted required `country: "US"`.
+- Added the documented conflict-key upsert to both manual counter fixtures in `server/src/modules/registration/checkout-start.test.ts`; the focused real-Postgres file passes 9/9. Added a shared country-complete demo organization address for normal and load seeds plus a schema-contract regression; `server/test/demoSeeds.test.ts` passes 3/3. The hosted error context confirmed the fundraising page then showed “No campaigns yet” because its parallel profile request failed and discarded the campaign response.
+- `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` and `/Users/sammooney/athlentry-sprint/heavy.sh npm run lint` pass. No full suite or local Playwright was run. The performance-file edits already present in the integration worktree remain unstaged and untouched; exact-head hosted verification is pending.

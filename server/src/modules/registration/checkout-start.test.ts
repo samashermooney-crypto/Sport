@@ -1334,6 +1334,15 @@ describe('registration checkout start', () => {
           subject_id: teamOfferingId,
           capacity: 20,
         })
+        .onConflict((oc) =>
+          oc
+            .columns(['org_id', 'subject_type', 'subject_id'])
+            .doUpdateSet((eb) => ({
+              capacity: eb.ref('excluded.capacity'),
+              confirmed: eb.ref('excluded.confirmed'),
+              held: eb.ref('excluded.held'),
+            })),
+        )
         .execute();
     });
 
@@ -1744,6 +1753,15 @@ describe('registration checkout start', () => {
             capacity: 1,
           },
         ])
+        .onConflict((oc) =>
+          oc
+            .columns(['org_id', 'subject_type', 'subject_id'])
+            .doUpdateSet((eb) => ({
+              capacity: eb.ref('excluded.capacity'),
+              confirmed: eb.ref('excluded.confirmed'),
+              held: eb.ref('excluded.held'),
+            })),
+        )
         .execute();
     });
 
