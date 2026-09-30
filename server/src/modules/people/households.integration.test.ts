@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { newId } from '@shared/ids';
+import { builtInSportTemplates } from '@shared/sport/templates';
 import type { Kysely } from 'kysely';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
@@ -156,6 +157,120 @@ it('scopes household members and preserves primary contact, version and audit', 
     },
   );
   expect(withChild.members).toHaveLength(2);
+
+  const seasonId = newId();
+  const sportProfileId = newId();
+  const programId = newId();
+  const divisionId = newId();
+  const offeringId = newId();
+  const registrationId = newId();
+  const invoiceIds = [newId(), newId(), newId()];
+  await withOrg(owner, async (trx) => {
+    await trx
+      .insertInto('seasons')
+      .values({
+        id: seasonId,
+        org_id: owner.orgId,
+        name: 'Household Acceptance Season',
+        starts_on: '2026-01-01',
+        ends_on: '2026-12-31',
+      })
+      .execute();
+    await trx
+      .insertInto('sport_profiles')
+      .values({
+        id: sportProfileId,
+        org_id: owner.orgId,
+        name: 'Soccer',
+        profile: builtInSportTemplates[0],
+      })
+      .execute();
+    await trx
+      .insertInto('programs')
+      .values({
+        id: programId,
+        org_id: owner.orgId,
+        season_id: seasonId,
+        sport_profile_id: sportProfileId,
+        mode: 'league',
+        name: 'Household Acceptance League',
+        slug: `household-${randomUUID().slice(0, 8)}`,
+        starts_on: '2026-03-01',
+        ends_on: '2026-11-30',
+      })
+      .execute();
+    await trx
+      .insertInto('divisions')
+      .values({
+        id: divisionId,
+        org_id: owner.orgId,
+        program_id: programId,
+        name: 'Open',
+        level: 'open',
+      })
+      .execute();
+    await trx
+      .insertInto('registration_offerings')
+      .values({
+        id: offeringId,
+        org_id: owner.orgId,
+        program_id: programId,
+        division_id: divisionId,
+        name: 'Player',
+        registrant_role: 'athlete',
+        price_cents: 0,
+      })
+      .execute();
+    await trx
+      .insertInto('registrations')
+      .values({
+        id: registrationId,
+        org_id: owner.orgId,
+        program_id: programId,
+        division_id: divisionId,
+        offering_id: offeringId,
+        person_id: child,
+        household_id: created.id,
+        registered_by_account_id: owner.accountId,
+        source: 'staff',
+        status: 'confirmed',
+      })
+      .execute();
+    for (const [index, id] of invoiceIds.entries()) {
+      const amount = index === 0 ? 7_500 : index === 1 ? 2_500 : 5_000;
+      await trx
+        .insertInto('invoices')
+        .values({
+          id,
+          org_id: owner.orgId,
+          number: 900 + index,
+          account_id: owner.accountId,
+          household_id: created.id,
+          status: index === 2 ? 'draft' : 'open',
+          source: 'staff',
+          subtotal_cents: amount,
+          total_cents: amount,
+        })
+        .execute();
+    }
+  });
+  const populatedHousehold = await repo.get(
+    owner.orgId,
+    owner.accountId,
+    created.id,
+  );
+  expect(populatedHousehold.registrations).toEqual([
+    {
+      id: registrationId,
+      personId: child,
+      programId,
+      status: 'confirmed',
+    },
+  ]);
+  expect(populatedHousehold.balances).toEqual([
+    { currency: 'USD', amountCents: 10_000 },
+  ]);
+
   await expect(
     repo.addMember(owner.orgId, owner.accountId, created.id, {
       personId: child,
