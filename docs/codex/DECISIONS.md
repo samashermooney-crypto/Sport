@@ -1123,3 +1123,11 @@
 - **Decision:** A card on a finalized result creates one discipline record for the carded player's team in that contest (`send_off` with the profile's default suspension games when above zero, otherwise `caution`); the player must be rostered on a participating team, and re-finalizing a corrected result does not duplicate the card. Each finalized contest counts as one game served for every active game suspension of a player rostered on a participating team when the suspension was issued before that contest started; the append-only `discipline_games_served` ledger (migration 8504) guarantees one count per record and contest, and the record becomes `served` when complete. Every change is audited.
 - **Why:** Coaches and officials must be able to finalize games with cards, and eligibility (lineup blocking) must release automatically after the suspension is served without double counting corrections.
 - **Consequences / follow-ups:** Manual `serve_games` remains for games outside the platform. Suspensions scoped to a team are served only by that team's games.
+
+### DEC-149 — Expired checkout holds return their places every minute
+- **Date:** 2026-09-30
+- **Phase / area:** Phase 5 registration capacity (found by the registration-open load test)
+- **Context:** Checkout holds carried an expiry, but nothing released them, so every abandoned cart kept its program, division and offering places permanently and offerings showed full while seats were unused.
+- **Decision:** The `checkout.release-expired-holds` job runs every minute. For each organization with expired, unreleased, unconverted holds it releases up to 500 per run (skip-locked), decrements `held` on the counters in reservation lock order, and marks past-deadline `open` checkouts `expired`. Holds of checkouts awaiting payment are kept, because payment confirmation honors processing holds.
+- **Why:** Capacity must reflect real registrations; no family may be told a program is full because of another family's abandoned cart, and in-flight payments must never lose their place.
+- **Consequences / follow-ups:** Awaiting-payment checkouts whose payment never completes rely on the payment failure/abandon paths to release their holds.

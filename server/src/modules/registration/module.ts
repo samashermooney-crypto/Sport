@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { ServerModule } from '../../lib/module-contract.js';
+import { runHoldExpiryJob } from '../checkout/hold-expiry.js';
 
 import { checkoutQuoteSchema } from './checkout-quote.js';
 import {
@@ -56,6 +57,11 @@ export const moduleDefinition = {
     {
       name: 'registration.notice',
       run: runRegistrationNoticeJob,
+      cron: '* * * * *',
+    },
+    {
+      name: 'checkout.release-expired-holds',
+      run: runHoldExpiryJob,
       cron: '* * * * *',
     },
   ],
