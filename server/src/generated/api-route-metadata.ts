@@ -7009,6 +7009,14 @@ export const apiRouteMetadata = [
     scope: 'organization',
   },
   {
+    operationId: 'post_api_v1_waivers_orgs_orgId_waiverId_retire',
+    method: 'post',
+    path: '/api/v1/waivers/orgs/{orgId}/{waiverId}/retire',
+    permission: 'waivers.manage',
+    resource: 'waivers.retire',
+    scope: 'organization',
+  },
+  {
     operationId: 'post_api_v1_waivers_orgs_orgId_waiverId_signatures',
     method: 'post',
     path: '/api/v1/waivers/orgs/{orgId}/{waiverId}/signatures',
