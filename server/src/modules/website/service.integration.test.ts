@@ -13,6 +13,7 @@ import type { OrgContext } from '../../db/withOrg';
 import type { AuthDependencies } from '../auth/routes';
 
 import { createSiteSsrRouter, createWebsitePublicRouter } from './public';
+import { createWebsiteRouter } from './routes';
 import {
   getWebsiteSettings,
   createPublicWebsiteContactSubmission,
@@ -1332,6 +1333,14 @@ describe('website page service', () => {
       ]);
 
       const app = express();
+      app.use(
+        '/api/v1/website',
+        createWebsiteRouter({
+          database,
+          appUrl: 'https://website-test.example.invalid',
+          clock: () => new Date('2026-09-28T00:00:00.000Z'),
+        } as unknown as AuthDependencies),
+      );
       app.use(createSiteSsrRouter({ database }));
       const server = app.listen(0);
       await new Promise<void>((resolve) => server.once('listening', resolve));
@@ -1356,6 +1365,28 @@ describe('website page service', () => {
         expect(teamsResponse.status).toBe(200);
         expect(teamsHtml).toContain('Open Soccer Blue');
         expect(teamsHtml).not.toContain('Private Coaching Red');
+
+        const teamsApiResponse = await fetch(
+          `${origin}/api/v1/website/public/${orgSlug}/teams`,
+        );
+        const teamsApiBody = await teamsApiResponse.text();
+        expect(teamsApiResponse.status).toBe(200);
+        expect(teamsApiBody).toContain(publicTeamSeasonId);
+        expect(teamsApiBody).toContain('Open Soccer Blue');
+        expect(teamsApiBody).not.toContain('Private Coaching Red');
+
+        const teamApiResponse = await fetch(
+          `${origin}/api/v1/website/public/${orgSlug}/teams/${publicTeamSeasonId}`,
+        );
+        const teamApiBody = await teamApiResponse.text();
+        expect(teamApiResponse.status).toBe(200);
+        expect(teamApiBody).toContain('Open Soccer Blue');
+        expect(teamApiBody).not.toContain('Private Coaching');
+
+        const mismatchedTeamApiResponse = await fetch(
+          `${origin}/api/v1/website/public/${orgSlug}/teams/${mismatchedTeamSeasonId}`,
+        );
+        expect(mismatchedTeamApiResponse.status).toBe(404);
 
         const teamResponse = await fetch(
           `${origin}/${orgSlug}/teams/${publicTeamSeasonId}`,
