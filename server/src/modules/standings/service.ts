@@ -550,6 +550,8 @@ export async function getStandings(
       .where('scope_type', '=', scopeType)
       .where('scope_id', '=', scopeId)
       .orderBy('computed_at', 'desc')
+      .orderBy('id', 'desc')
+      .limit(1)
       .executeTakeFirst();
     if (snapshot)
       return {
