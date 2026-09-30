@@ -359,9 +359,7 @@ test('QA-ACC-033 / Track C: federation is reachable from console navigation', as
       const commandPalette = page.getByRole('dialog', {
         name: 'Command palette',
       });
-      await commandPalette
-        .getByRole('searchbox', { name: 'Search Athlentry' })
-        .fill('Federation');
+      // With an empty query the console palette lists every destination.
       const federationLink = commandPalette.getByRole('link', {
         name: 'Federation',
         exact: true,

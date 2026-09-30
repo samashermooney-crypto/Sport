@@ -8,6 +8,11 @@ import {
 
 import { accessibilityViolations } from '../axe';
 
+const CANCELLED_REQUEST_ERRORS = new Set([
+  'net::ERR_ABORTED',
+  'Load request cancelled',
+]);
+
 const skippedPrefixes = [
   '/magic/',
   '/verify/',
@@ -298,9 +303,11 @@ export async function visitPath(
     const trackedDuringVisit = trackedRequests.delete(request);
     if (trackedDuringVisit) lastSameOriginActivityAt = Date.now();
     if (!trackedDuringVisit || isLongLivedStream(request)) return;
+    // Chromium reports a client-side cancellation as net::ERR_ABORTED and
+    // WebKit as "Load request cancelled"; both still need a successful retry.
     if (
       isSameOrigin(request.url(), baseURL) &&
-      request.failure()?.errorText === 'net::ERR_ABORTED'
+      CANCELLED_REQUEST_ERRORS.has(request.failure()?.errorText ?? '')
     ) {
       abortedRequests.add(requestKey(request));
     } else if (isSameOrigin(request.url(), baseURL)) {

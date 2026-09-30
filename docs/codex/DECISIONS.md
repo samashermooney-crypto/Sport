@@ -1083,3 +1083,11 @@
 - **Decision:** Publish team-season labels only when their program is public and in an eligible public lifecycle status, the team is active, and the team-season is active or completed. Include the program, season, division, and age labels; do not return roster, staff, person identifiers, photos, or location details.
 - **Why:** The public program setting supports discoverability while avoiding publication of children or staff before their visibility and consent rules are available.
 - **Consequences / follow-ups:** Keep roster and staff data off these pages. Add any people only after Track B supplies the roster-visibility and media-consent API contract; staff directory publication also requires Track A's explicit opt-in contract.
+
+### DEC-144 — Refresh stale WebKit mobile parity baseline for the feedback showcase
+- **Date:** 2026-09-30
+- **Phase / area:** Phase 16 design parity (webkit-mobile, Linux CI)
+- **Context:** `ui-feedback-390-webkit-mobile-linux.png` (generated 2026-09-27) differed from every CI run by 23 pixels, all inside the "↺" glyph of the reset icon button. Three consecutive CI attempts produced byte-identical screenshots, and no component or token CSS for that button changed since the baseline.
+- **Decision:** Replace that one Linux WebKit baseline with the deterministic CI rendering. The parity tolerance and token-equality checks are unchanged.
+- **Why:** The difference is glyph rasterization in the CI WebKit build, not a design change; a stale baseline would block every merge without protecting the design.
+- **Consequences / follow-ups:** Regenerate Linux baselines in the CI container whenever the Playwright/WebKit version changes.
