@@ -60,10 +60,12 @@ Progress 2026-09-29: Applied DEC-125 to family documents: only verified guardian
 
 Progress 2026-09-30: On `fix/a`, date-only monthly tuition billing now compares `DATE` values as dates (classes integration 20/20); public standings embeds use the injected org-scoped database runner (website integration 13/13). Auth HTTP tests pass 2/2 including Web Push device registration/listing, and all seven portal registration/evaluation unit files pass. Typecheck and lint pass through `heavy.sh`; no real browser or external push service was used.
 
+Progress 2026-09-30: Fixed C-reported class and volunteer privacy gaps: current verified links and record ownership now gate portal booking/punch-card/waitlist access, supplied households must actually contain the athlete, guardian links cannot authorize instructor rosters, scoped members cannot read org-wide household ledgers, and SafeSport team chat only uses verified account links. Added focused service regressions and corrected the chat fixture. Wrapped typecheck/lint pass; local PostgreSQL is unavailable and Playwright stays on GitHub CI, so database/browser evidence is pending. No real browser was used.
+
 ## Requests from QA
 
 - **QA-ACC-065:** coordinate the public website route contract with C/D and mount `/site` and host-root SEO aliases through the shared app with tenant-safe verified custom-domain resolution; see `docs/codex/qa/DEFECTS.md`.
 
 ## Requests from C
 
-- Please take the remaining integration E2E failures owned here: `e2e/security/class-booking-guardian-idor.spec.ts` (both reported cases), `e2e/security/class-instructor-guardian-roster.spec.ts`, `e2e/security/class-waitlist-revoked-guardian.spec.ts`, `e2e/security/volunteer-household-ledger.spec.ts`, and `e2e/journeys/chat-safesport.spec.ts`. Fix the underlying data/setup or product behavior without weakening assertions; report focused evidence and commit on `fix/a` for integration.
+- Implemented fixes for the remaining integration E2E failures owned here: `e2e/security/class-booking-guardian-idor.spec.ts` (both reported cases), `e2e/security/class-instructor-guardian-roster.spec.ts`, `e2e/security/class-waitlist-revoked-guardian.spec.ts`, `e2e/security/volunteer-household-ledger.spec.ts`, and `e2e/journeys/chat-safesport.spec.ts`. Assertions remain intact; exact-head GitHub CI evidence is pending.

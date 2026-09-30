@@ -1482,6 +1482,19 @@ export class PostgresClassEnrollments {
         .where('entry.org_id', '=', this.context.orgId)
         .where('entry.account_id', '=', accountId)
         .where('entry.status', 'in', ['waiting', 'offered'])
+        .where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom('person_account_links as link')
+              .select('link.id')
+              .whereRef('link.org_id', '=', 'entry.org_id')
+              .whereRef('link.person_id', '=', 'entry.person_id')
+              .where('link.account_id', '=', accountId)
+              .where('link.relationship', 'in', ['self', 'guardian'])
+              .where('link.verified_at', 'is not', null)
+              .where('link.revoked_at', 'is', null),
+          ),
+        )
         .$if(Boolean(personId), (query) =>
           query.where('entry.person_id', '=', personId ?? ''),
         )
@@ -1518,6 +1531,20 @@ export class PostgresClassEnrollments {
         .executeTakeFirst();
       if (!entry) throw new ClassesNotFoundError('Waitlist offer not found');
       if (!options.staff && entry.account_id !== this.context.actor.accountId)
+        throw new ClassesNotFoundError('Waitlist offer not found');
+      if (
+        !options.staff &&
+        !(await trx
+          .selectFrom('person_account_links')
+          .select('id')
+          .where('org_id', '=', this.context.orgId)
+          .where('person_id', '=', entry.person_id)
+          .where('account_id', '=', this.context.actor.accountId)
+          .where('relationship', 'in', ['self', 'guardian'])
+          .where('verified_at', 'is not', null)
+          .where('revoked_at', 'is', null)
+          .executeTakeFirst())
+      )
         throw new ClassesNotFoundError('Waitlist offer not found');
       if (entry.status !== 'offered')
         throw new ClassesConflictError('No open offer exists');
@@ -1569,7 +1596,7 @@ export class PostgresClassEnrollments {
     return this.withOrg(this.context, async (trx) => {
       const entry = await trx
         .selectFrom('class_waitlist_entries')
-        .select(['id', 'status', 'class_offering_id'])
+        .selectAll()
         .where('org_id', '=', this.context.orgId)
         .where('id', '=', entryId)
         .$if(Boolean(accountId), (query) =>
@@ -1578,6 +1605,20 @@ export class PostgresClassEnrollments {
         .forUpdate()
         .executeTakeFirst();
       if (!entry || entry.status !== 'offered')
+        throw new ClassesNotFoundError('No open offer exists');
+      if (
+        accountId &&
+        !(await trx
+          .selectFrom('person_account_links')
+          .select('id')
+          .where('org_id', '=', this.context.orgId)
+          .where('person_id', '=', entry.person_id)
+          .where('account_id', '=', accountId)
+          .where('relationship', 'in', ['self', 'guardian'])
+          .where('verified_at', 'is not', null)
+          .where('revoked_at', 'is', null)
+          .executeTakeFirst())
+      )
         throw new ClassesNotFoundError('No open offer exists');
       await trx
         .updateTable('class_waitlist_entries')

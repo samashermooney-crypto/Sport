@@ -265,7 +265,20 @@ export function createClassesRouter(
     personId: string,
     supplied?: string,
   ): Promise<string> => {
-    if (supplied) return supplied;
+    if (supplied) {
+      const membership = await withOrg(ctx, (trx) =>
+        trx
+          .selectFrom('household_members')
+          .select('household_id')
+          .where('org_id', '=', ctx.orgId)
+          .where('person_id', '=', personId)
+          .where('household_id', '=', supplied)
+          .where('removed_at', 'is', null)
+          .executeTakeFirst(),
+      );
+      if (!membership) throw new ClassesNotFoundError('Household not found');
+      return membership.household_id;
+    }
     const row = await withOrg(ctx, (trx) =>
       trx
         .selectFrom('household_members')
@@ -1409,6 +1422,7 @@ export function createClassesRouter(
           await bookings.bookPunchCard(
             body.classSessionId,
             z.uuid().parse(request.params.punchCardId),
+            ctx.actor.accountId,
           ),
         );
     }),
@@ -1420,7 +1434,10 @@ export function createClassesRouter(
       write(request);
       const { ctx, bookings } = await services(request);
       await requireMember(dependencies.database, ctx);
-      await bookings.cancelBooking(z.uuid().parse(request.params.bookingId));
+      await bookings.cancelBooking(
+        z.uuid().parse(request.params.bookingId),
+        ctx.actor.accountId,
+      );
       response.status(204).end();
     }),
   );

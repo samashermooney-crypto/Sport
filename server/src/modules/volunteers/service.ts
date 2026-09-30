@@ -702,11 +702,24 @@ export async function householdVolunteerLedger(
         eb.or([
           eb.exists(
             eb
-              .selectFrom('org_memberships')
-              .select('id')
-              .whereRef('org_memberships.org_id', '=', 'household.org_id')
-              .where('org_memberships.account_id', '=', context.actor.accountId)
-              .where('org_memberships.status', '=', 'active'),
+              .selectFrom('org_memberships as membership')
+              .innerJoin('role_assignments as role', (join) =>
+                join
+                  .onRef('role.org_id', '=', 'membership.org_id')
+                  .onRef('role.account_id', '=', 'membership.account_id'),
+              )
+              .select('membership.id')
+              .whereRef('membership.org_id', '=', 'household.org_id')
+              .where('membership.account_id', '=', context.actor.accountId)
+              .where('membership.status', '=', 'active')
+              .where('role.role', 'in', [
+                'owner',
+                'admin',
+                'volunteer_coordinator',
+              ])
+              .where('role.scope_type', '=', 'org')
+              .where('role.pending_mfa', '=', false)
+              .where('role.revoked_at', 'is', null),
           ),
           eb.exists(
             eb
