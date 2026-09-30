@@ -630,13 +630,34 @@ test('guardian invites a teen athlete who accepts a read-only view and is revoke
     await athletePage.goto('/me/family');
     await expect(athletePage.getByText('Sam Rivera')).toBeVisible();
     await expect(athletePage.getByText('Your profile')).toBeVisible();
+    const athleteLinkRequests: string[] = [];
+    athletePage.on('request', (request) => {
+      if (
+        request
+          .url()
+          .includes(
+            `/api/v1/people/orgs/${staff.orgId}/${childId}/athlete-link`,
+          )
+      )
+        athleteLinkRequests.push(request.url());
+    });
+    const familyResponse = athletePage.waitForResponse(
+      (response) =>
+        response.url().includes('/api/v1/people/me/family') && response.ok(),
+    );
     await athletePage.goto(`/me/family/${staff.orgId}/${childId}/medical`);
+    await familyResponse;
+    await expect(
+      athletePage.getByText('Allergy flags: None on file'),
+    ).toBeVisible();
+    await athletePage.waitForLoadState('networkidle');
     await expect(
       athletePage.getByRole('heading', { name: 'Medical profile' }),
     ).toBeVisible();
     await expect(
       athletePage.getByRole('button', { name: 'Save medical profile' }),
     ).toHaveCount(0);
+    expect(athleteLinkRequests).toEqual([]);
     expect(await accessibilityViolations(athletePage)).toEqual([]);
     await athletePage.goto(`/me/family/${staff.orgId}/${childId}/profile`);
     await expect(
