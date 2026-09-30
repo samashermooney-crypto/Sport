@@ -28,8 +28,17 @@ beforeEach(() => {
       return Promise.resolve([
         { id: orgId, name: 'Northstar Club', slug: 'northstar-club' },
       ] as never);
-    if (path === `/federation/organizations/${orgId}/relationships`)
-      return Promise.resolve({ items: [] } as never);
+    if (path === `/federation/organizations/${orgId}/capabilities`)
+      return Promise.resolve({
+        relationships: true,
+        manageRelationships: true,
+        directory: true,
+        submitEntries: true,
+        schedule: true,
+        discipline: true,
+        referees: true,
+        finance: true,
+      } as never);
     throw new Error(`Unexpected request: ${path}`);
   });
 });
