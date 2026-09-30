@@ -25,6 +25,11 @@ import { requireSession } from './modules/auth/routes';
 
 const organizationPath =
   /(?:^|\/)orgs\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i;
+// A signed-in family new to an organization may browse its public programs and
+// add their first child; routes still require a session and scope every read
+// to the caller. Adding a child creates the relationship other routes require.
+const familyRegistrationEntryPath =
+  /^\/registration\/orgs\/[0-9a-f-]{36}\/(catalog|participants)$/i;
 const invitationAcceptancePath =
   /(?:^|\/)(?:guardians\/)?(?:athlete-|claim-)?invitations\/accept$/;
 
@@ -39,9 +44,17 @@ function organizationRelationshipGuard(
 ): express.RequestHandler {
   const withOrg = createWithOrg(dependencies.database);
   return async (request, response, next) => {
+    const familyRegistrationResource = familyRegistrationEntryPath
+      .exec(request.path)?.[1]
+      ?.toLowerCase();
+    const selfServiceFamilyRegistration =
+      (request.method === 'GET' && familyRegistrationResource !== undefined) ||
+      (request.method === 'POST' &&
+        familyRegistrationResource === 'participants');
     if (
       request.path.startsWith('/platform') ||
       invitationAcceptancePath.test(request.path) ||
+      selfServiceFamilyRegistration ||
       requestImpersonation(request)
     ) {
       next();

@@ -94,6 +94,12 @@ describe('family adds their own children', () => {
           .where('org_id', '=', orgId)
           .where('household_id', '=', first.householdId)
           .execute(),
+        household: await trx
+          .selectFrom('households')
+          .select('name')
+          .where('org_id', '=', orgId)
+          .where('id', '=', first.householdId)
+          .executeTakeFirstOrThrow(),
         audit: await trx
           .selectFrom('audit_log')
           .select('entity_id')
@@ -117,6 +123,7 @@ describe('family adds their own children', () => {
       is_primary_contact: true,
     });
     expect(state.audit).toHaveLength(2);
+    expect(state.household.name).toBe('Ortega family');
   });
 
   it('refuses adults, future birthdays and minor account holders', async () => {

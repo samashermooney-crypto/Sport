@@ -139,14 +139,32 @@ export async function requireSession(
   const token = cookie ?? bearer;
   if (!token)
     throw new AuthHttpError(401, 'UNAUTHENTICATED', 'Sign in to continue');
-  const session = await dependencies.database
-    .transaction()
-    .execute((trx) => resolveSession(trx, token, dependencies.clock()));
+  // Tenant guards and the route itself each authenticate the same request;
+  // resolve (and refresh) the session once per request.
+  const cached = resolvedSessions.get(request);
+  const session =
+    cached?.token === token
+      ? await cached.session
+      : await (() => {
+          const pending = dependencies.database
+            .transaction()
+            .execute((trx) => resolveSession(trx, token, dependencies.clock()));
+          resolvedSessions.set(request, { token, session: pending });
+          pending.catch(() => {
+            resolvedSessions.delete(request);
+          });
+          return pending;
+        })();
   if (!session || session.kind !== (cookie ? 'cookie' : 'bearer')) {
     throw new AuthHttpError(401, 'UNAUTHENTICATED', 'Sign in to continue');
   }
   return session;
 }
+
+const resolvedSessions = new WeakMap<
+  Request,
+  { token: string; session: Promise<ActiveSession | null> }
+>();
 
 function authMeta(request: Request): {
   ip: string | undefined;

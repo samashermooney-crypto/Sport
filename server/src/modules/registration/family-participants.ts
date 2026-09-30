@@ -165,6 +165,19 @@ export async function addFamilyParticipant(
         personId,
         accountId,
       );
+      if (!household) {
+        const account = await trx
+          .selectFrom('accounts')
+          .select('last_name')
+          .where('id', '=', accountId)
+          .executeTakeFirstOrThrow();
+        await trx
+          .updateTable('households')
+          .set({ name: `${account.last_name} family` })
+          .where('org_id', '=', orgId)
+          .where('id', '=', profile.householdId)
+          .execute();
+      }
       if (!household)
         await trx
           .updateTable('household_members')
