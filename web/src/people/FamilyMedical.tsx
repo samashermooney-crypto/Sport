@@ -156,12 +156,15 @@ export function FamilyMedical(): React.JSX.Element {
     queryKey: ['people', 'me', 'family'],
     queryFn: () => apiGet('/people/me/family', familyResponseSchema),
     enabled: !staffView && Boolean(orgId && personId),
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
-  const relationship = family.isFetchedAfterMount
-    ? family.data?.organizations
-        .find((organization) => organization.orgId === orgId)
-        ?.people.find((person) => person.personId === personId)?.relationship
-    : undefined;
+  const relationship =
+    family.isFetchedAfterMount && family.isSuccess && !family.isFetching
+      ? family.data.organizations
+          .find((organization) => organization.orgId === orgId)
+          ?.people.find((person) => person.personId === personId)?.relationship
+      : undefined;
   const current = saved ?? profile.data;
   return (
     <AppShell
