@@ -116,6 +116,14 @@ jobs:
       - run: npx playwright install --with-deps chromium webkit
       - name: Capture Linux legacy parity references
         run: bash e2e/visual-reference/linux-baseline.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-parity-references
+          path: |
+            e2e/visual-reference/*-linux.png
+            e2e/visual-reference/parity-baselines.json
+          if-no-files-found: ignore
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()

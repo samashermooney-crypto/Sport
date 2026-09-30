@@ -1,5 +1,5 @@
-// Captures the legacy admin shell on the ubuntu-24.04 x86_64 CI runner for the
-// parity suite's header comparison (see parity-baselines.json).
+// Captures the legacy admin and public-site shells on the ubuntu-24.04 x86_64
+// CI runner for the parity suite's header comparisons (see parity-baselines.json).
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
