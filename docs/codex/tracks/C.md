@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — local integration candidate `09f9b611` includes C’s federation fixes and D’s public-site route split; A’s sanitized Web Push response regression is staged for integration after its focused Postgres test passed.
+Status: working — `track/integration` is at `0462ef15` with C’s federation fixes, D’s public-site route split, and A’s sanitized Web Push response regression; integrating D’s skip-link locale fix `a0e0c44a` now.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
 Hosted CI: run `36687088431` is still in progress on prior head `8a15cacc`; the latest completed run `36685885745` on `12289a1f` is RED in e2e and static size and predates the latest C/A/D fixes. No GREEN result is claimed for the current candidate.
-Open integration work: obtain hosted CI for the latest candidate; address any remaining C-owned federation/fee-void failures from the 01:03 split without changing assertions; wait for A/D branches to sync before merging further work; continue launch-gate items below.
+Open integration work: obtain hosted CI for the latest candidate; address any remaining C-owned federation/fee-void failures from the 01:03 split without changing assertions; wait for A/D branches to sync before further merges; continue launch-gate items below.
 
 ## Completed Track C work
 
@@ -211,3 +211,9 @@ Open integration work: obtain hosted CI for the latest candidate; address any re
 - Integrated A’s `3b2e914c` sanitized Web Push response contract regression without reverting D’s site route splitting. `server/src/modules/auth/routes.test.ts` passes 2/2 against the isolated real PostgreSQL stack (`COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500`, host port 5932). Its push adapter is fake; no external delivery occurs.
 - The latest checked-in CI report is still run `36687088431` in progress on `8a15cacc`; it predates `09f9b611` and A’s current auth test. The previous completed run on `12289a1f` fails only in e2e and static size, with details predating the latest fixes. Hosted verification for the current tree remains pending.
 - No full test suite or Playwright run was started locally; no assertions were skipped or weakened.
+
+
+## D skip-link determinism update — 2026-09-30 03:20 CDT
+
+- Integrated D’s `a0e0c44a` fixture correction, which explicitly sets the published organization and browser language to English before checking the English skip-link label. The assertion remains intact; `/Users/sammooney/athlentry-sprint/ci/integration.txt` still reports run `36687088431` in progress on `8a15cacc`, so hosted confirmation is pending.
+- `heavy.sh npm run typecheck` passes on this update. The exact browser journey remains for GitHub CI; no local Playwright run was started.

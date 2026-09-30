@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `fix/d`
-Working from the 10-hour integration plan. `fix/d` is synced through integration head `7108d04b`, with the D skip-link fix integrated at `12289a1f`. The latest completed integration CI available here is run `36683545757` on `f5799684`: it failed on the stale skip-link journey, chat, Phase 13 fee-void, permission matrix, and static size; it reported no parity-baseline, 390px shell, or missing-snapshot failure, and neither Phase 11 journey appears in its failure list. The skip-link fixture fix postdates that run. CI is running on integration head `12289a1f`; this D branch also has an additional route-splitting commit not yet integrated. Linux references are generated and uploaded by the hosted `ubuntu-24.04` job; macOS references, tolerances, and token equality remain unchanged. Report and public website pages now lazy-load to reduce the eager application bundle; the hosted size result is pending.
+Working from the 10-hour integration plan. `fix/d` is synced through integration head `09f9b611`; the public-site route split (`7d11bc20`) is integrated. The checked-in integration report is stale: run `36687088431` remains in progress on `8a15cacc`, and the last completed run is `36685885745` on `12289a1f`, with E2E and static size failures that predate the latest route-splitting changes. D’s locale-stable skip-link fixture (`a0e0c44a`) is now being integrated. Linux references are generated and uploaded by hosted CI; macOS references, tolerances, and token equality remain unchanged. Reports and public website pages now lazy-load; hosted size and journey results are pending.
 
 ## Current
 
@@ -38,6 +38,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - The StorePortal registration regression passes the focused component test 2/2; the test and its QA note are committed as `5df9a513` and merged on integration head `de95fbaa`. Hosted validation is pending in run `36682986073`.
 - Hosted run `36680761860` on `2b1ceb68` and completed runs `36682424875` and `36682986073` do not list either Phase 11 journey as a failure. The registration and buyout fixes are integrated; their requested assertions remain enabled.
 - Run `36680761860` exposed a D-owned skip-link fixture bug: it visited an unavailable seeded slug. Commit `e2a5dcaa` creates an active organization with a published home page; Track C integrated it at `12289a1f`. Run `36682986073` predates that fix, so the new hosted result is still required. Local Playwright remains disabled by CI-first rules.
+- The available failure output for `e2a5dcaa` still showed the English role locator unattached. The public page and browser UI each choose language independently, so the parity fixture now pins both the organization and browser preference to English before asserting the English skip-link name. Hosted confirmation is pending; no local Playwright run was made.
 - Run `36682986073` also failed the static size check. Since generated routes eagerly imported the report builder/dashboard and website consoles, and the feature registry eagerly imported public website pages, `console/reports/routes.tsx`, `console/website/routes.tsx`, and `site/routes.tsx` now lazy-load those page components behind accessible loading states. The exact gzip size must be verified by hosted CI; if it still fails, inspect the new CI size output before making further bundle changes.
 - After the latest integration sync, i18n completeness passes 2/2 and the legacy token-equality test passes 3/3. Linux and macOS core/team/communication parity snapshots are all tracked; the 6.5% pixel threshold is unchanged.
 - After syncing local integration head `3a7d76c8` into `fix/d`, `heavy.sh npm run typecheck` and `heavy.sh npm run lint` both pass.
@@ -95,7 +96,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 ## Exact next steps
 
-1. Read the next integration CI result for the exact head containing the route lazy-loading and skip-link fixture changes. Confirm Linux parity, the skip-link journey, the website console tests, and the gzip size against the unchanged 200 KB limit.
+1. Read the next integration CI result for the exact head containing the public-route lazy-loading and deterministic skip-link fixture changes. Confirm Linux parity, the skip-link journey, the website console tests, and the gzip size against the unchanged 200 KB limit.
 2. If the hosted size check still fails, use its reported asset size and CI artifacts to identify the remaining eager D-owned imports; do not run a local build.
 3. Review the `phase14-lighthouse` artifact from the first CI run containing `41dc3f8f`; if any registered shared-app route misses Performance ≥ 90, Accessibility 100, or SEO ≥ 95, fix and repeat. Add the exact CI score/evidence to the Phase 14 acceptance record.
 4. Complete and record the documented manual keyboard review; keep cross-track requests in the section below.
