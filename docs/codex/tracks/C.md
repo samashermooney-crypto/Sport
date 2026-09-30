@@ -94,3 +94,13 @@ Requests to other tracks: D must resolve the Linux parity failures repeated in C
 - The isolated C Docker stack was stopped after the targeted Postgres test. No full suite or Playwright suite was run locally under the CI-first rules; no coverage was skipped or weakened.
 - Real-Postgres Files tenancy/RLS integration `server/src/modules/files/service.integration.test.ts` passes 10/10 on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500` (Postgres `127.0.0.1:5932`); the isolated stack was stopped afterward.
 - Mailpit configuration regression in `server/src/integrations/email/sender.test.ts` passes 6/6, including `ATHLENTRY_MAILPIT_SMTP_PORT` selection and its 1025 fallback; the same isolated stack was stopped afterward.
+
+## Requests from QA
+
+- **QA-QUAL-001 hosted CI follow-up:** run `36640228008` reports Knip RED on QA head `910e0b0c`; retrieve the exact current Knip list and assign any remaining findings before claiming the gate green.
+- **QA-ACC-064:** derive the optional AI client flag from `AI_PROVIDER` and key presence at build time without exposing the key; the C branch implements this and includes configured/disabled state coverage.
+- **QA-ACC-065:** integrate the public website route contract through the shared app, including `/site` SSR and tenant-safe verified custom-domain resolution; verify after the D branch is merged.
+- **QA-ACC-053:** complete the dynamic detail-route inventory with record-derived fixtures for coach/team staff, officials, and volunteers; see `docs/codex/qa/DEFECTS.md`.
+- **QA-SEC-001 / QA-SEC-016:** generated operation metadata and same/foreign-tenant fixtures are implemented on C; confirm full current matrix method coverage in the integration CI.
+- **QA-SEC-019:** verify route-level allowed/denied roles and scoped-role boundaries against declared permission-matrix predictions; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-050:** refresh launch-gate evidence against the integration candidate after QA crawler results and hosted CI are available; keep item 10 failed until the all-role route results are current.

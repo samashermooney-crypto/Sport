@@ -74,3 +74,14 @@ Requests from K (2026-09-27; rechecked 2026-09-28):
 - Resolved in `b1a8420f`: the sponsor placement fixture now uses `orgToday` for the org timezone and an org-local offset for `contractEnd`, preserving the placement assertion.
 
 - Track I trunk-gate note (2026-09-27): the sponsor placement integration fixture derived `contractStart` from UTC `toISOString()` while `publicSponsorPlacements` correctly compares against the organization-local date. The fixture now uses `orgToday()` for the owning organization timezone and a `Temporal.PlainDate` offset for `contractEnd`; no sponsor runtime behavior changed.
+
+## Requests from QA
+
+- **QA-SEC-009:** `householdVolunteerLedger()` allows any active organization membership to pass its household-level access query, including a program-scoped director. Enforce the appropriate household guardian or explicit org-wide oversight authorization; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-038:** Family uniform orders still need athlete registration/team attribution for size reports, with unrelated team-season IDs rejected. Coordinate the checkout attribution contract with E; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-039:** Buyout invoice issuance occurs before the requirement row lock and remaining-unit recheck, so competing requests can leave two invoices even if the second buyout insert is rejected. Serialize capacity validation and invoice/buyout issuance as one idempotent operation; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-040 / QA-ACC-041:** `countsCoachRoles`, `autoInvoiceShortfall`, and `noticeDays` are persisted but do not affect household credits or drive reminder/shortfall invoice enforcement. Implement the configured ledger and idempotent job behavior; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-042:** Add event-block shift generation and a deduplicated shift-reminder job; current shifts are created one at a time and the module has no generation/reminder job. See `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-043:** `updateFulfillment()` changes order/fulfillment state without notifying the purchaser. Register and emit the order-status notification after successful transitions; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-044 (coordinate E/C):** Production guest donation checkout remains unavailable (`CHECKOUT_UNAVAILABLE`). Inject the production adapter and signed completion/failure dispatch while keeping tests on fake providers and synthetic signatures; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-059 verification:** H's latest note says the fixture issue was resolved, but `e2e/phase11.spec.ts` on current trunk still updates `payment_allocations.installment_id` directly. Confirm the current CI result; if the database rejects this setup, replace it with a supported append-only fixture path without granting UPDATE; see `docs/codex/qa/DEFECTS.md`.

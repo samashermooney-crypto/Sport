@@ -5,15 +5,14 @@ import { createWithOrg } from '../server/src/db/withOrg';
 import { issueSession } from '../server/src/modules/auth/sessions';
 import { createTestFactories } from '../server/test/factories';
 
-const offset = Number(process.env.PORT_OFFSET ?? '0');
+import { accessibilityViolations } from './axe';
+import { e2eDatabaseUrl } from './database';
 
 test('family re-registers two returning siblings, signs waivers, and chooses uniform sizes', async ({
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   try {
     const factories = createTestFactories(database);
     const actor = await factories.actor();
@@ -202,7 +201,6 @@ test('family re-registers two returning siblings, signs waivers, and chooses uni
         sameSite: 'Lax',
       },
     ]);
-    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/portal/orgs/${actor.orgId}/registrations`);
     await page
       .getByRole('link', { name: 'Register Maya Sibling again' })
@@ -225,6 +223,7 @@ test('family re-registers two returning siblings, signs waivers, and chooses uni
       expect(visitedScreens.size).toBeLessThanOrEqual(4);
     };
     await expectJourneyScreen('Find a program');
+    expect(await accessibilityViolations(page)).toEqual([]);
     const firstParticipant = participants[0];
     const secondParticipant = participants[1];
     if (!firstParticipant || !secondParticipant)
@@ -244,9 +243,11 @@ test('family re-registers two returning siblings, signs waivers, and chooses uni
     const cart = page.locator('[aria-labelledby="cart-title"]');
     await expect(cart.getByText('Maya Sibling')).toBeVisible();
     await expect(cart.getByText('Noah Sibling')).toBeVisible();
+    expect(await accessibilityViolations(page)).toEqual([]);
     await page.getByRole('button', { name: 'Continue to review' }).click();
 
     await expectJourneyScreen('Participant details');
+    expect(await accessibilityViolations(page)).toEqual([]);
     const parent = await createWithOrg(database)(actor, (trx) =>
       trx
         .selectFrom('accounts')
@@ -270,6 +271,12 @@ test('family re-registers two returning siblings, signs waivers, and chooses uni
         .getByLabel('Guardian or adult participant signer full name')
         .fill(guardianName);
       await expect(section.getByLabel('Uniform kit')).toBeChecked();
+      const uniformSize = section.getByLabel('Size');
+      const selectedSize = participant.name.startsWith('Maya')
+        ? 'Youth M'
+        : 'Youth S';
+      await uniformSize.selectOption(selectedSize);
+      await expect(uniformSize).toHaveValue(selectedSize);
       await expect(
         section.getByRole('radio', { name: 'I will volunteer' }),
       ).toBeChecked();
@@ -277,6 +284,7 @@ test('family re-registers two returning siblings, signs waivers, and chooses uni
     await page.getByRole('button', { name: 'Continue to review' }).click();
 
     await expectJourneyScreen('Review your registration');
+    expect(await accessibilityViolations(page)).toEqual([]);
     await page
       .getByRole('checkbox', {
         name: 'I have read and accept these refund terms.',
@@ -284,6 +292,7 @@ test('family re-registers two returning siblings, signs waivers, and chooses uni
       .check();
     await page.getByRole('button', { name: 'Continue to payment' }).click();
     await expectJourneyScreen('Registration confirmed', 30_000);
+    expect(await accessibilityViolations(page)).toEqual([]);
     expect(visitedScreens.size).toBe(4);
 
     expect(Date.now() - journeyStartedAt).toBeLessThan(120_000);
@@ -324,9 +333,7 @@ test('waitlist cancellation offers a spot, acceptance confirms, and expiry advan
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   try {
     const factories = createTestFactories(database);
     const actor = await factories.actor();
@@ -479,8 +486,8 @@ test('waitlist cancellation offers a spot, acceptance confirms, and expiry advan
         sameSite: 'Lax',
       },
     ]);
-    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/portal/orgs/${actor.orgId}/register`);
+    expect(await accessibilityViolations(page)).toEqual([]);
     const participant = page.getByLabel(
       'Participant for Fixture League · Player waitlist',
     );
@@ -588,6 +595,7 @@ test('waitlist cancellation offers a spot, acceptance confirms, and expiry advan
     await expect(
       page.getByRole('heading', { name: 'Registration confirmed' }),
     ).toBeVisible();
+    expect(await accessibilityViolations(page)).toEqual([]);
 
     const acceptedRegistration = await createWithOrg(database)(actor, (trx) =>
       trx

@@ -5,15 +5,12 @@ import { issueSession } from '../server/src/modules/auth/sessions';
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
-
-const offset = Number(process.env.PORT_OFFSET ?? '0');
+import { e2eDatabaseUrl } from './database';
 
 test('payer opens working finance pages from the family portal', async ({
   page,
 }, testInfo) => {
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   try {
     const actor = await createTestFactories(database).actor();
     const session = await database.transaction().execute((trx) =>

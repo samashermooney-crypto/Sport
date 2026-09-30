@@ -55,3 +55,8 @@ Progress 2026-09-29: People and household list/detail failures now offer retry i
 Progress 2026-09-29: Implemented DEC-018's installable app manifest and versioned offline shell cache with design-token colors; only SPA documents and fingerprinted assets are cached, while API, files, and public-site SSR remain network-only. The focused PWA asset test, typecheck, and lint pass. Full GitHub CI and the trusted native Chrome subscription check remain pending.
 Progress 2026-09-29: Added version-checked, audited retirement for active published waivers, preserving signed evidence and removing retired versions from family signing. The waiver service test passed (1/1), Forms/Waivers HTTP tests passed (2/2), OpenAPI regenerated, typecheck passed, and touched-file lint passed. Added a staff confirmation and retirement browser journey; full GitHub CI is pending for the updated branch head.
 Progress 2026-09-29: Hardened the recovery-code sign-in journey for WebKit: it now reads the regenerated one-time code from the API response, verifies the displayed code matches, and clears the old session before testing a fresh MFA sign-in. Mobile-browser verification remains with GitHub CI.
+
+## Requests from QA
+
+- **QA-ACC-065:** coordinate the public website route contract with C/D and mount `/site` and host-root SEO aliases through the shared app with tenant-safe verified custom-domain resolution; see `docs/codex/qa/DEFECTS.md`.
+- **QA-ACC-063:** gate the self-account medical view's athlete-link query and controls on a verified guardian relationship while preserving guardian access; see `docs/codex/qa/DEFECTS.md`.

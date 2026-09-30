@@ -37,4 +37,9 @@ Current: final follow-up commit `c1a5a90` passed the shared-trunk merge gate aga
 - Shared-trunk merge gate: typecheck and lint passed; full Vitest passed with 239 files / 842 tests passing and one existing skipped file/test; Chromium desktop passed 32 tests with the six documented cross-track `test.fixme` cases.
 - `npm run build` passes on the latest `7175207` trunk sync. `npm audit --omit=dev --audit-level=high` exits clean for high/critical findings; npm reports two moderate transitive `uuid` advisories beneath `exceljs`.
 - `npm run knip` fails on the current trunk with 6 unused files, 43 unused exports, 28 unused types, and 1 duplicate export; owner requests are above.
+## Requests from QA
+
+- QA-SEC-018: rotate omitted `athlete_cards.qr_secret_enc` and `checkouts.requirements_enc`, plus split-envelope `fundraising_settings.ein_ciphertext` (key ID is stored in `ein_key_version`). These values are written through `encryptRestricted()` but absent from `server/src/lib/security/encryption-rotation.ts`; the existing CLI test covers only medical profiles and MFA. Add dry-run/apply assertions and a completeness guard. See `docs/codex/qa/DEFECTS.md`.
+- Existing rate-limit, webhook-signature, upload bypass, SSRF, stored-XSS, session fixation, MFA/impersonation, and key-rotation checks are included in the 66 passing tests. Step-up token rotation remains `test.fixme` against the observed Track A gap.
+
 - Existing CSRF, rate-limit, webhook-signature, upload bypass, SSRF, stored-XSS, MFA/impersonation, and key-rotation checks are included in the passing security suite. Step-up token rotation is verified by the enabled targeted auth and Chromium regressions above.

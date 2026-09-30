@@ -9,8 +9,7 @@ import { emitPendingScheduleBatches } from '../server/src/modules/scheduling/gen
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
-
-const offset = Number(process.env.PORT_OFFSET ?? '0');
+import { e2eDatabaseUrl } from './database';
 
 test.use({ timezoneId: 'UTC' });
 
@@ -36,9 +35,7 @@ test('staff configures statistics, finalizes a game, closes a facility, and open
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   try {
     const factories = createTestFactories(database);
     const actor = await factories.actor();

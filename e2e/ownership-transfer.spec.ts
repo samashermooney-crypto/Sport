@@ -9,10 +9,10 @@ import { createTestFactories } from '../server/test/factories';
 import { newId } from '../shared/src/ids';
 
 import { accessibilityViolations } from './axe';
+import { e2eDatabaseUrl, e2eMailpitApiBaseUrl } from './database';
 
-const offset = Number(process.env.PORT_OFFSET ?? '0');
-const connection = `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`;
-const mailpit = `http://127.0.0.1:${String(8025 + offset)}/api/v1/messages`;
+const connection = e2eDatabaseUrl('app');
+const mailpit = `${e2eMailpitApiBaseUrl()}/api/v1/messages`;
 
 test('recipient accepts owner transfer from the staff screen', async ({
   page,
@@ -156,7 +156,7 @@ test('recipient accepts owner transfer from the staff screen', async ({
           if (!message.To.some((item) => item.Address === recipientEmail))
             continue;
           const detailResponse = await request.get(
-            `http://127.0.0.1:${String(8025 + offset)}/api/v1/message/${message.ID}`,
+            `${e2eMailpitApiBaseUrl()}/api/v1/message/${message.ID}`,
           );
           const detail = (await detailResponse.json()) as { Text: string };
           link =

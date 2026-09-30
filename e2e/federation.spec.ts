@@ -8,6 +8,7 @@ import type { ActorFixture } from '../server/test/factories';
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
+import { e2eDatabaseUrl } from './database';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
@@ -18,9 +19,7 @@ test('two member clubs complete a U12 inter-club season', async ({
   page,
 }, testInfo) => {
   test.setTimeout(180_000);
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   const withOrg = createWithOrg(database);
   const factories = createTestFactories(database);
   try {
@@ -330,6 +329,37 @@ test('two member clubs complete a U12 inter-club season', async ({
       page.getByRole('rowheader', { name: 'Northside U12', exact: true }),
     ).toBeVisible();
     expect(await accessibilityViolations(page)).toEqual([]);
+  } finally {
+    await database.destroy();
+  }
+});
+
+test('QA-ACC-033 / Track C: federation is reachable from console navigation', async ({
+  page,
+}, testInfo) => {
+  const database = createDatabase(e2eDatabaseUrl('app'));
+  const withOrg = createWithOrg(database);
+  const factories = createTestFactories(database);
+  try {
+    const league = await factories.actor();
+    await loginAs(
+      page,
+      testInfo.project.use.baseURL,
+      database,
+      withOrg,
+      league,
+    );
+    await page.goto(`/console/orgs/${league.orgId}`);
+    const federationLink = page.getByRole('link', {
+      name: 'Federation',
+      exact: true,
+    });
+    await expect(federationLink).toBeVisible();
+    await federationLink.click();
+    await expect(page).toHaveURL(`/console/federation/${league.orgId}`);
+    await expect(
+      page.getByRole('heading', { name: 'League and association' }),
+    ).toBeVisible();
   } finally {
     await database.destroy();
   }

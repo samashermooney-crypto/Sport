@@ -1051,3 +1051,11 @@
 - **Decision:** Store account feeds with the account key, team feeds with a matching team-season key, and facility feeds with neither key and an explicit facility scope. Require schedule read for account/team scopes and schedule management for facility scopes. Include only active, verified account-to-person links in account ICS feeds, and require scope authorization before idempotently returning a revoked feed.
 - **Why:** The database shape matches all three public subscription types, and private family calendars must not disclose events through an unverified or unauthorized link.
 - **Consequences / follow-ups:** Migration `3018` replaces the account/team-only scope check; token plaintext is returned only on creation. Focused integration and Chromium/WebKit journeys cover creation, listing, revocation, tenant boundaries, and unverified-link exclusion.
+
+### DEC-139 — Keep authorization regressions active while route contracts are incomplete
+- **Date:** 2026-09-29
+- **Phase / area:** Phase 16 §1 security acceptance
+- **Context:** The current trunk snapshot does not yet publish complete operation permission/resource/scope metadata or an owner-reviewed role matrix, while resource-ID tenancy fuzzing can otherwise pass on random nonexistent IDs.
+- **Decision:** Keep route-authorization, permission-matrix, and tenancy-fuzz assertions active. Report missing contracts as concrete acceptance failures; do not infer policy from path names or treat arbitrary 404s as proof of tenant isolation.
+- **Why:** Security coverage must stay visible in CI without turning unsupported assumptions into false authorization guarantees.
+- **Consequences / follow-ups:** Track C owns generated route metadata, valid same-tenant and foreign-tenant resource fixtures, and the reviewed allow/deny matrix. QA regressions remain active until those contracts and runtime authorization checks are complete.

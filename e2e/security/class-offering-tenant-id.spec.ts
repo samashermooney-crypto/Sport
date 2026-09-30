@@ -8,6 +8,7 @@ import { PostgresClassSchedules } from '../../server/src/modules/classes/schedul
 import { PostgresClassSessions } from '../../server/src/modules/classes/sessions';
 import { PostgresClassSkills } from '../../server/src/modules/classes/skills';
 import { createTestFactories } from '../../server/test/factories';
+import { e2eDatabaseUrl } from '../database';
 
 const offset = Number(process.env.PORT_OFFSET ?? '0');
 
@@ -42,9 +43,7 @@ function offeringInput(programId: string) {
 test('SEC-002: class offering routes hide existing foreign IDs on direct and nested paths', async ({
   request,
 }) => {
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   const apiOrigin = `http://127.0.0.1:${String(3001 + offset)}`;
   const apiBase = `${apiOrigin}/api/v1/classes/orgs`;
   const webOrigin = `https://127.0.0.1:${String(5173 + offset)}`;

@@ -10,8 +10,7 @@ import { createConversation } from '../server/src/modules/chat/service';
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
-
-const offset = Number(process.env.PORT_OFFSET ?? '0');
+import { e2eDatabaseUrl } from './database';
 
 async function signInBrowser(
   page: import('@playwright/test').Page,
@@ -49,9 +48,7 @@ async function signInBrowser(
 test('staff builds a bilingual campaign, reviews its audience, test-sends in-app, and cancels a schedule', async ({
   page,
 }, testInfo) => {
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   try {
     const actor = await createTestFactories(database).actor();
     const withOrg = createWithOrg(database);
@@ -126,11 +123,9 @@ test('staff builds a bilingual campaign, reviews its audience, test-sends in-app
 test('family sends a chat message from the mobile portal with realtime controls accessible', async ({
   page,
 }, testInfo) => {
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   const admin = new pg.Client({
-    connectionString: `postgres://athlentry_admin@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
+    connectionString: e2eDatabaseUrl('admin'),
   });
   try {
     const actor = await createTestFactories(database).actor();

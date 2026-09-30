@@ -25,8 +25,7 @@ import { syncPaidTeamFees } from '../server/src/modules/team-finance/service';
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
-
-const offset = Number(process.env.PORT_OFFSET ?? '0');
+import { e2eDatabaseUrl, e2eMailpitApiBaseUrl } from './database';
 
 async function signInBrowser(
   page: import('@playwright/test').Page,
@@ -86,9 +85,7 @@ test.describe('Phase 11 acceptance', () => {
   test('household completes a volunteer shift, checks in, and buys out its remaining requirement', async ({
     page,
   }, testInfo) => {
-    const database = createDatabase(
-      `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-    );
+    const database = createDatabase(e2eDatabaseUrl('app'));
     try {
       const factories = createTestFactories(database);
       const actor = await createActor(database);
@@ -247,9 +244,7 @@ test.describe('Phase 11 acceptance', () => {
   test('team finances issue three installments, record the first payment, and approve a treasurer reimbursement', async ({
     page,
   }, testInfo) => {
-    const database = createDatabase(
-      `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-    );
+    const database = createDatabase(e2eDatabaseUrl('app'));
     try {
       const factories = createTestFactories(database);
       const actor = await createActor(database);
@@ -527,9 +522,7 @@ test.describe('Phase 11 acceptance', () => {
   test('family submits a ship-to address and store staff can read it for fulfillment', async ({
     page,
   }, testInfo) => {
-    const database = createDatabase(
-      `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-    );
+    const database = createDatabase(e2eDatabaseUrl('app'));
     try {
       const factories = createTestFactories(database);
       const actor = await createActor(database);
@@ -638,9 +631,7 @@ test.describe('Phase 11 acceptance', () => {
     page,
     request,
   }, testInfo) => {
-    const database = createDatabase(
-      `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-    );
+    const database = createDatabase(e2eDatabaseUrl('app'));
     try {
       const factories = createTestFactories(database);
       const actor = await createActor(database);
@@ -726,7 +717,7 @@ test.describe('Phase 11 acceptance', () => {
         .poll(
           async () => {
             const mailbox = await request.get(
-              `http://127.0.0.1:${String(8025 + offset)}/api/v1/messages`,
+              `${e2eMailpitApiBaseUrl()}/api/v1/messages`,
             );
             const summary = (await mailbox.json()) as {
               messages: Array<{
@@ -739,7 +730,7 @@ test.describe('Phase 11 acceptance', () => {
             );
             if (!message) return '';
             const detailResponse = await request.get(
-              `http://127.0.0.1:${String(8025 + offset)}/api/v1/message/${message.ID}`,
+              `${e2eMailpitApiBaseUrl()}/api/v1/message/${message.ID}`,
             );
             const detail = (await detailResponse.json()) as { Text: string };
             receiptText = detail.Text;

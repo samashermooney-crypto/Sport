@@ -11,8 +11,7 @@ import { issueSession } from '../server/src/modules/auth/sessions';
 import { createTestFactories } from '../server/test/factories';
 
 import { accessibilityViolations } from './axe';
-
-const offset = Number(process.env.PORT_OFFSET ?? '0');
+import { e2eDatabaseUrl, e2eMailpitApiBaseUrl } from './database';
 
 test('staff invites a guardian and the verified adult accepts on a phone', async ({
   page,
@@ -20,9 +19,7 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
   request,
 }, testInfo) => {
   test.setTimeout(60_000);
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   const guardianContext = await browser.newContext({
     ignoreHTTPSErrors: true,
     viewport: { width: 390, height: 844 },
@@ -157,9 +154,7 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
     await expect
       .poll(async () => {
         const mailbox = (await (
-          await request.get(
-            `http://127.0.0.1:${String(8025 + offset)}/api/v1/messages`,
-          )
+          await request.get(`${e2eMailpitApiBaseUrl()}/api/v1/messages`)
         ).json()) as {
           messages: Array<{ ID: string; To: Array<{ Address: string }> }>;
         };
@@ -170,7 +165,7 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
             continue;
           const detail = (await (
             await request.get(
-              `http://127.0.0.1:${String(8025 + offset)}/api/v1/message/${message.ID}`,
+              `${e2eMailpitApiBaseUrl()}/api/v1/message/${message.ID}`,
             )
           ).json()) as { Text: string };
           link =
@@ -260,6 +255,13 @@ test('staff invites a guardian and the verified adult accepts on a phone', async
         .getByRole('status')
         .filter({ hasText: 'Medical profile saved.' }),
     ).toBeVisible();
+    await guardianPage.reload();
+    await expect(
+      guardianPage.getByRole('textbox', { name: 'Allergies', exact: true }),
+    ).toHaveValue('Peanuts');
+    await expect(
+      guardianPage.getByRole('textbox', { name: 'Medications' }),
+    ).toHaveValue('Epinephrine auto-injector');
     await guardianPage
       .getByRole('textbox', { name: 'Contact name' })
       .fill('Jordan Rivera');
@@ -326,9 +328,7 @@ test('staff issues an adult profile claim and the invited account accepts', asyn
   request,
 }, testInfo) => {
   test.setTimeout(60_000);
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   const recipientContext = await browser.newContext({
     ignoreHTTPSErrors: true,
     viewport: { width: 390, height: 844 },
@@ -399,9 +399,7 @@ test('staff issues an adult profile claim and the invited account accepts', asyn
     await expect
       .poll(async () => {
         const mailbox = (await (
-          await request.get(
-            `http://127.0.0.1:${String(8025 + offset)}/api/v1/messages`,
-          )
+          await request.get(`${e2eMailpitApiBaseUrl()}/api/v1/messages`)
         ).json()) as {
           messages: Array<{ ID: string; To: Array<{ Address: string }> }>;
         };
@@ -410,7 +408,7 @@ test('staff issues an adult profile claim and the invited account accepts', asyn
             continue;
           const detail = (await (
             await request.get(
-              `http://127.0.0.1:${String(8025 + offset)}/api/v1/message/${message.ID}`,
+              `${e2eMailpitApiBaseUrl()}/api/v1/message/${message.ID}`,
             )
           ).json()) as { Text: string };
           link =
@@ -469,9 +467,7 @@ test('guardian invites a teen athlete who accepts a read-only view and is revoke
   request,
 }, testInfo) => {
   test.setTimeout(60_000);
-  const database = createDatabase(
-    `postgres://athlentry_app@127.0.0.1:${String(5432 + offset)}/athlentry_e2e`,
-  );
+  const database = createDatabase(e2eDatabaseUrl('app'));
   const guardianContext = await browser.newContext({
     ignoreHTTPSErrors: true,
     viewport: { width: 390, height: 844 },
@@ -574,9 +570,7 @@ test('guardian invites a teen athlete who accepts a read-only view and is revoke
     await expect
       .poll(async () => {
         const mailbox = (await (
-          await request.get(
-            `http://127.0.0.1:${String(8025 + offset)}/api/v1/messages`,
-          )
+          await request.get(`${e2eMailpitApiBaseUrl()}/api/v1/messages`)
         ).json()) as {
           messages: Array<{ ID: string; To: Array<{ Address: string }> }>;
         };
@@ -587,7 +581,7 @@ test('guardian invites a teen athlete who accepts a read-only view and is revoke
             continue;
           const detail = (await (
             await request.get(
-              `http://127.0.0.1:${String(8025 + offset)}/api/v1/message/${message.ID}`,
+              `${e2eMailpitApiBaseUrl()}/api/v1/message/${message.ID}`,
             )
           ).json()) as { Text: string };
           link =
