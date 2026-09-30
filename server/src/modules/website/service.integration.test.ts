@@ -1100,6 +1100,7 @@ describe('website page service', () => {
     const privateTeamId = randomUUID();
     const publicTeamSeasonId = randomUUID();
     const privateTeamSeasonId = randomUUID();
+    const mismatchedTeamSeasonId = randomUUID();
     const publicOfferingId = randomUUID();
     const publicEventId = randomUUID();
     const privateEventId = randomUUID();
@@ -1162,7 +1163,8 @@ describe('website page service', () => {
       await admin.query(
         `INSERT INTO team_seasons (id, org_id, team_id, program_id, division_id, status)
          VALUES ($1, $2, $3, $4, $5, 'active'),
-                ($6, $2, $7, $8, $9, 'active')`,
+                ($6, $2, $7, $8, $9, 'active'),
+                ($10, $2, $7, $4, $9, 'active')`,
         [
           publicTeamSeasonId,
           orgId,
@@ -1173,6 +1175,7 @@ describe('website page service', () => {
           privateTeamId,
           privateProgramId,
           privateDivisionId,
+          mismatchedTeamSeasonId,
         ],
       );
       await admin.query(
@@ -1275,6 +1278,14 @@ describe('website page service', () => {
       });
       await expect(
         getPublicWebsiteTeam(database, orgSlug, privateTeamSeasonId, withOrg),
+      ).resolves.toBeNull();
+      await expect(
+        getPublicWebsiteTeam(
+          database,
+          orgSlug,
+          mismatchedTeamSeasonId,
+          withOrg,
+        ),
       ).resolves.toBeNull();
       await expect(
         getPublicWebsiteProgram(database, orgSlug, publicProgramSlug, withOrg),
@@ -1395,12 +1406,13 @@ describe('website page service', () => {
         publicOfferingId,
       ]);
       await admin.query(
-        'DELETE FROM team_ledgers WHERE team_season_id IN ($1, $2)',
-        [publicTeamSeasonId, privateTeamSeasonId],
+        'DELETE FROM team_ledgers WHERE team_season_id IN ($1, $2, $3)',
+        [publicTeamSeasonId, privateTeamSeasonId, mismatchedTeamSeasonId],
       );
-      await admin.query('DELETE FROM team_seasons WHERE id IN ($1, $2)', [
+      await admin.query('DELETE FROM team_seasons WHERE id IN ($1, $2, $3)', [
         publicTeamSeasonId,
         privateTeamSeasonId,
+        mismatchedTeamSeasonId,
       ]);
       await admin.query('DELETE FROM teams WHERE id IN ($1, $2)', [
         publicTeamId,

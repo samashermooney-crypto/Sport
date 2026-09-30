@@ -1114,7 +1114,8 @@ function publicWebsiteTeamsQuery(trx: OrgTransaction, orgId: string) {
     .innerJoin('divisions as division', (join) =>
       join
         .onRef('division.org_id', '=', 'ts.org_id')
-        .onRef('division.id', '=', 'ts.division_id'),
+        .onRef('division.id', '=', 'ts.division_id')
+        .onRef('division.program_id', '=', 'program.id'),
     )
     .select([
       'ts.id',
