@@ -1,5 +1,5 @@
 # Track C — files, adapters, and wiring
-Status: working — local integration code head `1de30ec7` includes the volunteer buyout transaction fix; exact-head hosted verification is pending.
+Status: working — local integration code head `ef416672` includes A’s latest sign-in permission diagnostics and D’s transaction-aware volunteer buyout recheck; exact-head hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
 Hosted CI: runs `36698501721`, `36701650873`, and `36702271095` each passed the crawler routes after C’s Vite proxy correction. On `36702271095` (`c536e533`), E2E passed 114/115, including the 6.7-minute crawler; only the Chromium notification permission assertion failed. Its database/unit `test` and all static jobs passed. The same test/static result held on `36701650873` (`e522984e`), whose E2E passed 114/115 with the same notification failure. Run `36700407619` had the earlier skip-link fixture and permission failures.
 Open integration work: exact-head hosted verification after `ea5cc58e` is pending. Run `36703489205` on `326938d3` completed with database/unit `test` and all static jobs green; E2E passed 114/115, with only the notification permission assertion failing. Its trace records `BrowserContext.grantPermissions(['notifications'], { origin: 'https://127.0.0.1:5173' })` before navigation, and `/sign-up` responds 200 without a Permissions-Policy header, yet Chromium reports `denied`. The crawler passed. The current exact-head run `36704696583` on `ea5cc58e` tests A’s `36fbb761` follow-up, which removes project-wide permissions and scopes the explicit grant to this sign-in test; its E2E and database/unit jobs are in progress. Latest D fix `2dbe7f2c` keeps buyout queries on the lock-owning DB session. No GREEN result is claimed.
@@ -259,4 +259,11 @@ Open integration work: exact-head hosted verification after `ea5cc58e` is pendin
 - Focused real-Postgres volunteer integration tests pass 4/4 on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500`; guarded typecheck and lint pass. Commit hooks also passed typecheck.
 - Run `36705910918` E2E was still in progress at the latest check, so exact-head hosted verification remains pending. Its static jobs passed. No full suite or local Playwright run was started.
 
-INTEGRATION READY 1de30ec7
+## A/D integration and CI follow-up — 2026-09-30 06:23 CDT
+
+- Merged latest `fix/a` as `4627d07e`; its Chromium journey now reports secure-context, `Notification.permission`, and Permissions API state while keeping the granted assertions and fake-only push provider.
+- Merged latest `fix/d` as `ef416672`; resolved the volunteer service overlap in favor of passing the active tenant transaction into the ledger reread. The requirement row lock remains held through buyout persistence.
+- The focused real-Postgres volunteer service file passes 4/4 on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500`. D merge hooks passed typecheck; guarded full lint and typecheck pass on the integrated tree.
+- Run `36705910918` tests `0db09e6d`, before the buyout transaction fix, failed only the two volunteer buyout timeout cases; all other 339 test files passed. Static jobs passed. Its E2E job remains in progress, so crawler and sign-in status for that run are unresolved. No local Playwright or full suite was started.
+
+INTEGRATION READY ef416672
