@@ -1947,7 +1947,7 @@ export async function getPublicWebsiteEmbed(
     );
     items = standings.rows.map((row) => ({
       label: `${String(row.rank)}. ${standings.teamNames[row.teamId] ?? 'Team'}`,
-      href: `/site/${organization.slug}/standings/${publicProgram.slug}`,
+      href: `/orgs/${encodeURIComponent(organization.slug)}/programs/${encodeURIComponent(publicProgram.id)}/standings`,
       detail: `${String(row.wins)}–${String(row.losses)}–${String(row.ties)} · ${String(row.points)} points`,
     }));
   } else {

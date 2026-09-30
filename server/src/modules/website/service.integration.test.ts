@@ -22,6 +22,7 @@ import {
   getPublicWebsiteProgram,
   getPublicWebsitePrograms,
   getPublicWebsiteSchedule,
+  getPublicWebsiteEmbed,
   getPublicWebsitePage,
   listWebsiteMenus,
   listWebsiteDomains,
@@ -884,6 +885,62 @@ describe('website page service', () => {
           privateProgramId,
         ],
       );
+      await admin.query(
+        `INSERT INTO standings_configs (id, org_id, program_id, config)
+         VALUES ($1, $2, $3, $4::jsonb)`,
+        [
+          randomUUID(),
+          orgId,
+          publicProgramId,
+          JSON.stringify({
+            basis: 'match',
+            points: {
+              win: 3,
+              overtimeWin: 3,
+              tie: 1,
+              overtimeLoss: 0,
+              loss: 0,
+              forfeitWin: 3,
+              forfeitLoss: 0,
+              forfeitDeduction: 0,
+            },
+            rankBy: 'points',
+            winPercentageTieValue: 0.5,
+            forfeitScore: { winner: 3, loser: 0 },
+            tiebreakers: ['wins'],
+            include: { stages: ['regular'], crossDivision: false },
+            columns: [
+              'rank',
+              'team',
+              'played',
+              'wins',
+              'losses',
+              'ties',
+              'points',
+            ],
+            publicVisibility: 'public',
+          }),
+        ],
+      );
+      await admin.query(
+        `INSERT INTO standings_snapshots (id, org_id, scope_type, scope_id, rows)
+         VALUES ($1, $2, 'program', $3, $4::jsonb)`,
+        [
+          randomUUID(),
+          orgId,
+          publicProgramId,
+          JSON.stringify([
+            {
+              teamId: randomUUID(),
+              rank: 1,
+              wins: 4,
+              losses: 0,
+              ties: 0,
+              points: 12,
+            },
+          ]),
+        ],
+      );
 
       const programs = await getPublicWebsitePrograms(
         database,
@@ -910,6 +967,23 @@ describe('website page service', () => {
           withOrg,
         ),
       ).resolves.toBeNull();
+      const standingsWidget = await saveWebsiteEmbed(
+        context,
+        undefined,
+        {
+          config: { kind: 'standings', programId: publicProgramId },
+        },
+        withOrg,
+      );
+      const standingsEmbed = await getPublicWebsiteEmbed(
+        database,
+        orgSlug,
+        standingsWidget.embed.publicKey,
+        withOrg,
+      );
+      expect(standingsEmbed?.items[0]?.href).toBe(
+        `/orgs/${orgSlug}/programs/${publicProgramId}/standings`,
+      );
       const schedule = await getPublicWebsiteSchedule(
         database,
         orgSlug,
@@ -972,6 +1046,14 @@ describe('website page service', () => {
         publicEventId,
         privateEventId,
       ]);
+      await admin.query(
+        'DELETE FROM standings_snapshots WHERE org_id = $1 AND scope_id = $2',
+        [orgId, publicProgramId],
+      );
+      await admin.query(
+        'DELETE FROM standings_configs WHERE org_id = $1 AND program_id = $2',
+        [orgId, publicProgramId],
+      );
       await admin.query('DELETE FROM registration_offerings WHERE id = $1', [
         publicOfferingId,
       ]);
