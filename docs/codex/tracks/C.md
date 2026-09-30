@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — local integration code head `ef416672` includes A’s latest sign-in permission diagnostics and D’s transaction-aware volunteer buyout recheck; exact-head hosted verification is pending.
+Status: working — local integration code head `51c9ef3d` includes A/D merges, the buyout transaction repair, and balanced household invoice fixtures; exact-head hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Hosted CI: Run `36705910918` on `0db09e6d` completed with all static jobs passing. The unit job failed only the two volunteer buyout transaction timeouts; E2E passed the route crawler (7.3 minutes, no same-origin failures) and 112 tests, with the pre-merge buyout and Chromium permission failures listed below.
-Open integration work: current candidate `ef416672` includes the buyout transaction fix and A’s latest permission diagnostics. The failure-producing hosted run predates both latest merges; exact-candidate CI verification is pending. Crawler determinism is confirmed on `36705910918`; no remaining crawler failure is reported.
+Hosted CI: Runs `36707770132`, `36708389157`, and `36709011269` all have green unit tests; static jobs passed on the latest completed run. E2E on `36709011269` passed 114 tests, including the route crawler in 6.7 minutes and both Phase 11 buyout journeys. Its only failure was A’s sign-in permission assertion: secure context and Permissions API report granted, while `Notification.permission` reports denied.
+Open integration work: A’s browser permission mismatch remains open with the diagnostic recorded in A.md. C fixed the newly merged household balance fixture in `51c9ef3d`; run `36710230248` predates that fix, and hosted verification of the current candidate is pending. The route crawler has passed its same-origin HTTP/request assertions in the latest three completed E2E jobs.
 
 ## Completed Track C work
 
@@ -263,6 +263,14 @@ Open integration work: current candidate `ef416672` includes the buyout transact
 - Merged latest `fix/a` as `4627d07e`; its Chromium journey now reports secure-context, `Notification.permission`, and Permissions API state while keeping the granted assertions and fake-only push provider.
 - Merged latest `fix/d` as `ef416672`; resolved the volunteer service overlap in favor of passing the active tenant transaction into the ledger reread. The requirement row lock remains held through buyout persistence.
 - The focused real-Postgres volunteer service file passes 4/4 on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500`. D merge hooks passed typecheck; guarded full lint and typecheck pass on the integrated tree.
-- Run `36705910918` on `0db09e6d` completed: its unit job failed only the two volunteer buyout timeouts (all other 339 files passed); E2E passed the crawler route assertions and 112 tests overall, with the two buyout journeys and A’s sign-in permission assertion failing on pre-merge code. Static jobs passed. The merged fixes at `ef416672` await a new hosted run; no local Playwright or full suite was started.
+- Runs `36707770132` and `36708389157` confirmed the buyout repair: unit tests passed and both buyout browser journeys passed. Run `36709011269` again passed 114 E2E tests, including the crawler, with only A’s sign-in permission mismatch failing. The new household test fix is now in `51c9ef3d`; no local Playwright or full suite was started.
 
-INTEGRATION READY ef416672
+## Household fixture and hosted permission diagnostic — 2026-09-30 06:51 CDT
+
+- The regression interval `ff0828f4..ea5cc58e` isolates D commit `2dbe7f2c`: it pinned buyout work to the advisory-lock connection but the row-locked ledger recheck still opened a nested transaction. D’s `74a699fc` follow-up passes the active tenant transaction into that recheck. The real-Postgres volunteer integration file passes 4/4; hosted runs `36707770132`, `36708389157`, and `36709011269` report the unit job green, and their E2E runs pass both Phase 11 buyout journeys.
+- The crawler passed all same-origin HTTP/request assertions in `36705910918` (7.3m), `36707770132` (7.5m), `36708389157` (7.4m), and `36709011269` (6.7m). No rotating crawler failure appears in the completed runs, so its existing serial seeds, project schema reset, readiness checks, and strict network assertions remain unchanged.
+- Runs `36708389157` and `36709011269` isolate A’s remaining sign-in issue: `secureContext: true`, `permissionsApi: "granted"`, but `Notification.permission: "denied"` on all Chromium retries. This is recorded in A.md; the grant assertion and fake-only delivery remain intact.
+- Merged A’s household-acceptance coverage (`0852dc3c`) as `b966ec51`. The focused Postgres test exposed missing `invoice_lines` in its fixture, violating the deferred invoice reconciliation trigger. Added one matching line per header in `51c9ef3d`; the household integration file passes 1/1 on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500`. Commit hooks pass typecheck, ESLint, and Prettier.
+- Run `36710230248` is on `b966ec51`, before the fixture correction. Hosted verification of current code head `51c9ef3d` is pending. No full suite or local Playwright run was started.
+
+INTEGRATION READY 51c9ef3d
