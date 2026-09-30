@@ -50,7 +50,7 @@ VITE_CONFIG
 ln -sfn web legacy/src
 DATABASE_PATH=/tmp/legacy-parity.db PORT=3001 node legacy/server/index.mjs &
 LEGACY_API_PID=$!
-(cd legacy && node /work/node_modules/vite/bin/vite.js \
+(cd legacy && node "$PWD/../node_modules/vite/bin/vite.js" \
   --config "$LEGACY_VITE_CONFIG_DIR/vite.config.mjs" \
   --port 5173 --strictPort) &
 LEGACY_WEB_PID=$!
