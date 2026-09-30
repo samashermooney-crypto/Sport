@@ -334,6 +334,10 @@ export async function visitPath(
       `${path} should render a heading`,
     ).toBeVisible();
     await expect(
+      page.locator('[aria-busy="true"]:visible'),
+      `${path} visible data regions should finish loading`,
+    ).toHaveCount(0);
+    await expect(
       page.locator('.ui-message.error-box'),
       `${path} should not render an error state`,
     ).toHaveCount(0);
