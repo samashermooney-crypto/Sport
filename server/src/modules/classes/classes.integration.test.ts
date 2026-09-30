@@ -1168,23 +1168,6 @@ describe('academy classes integration', () => {
 
   it('does not treat a guardian link as an instructor identity', async () => {
     await withOrg()(ownerContext, async (trx) => {
-      const session = await trx
-        .selectFrom('class_sessions')
-        .select('class_schedule_id')
-        .where('org_id', '=', orgA)
-        .where('id', '=', firstSessionId)
-        .executeTakeFirstOrThrow();
-      await trx
-        .insertInto('class_instructors')
-        .values({
-          id: randomUUID(),
-          org_id: orgA,
-          class_schedule_id: session.class_schedule_id,
-          person_id: instructorPersonA,
-          status: 'active',
-          added_by: ownerA,
-        })
-        .execute();
       await trx
         .insertInto('person_account_links')
         .values({

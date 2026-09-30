@@ -274,4 +274,87 @@ describe('volunteer requirements and signups', () => {
       ),
     ).rejects.toBeInstanceOf(VolunteerAccessError);
   });
+
+  it('hides a household ledger from a director scoped to another program', async () => {
+    const factories = createTestFactories(database);
+    const org = await factories.actor();
+    const program = await factories.program(org);
+    const otherProgram = await factories.program(org);
+    const householdId = await factories.household(org);
+    const athleteId = await factories.person(org, {
+      firstName: 'Private',
+      lastName: 'Volunteer',
+      dateOfBirth: '2015-04-02',
+    });
+    await factories.registration(org, program, athleteId, householdId);
+    await factories.scoped(org, (trx) =>
+      trx
+        .insertInto('household_members')
+        .values({
+          id: randomUUID(),
+          org_id: org.orgId,
+          household_id: householdId,
+          person_id: athleteId,
+          role: 'athlete',
+          financially_responsible: true,
+        })
+        .execute()
+        .then(() => undefined),
+    );
+    await createVolunteerRequirement(database, org, {
+      programId: program.programId,
+      unit: 'shifts',
+      amountPerHousehold: 2,
+      deadline: '2026-12-31',
+      autoInvoiceShortfall: false,
+      noticeDays: 14,
+      countsCoachRoles: false,
+    });
+
+    const directorAccountId = randomUUID();
+    await database
+      .insertInto('accounts')
+      .values({
+        id: directorAccountId,
+        email: `scoped-director-${randomUUID()}@example.invalid`,
+        first_name: 'Scoped',
+        last_name: 'Director',
+        date_of_birth: '1985-01-01',
+        email_verified_at: new Date(),
+      })
+      .execute();
+    await factories.scoped(org, async (trx) => {
+      await trx
+        .insertInto('org_memberships')
+        .values({
+          id: randomUUID(),
+          org_id: org.orgId,
+          account_id: directorAccountId,
+          status: 'active',
+          joined_at: new Date(),
+        })
+        .execute();
+      await trx
+        .insertInto('role_assignments')
+        .values({
+          id: randomUUID(),
+          org_id: org.orgId,
+          account_id: directorAccountId,
+          role: 'director',
+          scope_type: 'program',
+          scope_id: otherProgram.programId,
+          granted_by: org.accountId,
+          pending_mfa: false,
+        })
+        .execute();
+    });
+
+    await expect(
+      householdVolunteerLedger(
+        database,
+        { orgId: org.orgId, actor: { accountId: directorAccountId } },
+        householdId,
+      ),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+  });
 });
