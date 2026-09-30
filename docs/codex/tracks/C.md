@@ -187,3 +187,12 @@ Open integration work: obtain hosted CI for `de95fbaa`, resolve remaining failur
 - The E2E determinism changes remain in `d1f93517` and `0fd83c1b`: route-crawl visits wait for all same-origin requests to settle plus 500 ms of quiet, crawler tests are serial, CI E2E uses one worker, and each browser-project startup resets and reseeds the E2E schema. Exact hosted verification is still required to confirm the moving route failures are resolved.
 - Route visits now also wait for visible `aria-busy="true"` data regions to clear before the idle check and link collection; the crawler still asserts on every same-origin HTTP/request failure, page error, and axe violation.
 - `ci/integration.txt` reports run `36681876874` in progress on `df0020a0`, before D's StorePortal test and A's notification fix; no hosted result exists yet for `de95fbaa`.
+
+
+## E2E ownership split and Phase 13 API repair — 2026-09-30
+
+- The 01:03 orchestrator note assigns C `e2e/federation.spec.ts`, `e2e/phase13-fee-void-atomicity.spec.ts`, and `e2e/security/federation-sharing-revocation.spec.ts`; A owns the class-security, volunteer-ledger, and SafeSport specs; D owns the uniform-report and buyout-race specs. Requests were recorded in A.md and D.md.
+- The fee-void failure was an API-boundary bug: `PostgresInvoiceRepository` raises typed 409/404 errors without Federation's required error code, so `sendModuleError` serialized the blocked void as 500 although the database transaction correctly rolled back. Federation now maps those invoice errors to Federation errors; a mounted real-Postgres API regression asserts 409 and the unchanged invoiced/open state.
+- Added a mounted real-Postgres route regression that repeats the federation sharing-revocation API sequence and verifies team-entry access remains while roster counts, snapshots, and personal roster details disappear immediately. The existing `server/test/federation.test.ts` remains green (21/21).
+- Verification on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500` (Postgres 127.0.0.1:5932): `server/test/federationConsoleRoutes.integration.test.ts` passes 4/4; `server/test/federation.test.ts` passes 21/21; `heavy.sh npm run typecheck` and `heavy.sh npm run lint` pass. No local Playwright run was started.
+- The checked-in `/Users/sammooney/athlentry-sprint/ci/integration.txt` still describes run `36682424875` / earlier head `3a7d76c8`, and does not include the 01:03 failure list or this fix. Hosted verification is pending; no CI-green claim is made.
