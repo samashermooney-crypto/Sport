@@ -5,7 +5,8 @@ import { sql } from 'kysely';
 
 import type { DB } from '../../db/types';
 import { createWithOrg } from '../../db/withOrg';
-import type { OrgContext } from '../../db/withOrg';
+import { withOrgInTransaction } from '../../db/withOrg';
+import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 import { appendAuditEvent } from '../audit/service';
 import { assertEligibleForRole } from '../compliance/policy';
 import { PostgresInvoiceRepository } from '../finance/invoice-repo';
@@ -691,8 +692,9 @@ export async function householdVolunteerLedger(
   context: OrgContext,
   householdId: string,
   now = new Date(),
+  transaction?: OrgTransaction,
 ) {
-  return createWithOrg(database)(context, async (trx) => {
+  const readLedger = async (trx: OrgTransaction) => {
     const access = await trx
       .selectFrom('households as household')
       .select('household.id')
@@ -881,7 +883,10 @@ export async function householdVolunteerLedger(
       });
     });
     return { householdId, items };
-  });
+  };
+  return transaction
+    ? withOrgInTransaction(transaction, context, readLedger)
+    : createWithOrg(database)(context, readLedger);
 }
 
 export async function buyOutVolunteerRequirement(
@@ -1036,6 +1041,7 @@ async function issueVolunteerBuyout(
         context,
         input.householdId,
         now,
+        trx,
       );
       const latest = currentLedger.items.find(
         (candidate) =>
