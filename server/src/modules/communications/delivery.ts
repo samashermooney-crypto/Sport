@@ -747,6 +747,13 @@ async function transitionDelivery(
   });
 }
 
+/**
+ * Deliveries sent inside the staff member's send request; the minute
+ * `communications.deliver-due` job drains the rest so large audiences
+ * return immediately.
+ */
+const inlineSendBatch = 100;
+
 export async function sendCampaign(
   context: OrgContext,
   campaignId: string,
@@ -798,7 +805,7 @@ export async function sendCampaign(
       id: string;
       recipient_account_id: string;
       channel: string;
-    }>`SELECT id, recipient_account_id, channel FROM message_deliveries WHERE org_id = ${context.orgId} AND campaign_id = ${campaignId} AND status IN ('queued', 'failed') AND (next_attempt_at IS NULL OR next_attempt_at <= ${now}) ORDER BY created_at LIMIT 5000`
+    }>`SELECT id, recipient_account_id, channel FROM message_deliveries WHERE org_id = ${context.orgId} AND campaign_id = ${campaignId} AND status IN ('queued', 'failed') AND (next_attempt_at IS NULL OR next_attempt_at <= ${now}) ORDER BY created_at LIMIT ${inlineSendBatch}`
       .execute(trx)
       .then((result) => result.rows),
   );
