@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — federation crawler API requests are covered for all 11 organization roles; fix/a (`31700147`) and fix/d (`6212934`) plus D follow-ups are merged into `track/integration`. C's storage adapter is injected into web routes and worker jobs. Route inventory, timezone validation, and verified-family notification/class portal access fixes are in progress or committed; hosted verification is pending.
+Status: working — crawler/database integration fixes committed locally through `d1f93517` on `track/integration`; hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Base head for this update: `e5b6e7a3` (`track/integration`). Older integration notes below are retained as historical context.
-Hosted CI: run `36660653200` completed RED on base `e5b6e7a3`. Its e2e log does not show federation bootstrap API failures; QA-ACC-033 instead timed out waiting for the Operations navigation button. The new test and mapping changes await a hosted run; no GREEN result is claimed.
+Base head for this repair: `758a22fe`; Track A and D syncs are merged as `111d0b2e` and `758a22fe`. Older integration notes below are retained as historical context.
+Hosted CI: run `36671455807` completed RED on pre-fix head `758a22fe` in `test` and `e2e`; Knip and the other static jobs passed. The repair commits have not been pushed, so no GREEN result is claimed.
 Open integration work: verify the current combined head in hosted CI, resolve remaining owned failures, and continue the launch-gate work below.
 
 ## Completed Track C work
@@ -149,3 +149,16 @@ Open integration work: verify the current combined head in hosted CI, resolve re
 - The latest completed CI snapshot was run `36663830530` on `4d15f738`; its remaining e2e errors are family documents, classes, and invalid `America/Minneapolis` timezone data. It shows no Federation API failures. A's family fixes are integrated at `31700147`, and D's seven-commit batch at `6212934`; D's later locale follow-up `fdab5e6c` is integrated as `94c4e9fb`. At last read, CI was PENDING on `d5d1aacb`; no hosted result is available yet for local head `807faf13`, which also includes D’s locale follow-up `94c4e9fb`.
 - Track D's storage-adapter wiring request is implemented across production web and worker startup. Environment-selected private S3 storage reaches mounted Files and Exports routes and registered jobs; jobs receive the configured storage, database, clock, and `withOrg` runner. Local development retains local disk and tests can select memory storage.
 - Targeted checks pass: storage adapter (9/9), production config (3/3), worker runtime injection (1/1), job registry (4/4), Federation API (2/2), and locale completeness (2/2). `heavy.sh npm run typecheck` and `heavy.sh npm run lint` pass. The merge hooks also passed typecheck after each A/D integration. Full suites and Playwright remain for hosted CI.
+
+
+## Crawler and test-job stabilization — 2026-09-30
+
+- Merged Track A and D syncs into the local integration candidate (`111d0b2e`, `758a22fe`). The failing hosted run `36671455807` is on pre-fix `758a22fe`; the report is in `/Users/sammooney/athlentry-sprint/ci/integration.txt`.
+- The failed `test` job showed `website/service.integration.test.ts` calling standings through the global `withOrg` database instead of the injected test runner, producing a SCRAM password error. `getStandings` now accepts the injected org runner, and public website embeds pass it through.
+- The same job showed the per-file Postgres database teardown hook timing out while server test files ran in parallel. The server Vitest project now runs one file at a time; tests remain enabled and assertions/timeouts are unchanged.
+- Focused Postgres testing exposed a date-boundary issue in tuition billing: date columns were compared with JavaScript timestamps, which could omit an enrollment on the period-end day. The query now compares date-to-date, and the fixture uses the current billing period. `classes.integration.test.ts` passes 20/20.
+- The crawler previously waited only for API requests already started at the time its pending set became empty, for 250 ms. Delayed lazy-route requests could begin after its listeners were removed and be charged to a later route. It now waits for all same-origin requests (excluding the long-lived event stream) to finish and remain idle for 500 ms. The route-crawler tests run serially to avoid crawler fixture load overlapping within that suite.
+- The failed e2e log also reports `/api/v1/finance/me/payment-methods` returning 503 when no payer Customer exists. Payer-method and Connect services now receive lazy gateway providers, so reads with no Stripe account and already-busy reservations do not initialize an unavailable Stripe dependency. Unit regressions cover both paths.
+- Real-Postgres targeted tests pass: website service 13/13, finance routes 18/18, classes 20/20; payer methods 6/6 and Connect service 6/6. `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` and `... npm run lint` pass after the crawler update. `git diff --check` passed before commit.
+- Commits: `6f832444 fix(test): stabilize database integration seams`; `d1f93517 fix(e2e): wait for crawler network idle`. `knip` was green on the pre-fix CI run. No full suite or Playwright run was started locally under CI-first rules; no tests were skipped or weakened.
+- Local Postgres stack: `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500`, host port 5932. The current hosted CI report is stale and still describes the pre-fix head; the exact committed candidate awaits hosted CI. No push was performed.
