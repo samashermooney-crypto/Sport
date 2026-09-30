@@ -1107,3 +1107,11 @@
 - **Decision:** `GET /api/v1/website/public/:orgSlug/teams/:teamSeasonId` and the server-rendered team page include `schedule`: published game-type events (game, match, tournament game, meet, bout session) for that team from 60 days back to 180 days ahead, capped at 100, with opponent team name, home/away, the public facility (or the published location text, as on the org schedule), status with the postponement/cancellation reason, and final team scores only when the contest is final or forfeited. Practices, meetings, people, rosters and staff are never included.
 - **Why:** Matches what families and competitors (SportsEngine, PlayMetrics) publish for teams, while keeping child and staff data private and reusing already-public event fields.
 - **Consequences / follow-ups:** Any new public event field must be reviewed against `04-PERMISSIONS-AND-PRIVACY.md` before it is added to this payload.
+
+### DEC-147 — Match import error rows structurally
+- **Date:** 2026-09-30
+- **Phase / area:** Phase 15 imports
+- **Context:** The import row error filter searched PostgreSQL's rendered `jsonb` text for a compact JSON substring, but PostgreSQL includes spaces in that rendering, so validated error rows were omitted from the filtered result.
+- **Decision:** Query the `issues` array with JSONB containment for an object whose `level` is `error`.
+- **Why:** Importers must be able to find and resolve rows that validation rejected; the structural predicate does not depend on JSON text formatting.
+- **Consequences / follow-ups:** Keep the real PostgreSQL integration test for the error filter as part of Phase 15 import coverage.

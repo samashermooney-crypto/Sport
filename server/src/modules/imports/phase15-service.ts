@@ -676,7 +676,7 @@ export function createImportsService(
           .where('batch_id', '=', batchId);
         if (query.filter === 'errors')
           statement = statement.where(
-            sql<boolean>`jsonb_array_length(issues) > 0 AND issues::text LIKE '%"level":"error"%'`,
+            sql<boolean>`issues @> '[{"level":"error"}]'::jsonb`,
           );
         if (query.filter === 'duplicates')
           statement = statement.where(
