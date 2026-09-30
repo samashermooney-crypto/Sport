@@ -3,8 +3,11 @@ import { standingsConfigSchema } from '@shared/sport/schema';
 import type { StandingsConfig } from '@shared/sport/schema';
 import { computeStandings } from '@shared/sport/standings';
 import type { StandingRow, StandingContest } from '@shared/sport/standings';
+import { sql, type Kysely } from 'kysely';
 
-import { withOrg } from '../../db/withOrg';
+import { getDatabase } from '../../db/kysely';
+import type { DB } from '../../db/types';
+import { createWithOrg, withOrg } from '../../db/withOrg';
 import type { OrgContext, OrgTransaction } from '../../db/withOrg';
 import { assertSchedulePermission } from '../scheduling/access';
 import { SchedulingRuleError } from '../scheduling/events';
@@ -372,46 +375,115 @@ async function persistSnapshot(
   return id;
 }
 
+const standingsSystemActor = '0199a1c0-0000-7000-8000-000000000001';
+
+/**
+ * Recomputes a scope inside the caller's transaction unless another
+ * transaction is recomputing it right now; then the scope is marked dirty and
+ * `standings.recompute-dirty` catches up. A burst of finalized results
+ * therefore costs one recompute per scope instead of one per result.
+ */
+async function recomputeScope(
+  trx: OrgTransaction,
+  orgId: string,
+  scopeType: 'program' | 'division',
+  scopeId: string,
+): Promise<'recomputed' | 'deferred' | 'unconfigured'> {
+  const lock = await sql<{ locked: boolean }>`
+    SELECT pg_try_advisory_xact_lock(
+      hashtextextended(${`standings:${orgId}:${scopeType}:${scopeId}`}, 0)
+    ) AS locked
+  `.execute(trx);
+  if (!lock.rows[0]?.locked) {
+    await trx
+      .insertInto('standings_dirty_scopes')
+      .values({
+        id: newId(),
+        org_id: orgId,
+        scope_type: scopeType,
+        scope_id: scopeId,
+      })
+      .onConflict((oc) =>
+        oc
+          .columns(['org_id', 'scope_type', 'scope_id'])
+          .doUpdateSet({ marked_at: sql`now()` }),
+      )
+      .execute();
+    return 'deferred';
+  }
+  const result = await computeSnapshot(
+    trx,
+    orgId,
+    scopeType === 'division' ? { divisionId: scopeId } : { programId: scopeId },
+    undefined,
+    true,
+  );
+  if (!result) return 'unconfigured';
+  await persistSnapshot(trx, orgId, scopeType, scopeId, result.rows);
+  return 'recomputed';
+}
+
 export async function recomputeStandingsForEvent(
   trx: OrgTransaction,
   context: OrgContext,
   programId: string | null,
   divisionId: string | null,
 ): Promise<void> {
-  if (divisionId) {
-    const result = await computeSnapshot(
-      trx,
-      context.orgId,
-      { divisionId },
-      undefined,
-      true,
+  if (divisionId)
+    await recomputeScope(trx, context.orgId, 'division', divisionId);
+  if (programId) await recomputeScope(trx, context.orgId, 'program', programId);
+}
+
+/** Recomputes scopes deferred during bursts; returns the scopes handled. */
+export async function recomputeDirtyStandings(
+  database: Kysely<DB>,
+  orgId: string,
+): Promise<number> {
+  const dirty = await createWithOrg(database)(
+    { orgId, actor: { accountId: standingsSystemActor } },
+    (trx) =>
+      trx
+        .selectFrom('standings_dirty_scopes')
+        .select(['id', 'scope_type', 'scope_id'])
+        .where('org_id', '=', orgId)
+        .orderBy('marked_at')
+        .limit(200)
+        .execute(),
+  );
+  let handled = 0;
+  for (const scope of dirty) {
+    const outcome = await createWithOrg(database)(
+      { orgId, actor: { accountId: standingsSystemActor } },
+      async (trx) => {
+        // Clear first: a result finalized during this recompute marks it again
+        // once this transaction commits.
+        await trx
+          .deleteFrom('standings_dirty_scopes')
+          .where('org_id', '=', orgId)
+          .where('id', '=', scope.id)
+          .execute();
+        return recomputeScope(
+          trx,
+          orgId,
+          scope.scope_type as 'program' | 'division',
+          scope.scope_id,
+        );
+      },
     );
-    if (result)
-      await persistSnapshot(
-        trx,
-        context.orgId,
-        'division',
-        divisionId,
-        result.rows,
-      );
+    if (outcome !== 'deferred') handled += 1;
   }
-  if (programId) {
-    const result = await computeSnapshot(
-      trx,
-      context.orgId,
-      { programId },
-      undefined,
-      true,
-    );
-    if (result)
-      await persistSnapshot(
-        trx,
-        context.orgId,
-        'program',
-        programId,
-        result.rows,
-      );
-  }
+  return handled;
+}
+
+export async function runStandingsDirtyJob(): Promise<number> {
+  const { getPlatformAdminDatabase } = await import('../platform/admin');
+  const orgs = await sql<{ org_id: string }>`
+    SELECT DISTINCT org_id FROM standings_dirty_scopes
+  `.execute(getPlatformAdminDatabase());
+  let handled = 0;
+  for (const row of orgs.rows)
+    handled += await recomputeDirtyStandings(getDatabase(), row.org_id);
+  return handled;
 }
 
 export async function configureStandings(

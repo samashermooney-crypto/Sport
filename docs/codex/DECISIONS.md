@@ -1139,3 +1139,11 @@
 - **Decision:** `POST /api/v1/registration/orgs/:orgId/participants` lets a verified adult account add a child (under 18, birth date not in the future) to an onboarding or active organization. Per C3 the adult gets their own person, `self` link and household (as primary contact, financially responsible), the child joins that household, and the adult becomes the child's verified guardian; everything is audited (`person.family_added`). Re-adding the same name and birth date returns the existing child; an account may add at most 12 children before contacting the organization. The registration screen shows an "Add your child" form using existing design-system fields.
 - **Why:** New families are the core registration audience; guardianship stays single-sourced in `person_account_links` and staff keep full visibility through the audit log and people directory.
 - **Consequences / follow-ups:** Duplicate detection across accounts (two guardians each adding the same child) remains a staff merge task through the existing duplicate review. Adults registering themselves continue through their own account.
+
+### DEC-151 — Coalesce standings recomputes during result bursts
+- **Date:** 2026-09-30
+- **Phase / area:** Phase 9 standings (found by the game-day load test)
+- **Context:** Every finalized result recomputed program and division standings inside the result transaction. With 500 coaches finalizing at once, hundreds of identical recomputes of the same scope queued behind each other and delayed unrelated public reads.
+- **Decision:** A result recomputes a scope only if it can take that scope's transaction advisory lock immediately; otherwise it marks the scope in `standings_dirty_scopes` (migration 8505), and the minute `standings.recompute-dirty` job recomputes and clears marked scopes. A single finalization still updates standings synchronously.
+- **Why:** Standings stay exact (every deferred scope is recomputed after the burst, within about a minute) while a burst costs one recompute per scope instead of one per result.
+- **Consequences / follow-ups:** During bursts, public standings may trail the latest result by up to a minute.

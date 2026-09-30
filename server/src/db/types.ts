@@ -3631,6 +3631,16 @@ export interface StandingsConfigs {
   version: Generated<number>;
 }
 
+export interface StandingsDirtyScopes {
+  created_at: Generated<Timestamp>;
+  id: string;
+  marked_at: Generated<Timestamp>;
+  org_id: string;
+  scope_id: string;
+  scope_type: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface StandingsSnapshots {
   computed_at: Generated<Timestamp>;
   created_at: Generated<Timestamp>;
@@ -4526,6 +4536,7 @@ export interface DB {
   sport_profiles: SportProfiles;
   sport_templates: SportTemplates;
   standings_configs: StandingsConfigs;
+  standings_dirty_scopes: StandingsDirtyScopes;
   standings_snapshots: StandingsSnapshots;
   stat_lines: StatLines;
   store_fulfillments: StoreFulfillments;

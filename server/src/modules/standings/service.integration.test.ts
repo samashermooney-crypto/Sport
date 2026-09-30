@@ -7,6 +7,7 @@ import {
   builtInSportTemplates,
   builtInSportTemplatesByKey,
 } from '@shared/sport/templates';
+import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDatabase, getDatabase } from '../../db/kysely';
@@ -15,7 +16,13 @@ import type { OrgContext } from '../../db/withOrg';
 import { createContest, submitContestResult } from '../contests/service';
 
 import { listSeasonAwards } from './season-end';
-import { configureStandings, getStandings, refreshStandings } from './service';
+import {
+  configureStandings,
+  getStandings,
+  recomputeDirtyStandings,
+  recomputeStandingsForEvent,
+  refreshStandings,
+} from './service';
 
 let database: ReturnType<typeof createDatabase>;
 
@@ -505,5 +512,61 @@ describe('standings snapshots', () => {
       points: 0,
       rank: 2,
     });
+
+    // A result finalized while another transaction recomputes the same scope
+    // is deferred, then the dirty-scope sweep catches up exactly once.
+    const withOrgHere = createWithOrg(database);
+    let releaseHolder: () => void = () => undefined;
+    const holderReleased = new Promise<void>((resolve) => {
+      releaseHolder = resolve;
+    });
+    let holderLocked: () => void = () => undefined;
+    const locked = new Promise<void>((resolve) => {
+      holderLocked = resolve;
+    });
+    const holder = withOrgHere(actor, async (trx) => {
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`standings:${orgId}:program:${programId}`}, 0))`.execute(
+        trx,
+      );
+      holderLocked();
+      await holderReleased;
+    });
+    await locked;
+    await withOrgHere(actor, (trx) =>
+      recomputeStandingsForEvent(trx, actor, programId, null),
+    );
+    releaseHolder();
+    await holder;
+    const dirty = () =>
+      withOrgHere(actor, (trx) =>
+        trx
+          .selectFrom('standings_dirty_scopes')
+          .select(['scope_type', 'scope_id'])
+          .where('org_id', '=', orgId)
+          .execute(),
+      );
+    expect(await dirty()).toEqual([
+      { scope_type: 'program', scope_id: programId },
+    ]);
+    const snapshotsBefore = await withOrgHere(actor, (trx) =>
+      trx
+        .selectFrom('standings_snapshots')
+        .select('id')
+        .where('org_id', '=', orgId)
+        .where('scope_id', '=', programId)
+        .execute(),
+    );
+    expect(await recomputeDirtyStandings(database, orgId)).toBe(1);
+    expect(await dirty()).toEqual([]);
+    const snapshotsAfter = await withOrgHere(actor, (trx) =>
+      trx
+        .selectFrom('standings_snapshots')
+        .select('id')
+        .where('org_id', '=', orgId)
+        .where('scope_id', '=', programId)
+        .execute(),
+    );
+    expect(snapshotsAfter).toHaveLength(snapshotsBefore.length + 1);
+    expect(await recomputeDirtyStandings(database, orgId)).toBe(0);
   });
 });

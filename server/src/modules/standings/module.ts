@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ServerModule } from '../../lib/module-contract';
 
 import { createStandingsRouter } from './routes';
+import { runStandingsDirtyJob } from './service';
 
 const json = z.json();
 const base = '/api/v1/standings';
@@ -117,6 +118,13 @@ export const moduleDefinition = {
   name: 'standings',
   path: '/api/v1/standings',
   router: createStandingsRouter,
+  jobs: [
+    {
+      name: 'standings.recompute-dirty',
+      cron: '* * * * *',
+      run: runStandingsDirtyJob,
+    },
+  ],
   permissions: ['results.read', 'results.manage', 'schedule.manage'],
   notificationTypes: [],
   errorCodes: ['SCHEDULE_INVALID', 'SCHEDULE_CONFLICT'],
