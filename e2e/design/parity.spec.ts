@@ -7,6 +7,7 @@ import { expect, test, type TestInfo } from '@playwright/test';
 import sharp from 'sharp';
 
 import { createDatabase } from '../../server/src/db/kysely';
+import type { Json } from '../../server/src/db/types';
 import { createWithOrg } from '../../server/src/db/withOrg';
 import { createTestFactories } from '../../server/test/factories';
 import { e2eDatabaseUrl } from '../database';
@@ -215,7 +216,7 @@ test('public organization site skip link moves keyboard focus to main content', 
           slug: 'home',
           title: 'Accessible organization',
           status: 'published',
-          blocks: [],
+          blocks: JSON.stringify([]) as unknown as Json,
           seo: {},
           published_at: new Date(),
         })
