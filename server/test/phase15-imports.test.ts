@@ -565,6 +565,298 @@ describe('Phase 15 import transactions', () => {
     expect(committed).toMatchObject({ created: 0 });
   });
 
+  it('imports households, registrations, facilities, and local-time schedule rows', async () => {
+    const imports = createImportsService(database, null);
+    const existingEmail = `household-${crypto.randomUUID()}@example.test`;
+    const existingPersonId = await createPerson(
+      existingEmail,
+      'Casey Guardian',
+    );
+    const householdName = `Import Family ${crypto.randomUUID()}`;
+    const households = await imports.createBatch(staff.orgId, staff.accountId, {
+      kind: 'households',
+      fileName: 'households.csv',
+      bytes: csv(
+        `Household name,Member first name,Member last name,Member email,Member role,Financially responsible,Primary contact,Pickup authorized,Address line 1,City,State,Postal code\n${householdName},Casey,Guardian,${existingEmail},guardian,yes,yes,yes,10 Main Street,Austin,TX,78701\n${householdName},Jordan,Player,,athlete,no,no,no,,,,`,
+      ),
+    });
+    expect(
+      await imports.validateBatch(staff.orgId, households.id, staff.accountId),
+    ).toMatchObject({ rowCount: 2, errorCount: 0 });
+    expect(
+      await imports.commitBatch(staff.orgId, households.id, staff.accountId),
+    ).toMatchObject({
+      households_created: 1,
+      members_added: 2,
+      people_created: 1,
+    });
+    const householdResult = await factories.scoped(staff, async (trx) => {
+      const household = await trx
+        .selectFrom('households')
+        .select('id')
+        .where('org_id', '=', staff.orgId)
+        .where('name', '=', householdName)
+        .executeTakeFirstOrThrow();
+      const members = await trx
+        .selectFrom('household_members')
+        .innerJoin('people', (join) =>
+          join
+            .onRef('people.org_id', '=', 'household_members.org_id')
+            .onRef('people.id', '=', 'household_members.person_id'),
+        )
+        .select([
+          'household_members.role',
+          'household_members.financially_responsible',
+          'household_members.is_primary_contact',
+          'household_members.can_pick_up',
+          'people.id as personId',
+          'people.email',
+        ])
+        .where('household_members.org_id', '=', staff.orgId)
+        .where('household_members.household_id', '=', household.id)
+        .execute();
+      return { household, members };
+    });
+    expect(householdResult.members).toHaveLength(2);
+    expect(householdResult.members).toContainEqual(
+      expect.objectContaining({
+        role: 'guardian',
+        financially_responsible: true,
+        is_primary_contact: true,
+        can_pick_up: true,
+        personId: existingPersonId,
+        email: existingEmail,
+      }),
+    );
+    expect(householdResult.members).toContainEqual(
+      expect.objectContaining({ role: 'athlete', email: null }),
+    );
+
+    const program = await factories.program(staff);
+    const programName = `Registration Import ${crypto.randomUUID()}`;
+    await factories.scoped(staff, (trx) =>
+      trx
+        .updateTable('programs')
+        .set({ name: programName })
+        .where('org_id', '=', staff.orgId)
+        .where('id', '=', program.programId)
+        .execute()
+        .then(() => undefined),
+    );
+    const registrationEmail = `registration-${crypto.randomUUID()}@example.test`;
+    await createPerson(registrationEmail, 'Morgan Registrant');
+    const registrations = await imports.createBatch(
+      staff.orgId,
+      staff.accountId,
+      {
+        kind: 'registrations',
+        fileName: 'registration-history.csv',
+        bytes: csv(
+          `Participant email,Program,Division,Offering,Status\n${registrationEmail},${programName},Open,Player,withdrawn\nmissing-${crypto.randomUUID()}@example.test,${programName},Open,Player,confirmed`,
+        ),
+      },
+    );
+    expect(
+      await imports.validateBatch(
+        staff.orgId,
+        registrations.id,
+        staff.accountId,
+      ),
+    ).toMatchObject({ rowCount: 2, errorCount: 1 });
+    const registrationRows = await imports.listRows(
+      staff.orgId,
+      staff.accountId,
+      registrations.id,
+      { limit: 10, filter: 'errors' },
+    );
+    expect(registrationRows.items).toHaveLength(1);
+    expect(registrationRows.items[0]?.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'PERSON_NOT_FOUND', level: 'error' }),
+      ]),
+    );
+    expect(
+      await imports.commitBatch(staff.orgId, registrations.id, staff.accountId),
+    ).toMatchObject({ committed: 1, created: 1, total: 2 });
+    const savedRegistration = await factories.scoped(staff, (trx) =>
+      trx
+        .selectFrom('registrations')
+        .innerJoin('people', (join) =>
+          join
+            .onRef('people.org_id', '=', 'registrations.org_id')
+            .onRef('people.id', '=', 'registrations.person_id'),
+        )
+        .select([
+          'registrations.program_id',
+          'registrations.division_id',
+          'registrations.offering_id',
+          'registrations.status',
+          'registrations.source',
+          'people.email',
+        ])
+        .where('registrations.org_id', '=', staff.orgId)
+        .where('people.email', '=', registrationEmail)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(savedRegistration).toMatchObject({
+      program_id: program.programId,
+      division_id: program.divisionId,
+      offering_id: program.offeringId,
+      status: 'withdrawn',
+      source: 'import',
+      email: registrationEmail,
+    });
+
+    const facilityName = `Import Facility ${crypto.randomUUID()}`;
+    const facilities = await imports.createBatch(staff.orgId, staff.accountId, {
+      kind: 'facilities',
+      fileName: 'facilities.csv',
+      bytes: csv(
+        `Facility name,Address line 1,City,State,Postal code,Timezone,Ownership,Public,Space name,Space kind,Surface,Lights,Capacity\n${facilityName},20 Park Road,Austin,TX,78702,America/Chicago,permitted,no,North Court,court,hardwood,yes,80\n${facilityName.toLowerCase()},,,,,,,,Studio,room,sprung floor,no,25`,
+      ),
+    });
+    expect(
+      await imports.validateBatch(staff.orgId, facilities.id, staff.accountId),
+    ).toMatchObject({ rowCount: 2, errorCount: 0 });
+    expect(
+      await imports.commitBatch(staff.orgId, facilities.id, staff.accountId),
+    ).toMatchObject({ facilities_created: 1, spaces_created: 2, committed: 2 });
+    const savedFacility = await factories.scoped(staff, async (trx) => {
+      const facility = await trx
+        .selectFrom('facilities')
+        .select(['id', 'timezone', 'ownership', 'public'])
+        .where('org_id', '=', staff.orgId)
+        .where('name', '=', facilityName)
+        .executeTakeFirstOrThrow();
+      const spaces = await trx
+        .selectFrom('spaces')
+        .select(['name', 'kind', 'surface', 'has_lights', 'capacity_people'])
+        .where('org_id', '=', staff.orgId)
+        .where('facility_id', '=', facility.id)
+        .orderBy('name')
+        .execute();
+      return { facility, spaces };
+    });
+    expect(savedFacility.facility).toMatchObject({
+      timezone: 'America/Chicago',
+      ownership: 'permitted',
+      public: false,
+    });
+    expect(savedFacility.spaces).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'North Court',
+          kind: 'court',
+          surface: 'hardwood',
+          has_lights: true,
+          capacity_people: 80,
+        }),
+        expect.objectContaining({
+          name: 'Studio',
+          kind: 'room',
+          surface: 'sprung floor',
+          has_lights: false,
+          capacity_people: 25,
+        }),
+      ]),
+    );
+
+    const schedule = await imports.createBatch(staff.orgId, staff.accountId, {
+      kind: 'schedule',
+      fileName: 'schedule.csv',
+      bytes: csv(
+        `Title,Kind,Date,Start time,Duration,Timezone,Facility,Space,Away team,Program,Published\nOpening Match,game,2026-04-05,9:00 AM,90,America/Chicago,Match Park,Field 1,Rival Club,${programName},no`,
+      ),
+    });
+    expect(
+      await imports.validateBatch(staff.orgId, schedule.id, staff.accountId),
+    ).toMatchObject({ rowCount: 1, errorCount: 0 });
+    expect(
+      await imports.commitBatch(staff.orgId, schedule.id, staff.accountId),
+    ).toMatchObject({ committed: 1, events_created: 1 });
+    const savedEvent = await factories.scoped(staff, async (trx) => {
+      const event = await trx
+        .selectFrom('events')
+        .select([
+          'id',
+          'title',
+          'kind',
+          'starts_at',
+          'ends_at',
+          'timezone',
+          'published',
+          'space_id',
+        ])
+        .where('org_id', '=', staff.orgId)
+        .where('title', '=', 'Opening Match')
+        .executeTakeFirstOrThrow();
+      const participant = await trx
+        .selectFrom('event_participants')
+        .innerJoin('external_teams', (join) =>
+          join
+            .onRef('external_teams.org_id', '=', 'event_participants.org_id')
+            .onRef(
+              'external_teams.id',
+              '=',
+              'event_participants.external_team_id',
+            ),
+        )
+        .select(['event_participants.side', 'external_teams.name'])
+        .where('event_participants.org_id', '=', staff.orgId)
+        .where('event_participants.event_id', '=', event.id)
+        .executeTakeFirstOrThrow();
+      const facility = await trx
+        .selectFrom('facilities')
+        .select('id')
+        .where('org_id', '=', staff.orgId)
+        .where('name', '=', 'Match Park')
+        .executeTakeFirstOrThrow();
+      const space = await trx
+        .selectFrom('spaces')
+        .select('id')
+        .where('org_id', '=', staff.orgId)
+        .where('facility_id', '=', facility.id)
+        .where('name', '=', 'Field 1')
+        .executeTakeFirstOrThrow();
+      return { event, participant, space };
+    });
+    expect(savedEvent.event).toMatchObject({
+      title: 'Opening Match',
+      kind: 'game',
+      starts_at: new Date('2026-04-05T14:00:00.000Z'),
+      ends_at: new Date('2026-04-05T15:30:00.000Z'),
+      timezone: 'America/Chicago',
+      published: false,
+    });
+    expect(savedEvent.event.space_id).toBe(savedEvent.space.id);
+    expect(savedEvent.participant).toEqual({
+      side: 'away',
+      name: 'Rival Club',
+    });
+
+    const invalidSchedule = await imports.createBatch(
+      staff.orgId,
+      staff.accountId,
+      {
+        kind: 'schedule',
+        fileName: 'invalid-schedule.csv',
+        bytes: csv(
+          'Title,Date,Start time,Timezone\nInvalid Event,2026-04-06,10:00,Not/A-Timezone',
+        ),
+      },
+    );
+    expect(
+      await imports.validateBatch(
+        staff.orgId,
+        invalidSchedule.id,
+        staff.accountId,
+      ),
+    ).toMatchObject({ rowCount: 1, errorCount: 1 });
+    await expect(
+      imports.commitBatch(staff.orgId, invalidSchedule.id, staff.accountId),
+    ).resolves.toMatchObject({ committed: 0, total: 1, events_created: 0 });
+  });
+
   it('does not expose an organization import batch to another organization', async () => {
     const imports = createImportsService(database, null);
     const batch = await imports.createBatch(staff.orgId, staff.accountId, {

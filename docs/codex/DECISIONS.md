@@ -1091,3 +1091,11 @@
 - **Decision:** Replace that one Linux WebKit baseline with the deterministic CI rendering. The parity tolerance and token-equality checks are unchanged.
 - **Why:** The difference is glyph rasterization in the CI WebKit build, not a design change; a stale baseline would block every merge without protecting the design.
 - **Consequences / follow-ups:** Regenerate Linux baselines in the CI container whenever the Playwright/WebKit version changes.
+
+### DEC-145 — Match import error rows structurally
+- **Date:** 2026-09-30
+- **Phase / area:** Phase 15 imports
+- **Context:** The import row error filter searched PostgreSQL's rendered `jsonb` text for a compact JSON substring, but PostgreSQL includes spaces in that rendering, so validated error rows were omitted from the filtered result.
+- **Decision:** Query the `issues` array with JSONB containment for an object whose `level` is `error`.
+- **Why:** Importers must be able to find and resolve rows that validation rejected; the structural predicate does not depend on JSON text formatting.
+- **Consequences / follow-ups:** Keep the real PostgreSQL integration test for the error filter as part of Phase 15 import coverage.
