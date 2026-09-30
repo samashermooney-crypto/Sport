@@ -924,7 +924,16 @@ export async function listConversations(
       muted: boolean;
       last_read_at: Date | null;
     }>`
-      SELECT conversation.id, conversation.kind, conversation.title, conversation.team_season_id, member.guardian_copied, member.muted, member.last_read_at
+      SELECT conversation.id, conversation.kind, conversation.title, conversation.team_season_id,
+        EXISTS (
+          SELECT 1
+          FROM conversation_members AS copied_guardian
+          WHERE copied_guardian.org_id = conversation.org_id
+            AND copied_guardian.conversation_id = conversation.id
+            AND copied_guardian.guardian_copied = TRUE
+            AND copied_guardian.revoked_at IS NULL
+        ) AS guardian_copied,
+        member.muted, member.last_read_at
       FROM conversations AS conversation
       INNER JOIN conversation_members AS member ON member.org_id = conversation.org_id AND member.conversation_id = conversation.id
       WHERE conversation.org_id = ${context.orgId} AND member.account_id = ${context.actor.accountId} AND member.revoked_at IS NULL AND conversation.archived_at IS NULL
