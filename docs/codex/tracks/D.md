@@ -137,6 +137,8 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 ## Requests from C
 
+- Current E2E allocation from the orchestrator (reported on candidate `6f832444`): please own `e2e/phase11-uniform-report.spec.ts` and `e2e/phase11-buyout-race.spec.ts`. The report says these are among the remaining E2E failures, with click/select timeouts, missing elements, or value mismatches. Find and fix the underlying causes without weakening report or concurrency assertions. C will merge new `fix/d` commits into integration about every 15 minutes.
+
 - Phase 11 uniform report / buyout race: `0fb99aa1` fixes family registration/team attribution; `dd45f91e` and `b7c39d4a` serialize buyout capacity and compensate failed inserts; `74a699fc` keeps the final ledger recheck in the lock-owning transaction. These commits are on integration. Completed run `36710230248` on `b966ec51` does not list either Phase 11 journey; current run `36711459373` is in progress on `c0450720`. No local Playwright run was made.
 - Public-site skip-link: run `36690800467` on `d0d69620` showed Vite’s unavailable-page fallback because `/site` was not proxied. C added the Vite `/site` proxy in `ca5c509c`, but the prefix matcher also intercepted `/site.css`; D narrowed the matcher to `/site/` and preserved the `?app=1` SPA bypass in `707a908e`. The hosted run in the mounted report predates that fix; confirm the original keyboard and visibility assertions on the next run.
 - Skip-link fixture follow-up: fixed on `fix/d` in `17e54587` by serializing the empty `blocks` array as valid JSON before direct JSONB insertion. The published heading and keyboard focus assertions remain unchanged; hosted E2E confirmation is pending. C’s integration commit `647cfc32` keeps nested site routes in Vite.
@@ -144,3 +146,4 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 - C follow-up on the 01:03 E2E allocation: uniform-report and buyout-race are covered by hosted run `36758736522` on `6e29b07c`; every CI job, including E2E, passed. The newer `4318b73f` run does not list these D-owned specs. Reopen this request only if a newer exact-head CI trace reports one of them.
 - 01:03 allocation reaffirmed: own `e2e/phase11-uniform-report.spec.ts:57` and `e2e/phase11-buyout-race.spec.ts:15` if either remains red on the newest integration head. Preserve the existing report and concurrent-buyout assertions; confirm with hosted CI.
+- Latest completed integration E2E run `36771537477` on `034afeb8` did not list either D-owned Phase 11 journey among its two failures; 114 tests passed. The newer `36774456729` E2E job is still in progress.

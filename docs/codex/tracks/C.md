@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — C-owned integration repairs are committed locally; exact-head hosted verification is pending.
+Status: working — the app-level first-family registration wiring repair and real-Postgres regression are in local integration work; exact-head hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Hosted CI: Run `36758736522` on `6e29b07c` was fully green. Newer run `36771537477` on `034afeb8` has every static job green, the unit-test job failed, and E2E remains in progress; exact failure details are not available until the workflow completes.
-Open integration work: inspect the completed unit failure and newest E2E results, then verify the current local integration tip through hosted CI. C’s owned Federation service and API integration files pass 22/22 and 4/4 against isolated real Postgres; no full suite or local Playwright run was started.
+Hosted CI: Run `36775841158` on `6cc1ecad` has the unit test and all static jobs green; E2E is still running. The orchestrator reports candidate `6f832444` E2E failures in the current C/A/D split; exact current-head confirmation is pending.
+Open integration work: inspect the completed E2E result from `36775841158`, fix only confirmed failures, and continue syncing `fix/a` and `fix/d` when they advance. No full suite or local Playwright run was started.
 
 ## Completed Track C work
 
@@ -300,5 +300,11 @@ Prior candidate `fcff3e5b` was marked ready; later integration changes need exac
 
 - C owns `e2e/federation.spec.ts`, `e2e/phase13-fee-void-atomicity.spec.ts`, and `e2e/security/federation-sharing-revocation.spec.ts`. A and D assignments are recorded in their `Requests from C` sections. Their `fix/a` and `fix/d` refs are already merged into local `track/integration`; neither branch has commits missing from the current integration tip.
 - C's real-Postgres Federation service file passes 22/22 and mounted Federation API integration file passes 4/4 on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500` (Postgres port 5932). These cover sharing revocation and the fee-void atomicity contract. The Playwright journeys remain for hosted CI.
-- Run `36771537477` on pushed head `034afeb8` has static jobs green, unit tests failed, and E2E in progress. The owner-supplied earlier E2E list is not enough to infer the current failure set; review the exact hosted failure report after that run completes.
+- Completed run `36771537477` on `034afeb8` failed two checkout fixture inserts on the capacity-counter unique key and E2E only on `e2e/new-family.spec.ts:13` and `e2e/phase15.spec.ts:328`; 114 E2E tests passed, including the assigned C, A and D paths. Commit `eb59c4ee` fixes both capacity-counter fixtures and the missing demo address country. Run `36774456729` on `f1041b04` now has the unit job and all static jobs green; E2E is still running.
+- The `new-family` trace showed 404 responses from its catalog and participant bootstrap APIs because the global organization-relationship guard hid the organization from a signed-in account before its first person link existed. The local `server/src/app.ts` change bypasses that guard only for GET catalog/participants and POST participants; route-level session, impersonation and write-origin checks remain in place. `server/test/registration-family-onboarding.integration.test.ts` passes 1/1 against real Postgres and checks unrelated routes remain 404, unauthenticated bootstrap calls remain 401, and writes without same-origin headers remain 403.
 - Commit `eb59c4ee` fixes the duplicate capacity-counter test fixtures and supplies the required `country: "US"` in normal/load demo org addresses. Exact-head hosted verification is pending; no live providers or browser runs were used.
+
+## 01:03 hosted E2E allocation refresh
+
+- The orchestrator reports candidate `6f832444` with the unit test green and only E2E failing. C owns `e2e/federation.spec.ts`, `e2e/phase13-fee-void-atomicity.spec.ts`, and `e2e/security/federation-sharing-revocation.spec.ts`; A and D receive their exact assigned paths in their `Requests from C` sections. Preserve all existing federation authorization, revocation, fee-void atomicity, report, ledger, and concurrent-buyout assertions.
+- `fix/a` and `fix/d` currently have no commits ahead of `track/integration`. Merge new owner fixes about every 15 minutes. Current hosted run `36775841158` on `6cc1ecad` has unit and static jobs green; its E2E job is still in progress.
