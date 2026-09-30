@@ -135,3 +135,25 @@ jobs:
             e2e/visual-reference/*-linux.png
             e2e/visual-reference/parity-baselines.json
           if-no-files-found: ignore
+
+  phase14-lighthouse:
+    name: Phase 14 website Lighthouse
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --include=dev
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Audit registered website routes
+        run: npm run perf:lighthouse:website
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase14-lighthouse-results
+          path: perf/results/phase14-shared-app/
+          if-no-files-found: ignore
