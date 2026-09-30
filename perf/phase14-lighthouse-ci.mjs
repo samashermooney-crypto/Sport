@@ -239,11 +239,22 @@ async function main() {
   await seedPublicSite();
   const origin = await createSiteProxy();
   const audits = [];
-  for (const [name, route] of [
-    ['home', `/site/${orgSlug}`],
-    ['programs', `/site/${orgSlug}/programs`],
-    ['schedule', `/site/${orgSlug}/schedule`],
+  for (const [name, route, expectedContent] of [
+    ['home', `/site/${orgSlug}`, 'Community Soccer'],
+    ['programs', `/site/${orgSlug}/programs`, 'Community Soccer'],
+    ['schedule', `/site/${orgSlug}/schedule`, 'Community Soccer Opener'],
   ]) {
+    const response = await fetch(`${origin}${route}`);
+    const html = await response.text();
+    if (
+      !response.ok ||
+      !response.headers.get('content-type')?.includes('text/html') ||
+      !html.includes(expectedContent)
+    ) {
+      throw new Error(
+        `Shared-app SSR route ${route} returned ${String(response.status)} without its expected public content`,
+      );
+    }
     audits.push(await auditRoute(origin, name, route));
   }
   const summary = [

@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `fix/d`
-Working from the 10-hour integration plan. `fix/d` is fast-forwarded to `track/integration` at `d8b1e4dc`. D's Linux communication reference and Knip follow-up are present in that history; earlier hosted artifacts isolated the 39-pixel `ui-communication-1440` drift to undo/redo glyph rasterization, with identical actual hashes across retries. The 390px shell matched in those runs. The latest report in `/Users/sammooney/athlentry-sprint/ci/integration.txt` is stale: it lists run `36660653200` at `e5b6e7a3` and no result for `d8b1e4dc`. The exact D baseline still needs confirmation from CI on the newer head. macOS references, tolerances, and the token-equality test are unchanged. The old per-track trunk merge notes below are historical.
+Working from the 10-hour integration plan. `fix/d` includes integration head `4d15f738` and D's Lighthouse runner commit `9ef98a4b`; C's latest integration run `36662938527` is still checking the earlier `d8b1e4dc` head. Earlier hosted artifacts isolated the 39-pixel `ui-communication-1440` drift to undo/redo glyph rasterization, with identical actual hashes across retries. The 390px shell matched in those runs. The exact D baseline still needs confirmation from CI after C merges the current `fix/d` head. macOS references, tolerances, and the token-equality test are unchanged. The old per-track trunk merge notes below are historical.
 
 ## Current
 
@@ -73,7 +73,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 ## Exact next steps
 
-1. Commit the shared-app Lighthouse runner and dependency changes, then have C merge the latest `fix/d` commits into `track/integration`; inspect CI on that exact head for Linux component parity, shell parity, and Knip.
+1. Have C merge the latest `fix/d` commits into `track/integration`; inspect CI on that exact head for Linux component parity, shell parity, and Knip.
 2. Fix any newly reported D-owned parity or console/website failures. The focused website console/embed tests, Action Center, organization data/privacy, report builder, ReportsDashboard, and ConsoleShell tests passed individually on the preceding integration tree.
 3. Ask C to add the Lighthouse runner to CI and upload `perf/results/phase14-shared-app/`; review exact shared-app scores before recording Phase 14 Lighthouse acceptance.
 4. Close the remaining D-owned QA requests for configured shared storage and the documented manual keyboard review; keep cross-track requests in the section below.
