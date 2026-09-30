@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 
 import express from 'express';
+import { JSDOM } from 'jsdom';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -557,6 +558,151 @@ describe('website page service', () => {
         withOrg,
       ),
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('keeps hostile stored organization, news, and page content inert in SSR HTML', async () => {
+    const suffix = randomUUID().slice(0, 8);
+    const pageSlug = `stored-xss-${suffix}`;
+    const newsSlug = `stored-xss-${suffix}`;
+    const organizationPayload =
+      'Club </title><script>window.__athlentryXss=1</script><img src=x onerror="window.__athlentryXss=2">';
+    const newsPayload =
+      'News </script><script>window.__athlentryXss=3</script><svg onload="window.__athlentryXss=4">';
+    const bodyPayload =
+      'Story <img src=x onerror="window.__athlentryXss=5"><a href="javascript:window.__athlentryXss=6">link</a>';
+    const admin = new pg.Client({
+      connectionString: process.env.TEST_DATABASE_URL,
+    });
+    await admin.connect();
+    try {
+      await admin.query('UPDATE organizations SET name = $2 WHERE id = $1', [
+        orgId,
+        organizationPayload,
+      ]);
+    } finally {
+      await admin.end();
+    }
+
+    let newsId: string | undefined;
+    let pageId: string | undefined;
+    try {
+      const news = await saveWebsiteNews(
+        context,
+        undefined,
+        {
+          slug: newsSlug,
+          title: newsPayload,
+          excerpt: bodyPayload,
+          bodyText: bodyPayload,
+          status: 'published',
+        },
+        new Date('2026-09-29T12:00:00.000Z'),
+        withOrg,
+      );
+      newsId = news.post.id;
+      const page = await saveWebsitePage(
+        context,
+        undefined,
+        {
+          slug: pageSlug,
+          title: newsPayload,
+          blocks: [{ type: 'paragraph', text: bodyPayload }],
+          seo: { title: '', description: '', canonicalPath: '' },
+          status: 'published',
+        },
+        new Date('2026-09-29T12:01:00.000Z'),
+        withOrg,
+      );
+      pageId = page.page.id;
+
+      const app = express();
+      app.use(createSiteSsrRouter({ database }));
+      const server = app.listen(0);
+      await new Promise<void>((resolve) => server.once('listening', resolve));
+      try {
+        const address = server.address();
+        if (!address || typeof address === 'string')
+          throw new Error('The test server did not open a TCP port');
+        const [newsResponse, pageResponse] = await Promise.all([
+          fetch(`http://127.0.0.1:${String(address.port)}/${orgSlug}/news`),
+          fetch(
+            `http://127.0.0.1:${String(address.port)}/${orgSlug}/${pageSlug}`,
+          ),
+        ]);
+        expect(newsResponse.status).toBe(200);
+        expect(pageResponse.status).toBe(200);
+        const documents = await Promise.all([
+          newsResponse.text(),
+          pageResponse.text(),
+        ]);
+
+        for (const html of documents) {
+          const document = new JSDOM(html).window.document;
+          const unsafeElements = Array.from(
+            document.querySelectorAll('*'),
+          ).filter((element) =>
+            Array.from(element.attributes).some((attribute) => {
+              if (/^on/i.test(attribute.name)) return true;
+              if (
+                !['href', 'src', 'xlink:href', 'formaction'].includes(
+                  attribute.name.toLowerCase(),
+                )
+              )
+                return false;
+              return /^(?:javascript|vbscript|data):/i.test(
+                attribute.value.trim(),
+              );
+            }),
+          );
+          expect(unsafeElements).toHaveLength(0);
+          const scripts = Array.from(document.querySelectorAll('script'));
+          expect(scripts).toHaveLength(1);
+          expect(scripts[0]?.type).toBe('application/ld+json');
+          expect(() => {
+            JSON.parse(scripts[0]?.textContent ?? '');
+          }).not.toThrow();
+        }
+
+        const newsDocument = new JSDOM(documents[0]).window.document;
+        const pageDocument = new JSDOM(documents[1]).window.document;
+        expect(newsDocument.body.textContent).toContain(organizationPayload);
+        expect(newsDocument.body.textContent).toContain(newsPayload);
+        expect(newsDocument.body.textContent).toContain(bodyPayload);
+        expect(pageDocument.body.textContent).toContain(organizationPayload);
+        expect(pageDocument.body.textContent).toContain(newsPayload);
+        expect(pageDocument.body.textContent).toContain(bodyPayload);
+      } finally {
+        await new Promise<void>((resolve, reject) =>
+          server.close((error) => {
+            if (error) reject(error);
+            else resolve();
+          }),
+        );
+      }
+    } finally {
+      const cleanup = new pg.Client({
+        connectionString: process.env.TEST_DATABASE_URL,
+      });
+      await cleanup.connect();
+      try {
+        if (newsId)
+          await cleanup.query(
+            "UPDATE news_posts SET status = 'archived' WHERE id = $1",
+            [newsId],
+          );
+        if (pageId)
+          await cleanup.query(
+            "UPDATE website_pages SET status = 'archived' WHERE id = $1",
+            [pageId],
+          );
+        await cleanup.query(
+          'UPDATE organizations SET name = $2 WHERE id = $1',
+          [orgId, 'Website Test Club'],
+        );
+      } finally {
+        await cleanup.end();
+      }
+    }
   });
 
   it('saves tenant website settings and menus with optimistic versions', async () => {

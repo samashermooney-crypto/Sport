@@ -37,6 +37,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - CI run `36648564282` on the old D head reported a 9.63% Linux 390px public-shell mismatch and three component screenshot mismatches. The public-shell test had been reading the macOS reference on Linux; the CI capture now generates and selects a same-runner Linux legacy reference. The remaining component mismatches still need the uploaded expected/actual/diff artifacts to identify precisely.
 - QA-ACC-055 fix and regression coverage: report grouping now classifies verified credentials with `expires_on < CURRENT_DATE` as expired, keeps the expiry date inclusive, treats `NULL` expiry as non-expiring, and excludes revoked rows from the denominator. The focused dashboard test passes; the Postgres integration regression is queued for CI.
 - QA-ACC-056 implementation: the weekly retention sweep expires exports and revokes their links before deleting ZIP bytes, then tombstones file metadata. Storage/metadata failures remain retryable; the fake-storage regression covers a live export and a failed-delete retry. Typecheck and lint pass; database-backed execution awaits integration CI.
+- QA-SEC-017 regression coverage: hostile organization identity, published news, and page strings are parsed from actual SSR responses; the test rejects active scripts, event-handler attributes, and executable URLs while validating the inert JSON-LD block. Typecheck and lint pass; database-backed execution awaits integration CI.
 - `heavy.sh npm run typecheck` and `heavy.sh npm run lint` pass after the report update. `web/src/console/reports/ReportsDashboard.test.tsx` passes individually.
 - `server/src/modules/website/service.integration.test.ts`: 10/10 pass after adding assertions for SSR font preloads.
 - `server/src/modules/website/contact.routes.integration.test.ts`: 1/1 pass for robots policy, sitemap generated-page URLs and noindex behavior, plus the existing public-contact workflow.
@@ -89,7 +90,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 - QA-ACC-055: implementation and expired-before-sweep regression coverage are committed on `fix/d`; awaiting integration CI for the PostgreSQL case.
 - QA-ACC-056: implementation and expired/live plus storage-delete retry coverage are on `fix/d`; awaiting database-backed integration CI.
 - QA-ACC-057: make approved person anonymization remove photo bytes from storage with retryable cleanup; document a separate credential-evidence retention rule and test both file classes.
-- QA-SEC-017: add a hostile-content SSR regression for organization identity and published website/news content; current static rendering looks escaped, but this path has no stored-XSS test.
+- QA-SEC-017: hostile-content SSR regression is on `fix/d`; awaiting database-backed integration CI.
 - QA-ACC-058 (coordinate C): inject shared configured `Storage` into the export job and download route; current service and route construct local-disk adapters, incompatible with separate worker/web processes. Prove build-to-download across instances.
 
 - QA-ACC-065: coordinate with A/C to register and mount `createSiteSsrRouter` through the shared app; direct-router tests currently do not establish public-site reachability, SEO host aliases or verified custom-domain serving. Add integrated public-route coverage.
