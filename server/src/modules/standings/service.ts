@@ -395,20 +395,28 @@ async function recomputeScope(
     ) AS locked
   `.execute(trx);
   if (!lock.rows[0]?.locked) {
-    await trx
-      .insertInto('standings_dirty_scopes')
-      .values({
-        id: newId(),
-        org_id: orgId,
-        scope_type: scopeType,
-        scope_id: scopeId,
-      })
-      .onConflict((oc) =>
-        oc
-          .columns(['org_id', 'scope_type', 'scope_id'])
-          .doUpdateSet({ marked_at: sql`now()` }),
-      )
-      .execute();
+    // Plain read, then insert-or-skip: a locking upsert would serialize every
+    // result in the burst on this one row until each transaction commits.
+    const marked = await trx
+      .selectFrom('standings_dirty_scopes')
+      .select('id')
+      .where('org_id', '=', orgId)
+      .where('scope_type', '=', scopeType)
+      .where('scope_id', '=', scopeId)
+      .executeTakeFirst();
+    if (!marked)
+      await trx
+        .insertInto('standings_dirty_scopes')
+        .values({
+          id: newId(),
+          org_id: orgId,
+          scope_type: scopeType,
+          scope_id: scopeId,
+        })
+        .onConflict((oc) =>
+          oc.columns(['org_id', 'scope_type', 'scope_id']).doNothing(),
+        )
+        .execute();
     return 'deferred';
   }
   const result = await computeSnapshot(
