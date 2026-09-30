@@ -1,10 +1,9 @@
 # Track C — files, adapters, and wiring
-Status: working — the Federation route-crawler repair is committed as `ecf9f08a` on `track/integration`; focused API and Home tests, typecheck, and lint pass locally. Hosted verification for this exact head is pending.
+Status: working — federation bootstrap requests now share one capability map with the all-role API regression test. Focused real-Postgres verification (2/2), typecheck, and lint pass; hosted verification for this change is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Initial integration candidate: `4113aed191bcb96ef7a92cc989c6e24b7ac3fe7a` (historical checkpoint; not the current head).
-Current integration head: `ecf9f08ab0f1dbbb6d2df7c04c3bcf5c28599cbe` (`fix(federation): scope console bootstrap to caller access`). The integrated ancestry and open work below are retained as historical context.
-Hosted CI: run `36653551397` on prior head `c0dd2e28` completed with the database and static jobs successful and e2e failed on role-denied Federation calls from the route crawler. The orchestrator has not yet reported a run for `ecf9f08a`; no GREEN result is claimed.
-Open integration work: verify this exact head in hosted e2e and keep protected Federation route denials intact. Other integration tasks remain tracked below.
+Base head for this update: `e5b6e7a3` (`track/integration`). Older integration notes below are retained as historical context.
+Hosted CI: run `36660653200` completed RED on base `e5b6e7a3`. Its e2e log does not show federation bootstrap API failures; QA-ACC-033 instead timed out waiting for the Operations navigation button. The new test and mapping changes await a hosted run; no GREEN result is claimed.
+Open integration work: verify this exact update in hosted CI and continue resolving the remaining launch-gate and cross-track failures below.
 
 ## Completed Track C work
 
@@ -119,3 +118,10 @@ Open integration work: verify this exact head in hosted e2e and keep protected F
 - Commit `ecf9f08a` adds an authenticated, organization-scoped capabilities endpoint and shared response schema. The home screen uses its relationship capability instead of probing the protected relationships list. The relationships list is readable by Federation read roles and submit-entry roles so registrars can select a league. The Federation console loads only data routes authorized by the response and limits visible sections by capability; protected resource routes retain their existing 404 behavior.
 - Generated server route metadata and OpenAPI were refreshed. The real-Postgres mounted-API test `server/test/federationConsoleRoutes.integration.test.ts` passes 1/1 on `COMPOSE_PROJECT_NAME=athlentry_c PORT_OFFSET=500`; finance allowed reads return 200, restricted reads remain 404, and registrar relationship/submission reads return 200 while the member directory remains 404. `web/src/console/Home.test.tsx` passes 1/1.
 - `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` and `... npm run lint` pass. The isolated Docker stack was stopped. No local Playwright or full suite was run. Hosted CI for `ecf9f08a` is pending.
+
+## Federation crawler role/API regression — 2026-09-29
+
+- The older hosted crawler failures were role-denied bootstrap requests: finance, scheduler, compliance, registrar and other roles received concealed `404`s when the console requested resources outside their returned capabilities. The protected API denials are correct; the UI must omit those requests.
+- `web/src/console/federation/access.ts` now owns the resource-to-capability map used by `FederationConsole`. The real-Postgres API test imports this same map and checks the actual allowed request set for all 11 organization roles in the route crawler, so a capability/route mismatch reports the role and resource.
+- `server/test/federationConsoleRoutes.integration.test.ts` passes 2/2 on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500` (Postgres `127.0.0.1:5932`). `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` and `/Users/sammooney/athlentry-sprint/heavy.sh npm run lint` pass. The isolated stack was stopped after the test. No Playwright or full suite was run locally.
+- The exact hosted failure named by the latest orchestrator note is already corrected by capability filtering; this update adds shared mapping and all-role regression coverage. The current observed e5b6 run's remaining federation-specific failure is QA-ACC-033 waiting for Operations navigation, not a federation API response. CI for this update remains pending.

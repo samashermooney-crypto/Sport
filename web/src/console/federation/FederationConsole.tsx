@@ -21,6 +21,11 @@ import {
 } from '../../ui';
 import { AppShell } from '../../ui/shell';
 
+import {
+  federationBootstrapResources,
+  type FederationBootstrapKey,
+} from './access';
+
 import './federation.css';
 
 type Sharing = {
@@ -422,49 +427,12 @@ export function FederationConsole(): React.JSX.Element {
       setLoadErrors(['Federation access could not be loaded.']);
       return;
     }
-    const allRequests: [keyof ViewData, string][] = [
-      ['relationships', `${base}/relationships`],
-      ['programs', `${base}/programs`],
-      ['members', `${base}/members`],
-      ['entries', `${base}/entries`],
-      ['submissions', `${base}/submitted-entries`],
-      ['teams', `${base}/my-teams`],
-      ['spaces', `${base}/my-spaces`],
-      ['hostedGames', `${base}/hosted-games`],
-      ['contributions', `${base}/space-contributions`],
-      ['referees', `${base}/referees`],
-      ['assignments', `${base}/referee-assignments`],
-      ['fees', `${base}/fees`],
-      ['payers', `${base}/member-payers`],
-      ['discipline', `${base}/federation-discipline`],
-      ['memberDiscipline', `${base}/member-discipline`],
-      ['scheduleRuns', `${base}/schedule-runs`],
-      ['overview', `${base}/dashboard`],
-    ];
-    const canLoad = (key: keyof ViewData): boolean => {
-      if (key === 'relationships') return access.relationships;
-      if (
-        key === 'programs' ||
-        key === 'members' ||
-        key === 'entries' ||
-        key === 'memberDiscipline' ||
-        key === 'overview'
-      )
-        return access.directory;
-      if (
-        key === 'submissions' ||
-        key === 'teams' ||
-        key === 'spaces' ||
-        key === 'hostedGames' ||
-        key === 'contributions'
-      )
-        return access.submitEntries;
-      if (key === 'scheduleRuns') return access.schedule;
-      if (key === 'referees' || key === 'assignments') return access.referees;
-      if (key === 'fees' || key === 'payers') return access.finance;
-      return access.discipline;
-    };
-    const requests = allRequests.filter(([key]) => canLoad(key));
+    const requests = federationBootstrapResources
+      .filter((resource) => access[resource.capability])
+      .map((resource): [FederationBootstrapKey, string] => [
+        resource.key,
+        `${base}/${resource.endpoint}`,
+      ]);
     const settled = await Promise.all(
       requests.map(async ([key, path]) => {
         try {

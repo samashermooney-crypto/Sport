@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
+import { createRequire } from 'node:module';
 
 import express from 'express';
-import { JSDOM } from 'jsdom';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -41,6 +41,10 @@ import {
   saveWebsiteEmbed,
   resolveVerifiedWebsiteHost,
 } from './service';
+
+const { JSDOM } = createRequire(import.meta.url)('jsdom') as {
+  JSDOM: new (html: string) => { window: { document: Document } };
+};
 
 const orgId = randomUUID();
 const ownerId = randomUUID();
