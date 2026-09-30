@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — local integration code head `51c9ef3d` includes A/D merges, the buyout transaction repair, and balanced household invoice fixtures; exact-head hosted verification is pending.
+Status: working — local integration code head `cb977581` includes A/D merges, the buyout transaction repair, and balanced household invoice fixtures in both household tests; exact-head hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
 Hosted CI: Runs `36707770132`, `36708389157`, and `36709011269` all have green unit tests; static jobs passed on the latest completed run. E2E on `36709011269` passed 114 tests, including the route crawler in 6.7 minutes and both Phase 11 buyout journeys. Its only failure was A’s sign-in permission assertion: secure context and Permissions API report granted, while `Notification.permission` reports denied.
-Open integration work: A’s browser permission mismatch remains open with the diagnostic recorded in A.md. C fixed the newly merged household balance fixture in `51c9ef3d`; run `36710230248` predates that fix, and hosted verification of the current candidate is pending. The route crawler has passed its same-origin HTTP/request assertions in the latest three completed E2E jobs.
+Open integration work: A’s browser permission mismatch remains open with the diagnostic recorded in A.md. The unit job on `36710839932` passed the household database fixture in `51c9ef3d`; that run’s E2E job was still active before the follow-up E2E fixture correction in `cb977581`. Hosted verification of `cb977581` is pending. The route crawler has passed its same-origin HTTP/request assertions in the latest three completed E2E jobs.
 
 ## Completed Track C work
 
@@ -273,4 +273,10 @@ Open integration work: A’s browser permission mismatch remains open with the d
 - Merged A’s household-acceptance coverage (`0852dc3c`) as `b966ec51`. The focused Postgres test exposed missing `invoice_lines` in its fixture, violating the deferred invoice reconciliation trigger. Added one matching line per header in `51c9ef3d`; the household integration file passes 1/1 on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500`. Commit hooks pass typecheck, ESLint, and Prettier.
 - Run `36710230248` is on `b966ec51`, before the fixture correction. Hosted verification of current code head `51c9ef3d` is pending. No full suite or local Playwright run was started.
 
-INTEGRATION READY 51c9ef3d
+## Household invoice fixture follow-up — 2026-09-30 06:58 CDT
+
+- `36710230248` tests merge `b966ec51`, before C’s test-fixture correction. On C’s isolated real Postgres stack, the household integration test showed the deferred reconciliation error because A’s new open invoice headers had no line rows. Commit `51c9ef3d` inserts matching invoice lines; that test passes 1/1 locally, and the hosted unit job on `36710839932` is green.
+- The same issue existed in A’s new `e2e/people.spec.ts` household-balance fixture: its open invoice header also lacked a line. Commit `cb977581` adds the matching line within the same tenant transaction. No local Playwright run was used; the `36710839932` E2E job is still running on `51c9ef3d`, so exact candidate verification is pending.
+- Existing CI confirms D’s buyout E2E cases and the route crawler pass; latest crawler evidence is run `36709011269` (6.7m, no same-origin failures). A’s Chromium permission mismatch remains the only previously observed E2E failure: secure context and Permissions API report granted while `Notification.permission` reports denied.
+
+INTEGRATION READY cb977581

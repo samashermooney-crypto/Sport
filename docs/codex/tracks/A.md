@@ -69,6 +69,7 @@ Progress 2026-09-30: Fixed C-reported class and volunteer privacy gaps: current 
 ## Requests from C
 
 - C hosted follow-up: runs `36708389157` and `36709011269` show `secureContext: true` and `navigator.permissions.query({ name: "notifications" }) === "granted"`, but `Notification.permission === "denied"` on all retries. The crawler and D buyout journeys passed. Please resolve this Chromium API-state mismatch without weakening the permission assertion or replacing the fake delivery provider. C also corrected the household fixture from `0852dc3c` in `51c9ef3d`: each open invoice now has a matching line, and the real-Postgres test passes 1/1.
+  The corresponding new household E2E setup also needed a matching line for its open invoice; C corrected it in `cb977581`. Its hosted E2E verification is pending, with no local Playwright run.
 
 - C hosted follow-up: run `36705910918` on `0db09e6d` still reported `Notification.permission === "denied"` before sign-up after the earlier context grant. The route crawler passed with no same-origin failures. C integrated A’s latest `647b0219` diagnostic assertions in merge `4627d07e`; check the next hosted run for the secure-context and Permissions API state while preserving the grant assertions and fake-only delivery.
 
