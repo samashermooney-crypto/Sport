@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — local integration head `b0dab9da`; exact-head hosted verification is pending.
+Status: working — C-owned integration repairs are committed locally; exact-head hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
 Hosted CI: Run `36758736522` on `6e29b07c` was fully green. Newer run `36771537477` on `034afeb8` has every static job green, the unit-test job failed, and E2E remains in progress; exact failure details are not available until the workflow completes.
-Open integration work: inspect the completed unit failure and newest E2E results, then verify local candidate `b0dab9da`. C’s owned Federation service and API integration files pass 22/22 and 4/4 against isolated real Postgres; no full suite or local Playwright run was started.
+Open integration work: inspect the completed unit failure and newest E2E results, then verify the current local integration tip through hosted CI. C’s owned Federation service and API integration files pass 22/22 and 4/4 against isolated real Postgres; no full suite or local Playwright run was started.
 
 ## Completed Track C work
 
@@ -298,7 +298,7 @@ Prior candidate `fcff3e5b` was marked ready; later integration changes need exac
 
 ## Orchestrator E2E allocation and current checks — 2026-09-30
 
-- C owns `e2e/federation.spec.ts`, `e2e/phase13-fee-void-atomicity.spec.ts`, and `e2e/security/federation-sharing-revocation.spec.ts`. A and D assignments are recorded in their `Requests from C` sections. Their `fix/a` and `fix/d` refs are already ancestors of local `track/integration` head `b0dab9da`; neither branch has commits missing from that head.
+- C owns `e2e/federation.spec.ts`, `e2e/phase13-fee-void-atomicity.spec.ts`, and `e2e/security/federation-sharing-revocation.spec.ts`. A and D assignments are recorded in their `Requests from C` sections. Their `fix/a` and `fix/d` refs are already merged into local `track/integration`; neither branch has commits missing from the current integration tip.
 - C's real-Postgres Federation service file passes 22/22 and mounted Federation API integration file passes 4/4 on `COMPOSE_PROJECT_NAME=athlentry_c`, `PORT_OFFSET=500` (Postgres port 5932). These cover sharing revocation and the fee-void atomicity contract. The Playwright journeys remain for hosted CI.
 - Run `36771537477` on pushed head `034afeb8` has static jobs green, unit tests failed, and E2E in progress. The owner-supplied earlier E2E list is not enough to infer the current failure set; review the exact hosted failure report after that run completes.
 - Commit `eb59c4ee` fixes the duplicate capacity-counter test fixtures and supplies the required `country: "US"` in normal/load demo org addresses. Exact-head hosted verification is pending; no live providers or browser runs were used.
