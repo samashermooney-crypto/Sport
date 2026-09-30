@@ -872,7 +872,7 @@ function readTheme(value: Json): { primary: string; secondary: string } {
   };
 }
 
-async function getPublicWebsiteChrome(
+export async function getPublicWebsiteChrome(
   database: WebsiteDatabase,
   orgSlug: string,
   runWithOrg: typeof withOrg,
@@ -1031,6 +1031,37 @@ export async function getPublicWebsitePrograms(
       seasonName: program.seasonName,
     })),
   };
+}
+
+export async function getPublicWebsiteFundraisers(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  runWithOrg: typeof withOrg = withOrg,
+  now = new Date(),
+) {
+  const site = await getPublicWebsiteChrome(database, orgSlug, runWithOrg);
+  if (!site) return null;
+  const fundraisers = await runWithOrg(
+    { orgId: site.organization.id, actor: { accountId: publicActor } },
+    (trx) =>
+      trx
+        .selectFrom('fundraising_campaigns')
+        .select('slug')
+        .where('org_id', '=', site.organization.id)
+        .where('status', '=', 'published')
+        .where('starts_at', '<=', now)
+        .where((expression) =>
+          expression.or([
+            expression('ends_at', 'is', null),
+            expression('ends_at', '>', now),
+          ]),
+        )
+        .orderBy('starts_at', 'asc')
+        .orderBy('name', 'asc')
+        .limit(200)
+        .execute(),
+  );
+  return { ...site, fundraisers: fundraisers.map(({ slug }) => slug) };
 }
 
 export async function getPublicWebsiteProgram(
