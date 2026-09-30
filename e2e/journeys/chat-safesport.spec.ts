@@ -97,6 +97,7 @@ test('team chat includes the minor athlete’s guardian and lets the guardian re
             person_id: athletePersonId,
             account_id: athleteId,
             relationship: 'self',
+            verified_at: new Date(),
           },
           {
             id: randomUUID(),
@@ -104,6 +105,7 @@ test('team chat includes the minor athlete’s guardian and lets the guardian re
             person_id: athletePersonId,
             account_id: guardianId,
             relationship: 'guardian',
+            verified_at: new Date(),
           },
         ])
         .execute();

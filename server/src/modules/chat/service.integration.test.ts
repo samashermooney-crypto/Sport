@@ -113,7 +113,7 @@ beforeAll(async () => {
       ],
     );
     await admin.query(
-      'INSERT INTO person_account_links(id,org_id,person_id,account_id,relationship) VALUES ($1,$2,$3,$4,$5),($6,$2,$3,$7,$8),($9,$2,$10,$11,$5),($12,$2,$13,$14,$15)',
+      'INSERT INTO person_account_links(id,org_id,person_id,account_id,relationship,verified_at) VALUES ($1,$2,$3,$4,$5,now()),($6,$2,$3,$7,$8,now()),($9,$2,$10,$11,$5,now()),($12,$2,$13,$14,$15,now())',
       [
         randomUUID(),
         orgId,
