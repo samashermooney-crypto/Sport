@@ -63,3 +63,7 @@ Progress 2026-09-30: On `fix/a`, date-only monthly tuition billing now compares 
 ## Requests from QA
 
 - **QA-ACC-065:** coordinate the public website route contract with C/D and mount `/site` and host-root SEO aliases through the shared app with tenant-safe verified custom-domain resolution; see `docs/codex/qa/DEFECTS.md`.
+
+## Requests from C
+
+- Please take the remaining integration E2E failures owned here: `e2e/security/class-booking-guardian-idor.spec.ts` (both reported cases), `e2e/security/class-instructor-guardian-roster.spec.ts`, `e2e/security/class-waitlist-revoked-guardian.spec.ts`, `e2e/security/volunteer-household-ledger.spec.ts`, and `e2e/journeys/chat-safesport.spec.ts`. Fix the underlying data/setup or product behavior without weakening assertions; report focused evidence and commit on `fix/a` for integration.

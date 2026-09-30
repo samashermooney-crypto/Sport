@@ -48,18 +48,25 @@ function assertHttpsUrl(url: string): void {
   }
 }
 
+type ConnectOnboardingGateway = Pick<
+  PaymentsGateway,
+  | 'createExpressAccount'
+  | 'createAccountLink'
+  | 'createExpressLoginLink'
+  | 'retrieveAccount'
+>;
+
 export class ConnectOnboardingService {
+  private readonly gatewayProvider: () => ConnectOnboardingGateway;
+
   constructor(
     private readonly repository: ConnectAccountRepository,
-    private readonly gateway: Pick<
-      PaymentsGateway,
-      | 'createExpressAccount'
-      | 'createAccountLink'
-      | 'createExpressLoginLink'
-      | 'retrieveAccount'
-    >,
+    gateway: ConnectOnboardingGateway | (() => ConnectOnboardingGateway),
     private readonly urls: ConnectOnboardingUrls,
-  ) {}
+  ) {
+    this.gatewayProvider =
+      typeof gateway === 'function' ? gateway : () => gateway;
+  }
 
   async create(orgId: string, email: string): Promise<{ url: string }> {
     const reservation = await this.repository.reserve(orgId);
@@ -71,12 +78,12 @@ export class ConnectOnboardingService {
     if (reservation.kind === 'existing') {
       return this.onboardingLink(orgId, reservation.account.stripeAccountId);
     }
-    const created = await this.gateway.createExpressAccount({
+    const created = await this.gatewayProvider().createExpressAccount({
       orgId,
       email,
       idempotencyKey: `connect:${orgId}`,
     });
-    const latest = await this.gateway.retrieveAccount(created.id);
+    const latest = await this.gatewayProvider().retrieveAccount(created.id);
     if (latest.id !== created.id) {
       throw new Error('Stripe returned a different connected account');
     }
@@ -97,7 +104,9 @@ export class ConnectOnboardingService {
         'Stripe payments and payouts are not yet enabled',
       );
     }
-    return this.gateway.createExpressLoginLink(account.stripeAccountId);
+    return this.gatewayProvider().createExpressLoginLink(
+      account.stripeAccountId,
+    );
   }
 
   /** account.updated uses the event only as a hint; Stripe is the latest state. */
@@ -111,7 +120,8 @@ export class ConnectOnboardingService {
         'Connected account does not belong to this organization',
       );
     }
-    const latest = await this.gateway.retrieveAccount(stripeAccountId);
+    const latest =
+      await this.gatewayProvider().retrieveAccount(stripeAccountId);
     if (latest.id !== stripeAccountId) {
       throw new Error('Stripe returned a different connected account');
     }
@@ -135,7 +145,11 @@ export class ConnectOnboardingService {
     const refreshUrl = this.urls.refreshUrl(orgId);
     assertHttpsUrl(returnUrl);
     assertHttpsUrl(refreshUrl);
-    return this.gateway.createAccountLink({ accountId, returnUrl, refreshUrl });
+    return this.gatewayProvider().createAccountLink({
+      accountId,
+      returnUrl,
+      refreshUrl,
+    });
   }
 
   private accountView(

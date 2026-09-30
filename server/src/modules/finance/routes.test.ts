@@ -1541,6 +1541,7 @@ describe('Connect Express finance HTTP', () => {
       chargesEnabled: false,
       requirementsDue: ['business_profile.url'],
     });
+    expect(retrieveAccount).toHaveBeenCalledTimes(1);
     expect(
       (await fetch(`${path}/dashboard`, { method: 'POST', headers })).status,
     ).toBe(409);

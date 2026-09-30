@@ -25,6 +25,8 @@ export default defineConfig({
           environment: 'node',
           testTimeout: 15_000,
           hookTimeout: 30_000,
+          fileParallelism: false,
+          maxWorkers: 1,
           sequence: { hooks: 'stack' },
           globalSetup: ['server/test/global-setup.ts'],
           setupFiles: ['server/test/setup.ts'],

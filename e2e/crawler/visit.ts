@@ -273,7 +273,8 @@ export async function visitPath(
   activate?: () => Promise<Response | null>,
 ): Promise<void> {
   const failures: string[] = [];
-  const pendingApi = new Set<Request>();
+  const networkQuietPeriodMs = 500;
+  let lastSameOriginActivityAt = Date.now();
   const trackedRequests = new Set<Request>();
   const successfulRequests = new Set<string>();
   const abortedRequests = new Set<string>();
@@ -282,13 +283,12 @@ export async function visitPath(
   const onRequest = (request: Request): void => {
     if (!isSameOrigin(request.url(), baseURL) || isLongLivedStream(request))
       return;
-    if (request.url().includes('/api/')) pendingApi.add(request);
     trackedRequests.add(request);
+    lastSameOriginActivityAt = Date.now();
   };
   const onResponse = (response: Response): void => {
     const request = response.request();
-    trackedRequests.delete(request);
-    pendingApi.delete(request);
+    if (trackedRequests.delete(request)) lastSameOriginActivityAt = Date.now();
     if (!isSameOrigin(response.url(), baseURL)) return;
     if (response.status() < 400) successfulRequests.add(requestKey(request));
     if (response.status() < 400) return;
@@ -296,7 +296,7 @@ export async function visitPath(
   };
   const onRequestFailed = (request: Request): void => {
     const trackedDuringVisit = trackedRequests.delete(request);
-    pendingApi.delete(request);
+    if (trackedDuringVisit) lastSameOriginActivityAt = Date.now();
     if (!trackedDuringVisit || isLongLivedStream(request)) return;
     if (
       isSameOrigin(request.url(), baseURL) &&
@@ -347,13 +347,16 @@ export async function visitPath(
 
     await expect
       .poll(
-        () => [...pendingApi].map((request) => new URL(request.url()).pathname),
+        () =>
+          trackedRequests.size === 0 &&
+          Date.now() - lastSameOriginActivityAt >= networkQuietPeriodMs,
         {
           timeout: 10_000,
-          message: `${path} API requests should settle`,
+          intervals: [50],
+          message: `${path} same-origin requests should settle and remain quiet`,
         },
       )
-      .toEqual([]);
+      .toBe(true);
     for (const key of abortedRequests) {
       if (!successfulRequests.has(key))
         failures.push(`request aborted without a successful retry ${key}`);
