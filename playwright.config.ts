@@ -8,7 +8,10 @@ const webUrl = `https://127.0.0.1:${String(5173 + offset)}`;
 
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: true,
+  // Both browser projects mutate a shared seeded Postgres database. Keep CI
+  // sequential so fixture state and rate-limit rows cannot race across tests.
+  fullyParallel: process.env.CI !== 'true',
+  ...(process.env.CI ? { workers: 1 } : {}),
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {

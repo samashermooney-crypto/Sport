@@ -349,7 +349,9 @@ test('QA-ACC-033 / Track C: federation is reachable from console navigation', as
       withOrg,
       league,
     );
-    await page.goto(`/console/orgs/${league.orgId}`);
+    // Federation is grouped under Operations in the shared console shell;
+    // the organization home has a single Manage menu with a different IA.
+    await page.goto(`/console/orgs/${league.orgId}/people`);
     const operationsMenu = page.getByRole('button', {
       name: 'Operations',
       exact: true,

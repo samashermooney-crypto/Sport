@@ -143,7 +143,7 @@ try {
     run('migrate', 'npm', [
       'run',
       e2e ? 'db:seed' : 'db:migrate',
-      ...(e2e ? ['--', '--profile', 'e2e'] : []),
+      ...(e2e ? ['--', '--profile', 'e2e', '--reset'] : []),
     ]),
   );
   const api = run(
