@@ -3,7 +3,7 @@ import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 
 import type { DB } from '../../db/types';
-import { createWithOrg } from '../../db/withOrg';
+import { createWithOrg, withOrgInTransaction } from '../../db/withOrg';
 import type { OrgContext } from '../../db/withOrg';
 import { appendAuditEvent } from '../audit/service';
 import { PostgresInvoiceRepository } from '../finance/invoice-repo';
@@ -389,41 +389,49 @@ export async function voidFeeAssessment(
   assessmentId: string,
   reason: string,
 ): Promise<{ id: string }> {
-  const withOrg = createWithOrg(database);
-  const repository = new PostgresInvoiceRepository(database, context);
-  const assessment = await withOrg(context, async (trx) => {
-    const row = await trx
-      .selectFrom('federation_fee_assessments')
-      .selectAll()
-      .where('org_id', '=', context.orgId)
-      .where('id', '=', assessmentId)
-      .forUpdate()
-      .executeTakeFirst();
-    if (!row) throw federationNotFound('Assessment not found');
-    if (row.status === 'void')
-      throw federationConflict('Assessment already void');
-    await trx
-      .updateTable('federation_fee_assessments')
-      .set({ status: 'void', version: row.version + 1 })
-      .where('id', '=', row.id)
-      .execute();
-    return row;
-  });
-  if (assessment.invoice_id) {
-    await repository.void({
-      orgId: context.orgId,
-      invoiceId: assessment.invoice_id,
-      reason: `Federation fee assessment voided — ${reason}`,
+  return database.transaction().execute(async (trx) => {
+    // The assessment and its finance invoice form one state transition. If the
+    // invoice cannot be voided (for example, it has an active installment),
+    // roll back the assessment status and its audit event with it.
+    const repository = new PostgresInvoiceRepository(database, context);
+    const assessment = await withOrgInTransaction(
+      trx,
+      context,
+      async (orgTrx) => {
+        const row = await orgTrx
+          .selectFrom('federation_fee_assessments')
+          .selectAll()
+          .where('org_id', '=', context.orgId)
+          .where('id', '=', assessmentId)
+          .forUpdate()
+          .executeTakeFirst();
+        if (!row) throw federationNotFound('Assessment not found');
+        if (row.status === 'void')
+          throw federationConflict('Assessment already void');
+        await orgTrx
+          .updateTable('federation_fee_assessments')
+          .set({ status: 'void', version: row.version + 1 })
+          .where('id', '=', row.id)
+          .execute();
+        return row;
+      },
+    );
+    if (assessment.invoice_id) {
+      await repository.voidInTransaction(trx, {
+        orgId: context.orgId,
+        invoiceId: assessment.invoice_id,
+        reason: `Federation fee assessment voided — ${reason}`,
+      });
+    }
+    return withOrgInTransaction(trx, context, async (orgTrx) => {
+      await appendAuditEvent(orgTrx, context, {
+        action: 'federation.fee.voided',
+        entityType: 'federation_fee_assessment',
+        entityId: assessment.id,
+        changes: { reason: { tier: 'internal', after: reason } },
+      });
+      return { id: assessment.id };
     });
-  }
-  return withOrg(context, async (trx) => {
-    await appendAuditEvent(trx, context, {
-      action: 'federation.fee.voided',
-      entityType: 'federation_fee_assessment',
-      entityId: assessment.id,
-      changes: { reason: { tier: 'internal', after: reason } },
-    });
-    return { id: assessment.id };
   });
 }
 

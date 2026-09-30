@@ -510,7 +510,7 @@ export async function readMemberTeams(
     displayName: string;
     programName: string;
     divisionName: string;
-    rosterSize: number;
+    rosterSize?: number;
   }[];
 }> {
   return withFederationAccess(
@@ -536,6 +536,7 @@ export async function readMemberTeams(
         memberOrgId,
       );
       requireSharingKey(relationship, 'team_entries');
+      const mayReadRosterSize = relationship.dataSharing.rosters === true;
       const rows = await trx
         .selectFrom('team_entries as entry')
         .innerJoin('external_teams as team', (join) =>
@@ -582,9 +583,13 @@ export async function readMemberTeams(
             displayName: row.team_name,
             programName: row.program_name,
             divisionName: row.division_name,
-            rosterSize: Array.isArray(roster?.players)
-              ? roster.players.length
-              : 0,
+            ...(mayReadRosterSize
+              ? {
+                  rosterSize: Array.isArray(roster?.players)
+                    ? roster.players.length
+                    : 0,
+                }
+              : {}),
           };
         }),
       };

@@ -1,5 +1,6 @@
 import { newId } from '@shared/ids';
 import {
+  federationSharingSchema,
   rosterSnapshotPlayerSchema,
   type RosterSnapshotPlayer,
 } from '@shared/schemas/federation';
@@ -479,9 +480,35 @@ export async function listLeagueEntries(
       trx,
       rows.flatMap((row) => [row.org_id, row.entrant_org_id ?? '']),
     );
+    const memberOrgIds = [
+      ...new Set(
+        rows.flatMap((row) => (row.entrant_org_id ? [row.entrant_org_id] : [])),
+      ),
+    ];
+    const relationships = memberOrgIds.length
+      ? await trx
+          .selectFrom('org_relationships')
+          .select(['child_org_id', 'status', 'data_sharing'])
+          .where('parent_org_id', '=', context.orgId)
+          .where('child_org_id', 'in', memberOrgIds)
+          .execute()
+      : [];
+    const rostersSharedByMember = new Set(
+      relationships
+        .filter(
+          (relationship) =>
+            relationship.status === 'active' &&
+            federationSharingSchema.parse(relationship.data_sharing ?? {})
+              .rosters === true,
+        )
+        .map((relationship) => relationship.child_org_id),
+    );
     const views: FederationEntryView[] = [];
     for (const row of rows) {
-      const snapshot = await latestSnapshot(trx, context.orgId, row.id);
+      const snapshot =
+        row.entrant_org_id && rostersSharedByMember.has(row.entrant_org_id)
+          ? await latestSnapshot(trx, context.orgId, row.id)
+          : null;
       views.push(toEntryView(row, names, snapshot));
     }
     return views;
@@ -724,13 +751,27 @@ export async function getLeagueEntry(
       .where('team_entries.entrant_org_id', 'is not', null)
       .executeTakeFirst();
     if (!entry) throw federationNotFound('Entry not found');
-    const snapshot = await trx
-      .selectFrom('federation_roster_snapshots')
-      .selectAll()
-      .where('org_id', '=', context.orgId)
-      .where('team_entry_id', '=', entryId)
-      .where('status', '<>', 'superseded')
-      .executeTakeFirst();
+    const relationship = entry.entrant_org_id
+      ? await trx
+          .selectFrom('org_relationships')
+          .select(['status', 'data_sharing'])
+          .where('parent_org_id', '=', context.orgId)
+          .where('child_org_id', '=', entry.entrant_org_id)
+          .executeTakeFirst()
+      : undefined;
+    const mayReadRoster =
+      relationship?.status === 'active' &&
+      federationSharingSchema.parse(relationship.data_sharing ?? {}).rosters ===
+        true;
+    const snapshot = mayReadRoster
+      ? await trx
+          .selectFrom('federation_roster_snapshots')
+          .selectAll()
+          .where('org_id', '=', context.orgId)
+          .where('team_entry_id', '=', entryId)
+          .where('status', '<>', 'superseded')
+          .executeTakeFirst()
+      : undefined;
     const names = await orgNames(trx, [
       entry.org_id,
       entry.entrant_org_id ?? '',
