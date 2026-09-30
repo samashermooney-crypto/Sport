@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
-Status: working — integration code head `647cfc32` includes C’s Vite `/site` development proxy correction, C’s Federation/fee-void repairs, D’s Phase 11 fixes, and A’s origin-scoped notification permission change; hosted verification of the latest integration head is pending.
+Status: working — integration code head `fc061f1e` includes C’s Vite `/site` development proxy correction, C’s Federation/fee-void repairs, D’s Phase 11 and `/site.css` fixes, and A’s latest sign-up-origin permission fix; hosted verification is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
 Hosted CI: run `36694672770` on `16673ed` and the newer `36695956812` on `0cd2dd5d` both completed with the unit `test` job green and four E2E failures: crawler `/site/qa-crawler/sponsors` 500, public-site skip-link home missing, fundraiser detail 404, and Chromium notification permission `denied`. Both runs predate `647cfc32`; no GREEN result is claimed.
-Open integration work: get hosted verification after `647cfc32`; D must correct the skip-link E2E fixture’s JSONB `blocks` value, and A’s follow-up grant against the loaded sign-up origin is pending hosted verification. Continue checking launch-gate items below.
+Open integration work: get hosted verification after `fc061f1e`; D must correct the skip-link E2E fixture’s JSONB `blocks` value while preserving its keyboard assertions. The current hosted failures are on pre-fix head `0cd2dd5d`; continue checking launch-gate items below.
 
 ## Completed Track C work
 
@@ -249,5 +249,5 @@ Open integration work: get hosted verification after `647cfc32`; D must correct 
 
 - Run `36694672770` failed E2E consistently across all three retries; this is not crawler timing noise. C narrowed the dev proxy in `647cfc32`: only `/site/<org>` uses API SSR; `/site.css`, `?app=1`, and nested site journeys stay in Vite so Playwright’s deterministic API mocks are honored.
 - The skip-link home failure is a separate fixture issue: `e2e/design/parity.spec.ts` inserts `blocks: []`; node-postgres sends the JS array as a PostgreSQL array literal, which PostgreSQL stores as JSONB `{}`. The API correctly rejects this because `page.blocks` must be an array. D owns that E2E path and should persist valid JSON (for example `JSON.stringify([]) as unknown as Json`) while preserving every keyboard/focus assertion.
-- A’s explicit notification grant from `3a85deba` still reads `denied` in run `36694672770`; the exact finding is in `docs/codex/tracks/A.md`.
-- `647cfc32` passed `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` and `/Users/sammooney/athlentry-sprint/heavy.sh npm run lint`. Full E2E remains hosted-only per CI-first rules. Runs `36694672770` (`16673ed`) and `36695956812` (`0cd2dd5d`) are both pre-fix and red only in E2E; the unit `test` job is green on both.
+- Run `36695956812` also reported Chromium notification permission `denied`, but it predates A’s follow-up commits `0ac69a38` and `e5e3941a`, merged via `03345536`. Their exact-head verification is pending.
+- `647cfc32` passed `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` and `/Users/sammooney/athlentry-sprint/heavy.sh npm run lint`. Full E2E remains hosted-only per CI-first rules. Runs `36694672770` (`16673ed`) and `36695956812` (`0cd2dd5d`) are both pre-fix and red only in E2E; the unit `test` job is green on both. A’s and D’s later fixes are merged locally at `fc061f1e`; exact-head CI has not run yet.
