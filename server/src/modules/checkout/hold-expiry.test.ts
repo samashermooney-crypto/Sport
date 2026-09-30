@@ -160,6 +160,18 @@ describe('expired checkout holds', () => {
       await releaseExpiredHolds(database, context.orgId, afterExpiry),
     ).toBe(0);
 
+    // A payment that never completes keeps its place for a day, then frees it.
+    expect(
+      await releaseExpiredHolds(
+        database,
+        context.orgId,
+        new Date('2026-09-27T12:21:00Z'),
+      ),
+    ).toBe(3);
+    expect((await state()).counters).toEqual(
+      subjects.map(() => ({ held: 0, confirmed: 0 })),
+    );
+
     const repo = new PostgresCheckoutHoldRepository(database, context, () =>
       Temporal.Instant.from('2026-09-26T12:22:00Z'),
     );

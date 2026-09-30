@@ -6,12 +6,15 @@ import { createWithOrg } from '../../db/withOrg';
 import { getPlatformAdminDatabase } from '../platform/admin';
 
 const systemActor = '0199a1c0-0000-7000-8000-000000000001';
+// A payment still processing keeps its place for a day past the hold; a later
+// confirmation of a released hold is refused and refunded.
+const processingGraceMs = 24 * 60 * 60 * 1_000;
 const subjectOrder = { program: 0, division: 1, offering: 2 } as const;
 
 /**
  * Returns places held by abandoned checkouts to their capacity counters once
- * the hold expires. Checkouts awaiting payment keep their holds (payment
- * confirmation honors processing holds); open checkouts past their deadline
+ * the hold expires. Checkouts awaiting payment keep their holds for a day
+ * (payment confirmation honors processing holds); open checkouts past their deadline
  * become `expired`. Returns the number of holds released.
  */
 export async function releaseExpiredHolds(
@@ -39,7 +42,11 @@ export async function releaseExpiredHolds(
           AND hold.expires_at <= ${now}
           AND hold.released_at IS NULL
           AND hold.converted_at IS NULL
-          AND checkout.status IN ('open', 'expired', 'abandoned', 'failed')
+          AND (
+            checkout.status IN ('open', 'expired', 'abandoned', 'failed')
+            OR (checkout.status = 'awaiting_payment'
+              AND hold.expires_at <= ${new Date(now.getTime() - processingGraceMs)})
+          )
         ORDER BY hold.expires_at, hold.id
         LIMIT ${limit}
         FOR UPDATE OF hold SKIP LOCKED

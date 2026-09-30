@@ -1128,6 +1128,6 @@
 - **Date:** 2026-09-30
 - **Phase / area:** Phase 5 registration capacity (found by the registration-open load test)
 - **Context:** Checkout holds carried an expiry, but nothing released them, so every abandoned cart kept its program, division and offering places permanently and offerings showed full while seats were unused.
-- **Decision:** The `checkout.release-expired-holds` job runs every minute. For each organization with expired, unreleased, unconverted holds it releases up to 500 per run (skip-locked), decrements `held` on the counters in reservation lock order, and marks past-deadline `open` checkouts `expired`. Holds of checkouts awaiting payment are kept, because payment confirmation honors processing holds.
+- **Decision:** The `checkout.release-expired-holds` job runs every minute. For each organization with expired, unreleased, unconverted holds it releases up to 500 per run (skip-locked), decrements `held` on the counters in reservation lock order, and marks past-deadline `open` checkouts `expired`. Holds of checkouts awaiting payment are kept for 24 hours past expiry, because payment confirmation honors processing holds; after that they are released too, and a late confirmation of a released hold is refused as expired (refund path).
 - **Why:** Capacity must reflect real registrations; no family may be told a program is full because of another family's abandoned cart, and in-flight payments must never lose their place.
-- **Consequences / follow-ups:** Awaiting-payment checkouts whose payment never completes rely on the payment failure/abandon paths to release their holds.
+- **Consequences / follow-ups:** Payment methods that can settle after more than a day must extend their holds while processing.
