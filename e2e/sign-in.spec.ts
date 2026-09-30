@@ -229,6 +229,10 @@ test('new account verifies its preview email and signs in', async ({
     await page.context().grantPermissions(['notifications'], {
       origin: new URL(page.url()).origin,
     });
+    expect(
+      await page.evaluate(() => Notification.permission),
+      'Chromium notifications permission should be granted before sign-up',
+    ).toBe('granted');
   }
   await expect(
     page.getByRole('heading', { name: 'Create your account' }),
