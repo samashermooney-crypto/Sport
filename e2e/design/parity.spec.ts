@@ -1,9 +1,15 @@
+import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type TestInfo } from '@playwright/test';
 import sharp from 'sharp';
+
+import { createDatabase } from '../../server/src/db/kysely';
+import { createWithOrg } from '../../server/src/db/withOrg';
+import { createTestFactories } from '../../server/test/factories';
+import { e2eDatabaseUrl } from '../database';
 
 const showcase = (label: string) =>
   `.ui-showcase-section[aria-label="${label}"]`;
@@ -181,16 +187,61 @@ test('public site shell matches the legacy header and navigation at desktop and 
 test('public organization site skip link moves keyboard focus to main content', async ({
   page,
 }) => {
-  await page.goto('/site/fieldhouse-demo');
-  const skipLink = page.getByRole('link', { name: 'Skip to content' });
-  await expect(skipLink).toBeAttached();
-  await expect(skipLink).not.toBeInViewport();
+  const database = createDatabase(e2eDatabaseUrl('app'));
+  try {
+    const factories = createTestFactories(database);
+    const actor = await factories.actor();
+    const withOrg = createWithOrg(database);
+    const organization = await withOrg(actor, async (trx) => {
+      const row = await trx
+        .selectFrom('organizations')
+        .select('slug')
+        .where('id', '=', actor.orgId)
+        .executeTakeFirst();
+      if (!row) throw new Error('Website fixture organization was not created');
+      return row;
+    });
+    await withOrg(actor, async (trx) => {
+      await trx
+        .updateTable('organizations')
+        .set({ status: 'active' })
+        .where('id', '=', actor.orgId)
+        .execute();
+      await trx
+        .insertInto('website_pages')
+        .values({
+          id: randomUUID(),
+          org_id: actor.orgId,
+          slug: 'home',
+          title: 'Accessible organization',
+          status: 'published',
+          blocks: [],
+          seo: {},
+          published_at: new Date(),
+        })
+        .execute();
+      await trx
+        .insertInto('website_settings')
+        .values({ org_id: actor.orgId, published: true })
+        .execute();
+    });
 
-  await page.keyboard.press('Tab');
-  await expect(skipLink).toBeFocused();
-  await expect(skipLink).toBeInViewport();
-  await page.keyboard.press('Enter');
-  await expect(page.locator('#main-content')).toBeFocused();
+    await page.goto(`/site/${organization.slug}`);
+    await expect(
+      page.getByRole('heading', { name: 'Accessible organization' }),
+    ).toBeVisible();
+    const skipLink = page.getByRole('link', { name: 'Skip to content' });
+    await expect(skipLink).toBeAttached();
+    await expect(skipLink).not.toBeInViewport();
+
+    await page.keyboard.press('Tab');
+    await expect(skipLink).toBeFocused();
+    await expect(skipLink).toBeInViewport();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#main-content')).toBeFocused();
+  } finally {
+    await database.destroy();
+  }
 });
 
 test('console and public shells localize navigation and accessibility labels', async ({
