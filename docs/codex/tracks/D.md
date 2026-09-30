@@ -3,7 +3,7 @@
 Status: in-progress
 Model: GPT-6 Luna
 Branch: `fix/d`
-Working from the 10-hour integration plan. `fix/d` is synced through integration head `41dc3f8f` via merge `efbdfde6` and contains the D website, accessibility, and parity follow-ups described below. CI run `36676094411` is running on exact integration SHA `41dc3f8f`; the prior completed run `36674673633` on `6f832444` failed e2e journeys owned by C/H/I/J, with no parity diagnostic in its listed failures. Earlier exact-runner runs `36662938527` and `36663830530` reported no D parity failure; the current SHA still needs its completed result. macOS references, tolerances, and the token-equality test remain unchanged. The old per-track trunk merge notes below are historical.
+Working from the 10-hour integration plan. `fix/d` is synced through integration head `41dc3f8f` via merge `efbdfde6` and contains the D website, accessibility, and parity follow-ups described below. CI run `36676094411` completed red on exact integration SHA `41dc3f8f`; its failure list includes the C federation journey, H buyout/uniform journeys, J fee-void journey, and I security journeys, with no design-parity, 390px-shell, or missing-Linux-snapshot diagnostic. D's buyout and uniform fixes are committed on `fix/d` and await a new integration CI run. macOS references, tolerances, and the token-equality test remain unchanged. The old per-track trunk merge notes below are historical.
 
 ## Current
 
@@ -34,6 +34,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 ## Recent checks
 
 - C-assigned buyout-race regression is fixed on `fix/d`: household buyouts serialize by org, requirement, household, and person, and ledger aggregation now counts buyout rows even when no volunteer signup rows exist. The targeted PostgreSQL service test passes 3/3; `heavy.sh npm run typecheck` and `heavy.sh npm run lint` pass. Hosted E2E confirmation is pending integration.
+- C-assigned uniform-report regression is fixed on `fix/d`: the family store loads active registrations, preselects the selected athlete's unique registration, and submits it; the service checks household, person-link, and team consistency and persists the registration's team on the order lines. The focused store integration file passes 8/8. The browser journey now uses the current “Order for” label and asserts the selected registration; hosted E2E confirmation is pending integration.
 - Public news now has published-only detail API and SSR pages, translated client route, canonical/robots metadata, NewsArticle JSON-LD, detail sitemap URLs, and summary-only index cards. Future-dated posts are excluded from public lists and detail lookup. Focused website database tests pass 2/2 and 1/1; site route tests pass 5/5; i18n completeness passes 2/2; `npm run openapi`, `heavy.sh npm run typecheck`, `heavy.sh npm run lint`, and `git diff --check` pass. No parity tolerance or token-equality code changed.
 - Integration CI file last refreshed Wed 00:42: run `36671455807` is red on older SHA `758a22fe`; the reported test/E2E failures are family classes journeys and related console errors, with no design-parity failure listed. CI for the newer integration head was pending at that refresh; refresh the report after D's next commit lands there.
 - After merging `track/integration` at `456f997f` into `fix/d` (`7200e7d6`), `heavy.sh npm run typecheck` and `heavy.sh npm run lint` pass. The full `server/src/modules/website/service.integration.test.ts` passes 13/13, including public standings embed lookup against the injected test database and the regression that future news stays hidden from both the list and detail SSR. `contact.routes.integration.test.ts` passes 1/1; site routes pass 5/5 and i18n completeness passes 2/2.
@@ -87,7 +88,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 ## Exact next steps
 
-1. Ensure the current `fix/d` head is included in the next integration commit and inspect its completed CI result. Run `36676094411` is still in progress on `41dc3f8f`, before D's newest website/a11y follow-ups. Scan test/e2e output for Linux parity and D-owned website or console regressions.
+1. Ensure the current `fix/d` head is included in the next integration commit and inspect its completed CI result. Run `36676094411` is red on the older `41dc3f8f` head, with the assigned buyout/uniform tests among the failures and no parity diagnostic. Confirm the new Phase 11 regressions and scan for Linux parity and D-owned website/console failures.
 2. Fix newly reported D-owned parity or console/website failures. Focused website console/embed tests, Action Center, organization data/privacy, report builder, ReportsDashboard, ConsoleShell, and the public news tests passed individually on the preceding integration tree.
 3. Review the `phase14-lighthouse` artifact from the first CI run containing `41dc3f8f`; if any registered shared-app route misses Performance ≥ 90, Accessibility 100, or SEO ≥ 95, fix and repeat. Add the exact CI score/evidence to the Phase 14 acceptance record.
 4. Complete and record the documented manual keyboard review; keep cross-track requests in the section below.
@@ -121,4 +122,4 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 ## Requests from C
 
-- Please take the remaining integration E2E failures for `e2e/phase11-uniform-report.spec.ts` and `e2e/phase11-buyout-race.spec.ts`. Fix the underlying data/setup or product behavior without weakening assertions; report focused evidence and commit on `fix/d` for integration.
+- Resolved on `fix/d`, pending hosted E2E confirmation: `e2e/phase11-uniform-report.spec.ts` and `e2e/phase11-buyout-race.spec.ts`. The buyout ledger and serialization fix passes its focused PostgreSQL test; uniform registration attribution passes the focused store service test. Neither assertion or parity tolerance was weakened.

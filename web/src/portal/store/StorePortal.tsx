@@ -41,6 +41,25 @@ const householdsSchema = z.strictObject({
     }),
   ),
 });
+const registrationsSchema = z.strictObject({
+  registrations: z.array(
+    z.strictObject({
+      id: uuid,
+      personId: uuid,
+      personName: z.string(),
+      programId: uuid,
+      programName: z.string(),
+      offeringId: uuid,
+      offeringName: z.string(),
+      status: z.string(),
+      statusReason: z.string().nullable(),
+      checkoutId: uuid.nullable(),
+      invoiceId: uuid.nullable(),
+      approvalPaymentDueAt: z.string().nullable(),
+      createdAt: z.string(),
+    }),
+  ),
+});
 const orderSchema = z.strictObject({
   id: uuid,
   status: z.enum([
@@ -74,6 +93,9 @@ const myOrdersSchema = z.strictObject({
 type Product = z.output<typeof productSchema>;
 type Order = z.output<typeof myOrdersSchema>['orders'][number];
 type Household = z.output<typeof householdsSchema>['households'][number];
+type Registration = z.output<
+  typeof registrationsSchema
+>['registrations'][number];
 
 function money(cents: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -86,9 +108,11 @@ export function StorePortal({ orgId }: { orgId: string }): React.JSX.Element {
   const base = `/store/orgs/${encodeURIComponent(orgId)}`;
   const [products, setProducts] = useState<Product[]>([]);
   const [households, setHouseholds] = useState<Household[]>([]);
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [householdId, setHouseholdId] = useState('');
   const [personId, setPersonId] = useState('');
+  const [registrationId, setRegistrationId] = useState('');
   const [fulfillmentMethod, setFulfillmentMethod] = useState<'pickup' | 'ship'>(
     'pickup',
   );
@@ -106,6 +130,15 @@ export function StorePortal({ orgId }: { orgId: string }): React.JSX.Element {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const selectedHousehold = households.find((item) => item.id === householdId);
+  const personRegistrations = useMemo(
+    () =>
+      registrations.filter(
+        (registration) =>
+          registration.personId === personId &&
+          ['confirmed', 'pending_payment'].includes(registration.status),
+      ),
+    [personId, registrations],
+  );
   const cart = useMemo(
     () =>
       Object.entries(quantities)
@@ -123,17 +156,23 @@ export function StorePortal({ orgId }: { orgId: string }): React.JSX.Element {
     setLoading(true);
     setError('');
     try {
-      const [productResult, householdResult, orderResult] = await Promise.all([
-        apiGet(`${base}/products`, productsSchema),
-        apiGet(
-          `/volunteers/orgs/${encodeURIComponent(orgId)}/me/households`,
-          householdsSchema,
-        ),
-        apiGet(`${base}/me/orders`, myOrdersSchema),
-      ]);
+      const [productResult, householdResult, orderResult, registrationResult] =
+        await Promise.all([
+          apiGet(`${base}/products`, productsSchema),
+          apiGet(
+            `/volunteers/orgs/${encodeURIComponent(orgId)}/me/households`,
+            householdsSchema,
+          ),
+          apiGet(`${base}/me/orders`, myOrdersSchema),
+          apiGet(
+            `/registration/orgs/${encodeURIComponent(orgId)}/me/registrations`,
+            registrationsSchema,
+          ),
+        ]);
       setProducts(productResult.products);
       setHouseholds(householdResult.households);
       setOrders(orderResult.orders);
+      setRegistrations(registrationResult.registrations);
       setHouseholdId((current) =>
         householdResult.households.some((item) => item.id === current)
           ? current
@@ -154,6 +193,15 @@ export function StorePortal({ orgId }: { orgId: string }): React.JSX.Element {
     if (selectedHousehold && !selectedHousehold.personIds.includes(personId))
       setPersonId(selectedHousehold.people[0]?.id ?? '');
   }, [personId, selectedHousehold]);
+  useEffect(() => {
+    setRegistrationId((current) =>
+      personRegistrations.some((registration) => registration.id === current)
+        ? current
+        : personRegistrations.length === 1
+          ? (personRegistrations[0]?.id ?? '')
+          : '',
+    );
+  }, [personRegistrations]);
 
   async function placeOrder(): Promise<void> {
     if (!householdId || !personId || !cart.length) return;
@@ -197,6 +245,7 @@ export function StorePortal({ orgId }: { orgId: string }): React.JSX.Element {
         `${base}/orders`,
         {
           householdId,
+          ...(registrationId ? { registrationId } : {}),
           fulfillmentMethod,
           ...(fulfillmentMethod === 'ship'
             ? {
@@ -270,6 +319,24 @@ export function StorePortal({ orgId }: { orgId: string }): React.JSX.Element {
             ))}
           </Select>
         </Field>
+        {personRegistrations.length > 0 ? (
+          <Field label="Registration">
+            <Select
+              aria-label="Registration"
+              value={registrationId}
+              onChange={(event) => {
+                setRegistrationId(event.target.value);
+              }}
+            >
+              <option value="">No registration selected</option>
+              {personRegistrations.map((registration) => (
+                <option key={registration.id} value={registration.id}>
+                  {registration.programName} · {registration.offeringName}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
         <Field label="Fulfillment">
           <Select
             aria-label="Fulfillment"

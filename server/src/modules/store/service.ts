@@ -743,6 +743,8 @@ export async function placeStoreOrder(
         .executeTakeFirst();
       if (!account)
         throw new StoreAccessError('A signed-in purchaser is required');
+      const selectedRegistrationId = input.registrationId ?? null;
+      let selectedTeamSeasonId = input.teamSeasonId ?? null;
       if (input.householdId) {
         const membership = await sql<{ allowed: boolean }>`
           SELECT EXISTS (
@@ -762,7 +764,7 @@ export async function placeStoreOrder(
       if (input.registrationId) {
         const registration = await trx
           .selectFrom('registrations')
-          .select('id')
+          .select(['id', 'person_id', 'team_season_id'])
           .where('org_id', '=', context.orgId)
           .where('id', '=', input.registrationId)
           .where('household_id', '=', input.householdId ?? null)
@@ -772,6 +774,39 @@ export async function placeStoreOrder(
           throw new StoreNotFoundError(
             'Registration not found for this household',
           );
+        if (
+          input.teamSeasonId &&
+          input.teamSeasonId !== registration.team_season_id
+        )
+          throw new StoreConflictError(
+            'Selected team does not match the registration',
+          );
+        for (const line of input.lines) {
+          if (line.personId && line.personId !== registration.person_id)
+            throw new StoreConflictError(
+              'Selected registration does not match the order participant',
+            );
+        }
+        const personLink = await trx
+          .selectFrom('person_account_links')
+          .select('person_id')
+          .where('org_id', '=', context.orgId)
+          .where('person_id', '=', registration.person_id)
+          .where('account_id', '=', context.actor.accountId)
+          .where('relationship', 'in', ['self', 'guardian'])
+          .where('revoked_at', 'is', null)
+          .where((eb) =>
+            eb.or([
+              eb('relationship', '!=', 'guardian'),
+              eb('verified_at', 'is not', null),
+            ]),
+          )
+          .executeTakeFirst();
+        if (!personLink)
+          throw new StoreAccessError(
+            'Selected registration is not available to the purchaser',
+          );
+        selectedTeamSeasonId ??= registration.team_season_id;
       }
       let shippingAddress: Json | null = null;
       if (input.fulfillmentMethod === 'ship') {
@@ -807,8 +842,8 @@ export async function placeStoreOrder(
           account_id: context.actor.accountId,
           household_id: input.householdId ?? null,
           shipping_address: shippingAddress,
-          registration_id: input.registrationId ?? null,
-          team_season_id: input.teamSeasonId ?? null,
+          registration_id: selectedRegistrationId,
+          team_season_id: selectedTeamSeasonId,
           status: 'draft',
           idempotency_key: input.idempotencyKey,
           request_hash: requestHash,
@@ -868,9 +903,9 @@ export async function placeStoreOrder(
             order_id: orderId,
             product_id: item.product_id,
             product_variant_id: requested.variantId,
-            registration_id: input.registrationId ?? null,
+            registration_id: selectedRegistrationId,
             person_id: requested.personId ?? null,
-            team_season_id: input.teamSeasonId ?? null,
+            team_season_id: selectedTeamSeasonId,
             quantity: requested.quantity,
             unit_amount_cents: item.price_cents,
             amount_cents: amountCents,
@@ -897,7 +932,7 @@ export async function placeStoreOrder(
           variantId: requested.variantId,
           quantity: requested.quantity,
           personId: requested.personId ?? null,
-          teamSeasonId: input.teamSeasonId ?? null,
+          teamSeasonId: selectedTeamSeasonId,
         });
       }
       if (taxRates.size > 1)

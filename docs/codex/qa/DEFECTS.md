@@ -90,7 +90,7 @@
 - **Reproduce:** place and pay for a uniform as a family through `/me/orgs/:orgId/store`, then query the report for the athlete's program/team. The portal order has no team or registration association and does not appear in the team's report; supplying another valid team-season UUID directly can instead misattribute it.
 - **Expected:** a paid uniform selection for a registered athlete is attributed to that athlete's verified registration and team, and callers cannot attach purchases to unrelated teams; report totals match actual family selections.
 - **Request:** wire the registration add-on and family store flows to derive or validate registration/team attribution from the selected household member, reject mismatched team IDs, and add a browser regression that pays for a family uniform and verifies the team/program report.
-- **Status:** still open. The initial Chromium attempt used an incorrect database mapping, and the corrected-offset retry did not reach this scenario because the temporary API server exited before becoming healthy. Rerun after API startup is stable.
+- **Status:** implementation is on `fix/d`: the family store loads the caller's active registrations, selects the unique registration for the selected athlete by default, and submits that ID; the service validates household, person-link, and team consistency and persists the registration's team on the order lines. The targeted store service test passes 8/8. The hosted browser journey is updated to match the current “Order for” label and asserts registration selection; awaiting integration CI.
 
 ### QA-ACC-039 — Concurrent volunteer buyouts can leave an extra payable invoice
 
@@ -100,7 +100,7 @@
 - **Reproduce:** with one buyout unit remaining, concurrently call the service twice for one unit using distinct creation keys. One call succeeds; the other rejects after issuing an invoice. `e2e/phase11-buyout-race.spec.ts` now actively asserts that only one buyout invoice line may persist.
 - **Expected:** the losing request leaves no payable invoice or invoice line; buyout reservation and invoice creation must remain consistent under concurrency.
 - **Request:** reserve/decrement remaining units before issuing the invoice, or compensate by voiding the invoice if the locked recheck fails; add a Postgres concurrency regression that asserts the losing request creates no invoice.
-- **Status:** runtime-confirmed on the isolated QA Postgres stack: both concurrent requests fulfilled, persisted two buyouts, and created two payable invoice lines for one remaining unit. The active aggregate regression expects one success, one conflict, one buyout, and one invoice line.
+- **Status:** fixed on `fix/d`: buyout requests serialize by org/requirement/household/person, and the household ledger now counts existing buyout rows independently of volunteer signups. The targeted PostgreSQL test passes 3/3 and verifies one success, one conflict, one buyout, and one invoice line. The hosted browser regression is awaiting integration CI.
 
 ### QA-ACC-040 — Volunteer coach-count setting does not affect household progress
 

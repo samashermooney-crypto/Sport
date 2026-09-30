@@ -136,6 +136,91 @@ describe('store inventory ledger', () => {
     ).toEqual([]);
   });
 
+  it('keeps a family uniform order linked to the selected registration and team', async () => {
+    const factories = createTestFactories(database);
+    const actor = await factories.actor();
+    const program = await factories.program(actor);
+    const team = await factories.team(actor, program);
+    const householdId = await factories.household(actor);
+    const athleteId = await factories.person(actor, {
+      firstName: 'Taylor',
+      lastName: 'Uniform',
+      dateOfBirth: '2015-06-12',
+    });
+    const registrationId = await factories.registration(
+      actor,
+      program,
+      athleteId,
+      householdId,
+    );
+    await factories.scoped(actor, async (trx) => {
+      await trx
+        .insertInto('household_members')
+        .values({
+          id: randomUUID(),
+          org_id: actor.orgId,
+          household_id: householdId,
+          person_id: athleteId,
+          role: 'athlete',
+          financially_responsible: true,
+        })
+        .execute();
+      await trx
+        .insertInto('person_account_links')
+        .values({
+          id: randomUUID(),
+          org_id: actor.orgId,
+          person_id: athleteId,
+          account_id: actor.accountId,
+          relationship: 'guardian',
+          verified_at: new Date(),
+        })
+        .execute();
+      await trx
+        .updateTable('registrations')
+        .set({ team_season_id: team.teamSeasonId })
+        .where('id', '=', registrationId)
+        .execute();
+    });
+    const productId = await createProduct(database, actor, {
+      name: 'Family uniform',
+      kind: 'uniform',
+      requiredForRegistration: true,
+      variants: [
+        {
+          sku: `UNIFORM-${randomUUID().slice(0, 8)}`,
+          size: 'Youth Medium',
+          priceCents: 4_500,
+        },
+      ],
+    });
+    const variantId = (await listProducts(database, actor)).find(
+      (product) => product.id === productId,
+    )?.variants[0]?.id;
+    if (!variantId) throw new Error('Created uniform variant was not listed');
+    await receiveStock(database, actor, variantId, 1);
+
+    const order = await placeStoreOrder(database, actor, {
+      householdId,
+      registrationId,
+      fulfillmentMethod: 'pickup',
+      idempotencyKey: randomUUID(),
+      lines: [{ variantId, quantity: 1, personId: athleteId }],
+    });
+    const persistedLine = await createWithOrg(database)(actor, (trx) =>
+      trx
+        .selectFrom('store_order_lines')
+        .select(['registration_id', 'team_season_id'])
+        .where('order_id', '=', order.id)
+        .executeTakeFirstOrThrow(),
+    );
+
+    expect(persistedLine).toEqual({
+      registration_id: registrationId,
+      team_season_id: team.teamSeasonId,
+    });
+  });
+
   it('never reserves more than on-hand stock under concurrent orders', async () => {
     const factories = createTestFactories(database);
     const actor = await factories.actor();
