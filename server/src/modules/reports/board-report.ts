@@ -181,18 +181,18 @@ function metricSpecs(now: Date): readonly MetricSpec[] {
     },
     {
       key: 'credential-compliance',
-      label: 'Verified credential share',
+      label: 'Compliant credential share',
       dataset: 'credentials',
       definition: definition({
         dataset: 'credentials',
-        columns: ['status'],
+        columns: ['compliance_status'],
         filters: [{ column: 'status', op: 'ne', value: 'revoked' }],
-        groupBy: ['status'],
+        groupBy: ['compliance_status'],
         aggregates: [{ fn: 'count', column: 'id' }],
-        sort: [],
+        sort: [{ column: 'compliance_status', direction: 'asc' }],
         limit: 20,
       }),
-      aggregateKeys: ['status', 'count_id'],
+      aggregateKeys: ['compliance_status', 'count_id'],
       format: 'compliance',
     },
   ];

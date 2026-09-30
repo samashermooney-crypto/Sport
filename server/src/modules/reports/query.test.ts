@@ -11,6 +11,30 @@ import {
 } from './query';
 
 describe('report dataset access', () => {
+  it('reports credential compliance against the inclusive current-date boundary', () => {
+    const dataset = datasetForActor('credentials', ['compliance']);
+    const visible = columnsForActor(dataset, ['compliance']);
+    const compliance = dataset.columns.find(
+      (column) => column.key === 'compliance_status',
+    );
+    const definition = reportDefinitionSchema.parse({
+      dataset: 'credentials',
+      columns: ['compliance_status'],
+      filters: [{ column: 'status', op: 'ne', value: 'revoked' }],
+      groupBy: ['compliance_status'],
+      aggregates: [{ fn: 'count', column: 'id' }],
+    });
+
+    expect(compliance?.source).toContain('t.expires_on IS NULL');
+    expect(compliance?.source).toContain('t.expires_on >= CURRENT_DATE');
+    expect(compliance?.source).toContain(
+      "WHEN t.status = 'verified' THEN 'expired'",
+    );
+    expect(() => {
+      validateReportDefinition(dataset, visible, definition);
+    }).not.toThrow();
+  });
+
   it('exposes invoice aging buckets only through the finance dataset role', () => {
     const invoices = datasetForActor('invoices', ['finance']);
     const aging = invoices.columns.find(
