@@ -13,6 +13,9 @@ import { createWebsiteRouter } from './routes';
 const orgId = randomUUID();
 const orgSlug = `public-contact-${orgId.slice(0, 8)}`;
 const inboxEmail = `contact-${orgId.slice(0, 8)}@example.invalid`;
+const publicFacilityId = randomUUID();
+const newsId = randomUUID();
+const newsSlug = `public-update-${newsId.slice(0, 8)}`;
 let database: ReturnType<typeof createDatabase>;
 
 beforeAll(async () => {
@@ -33,13 +36,41 @@ beforeAll(async () => {
         JSON.stringify({ primary: '#3a67b2', secondary: '#252b2e' }),
       ],
     );
+    await admin.query(
+      `INSERT INTO facilities (id, org_id, name, ownership, address, map_url, public)
+       VALUES ($1, $2, 'Public Contact Field', 'owned', $3::jsonb, 'https://maps.example.invalid/field', true)`,
+      [
+        publicFacilityId,
+        orgId,
+        JSON.stringify({ city: 'Madison', state: 'WI' }),
+      ],
+    );
+    await admin.query(
+      `INSERT INTO news_posts (id, org_id, slug, title, body_html, status, published_at)
+       VALUES ($1, $2, $3, 'Public update', '<p>Published news.</p>', 'published', now())`,
+      [newsId, orgId, newsSlug],
+    );
   } finally {
     await admin.end();
   }
   database = createDatabase(process.env.TEST_DATABASE_APP_URL ?? '');
 });
 
-afterAll(async () => database.destroy());
+afterAll(async () => {
+  const admin = new pg.Client({
+    connectionString: process.env.TEST_DATABASE_URL,
+  });
+  await admin.connect();
+  try {
+    await admin.query('DELETE FROM facilities WHERE id = $1', [
+      publicFacilityId,
+    ]);
+    await admin.query('DELETE FROM news_posts WHERE id = $1', [newsId]);
+  } finally {
+    await admin.end();
+    await database.destroy();
+  }
+});
 
 describe('public website contact route', () => {
   it('serves SEO policy and validates public contact submissions', async () => {
@@ -92,6 +123,31 @@ describe('public website contact route', () => {
       expect(sitemapXml).toContain(
         `https://${orgSlug}.athlentry.com/site/${orgSlug}/schedule`,
       );
+      expect(sitemapXml).toContain(
+        `https://${orgSlug}.athlentry.com/site/${orgSlug}/fundraisers`,
+      );
+      expect(sitemapXml).toContain(
+        `https://${orgSlug}.athlentry.com/site/${orgSlug}/facilities/${publicFacilityId}`,
+      );
+      expect(sitemapXml).toContain(
+        `https://${orgSlug}.athlentry.com/site/${orgSlug}/news`,
+      );
+      expect(sitemapXml).not.toContain(newsSlug);
+      const facilities = await fetch(
+        `${origin}/api/v1/website/public/${orgSlug}/facilities`,
+      );
+      expect(facilities.status).toBe(200);
+      expect(await facilities.json()).toMatchObject({
+        organization: { slug: orgSlug },
+        facilities: [
+          {
+            id: publicFacilityId,
+            name: 'Public Contact Field',
+            address: { city: 'Madison', state: 'WI' },
+            mapUrl: 'https://maps.example.invalid/field',
+          },
+        ],
+      });
 
       const robotsAdmin = new pg.Client({
         connectionString: process.env.TEST_DATABASE_URL,

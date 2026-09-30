@@ -7087,6 +7087,14 @@ export const apiRouteMetadata = [
     scope: 'public',
   },
   {
+    operationId: 'get_api_v1_website_public_orgSlug_facilities',
+    method: 'get',
+    path: '/api/v1/website/public/{orgSlug}/facilities',
+    permission: 'public.access',
+    resource: 'website.website.public',
+    scope: 'public',
+  },
+  {
     operationId: 'get_api_v1_website_public_orgSlug_embeds_publicKey',
     method: 'get',
     path: '/api/v1/website/public/{orgSlug}/embeds/{publicKey}',

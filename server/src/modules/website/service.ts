@@ -926,6 +926,10 @@ export async function getPublicWebsiteChrome(
         label: locale === 'es' ? 'Recaudación' : 'Fundraisers',
         href: `/site/${organization.slug}/fundraisers`,
       },
+      {
+        label: locale === 'es' ? 'Instalaciones' : 'Facilities',
+        href: `/site/${organization.slug}/facilities`,
+      },
     ];
     if (settings.contact_inbox_email)
       generatedNavigation.push({
@@ -1073,6 +1077,67 @@ export async function getPublicWebsiteFundraisers(
     ...site,
     fundraisers: fundraisers.map(({ slug, name }) => ({ slug, name })),
   };
+}
+
+export async function getPublicWebsiteFacilities(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  runWithOrg: typeof withOrg = withOrg,
+) {
+  const site = await getPublicWebsiteChrome(database, orgSlug, runWithOrg);
+  if (!site) return null;
+  const facilities = await runWithOrg(
+    { orgId: site.organization.id, actor: { accountId: publicActor } },
+    (trx) =>
+      trx
+        .selectFrom('facilities')
+        .select(['id', 'name', 'address', 'map_url'])
+        .where('org_id', '=', site.organization.id)
+        .where('public', '=', true)
+        .where('archived_at', 'is', null)
+        .orderBy('name', 'asc')
+        .limit(200)
+        .execute(),
+  );
+  return {
+    theme: site.theme,
+    robotsPolicy: site.robotsPolicy,
+    navigation: site.navigation,
+    footerNavigation: site.footerNavigation,
+    organization: {
+      name: site.organization.name,
+      slug: site.organization.slug,
+      locale: site.organization.locale,
+    },
+    facilities: facilities.map((facility) => ({
+      id: facility.id,
+      name: facility.name,
+      address:
+        facility.address &&
+        typeof facility.address === 'object' &&
+        !Array.isArray(facility.address)
+          ? Object.fromEntries(
+              Object.entries(facility.address).filter(
+                (entry): entry is [string, string] =>
+                  typeof entry[1] === 'string',
+              ),
+            )
+          : null,
+      mapUrl: publicFacilityMapUrl(facility.map_url),
+    })),
+  };
+}
+
+function publicFacilityMapUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getPublicWebsiteProgram(

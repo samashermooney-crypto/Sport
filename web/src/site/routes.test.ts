@@ -7,6 +7,7 @@ describe('generated public site routes', () => {
   it.each([
     ['/site/club/standings/program-id', '/site/:orgSlug/standings/:programId'],
     ['/site/club/brackets/bracket-id', '/site/:orgSlug/brackets/:bracketId'],
+    ['/site/club/facilities', '/site/:orgSlug/facilities'],
     [
       '/site/club/facilities/facility-id',
       '/site/:orgSlug/facilities/:facilityId',

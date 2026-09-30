@@ -97,7 +97,11 @@ describe('website page service', () => {
   it('renders public sponsors and fundraiser SEO while preserving donation interactivity', async () => {
     const sponsorId = randomUUID();
     const campaignId = randomUUID();
+    const facilityId = randomUUID();
+    const privateFacilityId = randomUUID();
+    const newsId = randomUUID();
     const campaignSlug = `fall-fundraiser-${campaignId.slice(0, 8)}`;
+    const newsSlug = `community-update-${newsId.slice(0, 8)}`;
     const admin = new pg.Client({
       connectionString: process.env.TEST_DATABASE_URL,
     });
@@ -119,6 +123,22 @@ describe('website page service', () => {
         `INSERT INTO fundraising_campaigns (id, org_id, name, slug, goal_cents, starts_at, ends_at, description_html, status, show_donor_names, created_by)
          VALUES ($1, $2, 'Fall team fundraiser', $3, 100000, '2026-01-01T00:00:00Z', '2027-01-01T00:00:00Z', '<p>Support our fall season.</p>', 'published', true, $4)`,
         [campaignId, orgId, campaignSlug, ownerId],
+      );
+      await admin.query(
+        `INSERT INTO facilities (id, org_id, name, ownership, address, map_url, public)
+         VALUES ($1, $3, 'Community Sports Center', 'owned', $4::jsonb, 'https://maps.example.invalid/center', true),
+                ($2, $3, 'Staff Operations Building', 'owned', $4::jsonb, NULL, false)`,
+        [
+          facilityId,
+          privateFacilityId,
+          orgId,
+          JSON.stringify({ city: 'Madison', state: 'WI' }),
+        ],
+      );
+      await admin.query(
+        `INSERT INTO news_posts (id, org_id, slug, title, body_html, status, published_at, author_account_id)
+         VALUES ($1, $2, $3, 'Community update', '<p>Public news.</p>', 'published', now(), $4)`,
+        [newsId, orgId, newsSlug, ownerId],
       );
 
       const app = express();
@@ -196,6 +216,19 @@ describe('website page service', () => {
       );
       expect(fundraiserIndexHtml).toContain(`/site/${orgSlug}/sponsors`);
 
+      const facilitiesResponse = await fetch(
+        `${origin}/site/${orgSlug}/facilities`,
+      );
+      const facilitiesHtml = await facilitiesResponse.text();
+      expect(facilitiesResponse.status).toBe(200);
+      expect(facilitiesHtml).toContain('Community Sports Center');
+      expect(facilitiesHtml).toContain('Madison, WI');
+      expect(facilitiesHtml).toContain(
+        `/site/${orgSlug}/facilities/${facilityId}`,
+      );
+      expect(facilitiesHtml).toContain('https://maps.example.invalid/center');
+      expect(facilitiesHtml).not.toContain('Staff Operations Building');
+
       const sitemapResponse = await getWithHost(
         '/sitemap.xml',
         `${orgSlug}.athlentry.com`,
@@ -203,9 +236,16 @@ describe('website page service', () => {
       const sitemap = sitemapResponse.body;
       expect(sitemapResponse.statusCode).toBe(200);
       expect(sitemap).toContain(`https://${orgSlug}.athlentry.com/sponsors`);
+      expect(sitemap).toContain(`https://${orgSlug}.athlentry.com/fundraisers`);
       expect(sitemap).toContain(
         `https://${orgSlug}.athlentry.com/fundraisers/${campaignSlug}`,
       );
+      expect(sitemap).toContain(
+        `https://${orgSlug}.athlentry.com/facilities/${facilityId}`,
+      );
+      expect(sitemap).not.toContain(privateFacilityId);
+      expect(sitemap).toContain(`https://${orgSlug}.athlentry.com/news`);
+      expect(sitemap).not.toContain(newsSlug);
 
       const interactiveResponse = await getWithHost(
         `/site/${orgSlug}/fundraisers/${campaignSlug}?app=1`,
@@ -214,7 +254,6 @@ describe('website page service', () => {
       expect(interactiveResponse.statusCode).toBe(200);
       expect(interactiveResponse.body).toBe('SPA shell');
 
-      const facilityId = randomUUID();
       const customSubdomainHost = `${orgSlug}.athlentry.com`;
       const facilityRedirect = await getWithHost(
         `/facilities/${facilityId}`,
@@ -240,6 +279,10 @@ describe('website page service', () => {
         );
       await admin.query('DELETE FROM fundraising_campaigns WHERE id = $1', [
         campaignId,
+      ]);
+      await admin.query('DELETE FROM news_posts WHERE id = $1', [newsId]);
+      await admin.query('DELETE FROM facilities WHERE id = ANY($1::uuid[])', [
+        [facilityId, privateFacilityId],
       ]);
       await admin.query('DELETE FROM sponsors WHERE id = $1', [sponsorId]);
       await admin.end();

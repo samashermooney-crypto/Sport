@@ -5,6 +5,7 @@ import { PublicFacilityPage } from '../portal/schedule/PublicFacilityPage';
 import { PublicStandingsPage } from '../portal/schedule/PublicStandingsPage';
 import { PublicTournamentPage } from '../portal/schedule/PublicTournamentPage';
 
+import { PublicSiteFacilitiesPage } from './PublicFacilitiesPage';
 import { SiteNewsPage } from './SiteNewsPage';
 import { SitePage } from './SitePage';
 import { WebsiteEmbedPage } from './WebsiteEmbedPage';
@@ -12,6 +13,10 @@ import { WebsiteEmbedPage } from './WebsiteEmbedPage';
 export const siteRoutes: readonly RouteObject[] = [
   { path: '/embed/:orgSlug/:publicKey', element: <WebsiteEmbedPage /> },
   { path: '/site/:orgSlug/news', element: <SiteNewsPage /> },
+  {
+    path: '/site/:orgSlug/facilities',
+    element: <PublicSiteFacilitiesPage />,
+  },
   {
     path: '/site/:orgSlug/standings/:programId',
     element: <PublicSiteStandingsPage />,

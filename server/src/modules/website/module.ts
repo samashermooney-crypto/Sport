@@ -18,6 +18,7 @@ import {
   websitePageBodySchema,
   websitePageListSchema,
   websitePublicEmbedSchema,
+  websitePublicFacilitiesSchema,
   websitePublicPageSchema,
   websitePublicNewsSchema,
   websiteSaveResponseSchema,
@@ -61,6 +62,13 @@ const routes = [
     path: '/api/v1/website/public/{orgSlug}/pages/{pageSlug}',
     summary: 'Get a published public organization website page',
     response: websitePublicPageSchema,
+    public: true,
+  },
+  {
+    method: 'get',
+    path: '/api/v1/website/public/{orgSlug}/facilities',
+    summary: 'List explicitly public organization facilities',
+    response: websitePublicFacilitiesSchema,
     public: true,
   },
   {
