@@ -80,8 +80,7 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 ## Open requests and blockers
 
-- Track A: `server/src/lib/module-contract.ts` currently limits `extraRouters.path` to `/api/v1/*`; allow the website's public SSR router path without weakening API route typing.
-- Track C: mount `createSiteSsrRouter` at `/site` before the production SPA fallback, expose sitemap and robots routes at each resolved site's host root, and route active verified custom-domain hosts to the org site with a tenant-safe resolver. `docs/api/openapi.json` now includes the website robots and Action Center reminder operations. Action Center/export/report API routes and scheduled jobs are already registry-wired.
+- Public-site app mounting no longer needs an A/C change: the website module's `publicRouter` is registered and `createApp` mounts it before API guards and the SPA fallback. The shared-app regression covers published SSR, verified custom domains, host-root sitemap/robots, and pending-domain rejection. `docs/api/openapi.json` includes the website robots and Action Center reminder operations; Action Center/export/report API routes and scheduled jobs are registry-wired.
 - Track G: fix the WebKit-mobile schedule result checkbox journey at `e2e/schedule-meet.spec.ts:230`.
 - Track G: replace the separate `system-ui`/literal-color season-award print style in `web/src/console/schedule/ScheduleConsole.tsx` with the shared `PrintLayout` or the legacy font/color treatment.
 - Track A: investigate the WebKit-mobile recovery-code sign-in E2E failure in `e2e/sign-in.spec.ts:420`.
