@@ -802,6 +802,27 @@ export const webRouteInventory = [
     fixtures: ['published-organization', 'wildcard-content'],
   },
   {
+    path: '/site/:orgSlug/brackets/:bracketId',
+    source: 'web/src/site/routes.tsx',
+    actorContexts: ['anonymous'],
+    dynamicParameters: ['orgSlug', 'bracketId'],
+    fixtures: ['published-organization', 'bracket'],
+  },
+  {
+    path: '/site/:orgSlug/facilities',
+    source: 'web/src/site/routes.tsx',
+    actorContexts: ['anonymous'],
+    dynamicParameters: ['orgSlug'],
+    fixtures: ['published-organization'],
+  },
+  {
+    path: '/site/:orgSlug/facilities/:facilityId',
+    source: 'web/src/site/routes.tsx',
+    actorContexts: ['anonymous'],
+    dynamicParameters: ['orgSlug', 'facilityId'],
+    fixtures: ['published-organization', 'facility'],
+  },
+  {
     path: '/site/:orgSlug/fundraisers/:campaignSlug',
     source: 'web/src/site/fundraising/routes.tsx',
     actorContexts: ['anonymous'],
@@ -816,11 +837,25 @@ export const webRouteInventory = [
     fixtures: ['published-organization'],
   },
   {
+    path: '/site/:orgSlug/news/:newsSlug',
+    source: 'web/src/site/routes.tsx',
+    actorContexts: ['anonymous'],
+    dynamicParameters: ['orgSlug', 'newsSlug'],
+    fixtures: ['published-organization', 'route-specific-value'],
+  },
+  {
     path: '/site/:orgSlug/sponsors',
     source: 'web/src/site/sponsors/routes.tsx',
     actorContexts: ['anonymous'],
     dynamicParameters: ['orgSlug'],
     fixtures: ['published-organization'],
+  },
+  {
+    path: '/site/:orgSlug/standings/:programId',
+    source: 'web/src/site/routes.tsx',
+    actorContexts: ['anonymous'],
+    dynamicParameters: ['orgSlug', 'programId'],
+    fixtures: ['published-organization', 'program'],
   },
   {
     path: '/start',
