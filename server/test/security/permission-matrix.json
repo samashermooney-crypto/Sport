@@ -21965,6 +21965,36 @@
       ],
       "deny": []
     },
+    "get_api_v1_website_public_orgSlug_news_newsSlug": {
+      "permission": "public.access",
+      "scope": "public",
+      "allow": [
+        "anonymous",
+        "owner",
+        "admin",
+        "registrar",
+        "finance",
+        "scheduler",
+        "compliance",
+        "communications",
+        "director",
+        "evaluator",
+        "volunteer_coordinator",
+        "reporter",
+        "guardian",
+        "self",
+        "head_coach",
+        "assistant_coach",
+        "team_manager",
+        "treasurer",
+        "official",
+        "volunteer",
+        "platform_super_admin",
+        "platform_support",
+        "platform_finance_ops"
+      ],
+      "deny": []
+    },
     "post_api_v1_website_public_orgSlug_contact": {
       "permission": "public.access",
       "scope": "public",
@@ -21996,6 +22026,36 @@
       "deny": []
     },
     "get_api_v1_website_public_orgSlug_pages_pageSlug": {
+      "permission": "public.access",
+      "scope": "public",
+      "allow": [
+        "anonymous",
+        "owner",
+        "admin",
+        "registrar",
+        "finance",
+        "scheduler",
+        "compliance",
+        "communications",
+        "director",
+        "evaluator",
+        "volunteer_coordinator",
+        "reporter",
+        "guardian",
+        "self",
+        "head_coach",
+        "assistant_coach",
+        "team_manager",
+        "treasurer",
+        "official",
+        "volunteer",
+        "platform_super_admin",
+        "platform_support",
+        "platform_finance_ops"
+      ],
+      "deny": []
+    },
+    "get_api_v1_website_public_orgSlug_facilities": {
       "permission": "public.access",
       "scope": "public",
       "allow": [
