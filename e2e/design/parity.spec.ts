@@ -204,7 +204,7 @@ test('public organization site skip link moves keyboard focus to main content', 
     await withOrg(actor, async (trx) => {
       await trx
         .updateTable('organizations')
-        .set({ status: 'active' })
+        .set({ status: 'active', default_locale: 'en' })
         .where('id', '=', actor.orgId)
         .execute();
       await trx
@@ -226,6 +226,9 @@ test('public organization site skip link moves keyboard focus to main content', 
         .execute();
     });
 
+    await page.addInitScript(() => {
+      window.localStorage.setItem('athlentry-language', 'en');
+    });
     await page.goto(`/site/${organization.slug}`);
     await expect(
       page.getByRole('heading', { name: 'Accessible organization' }),
