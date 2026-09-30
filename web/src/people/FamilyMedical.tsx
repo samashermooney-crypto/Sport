@@ -1,6 +1,5 @@
 import { medicalResponseSchema } from '@shared/schemas/medical';
 import type { MedicalUpdate } from '@shared/schemas/medical';
-import { familyResponseSchema } from '@shared/schemas/people';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link as RouterLink, useLocation, useParams } from 'react-router';
@@ -20,6 +19,7 @@ import { AppShell } from '../ui/shell';
 
 import { AthleteAccess } from './AthleteAccess';
 import { EmergencyContacts } from './EmergencyContacts';
+import { useFamilyPerson } from './familyAccess';
 
 type Profile = z.output<typeof medicalResponseSchema>;
 type Values = Omit<MedicalUpdate, 'expectedVersion' | 'allergyFlags'> & {
@@ -152,19 +152,8 @@ export function FamilyMedical(): React.JSX.Element {
     },
     enabled: Boolean(orgId && personId),
   });
-  const family = useQuery({
-    queryKey: ['people', 'me', 'family'],
-    queryFn: () => apiGet('/people/me/family', familyResponseSchema),
-    enabled: !staffView && Boolean(orgId && personId),
-    staleTime: 0,
-    refetchOnMount: 'always',
-  });
-  const relationship =
-    family.isFetchedAfterMount && family.isSuccess && !family.isFetching
-      ? family.data.organizations
-          .find((organization) => organization.orgId === orgId)
-          ?.people.find((person) => person.personId === personId)?.relationship
-      : undefined;
+  const family = useFamilyPerson(orgId, personId, !staffView);
+  const relationship = family.person?.relationship;
   const current = saved ?? profile.data;
   return (
     <AppShell

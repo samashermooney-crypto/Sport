@@ -659,6 +659,31 @@ test('guardian invites a teen athlete who accepts a read-only view and is revoke
     ).toHaveCount(0);
     expect(athleteLinkRequests).toEqual([]);
     expect(await accessibilityViolations(athletePage)).toEqual([]);
+    const familyDocumentRequests: string[] = [];
+    athletePage.on('request', (request) => {
+      if (
+        request
+          .url()
+          .includes(
+            `/api/v1/people/orgs/${staff.orgId}/${childId}/family-documents`,
+          )
+      )
+        familyDocumentRequests.push(request.url());
+    });
+    const documentsFamilyResponse = athletePage.waitForResponse(
+      (response) =>
+        response.url().includes('/api/v1/people/me/family') && response.ok(),
+    );
+    await athletePage.goto(`/me/family/${staff.orgId}/${childId}/documents`);
+    await documentsFamilyResponse;
+    await expect(
+      athletePage.getByText(
+        'A verified guardian manages documents for this profile.',
+      ),
+    ).toBeVisible();
+    await athletePage.waitForLoadState('networkidle');
+    expect(familyDocumentRequests).toEqual([]);
+    expect(await accessibilityViolations(athletePage)).toEqual([]);
     await athletePage.goto(`/me/family/${staff.orgId}/${childId}/profile`);
     await expect(
       athletePage.getByRole('heading', { name: 'Sam Rivera' }),
