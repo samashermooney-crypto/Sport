@@ -297,7 +297,10 @@ test('new account verifies its preview email and signs in', async ({
   await page.getByRole('button', { name: 'Regenerate recovery codes' }).click();
   await expect(page.locator('.recovery-codes li')).toHaveCount(10);
   const regeneratedResponse = await regeneratedCodesResponse;
-  expect(regeneratedResponse.ok()).toBe(true);
+  expect(
+    regeneratedResponse.ok(),
+    'MFA recovery code regeneration should succeed before browser push setup',
+  ).toBe(true);
   const regeneratedCodes = recoveryCodesResponseSchema.parse(
     await regeneratedResponse.json(),
   );
@@ -317,7 +320,10 @@ test('new account verifies its preview email and signs in', async ({
     .click();
   const registeredDeviceRequest = await deviceRegistration;
   if (!stubNotificationPermission) {
-    expect(await page.evaluate(() => Notification.permission)).toBe('granted');
+    expect(
+      await page.evaluate(() => Notification.permission),
+      'Chromium notifications permission should be granted by the test context',
+    ).toBe('granted');
   }
   expect(registeredDeviceRequest.postDataJSON()).toMatchObject({
     platform: 'webpush',
