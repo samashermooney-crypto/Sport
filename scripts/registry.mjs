@@ -3,6 +3,7 @@ import { resolve, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import prettier from 'prettier';
+import * as ts from 'typescript';
 
 async function namesWithFile(directory, filename) {
   const entries = await readdir(resolve(directory), { withFileTypes: true });
@@ -91,6 +92,156 @@ if (webRouteNames.join(',') !== webNavNames.join(',')) {
   throw new Error('Every web feature must have both routes.tsx and nav.ts');
 }
 
+const routeDirectories = [
+  ...new Set([...webRouteNames, ...nestedWebRouteNames]),
+];
+
+function routePathFromExpression(expression) {
+  if (ts.isStringLiteralLike(expression)) return expression.text;
+  if (!ts.isTemplateExpression(expression)) return undefined;
+
+  return (
+    expression.head.text +
+    expression.templateSpans
+      .map((span) => {
+        const parameter = ts.isIdentifier(span.expression)
+          ? span.expression.text
+          : 'value';
+        return `:${parameter}${span.literal.text}`;
+      })
+      .join('')
+  );
+}
+
+function routeActorContexts(path) {
+  if (
+    path.startsWith('/site/') ||
+    path.startsWith('/embed/') ||
+    path.startsWith('/welcome') ||
+    path.startsWith('/pricing') ||
+    path.startsWith('/legal/') ||
+    path.startsWith('/cards/verify/') ||
+    /^\/orgs\/:slug(?:\/|$)/.test(path)
+  ) {
+    return ['anonymous'];
+  }
+  if (
+    /^\/(?:invitations|ownership-transfer|athlete-invitations|guardian-invitations|claim-person)\//.test(
+      path,
+    )
+  ) {
+    return ['invitee-with-token'];
+  }
+  if (path.startsWith('/platform')) {
+    return ['platform_super_admin', 'platform_support', 'platform_finance_ops'];
+  }
+  if (path.startsWith('/console/federation/')) return ['federation-member'];
+  if (path.startsWith('/console/safety/')) {
+    return ['owner', 'admin', 'compliance'];
+  }
+  if (/^\/console\/orgs\//.test(path)) {
+    return ['organization-role-with-route-permission'];
+  }
+  if (path.startsWith('/console/')) return ['organization-owner'];
+  if (path.startsWith('/me/family/')) return ['linked-guardian'];
+  if (path.startsWith('/me/safety/')) return ['linked-guardian', 'self'];
+  if (/^\/me\/orgs\/[^/]+\/volunteers(?:\/|$)/.test(path)) {
+    return ['volunteer'];
+  }
+  if (/^\/me\/orgs\/[^/]+\/team-finance(?:\/|$)/.test(path)) {
+    return ['treasurer', 'team_manager'];
+  }
+  if (/\/schedule\/officials(?:\/|$)/.test(path)) return ['official'];
+  if (/\/schedule\/teams\//.test(path)) {
+    return ['head_coach', 'assistant_coach', 'team_manager'];
+  }
+  if (path.startsWith('/portal/')) return ['guardian', 'self'];
+  if (path === '/me' || path.startsWith('/me/')) return ['account-owner'];
+  if (/^\/orgs\/:orgId\//.test(path)) return ['organization-owner'];
+  return ['anonymous'];
+}
+
+const fixtureByParameter = {
+  orgId: 'organization',
+  personId: 'person',
+  householdId: 'household',
+  eventId: 'event',
+  teamSeasonId: 'team-season',
+  invoiceId: 'invoice',
+  programId: 'program',
+  checkoutId: 'checkout',
+  slug: 'slugged-record',
+  orgSlug: 'published-organization',
+  campaignSlug: 'campaign',
+  facilityId: 'facility',
+  bracketId: 'bracket',
+  contestId: 'contest',
+  divisionId: 'division',
+  token: 'valid-token',
+  publicKey: 'embed-key',
+  area: 'money-section',
+  value: 'route-specific-value',
+};
+
+const routeInventory = [];
+for (const directory of routeDirectories) {
+  const source = resolve('web/src', directory, 'routes.tsx');
+  const contents = await readFile(source, 'utf8');
+  const sourceFile = ts.createSourceFile(
+    source,
+    contents,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const paths = new Set();
+  const addPath = (expression) => {
+    const path = routePathFromExpression(expression);
+    if (path?.startsWith('/')) paths.add(path);
+  };
+  const visit = (node) => {
+    if (
+      ts.isPropertyAssignment(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === 'path'
+    ) {
+      addPath(node.initializer);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'route' &&
+      node.arguments.length > 0
+    ) {
+      addPath(node.arguments[0]);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+
+  for (const path of paths) {
+    const dynamicParameters = [
+      ...path.matchAll(/:([A-Za-z][A-Za-z0-9_]*)/g),
+    ].map((match) => match[1]);
+    const fixtures = dynamicParameters.map(
+      (parameter) => fixtureByParameter[parameter] ?? 'route-specific-value',
+    );
+    if (path.includes('*')) fixtures.push('wildcard-content');
+    routeInventory.push({
+      path,
+      source: `web/src/${directory}/routes.tsx`,
+      actorContexts: routeActorContexts(path),
+      dynamicParameters,
+      fixtures: [...new Set(fixtures)],
+    });
+  }
+}
+routeInventory.sort((left, right) =>
+  `${left.path}\n${left.source}`.localeCompare(
+    `${right.path}\n${right.source}`,
+  ),
+);
+
 const errors = [
   ...new Set(
     moduleDefinitions.flatMap((definition) => definition.errorCodes ?? []),
@@ -178,6 +329,11 @@ export const webNestedRoutes: readonly RouteObject[] = [${nestedWebRouteNames
     )
     .join(', ')}].flat();
 `,
+);
+
+await writeGenerated(
+  'web/src/generated/route-inventory.ts',
+  `export const webRouteInventory = ${JSON.stringify(routeInventory, null, 2)} as const;\n`,
 );
 
 await writeGenerated(
