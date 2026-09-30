@@ -53,15 +53,14 @@ reads and writes are audited, with Restricted values redacted from audit diffs.
 
 ## Current residual launch work
 
-- The OpenAPI document does not yet publish permission, resource, or scope
-  metadata for every API operation. The permission matrix is empty, so the
-  route-authorization, permission-matrix, and route-tenancy completeness specs
-  remain `test.fixme`. Track C owns generated route metadata and CI; the
-  current request is recorded in both track files. The class-specific route
-  journey proves direct and nested class-resource isolation with existing
-  foreign IDs, but does not replace the all-route SEC-002 contract.
-- Gitleaks is configured in CI, but the hosted scanner run has not been
-  observed from this local environment. Organization-owned repositories must
+- Resolved 2026-09-30: every OpenAPI operation now publishes
+  `x-athlentry-permission`, `x-athlentry-resource` and `x-athlentry-scope`,
+  and `server/test/security/permission-matrix.json` is generated from them by
+  `npm run registry`. `permission-matrix.spec.ts`, `route-authorization.spec.ts`
+  and `tenancy-fuzz.spec.ts` run unskipped and passed in Chromium desktop and
+  WebKit iPhone on hosted CI run 36745297377 (commit `cb56cfd3`).
+- Resolved 2026-09-30: the hosted Gitleaks job ("Secret scan (Gitleaks)")
+  passed on CI run 36745297377. Organization-owned repositories must still
   supply the `GITLEAKS_LICENSE` repository secret.
 - Step-up reauthentication rotates and revokes the old cookie/bearer session;
   `/step-up` and MFA enrollment confirmation consume the shared MFA rate limit.
@@ -72,9 +71,8 @@ reads and writes are audited, with Restricted values redacted from audit diffs.
   rebinding; the Chromium SSRF regression covers the loopback endpoint.
 - `npm audit --omit=dev --audit-level=high` found no high or critical
   advisories; it reports two moderate transitive `uuid` advisories under
-  `exceljs`. `npm run knip` reports 6 unused files, 43 unused exports, 28 unused
-  types, and one duplicate export across A/C/G/I-owned files; cleanup requests
-  are recorded in the owner track files.
+  `exceljs`. The hosted `static (audit)` and `static (knip)` jobs both passed on
+  CI run 36745297377.
 - `server/src/app.ts` mounts the shared security headers before API and static
   routes. HSTS is production-only, and framing is denied except on the explicit
   embed surface. The app also mounts Stripe raw-body ingress before feature
