@@ -166,6 +166,27 @@ export const websitePublicTeamsSchema = z.strictObject({
   teams: z.array(websitePublicTeamSummarySchema),
 });
 
+export const websitePublicTeamGameSchema = z.strictObject({
+  id: z.uuid(),
+  title: z.string(),
+  kind: z.enum(['game', 'match', 'tournament_game', 'meet', 'bout_session']),
+  startsAt: z.iso.datetime({ offset: true }),
+  endsAt: z.iso.datetime({ offset: true }),
+  timezone: z.string(),
+  status: z.enum(['scheduled', 'postponed', 'canceled', 'completed']),
+  statusReason: z.string().nullable(),
+  side: z.enum(['home', 'away', 'none']),
+  opponent: z.string().nullable(),
+  location: z.string().nullable(),
+  result: z
+    .strictObject({
+      teamScore: z.number().nullable(),
+      opponentScore: z.number().nullable(),
+      outcome: z.enum(['win', 'loss', 'tie']).nullable(),
+    })
+    .nullable(),
+});
+
 export const websitePublicTeamSchema = z.strictObject({
   organization: z.strictObject({
     name: z.string(),
@@ -180,6 +201,7 @@ export const websitePublicTeamSchema = z.strictObject({
   navigation: z.array(websiteMenuItemSchema),
   footerNavigation: z.array(websiteMenuItemSchema),
   team: websitePublicTeamSummarySchema,
+  schedule: z.array(websitePublicTeamGameSchema),
 });
 
 export const websiteNewsSlugSchema = z

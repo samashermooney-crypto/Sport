@@ -1176,6 +1176,7 @@ export async function getPublicWebsiteTeam(
   orgSlug: string,
   teamSeasonId: string,
   runWithOrg: typeof withOrg = withOrg,
+  now = new Date(),
 ) {
   const site = await getPublicWebsiteChrome(database, orgSlug, runWithOrg);
   if (!site) return null;
@@ -1187,6 +1188,10 @@ export async function getPublicWebsiteTeam(
         .executeTakeFirst(),
   );
   if (!team) return null;
+  const schedule = await runWithOrg(
+    { orgId: site.organization.id, actor: { accountId: publicActor } },
+    (trx) => publicTeamSchedule(trx, site.organization.id, team.id, now),
+  );
   return {
     organization: {
       name: site.organization.name,
@@ -1198,7 +1203,130 @@ export async function getPublicWebsiteTeam(
     navigation: site.navigation,
     footerNavigation: site.footerNavigation,
     team,
+    schedule,
   };
+}
+
+function publicOutcome(value: string | null): 'win' | 'loss' | 'tie' | null {
+  return value === 'win' || value === 'loss' || value === 'tie' ? value : null;
+}
+
+const publicGameKinds = [
+  'game',
+  'match',
+  'tournament_game',
+  'meet',
+  'bout_session',
+] as const;
+
+/**
+ * Published competitions for one public team: the last 60 days and the next
+ * 180 days. Only team names, times, status notices, the public facility or
+ * published location text (as on the org schedule) and final team scores are
+ * exposed; no people or rosters.
+ */
+async function publicTeamSchedule(
+  trx: OrgTransaction,
+  orgId: string,
+  teamSeasonId: string,
+  now: Date,
+) {
+  const day = 24 * 60 * 60 * 1_000;
+  const rows = await sql<{
+    id: string;
+    title: string;
+    kind: (typeof publicGameKinds)[number];
+    starts_at: Date;
+    ends_at: Date;
+    timezone: string;
+    status: 'scheduled' | 'postponed' | 'canceled' | 'completed';
+    status_reason: string | null;
+    side: 'home' | 'away' | 'none';
+    opponent: string | null;
+    location: string | null;
+    contest_status: string | null;
+    team_score: string | null;
+    opponent_score: string | null;
+    outcome: string | null;
+  }>`
+    SELECT e.id, e.title, e.kind, e.starts_at, e.ends_at, e.timezone,
+      e.status, e.status_reason, mine.side,
+      opponent.name AS opponent,
+      CASE WHEN facility.public AND facility.archived_at IS NULL
+        THEN concat_ws(' · ', facility.name, space.name)
+        ELSE nullif(trim(e.location_text), '') END AS location,
+      contest.status AS contest_status,
+      mine_result.score::text AS team_score,
+      opponent_result.score::text AS opponent_score,
+      mine_result.outcome
+    FROM event_participants mine
+    JOIN events e ON e.org_id = mine.org_id AND e.id = mine.event_id
+    LEFT JOIN spaces space ON space.org_id = e.org_id AND space.id = e.space_id
+    LEFT JOIN facilities facility ON facility.org_id = space.org_id
+      AND facility.id = space.facility_id
+    LEFT JOIN LATERAL (
+      SELECT coalesce(nullif(ts.display_name, ''), nullif(t.short_name, ''), t.name, x.name) AS name
+      FROM event_participants other
+      LEFT JOIN team_seasons ts ON ts.org_id = other.org_id AND ts.id = other.team_season_id
+      LEFT JOIN teams t ON t.org_id = ts.org_id AND t.id = ts.team_id
+      LEFT JOIN external_teams x ON x.org_id = other.org_id AND x.id = other.external_team_id
+      WHERE other.org_id = mine.org_id AND other.event_id = mine.event_id
+        AND other.id <> mine.id
+        AND (other.team_season_id IS NOT NULL OR other.external_team_id IS NOT NULL)
+      ORDER BY other.side, other.id
+      LIMIT 1
+    ) opponent ON true
+    LEFT JOIN contests contest ON contest.org_id = e.org_id AND contest.event_id = e.id
+    LEFT JOIN contest_participants mine_contest ON mine_contest.org_id = contest.org_id
+      AND mine_contest.contest_id = contest.id
+      AND mine_contest.team_season_id = mine.team_season_id
+    LEFT JOIN contest_results mine_result ON mine_result.org_id = mine_contest.org_id
+      AND mine_result.contest_participant_id = mine_contest.id
+    LEFT JOIN LATERAL (
+      SELECT result.score
+      FROM contest_participants other_contest
+      JOIN contest_results result ON result.org_id = other_contest.org_id
+        AND result.contest_participant_id = other_contest.id
+      WHERE other_contest.org_id = contest.org_id
+        AND other_contest.contest_id = contest.id
+        AND other_contest.id <> mine_contest.id
+      ORDER BY other_contest.side, other_contest.id
+      LIMIT 1
+    ) opponent_result ON true
+    WHERE mine.org_id = ${orgId}::uuid
+      AND mine.team_season_id = ${teamSeasonId}::uuid
+      AND e.published
+      AND e.kind IN (${sql.join(publicGameKinds.map((kind) => sql`${kind}`))})
+      AND e.starts_at >= ${new Date(now.getTime() - 60 * day)}
+      AND e.starts_at < ${new Date(now.getTime() + 180 * day)}
+    ORDER BY e.starts_at, e.id
+    LIMIT 100
+  `.execute(trx);
+  return rows.rows.map((row) => {
+    const final =
+      row.contest_status === 'final' || row.contest_status === 'forfeit';
+    return {
+      id: row.id,
+      title: row.title,
+      kind: row.kind,
+      startsAt: row.starts_at.toISOString(),
+      endsAt: row.ends_at.toISOString(),
+      timezone: row.timezone,
+      status: row.status,
+      statusReason: row.status === 'scheduled' ? null : row.status_reason,
+      side: row.side,
+      opponent: row.opponent,
+      location: row.location,
+      result: final
+        ? {
+            teamScore: row.team_score === null ? null : Number(row.team_score),
+            opponentScore:
+              row.opponent_score === null ? null : Number(row.opponent_score),
+            outcome: publicOutcome(row.outcome),
+          }
+        : null,
+    };
+  });
 }
 
 export async function getPublicWebsiteFundraisers(

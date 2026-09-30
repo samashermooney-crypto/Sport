@@ -1191,6 +1191,55 @@ describe('website page service', () => {
           privateProgramId,
         ],
       );
+      const opponentTeamId = randomUUID();
+      const contestId = randomUUID();
+      const homeParticipantId = randomUUID();
+      const awayParticipantId = randomUUID();
+      await admin.query(
+        `INSERT INTO external_teams (id, org_id, name, sport_profile_id)
+         VALUES ($1, $2, 'Eastside United', $3)`,
+        [opponentTeamId, orgId, sportProfileId],
+      );
+      await admin.query(
+        `INSERT INTO event_participants (id, org_id, event_id, team_season_id, external_team_id, side)
+         VALUES ($1, $2, $3, $4, NULL, 'home'), ($5, $2, $3, NULL, $6, 'away')`,
+        [
+          randomUUID(),
+          orgId,
+          publicEventId,
+          publicTeamSeasonId,
+          randomUUID(),
+          opponentTeamId,
+        ],
+      );
+      await admin.query(
+        `INSERT INTO contests (id, org_id, event_id, sport_profile_id, profile_version, format, status)
+         VALUES ($1, $2, $3, $4, 1, 'head_to_head_score', 'final')`,
+        [contestId, orgId, publicEventId, sportProfileId],
+      );
+      await admin.query(
+        `INSERT INTO contest_participants (id, org_id, contest_id, team_season_id, external_team_id, side)
+         VALUES ($1, $2, $3, $4, NULL, 'home'), ($5, $2, $3, NULL, $6, 'away')`,
+        [
+          homeParticipantId,
+          orgId,
+          contestId,
+          publicTeamSeasonId,
+          awayParticipantId,
+          opponentTeamId,
+        ],
+      );
+      await admin.query(
+        `INSERT INTO contest_results (id, org_id, contest_participant_id, outcome, score)
+         VALUES ($1, $2, $3, 'win', 3), ($4, $2, $5, 'loss', 1)`,
+        [
+          randomUUID(),
+          orgId,
+          homeParticipantId,
+          randomUUID(),
+          awayParticipantId,
+        ],
+      );
       await admin.query(
         `INSERT INTO standings_configs (id, org_id, program_id, config)
          VALUES ($1, $2, $3, $4::jsonb)`,
@@ -1272,11 +1321,35 @@ describe('website page service', () => {
           status: 'active',
         }),
       ]);
-      await expect(
-        getPublicWebsiteTeam(database, orgSlug, publicTeamSeasonId, withOrg),
-      ).resolves.toMatchObject({
+      const publicTeam = await getPublicWebsiteTeam(
+        database,
+        orgSlug,
+        publicTeamSeasonId,
+        withOrg,
+        new Date('2026-10-01T00:00:00Z'),
+      );
+      expect(publicTeam).toMatchObject({
         team: { id: publicTeamSeasonId, name: 'Open Soccer Blue' },
       });
+      expect(publicTeam?.schedule).toEqual([
+        {
+          id: publicEventId,
+          title: 'Open Soccer season opener',
+          kind: 'game',
+          startsAt: '2026-10-14T15:00:00.000Z',
+          endsAt: '2026-10-14T16:00:00.000Z',
+          timezone: 'America/Chicago',
+          status: 'scheduled',
+          statusReason: null,
+          side: 'home',
+          opponent: 'Eastside United',
+          location: 'North Park Field 1',
+          result: { teamScore: 3, opponentScore: 1, outcome: 'win' },
+        },
+      ]);
+      expect(JSON.stringify(publicTeam?.schedule)).not.toContain(
+        'Private coaching assessment',
+      );
       await expect(
         getPublicWebsiteTeam(database, orgSlug, privateTeamSeasonId, withOrg),
       ).resolves.toBeNull();
@@ -1421,6 +1494,28 @@ describe('website page service', () => {
         );
       }
     } finally {
+      await admin.query(
+        `DELETE FROM contest_results WHERE contest_participant_id IN (
+           SELECT participant.id FROM contest_participants participant
+           JOIN contests contest ON contest.id = participant.contest_id
+           WHERE contest.event_id = $1)`,
+        [publicEventId],
+      );
+      await admin.query(
+        `DELETE FROM contest_participants WHERE contest_id IN (
+           SELECT id FROM contests WHERE event_id = $1)`,
+        [publicEventId],
+      );
+      await admin.query('DELETE FROM contests WHERE event_id = $1', [
+        publicEventId,
+      ]);
+      await admin.query('DELETE FROM event_participants WHERE event_id = $1', [
+        publicEventId,
+      ]);
+      await admin.query(
+        "DELETE FROM external_teams WHERE org_id = $1 AND name = 'Eastside United'",
+        [orgId],
+      );
       await admin.query('DELETE FROM events WHERE id IN ($1, $2)', [
         publicEventId,
         privateEventId,

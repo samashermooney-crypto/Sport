@@ -1099,3 +1099,11 @@
 - **Decision:** Migration 8503 adds insert triggers that create a counter for every program (unlimited), division (`capacity_players`) and offering (`capacity`), keeps the division counter in step with `capacity_players` (refusing a value below confirmed plus held places), removes an unused division counter when a division is deleted, and backfills missing counters from confirmed registrations. Code and fixtures that insert counters now upsert on `(org_id, subject_type, subject_id)`.
 - **Why:** Registration must work for every program an admin creates, and a database invariant covers every creation path (service, default division, season copy, seeds and imports) instead of relying on each caller.
 - **Consequences / follow-ups:** New tables that create capacity subjects must add the same trigger. Fixtures that set capacities must upsert rather than insert.
+
+### DEC-146 — Public team pages show the team's published schedule and results
+- **Date:** 2026-09-30
+- **Phase / area:** Phase 6/12 public website (team pages)
+- **Context:** Public team pages listed only program, division and season labels, while families expect a team's games and final scores on the club website (spec `04` lists public schedules/standings as public data). The org-wide public schedule already publishes event titles, times and location text for public programs.
+- **Decision:** `GET /api/v1/website/public/:orgSlug/teams/:teamSeasonId` and the server-rendered team page include `schedule`: published game-type events (game, match, tournament game, meet, bout session) for that team from 60 days back to 180 days ahead, capped at 100, with opponent team name, home/away, the public facility (or the published location text, as on the org schedule), status with the postponement/cancellation reason, and final team scores only when the contest is final or forfeited. Practices, meetings, people, rosters and staff are never included.
+- **Why:** Matches what families and competitors (SportsEngine, PlayMetrics) publish for teams, while keeping child and staff data private and reusing already-public event fields.
+- **Consequences / follow-ups:** Any new public event field must be reviewed against `04-PERMISSIONS-AND-PRIVACY.md` before it is added to this payload.

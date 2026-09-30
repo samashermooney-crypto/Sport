@@ -1473,6 +1473,51 @@ function renderPublicTeamDocument(
         createElement('dd', null, site.team.seasonName),
       ),
       createElement(
+        'h2',
+        null,
+        spanish ? 'Calendario y resultados' : 'Schedule and results',
+      ),
+      site.schedule.length
+        ? createElement(
+            'div',
+            { className: 'public-site-news-list' },
+            ...site.schedule.map((game) =>
+              createElement(
+                'article',
+                { key: game.id, id: game.id },
+                createElement(
+                  'h3',
+                  null,
+                  game.opponent
+                    ? `${game.side === 'away' ? (spanish ? 'en' : 'at') : 'vs'} ${game.opponent}`
+                    : game.title,
+                ),
+                createElement(
+                  'p',
+                  null,
+                  createElement(
+                    'time',
+                    { dateTime: game.startsAt },
+                    formatEventDateTime(
+                      game.startsAt,
+                      game.timezone,
+                      site.organization.locale,
+                    ),
+                  ),
+                ),
+                game.location ? createElement('p', null, game.location) : null,
+                createElement('p', null, publicGameStatus(game, spanish)),
+              ),
+            ),
+          )
+        : createElement(
+            'p',
+            null,
+            spanish
+              ? 'No hay partidos publicados para este equipo.'
+              : 'No published games are scheduled for this team.',
+          ),
+      createElement(
         'p',
         null,
         createElement(
@@ -1483,6 +1528,32 @@ function renderPublicTeamDocument(
       ),
     ),
   });
+}
+
+function publicGameStatus(
+  game: NonNullable<
+    Awaited<ReturnType<typeof getPublicWebsiteTeam>>
+  >['schedule'][number],
+  spanish: boolean,
+): string {
+  if (game.result) {
+    const score = `${String(game.result.teamScore ?? '–')}–${String(game.result.opponentScore ?? '–')}`;
+    const outcome = {
+      win: spanish ? 'Ganó' : 'Won',
+      loss: spanish ? 'Perdió' : 'Lost',
+      tie: spanish ? 'Empató' : 'Tied',
+    };
+    return `${game.result.outcome ? outcome[game.result.outcome] : 'Final'} ${score}`;
+  }
+  const labels = {
+    scheduled: spanish ? 'Programado' : 'Scheduled',
+    postponed: spanish ? 'Aplazado' : 'Postponed',
+    canceled: spanish ? 'Cancelado' : 'Canceled',
+    completed: spanish ? 'Completado' : 'Completed',
+  };
+  return game.statusReason
+    ? `${labels[game.status]} · ${game.statusReason}`
+    : labels[game.status];
 }
 
 function fundraiserDescription(descriptionHtml: string): string {

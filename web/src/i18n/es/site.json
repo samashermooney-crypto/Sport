@@ -27,5 +27,22 @@
   "teamProgram": "Programa",
   "teamDivision": "División",
   "teamSeason": "Temporada",
-  "allTeams": "Todos los equipos"
+  "allTeams": "Todos los equipos",
+  "teamSchedule": "Calendario y resultados",
+  "teamScheduleEmpty": "No hay partidos publicados para este equipo.",
+  "gameWhen": "Cuándo",
+  "gameOpponent": "Partido",
+  "gameLocation": "Lugar",
+  "gameStatus": "Estado",
+  "gameVs": "vs. {{opponent}}",
+  "gameAt": "en {{opponent}}",
+  "gameLocationTbd": "Lugar por anunciar",
+  "gameFinal": "Final {{score}}",
+  "gameOutcome_win": "Ganó {{score}}",
+  "gameOutcome_loss": "Perdió {{score}}",
+  "gameOutcome_tie": "Empató {{score}}",
+  "gameStatus_scheduled": "Programado",
+  "gameStatus_postponed": "Aplazado",
+  "gameStatus_canceled": "Cancelado",
+  "gameStatus_completed": "Completado"
 }
