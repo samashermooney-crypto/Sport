@@ -131,30 +131,36 @@ describe('website page service', () => {
         throw new Error('The test server did not open a TCP port');
       const origin = `http://127.0.0.1:${String(address.port)}`;
       const getWithHost = (path: string, host: string) =>
-        new Promise<{ statusCode: number | undefined; body: string }>(
-          (resolve, reject) => {
-            const request = httpRequest(
-              {
-                hostname: '127.0.0.1',
-                port: address.port,
-                path,
-                headers: { host },
-              },
-              (response) => {
-                response.setEncoding('utf8');
-                let body = '';
-                response.on('data', (chunk: string) => {
-                  body += chunk;
+        new Promise<{
+          statusCode: number | undefined;
+          body: string;
+          location: string | undefined;
+        }>((resolve, reject) => {
+          const request = httpRequest(
+            {
+              hostname: '127.0.0.1',
+              port: address.port,
+              path,
+              headers: { host },
+            },
+            (response) => {
+              response.setEncoding('utf8');
+              let body = '';
+              response.on('data', (chunk: string) => {
+                body += chunk;
+              });
+              response.on('end', () => {
+                resolve({
+                  statusCode: response.statusCode,
+                  body,
+                  location: response.headers.location,
                 });
-                response.on('end', () => {
-                  resolve({ statusCode: response.statusCode, body });
-                });
-              },
-            );
-            request.on('error', reject);
-            request.end();
-          },
-        );
+              });
+            },
+          );
+          request.on('error', reject);
+          request.end();
+        });
 
       const sponsorsResponse = await fetch(
         `${origin}/site/${orgSlug}/sponsors`,
@@ -207,6 +213,23 @@ describe('website page service', () => {
       );
       expect(interactiveResponse.statusCode).toBe(200);
       expect(interactiveResponse.body).toBe('SPA shell');
+
+      const facilityId = randomUUID();
+      const customSubdomainHost = `${orgSlug}.athlentry.com`;
+      const facilityRedirect = await getWithHost(
+        `/facilities/${facilityId}`,
+        customSubdomainHost,
+      );
+      expect(facilityRedirect.statusCode).toBe(302);
+      expect(facilityRedirect.location).toBe(
+        `/site/${orgSlug}/facilities/${facilityId}?app=1`,
+      );
+      const facilityAppResponse = await getWithHost(
+        `/site/${orgSlug}/facilities/${facilityId}?app=1`,
+        customSubdomainHost,
+      );
+      expect(facilityAppResponse.statusCode).toBe(200);
+      expect(facilityAppResponse.body).toBe('SPA shell');
     } finally {
       if (server)
         await new Promise<void>((resolve, reject) =>

@@ -88,6 +88,10 @@ function normalizedSiteHostname(hostname: string | undefined): string | null {
   return ascii;
 }
 
+function isInteractiveGeneratedSitePath(path: string): boolean {
+  return /^(?:standings|brackets|facilities)\/[^/]+$/.test(path);
+}
+
 async function resolveSiteSlug(
   database: AuthDependencies['database'],
   hostname: string,
@@ -1708,7 +1712,8 @@ export function createSiteSsrRouter(
       if (
         request.query.app === '1' &&
         (requestedPage === 'sponsors' ||
-          /^fundraisers\/[^/]+$/.test(requestedPage))
+          /^fundraisers\/[^/]+$/.test(requestedPage) ||
+          isInteractiveGeneratedSitePath(requestedPage))
       ) {
         next();
         return;
@@ -1717,6 +1722,29 @@ export function createSiteSsrRouter(
       const slug = websitePageSlugSchema.safeParse(requestedPage);
       if (!orgSlug.success || !slug.success) {
         response.sendStatus(404);
+        return;
+      }
+      if (isInteractiveGeneratedSitePath(requestedPage)) {
+        void getPublicWebsiteChrome(
+          dependencies.database,
+          orgSlug.data,
+          withOrg,
+        )
+          .then((site) => {
+            if (!site) {
+              response.sendStatus(404);
+              return;
+            }
+            if (siteAddress(response, orgSlug.data).basePath === '') {
+              response.redirect(
+                302,
+                `/site/${orgSlug.data}/${requestedPage}?app=1`,
+              );
+              return;
+            }
+            next();
+          })
+          .catch(() => response.sendStatus(500));
         return;
       }
       void getPublicWebsitePage(
