@@ -1,8 +1,8 @@
 # Track C — files, adapters, and wiring
 Status: working — local integration candidate contains C’s Federation/fee-void repairs, D’s public-site route split and locale-pinned skip-link fixture, and A’s notification-permission follow-up `55bdfc3b`.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
-Hosted CI: run `36690800467` is in progress on code head `d0d69620`; latest completed run `36689550628` on `468b01f5` fails only the public-site skip-link and sign-in E2E checks. Static size passes. The Playwright artifact shows the skip-link fixture landing on the SPA alert `Website page unavailable` / `This page is not published or could not be loaded` before the expected heading. A’s sign-in follow-up is in the running head. No GREEN result is claimed.
-Open integration work: obtain hosted CI for the current code head; have D resolve the remaining skip-link render failure without changing assertions; continue checking C-owned Federation/Phase 13 failures and launch-gate items below.
+Hosted CI: run `36690800467` on code head `d0d69620` completed with only two E2E failures; test, typecheck, lint, build, Knip, registry, OpenAPI, size, Lighthouse, audit, and secret scan passed. The skip-link artifact shows the SPA alert `Website page unavailable` / `This page is not published or could not be loaded` before the expected heading. The sign-in permission assertion still reads `denied` after device registration. Current local head `ccecb91d` contains diagnostics only and has not been run. No GREEN result is claimed.
+Open integration work: D must resolve the public-site data/render failure and A must resolve the notification permission-state mismatch without weakening assertions; rerun hosted CI on the resulting code head and continue checking launch-gate items below.
 
 ## Completed Track C work
 
@@ -233,6 +233,7 @@ Open integration work: obtain hosted CI for the current code head; have D resolv
 
 ## Hosted E2E follow-up — 2026-09-30 03:45 CDT
 
-- Completed run `36689550628` on `468b01f5` reports only the public-site skip-link and sign-in journeys; static size passes. Its Playwright artifact shows the fixture reached the SPA alert `Website page unavailable` / `This page is not published or could not be loaded`, so the seeded public site data or route/API path is not resolving (not a locale or focus assertion issue). D has the exact artifact diagnosis in `docs/codex/tracks/D.md`. The sign-in failure on this older head was the pre-request `Notification.permission` check returning `denied`; A’s `55bdfc3b` moves it after the user action, and run `36690800467` is testing that change.
-- A’s follow-up `55bdfc3b` moves the notification-permission assertion to after the fake subscription request; current run `36690800467` on `d0d69620` is testing it. No full suite or Playwright run was started locally.
+- Run `36690800467` on `d0d69620` completed with all jobs green except E2E. The public-site artifact again shows `Website page unavailable` / `This page is not published or could not be loaded`; the fixture's published data is not reaching the page. D's request records this precise state.
+- A's `55bdfc3b` moved the permission assertion after fake push registration, but `Notification.permission` still reads `denied` after the device-registration request. The Playwright artifact snapshot says `Browser notifications enabled on this device`; A is asked to resolve the browser permission-state mismatch while preserving the assertion and fake-only delivery.
+- Current local head `ccecb91d` adds only these diagnostic notes; it has not been pushed or run. No full suite or Playwright run was started locally.
 - The recent completed reports do not list C-owned Federation, fee-void, or sharing-revocation failures. Focused API/Postgres and navigation component regressions remain green; no CI-green claim is made for current head.
