@@ -25,7 +25,6 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 900 },
-        permissions: ['notifications'],
       },
     },
     { name: 'webkit-mobile', use: { ...devices['iPhone 13'] } },
