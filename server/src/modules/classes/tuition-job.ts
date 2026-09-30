@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { Temporal } from '@js-temporal/polyfill';
+import { orgToday as getOrgToday } from '@shared/dates';
 import { newId } from '@shared/ids';
 import { sql, type Kysely } from 'kysely';
 
@@ -41,9 +42,7 @@ async function orgToday(trx: OrgTransaction, orgId: string): Promise<string> {
     .select('timezone')
     .where('id', '=', orgId)
     .executeTakeFirstOrThrow();
-  return new Intl.DateTimeFormat('en-CA', { timeZone: org.timezone }).format(
-    new Date(),
-  );
+  return getOrgToday(org.timezone);
 }
 
 /**
@@ -231,7 +230,7 @@ async function processOrg(
       .select('id')
       .where('org_id', '=', orgId)
       .where('status', '=', 'active')
-      .where('next_bill_on', '<=', new Date(today))
+      .where('next_bill_on', '<=', sql<Date>`${today}::date`)
       .orderBy('next_bill_on')
       .limit(500)
       .execute();

@@ -329,11 +329,11 @@ export async function buildTuitionLines(
     .where('enrollment.org_id', '=', context.orgId)
     .where('enrollment.billing_subscription_id', '=', subscriptionId)
     .where('enrollment.status', 'in', ['active', 'paused'])
-    .where('enrollment.starts_on', '<=', new Date(periodEnd))
+    .where('enrollment.starts_on', '<=', sql<Date>`${periodEnd}::date`)
     .where((eb) =>
       eb.or([
         eb('enrollment.ends_on', 'is', null),
-        eb('enrollment.ends_on', '>=', new Date(periodStart)),
+        eb('enrollment.ends_on', '>=', sql<Date>`${periodStart}::date`),
       ]),
     )
     .execute();
