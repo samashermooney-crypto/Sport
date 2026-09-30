@@ -167,6 +167,7 @@ export function createWebsiteRouter(
         dependencies.database,
         orgSlug,
         withOrg,
+        dependencies.clock(),
       );
       if (!result) {
         response.sendStatus(404);
@@ -374,7 +375,12 @@ export function createWebsiteRouter(
       const [pages, news, programs, fundraisers, facilities] =
         await Promise.all([
           listPublicWebsitePages(dependencies.database, orgSlug, withOrg),
-          listPublicWebsiteNews(dependencies.database, orgSlug, withOrg),
+          listPublicWebsiteNews(
+            dependencies.database,
+            orgSlug,
+            withOrg,
+            dependencies.clock(),
+          ),
           getPublicWebsitePrograms(dependencies.database, orgSlug, withOrg),
           getPublicWebsiteFundraisers(dependencies.database, orgSlug, withOrg),
           getPublicWebsiteFacilities(dependencies.database, orgSlug, withOrg),

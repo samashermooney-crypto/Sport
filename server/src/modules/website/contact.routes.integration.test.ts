@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 
+import { websitePublicNewsSchema } from '@shared/schemas/website';
 import express from 'express';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -16,6 +17,8 @@ const inboxEmail = `contact-${orgId.slice(0, 8)}@example.invalid`;
 const publicFacilityId = randomUUID();
 const newsId = randomUUID();
 const newsSlug = `public-update-${newsId.slice(0, 8)}`;
+const scheduledNewsId = randomUUID();
+const scheduledNewsSlug = `scheduled-update-${scheduledNewsId.slice(0, 8)}`;
 let database: ReturnType<typeof createDatabase>;
 
 beforeAll(async () => {
@@ -50,6 +53,11 @@ beforeAll(async () => {
        VALUES ($1, $2, $3, 'Public update', '<p>Published news.</p>', 'published', '2026-09-27T12:00:00.000Z')`,
       [newsId, orgId, newsSlug],
     );
+    await admin.query(
+      `INSERT INTO news_posts (id, org_id, slug, title, body_html, status, published_at)
+       VALUES ($1, $2, $3, 'Scheduled update', 'Not published yet.', 'published', '2026-09-29T12:00:00.000Z')`,
+      [scheduledNewsId, orgId, scheduledNewsSlug],
+    );
   } finally {
     await admin.end();
   }
@@ -66,6 +74,9 @@ afterAll(async () => {
       publicFacilityId,
     ]);
     await admin.query('DELETE FROM news_posts WHERE id = $1', [newsId]);
+    await admin.query('DELETE FROM news_posts WHERE id = $1', [
+      scheduledNewsId,
+    ]);
   } finally {
     await admin.end();
     await database.destroy();
@@ -135,6 +146,7 @@ describe('public website contact route', () => {
       expect(sitemapXml).toContain(
         `https://${orgSlug}.athlentry.com/site/${orgSlug}/news/${newsSlug}`,
       );
+      expect(sitemapXml).not.toContain(scheduledNewsSlug);
       const facilities = await fetch(
         `${origin}/api/v1/website/public/${orgSlug}/facilities`,
       );
@@ -162,6 +174,18 @@ describe('public website contact route', () => {
           bodyText: '<p>Published news.</p>',
         },
       });
+      const newsList = await fetch(
+        `${origin}/api/v1/website/public/${orgSlug}/news`,
+      );
+      expect(newsList.status).toBe(200);
+      const publicNewsList = websitePublicNewsSchema.parse(
+        await newsList.json(),
+      );
+      expect(publicNewsList.posts.map((post) => post.slug)).toEqual([newsSlug]);
+      const scheduledPost = await fetch(
+        `${origin}/api/v1/website/public/${orgSlug}/news/${scheduledNewsSlug}`,
+      );
+      expect(scheduledPost.status).toBe(404);
 
       const robotsAdmin = new pg.Client({
         connectionString: process.env.TEST_DATABASE_URL,
