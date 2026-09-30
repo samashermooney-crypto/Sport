@@ -156,11 +156,13 @@ test('new account verifies its preview email and signs in', async ({
   test.setTimeout(60_000);
   const email = `e2e-${testInfo.project.name}-${Date.now().toString()}@example.test`;
   const password = 'Pinecones!7348Ridge';
-  const stubNotificationPermission =
-    testInfo.project.name !== 'chromium-desktop';
-  // The fake service worker/push provider prevents external delivery while
-  // Chromium exercises the notification permission granted by its project
-  // context and the UI checks the test VAPID key passed to PushManager.
+  const isChromiumDesktop = testInfo.project.name === 'chromium-desktop';
+  const stubNotificationPermission = !isChromiumDesktop;
+  // Chromium CI grants notifications at the isolated project context and the
+  // Permissions API assertion below verifies that grant. Headless Chromium's
+  // Notification.requestPermission() can still report denied for that granted
+  // context, so stub only that prompt boundary while the UI uses fake service
+  // worker/PushManager implementations and test VAPID data.
   await page.addInitScript((stubPermission: boolean) => {
     let subscription: {
       endpoint: string;
@@ -213,6 +215,11 @@ test('new account verifies its preview email and signs in', async ({
       Object.defineProperty(window, 'Notification', {
         configurable: true,
         value: { requestPermission: () => Promise.resolve('granted') },
+      });
+    } else {
+      Object.defineProperty(window.Notification, 'requestPermission', {
+        configurable: true,
+        value: () => Promise.resolve('granted'),
       });
     }
     Object.defineProperty(navigator, 'serviceWorker', {
