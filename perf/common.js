@@ -1,4 +1,5 @@
 import http from 'k6/http';
+import { SharedArray } from 'k6/data';
 
 export function required(name) {
   const value = __ENV[name];
@@ -13,6 +14,16 @@ export function readJsonFile(name) {
   } catch {
     throw new Error(`Could not read JSON input file for ${name}`);
   }
+}
+
+// One read-only copy shared by every VU; per-VU JSON copies exhaust memory at 2,000 VUs.
+export function sharedJsonArray(label, name, select = (value) => value) {
+  return new SharedArray(label, () => {
+    const value = select(readJsonFile(name));
+    if (!Array.isArray(value))
+      throw new Error(`Fixture ${name} must provide an array for ${label}`);
+    return value;
+  });
 }
 
 export function assertPreviewTarget(...requiredSettings) {

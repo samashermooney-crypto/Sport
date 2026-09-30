@@ -166,7 +166,7 @@ export const websitePublicTeamsSchema = z.strictObject({
   teams: z.array(websitePublicTeamSummarySchema),
 });
 
-export const websitePublicTeamGameSchema = z.strictObject({
+const websitePublicTeamGameSchema = z.strictObject({
   id: z.uuid(),
   title: z.string(),
   kind: z.enum(['game', 'match', 'tournament_game', 'meet', 'bout_session']),

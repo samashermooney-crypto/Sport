@@ -3,12 +3,12 @@ import { Rate } from 'k6/metrics';
 import {
   assertPreviewTarget,
   isExpectedStatus,
-  readJsonFile,
+  sharedJsonArray,
   readRequest,
 } from './common.js';
 
 const unexpectedResponses = new Rate('steady_unexpected_responses');
-const reads = readJsonFile('READ_REQUESTS_FILE');
+const reads = sharedJsonArray('read requests', 'READ_REQUESTS_FILE');
 
 export const options = {
   scenarios: {
@@ -30,9 +30,10 @@ export const options = {
 
 export function setup() {
   assertPreviewTarget('READ_REQUESTS_FILE');
-  if (!Array.isArray(reads) || reads.length === 0)
+  const readList = Array.from(reads);
+  if (readList.length === 0)
     throw new Error('Read fixture file must contain request records');
-  const surfaces = new Set(reads.map((fixture) => fixture.surface));
+  const surfaces = new Set(readList.map((fixture) => fixture.surface));
   if (!surfaces.has('console') || !surfaces.has('portal'))
     throw new Error(
       'Read fixtures must cover both console and portal surfaces',
