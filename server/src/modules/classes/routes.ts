@@ -1120,6 +1120,8 @@ export function createClassesRouter(
           personId: z.uuid().optional(),
         })
         .parse(request.query);
+      if (query.personId)
+        await requireLinkedPerson(dependencies.database, ctx, query.personId);
       response.json(await enrollments.browse(clean(query)));
     }),
   );

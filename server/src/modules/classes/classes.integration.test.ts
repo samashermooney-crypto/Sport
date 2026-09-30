@@ -16,6 +16,7 @@ import {
   requireClassStaff,
   requireGuardian,
   requireLinkedPerson,
+  requireMember,
 } from './access';
 import { PostgresClassAttendance } from './attendance';
 import { PostgresClassBookings } from './bookings';
@@ -43,6 +44,7 @@ const orgA = randomUUID();
 const orgB = randomUUID();
 const ownerA = randomUUID();
 const guardianA = randomUUID();
+const familyOnlyAccount = randomUUID();
 const memberOnly = randomUUID();
 const ownerB = randomUUID();
 const instructorPersonA = randomUUID();
@@ -68,6 +70,10 @@ const ownerContext: OrgContext = {
 const guardianContext: OrgContext = {
   orgId: orgA,
   actor: { accountId: guardianA },
+};
+const familyOnlyContext: OrgContext = {
+  orgId: orgA,
+  actor: { accountId: familyOnlyAccount },
 };
 const memberContext: OrgContext = {
   orgId: orgA,
@@ -167,6 +173,11 @@ async function insertFixtures(): Promise<void> {
       ],
     );
     await admin.query(
+      `INSERT INTO accounts (id, email, first_name, last_name, date_of_birth, email_verified_at)
+       VALUES ($1, $2, 'Family', 'Only', '1987-01-01', now())`,
+      [familyOnlyAccount, `family-only-${orgA.slice(0, 6)}@example.invalid`],
+    );
+    await admin.query(
       `INSERT INTO org_memberships (id, org_id, account_id, status, joined_at)
        VALUES ($1, $2, $3, 'active', now()),
               ($4, $2, $5, 'active', now()),
@@ -220,7 +231,8 @@ async function insertFixtures(): Promise<void> {
               ($5, $2, $6, $4, 'guardian', now()),
               ($7, $2, $8, $4, 'guardian', now()),
               ($9, $2, $10, $4, 'guardian', now()),
-              ($11, $2, $12, $4, 'guardian', now())`,
+              ($11, $2, $12, $4, 'guardian', now()),
+              ($13, $2, $15, $14, 'guardian', now())`,
       [
         randomUUID(),
         orgA,
@@ -234,6 +246,9 @@ async function insertFixtures(): Promise<void> {
         childA3,
         randomUUID(),
         childA4,
+        randomUUID(),
+        familyOnlyAccount,
+        childA1,
       ],
     );
     await admin.query(
@@ -372,6 +387,24 @@ describe('academy classes integration', () => {
       requireClassStaff(database, memberContext),
     ).rejects.toBeInstanceOf(ClassesAccessError);
     await requireClassStaff(database, ownerContext);
+  });
+
+  it('allows a verified linked family account without org membership', async () => {
+    await expect(
+      requireMember(database, familyOnlyContext),
+    ).resolves.toBeUndefined();
+    await expect(
+      requireLinkedPerson(database, familyOnlyContext, childA1),
+    ).resolves.toBeUndefined();
+    await expect(
+      requireLinkedPerson(database, familyOnlyContext, childA2),
+    ).rejects.toBeInstanceOf(ClassesAccessError);
+    await expect(
+      requireMember(database, {
+        orgId: orgB,
+        actor: { accountId: familyOnlyAccount },
+      }),
+    ).rejects.toBeInstanceOf(ClassesAccessError);
   });
 
   it('creates an offering, schedule and materialized sessions', async () => {

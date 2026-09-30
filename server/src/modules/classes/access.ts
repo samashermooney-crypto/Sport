@@ -188,7 +188,22 @@ export async function requireMember(
       .where('account_id', '=', context.actor.accountId)
       .where('status', '=', 'active')
       .executeTakeFirst();
-    return Boolean(membership);
+    if (membership) return true;
+    const linkedPerson = await trx
+      .selectFrom('person_account_links as link')
+      .innerJoin('people as person', (join) =>
+        join
+          .onRef('person.org_id', '=', 'link.org_id')
+          .onRef('person.id', '=', 'link.person_id'),
+      )
+      .select('link.id')
+      .where('link.org_id', '=', context.orgId)
+      .where('link.account_id', '=', context.actor.accountId)
+      .where('link.verified_at', 'is not', null)
+      .where('link.revoked_at', 'is', null)
+      .where('person.status', '=', 'active')
+      .executeTakeFirst();
+    return Boolean(linkedPerson);
   });
   if (!allowed) throw new ClassesAccessError();
 }
