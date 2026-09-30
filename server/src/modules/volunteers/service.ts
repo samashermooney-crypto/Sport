@@ -908,7 +908,10 @@ export async function buyOutVolunteerRequirement(
       connection,
     );
     try {
-      return await issueVolunteerBuyout(database, context, input, now);
+      // Keep every query in the critical section on the lock-owning session.
+      // This prevents pool scheduling or transaction-pooling proxies from
+      // separating the reservation work from its advisory lock.
+      return await issueVolunteerBuyout(connection, context, input, now);
     } finally {
       await sql`SELECT pg_advisory_unlock(hashtextextended(${lockKey}, 0))`.execute(
         connection,
