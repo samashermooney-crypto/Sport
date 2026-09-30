@@ -1,10 +1,10 @@
 # Track C — files, adapters, and wiring
-Status: working — the requested branches are integrated on `track/integration`; the latest completed hosted run is red in e2e, and C is fixing the generated permission matrix and remaining wiring failures.
+Status: working — the Federation route-crawler repair is committed as `ecf9f08a` on `track/integration`; focused API and Home tests, typecheck, and lint pass locally. Hosted verification for this exact head is pending.
 Branch: `track/integration` in `/Users/sammooney/Sport-trunk`
 Initial integration candidate: `4113aed191bcb96ef7a92cc989c6e24b7ac3fe7a` (historical checkpoint; not the current head).
-Current: integration base `rebuild/trunk` `5cdee29e`, with C `98b590f7`, A `e1f2507d`, QA `370ff21a`, K `037530e1`, G `b3a43502`, I `1e5f523b`, and D `7f5523a6`; generated waiver-retirement permission metadata/OpenAPI were committed at the ready SHA above. The C branch's Mailpit environment-port regression commit `43a6aa57` is included. Registry/OpenAPI/codegen were regenerated after merging; registry reports 45 server modules, 6 integrations, and 9 web features. `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` and `... npm run lint` both pass on the combined tree. Full test, Knip, and browser results are for hosted CI only.
-Hosted CI: `/Users/sammooney/athlentry-sprint/ci/integration.txt` last reported run `36649713095` on earlier checkpoint `e1f2507d` in progress and the current `4113aed1` pending; no GREEN result is claimed for the ready SHA.
-Open integration work: use exact hosted failures to fix C-owned server tests, Knip, and wiring; merge D/A fixes into this branch as their `fix/d` and `fix/a` branches appear, about every 15 minutes. F offer-checkout still needs E's persisted operation; H installment failure/final-notice SMS/push fanout still needs the shared consent-aware durable delivery contract.
+Current integration head: `ecf9f08ab0f1dbbb6d2df7c04c3bcf5c28599cbe` (`fix(federation): scope console bootstrap to caller access`). The integrated ancestry and open work below are retained as historical context.
+Hosted CI: run `36653551397` on prior head `c0dd2e28` completed with the database and static jobs successful and e2e failed on role-denied Federation calls from the route crawler. The orchestrator has not yet reported a run for `ecf9f08a`; no GREEN result is claimed.
+Open integration work: verify this exact head in hosted e2e and keep protected Federation route denials intact. Other integration tasks remain tracked below.
 
 ## Completed Track C work
 
@@ -12,7 +12,7 @@ Open integration work: use exact hosted failures to fix C-owned server tests, Kn
 - Track H chat attachments: active same-organization conversation members can upload and download images/PDF; image metadata is stripped; nonmembers receive 404 and Restricted reads remain audited.
 - Chat attachment expiry is checked against the message operation clock, so a file valid at send time is not rejected because a fixed test time predates the machine clock.
 - Track I Classes discovery: the family portal shell links to the generated `/me/orgs/:orgId/classes` route in desktop/mobile navigation with English and Spanish labels.
-- Track J Federation discovery: Console Home exposes Federation only when the authenticated relationships endpoint succeeds; `/console/federation/:orgId` is linked without granting access from a guessed route. Federation's admin database pool is initialized before the web process scrubs `DATABASE_ADMIN_URL`.
+- Track J Federation discovery: Console Home uses the authenticated, organization-scoped capabilities endpoint to show Federation only to eligible roles; `/console/federation/:orgId` is linked without granting access from a guessed route. Federation's admin database pool is initialized before the web process scrubs `DATABASE_ADMIN_URL`.
 - Fixed duplicate safety-center actions for owners with audit access and scoped the Federation journey's data-sharing controls to its named fieldset.
 - Track G schedule discoverability: organization owners can open the nested schedule route from Console Home; public facility pages load layout images through the Files module's approved-public-layout endpoint.
 - Track H provider IDs: email, SMS, and push adapters return provider message IDs when supplied; fake adapters return stable IDs. Mailpit SMTP reads `ATHLENTRY_MAILPIT_SMTP_PORT` (default 1025).
@@ -112,3 +112,10 @@ Open integration work: use exact hosted failures to fix C-owned server tests, Kn
 - **QA-SEC-001 / QA-SEC-016:** generated operation metadata and same/foreign-tenant fixtures are implemented on C; confirm full current matrix method coverage in the integration CI.
 - **QA-SEC-019:** verify route-level allowed/denied roles and scoped-role boundaries against declared permission-matrix predictions; see `docs/codex/qa/DEFECTS.md`.
 - **QA-ACC-050:** refresh launch-gate evidence against the integration candidate after QA crawler results and hosted CI are available; keep item 10 failed until the all-role route results are current.
+
+## Federation route-crawler repair — 2026-09-29
+
+- The prior hosted run `36653551397` on `c0dd2e28` passed database tests and all static jobs. E2E failed when organization-home pages probed Federation relationships for registrar and communications roles, and Federation pages eagerly requested read APIs outside finance, scheduler, and compliance roles. Those endpoints correctly returned concealed 404s; the route was mounted.
+- Commit `ecf9f08a` adds an authenticated, organization-scoped capabilities endpoint and shared response schema. The home screen uses its relationship capability instead of probing the protected relationships list. The relationships list is readable by Federation read roles and submit-entry roles so registrars can select a league. The Federation console loads only data routes authorized by the response and limits visible sections by capability; protected resource routes retain their existing 404 behavior.
+- Generated server route metadata and OpenAPI were refreshed. The real-Postgres mounted-API test `server/test/federationConsoleRoutes.integration.test.ts` passes 1/1 on `COMPOSE_PROJECT_NAME=athlentry_c PORT_OFFSET=500`; finance allowed reads return 200, restricted reads remain 404, and registrar relationship/submission reads return 200 while the member directory remains 404. `web/src/console/Home.test.tsx` passes 1/1.
+- `/Users/sammooney/athlentry-sprint/heavy.sh npm run typecheck` and `... npm run lint` pass. The isolated Docker stack was stopped. No local Playwright or full suite was run. Hosted CI for `ecf9f08a` is pending.
