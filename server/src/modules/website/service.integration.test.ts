@@ -216,6 +216,15 @@ describe('website page service', () => {
       );
       expect(fundraiserIndexHtml).toContain(`/site/${orgSlug}/sponsors`);
 
+      const newsPostResponse = await fetch(
+        `${origin}/site/${orgSlug}/news/${newsSlug}`,
+      );
+      const newsPostHtml = await newsPostResponse.text();
+      expect(newsPostResponse.status).toBe(200);
+      expect(newsPostHtml).toContain('<title>Community update ·');
+      expect(newsPostHtml).toContain('Public news.');
+      expect(newsPostHtml).toContain(`/site/${orgSlug}/news`);
+
       const facilitiesResponse = await fetch(
         `${origin}/site/${orgSlug}/facilities`,
       );
@@ -245,7 +254,9 @@ describe('website page service', () => {
       );
       expect(sitemap).not.toContain(privateFacilityId);
       expect(sitemap).toContain(`https://${orgSlug}.athlentry.com/news`);
-      expect(sitemap).not.toContain(newsSlug);
+      expect(sitemap).toContain(
+        `https://${orgSlug}.athlentry.com/news/${newsSlug}`,
+      );
 
       const interactiveResponse = await getWithHost(
         `/site/${orgSlug}/fundraisers/${campaignSlug}?app=1`,
@@ -730,10 +741,23 @@ describe('website page service', () => {
       expect(response.status).toBe(200);
       expect(html).toContain('<title>News · Website Test Club</title>');
       expect(html).toContain('<article>');
-      expect(html).toContain(
+      expect(html).toContain('Registration starts next week.');
+      expect(html).not.toContain(
         'Join us &lt;captains&gt; at the community field.',
       );
-      expect(html).not.toContain('<captains>');
+      const postResponse = await fetch(
+        `http://127.0.0.1:${String(address.port)}/${orgSlug}/news/season-opener`,
+      );
+      const postHtml = await postResponse.text();
+      expect(postResponse.status).toBe(200);
+      expect(postHtml).toContain(
+        '<title>Season opener announced · Website Test Club</title>',
+      );
+      expect(html).toContain('/site/' + orgSlug + '/news/season-opener');
+      expect(postHtml).toContain(
+        'Join us &lt;captains&gt; at the community field.',
+      );
+      expect(postHtml).not.toContain('<captains>');
     } finally {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => {

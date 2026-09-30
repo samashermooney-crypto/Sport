@@ -9,6 +9,9 @@
   "newsTitle": "Noticias",
   "newsDescription": "Novedades y anuncios de {{organizationName}}.",
   "noNewsPosts": "Todavía no hay noticias publicadas.",
+  "newsPostUnavailable": "Noticia no disponible",
+  "newsPostUnavailableDescription": "No se pudo cargar esta noticia publicada.",
+  "newsBackToList": "Todas las noticias",
   "administratorSignIn": "Iniciar sesión como administrador",
   "accessibilityStatement": "Declaración de accesibilidad"
 }

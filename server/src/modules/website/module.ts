@@ -19,6 +19,7 @@ import {
   websitePageListSchema,
   websitePublicEmbedSchema,
   websitePublicFacilitiesSchema,
+  websitePublicNewsPostSchema,
   websitePublicPageSchema,
   websitePublicNewsSchema,
   websiteSaveResponseSchema,
@@ -46,6 +47,13 @@ const routes = [
     path: '/api/v1/website/public/{orgSlug}/news',
     summary: 'List published public organization news posts',
     response: websitePublicNewsSchema,
+    public: true,
+  },
+  {
+    method: 'get',
+    path: '/api/v1/website/public/{orgSlug}/news/{newsSlug}',
+    summary: 'Get one currently published public organization news post',
+    response: websitePublicNewsPostSchema,
     public: true,
   },
   {

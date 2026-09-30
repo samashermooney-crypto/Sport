@@ -33,6 +33,8 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 ## Recent checks
 
+- Public news now has published-only detail API and SSR pages, translated client route, canonical/robots metadata, NewsArticle JSON-LD, detail sitemap URLs, and summary-only index cards. Future-dated posts are excluded from public lists and detail lookup. Focused website database tests pass 2/2 and 1/1; site route tests pass 5/5; i18n completeness passes 2/2; `npm run openapi`, `heavy.sh npm run typecheck`, `heavy.sh npm run lint`, and `git diff --check` pass. No parity tolerance or token-equality code changed.
+- Integration CI file last refreshed Wed 00:42: run `36671455807` is red on older SHA `758a22fe`; the reported test/E2E failures are family classes journeys and related console errors, with no design-parity failure listed. CI for the newer integration head was pending at that refresh; refresh the report after D's next commit lands there.
 - Historical run `36656899590` was red on 18 E2E tests and reported a stale `ui-team-1440` expected image. That Linux reference is now integrated; runs `36662938527` and `36663830530` completed without a D design-parity failure. `36663830530` remains red on family documents/classes journeys and the invalid `America/Minneapolis` demo timezone.
 - CI run `36648564282` on an older D head reported a 9.63% Linux 390px public-shell mismatch and component screenshot mismatches. In run `36653551397`, the same-runner shell capture passes; downloaded expected/actual/diff artifacts isolated one component-only select-chevron raster baseline mismatch, now corrected on `fix/d`.
 - QA-ACC-055 fix and regression coverage: report grouping now classifies verified credentials with `expires_on < CURRENT_DATE` as expired, keeps the expiry date inclusive, treats `NULL` expiry as non-expiring, and excludes revoked rows from the denominator. The focused dashboard test passes; the Postgres integration regression passed in the `test` job for `36662938527`.
@@ -80,8 +82,8 @@ Phase 16 §3: chart/report alternatives are semantic tables, calendars and board
 
 ## Exact next steps
 
-1. Have C merge the latest `fix/d` commits into `track/integration`; require a fresh CI run for that exact integration SHA because `/ci/integration.txt` currently reports a pending run on an older SHA. Confirm the parity job and scan all E2E/test failures for D-owned website or console regressions.
-2. Fix any newly reported D-owned parity or console/website failures. The focused website console/embed tests, Action Center, organization data/privacy, report builder, ReportsDashboard, and ConsoleShell tests passed individually on the preceding integration tree.
+1. Commit the public news detail slice, then merge the newest `track/integration` head into `fix/d` and ask C to include this branch in the next integration commit. Confirm a fresh CI run for that exact integration SHA, including parity, and scan test/E2E failures for D-owned website or console regressions.
+2. Fix newly reported D-owned parity or console/website failures. Focused website console/embed tests, Action Center, organization data/privacy, report builder, ReportsDashboard, ConsoleShell, and the public news tests passed individually on the preceding integration tree.
 3. Track C: wire `npm run perf:lighthouse:website` into CI on `ubuntu-24.04` after browser installation and upload `perf/results/phase14-shared-app/`; review exact shared-app scores before recording Phase 14 Lighthouse acceptance.
 4. Complete and record the documented manual keyboard review; keep cross-track requests in the section below.
 5. Finish public team pages after B provides the consent-aware roster contract and the staff directory after A provides an explicit staff opt-in field/API.

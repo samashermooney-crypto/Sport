@@ -47,7 +47,7 @@ beforeAll(async () => {
     );
     await admin.query(
       `INSERT INTO news_posts (id, org_id, slug, title, body_html, status, published_at)
-       VALUES ($1, $2, $3, 'Public update', '<p>Published news.</p>', 'published', now())`,
+       VALUES ($1, $2, $3, 'Public update', '<p>Published news.</p>', 'published', '2026-09-27T12:00:00.000Z')`,
       [newsId, orgId, newsSlug],
     );
   } finally {
@@ -132,7 +132,9 @@ describe('public website contact route', () => {
       expect(sitemapXml).toContain(
         `https://${orgSlug}.athlentry.com/site/${orgSlug}/news`,
       );
-      expect(sitemapXml).not.toContain(newsSlug);
+      expect(sitemapXml).toContain(
+        `https://${orgSlug}.athlentry.com/site/${orgSlug}/news/${newsSlug}`,
+      );
       const facilities = await fetch(
         `${origin}/api/v1/website/public/${orgSlug}/facilities`,
       );
@@ -147,6 +149,18 @@ describe('public website contact route', () => {
             mapUrl: 'https://maps.example.invalid/field',
           },
         ],
+      });
+      const newsPost = await fetch(
+        `${origin}/api/v1/website/public/${orgSlug}/news/${newsSlug}`,
+      );
+      expect(newsPost.status).toBe(200);
+      expect(await newsPost.json()).toMatchObject({
+        organization: { slug: orgSlug },
+        post: {
+          slug: newsSlug,
+          title: 'Public update',
+          bodyText: '<p>Published news.</p>',
+        },
       });
 
       const robotsAdmin = new pg.Client({

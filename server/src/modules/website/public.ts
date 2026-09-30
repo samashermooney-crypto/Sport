@@ -2,7 +2,10 @@ import { isIP } from 'node:net';
 import { domainToASCII } from 'node:url';
 
 import { orgSlugSchema } from '@shared/schemas/orgs';
-import { websitePageSlugSchema } from '@shared/schemas/website';
+import {
+  websiteNewsSlugSchema,
+  websitePageSlugSchema,
+} from '@shared/schemas/website';
 import express from 'express';
 import { createElement } from 'react';
 import type { ReactNode } from 'react';
@@ -23,6 +26,7 @@ import {
   getPublicWebsitePrograms,
   getPublicWebsiteSchedule,
   getPublicWebsitePage,
+  getPublicWebsiteNewsPost,
   listPublicWebsitePages,
   listPublicWebsiteNews,
   resolveVerifiedWebsiteHost,
@@ -144,6 +148,9 @@ function publicSiteSitemap(
         ...facilities.facilities.map(
           (facility) =>
             `${origin}/facilities/${encodeURIComponent(facility.id)}`,
+        ),
+        ...news.posts.map(
+          (post) => `${origin}/news/${encodeURIComponent(post.slug)}`,
         ),
         ...fundraisers.fundraisers.map(
           ({ slug }) => `${origin}/fundraisers/${encodeURIComponent(slug)}`,
@@ -557,6 +564,7 @@ function renderNewsDocument(
               '@type': 'NewsArticle',
               headline: post.title,
               datePublished: post.publishedAt,
+              url: `https://${organization.slug}.athlentry.com/site/${organization.slug}/news/${encodeURIComponent(post.slug)}`,
             },
           })),
         },
@@ -569,7 +577,17 @@ function renderNewsDocument(
     createElement(
       'article',
       { key: post.slug },
-      createElement('h2', null, post.title),
+      createElement(
+        'h2',
+        null,
+        createElement(
+          'a',
+          {
+            href: `/site/${organization.slug}/news/${encodeURIComponent(post.slug)}`,
+          },
+          post.title,
+        ),
+      ),
       post.publishedAt
         ? createElement(
             'time',
@@ -580,8 +598,12 @@ function renderNewsDocument(
             }).format(new Date(post.publishedAt)),
           )
         : null,
-      post.excerpt ? createElement('p', null, post.excerpt) : null,
-      createElement('p', null, post.bodyText),
+      createElement(
+        'p',
+        null,
+        post.excerpt ||
+          `${post.bodyText.slice(0, 240)}${post.bodyText.length > 240 ? '…' : ''}`,
+      ),
     ),
   );
   const document = createElement(
@@ -948,6 +970,61 @@ function renderProgramsDocument(
               ? 'Aún no hay programas públicos disponibles.'
               : 'There are no public programs available yet.',
           ),
+    ),
+  });
+}
+
+function renderNewsPostDocument(
+  site: NonNullable<Awaited<ReturnType<typeof getPublicWebsiteNewsPost>>>,
+  address: SiteAddress,
+) {
+  const spanish = site.organization.locale === 'es';
+  const title = `${site.post.title} · ${site.organization.name}`;
+  const description =
+    site.post.excerpt ||
+    fundraiserDescription(site.post.bodyText).slice(0, 160);
+  return renderGeneratedSitePage(site, address, {
+    title,
+    description,
+    canonicalPath: `/site/${site.organization.slug}/news/${encodeURIComponent(site.post.slug)}`,
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'NewsArticle',
+      headline: site.post.title,
+      datePublished: site.post.publishedAt,
+      description,
+      url: `https://${site.organization.slug}.athlentry.com/site/${site.organization.slug}/news/${encodeURIComponent(site.post.slug)}`,
+      publisher: {
+        '@type': 'SportsOrganization',
+        name: site.organization.name,
+      },
+    },
+    main: createElement(
+      'main',
+      { id: 'main-content', className: 'public-site-main' },
+      createElement('p', null, spanish ? 'Noticias' : 'News'),
+      createElement('h1', null, site.post.title),
+      site.post.publishedAt
+        ? createElement(
+            'time',
+            { dateTime: site.post.publishedAt },
+            new Intl.DateTimeFormat(site.organization.locale, {
+              dateStyle: 'long',
+              timeZone: 'UTC',
+            }).format(new Date(site.post.publishedAt)),
+          )
+        : null,
+      site.post.excerpt ? createElement('p', null, site.post.excerpt) : null,
+      createElement('p', null, site.post.bodyText),
+      createElement(
+        'p',
+        null,
+        createElement(
+          'a',
+          { href: `/site/${site.organization.slug}/news` },
+          spanish ? 'Todas las noticias' : 'All news',
+        ),
+      ),
     ),
   });
 }
@@ -1812,6 +1889,40 @@ export function createSiteSsrRouter(
               },
               siteAddress(response, orgSlug.data),
             ),
+          );
+      })
+      .catch(() => response.sendStatus(500));
+  });
+  router.get('/:orgSlug/news/:newsSlug', (request, response, next) => {
+    if (request.query.app === '1') {
+      next();
+      return;
+    }
+    const orgSlug = orgSlugSchema.safeParse(request.params.orgSlug);
+    const newsSlug = websiteNewsSlugSchema.safeParse(request.params.newsSlug);
+    if (!orgSlug.success || !newsSlug.success) {
+      response.sendStatus(404);
+      return;
+    }
+    void getPublicWebsiteNewsPost(
+      dependencies.database,
+      orgSlug.data,
+      newsSlug.data,
+      withOrg,
+    )
+      .then((site) => {
+        if (!site) {
+          response.sendStatus(404);
+          return;
+        }
+        response
+          .setHeader(
+            'Cache-Control',
+            'public, max-age=60, stale-while-revalidate=300',
+          )
+          .type('html')
+          .send(
+            renderNewsPostDocument(site, siteAddress(response, orgSlug.data)),
           );
       })
       .catch(() => response.sendStatus(500));

@@ -7071,6 +7071,14 @@ export const apiRouteMetadata = [
     scope: 'public',
   },
   {
+    operationId: 'get_api_v1_website_public_orgSlug_news_newsSlug',
+    method: 'get',
+    path: '/api/v1/website/public/{orgSlug}/news/{newsSlug}',
+    permission: 'public.access',
+    resource: 'website.website.public',
+    scope: 'public',
+  },
+  {
     operationId: 'post_api_v1_website_public_orgSlug_contact',
     method: 'post',
     path: '/api/v1/website/public/{orgSlug}/contact',

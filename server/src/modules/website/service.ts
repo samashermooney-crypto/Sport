@@ -320,6 +320,7 @@ export async function listPublicWebsiteNews(
   database: WebsiteDatabase,
   orgSlug: string,
   runWithOrg: typeof withOrg = withOrg,
+  now = new Date(),
 ) {
   const organization = await database
     .selectFrom('organizations')
@@ -342,6 +343,7 @@ export async function listPublicWebsiteNews(
         .select(['slug', 'title', 'excerpt', 'body_html', 'published_at'])
         .where('org_id', '=', organization.id)
         .where('status', '=', 'published')
+        .where('published_at', '<=', now)
         .orderBy('published_at', 'desc')
         .limit(50)
         .execute(),
@@ -392,6 +394,48 @@ export async function listPublicWebsiteNews(
       })),
     });
   });
+}
+
+export async function getPublicWebsiteNewsPost(
+  database: WebsiteDatabase,
+  orgSlug: string,
+  newsSlug: string,
+  runWithOrg: typeof withOrg = withOrg,
+  now = new Date(),
+) {
+  const site = await getPublicWebsiteChrome(database, orgSlug, runWithOrg);
+  if (!site) return null;
+  const post = await runWithOrg(
+    { orgId: site.organization.id, actor: { accountId: publicActor } },
+    (trx) =>
+      trx
+        .selectFrom('news_posts')
+        .select(['slug', 'title', 'excerpt', 'body_html', 'published_at'])
+        .where('org_id', '=', site.organization.id)
+        .where('slug', '=', newsSlug)
+        .where('status', '=', 'published')
+        .where('published_at', '<=', now)
+        .executeTakeFirst(),
+  );
+  if (!post?.published_at) return null;
+  return {
+    organization: {
+      name: site.organization.name,
+      slug: site.organization.slug,
+      locale: site.organization.locale,
+    },
+    theme: site.theme,
+    robotsPolicy: site.robotsPolicy,
+    navigation: site.navigation,
+    footerNavigation: site.footerNavigation,
+    post: {
+      slug: post.slug,
+      title: post.title,
+      excerpt: post.excerpt,
+      bodyText: post.body_html,
+      publishedAt: post.published_at.toISOString(),
+    },
+  };
 }
 
 export async function getPublicWebsiteRobotsPolicy(

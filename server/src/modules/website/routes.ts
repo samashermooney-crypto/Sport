@@ -28,6 +28,8 @@ import {
   websiteSaveResponseSchema,
   websiteSettingsBodySchema,
   websiteSettingsResponseSchema,
+  websiteNewsSlugSchema,
+  websitePublicNewsPostSchema,
 } from '@shared/schemas/website';
 import express from 'express';
 import { z } from 'zod';
@@ -46,6 +48,7 @@ import {
   getPublicWebsiteFacilities,
   getPublicWebsiteFundraisers,
   getPublicWebsitePage,
+  getPublicWebsiteNewsPost,
   getPublicWebsitePrograms,
   getPublicWebsiteRobotsPolicy,
   getWebsiteSettings,
@@ -175,6 +178,31 @@ export function createWebsiteRouter(
           'public, max-age=60, stale-while-revalidate=300',
         )
         .json(result);
+    }),
+  );
+
+  router.get(
+    '/public/:orgSlug/news/:newsSlug',
+    route(async (request, response) => {
+      const orgSlug = orgSlugSchema.parse(request.params.orgSlug);
+      const newsSlug = websiteNewsSlugSchema.parse(request.params.newsSlug);
+      const result = await getPublicWebsiteNewsPost(
+        dependencies.database,
+        orgSlug,
+        newsSlug,
+        withOrg,
+        dependencies.clock(),
+      );
+      if (!result) {
+        response.sendStatus(404);
+        return;
+      }
+      response
+        .setHeader(
+          'Cache-Control',
+          'public, max-age=60, stale-while-revalidate=300',
+        )
+        .json(websitePublicNewsPostSchema.parse(result));
     }),
   );
 
@@ -386,10 +414,19 @@ export function createWebsiteRouter(
             .map((url) => `<url><loc>${url}</loc></url>`)
             .join('')
         : '';
-      const newsEntry =
-        shouldIndex && news.posts.length
-          ? `<url><loc>${host}/site/${encodeURIComponent(orgSlug)}/news</loc></url>`
-          : '';
+      const newsEntry = shouldIndex
+        ? [
+            ...(news.posts.length
+              ? [`${host}/site/${encodeURIComponent(orgSlug)}/news`]
+              : []),
+            ...news.posts.map(
+              (post) =>
+                `${host}/site/${encodeURIComponent(orgSlug)}/news/${encodeURIComponent(post.slug)}`,
+            ),
+          ]
+            .map((url) => `<url><loc>${url}</loc></url>`)
+            .join('')
+        : '';
       response
         .setHeader('Cache-Control', 'public, max-age=300')
         .type('application/xml')
