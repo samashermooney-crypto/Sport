@@ -1,6 +1,7 @@
 // Captures the legacy admin shell on the ubuntu-24.04 x86_64 CI runner for the
 // parity suite's header comparison (see parity-baselines.json).
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -74,10 +75,46 @@ async function captureDashboard(width) {
   await context.close();
 }
 
+async function capturePublicSite(width) {
+  const context = await browser.newContext({
+    viewport: { width, height: 900 },
+    deviceScaleFactor: 1,
+    ignoreHTTPSErrors: true,
+  });
+  const page = await context.newPage();
+  await page.goto(new URL('/site/fieldhouse-demo', base).toString());
+  await page.getByRole('heading', { name: 'Northstar Youth Sports' }).waitFor();
+  await page.getByRole('navigation', { name: 'Website navigation' }).waitFor();
+  await page
+    .waitForLoadState('networkidle', { timeout: 5_000 })
+    .catch(() => {});
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({
+    path: resolve(output, `public-site-home-${String(width)}-linux.png`),
+    animations: 'disabled',
+  });
+  await context.close();
+}
+
 try {
   for (const width of [1440, 390]) {
     await captureDashboard(width);
+    await capturePublicSite(width);
   }
+  const shellFiles = [
+    'dashboard-1440-linux.png',
+    'dashboard-390-linux.png',
+    'public-site-home-1440-linux.png',
+    'public-site-home-390-linux.png',
+  ];
+  const shellSha256 = Object.fromEntries(
+    shellFiles.map((name) => [
+      name,
+      createHash('sha256')
+        .update(readFileSync(resolve(output, name)))
+        .digest('hex'),
+    ]),
+  );
   await writeFile(
     resolve(output, 'parity-baselines.json'),
     JSON.stringify(
@@ -93,7 +130,8 @@ try {
           lastCapturedActionsRun: process.env.GITHUB_RUN_ID ?? 'manual',
           fontPackages,
           viewportHeight: 900,
-          shellFiles: ['dashboard-1440-linux.png', 'dashboard-390-linux.png'],
+          shellFiles,
+          shellSha256,
         },
       },
       null,
