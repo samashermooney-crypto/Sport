@@ -350,7 +350,7 @@
 - **Reproduce:** run `e2e/journeys/import-scale.spec.ts` against the isolated QA stack.
 - **Expected:** the full 2,000-row preview reports all records to create, commit succeeds, rollback marks all records archived, and axe reports no violations.
 - **Request:** none; scale coverage is added on `track/qa`.
-- **Status:** browser verification pending because Track I owns the QA Postgres port.
+- **Status:** the `fix/a` journey now uses 2,000 data rows with 3 seeded duplicates, 5 invalid rows, and ISO/US date formats; it asserts normalized dates and row issues, the exact preview counts, commit under 30 seconds, and rollback of every created row. Hosted GitHub CI verification is pending for this expanded fixture.
 
 ### QA-ACC-015 — Schedule generation-to-publication journey is missing
 
